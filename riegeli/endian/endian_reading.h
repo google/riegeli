@@ -113,26 +113,62 @@ bool ReadBigEndians(Reader& src, absl::Span<internal::type_identity_t<T>> dest);
 
 // Reads a number in a fixed width Little/Big Endian encoding from an array.
 //
-// Reads `sizeof(uint{16,32,64}_t)` bytes  from `src[]`.
+// Reads `sizeof({u,}int{16,32,64}_t)` bytes  from `src[]`.
 uint16_t ReadLittleEndian16(const char* src);
 uint32_t ReadLittleEndian32(const char* src);
 uint64_t ReadLittleEndian64(const char* src);
+int16_t ReadLittleEndianSigned16(const char* src);
+int32_t ReadLittleEndianSigned32(const char* src);
+int64_t ReadLittleEndianSigned64(const char* src);
 uint16_t ReadBigEndian16(const char* src);
 uint32_t ReadBigEndian32(const char* src);
 uint64_t ReadBigEndian64(const char* src);
+int16_t ReadBigEndianSigned16(const char* src);
+int32_t ReadBigEndianSigned32(const char* src);
+int64_t ReadBigEndianSigned64(const char* src);
+
+// Reads a number in a fixed width Little/Big Endian encoding from an array.
+// The width of the encoding is determined by the template argument, which
+// must be one of: `{u,}int{8,16,32,64}_t`.
+//
+// Reads `sizeof(T)` bytes  from `src[]`.
+template <typename T>
+T ReadLittleEndian(const char* src);
+template <typename T>
+T ReadBigEndian(const char* src);
 
 // Reads an array of numbers in a fixed width Little/Big Endian encoding from an
 // array.
 //
 // This is faster than reading them individually for native endianness.
 //
-// Reads `dest.size() * sizeof(uint{16,32,64}_t)` bytes  from `src[]`.
+// Reads `dest.size() * sizeof({u,}int{16,32,64}_t)` bytes  from `src[]`.
 void ReadLittleEndian16s(const char* src, absl::Span<uint16_t> dest);
 void ReadLittleEndian32s(const char* src, absl::Span<uint32_t> dest);
 void ReadLittleEndian64s(const char* src, absl::Span<uint64_t> dest);
+void ReadLittleEndianSigned16s(const char* src, absl::Span<int16_t> dest);
+void ReadLittleEndianSigned32s(const char* src, absl::Span<int32_t> dest);
+void ReadLittleEndianSigned64s(const char* src, absl::Span<int64_t> dest);
 void ReadBigEndian16s(const char* src, absl::Span<uint16_t> dest);
 void ReadBigEndian32s(const char* src, absl::Span<uint32_t> dest);
 void ReadBigEndian64s(const char* src, absl::Span<uint64_t> dest);
+void ReadBigEndianSigned16s(const char* src, absl::Span<int16_t> dest);
+void ReadBigEndianSigned32s(const char* src, absl::Span<int32_t> dest);
+void ReadBigEndianSigned64s(const char* src, absl::Span<int64_t> dest);
+
+// Reads an array of numbers in a fixed width Little/Big Endian encoding from an
+// array. The width of the encoding is determined by the template argument,
+// which must be one of: `{u,}int{8,16,32,64}_t`.
+//
+// This is faster than reading them individually for native endianness.
+//
+// Reads `dest.size() * sizeof(T)` bytes  from `src[]`.
+template <typename T>
+void ReadLittleEndians(const char* src,
+                       absl::Span<internal::type_identity_t<T>> dest);
+template <typename T>
+void ReadBigEndians(const char* src,
+                    absl::Span<internal::type_identity_t<T>> dest);
 
 // Implementation details follow.
 
@@ -589,6 +625,18 @@ inline uint64_t ReadLittleEndian64(const char* src) {
   return internal::DecodeLittleEndian64(encoded);
 }
 
+inline int16_t ReadLittleEndianSigned16(const char* src) {
+  return static_cast<int16_t>(ReadLittleEndian16(src));
+}
+
+inline int32_t ReadLittleEndianSigned32(const char* src) {
+  return static_cast<int32_t>(ReadLittleEndian32(src));
+}
+
+inline int64_t ReadLittleEndianSigned64(const char* src) {
+  return static_cast<int64_t>(ReadLittleEndian64(src));
+}
+
 inline uint16_t ReadBigEndian16(const char* src) {
   uint16_t encoded;
   std::memcpy(&encoded, src, sizeof(uint16_t));
@@ -605,6 +653,84 @@ inline uint64_t ReadBigEndian64(const char* src) {
   uint64_t encoded;
   std::memcpy(&encoded, src, sizeof(uint64_t));
   return internal::DecodeBigEndian64(encoded);
+}
+
+inline int16_t ReadBigEndianSigned16(const char* src) {
+  return static_cast<int16_t>(ReadBigEndian16(src));
+}
+
+inline int32_t ReadBigEndianSigned32(const char* src) {
+  return static_cast<int32_t>(ReadBigEndian32(src));
+}
+
+inline int64_t ReadBigEndianSigned64(const char* src) {
+  return static_cast<int64_t>(ReadBigEndian64(src));
+}
+
+template <>
+inline uint8_t ReadLittleEndian<uint8_t>(const char* src) {
+  return static_cast<uint8_t>(*src);
+}
+template <>
+inline uint16_t ReadLittleEndian<uint16_t>(const char* src) {
+  return ReadLittleEndian16(src);
+}
+template <>
+inline uint32_t ReadLittleEndian<uint32_t>(const char* src) {
+  return ReadLittleEndian32(src);
+}
+template <>
+inline uint64_t ReadLittleEndian<uint64_t>(const char* src) {
+  return ReadLittleEndian64(src);
+}
+template <>
+inline int8_t ReadLittleEndian<int8_t>(const char* src) {
+  return static_cast<int8_t>(*src);
+}
+template <>
+inline int16_t ReadLittleEndian<int16_t>(const char* src) {
+  return ReadLittleEndianSigned16(src);
+}
+template <>
+inline int32_t ReadLittleEndian<int32_t>(const char* src) {
+  return ReadLittleEndianSigned32(src);
+}
+template <>
+inline int64_t ReadLittleEndian<int64_t>(const char* src) {
+  return ReadLittleEndianSigned64(src);
+}
+
+template <>
+inline uint8_t ReadBigEndian<uint8_t>(const char* src) {
+  return static_cast<uint8_t>(*src);
+}
+template <>
+inline uint16_t ReadBigEndian<uint16_t>(const char* src) {
+  return ReadBigEndian16(src);
+}
+template <>
+inline uint32_t ReadBigEndian<uint32_t>(const char* src) {
+  return ReadBigEndian32(src);
+}
+template <>
+inline uint64_t ReadBigEndian<uint64_t>(const char* src) {
+  return ReadBigEndian64(src);
+}
+template <>
+inline int8_t ReadBigEndian<int8_t>(const char* src) {
+  return static_cast<int8_t>(*src);
+}
+template <>
+inline int16_t ReadBigEndian<int16_t>(const char* src) {
+  return ReadBigEndianSigned16(src);
+}
+template <>
+inline int32_t ReadBigEndian<int32_t>(const char* src) {
+  return ReadBigEndianSigned32(src);
+}
+template <>
+inline int64_t ReadBigEndian<int64_t>(const char* src) {
+  return ReadBigEndianSigned64(src);
 }
 
 inline void ReadLittleEndian16s(const char* src, absl::Span<uint16_t> dest) {
@@ -655,6 +781,57 @@ inline void ReadLittleEndian64s(const char* src, absl::Span<uint64_t> dest) {
   }
 }
 
+inline void ReadLittleEndianSigned16s(const char* src,
+                                      absl::Span<int16_t> dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
+    }
+  } else {
+    for (int16_t& value : dest) {
+      value = ReadLittleEndianSigned16(src);
+      src += sizeof(int16_t);
+    }
+  }
+}
+
+inline void ReadLittleEndianSigned32s(const char* src,
+                                      absl::Span<int32_t> dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
+    }
+  } else {
+    for (int32_t& value : dest) {
+      value = ReadLittleEndianSigned32(src);
+      src += sizeof(int32_t);
+    }
+  }
+}
+
+inline void ReadLittleEndianSigned64s(const char* src,
+                                      absl::Span<int64_t> dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
+    }
+  } else {
+    for (int64_t& value : dest) {
+      value = ReadLittleEndianSigned64(src);
+      src += sizeof(int64_t);
+    }
+  }
+}
+
 inline void ReadBigEndian16s(const char* src, absl::Span<uint16_t> dest) {
   if (internal::IsBigEndian()) {
     if (ABSL_PREDICT_TRUE(
@@ -701,6 +878,151 @@ inline void ReadBigEndian64s(const char* src, absl::Span<uint64_t> dest) {
       src += sizeof(uint64_t);
     }
   }
+}
+
+inline void ReadBigEndianSigned16s(const char* src, absl::Span<int16_t> dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
+    }
+  } else {
+    for (int16_t& value : dest) {
+      value = ReadBigEndianSigned16(src);
+      src += sizeof(int16_t);
+    }
+  }
+}
+
+inline void ReadBigEndianSigned32s(const char* src, absl::Span<int32_t> dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
+    }
+  } else {
+    for (int32_t& value : dest) {
+      value = ReadBigEndianSigned32(src);
+      src += sizeof(int32_t);
+    }
+  }
+}
+
+inline void ReadBigEndianSigned64s(const char* src, absl::Span<int64_t> dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !dest.empty())) {
+      std::memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
+    }
+  } else {
+    for (int64_t& value : dest) {
+      value = ReadBigEndianSigned64(src);
+      src += sizeof(int64_t);
+    }
+  }
+}
+
+template <>
+inline void ReadLittleEndians<uint8_t>(const char* src,
+                                       absl::Span<uint8_t> dest) {
+  if (ABSL_PREDICT_TRUE(
+          // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+          // undefined.
+          !dest.empty())) {
+    std::memcpy(dest.data(), src, dest.size());
+  }
+}
+template <>
+inline void ReadLittleEndians<uint16_t>(const char* src,
+                                        absl::Span<uint16_t> dest) {
+  ReadLittleEndian16s(src, dest);
+}
+template <>
+inline void ReadLittleEndians<uint32_t>(const char* src,
+                                        absl::Span<uint32_t> dest) {
+  ReadLittleEndian32s(src, dest);
+}
+template <>
+inline void ReadLittleEndians<uint64_t>(const char* src,
+                                        absl::Span<uint64_t> dest) {
+  ReadLittleEndian64s(src, dest);
+}
+template <>
+inline void ReadLittleEndians<int8_t>(const char* src,
+                                      absl::Span<int8_t> dest) {
+  if (ABSL_PREDICT_TRUE(
+          // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+          // undefined.
+          !dest.empty())) {
+    std::memcpy(dest.data(), src, dest.size());
+  }
+}
+template <>
+inline void ReadLittleEndians<int16_t>(const char* src,
+                                       absl::Span<int16_t> dest) {
+  ReadLittleEndianSigned16s(src, dest);
+}
+template <>
+inline void ReadLittleEndians<int32_t>(const char* src,
+                                       absl::Span<int32_t> dest) {
+  ReadLittleEndianSigned32s(src, dest);
+}
+template <>
+inline void ReadLittleEndians<int64_t>(const char* src,
+                                       absl::Span<int64_t> dest) {
+  ReadLittleEndianSigned64s(src, dest);
+}
+
+template <>
+inline void ReadBigEndians<uint8_t>(const char* src, absl::Span<uint8_t> dest) {
+  if (ABSL_PREDICT_TRUE(
+          // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+          // undefined.
+          !dest.empty())) {
+    std::memcpy(dest.data(), src, dest.size());
+  }
+}
+template <>
+inline void ReadBigEndians<uint16_t>(const char* src,
+                                     absl::Span<uint16_t> dest) {
+  ReadBigEndian16s(src, dest);
+}
+template <>
+inline void ReadBigEndians<uint32_t>(const char* src,
+                                     absl::Span<uint32_t> dest) {
+  ReadBigEndian32s(src, dest);
+}
+template <>
+inline void ReadBigEndians<uint64_t>(const char* src,
+                                     absl::Span<uint64_t> dest) {
+  ReadBigEndian64s(src, dest);
+}
+template <>
+inline void ReadBigEndians<int8_t>(const char* src, absl::Span<int8_t> dest) {
+  if (ABSL_PREDICT_TRUE(
+          // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+          // undefined.
+          !dest.empty())) {
+    std::memcpy(dest.data(), src, dest.size());
+  }
+}
+template <>
+inline void ReadBigEndians<int16_t>(const char* src, absl::Span<int16_t> dest) {
+  ReadBigEndianSigned16s(src, dest);
+}
+template <>
+inline void ReadBigEndians<int32_t>(const char* src, absl::Span<int32_t> dest) {
+  ReadBigEndianSigned32s(src, dest);
+}
+template <>
+inline void ReadBigEndians<int64_t>(const char* src, absl::Span<int64_t> dest) {
+  ReadBigEndianSigned64s(src, dest);
 }
 
 }  // namespace riegeli
