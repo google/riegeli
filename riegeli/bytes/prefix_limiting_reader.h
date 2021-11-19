@@ -62,6 +62,9 @@ class PrefixLimitingReaderBase : public Reader {
     absl::optional<Position> base_pos_;
   };
 
+  // Returns the base position of the origial `Reader`.
+  Position base_pos() const { return base_pos_; }
+
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;

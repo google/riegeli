@@ -64,6 +64,9 @@ class PrefixLimitingWriterBase : public Writer {
     absl::optional<Position> base_pos_;
   };
 
+  // Returns the base position of the origial `Writer`.
+  Position base_pos() const { return base_pos_; }
+
   // Returns the original `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
