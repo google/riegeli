@@ -45,12 +45,16 @@ inline void CloseStream(Stream& stream) {
   stream.close();
 }
 
-template <typename T>
+template <typename T,
+          std::enable_if_t<std::is_base_of<std::istream, T>::value, int> = 0>
+inline std::istream* DetectIstream(T* stream) {
+  return stream;
+}
+template <typename T,
+          std::enable_if_t<!std::is_base_of<std::istream, T>::value, int> = 0>
 inline std::istream* DetectIstream(T* stream) {
   return nullptr;
 }
-
-inline std::istream* DetectIstream(std::istream* stream) { return stream; }
 
 }  // namespace internal
 }  // namespace riegeli
