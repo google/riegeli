@@ -319,35 +319,48 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
-  for (;;) {
-    const size_t length_to_copy =
-        UnsignedMin(length, secondary_buffer_.size() -
-                                iter_.CharIndexInChain(start_to_cursor()));
-    if (length_to_copy == secondary_buffer_.size()) {
-      if (!Skip(length_to_copy)) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "ReaderFactoryBase::ConcurrentReader::Skip() failed";
-      }
-      if (ABSL_PREDICT_FALSE(!dest.Write(secondary_buffer_))) return false;
-    } else if (length_to_copy <= kMaxBytesToCopy) {
-      if (ABSL_PREDICT_FALSE(!dest.Push(length_to_copy))) {
-        return false;
-      }
-      if (!Read(length_to_copy, dest.cursor())) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "ReaderFactoryBase::ConcurrentReader::Read(char*) failed";
-      }
-      dest.move_cursor(length_to_copy);
+  if (length <= available()) {
+    Chain data;
+    iter_.AppendSubstrTo(absl::string_view(cursor(), length), data);
+    move_cursor(length);
+    return dest.Write(std::move(data));
+  }
+  if (iter_ != secondary_buffer_.blocks().cend()) {
+    if (available() <= kMaxBytesToCopy) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available()))) return false;
     } else {
       Chain data;
-      if (!Read(length_to_copy, data)) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "ReaderFactoryBase::ConcurrentReader::Read(Chain&) failed";
-      }
+      iter_.AppendSubstrTo(absl::string_view(cursor(), available()), data);
       if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
     }
-    length -= length_to_copy;
-    if (length == 0) return true;
+    length -= available();
+    ++iter_;
+  }
+  set_buffer();
+  for (;;) {
+    while (iter_ != secondary_buffer_.blocks().cend()) {
+      move_limit_pos(iter_->size());
+      if (length <= iter_->size()) {
+        set_buffer(iter_->data(), iter_->size(), length);
+        if (start_to_cursor() <= kMaxBytesToCopy) {
+          return dest.Write(start(), start_to_cursor());
+        } else {
+          Chain data;
+          iter_.AppendSubstrTo(absl::string_view(start(), start_to_cursor()),
+                               data);
+          return dest.Write(std::move(data));
+        }
+      }
+      if (iter_->size() <= kMaxBytesToCopy) {
+        if (ABSL_PREDICT_FALSE(!dest.Write(*iter_))) return false;
+      } else {
+        Chain data;
+        iter_.AppendTo(data);
+        if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
+      }
+      length -= iter_->size();
+      ++iter_;
+    }
 
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     secondary_buffer_.Clear();
