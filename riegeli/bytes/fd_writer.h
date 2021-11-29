@@ -167,8 +167,10 @@ class FdWriterBase : public BufferedWriter {
   // `Close()`.
   const std::string& filename() const { return filename_; }
 
-  bool SupportsRandomAccess() override { return supports_random_access_; }
-  bool SupportsReadMode() override { return supports_read_mode_; }
+  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsReadMode() override {
+    return supports_read_mode_ && supports_random_access();
+  }
 
  protected:
   explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -189,6 +191,7 @@ class FdWriterBase : public BufferedWriter {
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  bool supports_random_access();
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -201,11 +204,16 @@ class FdWriterBase : public BufferedWriter {
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+
   bool WriteMode();
   bool SeekInternal(int dest, Position new_pos);
 
   std::string filename_;
-  bool supports_random_access_ = false;
+  // Invariant:
+  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
   bool supports_read_mode_ = false;
 
@@ -238,7 +246,7 @@ class FdWriterBase : public BufferedWriter {
 // `FdWriter` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
-// this is checked by calling `lseek()`).
+// this is checked by calling `lseek(SEEK_END)`).
 //
 // `FdWriter` supports `ReadMode()` if it supports random access and the fd was
 // opened with `O_RDWR`.
@@ -371,7 +379,7 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
 inline void FdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();
@@ -381,7 +389,7 @@ inline void FdWriterBase::Reset(Closed) {
 inline void FdWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
-  supports_random_access_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();

@@ -112,7 +112,7 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
                  independent_pos == absl::nullopt)
       << "Failed precondition of FdReaderBase: "
          "Options::assumed_pos() and Options::independent_pos() are both set";
-  RIEGELI_ASSERT(!supports_random_access_)
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
   RIEGELI_ASSERT(!has_independent_pos_)
@@ -126,7 +126,7 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     }
     set_limit_pos(*assumed_pos);
   } else if (independent_pos != absl::nullopt) {
-    supports_random_access_ = true;
+    supports_random_access_ = LazyBoolState::kTrue;
     has_independent_pos_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -137,15 +137,22 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (file_pos < 0) {
-      if (errno == ESPIPE) {
-        // Random access is not supported. Assume 0 as the initial position.
-      } else {
-        FailOperation("lseek()");
-      }
+      // Random access is not supported. Assume 0 as the initial position.
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
-    supports_random_access_ = true;
+    // `lseek(SEEK_CUR)` succeeded, and `lseek(SEEK_END)` will be checked later.
+    supports_random_access_ = LazyBoolState::kUnknown;
+  }
+}
+
+void FdReaderBase::Done() {
+  BufferedReader::Done();
+  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
+  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
+  // a closed stream. The resolution is no longer interesting anyway.
+  if (supports_random_access_ == LazyBoolState::kUnknown) {
+    supports_random_access_ = LazyBoolState::kFalse;
   }
 }
 
@@ -161,6 +168,33 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
 absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
   status = Annotate(status, absl::StrCat("reading ", filename_));
   return BufferedReader::AnnotateStatusImpl(std::move(status));
+}
+
+bool FdReaderBase::supports_random_access() {
+  switch (supports_random_access_) {
+    case LazyBoolState::kFalse:
+      return false;
+    case LazyBoolState::kTrue:
+      return true;
+    case LazyBoolState::kUnknown:
+      break;
+  }
+  RIEGELI_ASSERT(is_open())
+      << "Failed invariant of FdReaderBase: "
+         "unresolved supports_random_access_ but object closed";
+  const int src = src_fd();
+  bool supported = false;
+  if (lseek(src, 0, SEEK_END) >= 0) {
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) <
+                           0)) {
+      FailOperation("lseek()");
+    } else {
+      supported = true;
+    }
+  }
+  supports_random_access_ =
+      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
+  return supported;
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -210,7 +244,7 @@ inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(supports_random_access_)
+  RIEGELI_ASSERT(supports_random_access())
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "random access not supported";
   if (!has_independent_pos_) {
@@ -229,7 +263,7 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -250,6 +284,11 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> FdReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedReader::SizeImpl();
+  }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const int src = src_fd();
   struct stat stat_info;
@@ -261,12 +300,12 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
 }
 
 std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     // Delegate to base class version which fails, to avoid duplicating the
     // failure message here.
     return BufferedReader::NewReaderImpl(initial_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   const int src = src_fd();
   return std::make_unique<FdReader<UnownedFd>>(
       src, FdReaderBase::Options()

@@ -241,11 +241,12 @@ bool IstreamReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> IstreamReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    Fail(absl::UnimplementedError("IstreamReaderBase::Size() not supported"));
-    return absl::nullopt;
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedReader::SizeImpl();
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   std::istream& src = *src_stream();
   errno = 0;
   src.seekg(0, std::ios_base::end);

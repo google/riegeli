@@ -40,6 +40,9 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
       << "Failed precondition of OstreamWriterBase::Initialize(): "
          "supports_random_access_ not reset";
+  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kFalse)
+      << "Failed precondition of OstreamWriterBase::Initialize(): "
+         "supports_read_mode_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     // Either constructing the stream failed or the stream was already in a
     // failed state. In any case `OstreamWriterBase` should fail.
@@ -64,6 +67,7 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
     // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
     // checked later.
     supports_random_access_ = LazyBoolState::kUnknown;
+    supports_read_mode_ = LazyBoolState::kUnknown;
   }
 }
 
@@ -74,6 +78,10 @@ void OstreamWriterBase::Done() {
   // a closed stream. The resolution is no longer interesting anyway.
   if (supports_random_access_ == LazyBoolState::kUnknown) {
     supports_random_access_ = LazyBoolState::kFalse;
+  }
+  // Same for `supports_read_mode_`.
+  if (supports_read_mode_ == LazyBoolState::kUnknown) {
+    supports_read_mode_ = LazyBoolState::kFalse;
   }
   associated_reader_.Reset();
 }
@@ -119,6 +127,43 @@ bool OstreamWriterBase::supports_random_access() {
     }
   }
   supports_random_access_ =
+      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
+  return supported;
+}
+
+bool OstreamWriterBase::supports_read_mode() {
+  switch (supports_read_mode_) {
+    case LazyBoolState::kFalse:
+      return false;
+    case LazyBoolState::kTrue:
+      return true;
+    case LazyBoolState::kUnknown:
+      break;
+  }
+  RIEGELI_ASSERT(is_open())
+      << "Failed invariant of OstreamWriterBase: "
+         "unresolved supports_read_mode_ but object closed";
+  std::istream* const src = src_stream();
+  bool supported = false;
+  if (src != nullptr) {
+    const std::streamoff stream_pos = src->tellg();
+    if (stream_pos >= 0) {
+      src->seekg(0, std::ios_base::end);
+      if (src->fail()) {
+        src->clear(src->rdstate() & ~std::ios_base::failbit);
+      } else {
+        std::ostream& dest = *dest_stream();
+        errno = 0;
+        dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+        if (ABSL_PREDICT_FALSE(dest.fail())) {
+          FailOperation("ostream::seekp()");
+        } else {
+          supported = true;
+        }
+      }
+    }
+  }
+  supports_read_mode_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
 }
@@ -180,9 +225,11 @@ bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    return Fail(
-        absl::UnimplementedError("OstreamWriterBase::Seek() not supported"));
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::SeekBehindBuffer(new_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::ostream& dest = *dest_stream();
   errno = 0;
   if (new_pos > start_pos()) {
@@ -213,11 +260,12 @@ absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    Fail(absl::UnimplementedError("OstreamWriterBase::Size() not supported"));
-    return absl::nullopt;
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::SizeBehindBuffer();
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   std::ostream& dest = *dest_stream();
   errno = 0;
   dest.seekp(0, std::ios_base::end);
@@ -242,15 +290,15 @@ Reader* OstreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
-  std::istream* const src = src_stream();
-  if (ABSL_PREDICT_FALSE(src == nullptr)) {
+  if (ABSL_PREDICT_FALSE(!supports_read_mode())) {
     // Delegate to base class version which fails, to avoid duplicating the
     // failure message here.
-    return BufferedWriter::ReadModeImpl(initial_pos);
+    return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  std::istream& src = *src_stream();
   IstreamReader<>* const reader = associated_reader_.ResetReader(
-      src, IstreamReaderBase::Options().set_buffer_size(buffer_size()));
+      &src, IstreamReaderBase::Options().set_buffer_size(buffer_size()));
   read_mode_ = true;
   reader->Seek(initial_pos);
   return reader;

@@ -218,12 +218,12 @@ absl::optional<Position> FileWriterBase::SizeImpl() {
 }
 
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   if (ABSL_PREDICT_FALSE(filename_.empty())) {
     // Delegate to base class version which fails, to avoid duplicating the
     // failure message here.
     return Writer::ReadModeImpl(initial_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;
   return associated_reader_.ResetReader(filename_,
                                         FileReaderBase::Options()

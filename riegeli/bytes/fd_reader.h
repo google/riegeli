@@ -152,8 +152,8 @@ class FdReaderBase : public BufferedReader {
   // `Close()`.
   const std::string& filename() const { return filename_; }
 
-  bool SupportsRandomAccess() override { return supports_random_access_; }
-  bool SupportsNewReader() override { return supports_random_access_; }
+  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsNewReader() override { return supports_random_access(); }
 
  protected:
   explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -172,7 +172,9 @@ class FdReaderBase : public BufferedReader {
   void InitializePos(int src, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  bool supports_random_access();
 
+  void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
@@ -180,10 +182,15 @@ class FdReaderBase : public BufferedReader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  bool SeekInternal(int dest, Position new_pos);
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+
+  bool SeekInternal(int src, Position new_pos);
 
   std::string filename_;
-  bool supports_random_access_ = false;
+  // Invariant:
+  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
@@ -307,7 +314,15 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // `FdReader` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
-// this is checked by calling `lseek()`).
+// this is checked by calling `lseek(SEEK_END)`).
+//
+// On Linux, some virtual file systems ("/proc", "/sys") contain files with
+// contents generated on the fly when the files are read. The files appear as
+// regular files, with an apparent size of 0 or 4096, and random access is only
+// partially supported. `FdReader` properly detects lack of random access for
+// "/proc" files, but not for "/sys" files. An explicit
+// `FdReaderBase::Options().set_assumed_pos(0)` can be used to disable random
+// access for such files.
 //
 // `FdReader` supports `NewReader()` if it supports random access.
 //
@@ -539,14 +554,14 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
 inline void FdReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
 }
 
 inline void FdReaderBase::Reset(size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
-  supports_random_access_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
 }
 

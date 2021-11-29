@@ -92,7 +92,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsTruncate() override { return false; }
-  bool SupportsReadMode() override { return src_stream() != nullptr; }
+  bool SupportsReadMode() override { return supports_read_mode(); }
 
  protected:
   explicit OstreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -123,11 +123,15 @@ class OstreamWriterBase : public BufferedWriter {
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
   bool supports_random_access();
+  bool supports_read_mode();
   bool WriteMode();
 
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+  // Invariant:
+  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
+  LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
 
   AssociatedReader<IstreamReader<std::istream*>> associated_reader_;
   bool read_mode_ = false;
@@ -236,6 +240,7 @@ inline OstreamWriterBase::OstreamWriterBase(OstreamWriterBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       supports_random_access_(that.supports_random_access_),
+      supports_read_mode_(that.supports_read_mode_),
       associated_reader_(std::move(that.associated_reader_)),
       read_mode_(that.read_mode_) {}
 
@@ -245,6 +250,7 @@ inline OstreamWriterBase& OstreamWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   supports_random_access_ = that.supports_random_access_;
+  supports_read_mode_ = that.supports_read_mode_;
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
   return *this;
@@ -253,6 +259,7 @@ inline OstreamWriterBase& OstreamWriterBase::operator=(
 inline void OstreamWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
+  supports_read_mode_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
   read_mode_ = false;
 }
@@ -260,6 +267,7 @@ inline void OstreamWriterBase::Reset(Closed) {
 inline void OstreamWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
   supports_random_access_ = LazyBoolState::kFalse;
+  supports_read_mode_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
   read_mode_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the

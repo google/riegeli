@@ -125,6 +125,14 @@ class IstreamReaderBase : public BufferedReader {
 // access (this is checked by calling `std::istream::tellg()` and
 // `std::istream::seekg()` to the end and back).
 //
+// On Linux, some virtual file systems ("/proc", "/sys") contain files with
+// contents generated on the fly when the files are read. The files appear as
+// regular files, with an apparent size of 0 or 4096, and random access is only
+// partially supported. `IstreamReader` does not properly detect lack of random
+// access for these files. An explicit
+// `IstreamReaderBase::Options().set_assumed_pos(0)` can be used to disable
+// random access for such files.
+//
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the stream being read from. `Src` must support
 // `Dependency<std::istream*, Src>`, e.g. `std::istream*` (not owned, default),

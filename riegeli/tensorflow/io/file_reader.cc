@@ -532,12 +532,12 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
 }
 
 std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   if (ABSL_PREDICT_FALSE(filename_.empty())) {
     // Delegate to base class version which fails, to avoid duplicating the
     // failure message here.
     return Reader::NewReaderImpl(initial_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   ::tensorflow::RandomAccessFile* const src = src_file();
   return std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
       src, FileReaderBase::Options()
