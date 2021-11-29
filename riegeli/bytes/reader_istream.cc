@@ -101,44 +101,43 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::openmode which) {
   if (ABSL_PREDICT_FALSE(!healthy())) return std::streampos(std::streamoff{-1});
   BufferSync buffer_sync(this);
-  if (off == 0 && dir == std::ios_base::cur) {
-    // Getting the current position is supported even if random access is not.
-    return std::streampos(IntCast<std::streamoff>(reader_->pos()));
-  }
-  if (!reader_->SupportsRandomAccess()) {
-    return std::streampos(std::streamoff{-1});
-  }
-  Position pos;
+  Position new_pos;
   switch (dir) {
     case std::ios_base::beg:
       if (ABSL_PREDICT_FALSE(off < 0)) {
         return std::streampos(std::streamoff{-1});
       }
-      pos = IntCast<Position>(off);
+      new_pos = IntCast<Position>(off);
       break;
     case std::ios_base::cur:
-      pos = reader_->pos();
+      new_pos = reader_->pos();
       if (off < 0) {
-        if (ABSL_PREDICT_FALSE(IntCast<Position>(-off) > pos)) {
+        if (ABSL_PREDICT_FALSE(IntCast<Position>(-off) > new_pos)) {
           return std::streampos(std::streamoff{-1});
         }
-        pos -= IntCast<Position>(-off);
+        new_pos -= IntCast<Position>(-off);
         if (ABSL_PREDICT_FALSE(
-                pos > Position{std::numeric_limits<std::streamoff>::max()})) {
+                new_pos >
+                Position{std::numeric_limits<std::streamoff>::max()})) {
           return std::streampos(std::streamoff{-1});
         }
       } else {
         if (ABSL_PREDICT_FALSE(
-                pos > Position{std::numeric_limits<std::streamoff>::max()} ||
+                new_pos >
+                    Position{std::numeric_limits<std::streamoff>::max()} ||
                 IntCast<Position>(off) >
                     Position{std::numeric_limits<std::streamoff>::max()} -
-                        pos)) {
+                        new_pos)) {
           return std::streampos(std::streamoff{-1});
         }
-        pos += IntCast<Position>(off);
+        new_pos += IntCast<Position>(off);
       }
       break;
     case std::ios_base::end: {
+      if (ABSL_PREDICT_FALSE(!reader_->SupportsSize())) {
+        // Indicate that `seekoff(std::ios_base::end)` is not supported.
+        return std::streampos(std::streamoff{-1});
+      }
       const absl::optional<Position> size = reader_->Size();
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         Fail();
@@ -147,9 +146,9 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       if (ABSL_PREDICT_FALSE(off > 0 || IntCast<Position>(-off) > *size)) {
         return std::streampos(std::streamoff{-1});
       }
-      pos = *size - IntCast<Position>(-off);
+      new_pos = *size - IntCast<Position>(-off);
       if (ABSL_PREDICT_FALSE(
-              pos > Position{std::numeric_limits<std::streamoff>::max()})) {
+              new_pos > Position{std::numeric_limits<std::streamoff>::max()})) {
         return std::streampos(std::streamoff{-1});
       }
     } break;
@@ -157,11 +156,20 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
-  if (ABSL_PREDICT_FALSE(!reader_->Seek(pos))) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
-    return std::streampos(std::streamoff{-1});
+  if (new_pos == reader_->pos()) {
+    // Seeking to the current position is supported even if random access is
+    // not.
+  } else {
+    if (ABSL_PREDICT_FALSE(!reader_->SupportsRewind())) {
+      // Indicate that `seekoff()` is not supported.
+      return std::streampos(std::streamoff{-1});
+    }
+    if (ABSL_PREDICT_FALSE(!reader_->Seek(new_pos))) {
+      if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+      return std::streampos(std::streamoff{-1});
+    }
   }
-  return std::streampos(IntCast<std::streamoff>(pos));
+  return std::streampos(IntCast<std::streamoff>(new_pos));
 }
 
 std::streampos ReaderStreambuf::seekpos(std::streampos pos,
