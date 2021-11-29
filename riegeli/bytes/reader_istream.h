@@ -67,11 +67,11 @@ class ReaderStreambuf : public std::streambuf {
   class BufferSync;
 
   ObjectState state_;
-  Reader* src_ = nullptr;
+  Reader* reader_ = nullptr;
 
   // Invariants:
-  //   `eback() == (is_open() ? src_->start() : nullptr)`
-  //   `egptr() == (is_open() ? src_->limit() : nullptr)`
+  //   `eback() == (is_open() ? reader_->start() : nullptr)`
+  //   `egptr() == (is_open() ? reader_->limit() : nullptr)`
 };
 
 }  // namespace internal
@@ -201,7 +201,9 @@ explicit ReaderIstream(std::tuple<SrcArgs...> src_args)
 namespace internal {
 
 inline ReaderStreambuf::ReaderStreambuf(ReaderStreambuf&& that) noexcept
-    : std::streambuf(that), state_(std::move(that.state_)), src_(that.src_) {
+    : std::streambuf(that),
+      state_(std::move(that.state_)),
+      reader_(that.reader_) {
   that.setg(nullptr, nullptr, nullptr);
 }
 
@@ -210,7 +212,7 @@ inline ReaderStreambuf& ReaderStreambuf::operator=(
   if (ABSL_PREDICT_TRUE(&that != this)) {
     std::streambuf::operator=(that);
     state_ = std::move(that.state_);
-    src_ = that.src_;
+    reader_ = that.reader_;
     that.setg(nullptr, nullptr, nullptr);
   }
   return *this;
@@ -219,32 +221,36 @@ inline ReaderStreambuf& ReaderStreambuf::operator=(
 inline void ReaderStreambuf::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ReaderStreambuf: null Reader pointer";
-  src_ = src;
-  setg(const_cast<char*>(src_->start()), const_cast<char*>(src_->cursor()),
-       const_cast<char*>(src_->limit()));
-  if (ABSL_PREDICT_FALSE(!src_->healthy()) && src_->available() == 0) Fail();
+  reader_ = src;
+  setg(const_cast<char*>(reader_->start()),
+       const_cast<char*>(reader_->cursor()),
+       const_cast<char*>(reader_->limit()));
+  if (ABSL_PREDICT_FALSE(!reader_->healthy()) && reader_->available() == 0) {
+    Fail();
+  }
 }
 
 inline void ReaderStreambuf::MoveBegin() {
   // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
-  // does not imply `ReaderStreambuf::src_ != nullptr`, because
+  // does not imply `ReaderStreambuf::reader_ != nullptr`, because
   // `ReaderIstream::streambuf_` can be left uninitialized.
-  if (src_ == nullptr) return;
-  src_->set_cursor(gptr());
+  if (reader_ == nullptr) return;
+  reader_->set_cursor(gptr());
 }
 
 inline void ReaderStreambuf::MoveEnd(Reader* src) {
   // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
-  // does not imply `ReaderStreambuf::src_ != nullptr`, because
+  // does not imply `ReaderStreambuf::reader_ != nullptr`, because
   // `ReaderIstream::streambuf_` can be left uninitialized.
-  if (src_ == nullptr) return;
-  src_ = src;
-  setg(const_cast<char*>(src_->start()), const_cast<char*>(src_->cursor()),
-       const_cast<char*>(src_->limit()));
+  if (reader_ == nullptr) return;
+  reader_ = src;
+  setg(const_cast<char*>(reader_->start()),
+       const_cast<char*>(reader_->cursor()),
+       const_cast<char*>(reader_->limit()));
 }
 
 inline void ReaderStreambuf::Done() {
-  src_->set_cursor(gptr());
+  reader_->set_cursor(gptr());
   setg(nullptr, nullptr, nullptr);
 }
 

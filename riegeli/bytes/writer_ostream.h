@@ -66,11 +66,11 @@ class WriterStreambuf : public std::streambuf {
   class BufferSync;
 
   ObjectState state_;
-  Writer* dest_ = nullptr;
+  Writer* writer_ = nullptr;
 
   // Invariants:
-  //   `is_open() ? pbase() >= dest_->start() : pbase() == nullptr`
-  //   `epptr() == (is_open() ? dest_->limit() : nullptr)`
+  //   `is_open() ? pbase() >= writer_->start() : pbase() == nullptr`
+  //   `epptr() == (is_open() ? writer_->limit() : nullptr)`
 };
 
 }  // namespace internal
@@ -199,7 +199,9 @@ explicit WriterOstream(std::tuple<DestArgs...> dest_args)
 namespace internal {
 
 inline WriterStreambuf::WriterStreambuf(WriterStreambuf&& that) noexcept
-    : std::streambuf(that), state_(std::move(that.state_)), dest_(that.dest_) {
+    : std::streambuf(that),
+      state_(std::move(that.state_)),
+      writer_(that.writer_) {
   that.setp(nullptr, nullptr);
 }
 
@@ -208,7 +210,7 @@ inline WriterStreambuf& WriterStreambuf::operator=(
   if (ABSL_PREDICT_TRUE(&that != this)) {
     std::streambuf::operator=(that);
     state_ = std::move(that.state_);
-    dest_ = that.dest_;
+    writer_ = that.writer_;
     that.setp(nullptr, nullptr);
   }
   return *this;
@@ -217,30 +219,30 @@ inline WriterStreambuf& WriterStreambuf::operator=(
 inline void WriterStreambuf::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of WriterStreambuf: null Writer pointer";
-  dest_ = dest;
-  setp(dest_->cursor(), dest_->limit());
-  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail();
+  writer_ = dest;
+  setp(writer_->cursor(), writer_->limit());
+  if (ABSL_PREDICT_FALSE(!writer_->healthy())) Fail();
 }
 
 inline void WriterStreambuf::MoveBegin() {
   // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
-  // does not imply `WriterStreamBuf::dest_ != nullptr`, because
+  // does not imply `WriterStreamBuf::writer_ != nullptr`, because
   // `WriterOstream::streambuf_` can be left uninitialized.
-  if (dest_ == nullptr) return;
-  dest_->set_cursor(pptr());
+  if (writer_ == nullptr) return;
+  writer_->set_cursor(pptr());
 }
 
 inline void WriterStreambuf::MoveEnd(Writer* dest) {
   // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
-  // does not imply `WriterStreamBuf::dest_ != nullptr`, because
+  // does not imply `WriterStreamBuf::writer_ != nullptr`, because
   // `WriterOstream::streambuf_` can be left uninitialized.
-  if (dest_ == nullptr) return;
-  dest_ = dest;
-  setp(dest_->cursor(), dest_->limit());
+  if (writer_ == nullptr) return;
+  writer_ = dest;
+  setp(writer_->cursor(), writer_->limit());
 }
 
 inline void WriterStreambuf::Done() {
-  dest_->set_cursor(pptr());
+  writer_->set_cursor(pptr());
   setp(nullptr, nullptr);
 }
 

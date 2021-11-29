@@ -30,26 +30,26 @@ namespace internal {
 class ReaderStreambuf::BufferSync {
  public:
   explicit BufferSync(ReaderStreambuf* streambuf) : streambuf_(streambuf) {
-    streambuf_->src_->set_cursor(streambuf_->gptr());
+    streambuf_->reader_->set_cursor(streambuf_->gptr());
   }
 
   BufferSync(const BufferSync&) = delete;
   BufferSync& operator=(const BufferSync&) = delete;
 
   ~BufferSync() {
-    streambuf_->setg(const_cast<char*>(streambuf_->src_->start()),
-                     const_cast<char*>(streambuf_->src_->cursor()),
-                     const_cast<char*>(streambuf_->src_->limit()));
+    streambuf_->setg(const_cast<char*>(streambuf_->reader_->start()),
+                     const_cast<char*>(streambuf_->reader_->cursor()),
+                     const_cast<char*>(streambuf_->reader_->limit()));
   }
   ReaderStreambuf* streambuf_;
 };
 
-void ReaderStreambuf::Fail() { state_.Fail(src_->status()); }
+void ReaderStreambuf::Fail() { state_.Fail(reader_->status()); }
 
 int ReaderStreambuf::sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Sync())) {
+  if (ABSL_PREDICT_FALSE(!reader_->Sync())) {
     Fail();
     return -1;
   }
@@ -59,22 +59,23 @@ int ReaderStreambuf::sync() {
 std::streamsize ReaderStreambuf::showmanyc() {
   if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
+  if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
+    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
     return -1;
   }
-  return IntCast<std::streamsize>(UnsignedMin(
-      src_->available(), size_t{std::numeric_limits<std::streamsize>::max()}));
+  return IntCast<std::streamsize>(
+      UnsignedMin(reader_->available(),
+                  size_t{std::numeric_limits<std::streamsize>::max()}));
 }
 
 int ReaderStreambuf::underflow() {
   if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
+  if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
+    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
     return traits_type::eof();
   }
-  return traits_type::to_int_type(*src_->cursor());
+  return traits_type::to_int_type(*reader_->cursor());
 }
 
 std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
@@ -82,12 +83,12 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
       << "Failed precondition of streambuf::xsgetn(): negative length";
   if (ABSL_PREDICT_FALSE(!healthy())) return 0;
   BufferSync buffer_sync(this);
-  const Position pos_before = src_->pos();
-  if (ABSL_PREDICT_FALSE(!src_->Read(IntCast<size_t>(length), dest))) {
-    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
-    RIEGELI_ASSERT_GE(src_->pos(), pos_before)
+  const Position pos_before = reader_->pos();
+  if (ABSL_PREDICT_FALSE(!reader_->Read(IntCast<size_t>(length), dest))) {
+    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+    RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
-    const Position length_read = src_->pos() - pos_before;
+    const Position length_read = reader_->pos() - pos_before;
     RIEGELI_ASSERT_LE(length_read, IntCast<size_t>(length))
         << "Reader::Read(char*) read more than requested";
     return IntCast<std::streamsize>(length_read);
@@ -102,9 +103,9 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
   BufferSync buffer_sync(this);
   if (off == 0 && dir == std::ios_base::cur) {
     // Getting the current position is supported even if random access is not.
-    return std::streampos(IntCast<std::streamoff>(src_->pos()));
+    return std::streampos(IntCast<std::streamoff>(reader_->pos()));
   }
-  if (!src_->SupportsRandomAccess()) {
+  if (!reader_->SupportsRandomAccess()) {
     return std::streampos(std::streamoff{-1});
   }
   Position pos;
@@ -116,7 +117,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       pos = IntCast<Position>(off);
       break;
     case std::ios_base::cur:
-      pos = src_->pos();
+      pos = reader_->pos();
       if (off < 0) {
         if (ABSL_PREDICT_FALSE(IntCast<Position>(-off) > pos)) {
           return std::streampos(std::streamoff{-1});
@@ -138,7 +139,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       }
       break;
     case std::ios_base::end: {
-      const absl::optional<Position> size = src_->Size();
+      const absl::optional<Position> size = reader_->Size();
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         Fail();
         return std::streampos(std::streamoff{-1});
@@ -156,8 +157,8 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
-  if (ABSL_PREDICT_FALSE(!src_->Seek(pos))) {
-    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
+  if (ABSL_PREDICT_FALSE(!reader_->Seek(pos))) {
+    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
     return std::streampos(std::streamoff{-1});
   }
   return std::streampos(IntCast<std::streamoff>(pos));

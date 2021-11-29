@@ -31,24 +31,25 @@ namespace internal {
 class WriterStreambuf::BufferSync {
  public:
   explicit BufferSync(WriterStreambuf* streambuf) : streambuf_(streambuf) {
-    streambuf_->dest_->set_cursor(streambuf_->pptr());
+    streambuf_->writer_->set_cursor(streambuf_->pptr());
   }
 
   BufferSync(const BufferSync&) = delete;
   BufferSync& operator=(const BufferSync&) = delete;
 
   ~BufferSync() {
-    streambuf_->setp(streambuf_->dest_->cursor(), streambuf_->dest_->limit());
+    streambuf_->setp(streambuf_->writer_->cursor(),
+                     streambuf_->writer_->limit());
   }
   WriterStreambuf* streambuf_;
 };
 
-void WriterStreambuf::Fail() { state_.Fail(dest_->status()); }
+void WriterStreambuf::Fail() { state_.Fail(writer_->status()); }
 
 int WriterStreambuf::sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Flush())) {
+  if (ABSL_PREDICT_FALSE(!writer_->Flush())) {
     Fail();
     return -1;
   }
@@ -58,13 +59,13 @@ int WriterStreambuf::sync() {
 int WriterStreambuf::overflow(int ch) {
   if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Push())) {
+  if (ABSL_PREDICT_FALSE(!writer_->Push())) {
     Fail();
     return traits_type::eof();
   }
   if (ch != traits_type::eof()) {
-    *dest_->cursor() = traits_type::to_char_type(ch);
-    dest_->move_cursor(1);
+    *writer_->cursor() = traits_type::to_char_type(ch);
+    writer_->move_cursor(1);
   }
   return traits_type::not_eof(ch);
 }
@@ -75,12 +76,12 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
       << "Failed precondition of streambuf::xsputn(): negative length";
   if (ABSL_PREDICT_FALSE(!healthy())) return 0;
   BufferSync buffer_sync(this);
-  const Position pos_before = dest_->pos();
-  if (ABSL_PREDICT_FALSE(!dest_->Write(src, IntCast<size_t>(length)))) {
+  const Position pos_before = writer_->pos();
+  if (ABSL_PREDICT_FALSE(!writer_->Write(src, IntCast<size_t>(length)))) {
     Fail();
-    RIEGELI_ASSERT_GE(dest_->pos(), pos_before)
+    RIEGELI_ASSERT_GE(writer_->pos(), pos_before)
         << "Writer::Write(absl::string_view) decreased pos()";
-    const Position length_written = dest_->pos() - pos_before;
+    const Position length_written = writer_->pos() - pos_before;
     RIEGELI_ASSERT_LE(length_written, IntCast<size_t>(length))
         << "Writer::Write(absl::string_view) wrote more than requested";
     return IntCast<std::streamsize>(length_written);
@@ -95,9 +96,9 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
   BufferSync buffer_sync(this);
   if (off == 0 && dir == std::ios_base::cur) {
     // Getting the current position is supported even if random access is not.
-    return std::streampos(IntCast<std::streamoff>(dest_->pos()));
+    return std::streampos(IntCast<std::streamoff>(writer_->pos()));
   }
-  if (!dest_->SupportsRandomAccess()) {
+  if (!writer_->SupportsRandomAccess()) {
     return std::streampos(std::streamoff{-1});
   }
   Position pos;
@@ -109,7 +110,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       pos = IntCast<Position>(off);
       break;
     case std::ios_base::cur:
-      pos = dest_->pos();
+      pos = writer_->pos();
       if (off < 0) {
         if (ABSL_PREDICT_FALSE(IntCast<Position>(-off) > pos)) {
           return std::streampos(std::streamoff{-1});
@@ -131,7 +132,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       }
       break;
     case std::ios_base::end: {
-      const absl::optional<Position> size = dest_->Size();
+      const absl::optional<Position> size = writer_->Size();
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         Fail();
         return std::streampos(std::streamoff{-1});
@@ -149,8 +150,8 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
-  if (ABSL_PREDICT_FALSE(!dest_->Seek(pos))) {
-    if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail();
+  if (ABSL_PREDICT_FALSE(!writer_->Seek(pos))) {
+    if (ABSL_PREDICT_FALSE(!writer_->healthy())) Fail();
     return std::streampos(std::streamoff{-1});
   }
   return std::streampos(IntCast<std::streamoff>(pos));
