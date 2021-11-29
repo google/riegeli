@@ -15,7 +15,7 @@
 #ifndef RIEGELI_BYTES_WRITER_OSTREAM_H_
 #define RIEGELI_BYTES_WRITER_OSTREAM_H_
 
-#include <ostream>
+#include <iostream>
 #include <streambuf>
 #include <tuple>
 #include <type_traits>
@@ -24,9 +24,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -43,18 +45,22 @@ class WriterStreambuf : public std::streambuf {
   WriterStreambuf& operator=(WriterStreambuf&& that) noexcept;
 
   void Initialize(Writer* dest);
-  void MoveBegin();
-  void MoveEnd(Writer* dest);
+  absl::optional<Position> MoveBegin();
+  void MoveEnd(Writer* dest, absl::optional<Position> reader_pos);
   void Done();
 
   bool healthy() const { return state_.healthy(); }
   bool is_open() const { return state_.is_open(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
-  ABSL_ATTRIBUTE_COLD void Fail();
+  ABSL_ATTRIBUTE_COLD void FailReader();
+  ABSL_ATTRIBUTE_COLD void FailWriter();
 
  protected:
   int sync() override;
+  std::streamsize showmanyc() override;
+  int underflow() override;
+  std::streamsize xsgetn(char* dest, std::streamsize length) override;
   int overflow(int ch) override;
   std::streamsize xsputn(const char* src, std::streamsize length) override;
   std::streampos seekoff(std::streamoff off, std::ios_base::seekdir dir,
@@ -65,18 +71,30 @@ class WriterStreambuf : public std::streambuf {
  private:
   class BufferSync;
 
+  bool ReadMode();
+  bool WriteMode();
+
   ObjectState state_;
   Writer* writer_ = nullptr;
+  // If `nullptr`, `*writer_` was used last time. If not `nullptr`, `*reader_`
+  // was used last time.
+  Reader* reader_ = nullptr;
 
   // Invariants:
-  //   `is_open() ? pbase() >= writer_->start() : pbase() == nullptr`
-  //   `epptr() == (is_open() ? writer_->limit() : nullptr)`
+  //   `is_open() && reader_ == nullptr ? pbase() >= writer_->start()
+  //                                    : pbase() == nullptr`
+  //   `epptr() == (is_open() && reader_ == nullptr ? writer_->limit()
+  //                                                : nullptr)`
+  //   `eback() == (is_open() && reader_ != nullptr ? reader_->start()
+  //                                                : nullptr)`
+  //   `egptr() == (is_open() && reader_ != nullptr ? reader_->limit()
+  //                                                : nullptr)`
 };
 
 }  // namespace internal
 
 // Template parameter independent part of `WriterOstream`.
-class WriterOstreamBase : public std::ostream {
+class WriterOstreamBase : public std::iostream {
  public:
   // Returns the `Writer`. Unchanged by `close()`.
   virtual Writer* dest_writer() = 0;
@@ -93,7 +111,8 @@ class WriterOstreamBase : public std::ostream {
   // failure details).
   virtual WriterOstreamBase& close() = 0;
 
-  // Returns `true` if the `WriterOstream` is healthy, i.e. open and not failed.
+  // Returns `true` if the `WriterOstream` is healthy, i.e. open and not
+  // failed.
   bool healthy() const { return streambuf_.healthy(); }
 
   // Returns `true` if the `WriterOstream` is open, i.e. not closed.
@@ -106,9 +125,9 @@ class WriterOstreamBase : public std::ostream {
 
  protected:
   explicit WriterOstreamBase(Closed) noexcept
-      : std::ostream(&streambuf_), streambuf_(kClosed) {}
+      : std::iostream(&streambuf_), streambuf_(kClosed) {}
 
-  WriterOstreamBase() noexcept : std::ostream(&streambuf_) {}
+  WriterOstreamBase() noexcept : std::iostream(&streambuf_) {}
 
   WriterOstreamBase(WriterOstreamBase&& that) noexcept;
   WriterOstreamBase& operator=(WriterOstreamBase&& that) noexcept;
@@ -122,7 +141,12 @@ class WriterOstreamBase : public std::ostream {
   // Invariant: `rdbuf() == &streambuf_`
 };
 
-// Adapts a `Writer` to a `std::ostream`.
+// Adapts a `Writer` to a `std::iostream`.
+//
+// The `std::iostream` supports reading and writing if
+// `Writer::SupportsReadMode()`, with a single position maintained for both
+// reading and writing. Otherwise the `std::iostream` is write-only, and only
+// the `std::ostream` aspect of it is functional.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
@@ -201,7 +225,9 @@ namespace internal {
 inline WriterStreambuf::WriterStreambuf(WriterStreambuf&& that) noexcept
     : std::streambuf(that),
       state_(std::move(that.state_)),
-      writer_(that.writer_) {
+      writer_(that.writer_),
+      reader_(that.reader_) {
+  that.setg(nullptr, nullptr, nullptr);
   that.setp(nullptr, nullptr);
 }
 
@@ -211,6 +237,8 @@ inline WriterStreambuf& WriterStreambuf::operator=(
     std::streambuf::operator=(that);
     state_ = std::move(that.state_);
     writer_ = that.writer_;
+    reader_ = that.reader_;
+    that.setg(nullptr, nullptr, nullptr);
     that.setp(nullptr, nullptr);
   }
   return *this;
@@ -221,35 +249,37 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
       << "Failed precondition of WriterStreambuf: null Writer pointer";
   writer_ = dest;
   setp(writer_->cursor(), writer_->limit());
-  if (ABSL_PREDICT_FALSE(!writer_->healthy())) Fail();
+  if (ABSL_PREDICT_FALSE(!writer_->healthy())) FailWriter();
 }
 
-inline void WriterStreambuf::MoveBegin() {
-  // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
-  // does not imply `WriterStreamBuf::writer_ != nullptr`, because
+inline absl::optional<Position> WriterStreambuf::MoveBegin() {
+  // In a closed `WriterOstream`, `WriterOstream::writer_.get() != nullptr`
+  // does not imply `WriterStreambuf::writer_ != nullptr`, because
   // `WriterOstream::streambuf_` can be left uninitialized.
-  if (writer_ == nullptr) return;
-  writer_->set_cursor(pptr());
-}
-
-inline void WriterStreambuf::MoveEnd(Writer* dest) {
-  // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
-  // does not imply `WriterStreamBuf::writer_ != nullptr`, because
-  // `WriterOstream::streambuf_` can be left uninitialized.
-  if (writer_ == nullptr) return;
-  writer_ = dest;
-  setp(writer_->cursor(), writer_->limit());
+  if (writer_ == nullptr) return absl::nullopt;
+  if (reader_ != nullptr) {
+    reader_->set_cursor(gptr());
+    return reader_->pos();
+  } else {
+    writer_->set_cursor(pptr());
+    return absl::nullopt;
+  }
 }
 
 inline void WriterStreambuf::Done() {
-  writer_->set_cursor(pptr());
-  setp(nullptr, nullptr);
+  if (reader_ != nullptr) {
+    reader_->set_cursor(gptr());
+    setg(nullptr, nullptr, nullptr);
+  } else {
+    writer_->set_cursor(pptr());
+    setp(nullptr, nullptr);
+  }
 }
 
 }  // namespace internal
 
 inline WriterOstreamBase::WriterOstreamBase(WriterOstreamBase&& that) noexcept
-    : std::ostream(std::move(that)),
+    : std::iostream(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       streambuf_(std::move(that.streambuf_)) {
@@ -258,7 +288,7 @@ inline WriterOstreamBase::WriterOstreamBase(WriterOstreamBase&& that) noexcept
 
 inline WriterOstreamBase& WriterOstreamBase::operator=(
     WriterOstreamBase&& that) noexcept {
-  std::ostream::operator=(std::move(that));
+  std::iostream::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   streambuf_ = std::move(that.streambuf_);
@@ -358,9 +388,9 @@ inline void WriterOstream<Dest>::MoveDest(WriterOstream&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    streambuf_.MoveBegin();
+    const absl::optional<Position> reader_pos = streambuf_.MoveBegin();
     dest_ = std::move(that.dest_);
-    streambuf_.MoveEnd(dest_.get());
+    streambuf_.MoveEnd(dest_.get(), reader_pos);
   }
 }
 
@@ -369,7 +399,7 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::close() {
   if (ABSL_PREDICT_TRUE(is_open())) {
     streambuf_.Done();
     if (dest_.is_owning()) {
-      if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.Fail();
+      if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.FailWriter();
     }
     if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
       setstate(std::ios_base::badbit);

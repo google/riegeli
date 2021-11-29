@@ -686,6 +686,7 @@ cc_library(
     srcs = ["writer_ostream.cc"],
     hdrs = ["writer_ostream.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
