@@ -130,7 +130,7 @@ class FileReaderBase : public Reader {
                                          absl::string_view operation);
 
   void Done() override;
-  void DefaultAnnotateStatus() override;
+  absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;

@@ -26,17 +26,18 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
 void Writer::OnFail() { set_buffer(); }
 
-void Writer::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at byte ", start_pos()));
+absl::Status Writer::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at byte ", pos()));
+  }
+  return status;
 }
 
 bool Writer::FailOverflow() {

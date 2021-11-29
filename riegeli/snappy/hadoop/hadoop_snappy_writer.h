@@ -81,11 +81,12 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Initialize(Writer* dest);
 
   void Done() override;
-  // `HadoopSnappyWriterBase` overrides `Writer::DefaultAnnotateStatus()` to
+  // `HadoopSnappyWriterBase` overrides `Writer::AnnotateStatusImpl()` to
   // annotate the status with the current position, clarifying that this is the
   // uncompressed position. A status propagated from `*dest_writer()` might
   // carry annotation with the compressed position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PushBehindScratch() override;
   bool FlushBehindScratch(FlushType flush_type);
   Reader* ReadModeBehindScratch(Position initial_pos) override;

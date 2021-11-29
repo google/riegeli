@@ -10,6 +10,7 @@ cc_library(
         ":hadoop_snappy_reader",
         "//riegeli/base",
         "//riegeli/base:buffer",
+        "//riegeli/base:status",
         "//riegeli/bytes:pushable_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",

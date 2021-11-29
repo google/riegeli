@@ -27,6 +27,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/prefix_limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -42,13 +43,12 @@ void PrefixLimitingWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-void PrefixLimitingWriterBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
+absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    AnnotateStatus(absl::StrCat("with relative position at byte ", pos()));
+    return Annotate(status,
+                    absl::StrCat("with relative position at byte ", pos()));
   }
+  return status;
 }
 
 bool PrefixLimitingWriterBase::PushSlow(size_t min_length,

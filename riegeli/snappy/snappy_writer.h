@@ -83,11 +83,12 @@ class SnappyWriterBase : public Writer {
   void Initialize(Writer* dest);
 
   void Done() override;
-  // `SnappyWriterBase` overrides `Writer::DefaultAnnotateStatus()` to annotate
-  // the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*dest_writer()` might
-  // carry annotation with the compressed position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `SnappyWriterBase` overrides `Writer::AnnotateStatusImpl()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*dest_writer()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

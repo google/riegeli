@@ -148,11 +148,11 @@ bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
                        absl::StrCat("at byte ", dest.pos())));
 }
 
-void ZlibWriterBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status ZlibWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool ZlibWriterBase::WriteInternal(absl::string_view src) {

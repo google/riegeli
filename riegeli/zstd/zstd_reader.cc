@@ -126,11 +126,11 @@ void ZstdReaderBase::Done() {
   dictionary_ = ZstdDictionary();
 }
 
-void ZstdReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status ZstdReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {

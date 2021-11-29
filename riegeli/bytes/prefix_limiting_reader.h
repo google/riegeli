@@ -85,11 +85,12 @@ class PrefixLimitingReaderBase : public Reader {
   void Initialize(Reader* src, absl::optional<Position> base_pos);
 
   void Done() override;
-  // `PrefixLimitingReaderBase` overrides `Reader::DefaultAnnotateStatus()` to
+  // `PrefixLimitingReaderBase` overrides `Reader::AnnotateStatusImpl()` to
   // annotate the status with the current position, clarifying that this is a
   // relative position. A status propagated from `*src_reader()` might carry
   // annotation with the original position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;

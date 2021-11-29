@@ -191,7 +191,7 @@ class FdWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
-  void DefaultAnnotateStatus() override;
+  absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;

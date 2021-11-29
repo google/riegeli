@@ -145,11 +145,12 @@ class ZstdReaderBase : public BufferedReader {
   void Initialize(Reader* src);
 
   void Done() override;
-  // `ZstdReaderBase` overrides `Reader::DefaultAnnotateStatus()` to annotate
-  // the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*src_reader()` might carry
-  // annotation with the compressed position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `ZstdReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*src_reader()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;

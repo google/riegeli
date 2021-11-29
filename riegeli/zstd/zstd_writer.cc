@@ -158,11 +158,11 @@ void ZstdWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-void ZstdWriterBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status ZstdWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {

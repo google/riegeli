@@ -152,11 +152,11 @@ void BrotliWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-void BrotliWriterBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status BrotliWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool BrotliWriterBase::WriteInternal(absl::string_view src) {

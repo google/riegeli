@@ -91,11 +91,11 @@ void BrotliReaderBase::Done() {
   dictionary_ = BrotliDictionary();
 }
 
-void BrotliReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status BrotliReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool BrotliReaderBase::PullBehindScratch() {

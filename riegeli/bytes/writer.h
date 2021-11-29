@@ -301,9 +301,10 @@ class Writer : public Object {
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
 
-  // `Writer` overrides `Object::DefaultAnnotateStatus()` to annotate the status
+  // `Writer` overrides `Object::AnnotateStatusImpl()` to annotate the status
   // with the current position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
   // Marks the `Writer` as failed with message "Writer position overflow".
   // Always returns `false`.

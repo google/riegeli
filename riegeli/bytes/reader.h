@@ -393,9 +393,10 @@ class Reader : public Object {
   // `Reader::Done()`.
   void Done() override;
 
-  // `Reader` overrides `Object::DefaultAnnotateStatus()` to annotate the status
+  // `Reader` overrides `Object::AnnotateStatusImpl()` to annotate the status
   // with the current position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
   // Marks the `Reader` as failed with message "Reader position overflow".
   // Always returns `false`.

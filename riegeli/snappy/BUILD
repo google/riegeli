@@ -10,6 +10,7 @@ cc_library(
         ":snappy_streams",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/base:status",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",

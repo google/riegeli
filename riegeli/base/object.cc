@@ -50,13 +50,13 @@ bool ObjectState::Fail(absl::Status status) {
   return false;
 }
 
-bool ObjectState::AnnotateStatus(absl::string_view detail) {
+void ObjectState::SetStatus(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of ObjectState::SetStatus(): status not failed";
   RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of ObjectState::AnnotateStatus(): "
+      << "Failed precondition of ObjectState::SetStatus(): "
          "ObjectState not failed";
-  absl::Status& status = reinterpret_cast<FailedStatus*>(status_ptr_)->status;
-  status = Annotate(status, detail);
-  return false;
+  reinterpret_cast<FailedStatus*>(status_ptr_)->status = std::move(status);
 }
 
 void Object::Done() {}
@@ -64,11 +64,9 @@ void Object::Done() {}
 bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
+  status = AnnotateStatus(std::move(status));
   OnFail();
-  if (ABSL_PREDICT_FALSE(!not_failed())) return false;
-  state_.Fail(std::move(status));
-  DefaultAnnotateStatus();
-  return false;
+  return state_.Fail(std::move(status));
 }
 
 bool Object::Fail(const Object& dependency) {
@@ -77,28 +75,25 @@ bool Object::Fail(const Object& dependency) {
   return Fail(dependency.status());
 }
 
+void Object::SetStatus(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::SetStatus(): status not failed";
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::SetStatus(): Object not failed";
+  state_.SetStatus(std::move(status));
+}
+
 void Object::OnFail() {}
 
-void Object::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-}
-
-bool Object::AnnotateStatus(absl::string_view detail) {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::AnnotateStatus(): Object not failed";
-  return state_.AnnotateStatus(detail);
-}
+absl::Status Object::AnnotateStatusImpl(absl::Status status) { return status; }
 
 bool Object::FailWithoutAnnotation(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::FailWithoutAnnotation(): "
          "status not failed";
-  OnFail();
   if (ABSL_PREDICT_FALSE(!not_failed())) return false;
-  state_.Fail(std::move(status));
-  return false;
+  OnFail();
+  return state_.Fail(std::move(status));
 }
 
 bool Object::FailWithoutAnnotation(const Object& dependency) {

@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/csv_record.h"
 
@@ -73,13 +74,11 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   }
 }
 
-void CsvWriterBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
+absl::Status CsvWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (!standalone_record_) {
-    AnnotateStatus(absl::StrCat("at record ", record_index()));
+    return Annotate(status, absl::StrCat("at record ", record_index()));
   }
+  return status;
 }
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,

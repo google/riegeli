@@ -44,11 +44,12 @@ class JoiningReaderBase : public PullableReader {
   virtual Reader* shard_reader() = 0;
   virtual const Reader* shard_reader() const = 0;
 
-  // `JoiningReaderBase` overrides `Reader::DefaultAnnotateStatus()` to annotate
-  // the current position, clarifying that this is the position across shards.
-  // A status propagated from `*shard_reader()` might carry annotation with the
-  // position within a shard.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `JoiningReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate
+  // the status with the current position, clarifying that this is the position
+  // across shards. A status propagated from `*shard_reader()` might carry
+  // annotation with the position within a shard.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
   // Opens the next shard as `shard()` if it exists.
   //

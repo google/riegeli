@@ -208,11 +208,12 @@ class BrotliWriterBase : public BufferedWriter {
 
   void DoneBehindBuffer(absl::string_view src) override;
   void Done() override;
-  // `BrotliWriterBase` overrides `Writer::DefaultAnnotateStatus()` to annotate
-  // the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*dest_writer()` might
-  // carry annotation with the compressed position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `BrotliWriterBase` overrides `Writer::AnnotateStatusImpl()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*dest_writer()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
   Reader* ReadModeBehindBuffer(Position initial_pos) override;

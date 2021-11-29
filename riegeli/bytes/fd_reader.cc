@@ -46,6 +46,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
@@ -157,12 +158,9 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-void FdReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  AnnotateStatus(absl::StrCat("reading ", filename_));
-  BufferedReader::DefaultAnnotateStatus();
+absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
+  status = Annotate(status, absl::StrCat("reading ", filename_));
+  return BufferedReader::AnnotateStatusImpl(std::move(status));
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -369,12 +367,9 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-void FdMMapReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  AnnotateStatus(absl::StrCat("reading ", filename_));
-  ChainReader::DefaultAnnotateStatus();
+absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
+  status = Annotate(status, absl::StrCat("reading ", filename_));
+  return ChainReader::AnnotateStatusImpl(std::move(status));
 }
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {

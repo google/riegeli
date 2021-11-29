@@ -32,6 +32,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -43,18 +44,17 @@ void Reader::VerifyEnd() {
     if (SupportsSize()) {
       const absl::optional<Position> size = Size();
       if (size != absl::nullopt) {
-        AnnotateStatus(
-            absl::StrCat("remaining length: ", SaturatingSub(*size, pos())));
+        SetStatus(Annotate(
+            status(),
+            absl::StrCat("remaining length: ", SaturatingSub(*size, pos()))));
       }
     }
   }
 }
 
-void Reader::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at byte ", pos()));
+absl::Status Reader::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) return Annotate(status, absl::StrCat("at byte ", pos()));
+  return status;
 }
 
 bool Reader::FailOverflow() {

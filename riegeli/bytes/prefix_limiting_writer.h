@@ -88,11 +88,12 @@ class PrefixLimitingWriterBase : public Writer {
   void Initialize(Writer* dest, absl::optional<Position> base_pos);
 
   void Done() override;
-  // `PrefixLimitingWriterBase` overrides `Writer::DefaultAnnotateStatus()` to
+  // `PrefixLimitingWriterBase` overrides `Writer::AnnotateStatusImpl()` to
   // annotate the status with the current position, clarifying that this is a
   // relative position. A status propagated from `*dest_writer()` might carry
   // annotation with the original position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;

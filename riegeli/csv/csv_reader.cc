@@ -30,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/csv/csv_record.h"
@@ -103,13 +104,11 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   recovery_ = std::move(options.recovery());
 }
 
-void CsvReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
+absl::Status CsvReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (!standalone_record_) {
-    AnnotateStatus(absl::StrCat("at line ", line_number()));
+    return Annotate(status, absl::StrCat("at line ", line_number()));
   }
+  return status;
 }
 
 void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
@@ -119,8 +118,8 @@ void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
   RIEGELI_ASSERT(!standalone_record_)
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "should never happen in ReadCsvRecordFromString()";
-  FailWithoutAnnotation(std::move(status));
-  AnnotateStatus(absl::StrCat("at line ", last_line_number()));
+  FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at line ", last_line_number())));
 }
 
 bool CsvReaderBase::MaxFieldLengthExceeded() {

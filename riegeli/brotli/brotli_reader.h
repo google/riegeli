@@ -112,11 +112,12 @@ class BrotliReaderBase : public PullableReader {
   void Initialize(Reader* src);
 
   void Done() override;
-  // `BrotliReaderBase` overrides `Reader::DefaultAnnotateStatus()` to annotate
-  // the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*src_reader()` might carry
-  // annotation with the compressed position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `BrotliReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*src_reader()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PullBehindScratch() override;
   bool SeekBehindScratch(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;

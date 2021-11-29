@@ -133,11 +133,11 @@ inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
                        absl::StrCat("at byte ", src.pos())));
 }
 
-void ZlibReaderBase::DefaultAnnotateStatus() {
-  RIEGELI_ASSERT(!not_failed())
-      << "Failed precondition of Object::DefaultAnnotateStatus(): "
-         "Object not failed";
-  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
+absl::Status ZlibReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+  }
+  return status;
 }
 
 bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {

@@ -234,9 +234,10 @@ class BackwardWriter : public Object {
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
 
-  // `BackwardWriter` overrides `Object::DefaultAnnotateStatus()` to annotate
-  // the status with the current position.
-  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
+  // `BackwardWriter` overrides `Object::AnnotateStatusImpl()` to annotate the
+  // status with the current position.
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.
