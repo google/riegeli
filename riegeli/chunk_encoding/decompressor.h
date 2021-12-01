@@ -227,7 +227,7 @@ inline Reader& Decompressor<Src>::reader() {
 
 template <typename Src>
 void Decompressor<Src>::Done() {
-  if (ABSL_PREDICT_FALSE(!reader_->Close())) Fail(*reader_);
+  if (ABSL_PREDICT_FALSE(!reader_->Close())) Fail(reader_->status());
 }
 
 template <typename Src>

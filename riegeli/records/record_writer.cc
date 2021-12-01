@@ -195,7 +195,6 @@ class RecordWriterBase::Worker {
   virtual void Done() {}
   virtual bool healthy() const = 0;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
   virtual bool FailWithoutAnnotation(absl::Status status) = 0;
 
   virtual bool WriteSignature() = 0;
@@ -237,10 +236,6 @@ bool RecordWriterBase::Worker::Close() {
 
 inline bool RecordWriterBase::Worker::Fail(absl::Status status) {
   return FailWithoutAnnotation(AnnotateStatus(std::move(status)));
-}
-
-inline bool RecordWriterBase::Worker::Fail(const Object& dependency) {
-  return Fail(dependency.status());
 }
 
 inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
@@ -300,7 +295,7 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk& chunk) {
               ? !transpose_encoder.AddRecord(*options_.metadata())
               : !transpose_encoder.AddRecord(
                     *options_.serialized_metadata()))) {
-    return Fail(transpose_encoder);
+    return Fail(transpose_encoder.status());
   }
   ChainWriter<> data_writer(&chunk.data);
   ChunkType chunk_type;
@@ -308,9 +303,11 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk& chunk) {
   uint64_t decoded_data_size;
   if (ABSL_PREDICT_FALSE(!transpose_encoder.EncodeAndClose(
           data_writer, chunk_type, num_records, decoded_data_size))) {
-    return Fail(transpose_encoder);
+    return Fail(transpose_encoder.status());
   }
-  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) {
+    return Fail(data_writer.status());
+  }
   chunk.header =
       ChunkHeader(chunk.data, ChunkType::kFileMetadata, 0, decoded_data_size);
   return true;
@@ -321,7 +318,7 @@ inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
-    return Fail(*chunk_encoder_);
+    return Fail(chunk_encoder_->status());
   }
   return true;
 }
@@ -332,7 +329,7 @@ inline bool RecordWriterBase::Worker::AddRecord(
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(record, std::move(serialize_options)))) {
-    return Fail(*chunk_encoder_);
+    return Fail(chunk_encoder_->status());
   }
   return true;
 }
@@ -346,9 +343,11 @@ inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder& chunk_encoder,
   ChainWriter<> data_writer(&chunk.data);
   if (ABSL_PREDICT_FALSE(!chunk_encoder.EncodeAndClose(
           data_writer, chunk_type, num_records, decoded_data_size))) {
-    return Fail(chunk_encoder);
+    return Fail(chunk_encoder.status());
   }
-  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) {
+    return Fail(data_writer.status());
+  }
   chunk.header =
       ChunkHeader(chunk.data, chunk_type, num_records, decoded_data_size);
   return true;

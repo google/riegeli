@@ -425,7 +425,9 @@ template <typename Src>
 void DefaultChunkReader<Src>::Done() {
   DefaultChunkReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(src_->status());
+    }
   }
 }
 

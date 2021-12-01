@@ -69,12 +69,6 @@ bool Object::Fail(absl::Status status) {
   return state_.Fail(std::move(status));
 }
 
-bool Object::Fail(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of Object::Fail(): dependency healthy";
-  return Fail(dependency.status());
-}
-
 void Object::SetStatus(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::SetStatus(): status not failed";
@@ -94,13 +88,6 @@ bool Object::FailWithoutAnnotation(absl::Status status) {
   if (ABSL_PREDICT_FALSE(!not_failed())) return false;
   OnFail();
   return state_.Fail(std::move(status));
-}
-
-bool Object::FailWithoutAnnotation(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of Object::FailWithoutAnnotation(): "
-         "dependency healthy";
-  return FailWithoutAnnotation(dependency.status());
 }
 
 absl::Status Object::StatusOrAnnotate(absl::Status other_status) {

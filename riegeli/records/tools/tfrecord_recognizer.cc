@@ -32,7 +32,7 @@ bool TFRecordRecognizer::CheckFileFormat(
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
     if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
-      return Fail(*byte_reader_);
+      return Fail(byte_reader_->status());
     }
     // Empty file: return `false` but leave `healthy()` as `true`. This mimics
     // the behavior of reading functions at end of file.
@@ -61,7 +61,7 @@ bool TFRecordRecognizer::CheckFileFormat(
   }
 
   if (ABSL_PREDICT_FALSE(!reader->Pull(sizeof(uint64_t) + sizeof(uint32_t)))) {
-    if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(*reader);
+    if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(reader->status());
     return Fail(absl::InvalidArgumentError("Truncated TFRecord file"));
   }
   if (tensorflow::crc32c::Unmask(

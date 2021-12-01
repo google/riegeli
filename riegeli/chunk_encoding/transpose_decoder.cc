@@ -435,7 +435,9 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
     limiting_dest.Close();
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!limiting_dest.Close())) return Fail(limiting_dest);
+  if (ABSL_PREDICT_FALSE(!limiting_dest.Close())) {
+    return Fail(limiting_dest.status());
+  }
   return true;
 }
 
@@ -499,7 +501,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   internal::Decompressor<ChainReader<>> header_decompressor(
       std::forward_as_tuple(&header), context.compression_type);
   if (ABSL_PREDICT_FALSE(!header_decompressor.healthy())) {
-    return Fail(header_decompressor);
+    return Fail(header_decompressor.status());
   }
 
   uint32_t num_buffers;
@@ -740,11 +742,11 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   }
 
   if (ABSL_PREDICT_FALSE(!header_decompressor.VerifyEndAndClose())) {
-    return Fail(header_decompressor);
+    return Fail(header_decompressor.status());
   }
   context.transitions.Reset(&src, context.compression_type);
   if (ABSL_PREDICT_FALSE(!context.transitions.healthy())) {
-    return Fail(context.transitions);
+    return Fail(context.transitions.status());
   }
   return true;
 }
@@ -794,7 +796,7 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
     bucket_decompressors.emplace_back(std::forward_as_tuple(std::move(bucket)),
                                       context.compression_type);
     if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().healthy())) {
-      return Fail(bucket_decompressors.back());
+      return Fail(bucket_decompressors.back().status());
     }
   }
 
@@ -830,7 +832,7 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
   }
   if (ABSL_PREDICT_FALSE(
           !bucket_decompressors[bucket_index].VerifyEndAndClose())) {
-    return Fail(bucket_decompressors[bucket_index]);
+    return Fail(bucket_decompressors[bucket_index].status());
   }
   return true;
 }
@@ -943,7 +945,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
       bucket.decompressor.Reset(std::forward_as_tuple(&bucket.compressed_data),
                                 context.compression_type);
       if (ABSL_PREDICT_FALSE(!bucket.decompressor.healthy())) {
-        Fail(bucket.decompressor);
+        Fail(bucket.decompressor.status());
         return nullptr;
       }
       // Important to prevent invalidating pointers by `emplace_back()`.
@@ -960,7 +962,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
     if (bucket.buffers.size() == bucket.buffer_sizes.size()) {
       // This was the last decompressed buffer from this bucket.
       if (ABSL_PREDICT_FALSE(!bucket.decompressor.VerifyEndAndClose())) {
-        Fail(bucket.decompressor);
+        Fail(bucket.decompressor.status());
         return nullptr;
       }
       // Free memory of fields which are no longer needed.
@@ -995,7 +997,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 #define COPY_TAG_CALLBACK(tag_length)                                       \
   do {                                                                      \
     if (ABSL_PREDICT_FALSE(!dest.Write(node->tag_data.data, tag_length))) { \
-      return Fail(dest);                                                    \
+      return Fail(dest.status());                                           \
     }                                                                       \
   } while (false)
 
@@ -1003,7 +1005,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 #define VARINT_CALLBACK(tag_length, data_length)                       \
   do {                                                                 \
     if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {    \
-      return Fail(dest);                                               \
+      return Fail(dest.status());                                      \
     }                                                                  \
     dest.move_cursor(tag_length + data_length);                        \
     char* const buffer = dest.cursor();                                \
@@ -1022,7 +1024,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 #define FIXED_CALLBACK(tag_length, data_length)                       \
   do {                                                                \
     if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {   \
-      return Fail(dest);                                              \
+      return Fail(dest.status());                                     \
     }                                                                 \
     dest.move_cursor(tag_length + data_length);                       \
     char* const buffer = dest.cursor();                               \
@@ -1038,7 +1040,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 #define FIXED_EXISTENCE_CALLBACK(tag_length, data_length)           \
   do {                                                              \
     if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) { \
-      return Fail(dest);                                            \
+      return Fail(dest.status());                                   \
     }                                                               \
     dest.move_cursor(tag_length + data_length);                     \
     char* const buffer = dest.cursor();                             \
@@ -1064,12 +1066,12 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     }                                                                          \
     if (ABSL_PREDICT_FALSE(                                                    \
             !node->buffer->Copy(length_length + length, dest))) {              \
-      if (!dest.healthy()) return Fail(dest);                                  \
+      if (!dest.healthy()) return Fail(dest.status());                         \
       return Fail(node->buffer->StatusOrAnnotate(                              \
           absl::InvalidArgumentError("Reading string field failed")));         \
     }                                                                          \
     if (ABSL_PREDICT_FALSE(!dest.Write(node->tag_data.data, tag_length))) {    \
-      return Fail(dest);                                                       \
+      return Fail(dest.status());                                              \
     }                                                                          \
   } while (false)
 
@@ -1138,11 +1140,11 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         }
         if (ABSL_PREDICT_FALSE(
                 !WriteVarint32(IntCast<uint32_t>(length), dest))) {
-          return Fail(dest);
+          return Fail(dest.status());
         }
         if (ABSL_PREDICT_FALSE(
                 !dest.Write(elem.tag_data.data, elem.tag_data.size))) {
-          return Fail(dest);
+          return Fail(dest.status());
         }
         submessage_stack.pop_back();
       }
@@ -1233,7 +1235,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                   "Reading non-proto record length failed")));
         }
         if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, dest))) {
-          if (!dest.healthy()) return Fail(dest);
+          if (!dest.healthy()) return Fail(dest.status());
           return Fail(node->buffer->StatusOrAnnotate(
               absl::InvalidArgumentError("Reading non-proto record failed")));
         }
@@ -1274,7 +1276,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
 done:
   if (ABSL_PREDICT_FALSE(!context.transitions.VerifyEndAndClose())) {
-    return Fail(context.transitions);
+    return Fail(context.transitions.status());
   }
   if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
     return Fail(absl::InvalidArgumentError("Submessages still open"));

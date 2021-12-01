@@ -275,11 +275,11 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
         GetPosInTagsList(node, internal::Subtype::kTrivial));
     BackwardWriter* const buffer = GetBuffer(node, BufferType::kNonProto);
     if (ABSL_PREDICT_FALSE(!record.Copy(IntCast<size_t>(*size), *buffer))) {
-      return Fail(*buffer);
+      return Fail(buffer->status());
     }
     if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(*size),
                                           nonproto_lengths_writer_))) {
-      return Fail(nonproto_lengths_writer_);
+      return Fail(nonproto_lengths_writer_.status());
     }
     return true;
   }
@@ -359,7 +359,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
           if (ABSL_PREDICT_FALSE(!buffer->Write(
                   reinterpret_cast<const char*>(value), *value_length))) {
-            return Fail(*buffer);
+            return Fail(buffer->status());
           }
         }
       } break;
@@ -368,7 +368,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
         if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint32_t), *buffer))) {
-          return Fail(*buffer);
+          return Fail(buffer->status());
         }
       } break;
       case WireType::kFixed64: {
@@ -376,7 +376,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
         if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint64_t), *buffer))) {
-          return Fail(*buffer);
+          return Fail(buffer->status());
         }
       } break;
       case WireType::kLengthDelimited: {
@@ -417,7 +417,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!record.Copy(
                   IntCast<size_t>(value_pos - length_pos) + length, *buffer))) {
-            return Fail(*buffer);
+            return Fail(buffer->status());
           }
         }
       } break;
@@ -460,7 +460,7 @@ inline bool TransposeEncoder::AddBuffer(
     if (bucket_compressor.writer().pos() > 0) {
       const Position pos_before = data_writer.pos();
       if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
-        return Fail(bucket_compressor);
+        return Fail(bucket_compressor.status());
       }
       RIEGELI_ASSERT_GE(data_writer.pos(), pos_before)
           << "Data writer position decreased";
@@ -472,7 +472,7 @@ inline bool TransposeEncoder::AddBuffer(
             *new_uncompressed_bucket_size));
   }
   if (ABSL_PREDICT_FALSE(!bucket_compressor.writer().Write(buffer))) {
-    return Fail(bucket_compressor);
+    return Fail(bucket_compressor.status());
   }
   return true;
 }
@@ -578,7 +578,7 @@ inline bool TransposeEncoder::WriteBuffers(
     // Last bucket.
     const Position pos_before = data_writer.pos();
     if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
-      return Fail(bucket_compressor);
+      return Fail(bucket_compressor.status());
     }
     RIEGELI_ASSERT_GE(data_writer.pos(), pos_before)
         << "Data writer position decreased";
@@ -590,18 +590,18 @@ inline bool TransposeEncoder::WriteBuffers(
           IntCast<uint32_t>(compressed_bucket_sizes.size()), header_writer)) ||
       ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(buffer_sizes.size()),
                                         header_writer))) {
-    return Fail(header_writer);
+    return Fail(header_writer.status());
   }
   for (const size_t length : compressed_bucket_sizes) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(IntCast<uint64_t>(length), header_writer))) {
-      return Fail(header_writer);
+      return Fail(header_writer.status());
     }
   }
   for (const size_t length : buffer_sizes) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(IntCast<uint64_t>(length), header_writer))) {
-      return Fail(header_writer);
+      return Fail(header_writer.status());
     }
   }
   return true;
@@ -637,7 +637,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
 
   if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(state_machine.size()),
                                         header_writer))) {
-    return Fail(header_writer);
+    return Fail(header_writer.status());
   }
   for (const StateInfo state_info : state_machine) {
     if (state_info.etag_index == kInvalidPos) {
@@ -645,7 +645,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
       if (ABSL_PREDICT_FALSE(
               !WriteVarint32(static_cast<uint32_t>(internal::MessageId::kNoOp),
                              header_writer))) {
-        return Fail(header_writer);
+        return Fail(header_writer.status());
       }
       base_to_write.push_back(state_info.base);
       continue;
@@ -661,7 +661,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
                 static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage),
                 header_writer))) {
-          return Fail(header_writer);
+          return Fail(header_writer.status());
         }
       } else if (is_string &&
                  subtype ==
@@ -673,11 +673,11 @@ inline bool TransposeEncoder::WriteStatesAndData(
                     (static_cast<uint32_t>(internal::kSubmessageWireType) -
                      static_cast<uint32_t>(WireType::kLengthDelimited)),
                 header_writer))) {
-          return Fail(header_writer);
+          return Fail(header_writer.status());
         }
       } else {
         if (ABSL_PREDICT_FALSE(!WriteVarint32(node_id.tag, header_writer))) {
-          return Fail(header_writer);
+          return Fail(header_writer.status());
         }
         if (internal::HasSubtype(node_id.tag)) {
           subtype_to_write.push_back(static_cast<char>(subtype));
@@ -697,7 +697,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
       if (ABSL_PREDICT_FALSE(
               !WriteVarint32(static_cast<uint32_t>(node_id.parent_message_id),
                              header_writer))) {
-        return Fail(header_writer);
+        return Fail(header_writer.status());
       }
       if (node_id.parent_message_id == internal::MessageId::kNonProto) {
         // `kNonProto` has data buffer.
@@ -727,15 +727,15 @@ inline bool TransposeEncoder::WriteStatesAndData(
   }
   for (const uint32_t value : base_to_write) {
     if (ABSL_PREDICT_FALSE(!WriteVarint32(value, header_writer))) {
-      return Fail(header_writer);
+      return Fail(header_writer.status());
     }
   }
   if (ABSL_PREDICT_FALSE(!header_writer.Write(std::move(subtype_to_write)))) {
-    return Fail(header_writer);
+    return Fail(header_writer.status());
   }
   for (const uint32_t value : buffer_index_to_write) {
     if (ABSL_PREDICT_FALSE(!WriteVarint32(value, header_writer))) {
-      return Fail(header_writer);
+      return Fail(header_writer.status());
     }
   }
 
@@ -749,7 +749,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
     }
   }
   if (ABSL_PREDICT_FALSE(!WriteVarint32(first_tag_pos, header_writer))) {
-    return Fail(header_writer);
+    return Fail(header_writer.status());
   }
 
   internal::Compressor transitions_compressor(compressor_options_);
@@ -758,7 +758,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
     return false;
   }
   if (ABSL_PREDICT_FALSE(!transitions_compressor.EncodeAndClose(data_writer))) {
-    return Fail(transitions_compressor);
+    return Fail(transitions_compressor.status());
   }
   return true;
 }
@@ -832,7 +832,7 @@ inline bool TransposeEncoder::WriteTransitions(
               if (last_transition != absl::nullopt) {
                 if (ABSL_PREDICT_FALSE(
                         !transitions_writer.WriteByte(*last_transition))) {
-                  return Fail(transitions_writer);
+                  return Fail(transitions_writer.status());
                 }
               }
               last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -874,7 +874,7 @@ inline bool TransposeEncoder::WriteTransitions(
           if (last_transition != absl::nullopt) {
             if (ABSL_PREDICT_FALSE(
                     !transitions_writer.WriteByte(*last_transition))) {
-              return Fail(transitions_writer);
+              return Fail(transitions_writer.status());
             }
           }
           last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -890,7 +890,7 @@ inline bool TransposeEncoder::WriteTransitions(
   }
   if (last_transition != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(!transitions_writer.WriteByte(*last_transition))) {
-      return Fail(transitions_writer);
+      return Fail(transitions_writer.status());
     }
   }
   return true;
@@ -1302,17 +1302,17 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   for (const std::pair<const NodeId, MessageNode>& entry : message_nodes_) {
     if (entry.second.writer != nullptr) {
       if (ABSL_PREDICT_FALSE(!entry.second.writer->Close())) {
-        return Fail(*entry.second.writer);
+        return Fail(entry.second.writer->status());
       }
     }
   }
   if (ABSL_PREDICT_FALSE(!nonproto_lengths_writer_.Close())) {
-    return Fail(nonproto_lengths_writer_);
+    return Fail(nonproto_lengths_writer_.status());
   }
 
   if (ABSL_PREDICT_FALSE(!dest.WriteByte(
           static_cast<uint8_t>(compressor_options_.compression_type())))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
 
   const std::vector<StateInfo> state_machine =
@@ -1324,8 +1324,12 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
                                              header_writer, data_writer))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!header_writer.Close())) return Fail(header_writer);
-  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  if (ABSL_PREDICT_FALSE(!header_writer.Close())) {
+    return Fail(header_writer.status());
+  }
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) {
+    return Fail(data_writer.status());
+  }
 
   internal::Compressor header_compressor(
       compressor_options_,
@@ -1333,14 +1337,14 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
           header_writer.dest().size()));
   if (ABSL_PREDICT_FALSE(
           !header_compressor.writer().Write(std::move(header_writer.dest())))) {
-    return Fail(header_compressor.writer());
+    return Fail(header_compressor.writer().status());
   }
   if (ABSL_PREDICT_FALSE(
           !header_compressor.LengthPrefixedEncodeAndClose(dest))) {
-    return Fail(header_compressor);
+    return Fail(header_compressor.status());
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data_writer.dest())))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
   return Close();
 }

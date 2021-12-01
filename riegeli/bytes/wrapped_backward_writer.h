@@ -186,7 +186,7 @@ inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
 inline void WrappedBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
   set_buffer(dest.limit(), dest.start_to_limit(), dest.start_to_cursor());
   set_start_pos(dest.start_pos());
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest);
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Dest>
@@ -275,7 +275,9 @@ template <typename Dest>
 void WrappedBackwardWriter<Dest>::Done() {
   WrappedBackwardWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(dest_->status());
+    }
   }
 }
 

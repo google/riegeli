@@ -41,7 +41,7 @@ void DefaultChunkReaderBase::Initialize(Reader* src) {
       << "Failed precondition of DefaultChunkReader: null Reader pointer";
   pos_ = src->pos();
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    FailWithoutAnnotation(*src);
+    FailWithoutAnnotation(src->status());
     return;
   }
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
@@ -70,14 +70,18 @@ void DefaultChunkReaderBase::Done() {
 }
 
 inline bool DefaultChunkReaderBase::FailReading(const Reader& src) {
-  if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) {
+    return FailWithoutAnnotation(src.status());
+  }
   if (ABSL_PREDICT_FALSE(src.pos() > pos_)) truncated_ = true;
   return false;
 }
 
 inline bool DefaultChunkReaderBase::FailSeeking(const Reader& src,
                                                 Position new_pos) {
-  if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) {
+    return FailWithoutAnnotation(src.status());
+  }
   recoverable_ = Recoverable::kFindChunk;
   recoverable_pos_ = src.pos();
   return Fail(absl::InvalidArgumentError(absl::StrCat(
@@ -179,7 +183,9 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
     // Source ended in a skipped region.
     if (!src.Pull()) {
       // Source still ends at the same position.
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(src.status());
+      }
       return false;
     }
     // Source has grown. Recovery can continue.
@@ -345,7 +351,7 @@ again:
     if (healthy()) {
       if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) {
-          return FailWithoutAnnotation(src);
+          return FailWithoutAnnotation(src.status());
         }
         if (skipped_region != nullptr) {
           *skipped_region =
@@ -373,7 +379,9 @@ again:
 find_chunk:
   pos_ += internal::RemainingInBlock(pos_);
   if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) {
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+    if (ABSL_PREDICT_FALSE(!src.healthy())) {
+      return FailWithoutAnnotation(src.status());
+    }
     if (skipped_region != nullptr) {
       *skipped_region =
           SkippedRegion(region_begin, src.pos(), std::move(saved_message));
@@ -382,7 +390,9 @@ find_chunk:
   }
   if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
     if (recoverable_ != Recoverable::kNo) goto again;
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+    if (ABSL_PREDICT_FALSE(!src.healthy())) {
+      return FailWithoutAnnotation(src.status());
+    }
   } else if (block_header_.previous_chunk() == 0) {
     // A chunk boundary coincides with block boundary. Recovery is done.
   } else {
@@ -391,7 +401,9 @@ find_chunk:
       goto find_chunk;
     }
     if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) {
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return FailWithoutAnnotation(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(src.status());
+      }
       if (skipped_region != nullptr) {
         *skipped_region =
             SkippedRegion(region_begin, src.pos(), std::move(saved_message));
@@ -536,7 +548,9 @@ absl::optional<Position> DefaultChunkReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader& src = *src_reader();
   const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    FailWithoutAnnotation(src.status());
+  }
   return size;
 }
 

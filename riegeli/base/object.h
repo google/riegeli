@@ -209,13 +209,6 @@ class Object {
   // Precondition: `!status.ok()`
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
 
-  // Propagates failure from another `Object`.
-  //
-  // Equivalent to `Fail(dependency.status())`.
-  //
-  // Precondition: `!dependency.healthy()`
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
-
   // Can annotate `status` with some context, appropriately for the derived
   // class.
   //
@@ -310,7 +303,6 @@ class Object {
   // This can be called instead of `Fail()` if the annotation supplied by
   // `AnnotateStatus()` would be irrelevant or duplicated in a particular case.
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
   ObjectState state_;

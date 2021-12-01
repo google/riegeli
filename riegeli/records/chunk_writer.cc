@@ -44,7 +44,9 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
     pos += length;
   }
   ChunkWriter::Initialize(pos);
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) FailWithoutAnnotation(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    FailWithoutAnnotation(dest->status());
+  }
 }
 
 absl::Status DefaultChunkWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -98,14 +100,14 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
                                          IntCast<uint64_t>(chunk_end - pos_));
       if (ABSL_PREDICT_FALSE(
               !dest.Write(block_header.bytes(), block_header.size()))) {
-        return FailWithoutAnnotation(dest);
+        return FailWithoutAnnotation(dest.status());
       }
       pos_ += block_header.size();
     }
     const Position length =
         UnsignedMin(*size - src.pos(), internal::RemainingInBlock(pos_));
     if (ABSL_PREDICT_FALSE(!src.Copy(length, dest))) {
-      return FailWithoutAnnotation(dest);
+      return FailWithoutAnnotation(dest.status());
     }
     pos_ += length;
   }
@@ -125,14 +127,14 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
                                          IntCast<uint64_t>(chunk_end - pos_));
       if (ABSL_PREDICT_FALSE(
               !dest.Write(block_header.bytes(), block_header.size()))) {
-        return FailWithoutAnnotation(dest);
+        return FailWithoutAnnotation(dest.status());
       }
       pos_ += block_header.size();
     }
     const Position length =
         UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
     if (ABSL_PREDICT_FALSE(!dest.WriteZeros(length))) {
-      return FailWithoutAnnotation(dest);
+      return FailWithoutAnnotation(dest.status());
     }
     pos_ += length;
   }

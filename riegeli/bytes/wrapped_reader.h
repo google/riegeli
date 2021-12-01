@@ -186,7 +186,7 @@ inline void WrappedReaderBase::SyncBuffer(Reader& src) {
 inline void WrappedReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.limit_pos());
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Src>
@@ -269,7 +269,9 @@ template <typename Src>
 void WrappedReader<Src>::Done() {
   WrappedReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(src_->status());
+    }
   }
 }
 

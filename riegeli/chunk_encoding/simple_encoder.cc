@@ -66,7 +66,7 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
   decoded_data_size_ += IntCast<uint64_t>(size);
   if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(size),
                                         sizes_compressor_.writer()))) {
-    return Fail(sizes_compressor_.writer());
+    return Fail(sizes_compressor_.writer().status());
   }
   {
     absl::Status status = SerializeToWriter(record, values_compressor_.writer(),
@@ -112,11 +112,11 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   decoded_data_size_ += IntCast<uint64_t>(record.size());
   if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(record.size()),
                                         sizes_compressor_.writer()))) {
-    return Fail(sizes_compressor_.writer());
+    return Fail(sizes_compressor_.writer().status());
   }
   if (ABSL_PREDICT_FALSE(
           !values_compressor_.writer().Write(std::forward<Record>(record)))) {
-    return Fail(values_compressor_.writer());
+    return Fail(values_compressor_.writer().status());
   }
   return true;
 }
@@ -145,13 +145,13 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
            "record end positions do not match concatenated record values";
     if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(limit - start),
                                           sizes_compressor_.writer()))) {
-      return Fail(sizes_compressor_.writer());
+      return Fail(sizes_compressor_.writer().status());
     }
     start = limit;
   }
   if (ABSL_PREDICT_FALSE(
           !values_compressor_.writer().Write(std::move(records)))) {
-    return Fail(values_compressor_.writer());
+    return Fail(values_compressor_.writer().status());
   }
   return true;
 }
@@ -166,16 +166,16 @@ bool SimpleEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
 
   if (ABSL_PREDICT_FALSE(
           !dest.WriteByte(static_cast<uint8_t>(compression_type_)))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
 
   if (ABSL_PREDICT_FALSE(
           !sizes_compressor_.LengthPrefixedEncodeAndClose(dest))) {
-    return Fail(sizes_compressor_);
+    return Fail(sizes_compressor_.status());
   }
 
   if (ABSL_PREDICT_FALSE(!values_compressor_.EncodeAndClose(dest))) {
-    return Fail(values_compressor_);
+    return Fail(values_compressor_.status());
   }
   return Close();
 }

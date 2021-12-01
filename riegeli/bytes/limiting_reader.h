@@ -465,7 +465,7 @@ inline void LimitingReaderBase::MakeBuffer(Reader& src) {
                start_to_cursor());
     set_limit_pos(max_pos_);
   }
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Src>
@@ -552,7 +552,9 @@ template <typename Src>
 void LimitingReader<Src>::Done() {
   LimitingReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(src_->status());
+    }
   }
 }
 

@@ -115,7 +115,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
       if (ABSL_PREDICT_FALSE(!simple_decoder.Decode(&src, header.num_records(),
                                                     header.decoded_data_size(),
                                                     limits_))) {
-        return Fail(simple_decoder);
+        return Fail(simple_decoder.status());
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.reader().Read(
               IntCast<size_t>(header.decoded_data_size()), dest))) {
@@ -123,9 +123,11 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
             absl::InvalidArgumentError("Reading record values failed")));
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
-        return Fail(simple_decoder);
+        return Fail(simple_decoder.status());
       }
-      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
+        return Fail(src.status());
+      }
       return true;
     }
     case ChunkType::kTransposed: {
@@ -138,9 +140,13 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
       const bool ok = transpose_decoder.Decode(
           header.num_records(), header.decoded_data_size(), field_projection_,
           src, dest_writer, limits_);
-      if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);
-      if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder);
-      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
+        return Fail(dest_writer.status());
+      }
+      if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder.status());
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
+        return Fail(src.status());
+      }
       return true;
     }
   }

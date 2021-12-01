@@ -340,7 +340,9 @@ template <typename Dest>
 void DefaultChunkWriter<Dest>::Done() {
   DefaultChunkWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(dest_->status());
+    }
   }
 }
 
@@ -349,7 +351,7 @@ bool DefaultChunkWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
-      return FailWithoutAnnotation(*dest_);
+      return FailWithoutAnnotation(dest_->status());
     }
   }
   return true;

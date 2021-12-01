@@ -245,7 +245,7 @@ inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
 inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
   set_buffer(dest.cursor(), dest.available());
   set_start_pos(dest.pos());
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest);
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Digester, typename Dest>
@@ -349,7 +349,9 @@ template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::Done() {
   DigestingWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(dest_->status());
+    }
   }
   internal::DigesterClose(digester_);
 }

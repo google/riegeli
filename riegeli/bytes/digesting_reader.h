@@ -232,7 +232,7 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
 inline void DigestingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.cursor(), src.available());
   set_limit_pos(src.limit_pos());
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Digester, typename Src>
@@ -346,7 +346,9 @@ template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::Done() {
   DigestingReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(src_->status());
+    }
   }
   internal::DigesterClose(digester_);
 }

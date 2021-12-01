@@ -96,15 +96,15 @@ void Compressor::Initialize() {
 bool Compressor::EncodeAndClose(Writer& dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Position uncompressed_size = writer().pos();
-  if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer());
+  if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer().status());
   if (compressor_options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(IntCast<uint64_t>(uncompressed_size), dest))) {
-      return Fail(dest);
+      return Fail(dest.status());
     }
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(compressed_)))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
   return Close();
 }
@@ -112,22 +112,22 @@ bool Compressor::EncodeAndClose(Writer& dest) {
 bool Compressor::LengthPrefixedEncodeAndClose(Writer& dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Position uncompressed_size = writer().pos();
-  if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer());
+  if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer().status());
   uint64_t compressed_size = compressed_.size();
   if (compressor_options_.compression_type() != CompressionType::kNone) {
     compressed_size += LengthVarint64(IntCast<uint64_t>(uncompressed_size));
   }
   if (ABSL_PREDICT_FALSE(!WriteVarint64(compressed_size, dest))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
   if (compressor_options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(IntCast<uint64_t>(uncompressed_size), dest))) {
-      return Fail(dest);
+      return Fail(dest.status());
     }
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(compressed_)))) {
-    return Fail(dest);
+    return Fail(dest.status());
   }
   return Close();
 }

@@ -233,7 +233,7 @@ bool OptionsParser::FromString(absl::string_view text) {
       }
       ValueParser value_parser(this, key, value);
       if (ABSL_PREDICT_FALSE(!option->function(value_parser))) {
-        if (!value_parser.healthy()) return Fail(value_parser);
+        if (!value_parser.healthy()) return Fail(value_parser.status());
         return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Option ", key, ": ",
             "invalid value: ", value.empty() ? "(empty)" : value,

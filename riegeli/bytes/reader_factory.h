@@ -283,7 +283,9 @@ template <typename Src>
 void ReaderFactory<Src>::Done() {
   ReaderFactoryBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(src_->status());
+    }
   }
 }
 

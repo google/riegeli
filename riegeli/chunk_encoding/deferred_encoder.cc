@@ -105,7 +105,7 @@ bool DeferredEncoder::AddRecordImpl(Record&& record) {
   decoded_data_size_ += IntCast<uint64_t>(record.size());
   if (ABSL_PREDICT_FALSE(
           !records_writer_.Write(std::forward<Record>(record)))) {
-    return Fail(records_writer_);
+    return Fail(records_writer_.status());
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
   return true;
@@ -124,7 +124,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   num_records_ += IntCast<uint64_t>(limits.size());
   decoded_data_size_ += IntCast<uint64_t>(records.size());
   if (ABSL_PREDICT_FALSE(!records_writer_.Write(std::move(records)))) {
-    return Fail(records_writer_);
+    return Fail(records_writer_.status());
   }
   if (limits_.empty()) {
     limits_ = std::move(limits);
@@ -141,13 +141,13 @@ bool DeferredEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
                                      uint64_t& decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
-    return Fail(records_writer_);
+    return Fail(records_writer_.status());
   }
   if (ABSL_PREDICT_FALSE(!base_encoder_->AddRecords(
           std::move(records_writer_.dest()), std::move(limits_))) ||
       ABSL_PREDICT_FALSE(!base_encoder_->EncodeAndClose(
           dest, chunk_type, num_records, decoded_data_size))) {
-    Fail(*base_encoder_);
+    Fail(base_encoder_->status());
   }
   return Close();
 }

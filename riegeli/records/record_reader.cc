@@ -150,7 +150,7 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of RecordReader: null ChunkReader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy())) {
-    FailWithoutAnnotation(*src);
+    FailWithoutAnnotation(src->status());
     return;
   }
   chunk_begin_ = src->pos();
@@ -162,7 +162,9 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
 void RecordReaderBase::Done() {
   last_record_is_valid_ = false;
   recoverable_ = Recoverable::kNo;
-  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) Fail(chunk_decoder_);
+  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) {
+    Fail(chunk_decoder_.status());
+  }
 }
 
 inline bool RecordReaderBase::FailReading(const ChunkReader& src) {
@@ -282,11 +284,11 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
                                            FieldProjection::All(), data_reader,
                                            serialized_metadata_writer, limits);
   if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
-    return Fail(serialized_metadata_writer);
+    return Fail(serialized_metadata_writer.status());
   }
-  if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder);
+  if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder.status());
   if (ABSL_PREDICT_FALSE(!data_reader.VerifyEndAndClose())) {
-    return Fail(data_reader);
+    return Fail(data_reader.status());
   }
   RIEGELI_ASSERT_EQ(limits.size(), 1u)
       << "Metadata chunk has unexpected record limits";
@@ -331,7 +333,7 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
     }
     if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
       recoverable_ = Recoverable::kRecoverChunkDecoder;
-      Fail(chunk_decoder_);
+      Fail(chunk_decoder_.status());
       if (!TryRecovery()) return false;
       continue;
     }
@@ -676,7 +678,7 @@ inline bool RecordReaderBase::ReadChunk() {
   }
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Decode(chunk))) {
     recoverable_ = Recoverable::kRecoverChunkDecoder;
-    return Fail(chunk_decoder_);
+    return Fail(chunk_decoder_.status());
   }
   return true;
 }

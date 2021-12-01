@@ -35,7 +35,7 @@ namespace riegeli {
 
 void SimpleDecoder::Done() {
   if (ABSL_PREDICT_FALSE(!values_decompressor_.Close())) {
-    Fail(values_decompressor_);
+    Fail(values_decompressor_.status());
   }
 }
 
@@ -70,7 +70,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
           src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
       compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
-    return Fail(sizes_decompressor);
+    return Fail(sizes_decompressor.status());
   }
   limits.clear();
   size_t limit = 0;
@@ -88,7 +88,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
     limits.push_back(limit);
   }
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.VerifyEndAndClose())) {
-    return Fail(sizes_decompressor);
+    return Fail(sizes_decompressor.status());
   }
   if (ABSL_PREDICT_FALSE(limit != decoded_data_size)) {
     return Fail(
@@ -97,7 +97,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
 
   values_decompressor_.Reset(src, compression_type);
   if (ABSL_PREDICT_FALSE(!values_decompressor_.healthy())) {
-    return Fail(values_decompressor_);
+    return Fail(values_decompressor_.status());
   }
   return true;
 }
