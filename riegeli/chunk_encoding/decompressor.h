@@ -193,9 +193,8 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
   uint64_t uncompressed_size;
   if (ABSL_PREDICT_FALSE(
           !ReadVarint64(*compressed_reader, uncompressed_size))) {
-    compressed_reader->Fail(
-        absl::InvalidArgumentError("Reading uncompressed size failed"));
-    Fail(*compressed_reader);
+    Fail(compressed_reader->StatusOrAnnotate(
+        absl::InvalidArgumentError("Reading uncompressed size failed")));
     return;
   }
   switch (compression_type) {

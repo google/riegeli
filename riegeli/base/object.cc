@@ -103,6 +103,11 @@ bool Object::FailWithoutAnnotation(const Object& dependency) {
   return FailWithoutAnnotation(dependency.status());
 }
 
+absl::Status Object::StatusOrAnnotate(absl::Status other_status) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return status();
+  return AnnotateStatus(std::move(other_status));
+}
+
 TypeId Object::GetTypeId() const { return TypeId(); }
 
 }  // namespace riegeli

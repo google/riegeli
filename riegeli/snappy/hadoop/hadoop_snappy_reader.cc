@@ -176,9 +176,9 @@ bool HadoopSnappyReaderBase::SeekBehindScratch(Position new_pos) {
     set_buffer();
     set_limit_pos(0);
     if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
-      src.Fail(
-          absl::DataLossError("HadoopSnappy-compressed stream got truncated"));
-      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      return FailWithoutAnnotation(
+          AnnotateOverSrc(src.StatusOrAnnotate(absl::DataLossError(
+              "HadoopSnappy-compressed stream got truncated"))));
     }
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     if (new_pos == 0) return true;

@@ -262,8 +262,8 @@ bool ZlibReaderBase::SeekBehindBuffer(Position new_pos) {
     set_limit_pos(0);
     decompressor_.reset();
     if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
-      src.Fail(absl::DataLossError("Zlib-compressed stream got truncated"));
-      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      return FailWithoutAnnotation(AnnotateOverSrc(src.StatusOrAnnotate(
+          absl::DataLossError("Zlib-compressed stream got truncated"))));
     }
     InitializeDecompressor();
     if (ABSL_PREDICT_FALSE(!healthy())) return false;

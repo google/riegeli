@@ -223,6 +223,14 @@ class Object {
   // failure related to this `Object`.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatus(absl::Status status);
 
+  // Returns `status()` if `!healthy()`, otherwise returns
+  // `AnnotateStatus(std::move(other_status))`.
+  //
+  // This is typically used after a failed call which does not necessarily
+  // make the object unhealthy, e.g. after reading functions, to return an
+  // explanation if the source ends prematurely or has unexpected contents.
+  ABSL_ATTRIBUTE_COLD absl::Status StatusOrAnnotate(absl::Status other_status);
+
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
   //

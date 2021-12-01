@@ -108,8 +108,8 @@ absl::Status ReadRecords(
     const size_t start = IntCast<size_t>(src.pos() - initial_pos);
     RIEGELI_ASSERT_LE(start, limit) << "Record end positions not sorted";
     if (ABSL_PREDICT_FALSE(!src.Read(limit - start, *dest.Add()))) {
-      src.Fail(absl::InvalidArgumentError("Reading record failed"));
-      return src.status();
+      return src.StatusOrAnnotate(
+          absl::InvalidArgumentError("Reading record failed"));
     }
   }
   return absl::OkStatus();
@@ -164,9 +164,8 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       uint64_t size;
       if (ABSL_PREDICT_FALSE(
               !ReadVarint64(sizes_decompressor.reader(), size))) {
-        sizes_decompressor.reader().Fail(
+        return sizes_decompressor.reader().StatusOrAnnotate(
             absl::InvalidArgumentError("Reading record size failed"));
-        return sizes_decompressor.reader().status();
       }
       if (ABSL_PREDICT_FALSE(size > chunk.header.decoded_data_size() - limit)) {
         return absl::InvalidArgumentError(
