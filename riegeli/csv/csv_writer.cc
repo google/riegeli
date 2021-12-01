@@ -48,7 +48,7 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
         << "Quote character conflicts with field separator";
   }
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    Fail(*dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
 
@@ -75,6 +75,14 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
 }
 
 absl::Status CsvWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status CsvWriterBase::AnnotateOverDest(absl::Status status) {
   if (!standalone_record_) {
     return Annotate(status, absl::StrCat("at record ", record_index()));
   }
@@ -89,7 +97,9 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
         "expressible: '",
         absl::CHexEscape(absl::string_view(&field[already_scanned], 1)), "'")));
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) return Fail(dest);
+  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) {
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
   const char* start = field.data();
   const char* next_to_check = field.data() + already_scanned;
   const char* const limit = field.data() + field.size();
@@ -99,15 +109,17 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
              next_to_check, *quote_, PtrDistance(next_to_check, limit)))) {
     if (ABSL_PREDICT_FALSE(
             !dest.Write(start, PtrDistance(start, next_quote + 1)))) {
-      return Fail(dest);
+      return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     }
     start = next_quote;
     next_to_check = next_quote + 1;
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(start, PtrDistance(start, limit)))) {
-    return Fail(dest);
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) return Fail(dest);
+  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) {
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
   return true;
 }
 
@@ -117,7 +129,9 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
       return WriteQuoted(dest, field, i);
     }
   }
-  if (ABSL_PREDICT_FALSE(!dest.Write(field))) return Fail(dest);
+  if (ABSL_PREDICT_FALSE(!dest.Write(field))) {
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
   return true;
 }
 

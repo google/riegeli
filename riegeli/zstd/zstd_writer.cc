@@ -58,7 +58,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    Fail(*dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
   initial_compressed_pos_ = dest->pos();
@@ -160,6 +160,17 @@ void ZstdWriterBase::Done() {
 
 absl::Status ZstdWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `BufferedWriter::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status ZstdWriterBase::AnnotateOverDest(absl::Status status) {
+  if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
@@ -224,10 +235,8 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       return true;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      return Fail(Annotate(
-          absl::InternalError(absl::StrCat("ZSTD_compressStream2() failed: ",
-                                           ZSTD_getErrorName(result))),
-          absl::StrCat("at byte ", dest.pos())));
+      return Fail(absl::InternalError(absl::StrCat(
+          "ZSTD_compressStream2() failed: ", ZSTD_getErrorName(result))));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
@@ -236,7 +245,9 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       move_start_pos(input.pos);
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!dest.Push(1, result))) return Fail(dest);
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, result))) {
+      return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+    }
   }
 }
 
@@ -266,7 +277,7 @@ Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   Writer& dest = *dest_writer();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     return nullptr;
   }
   ZstdReader<>* const reader = associated_reader_.ResetReader(

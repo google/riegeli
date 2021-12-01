@@ -48,7 +48,9 @@ bool JoiningReaderBase::CloseShardImpl() {
       << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
          "shard already closed";
   Reader* shard = shard_reader();
-  if (ABSL_PREDICT_FALSE(!shard->Close())) return Fail(*shard);
+  if (ABSL_PREDICT_FALSE(!shard->Close())) {
+    return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+  }
   return true;
 }
 
@@ -116,6 +118,17 @@ bool JoiningReaderBase::CloseShard() {
 }
 
 absl::Status JoiningReaderBase::AnnotateStatusImpl(absl::Status status) {
+  Reader* shard = shard_reader();
+  if (shard_is_open(shard)) {
+    status = shard->AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*shard_reader()` with the position
+  // within the shard. Clarify that the current position is the position across
+  // shards instead of delegating to `PullableReader::AnnotateStatusImpl()`.
+  return AnnotateOverShard(std::move(status));
+}
+
+absl::Status JoiningReaderBase::AnnotateOverShard(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("across shards at byte ", pos()));
   }
@@ -141,7 +154,9 @@ bool JoiningReaderBase::PullBehindScratch() {
     shard = shard_reader();
   }
   while (ABSL_PREDICT_FALSE(!shard->Pull())) {
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) return Fail(*shard);
+    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+      return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+    }
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = shard_reader();
@@ -175,7 +190,9 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
       move_limit_pos(length);
       break;
     }
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) return Fail(*shard);
+    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+      return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+    }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
         << "Reader::Read() decreased pos()";
     const Position length_read = shard->pos() - pos_before;
@@ -238,7 +255,9 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
       move_limit_pos(length);
       break;
     }
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) return Fail(*shard);
+    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+      return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+    }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
         << "Reader::Read() decreased pos()";
     const Position length_read = shard->pos() - pos_before;
@@ -280,7 +299,9 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
       break;
     }
     if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) return Fail(*shard);
+    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+      return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+    }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
         << "Reader::CopyTo() decreased pos()";
     const Position length_read = shard->pos() - pos_before;

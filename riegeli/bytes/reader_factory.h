@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/base.h"
@@ -88,6 +89,8 @@ class ReaderFactoryBase : public Object {
   void Initialize(size_t buffer_size, Reader* src);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
  private:
   class ConcurrentReader;
@@ -280,7 +283,7 @@ template <typename Src>
 void ReaderFactory<Src>::Done() {
   ReaderFactoryBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
   }
 }
 

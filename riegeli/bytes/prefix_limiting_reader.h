@@ -83,12 +83,9 @@ class PrefixLimitingReaderBase : public Reader {
   void Reset(Closed);
   void Reset();
   void Initialize(Reader* src, absl::optional<Position> base_pos);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
-  // `PrefixLimitingReaderBase` overrides `Reader::AnnotateStatusImpl()` to
-  // annotate the status with the current position, clarifying that this is a
-  // relative position. A status propagated from `*src_reader()` might carry
-  // annotation with the original position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
@@ -260,7 +257,9 @@ inline void PrefixLimitingReaderBase::MakeBuffer(Reader& src) {
       << "PrefixLimitingReader source changed position unexpectedly";
   set_buffer(src.cursor(), src.available());
   set_limit_pos(src.limit_pos() - base_pos_);
-  if (ABSL_PREDICT_FALSE(!src.healthy())) Fail(src);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) {
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+  }
 }
 
 template <typename Src>
@@ -350,7 +349,9 @@ template <typename Src>
 void PrefixLimitingReader<Src>::Done() {
   PrefixLimitingReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
+    }
   }
 }
 

@@ -39,16 +39,16 @@ void LimitingReaderBase::Done() {
   Reader::Done();
 }
 
-inline bool LimitingReaderBase::CheckEnough() {
+inline bool LimitingReaderBase::CheckEnough(Reader& src) {
   if (ABSL_PREDICT_FALSE(exact_)) {
-    return FailWithoutAnnotation(absl::InvalidArgumentError(absl::StrCat(
-        "Not enough data: expected at least ", max_pos_, ", have ", pos())));
+    return Fail(absl::InvalidArgumentError(
+        absl::StrCat("Not enough data: expected at least ", max_pos_)));
   }
   return false;
 }
 
 void LimitingReaderBase::FailLengthOverflow(Position max_length) {
-  FailWithoutAnnotation(absl::InvalidArgumentError(
+  Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", pos(), " + ",
                    max_length, " which overflows the Reader position")));
 }
@@ -57,6 +57,17 @@ void LimitingReaderBase::FailNotEnoughEarly(Position expected) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", expected,
                    ", will have at most ", max_pos_)));
+}
+
+absl::Status LimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
+  // Fully delegate annotations to `*src_reader()`.
+  if (is_open()) {
+    Reader& src = *src_reader();
+    SyncBuffer(src);
+    status = src.AnnotateStatus(std::move(status));
+    MakeBuffer(src);
+  }
+  return status;
 }
 
 bool LimitingReaderBase::PullSlow(size_t min_length,
@@ -72,7 +83,7 @@ bool LimitingReaderBase::PullSlow(size_t min_length,
   const size_t min_length_to_pull = UnsignedMin(min_length, max_pos_ - pos());
   const bool ok = src.Pull(min_length_to_pull, recommended_length);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return min_length_to_pull == min_length;
 }
 
@@ -89,7 +100,7 @@ bool LimitingReaderBase::ReadSlow(size_t length, char* dest) {
   const size_t length_to_read = UnsignedMin(length, max_pos_ - pos());
   const bool ok = src.Read(length_to_read, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return length_to_read == length;
 }
 
@@ -124,7 +135,7 @@ inline bool LimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
   const size_t length_to_read = UnsignedMin(length, max_pos_ - pos());
   const bool ok = src.ReadAndAppend(length_to_read, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return length_to_read == length;
 }
 
@@ -141,7 +152,7 @@ bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
   const Position length_to_copy = UnsignedMin(length, max_pos_ - pos());
   const bool ok = src.Copy(length_to_copy, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return length_to_copy == length;
 }
 
@@ -158,12 +169,12 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
     const bool ok = src.Seek(max_pos_);
     MakeBuffer(src);
-    if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+    if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
     return false;
   }
   const bool ok = src.Copy(length, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return true;
 }
 
@@ -201,7 +212,7 @@ bool LimitingReaderBase::SeekSlow(Position new_pos) {
   const Position pos_to_seek = UnsignedMin(new_pos, max_pos_);
   const bool ok = src.Seek(pos_to_seek);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!ok)) return CheckEnough(src);
   return pos_to_seek == new_pos;
 }
 

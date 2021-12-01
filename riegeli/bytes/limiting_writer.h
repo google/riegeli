@@ -160,6 +160,8 @@ class LimitingWriterBase : public Writer {
   void Initialize(Writer* dest, Options&& options);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
@@ -189,7 +191,7 @@ class LimitingWriterBase : public Writer {
   bool exact_ = false;
 
  private:
-  ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
+  ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(Writer& dest);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
   // This template is defined and used only in limiting_writer.cc.
@@ -375,7 +377,7 @@ inline Position LimitingWriterBase::max_length() const {
 }
 
 inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded();
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded(dest);
   dest.set_cursor(cursor());
   return true;
 }

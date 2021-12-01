@@ -55,12 +55,9 @@ class FramedSnappyReaderBase : public PullableReader {
   void Reset(Closed);
   void Reset();
   void Initialize(Reader* src);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
-  // `FramedSnappyReaderBase` overrides `Reader::AnnotateStatusImpl()` to
-  // annotate the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*src_reader()` might carry
-  // annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PullBehindScratch() override;
@@ -281,7 +278,7 @@ inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
     that.src_->set_cursor(that.src_->cursor() - available_length);
     src_ = std::move(that.src_);
     if (ABSL_PREDICT_FALSE(!src_->Pull(available_length))) {
-      Fail(*src_);
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
       return;
     }
     set_buffer(src_->cursor(), available_length);
@@ -293,7 +290,9 @@ template <typename Src>
 void FramedSnappyReader<Src>::Done() {
   FramedSnappyReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
+    }
   }
 }
 

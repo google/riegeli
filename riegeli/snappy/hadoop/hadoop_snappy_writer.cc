@@ -37,7 +37,9 @@ namespace riegeli {
 void HadoopSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of HadoopSnappyWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
+  }
 }
 
 void HadoopSnappyWriterBase::Done() {
@@ -47,6 +49,17 @@ void HadoopSnappyWriterBase::Done() {
 }
 
 absl::Status HadoopSnappyWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status HadoopSnappyWriterBase::AnnotateOverDest(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
@@ -84,7 +97,7 @@ inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
   if (ABSL_PREDICT_FALSE(
           !dest.Push(2 * sizeof(uint32_t) +
                      snappy::MaxCompressedLength(uncompressed_length)))) {
-    return Fail(dest);
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
   char* const compressed_chunk = dest.cursor();
   WriteBigEndian32(IntCast<uint32_t>(uncompressed_length), compressed_chunk);
@@ -124,7 +137,7 @@ Reader* HadoopSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
   Writer& dest = *dest_writer();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     return nullptr;
   }
   HadoopSnappyReader<>* const reader =

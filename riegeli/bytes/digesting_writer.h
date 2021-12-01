@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -56,6 +57,8 @@ class DigestingWriterBase : public Writer {
   void Initialize(Writer* dest);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;

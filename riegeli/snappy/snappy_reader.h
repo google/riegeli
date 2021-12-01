@@ -75,12 +75,9 @@ class SnappyReaderBase : public ChainReader<Chain> {
   void Reset(Closed);
   void Reset();
   void Initialize(Reader* src, absl::optional<Position> assumed_size);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
-  // `SnappyReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate the
-  // status with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*src_reader()` might carry annotation
-  // with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
 };
@@ -352,7 +349,9 @@ template <typename Src>
 void SnappyReader<Src>::Done() {
   SnappyReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
+    }
   }
 }
 

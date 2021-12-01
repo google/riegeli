@@ -39,7 +39,7 @@ void BrotliReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of BrotliReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    Fail(*src);
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
   initial_compressed_pos_ = src->pos();
@@ -80,10 +80,7 @@ inline void BrotliReaderBase::InitializeDecompressor() {
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
-    Fail(Annotate(
-        absl::InvalidArgumentError("Truncated Brotli-compressed stream"),
-        absl::StrCat("at byte ", src.pos())));
+    Fail(absl::InvalidArgumentError("Truncated Brotli-compressed stream"));
   }
   PullableReader::Done();
   decompressor_.reset();
@@ -92,6 +89,17 @@ void BrotliReaderBase::Done() {
 }
 
 absl::Status BrotliReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*src->reader()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `PullableReader::AnnotateStatusImpl()`.
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status BrotliReaderBase::AnnotateOverSrc(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
@@ -120,12 +128,10 @@ bool BrotliReaderBase::PullBehindScratch() {
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
         set_buffer();
-        return Fail(
-            Annotate(absl::InvalidArgumentError(absl::StrCat(
-                         "BrotliDecoderDecompressStream() failed: ",
+        return Fail(absl::InvalidArgumentError(
+            absl::StrCat("BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
-                             BrotliDecoderGetErrorCode(decompressor_.get())))),
-                     absl::StrCat("at byte ", src.pos())));
+                             BrotliDecoderGetErrorCode(decompressor_.get())))));
       case BROTLI_DECODER_RESULT_SUCCESS:
         set_buffer();
         decompressor_.reset();
@@ -155,7 +161,9 @@ bool BrotliReaderBase::PullBehindScratch() {
                "BrotliDecoderTakeOutput() returned no data";
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           set_buffer();
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
           truncated_ = true;
           return false;
         }
@@ -189,7 +197,7 @@ bool BrotliReaderBase::SeekBehindScratch(Position new_pos) {
     decompressor_.reset();
     if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
       src.Fail(absl::DataLossError("Brotli-compressed stream got truncated"));
-      return Fail(src);
+      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
     InitializeDecompressor();
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -209,7 +217,7 @@ std::unique_ptr<Reader> BrotliReaderBase::NewReaderImpl(Position initial_pos) {
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(src);
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     return nullptr;
   }
   std::unique_ptr<Reader> reader =

@@ -35,6 +35,18 @@ void WrappedBackwardWriterBase::Done() {
   BackwardWriter::Done();
 }
 
+absl::Status WrappedBackwardWriterBase::AnnotateStatusImpl(
+    absl::Status status) {
+  // Fully delegate annotations to `*dest_writer()`.
+  if (is_open()) {
+    BackwardWriter& dest = *dest_writer();
+    SyncBuffer(dest);
+    status = dest.AnnotateStatus(std::move(status));
+    MakeBuffer(dest);
+  }
+  return status;
+}
+
 bool WrappedBackwardWriterBase::PushSlow(size_t min_length,
                                          size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)

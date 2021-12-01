@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -552,8 +553,12 @@ class RecordWriterBase : public Object {
   virtual bool is_owning() const = 0;
 
   void Initialize(ChunkWriter* dest, Options&& options);
-  void Done() override;
   void DoneBackground();
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
+
+  void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
  private:
   class Worker;
@@ -750,7 +755,9 @@ template <typename Dest>
 void RecordWriter<Dest>::Done() {
   RecordWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 

@@ -31,26 +31,41 @@
 namespace riegeli {
 
 void LimitingBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    BackwardWriter& dest = *dest_writer();
-    SyncBuffer(dest);
-  }
+  BackwardWriter& dest = *dest_writer();
+  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
-    FailWithoutAnnotation(absl::InvalidArgumentError(absl::StrCat(
-        "Not enough data: expected ", max_pos_, ", have ", pos())));
+    // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
+    // buffer again.
+    FailWithoutAnnotation(dest.AnnotateStatus(absl::InvalidArgumentError(
+        absl::StrCat("Not enough data: expected ", max_pos_))));
   }
   BackwardWriter::Done();
 }
 
-bool LimitingBackwardWriterBase::FailLimitExceeded() {
-  return Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Position limit exceeded: ", max_pos_)));
+bool LimitingBackwardWriterBase::FailLimitExceeded(BackwardWriter& dest) {
+  dest.set_cursor(cursor() + IntCast<size_t>(pos() - max_pos_));
+  // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the buffer
+  // again.
+  return FailWithoutAnnotation(dest.AnnotateStatus(
+      absl::ResourceExhaustedError(absl::StrCat("Position limit exceeded"))));
 }
 
 void LimitingBackwardWriterBase::FailLengthOverflow(Position max_length) {
-  FailWithoutAnnotation(absl::InvalidArgumentError(
+  Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
                    " which overflows the BackwardWriter position")));
+}
+
+absl::Status LimitingBackwardWriterBase::AnnotateStatusImpl(
+    absl::Status status) {
+  // Fully delegate annotations to `*dest_writer()`.
+  if (is_open()) {
+    BackwardWriter& dest = *dest_writer();
+    const bool ok = SyncBuffer(dest);
+    status = dest.AnnotateStatus(std::move(status));
+    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(dest);
+  }
+  return status;
 }
 
 bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
@@ -113,7 +128,7 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
-    return FailLimitExceeded();
+    return FailLimitExceeded(dest);
   }
   const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -128,7 +143,7 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
-    return FailLimitExceeded();
+    return FailLimitExceeded(dest);
   }
   const bool ok = dest.WriteZeros(length);
   MakeBuffer(dest);

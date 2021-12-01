@@ -49,7 +49,7 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of FramedSnappyWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    Fail(*dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
   initial_compressed_pos_ = dest->pos();
@@ -58,7 +58,7 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
     if (ABSL_PREDICT_FALSE(!dest->Write("\xff\x06\x00\x00"
                                         "sNaPpY",
                                         10))) {
-      Fail(*dest);
+      FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     }
   }
 }
@@ -70,6 +70,17 @@ void FramedSnappyWriterBase::Done() {
 }
 
 absl::Status FramedSnappyWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status FramedSnappyWriterBase::AnnotateOverDest(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
@@ -107,7 +118,7 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   if (ABSL_PREDICT_FALSE(
           !dest.Push(2 * sizeof(uint32_t) +
                      snappy::MaxCompressedLength(uncompressed_length)))) {
-    return Fail(dest);
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
   char* const compressed_chunk = dest.cursor();
   size_t compressed_length;
@@ -161,7 +172,7 @@ Reader* FramedSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
   Writer& dest = *dest_writer();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     return nullptr;
   }
   FramedSnappyReader<>* const reader =

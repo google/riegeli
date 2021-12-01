@@ -143,12 +143,9 @@ class ZstdReaderBase : public BufferedReader {
   void Reset(bool growing_source, ZstdDictionary&& dictionary,
              size_t buffer_size, absl::optional<Position> size_hint);
   void Initialize(Reader* src);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
-  // `ZstdReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate the
-  // status with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*src_reader()` might carry annotation
-  // with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
@@ -409,7 +406,9 @@ template <typename Src>
 void ZstdReader<Src>::Done() {
   ZstdReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
+    }
   }
 }
 

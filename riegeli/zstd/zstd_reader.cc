@@ -42,7 +42,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZstdReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    Fail(*src);
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
   initial_compressed_pos_ = src->pos();
@@ -116,10 +116,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
 
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
-    Fail(
-        Annotate(absl::InvalidArgumentError("Truncated Zstd-compressed stream"),
-                 absl::StrCat("at byte ", src.pos())));
+    Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
   }
   BufferedReader::Done();
   decompressor_.reset();
@@ -127,6 +124,17 @@ void ZstdReaderBase::Done() {
 }
 
 absl::Status ZstdReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*src->reader()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `BufferedReader::AnnotateStatusImpl()`.
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status ZstdReaderBase::AnnotateOverSrc(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
@@ -188,10 +196,8 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return output.pos >= min_length;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(Annotate(
-          absl::InvalidArgumentError(absl::StrCat(
-              "ZSTD_decompressStream() failed: ", ZSTD_getErrorName(result))),
-          absl::StrCat("at byte ", src.pos())));
+      Fail(absl::InvalidArgumentError(absl::StrCat(
+          "ZSTD_decompressStream() failed: ", ZSTD_getErrorName(result))));
       move_limit_pos(output.pos);
       return output.pos >= min_length;
     }
@@ -205,13 +211,11 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     if (ABSL_PREDICT_FALSE(!src.Pull(1, result))) {
       move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src.healthy())) {
-        Fail(src);
+        FailWithoutAnnotation(AnnotateOverSrc(src.status()));
       } else if (growing_source_) {
         truncated_ = true;
       } else {
-        Fail(Annotate(
-            absl::InvalidArgumentError("Truncated Zstd-compressed stream"),
-            absl::StrCat("at byte ", src.pos())));
+        Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
       }
       return output.pos >= min_length;
     }
@@ -240,7 +244,7 @@ bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
     decompressor_.reset();
     if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
       src.Fail(absl::DataLossError("Zstd-compressed stream got truncated"));
-      return Fail(src);
+      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
     InitializeDecompressor(src);
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -270,7 +274,7 @@ std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(src);
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     return nullptr;
   }
   std::unique_ptr<Reader> reader =

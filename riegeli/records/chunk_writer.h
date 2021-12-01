@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -136,6 +137,9 @@ class DefaultChunkWriterBase : public ChunkWriter {
   DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& that) noexcept;
 
   void Initialize(Writer* dest, Position pos);
+
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
  private:
   bool WriteSection(Reader& src, Position chunk_begin, Position chunk_end,
@@ -336,7 +340,7 @@ template <typename Dest>
 void DefaultChunkWriter<Dest>::Done() {
   DefaultChunkWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
   }
 }
 
@@ -344,7 +348,9 @@ template <typename Dest>
 bool DefaultChunkWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
+      return FailWithoutAnnotation(*dest_);
+    }
   }
   return true;
 }

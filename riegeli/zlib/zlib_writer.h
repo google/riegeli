@@ -203,13 +203,10 @@ class ZlibWriterBase : public BufferedWriter {
              absl::optional<Position> size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void DoneBehindBuffer(absl::string_view src) override;
   void Done() override;
-  // `ZlibWriterBase` overrides `Writer::AnnotateStatusImpl()` to annotate the
-  // status with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*dest_writer()` might carry annotation
-  // with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
@@ -469,7 +466,9 @@ template <typename Dest>
 void ZlibWriter<Dest>::Done() {
   ZlibWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 
@@ -477,7 +476,9 @@ template <typename Dest>
 bool ZlibWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ZlibWriterBase::FlushImpl(flush_type))) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
   return true;
 }

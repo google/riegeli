@@ -65,7 +65,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
       << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    Fail(*dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
   initial_compressed_pos_ = dest->pos();
@@ -154,6 +154,17 @@ void BrotliWriterBase::Done() {
 
 absl::Status BrotliWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `BufferedWriter::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status BrotliWriterBase::AnnotateOverDest(absl::Status status) {
+  if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
@@ -185,16 +196,14 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
     if (ABSL_PREDICT_FALSE(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
-      return Fail(
-          Annotate(absl::InternalError("BrotliEncoderCompressStream() failed"),
-                   absl::StrCat("at byte ", dest.pos())));
+      return Fail(absl::InternalError("BrotliEncoderCompressStream() failed"));
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
       if (ABSL_PREDICT_FALSE(!dest.Write(data, length))) {
-        return Fail(dest);
+        return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
       }
     } else if (available_in == 0) {
       move_start_pos(src.size());
@@ -236,7 +245,7 @@ Reader* BrotliWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   Writer& dest = *dest_writer();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(dest);
+    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     return nullptr;
   }
   BrotliReader<>* const reader = associated_reader_.ResetReader(

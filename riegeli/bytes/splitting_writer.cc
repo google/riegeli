@@ -55,7 +55,9 @@ bool SplittingWriterBase::CloseShardImpl() {
       << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
          "shard already closed";
   Writer* shard = shard_writer();
-  if (ABSL_PREDICT_FALSE(!shard->Close())) return Fail(*shard);
+  if (ABSL_PREDICT_FALSE(!shard->Close())) {
+    return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+  }
   return true;
 }
 
@@ -135,6 +137,17 @@ bool SplittingWriterBase::CloseShard() {
 }
 
 absl::Status SplittingWriterBase::AnnotateStatusImpl(absl::Status status) {
+  Writer* shard = shard_writer();
+  if (shard_is_open(shard)) {
+    status = shard->AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*shard_writer()` with the position
+  // within the shard. Clarify that the current position is the position across
+  // shards instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
+  return AnnotateOverShard(std::move(status));
+}
+
+absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("across shards at byte ", pos()));
   }

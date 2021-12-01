@@ -79,12 +79,9 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Reset(Closed);
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void Done() override;
-  // `HadoopSnappyWriterBase` overrides `Writer::AnnotateStatusImpl()` to
-  // annotate the status with the current position, clarifying that this is the
-  // uncompressed position. A status propagated from `*dest_writer()` might
-  // carry annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PushBehindScratch() override;
@@ -307,7 +304,9 @@ template <typename Dest>
 void HadoopSnappyWriter<Dest>::Done() {
   HadoopSnappyWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 
@@ -317,7 +316,9 @@ bool HadoopSnappyWriter<Dest>::FlushImpl(FlushType flush_type) {
     return false;
   }
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
   return true;
 }

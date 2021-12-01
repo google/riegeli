@@ -120,6 +120,10 @@ class SplittingWriterBase : public PushableWriter {
   bool shard_is_open() const;
   bool shard_is_open(const Writer* shard) const;
 
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverShard(absl::Status status);
+
   // Sets cursor of `shard` to cursor of `*this`. Sets buffer pointers of
   // `*this` to `nullptr`.
   void SyncBuffer(Writer& shard);
@@ -127,13 +131,6 @@ class SplittingWriterBase : public PushableWriter {
   // Sets buffer pointers of `*this` to buffer pointers of `shard`. Fails
   // `*this` if `shard` failed.
   void MakeBuffer(Writer& shard);
-
-  // `SplittingWriterBase` overrides `Writer::AnnotateStatusImpl()` to annotate
-  // the status with the current position, clarifying that this is the position
-  // across shards. A status propagated from `*shard_writer()` might carry
-  // annotation with the position within a shard.
-  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
-      absl::Status status) override;
 
   bool PushBehindScratch() override;
   bool WriteBehindScratch(absl::string_view src) override;
@@ -255,7 +252,9 @@ inline void SplittingWriterBase::MakeBuffer(Writer& shard) {
          "current position exceeds the shard limit";
   set_buffer(shard.cursor(),
              UnsignedMin(shard.available(), shard_pos_limit_ - start_pos()));
-  if (ABSL_PREDICT_FALSE(!shard.healthy())) Fail(shard);
+  if (ABSL_PREDICT_FALSE(!shard.healthy())) {
+    FailWithoutAnnotation(AnnotateOverShard(shard.status()));
+  }
 }
 
 template <typename Shard>

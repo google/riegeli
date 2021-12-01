@@ -38,6 +38,17 @@ void WrappedReaderBase::Done() {
   Reader::Done();
 }
 
+absl::Status WrappedReaderBase::AnnotateStatusImpl(absl::Status status) {
+  // Fully delegate annotations to `*src_reader()`.
+  if (is_open()) {
+    Reader& src = *src_reader();
+    SyncBuffer(src);
+    status = src.AnnotateStatus(std::move(status));
+    MakeBuffer(src);
+  }
+  return status;
+}
+
 bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "

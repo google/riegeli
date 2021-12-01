@@ -45,6 +45,17 @@ void PrefixLimitingWriterBase::Done() {
 
 absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the original
+  // position. Clarify that the current position is the relative position
+  // instead of delegating to `Writer::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status PrefixLimitingWriterBase::AnnotateOverDest(absl::Status status) {
+  if (is_open()) {
     return Annotate(status,
                     absl::StrCat("with relative position at byte ", pos()));
   }

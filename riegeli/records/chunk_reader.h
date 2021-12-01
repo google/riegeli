@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -148,6 +149,8 @@ class DefaultChunkReaderBase : public Object {
   void Initialize(Reader* src);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
  private:
   enum class Recoverable { kNo, kHaveChunk, kFindChunk };
@@ -422,7 +425,7 @@ template <typename Src>
 void DefaultChunkReader<Src>::Done() {
   DefaultChunkReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
   }
 }
 

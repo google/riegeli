@@ -37,6 +37,17 @@ void DigestingWriterBase::Done() {
   Writer::Done();
 }
 
+absl::Status DigestingWriterBase::AnnotateStatusImpl(absl::Status status) {
+  // Fully delegate annotations to `*dest_writer()`.
+  if (is_open()) {
+    Writer& dest = *dest_writer();
+    SyncBuffer(dest);
+    status = dest.AnnotateStatus(std::move(status));
+    MakeBuffer(dest);
+  }
+  return status;
+}
+
 bool DigestingWriterBase::PushSlow(size_t min_length,
                                    size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)

@@ -86,12 +86,9 @@ class PrefixLimitingWriterBase : public Writer {
   void Reset(Closed);
   void Reset();
   void Initialize(Writer* dest, absl::optional<Position> base_pos);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void Done() override;
-  // `PrefixLimitingWriterBase` overrides `Writer::AnnotateStatusImpl()` to
-  // annotate the status with the current position, clarifying that this is a
-  // relative position. A status propagated from `*dest_writer()` might carry
-  // annotation with the original position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -268,7 +265,9 @@ inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
       << "PrefixLimitingWriter destination changed position unexpectedly";
   set_buffer(dest.cursor(), dest.available());
   set_start_pos(dest.pos() - base_pos_);
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) Fail(dest);
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
 }
 
 template <typename Dest>
@@ -359,7 +358,9 @@ template <typename Dest>
 void PrefixLimitingWriter<Dest>::Done() {
   PrefixLimitingWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 

@@ -39,7 +39,7 @@ void HadoopSnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of HadoopSnappyReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    Fail(*src);
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
   initial_compressed_pos_ = src->pos();
@@ -47,24 +47,30 @@ void HadoopSnappyReaderBase::Initialize(Reader* src) {
 
 void HadoopSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
-    Fail(Annotate(
-        absl::InvalidArgumentError("Truncated HadoopSnappy-compressed stream"),
-        absl::StrCat("at byte ", src.pos())));
+    Fail(
+        absl::InvalidArgumentError("Truncated HadoopSnappy-compressed stream"));
   }
   PullableReader::Done();
   uncompressed_ = Buffer();
 }
 
 bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {
-  Reader& src = *src_reader();
-  return Fail(
-      Annotate(absl::InvalidArgumentError(absl::StrCat(
-                   "Invalid HadoopSnappy-compressed stream: ", message)),
-               absl::StrCat("at byte ", src.pos())));
+  return Fail(absl::InvalidArgumentError(
+      absl::StrCat("Invalid HadoopSnappy-compressed stream: ", message)));
 }
 
 absl::Status HadoopSnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*src->reader()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `PullableReader::AnnotateStatusImpl()`.
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status HadoopSnappyReaderBase::AnnotateOverSrc(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
@@ -84,7 +90,9 @@ bool HadoopSnappyReaderBase::PullBehindScratch() {
   while (remaining_chunk_length_ == 0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) {
       set_buffer();
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
       if (ABSL_PREDICT_FALSE(src.available() > 0)) truncated_ = true;
       return false;
     }
@@ -96,7 +104,9 @@ bool HadoopSnappyReaderBase::PullBehindScratch() {
   do {
     if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) {
       set_buffer();
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
       truncated_ = true;
       return false;
     }
@@ -109,7 +119,9 @@ bool HadoopSnappyReaderBase::PullBehindScratch() {
     }
     if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t) + compressed_length))) {
       set_buffer();
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
       truncated_ = true;
       return false;
     }
@@ -166,7 +178,7 @@ bool HadoopSnappyReaderBase::SeekBehindScratch(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
       src.Fail(
           absl::DataLossError("HadoopSnappy-compressed stream got truncated"));
-      return Fail(src);
+      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     if (new_pos == 0) return true;
@@ -186,7 +198,7 @@ std::unique_ptr<Reader> HadoopSnappyReaderBase::NewReaderImpl(
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
-    Fail(src);
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     return nullptr;
   }
   std::unique_ptr<Reader> reader =

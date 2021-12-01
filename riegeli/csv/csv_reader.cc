@@ -57,7 +57,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
         << "Escape character conflicts with quote character";
   }
   if (ABSL_PREDICT_FALSE(!src->healthy())) {
-    Fail(*src);
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
 
@@ -104,13 +104,6 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   recovery_ = std::move(options.recovery());
 }
 
-absl::Status CsvReaderBase::AnnotateStatusImpl(absl::Status status) {
-  if (!standalone_record_) {
-    return Annotate(status, absl::StrCat("at line ", line_number()));
-  }
-  return status;
-}
-
 void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
@@ -118,8 +111,27 @@ void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
   RIEGELI_ASSERT(!standalone_record_)
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "should never happen in ReadCsvRecordFromString()";
+  if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
   FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at line ", last_line_number())));
+}
+
+absl::Status CsvReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status CsvReaderBase::AnnotateOverSrc(absl::Status status) {
+  if (!standalone_record_) {
+    return Annotate(status, absl::StrCat("at line ", line_number()));
+  }
+  return status;
 }
 
 bool CsvReaderBase::MaxFieldLengthExceeded() {
@@ -174,7 +186,9 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
-        if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+        if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+        }
         recoverable_ = true;
         return Fail(absl::InvalidArgumentError("Missing closing quote"));
       }
@@ -197,7 +211,9 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
           field.append(src.cursor(), src.available());
           src.move_cursor(src.available());
           if (ABSL_PREDICT_FALSE(!src.Pull())) {
-            if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+            if (ABSL_PREDICT_FALSE(!src.healthy())) {
+              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+            }
             recoverable_ = true;
             return Fail(absl::InvalidArgumentError("Missing closing quote"));
           }
@@ -226,7 +242,9 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kQuote:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
           return true;
         }
         if (*src.cursor() == quote_) {
@@ -237,7 +255,9 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         return true;
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
           recoverable_ = true;
           return Fail(
               absl::InvalidArgumentError("Missing character after escape"));
@@ -263,7 +283,9 @@ next_record:
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
       // End of file at the beginning of a record.
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
       return false;
     }
   }
@@ -292,7 +314,9 @@ next_field:
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
-        if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+        if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+        }
         // Set `line_number_` as if the last line was terminated by a newline.
         ++line_number_;
         return true;
@@ -348,7 +372,9 @@ next_field:
       case CharClass::kQuote: {
         if (ABSL_PREDICT_FALSE(!ReadQuoted(src, field))) return false;
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
           // Set `line_number_` as if the last line was terminated by a newline.
           ++line_number_;
           return true;
@@ -394,7 +420,9 @@ next_field:
       }
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
           recoverable_ = true;
           return Fail(
               absl::InvalidArgumentError("Missing character after escape"));

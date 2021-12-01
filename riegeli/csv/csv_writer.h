@@ -244,9 +244,8 @@ class CsvWriterBase : public Object {
   void Reset(Closed);
   void Reset();
   void Initialize(Writer* dest, Options&& options);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
-  // `CsvWriter` overrides `Object::AnnotateStatusImpl()` to annotate the status
-  // with the current record index.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
 
@@ -486,14 +485,14 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
       ++iter;
       if (iter == end_iter) break;
       if (ABSL_PREDICT_FALSE(!dest.WriteChar(field_separator_))) {
-        return Fail(dest);
+        return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
       }
     }
   }
   if (!standalone_record_) {
     if (ABSL_PREDICT_FALSE(
             !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
-      return Fail(dest);
+      return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     }
   }
   ++record_index_;
@@ -576,7 +575,9 @@ template <typename Dest>
 void CsvWriter<Dest>::Done() {
   CsvWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 

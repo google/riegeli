@@ -39,6 +39,7 @@
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -149,7 +150,7 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of RecordReader: null ChunkReader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy())) {
-    Fail(*src);
+    FailWithoutAnnotation(*src);
     return;
   }
   chunk_begin_ = src->pos();
@@ -166,7 +167,7 @@ void RecordReaderBase::Done() {
 
 inline bool RecordReaderBase::FailReading(const ChunkReader& src) {
   recoverable_ = Recoverable::kRecoverChunkReader;
-  Fail(src);
+  FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   return TryRecovery();
 }
 
@@ -174,8 +175,20 @@ inline bool RecordReaderBase::FailSeeking(const ChunkReader& src) {
   chunk_begin_ = src.pos();
   chunk_decoder_.Clear();
   recoverable_ = Recoverable::kRecoverChunkReader;
-  Fail(src);
+  FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   return TryRecovery();
+}
+
+absl::Status RecordReaderBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    ChunkReader& src = *src_chunk_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status RecordReaderBase::AnnotateOverSrc(absl::Status status) {
+  return Annotate(status, absl::StrCat("at record ", pos().ToString()));
 }
 
 bool RecordReaderBase::CheckFileFormat() {
@@ -186,7 +199,7 @@ bool RecordReaderBase::CheckFileFormat() {
     chunk_decoder_.Clear();
     if (ABSL_PREDICT_FALSE(!src.healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(src);
+      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
     return false;
   }
@@ -360,7 +373,9 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
     case Recoverable::kNo:
       RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
     case Recoverable::kRecoverChunkReader:
-      if (ABSL_PREDICT_FALSE(!src.Recover(skipped_region))) return Fail(src);
+      if (ABSL_PREDICT_FALSE(!src.Recover(skipped_region))) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
       return true;
     case Recoverable::kRecoverChunkDecoder: {
       const uint64_t index_before = chunk_decoder_.index();
@@ -480,7 +495,9 @@ absl::optional<Position> RecordReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) Fail(src);
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+  }
   return size;
 }
 
@@ -530,7 +547,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-    Fail(src);
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     return absl::nullopt;
   }
 
@@ -653,7 +670,7 @@ inline bool RecordReaderBase::ReadChunk() {
     chunk_decoder_.Clear();
     if (ABSL_PREDICT_FALSE(!src.healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(src);
+      return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
     return false;
   }

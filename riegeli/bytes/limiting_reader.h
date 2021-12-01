@@ -184,6 +184,8 @@ class LimitingReaderBase : public Reader {
   void Initialize(Reader* src, Options&& options);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
@@ -213,7 +215,7 @@ class LimitingReaderBase : public Reader {
   // For `FailLengthOverflow()` and `FailNotEnoughEarly()`.
   friend class ScopedLimiter;
 
-  bool CheckEnough();
+  bool CheckEnough(Reader& src);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
   ABSL_ATTRIBUTE_COLD void FailNotEnoughEarly(Position expected);
 

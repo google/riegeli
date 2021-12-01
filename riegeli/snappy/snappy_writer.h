@@ -81,12 +81,9 @@ class SnappyWriterBase : public Writer {
   void Reset(Closed);
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void Done() override;
-  // `SnappyWriterBase` overrides `Writer::AnnotateStatusImpl()` to annotate the
-  // status with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*dest_writer()` might carry annotation
-  // with the compressed position.
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -339,7 +336,9 @@ inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
 inline void SnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of SnappyWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
+  }
 }
 
 inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
@@ -425,7 +424,9 @@ template <typename Dest>
 void SnappyWriter<Dest>::Done() {
   SnappyWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) {
+      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+    }
   }
 }
 

@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
@@ -397,8 +398,11 @@ class RecordReaderBase : public Object {
   void Reset(Closed);
   void Reset();
   void Initialize(ChunkReader* src, Options&& options);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
   bool TryRecovery();
 
@@ -713,7 +717,7 @@ void RecordReader<Src>::Done() {
   if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src_);
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
       TryRecovery();
     }
   }

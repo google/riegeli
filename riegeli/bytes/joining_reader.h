@@ -44,13 +44,6 @@ class JoiningReaderBase : public PullableReader {
   virtual Reader* shard_reader() = 0;
   virtual const Reader* shard_reader() const = 0;
 
-  // `JoiningReaderBase` overrides `Reader::AnnotateStatusImpl()` to annotate
-  // the status with the current position, clarifying that this is the position
-  // across shards. A status propagated from `*shard_reader()` might carry
-  // annotation with the position within a shard.
-  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
-      absl::Status status) override;
-
   // Opens the next shard as `shard()` if it exists.
   //
   // Preconditions:
@@ -116,6 +109,10 @@ class JoiningReaderBase : public PullableReader {
   // `shard_reader()`.
   bool shard_is_open() const;
   bool shard_is_open(const Reader* shard) const;
+
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverShard(absl::Status status);
 
   // Sets cursor of `shard` to cursor of `*this`. Sets buffer pointers of
   // `*this` to `nullptr`.
@@ -209,7 +206,9 @@ inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
              UnsignedMin(shard.available(),
                          std::numeric_limits<Position>::max() - limit_pos()));
   move_limit_pos(available());
-  if (ABSL_PREDICT_FALSE(!shard.healthy())) Fail(shard);
+  if (ABSL_PREDICT_FALSE(!shard.healthy())) {
+    FailWithoutAnnotation(AnnotateOverShard(shard.status()));
+  }
 }
 
 template <typename Shard>

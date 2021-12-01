@@ -40,7 +40,7 @@ void SnappyReaderBase::Initialize(Reader* src,
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of SnappyReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    Fail(*src);
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
   const absl::optional<size_t> uncompressed_size = SnappyUncompressedSize(*src);
@@ -69,6 +69,17 @@ void SnappyReaderBase::Done() {
 
 absl::Status SnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    Reader& src = *src_reader();
+    status = src.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*src->reader()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `ChainReader::AnnotateStatusImpl()`.
+  return AnnotateOverSrc(std::move(status));
+}
+
+absl::Status SnappyReaderBase::AnnotateOverSrc(absl::Status status) {
+  if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
@@ -84,10 +95,9 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
   if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
   if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
   if (ABSL_PREDICT_FALSE(!ok)) {
-    return Annotate(
-        Annotate(absl::InvalidArgumentError("Invalid snappy-compressed stream"),
-                 absl::StrCat("at byte ", src.pos())),
-        absl::StrCat("at uncompressed byte ", dest.pos()));
+    return Annotate(src.AnnotateStatus(absl::InvalidArgumentError(
+                        "Invalid snappy-compressed stream")),
+                    absl::StrCat("at uncompressed byte ", dest.pos()));
   }
   return absl::OkStatus();
 }

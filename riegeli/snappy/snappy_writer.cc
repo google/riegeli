@@ -53,7 +53,7 @@ void SnappyWriterBase::Done() {
     {
       absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
       if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
+        FailWithoutAnnotation(std::move(status));
       }
     }
   }
@@ -62,6 +62,17 @@ void SnappyWriterBase::Done() {
 }
 
 absl::Status SnappyWriterBase::AnnotateStatusImpl(absl::Status status) {
+  if (is_open()) {
+    Writer& dest = *dest_writer();
+    status = dest.AnnotateStatus(std::move(status));
+  }
+  // The status might have been annotated by `*dest->writer()` with the
+  // compressed position. Clarify that the current position is the uncompressed
+  // position instead of delegating to `Writer::AnnotateStatusImpl()`.
+  return AnnotateOverDest(std::move(status));
+}
+
+absl::Status SnappyWriterBase::AnnotateOverDest(absl::Status status) {
   if (is_open()) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }

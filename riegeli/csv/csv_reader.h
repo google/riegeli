@@ -340,14 +340,12 @@ class CsvReaderBase : public Object {
   void Reset(Closed);
   void Reset();
   void Initialize(Reader* src, Options&& options);
-
-  // `CsvReader` overrides `Object::AnnotateStatusImpl()` to annotate the status
-  // with the current line number.
-  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
-      absl::Status status) override;
-
   // Fails, attributing this to `last_line_number()` instead of `line_number()`.
   ABSL_ATTRIBUTE_COLD void FailAtPreviousRecord(absl::Status status);
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
+
+  ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
+      absl::Status status) override;
 
  private:
   friend bool internal::ReadStandaloneRecord(CsvReaderBase& csv_reader,
@@ -640,7 +638,9 @@ template <typename Src>
 void CsvReader<Src>::Done() {
   CsvReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
+    }
   }
 }
 
