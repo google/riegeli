@@ -132,9 +132,9 @@ class FutureChunkBegin {
   // `unresolved_` is a pointer to save memory in the common case when
   // it is absent.
   //
-  // The pointer uses shared ownership because `FutureChunkBegin` is not
-  // copyable, which is because its contents are resolved lazily in a const
-  // method, so a copy constructor would need to block.
+  // The pointer uses shared ownership because `Unresolved` is not copyable,
+  // which is because its contents are resolved lazily in a const method,
+  // so a copy constructor would need to block.
   std::shared_ptr<Unresolved> unresolved_;
   // If `unresolved_ == nullptr`, `chunk_begin_` is stored here,
   // otherwise it is `unresolved_->get()`.

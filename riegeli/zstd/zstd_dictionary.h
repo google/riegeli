@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/call_once.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -158,21 +159,18 @@ class ZstdDictionary::Repr {
   absl::string_view data() const { return data_; }
 
  private:
+  struct CompressionCache;
+
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
 
   mutable absl::Mutex compression_mutex_;
-  mutable int compression_level_ ABSL_GUARDED_BY(compression_mutex_) =
-      std::numeric_limits<int>::min();
-  mutable std::shared_ptr<const ZSTD_CDict> compression_dictionary_
+  mutable std::shared_ptr<const CompressionCache> compression_cache_
       ABSL_GUARDED_BY(compression_mutex_);
 
-  mutable absl::Mutex decompression_mutex_;
-  mutable bool decompression_present_ ABSL_GUARDED_BY(decompression_mutex_) =
-      false;
-  mutable std::shared_ptr<const ZSTD_DDict> decompression_dictionary_
-      ABSL_GUARDED_BY(decompression_mutex_);
+  mutable absl::once_flag decompression_once_;
+  mutable std::shared_ptr<const ZSTD_DDict> decompression_dictionary_;
 };
 
 inline ZstdDictionary::ZstdDictionary(const ZstdDictionary& that)

@@ -24,6 +24,7 @@
 #include <limits>
 #include <memory>
 
+#include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/base.h"
@@ -55,36 +56,56 @@ struct ZSTD_DDictDeleter {
 
 }  // namespace
 
+// Holds a compression dictionary prepared for a particular compression level.
+//
+// If several callers of `ZstdDictionary` need a prepared dictionary with the
+// same compression level at the same time, they wait for the first one to
+// prepare it, and they share it.
+//
+// If the callers need it with different compression levels, they do not wait.
+// The dictionary will be prepared again if varying compression levels later
+// repeat, because the cache holds at most one entry.
+struct ZstdDictionary::Repr::CompressionCache {
+  explicit CompressionCache(int compression_level)
+      : compression_level(compression_level) {}
+
+  int compression_level;
+  mutable absl::once_flag compression_once;
+  mutable std::shared_ptr<const ZSTD_CDict> compression_dictionary;
+};
+
 inline std::shared_ptr<const ZSTD_CDict>
 ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
-  RIEGELI_ASSERT_NE(compression_level, std::numeric_limits<int>::min())
-      << "Failed precondition of "
-         "ZstdDictionary::PrepareCompressionDictionary(): "
-         "compression level out of range";
-  absl::MutexLock lock(&compression_mutex_);
-  if (compression_level_ != compression_level) {
-    compression_dictionary_ = std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter>(
-        ZSTD_createCDict_advanced(
-            data_.data(), data_.size(), ZSTD_dlm_byRef,
-            static_cast<ZSTD_dictContentType_e>(type_),
-            ZSTD_getCParams(compression_level, 0, data_.size()),
-            ZSTD_defaultCMem));
-    compression_level_ = compression_level;
-  }
-  return compression_dictionary_;
+  const std::shared_ptr<const CompressionCache> compression_cache = [&] {
+    absl::MutexLock lock(&compression_mutex_);
+    if (compression_cache_ == nullptr ||
+        compression_cache_->compression_level != compression_level) {
+      compression_cache_ =
+          std::make_shared<const CompressionCache>(compression_level);
+    }
+    return compression_cache_;
+  }();
+  absl::call_once(compression_cache->compression_once, [&] {
+    compression_cache->compression_dictionary =
+        std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter>(
+            ZSTD_createCDict_advanced(
+                data_.data(), data_.size(), ZSTD_dlm_byRef,
+                static_cast<ZSTD_dictContentType_e>(type_),
+                ZSTD_getCParams(compression_level, 0, data_.size()),
+                ZSTD_defaultCMem));
+  });
+  return compression_cache->compression_dictionary;
 }
 
 inline std::shared_ptr<const ZSTD_DDict>
 ZstdDictionary::Repr::PrepareDecompressionDictionary() const {
-  absl::MutexLock lock(&decompression_mutex_);
-  if (!decompression_present_) {
+  absl::call_once(decompression_once_, [&] {
     decompression_dictionary_ = std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter>(
         ZSTD_createDDict_advanced(data_.data(), data_.size(), ZSTD_dlm_byRef,
                                   static_cast<ZSTD_dictContentType_e>(type_),
                                   ZSTD_defaultCMem));
-    decompression_present_ = true;
-  }
+  });
   return decompression_dictionary_;
 }
 

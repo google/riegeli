@@ -23,9 +23,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/call_once.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
@@ -150,14 +150,6 @@ class BrotliDictionary {
   // Returns `true` if no dictionary is present.
   bool empty() const { return chunks_.empty(); }
 
-  // Save memory by removing original dictionary contents if present and owned.
-  // The remaining dictionary can be used for compression but not necessarily
-  // for decompression.
-  //
-  // TODO: This will be unnecessary when the Brotli engine can be asked
-  // to avoid copying the data.
-  void RemoveDecompressionSupport();
-
   // Returns the sequence of chunks the dictionary consists of.
   const absl::Span<const std::shared_ptr<const Chunk>> chunks() const {
     return chunks_;
@@ -192,9 +184,7 @@ class BrotliDictionary::Chunk {
   // `std::make_shared()`.
   explicit Chunk(
       std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared)
-      : type_(Type::kNative),
-        compression_present_(true),
-        compression_dictionary_(std::move(prepared)) {}
+      : type_(Type::kNative), compression_dictionary_(std::move(prepared)) {}
 
   Chunk(const Chunk&) = delete;
   Chunk& operator=(const Chunk&) = delete;
@@ -212,23 +202,14 @@ class BrotliDictionary::Chunk {
   std::shared_ptr<const BrotliEncoderPreparedDictionary>
   PrepareCompressionDictionary() const;
 
-  // Save memory by removing original dictionary contents if present and owned.
-  // The remaining dictionary can be used for compression but not necessarily
-  // for decompression.
-  //
-  // TODO: This will be unnecessary when the Brotli engine can be asked
-  // to avoid copying the data.
-  void RemoveDecompressionSupport(std::shared_ptr<const Chunk>& self) const;
-
  private:
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
 
-  mutable absl::Mutex compression_mutex_;
-  mutable bool compression_present_ ABSL_GUARDED_BY(compression_mutex_) = false;
+  mutable absl::once_flag compression_once_;
   mutable std::shared_ptr<const BrotliEncoderPreparedDictionary>
-      compression_dictionary_ ABSL_GUARDED_BY(compression_mutex_);
+      compression_dictionary_;
 };
 
 // Implementation details follow.

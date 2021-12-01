@@ -20,8 +20,8 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
@@ -47,13 +47,13 @@ struct BrotliEncoderDictionaryDeleter {
 
 std::shared_ptr<const BrotliEncoderPreparedDictionary>
 BrotliDictionary::Chunk::PrepareCompressionDictionary() const {
-  absl::MutexLock lock(&compression_mutex_);
-  if (!compression_present_) {
-    RIEGELI_ASSERT_NE(static_cast<int>(type_), static_cast<int>(Type::kNative))
-        << "Failed invariant of BrotliDictionary::Chunk: "
-           "unprepared native chunk";
-    // TODO: Ask the Brotli engine to avoid copying the data when it
-    // supports that.
+  absl::call_once(compression_once_, [&] {
+    if (type_ == Type::kNative) {
+      RIEGELI_ASSERT(compression_dictionary_ != nullptr)
+          << "Failed invariant of BrotliDictionary::Chunk: "
+             "unprepared native chunk";
+      return;
+    }
     compression_dictionary_ = std::unique_ptr<BrotliEncoderPreparedDictionary,
                                               BrotliEncoderDictionaryDeleter>(
         BrotliEncoderPrepareDictionary(
@@ -62,22 +62,8 @@ BrotliDictionary::Chunk::PrepareCompressionDictionary() const {
             // `BrotliAllocator` is not supported here because the prepared
             // dictionary may easily outlive the allocator.
             nullptr, nullptr, nullptr));
-    compression_present_ = true;
-  }
+  });
   return compression_dictionary_;
-}
-
-void BrotliDictionary::Chunk::RemoveDecompressionSupport(
-    std::shared_ptr<const Chunk>& self) const {
-  if (data_.data() == owned_data_.data()) {
-    self = std::make_shared<const Chunk>(PrepareCompressionDictionary());
-  }
-}
-
-void BrotliDictionary::RemoveDecompressionSupport() {
-  for (std::shared_ptr<const Chunk>& chunk : chunks_) {
-    chunk->RemoveDecompressionSupport(chunk);
-  }
 }
 
 }  // namespace riegeli
