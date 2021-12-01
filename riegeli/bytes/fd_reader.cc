@@ -39,6 +39,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -182,14 +183,22 @@ bool FdReaderBase::supports_random_access() {
   RIEGELI_ASSERT(is_open())
       << "Failed invariant of FdReaderBase: "
          "unresolved supports_random_access_ but object closed";
-  const int src = src_fd();
   bool supported = false;
-  if (lseek(src, 0, SEEK_END) >= 0) {
-    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) <
-                           0)) {
-      FailOperation("lseek()");
-    } else {
-      supported = true;
+  if (absl::StartsWith(filename(), "/sys/")) {
+    // "/sys" files do not support random access. It is hard to reliably
+    // recognize them, so `FdReader` checks the filename.
+    //
+    // Some "/proc" files also do not support random access, but they are
+    // recognized by a failing `lseek(SEEK_END)`.
+  } else {
+    const int src = src_fd();
+    if (lseek(src, 0, SEEK_END) >= 0) {
+      if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) <
+                             0)) {
+        FailOperation("lseek()");
+      } else {
+        supported = true;
+      }
     }
   }
   supports_random_access_ =

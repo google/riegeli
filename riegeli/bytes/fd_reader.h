@@ -320,7 +320,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // contents generated on the fly when the files are read. The files appear as
 // regular files, with an apparent size of 0 or 4096, and random access is only
 // partially supported. `FdReader` properly detects lack of random access for
-// "/proc" files, but not for "/sys" files. An explicit
+// "/proc" files; for "/sys" files this is detected only if the filename seen by
+// `FdReader` starts with "/sys/". An explicit
 // `FdReaderBase::Options().set_assumed_pos(0)` can be used to disable random
 // access for such files.
 //
