@@ -677,6 +677,10 @@ inline bool Wasteful(size_t total, size_t used) {
   return total - used > UnsignedMax(used, kMinBufferSize);
 }
 
+// Resize `dest` to `size`, ensuring that repeated growth has the cost
+// proportional to the final size. New contents are unspecified.
+void ResizeStringAmortized(std::string& dest, size_t new_size);
+
 // Like `absl::Cord(src)`, but avoids splitting `src` into 4083-byte fragments.
 absl::Cord MakeFlatCord(absl::string_view src);
 

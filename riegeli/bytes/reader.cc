@@ -113,7 +113,7 @@ bool Reader::ReadSlow(size_t length, std::string& dest) {
       << "Failed precondition of Reader::ReadSlow(string&): "
          "string size overflow";
   const size_t dest_pos = dest.size();
-  dest.resize(dest_pos + length);
+  ResizeStringAmortized(dest, dest_pos + length);
   const Position pos_before = pos();
   if (ABSL_PREDICT_FALSE(!ReadSlow(length, &dest[dest_pos]))) {
     RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -305,17 +305,18 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
         if (!Pull()) break;
         return FailMaxLengthExceeded(max_length);
       }
-      if (dest.capacity() - dest.size() <= available()) {
+      const size_t dest_pos = dest.size();
+      if (dest.capacity() - dest_pos <= available()) {
         // `dest` has not enough space to fit currently available data and to
         // determine whether the source ends.
-        dest.reserve(UnsignedMin(
-            UnsignedMax(SaturatingAdd(dest.size(), available(), size_t{1}),
-                        // Ensure amortized constant time of a reallocation.
-                        SaturatingAdd(dest.capacity(), dest.capacity() / 2)),
-            dest.size() + remaining_max_length));
+        dest.reserve(
+            UnsignedMin(UnsignedMax(dest_pos + available() + 1,
+                                    // Ensure that repeated growth has the cost
+                                    // proportional to the final size.
+                                    dest.capacity() + dest.capacity() / 2),
+                        dest_pos + remaining_max_length));
       }
       // Try to fill all remaining space in `dest`.
-      const size_t dest_pos = dest.size();
       const size_t length =
           UnsignedMin(dest.capacity() - dest_pos, remaining_max_length);
       dest.resize(dest_pos + length);

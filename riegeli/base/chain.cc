@@ -898,7 +898,7 @@ void Chain::AppendTo(std::string& dest) const& {
   RIEGELI_CHECK_LE(size_, dest.max_size() - size_before)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
-  dest.resize(size_before + size_);
+  ResizeStringAmortized(dest, size_before + size_);
   CopyTo(&dest[size_before]);
 }
 
@@ -923,7 +923,7 @@ void Chain::AppendTo(std::string& dest) && {
       }
     }
   }
-  dest.resize(size_before + size_);
+  ResizeStringAmortized(dest, size_before + size_);
   CopyTo(&dest[size_before]);
 }
 

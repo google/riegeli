@@ -40,6 +40,15 @@ CheckFailed::~CheckFailed() {
 
 }  // namespace internal
 
+void ResizeStringAmortized(std::string& dest, size_t new_size) {
+  if (new_size > dest.capacity()) {
+    dest.reserve(UnsignedMin(
+        UnsignedMax(new_size, dest.capacity() + dest.capacity() / 2),
+        dest.max_size()));
+  }
+  dest.resize(new_size);
+}
+
 absl::Cord MakeFlatCord(absl::string_view src) {
   if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
     // `absl::Cord(absl::string_view)` allocates a single node of that length.
