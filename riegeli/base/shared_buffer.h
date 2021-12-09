@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <atomic>
-#include <utility>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -127,8 +126,6 @@ inline SharedBuffer::SharedBuffer(size_t min_capacity) {
 inline void SharedBuffer::Reset(size_t min_capacity) {
   if (payload_ != nullptr) {
     if (has_unique_owner() && payload_->capacity >= min_capacity) return;
-    min_capacity = UnsignedMax(
-        min_capacity, SaturatingAdd(payload_->capacity, payload_->capacity));
   }
   AllocateInternal(min_capacity);
 }
