@@ -74,38 +74,77 @@ class StringWriterBase : public Writer {
     }
     absl::optional<Position> size_hint() const { return size_hint_; }
 
+    // Minimal size of a block of buffered data after the initial capacity of
+    // the destination.
+    //
+    // This is used initially, while data buffered after the destination is
+    // small.
+    //
+    // Default: `kMinBufferSize` (256).
+    Options& set_min_buffer_size(size_t min_buffer_size) & {
+      min_buffer_size_ = min_buffer_size;
+      return *this;
+    }
+    Options&& set_min_buffer_size(size_t min_buffer_size) && {
+      return std::move(set_min_buffer_size(min_buffer_size));
+    }
+    size_t min_buffer_size() const { return min_buffer_size_; }
+
+    // Maximal size of a block of buffered data after the initial capacity of
+    // the destination.
+    //
+    // Default: `kMaxBufferSize` (64K).
+    Options& set_max_buffer_size(size_t max_buffer_size) & {
+      RIEGELI_ASSERT_GT(max_buffer_size, 0u)
+          << "Failed precondition of "
+             "StringWriterBase::Options::set_max_buffer_size(): "
+             "zero buffer size";
+      max_buffer_size_ = max_buffer_size;
+      return *this;
+    }
+    Options&& set_max_buffer_size(size_t max_buffer_size) && {
+      return std::move(set_max_buffer_size(max_buffer_size));
+    }
+    size_t max_buffer_size() const { return max_buffer_size_; }
+
    private:
     bool append_ = false;
     absl::optional<Position> size_hint_;
+    size_t min_buffer_size_ = kMinBufferSize;
+    size_t max_buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
   virtual std::string* dest_string() = 0;
   virtual const std::string* dest_string() const = 0;
 
-  bool PrefersCopying() const override { return true; }
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
 
  protected:
-  using Writer::Writer;
+  explicit StringWriterBase(Closed) noexcept : Writer(kClosed) {}
+
+  explicit StringWriterBase(size_t min_buffer_size, size_t max_buffer_size);
 
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset();
+  void Reset(size_t min_buffer_size, size_t max_buffer_size);
   void Initialize(std::string* dest, bool append,
                   absl::optional<Position> size_hint);
+  void MoveSecondaryBuffer(StringWriterBase&& that);
+  void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
-  bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
@@ -114,18 +153,34 @@ class StringWriterBase : public Writer {
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
-  void SyncBuffer(std::string& dest);
+  void SyncDestBuffer(std::string& dest);
 
   // Appends some uninitialized space to `dest` if this can be done without
   // reallocation.
-  void MakeBuffer(std::string& dest);
+  void MakeDestBuffer(std::string& dest);
+
+  // Discards uninitialized space from the end of `secondary_buffer_`, so that
+  // it contains only actual data written.
+  void SyncSecondaryBuffer();
+
+  // Appends uninitialized space to `secondary_buffer_`.
+  void MakeSecondaryBuffer(size_t min_length = 0,
+                           size_t recommended_length = 0);
+
+  Chain::Options options_;
+  // Buffered data which did not fit under `dest_string()->capacity()`.
+  Chain secondary_buffer_;
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
   // Invariants if `healthy()`:
-  //   `start() == &(*dest_string())[0]`
-  //   `start_to_limit() == dest_string()->size()`
-  //   `start_pos() == 0`
+  //   `(start() == &(*dest_string())[0] &&
+  //     start_to_limit() == dest_string()->size() &&
+  //     secondary_buffer_.empty()) ||
+  //    limit() == nullptr ||
+  //    limit() == secondary_buffer_.blocks().back().data() +
+  //               secondary_buffer_.blocks().back().size()`
+  //   `limit_pos() == dest_string()->size() + secondary_buffer_.size()`
 };
 
 // A `Writer` which appends to a `std::string`, resizing it as necessary.
@@ -192,7 +247,7 @@ class StringWriter : public StringWriterBase {
   const std::string* dest_string() const override { return dest_.get(); }
 
  private:
-  void MoveDest(StringWriter&& that);
+  void MoveDestAndSecondaryBuffer(StringWriter&& that);
 
   // The object providing and possibly owning the `std::string` being written
   // to, with uninitialized space appended (possibly empty); `cursor()` points
@@ -229,10 +284,17 @@ explicit StringWriter(
 
 // Implementation details follow.
 
+inline StringWriterBase::StringWriterBase(size_t min_buffer_size,
+                                          size_t max_buffer_size)
+    : options_(Chain::Options()
+                   .set_min_block_size(min_buffer_size)
+                   .set_max_block_size(max_buffer_size)) {}
+
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
     : Writer(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      options_(that.options_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
@@ -240,17 +302,25 @@ inline StringWriterBase& StringWriterBase::operator=(
   Writer::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class
   // part was moved.
+  options_ = that.options_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void StringWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
+  options_ = Chain::Options();
+  secondary_buffer_ = Chain();
   associated_reader_.Reset();
 }
 
-inline void StringWriterBase::Reset() {
+inline void StringWriterBase::Reset(size_t min_buffer_size,
+                                    size_t max_buffer_size) {
   Writer::Reset();
+  options_ = Chain::Options()
+                 .set_min_block_size(min_buffer_size)
+                 .set_max_block_size(max_buffer_size);
+  secondary_buffer_.Clear();
   associated_reader_.Reset();
 }
 
@@ -265,10 +335,25 @@ inline void StringWriterBase::Initialize(std::string* dest, bool append,
       dest->reserve(adjusted_size_hint);
     }
   }
-  MakeBuffer(*dest);
+  MakeDestBuffer(*dest);
 }
 
-inline void StringWriterBase::MakeBuffer(std::string& dest) {
+inline void StringWriterBase::MoveSecondaryBuffer(StringWriterBase&& that) {
+  secondary_buffer_ = std::move(that.secondary_buffer_);
+}
+
+inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
+    StringWriterBase&& that) {
+  const size_t buffer_size = start_to_limit();
+  const size_t cursor_index = start_to_cursor();
+  secondary_buffer_ = std::move(that.secondary_buffer_);
+  set_buffer(const_cast<char*>(secondary_buffer_.blocks().back().data() +
+                               secondary_buffer_.blocks().back().size()) -
+                 buffer_size,
+             buffer_size, cursor_index);
+}
+
+inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
   const size_t cursor_index = dest.size();
   dest.resize(dest.capacity());
   set_buffer(&dest[0], dest.size(), cursor_index);
@@ -282,13 +367,15 @@ inline StringWriter<Dest>::StringWriter(Options options)
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
-    : dest_(dest) {
+    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
+      dest_(dest) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
-    : dest_(std::move(dest)) {
+    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
+      dest_(std::move(dest)) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
@@ -296,7 +383,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : dest_(std::move(dest_args)) {
+    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
@@ -305,7 +393,7 @@ inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
     : StringWriterBase(std::move(that)) {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  MoveDest(std::move(that));
+  MoveDestAndSecondaryBuffer(std::move(that));
 }
 
 template <typename Dest>
@@ -314,7 +402,7 @@ inline StringWriter<Dest>& StringWriter<Dest>::operator=(
   StringWriterBase::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  MoveDest(std::move(that));
+  MoveDestAndSecondaryBuffer(std::move(that));
   return *this;
 }
 
@@ -333,14 +421,14 @@ inline void StringWriter<Dest>::Reset(Options options) {
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
-  StringWriterBase::Reset();
+  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
-  StringWriterBase::Reset();
+  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
@@ -349,21 +437,29 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  StringWriterBase::Reset();
+  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
-inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
-  if (dest_.kIsStable()) {
+inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
+    StringWriter&& that) {
+  if (start() == nullptr) {
     dest_ = std::move(that.dest_);
-  } else {
-    const size_t cursor_index = start_to_cursor();
-    dest_ = std::move(that.dest_);
-    if (start() != nullptr) {
+    MoveSecondaryBuffer(std::move(that));
+  } else if (start() == &(*that.dest_)[0]) {
+    if (dest_.kIsStable()) {
+      dest_ = std::move(that.dest_);
+    } else {
+      const size_t cursor_index = start_to_cursor();
+      dest_ = std::move(that.dest_);
       set_buffer(&(*dest_)[0], dest_->size(), cursor_index);
     }
+    MoveSecondaryBuffer(std::move(that));
+  } else {
+    dest_ = std::move(that.dest_);
+    MoveSecondaryBufferAndBufferPointers(std::move(that));
   }
 }
 
