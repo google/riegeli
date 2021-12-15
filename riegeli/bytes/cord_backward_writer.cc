@@ -41,6 +41,7 @@ constexpr size_t CordBackwardWriterBase::kShortBufferSize;
 void CordBackwardWriterBase::Done() {
   CordBackwardWriterBase::FlushImpl(FlushType::kFromObject);
   BackwardWriter::Done();
+  buffer_ = Buffer();
 }
 
 bool CordBackwardWriterBase::PushSlow(size_t min_length,
@@ -70,7 +71,6 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     std::memcpy(buffer_.data() + length - buffered_length, cursor(),
                 buffered_length);
     set_buffer(buffer_.data(), length, buffered_length);
-    return true;
   } else {
     SyncBuffer(dest);
     if (ABSL_PREDICT_FALSE(min_length >
@@ -84,8 +84,8 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     set_buffer(buffer_.data(),
                UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()));
-    return true;
   }
+  return true;
 }
 
 bool CordBackwardWriterBase::WriteSlow(const Chain& src) {

@@ -299,6 +299,7 @@ inline void CordBackwardWriterBase::Reset(Closed) {
   size_hint_ = 0;
   min_block_size_ = kMinBufferSize;
   max_block_size_ = kMaxBufferSize;
+  buffer_ = Buffer();
 }
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
