@@ -29,6 +29,7 @@
 #include "brotli/decode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -60,7 +61,7 @@ inline void BrotliReaderBase::InitializeDecompressor() {
         "BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed"));
     return;
   }
-  for (const std::shared_ptr<const BrotliDictionary::Chunk>& chunk :
+  for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
        dictionary_.chunks()) {
     if (ABSL_PREDICT_FALSE(chunk->type() == BrotliDictionary::Type::kNative)) {
       Fail(absl::InvalidArgumentError(

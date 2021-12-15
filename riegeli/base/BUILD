@@ -77,6 +77,7 @@ cc_library(
 cc_library(
     name = "intrusive_ref_count",
     hdrs = ["intrusive_ref_count.h"],
+    deps = [":base"],
 )
 
 cc_library(

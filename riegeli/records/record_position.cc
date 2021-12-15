@@ -20,7 +20,6 @@
 #include <cstring>
 #include <future>
 #include <limits>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -32,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -145,9 +145,9 @@ void FutureChunkBegin::Unresolved::Resolve() const {
 
 FutureChunkBegin::FutureChunkBegin(Position pos_before_chunks,
                                    std::vector<Action> actions)
-    : unresolved_(actions.empty() ? nullptr
-                                  : std::make_shared<Unresolved>(
-                                        pos_before_chunks, std::move(actions))),
+    : unresolved_(actions.empty()
+                      ? nullptr
+                      : new Unresolved(pos_before_chunks, std::move(actions))),
       resolved_(pos_before_chunks) {}
 
 }  // namespace internal

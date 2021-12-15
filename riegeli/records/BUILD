@@ -85,6 +85,7 @@ cc_library(
     deps = [
         ":block",
         "//riegeli/base",
+        "//riegeli/base:intrusive_ref_count",
         "//riegeli/bytes:string_reader",
         "//riegeli/bytes:string_writer",
         "//riegeli/chunk_encoding:chunk",

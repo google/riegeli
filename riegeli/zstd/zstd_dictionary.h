@@ -22,9 +22,8 @@
 #include <utility>
 
 #include "absl/base/call_once.h"
-#include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -124,13 +123,29 @@ class ZstdDictionary {
 
   class Repr;
 
-  std::shared_ptr<const Repr> repr_;
+  RefCountedPtr<const Repr> repr_;
 };
 
 // Implementation details follow.
 
-class ZstdDictionary::Repr {
+class ZstdDictionary::Repr : public RefCountedBase<Repr> {
  public:
+  // Returns the compression dictionary in the prepared form, or `nullptr` if
+  // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
+  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
+      int compression_level) const;
+
+  // Returns the decompression dictionary in the prepared form, or `nullptr`
+  // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
+  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
+
+  absl::string_view data() const { return data_; }
+
+ private:
+  friend class ZstdDictionary;
+
+  struct CompressionCache;
+
   // Owns a copy of `data`.
   explicit Repr(Type type, absl::string_view data,
                 std::integral_constant<Ownership, Ownership::kCopied>)
@@ -147,30 +162,33 @@ class ZstdDictionary::Repr {
                 std::integral_constant<Ownership, Ownership::kUnowned>)
       : type_(type), data_(data) {}
 
-  // Returns the compression dictionary in the prepared form, or `nullptr` if
-  // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
-      int compression_level) const;
-
-  // Returns the decompression dictionary in the prepared form, or `nullptr`
-  // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
-
-  absl::string_view data() const { return data_; }
-
- private:
-  struct CompressionCache;
-
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
 
-  mutable absl::Mutex compression_mutex_;
-  mutable std::shared_ptr<const CompressionCache> compression_cache_
-      ABSL_GUARDED_BY(compression_mutex_);
+  mutable AtomicRefCountedPtr<const CompressionCache> compression_cache_;
 
   mutable absl::once_flag decompression_once_;
   mutable std::shared_ptr<const ZSTD_DDict> decompression_dictionary_;
+};
+
+// Holds a compression dictionary prepared for a particular compression level.
+//
+// If several callers of `ZstdDictionary` need a prepared dictionary with the
+// same compression level at the same time, they wait for the first one to
+// prepare it, and they share it.
+//
+// If the callers need it with different compression levels, they do not wait.
+// The dictionary will be prepared again if varying compression levels later
+// repeat, because the cache holds at most one entry.
+struct ZstdDictionary::Repr::CompressionCache
+    : RefCountedBase<CompressionCache> {
+  explicit CompressionCache(int compression_level)
+      : compression_level(compression_level) {}
+
+  int compression_level;
+  mutable absl::once_flag compression_once;
+  mutable std::shared_ptr<const ZSTD_CDict> compression_dictionary;
 };
 
 inline ZstdDictionary::ZstdDictionary(const ZstdDictionary& that)
@@ -197,8 +215,8 @@ inline ZstdDictionary& ZstdDictionary::Reset() & {
 
 inline ZstdDictionary& ZstdDictionary::set_data(absl::string_view data,
                                                 Type type) & {
-  repr_ = std::make_shared<const Repr>(
-      type, data, std::integral_constant<Ownership, Ownership::kCopied>());
+  repr_.reset(new Repr(
+      type, data, std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
@@ -207,14 +225,14 @@ template <typename Src,
 inline ZstdDictionary& ZstdDictionary::set_data(Src&& data, Type type) & {
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  repr_ = std::make_shared<const Repr>(type, std::move(data));
+  repr_.reset(new Repr(type, std::move(data)));
   return *this;
 }
 
 inline ZstdDictionary& ZstdDictionary::set_data_unowned(absl::string_view data,
                                                         Type type) & {
-  repr_ = std::make_shared<const Repr>(
-      type, data, std::integral_constant<Ownership, Ownership::kUnowned>());
+  repr_.reset(new Repr(
+      type, data, std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 

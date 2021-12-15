@@ -83,11 +83,11 @@ class SharedBuffer {
   // `RefCountedBase` is not used because `offsetof()` requires all data members
   // to be defined in the same class.
   struct Payload {
-    void Ref();
-    void Unref();
+    void Ref() const;
+    void Unref() const;
     bool has_unique_owner() const;
 
-    std::atomic<size_t> ref_count{1};
+    mutable std::atomic<size_t> ref_count{1};
     // Usable size of the data starting at `allocated_begin`, i.e. excluding the
     // header.
     size_t capacity;
@@ -102,16 +102,17 @@ class SharedBuffer {
 
 // Implementation details follow.
 
-inline void SharedBuffer::Payload::Ref() {
+inline void SharedBuffer::Payload::Ref() const {
   ref_count.fetch_add(1, std::memory_order_relaxed);
 }
 
-inline void SharedBuffer::Payload::Unref() {
+inline void SharedBuffer::Payload::Unref() const {
   // Optimization: avoid an expensive atomic read-modify-write operation if the
   // reference count is 1.
   if (ref_count.load(std::memory_order_acquire) == 1 ||
       ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    DeleteAligned<Payload>(this, offsetof(Payload, allocated_begin) + capacity);
+    DeleteAligned<Payload>(const_cast<Payload*>(this),
+                           offsetof(Payload, allocated_begin) + capacity);
   }
 }
 

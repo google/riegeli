@@ -20,21 +20,27 @@
 #include <atomic>
 #include <utility>
 
+#include "riegeli/base/base.h"
+
 namespace riegeli {
 
 // `RefCountedPtr<T>` implements shared ownership of an object of type `T`.
 // It can also be `nullptr`.
 //
 // `RefCountedPtr<T>` has a smaller overhead than `std::shared_ptr<T>`, but
-// `T` maintains its own reference count, and `T` should support:
+// requires cooperation from `T`.
+//
+// `T` maintains its own reference count (as a mutable atomic member which can
+// be thought of as conceptually being owned by the `RefCountedPtr<T>`), and `T`
+// should support:
 //
 // ```
 //   // Increments the reference count.
-//   void Ref();
+//   void Ref() const;
 //
 //   // Decrements the reference count. Deletes `this` when the reference count
 //   // reaches 0.
-//   void Unref();
+//   void Unref() const;
 // ```
 template <typename T>
 class RefCountedPtr {
@@ -84,26 +90,50 @@ class RefCountedPtr {
   T* ptr_ = nullptr;
 };
 
+// A subset of what `std::atomic<RefCountedPtr<T>>` would provide.
+template <typename T>
+class AtomicRefCountedPtr {
+ public:
+  constexpr AtomicRefCountedPtr() noexcept {}
+
+  explicit AtomicRefCountedPtr(RefCountedPtr<T> that) noexcept
+      : ptr_(that.release()) {}
+
+  AtomicRefCountedPtr(const AtomicRefCountedPtr&) = delete;
+  AtomicRefCountedPtr& operator=(const AtomicRefCountedPtr&) = delete;
+
+  ~AtomicRefCountedPtr();
+
+  RefCountedPtr<T> load(
+      std::memory_order order = std::memory_order_seq_cst) const;
+
+  void store(RefCountedPtr<T> desired,
+             std::memory_order order = std::memory_order_seq_cst);
+
+ private:
+  std::atomic<T*> ptr_{nullptr};
+};
+
 // Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
 // needed by `RefCountedPtr<T>`.
 //
 // The destructor of `RefCountedBase<T>` is not virtual. The object will be
 // deleted by `delete static_cast<T*>(ptr)`. This means that `T` must be the
-// actual object type (or `T` must define a virtual destructor), and multiple
+// actual object type or `T` must define a virtual destructor, and that multiple
 // inheritance is not suported.
 //
 // `RefCountedBase<T>` also provides `has_unique_owner()`.
 template <typename T>
 class RefCountedBase {
  public:
-  void Ref();
-  void Unref();
+  void Ref() const;
+  void Unref() const;
 
   // Returns `true` if there is only one owner of the object.
   bool has_unique_owner() const;
 
  private:
-  std::atomic<size_t> ref_count_{1};
+  mutable std::atomic<size_t> ref_count_{1};
 };
 
 // Implementation details follow.
@@ -158,19 +188,54 @@ inline void RefCountedPtr<T>::reset(T* ptr) {
 }
 
 template <typename T>
-inline void RefCountedBase<T>::Ref() {
+inline AtomicRefCountedPtr<T>::~AtomicRefCountedPtr() {
+  T* const ptr = ptr_.load(std::memory_order_acquire);
+  if (ptr != nullptr) ptr->Unref();
+}
+
+template <typename T>
+inline RefCountedPtr<T> AtomicRefCountedPtr<T>::load(
+    std::memory_order order) const {
+  T* const ptr = ptr_.load(order);
+  if (ptr != nullptr) ptr->Ref();
+  return RefCountedPtr<T>(ptr);
+}
+
+template <typename T>
+inline void AtomicRefCountedPtr<T>::store(RefCountedPtr<T> desired,
+                                          std::memory_order order) {
+  switch (order) {
+    case std::memory_order_relaxed:
+      order = std::memory_order_acquire;
+      break;
+    case std::memory_order_release:
+      order = std::memory_order_acq_rel;
+      break;
+    case std::memory_order_seq_cst:
+      break;
+    default:
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Unexpected memory order for store(): " << static_cast<int>(order);
+  }
+  T* const ptr = ptr_.exchange(desired.release(), order);
+  if (ptr != nullptr) ptr->Unref();
+}
+
+template <typename T>
+inline void RefCountedBase<T>::Ref() const {
   ref_count_.fetch_add(1, std::memory_order_relaxed);
 }
 
 template <typename T>
-inline void RefCountedBase<T>::Unref() {
+inline void RefCountedBase<T>::Unref() const {
   // Optimization: avoid an expensive atomic read-modify-write operation if the
   // reference count is 1.
   if (ref_count_.load(std::memory_order_acquire) == 1 ||
       ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    delete static_cast<T*>(this);
+    delete static_cast<T*>(const_cast<RefCountedBase*>(this));
   }
 }
+
 template <typename T>
 inline bool RefCountedBase<T>::has_unique_owner() const {
   return ref_count_.load(std::memory_order_acquire) == 1;

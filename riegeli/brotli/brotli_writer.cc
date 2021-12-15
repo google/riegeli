@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/port.h"
 #include "riegeli/base/status.h"
 #include "riegeli/brotli/brotli_reader.h"
@@ -113,7 +114,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
         "BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
     return;
   }
-  for (const std::shared_ptr<const BrotliDictionary::Chunk>& chunk :
+  for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
        dictionary_.chunks()) {
     const std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared =
         chunk->PrepareCompressionDictionary();
@@ -225,7 +226,7 @@ bool BrotliWriterBase::FlushBehindBuffer(absl::string_view src,
 bool BrotliWriterBase::SupportsReadMode() {
   Writer* const dest = dest_writer();
   if (dest != nullptr && dest->SupportsReadMode()) {
-    for (const std::shared_ptr<const BrotliDictionary::Chunk>& chunk :
+    for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
          dictionary_.chunks()) {
       if (chunk->type() == BrotliDictionary::Type::kNative) return false;
     }

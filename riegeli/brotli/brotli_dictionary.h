@@ -30,6 +30,7 @@
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 
 namespace riegeli {
 
@@ -151,41 +152,18 @@ class BrotliDictionary {
   bool empty() const { return chunks_.empty(); }
 
   // Returns the sequence of chunks the dictionary consists of.
-  const absl::Span<const std::shared_ptr<const Chunk>> chunks() const {
+  const absl::Span<const RefCountedPtr<const Chunk>> chunks() const {
     return chunks_;
   }
 
  private:
   enum class Ownership { kCopied, kUnowned };
 
-  std::vector<std::shared_ptr<const Chunk>> chunks_;
+  std::vector<RefCountedPtr<const Chunk>> chunks_;
 };
 
-class BrotliDictionary::Chunk {
+class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
  public:
-  // Owns a copy of `data`. This constructor is public for `std::make_shared()`.
-  explicit Chunk(Type type, absl::string_view data,
-                 std::integral_constant<Ownership, Ownership::kCopied>)
-      : type_(type), owned_data_(data), data_(owned_data_) {}
-
-  // Owns moved `data`. This constructor is public for `std::make_shared()`.
-  explicit Chunk(Type type, std::string&& data)
-      : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
-
-  // Does not take ownership of `data`, which must not be changed until the
-  // last `BrotliWriter` or `BrotliReader` using this dictionary is closed or
-  // no longer used. This constructor is public for `std::make_shared()`.
-  explicit Chunk(Type type, absl::string_view data,
-                 std::integral_constant<Ownership, Ownership::kUnowned>)
-      : type_(type), data_(data) {}
-
-  // Does not know the data. The chunk is represented by
-  // `BrotliEncoderPreparedDictionary` pointer. This constructor is public for
-  // `std::make_shared()`.
-  explicit Chunk(
-      std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared)
-      : type_(Type::kNative), compression_dictionary_(std::move(prepared)) {}
-
   Chunk(const Chunk&) = delete;
   Chunk& operator=(const Chunk&) = delete;
 
@@ -203,6 +181,30 @@ class BrotliDictionary::Chunk {
   PrepareCompressionDictionary() const;
 
  private:
+  friend class BrotliDictionary;
+
+  // Owns a copy of `data`.
+  explicit Chunk(Type type, absl::string_view data,
+                 std::integral_constant<Ownership, Ownership::kCopied>)
+      : type_(type), owned_data_(data), data_(owned_data_) {}
+
+  // Owns moved `data`.
+  explicit Chunk(Type type, std::string&& data)
+      : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
+
+  // Does not take ownership of `data`, which must not be changed until the
+  // last `BrotliWriter` or `BrotliReader` using this dictionary is closed or
+  // no longer used.
+  explicit Chunk(Type type, absl::string_view data,
+                 std::integral_constant<Ownership, Ownership::kUnowned>)
+      : type_(type), data_(data) {}
+
+  // Does not know the data. The chunk is represented by
+  // `BrotliEncoderPreparedDictionary` pointer.
+  explicit Chunk(
+      std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared)
+      : type_(Type::kNative), compression_dictionary_(std::move(prepared)) {}
+
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
@@ -238,9 +240,9 @@ inline BrotliDictionary& BrotliDictionary::Reset() & {
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw(absl::string_view data) & {
-  chunks_.push_back(std::make_shared<const Chunk>(
-      Type::kRaw, data,
-      std::integral_constant<Ownership, Ownership::kCopied>()));
+  chunks_.emplace_back(
+      new Chunk(Type::kRaw, data,
+                std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
@@ -249,24 +251,24 @@ template <typename Src,
 inline BrotliDictionary& BrotliDictionary::add_raw(Src&& data) & {
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.push_back(std::make_shared<const Chunk>(Type::kRaw, std::move(data)));
+  chunks_.emplace_back(new Chunk(Type::kRaw, std::move(data)));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
     absl::string_view data) & {
-  chunks_.push_back(std::make_shared<const Chunk>(
-      Type::kRaw, data,
-      std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.emplace_back(
+      new Chunk(Type::kRaw, data,
+                std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized(
     absl::string_view data) & {
   Reset();
-  chunks_.push_back(std::make_shared<const Chunk>(
-      Type::kSerialized, data,
-      std::integral_constant<Ownership, Ownership::kCopied>()));
+  chunks_.emplace_back(
+      new Chunk(Type::kSerialized, data,
+                std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
@@ -276,23 +278,22 @@ inline BrotliDictionary& BrotliDictionary::set_serialized(Src&& data) & {
   Reset();
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.push_back(
-      std::make_shared<const Chunk>(Type::kSerialized, std::move(data)));
+  chunks_.emplace_back(new Chunk(Type::kSerialized, std::move(data)));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
     absl::string_view data) & {
   Reset();
-  chunks_.push_back(std::make_shared<const Chunk>(
-      Type::kSerialized, data,
-      std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.emplace_back(
+      new Chunk(Type::kSerialized, data,
+                std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_native(
     std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared) & {
-  chunks_.push_back(std::make_shared<const Chunk>(std::move(prepared)));
+  chunks_.emplace_back(new Chunk(std::move(prepared)));
   return *this;
 }
 

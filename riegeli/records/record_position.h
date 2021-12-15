@@ -20,7 +20,6 @@
 #include <future>
 #include <iosfwd>
 #include <limits>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
@@ -135,7 +135,7 @@ class FutureChunkBegin {
   // The pointer uses shared ownership because `Unresolved` is not copyable,
   // which is because its contents are resolved lazily in a const method,
   // so a copy constructor would need to block.
-  std::shared_ptr<Unresolved> unresolved_;
+  RefCountedPtr<const Unresolved> unresolved_;
   // If `unresolved_ == nullptr`, `chunk_begin_` is stored here,
   // otherwise it is `unresolved_->get()`.
   Position resolved_ = 0;
@@ -227,7 +227,7 @@ inline HashState AbslHashValue(HashState hash_state, RecordPosition self) {
 
 namespace internal {
 
-class FutureChunkBegin::Unresolved {
+class FutureChunkBegin::Unresolved : public RefCountedBase<Unresolved> {
  public:
   explicit Unresolved(Position pos_before_chunks, std::vector<Action> actions);
 

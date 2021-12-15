@@ -26,8 +26,8 @@
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -56,36 +56,16 @@ struct ZSTD_DDictDeleter {
 
 }  // namespace
 
-// Holds a compression dictionary prepared for a particular compression level.
-//
-// If several callers of `ZstdDictionary` need a prepared dictionary with the
-// same compression level at the same time, they wait for the first one to
-// prepare it, and they share it.
-//
-// If the callers need it with different compression levels, they do not wait.
-// The dictionary will be prepared again if varying compression levels later
-// repeat, because the cache holds at most one entry.
-struct ZstdDictionary::Repr::CompressionCache {
-  explicit CompressionCache(int compression_level)
-      : compression_level(compression_level) {}
-
-  int compression_level;
-  mutable absl::once_flag compression_once;
-  mutable std::shared_ptr<const ZSTD_CDict> compression_dictionary;
-};
-
 inline std::shared_ptr<const ZSTD_CDict>
 ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
-  const std::shared_ptr<const CompressionCache> compression_cache = [&] {
-    absl::MutexLock lock(&compression_mutex_);
-    if (compression_cache_ == nullptr ||
-        compression_cache_->compression_level != compression_level) {
-      compression_cache_ =
-          std::make_shared<const CompressionCache>(compression_level);
-    }
-    return compression_cache_;
-  }();
+  RefCountedPtr<const CompressionCache> compression_cache =
+      compression_cache_.load(std::memory_order_acquire);
+  if (compression_cache == nullptr ||
+      compression_cache->compression_level != compression_level) {
+    compression_cache.reset(new CompressionCache(compression_level));
+    compression_cache_.store(compression_cache, std::memory_order_release);
+  }
   absl::call_once(compression_cache->compression_once, [&] {
     compression_cache->compression_dictionary =
         std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter>(

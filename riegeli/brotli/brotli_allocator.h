@@ -17,11 +17,11 @@
 
 #include <stddef.h>
 
-#include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "brotli/types.h"
+#include "riegeli/base/intrusive_ref_count.h"
 
 namespace riegeli {
 
@@ -66,12 +66,12 @@ class BrotliAllocator {
   template <typename AllocFunctor, typename FreeFunctor>
   class Implementation;
 
-  std::shared_ptr<const Interface> impl_;
+  RefCountedPtr<const Interface> impl_;
 };
 
 // Implementation details follow.
 
-class BrotliAllocator::Interface {
+class BrotliAllocator::Interface : public RefCountedBase<Interface> {
  public:
   virtual ~Interface();
 
@@ -99,8 +99,8 @@ class BrotliAllocator::Implementation : public Interface {
 template <typename AllocFunctor, typename FreeFunctor>
 inline BrotliAllocator::BrotliAllocator(AllocFunctor&& alloc_functor,
                                         FreeFunctor&& free_functor)
-    : impl_(std::make_shared<const Implementation<std::decay_t<AllocFunctor>,
-                                                  std::decay_t<FreeFunctor>>>(
+    : impl_(new Implementation<std::decay_t<AllocFunctor>,
+                               std::decay_t<FreeFunctor>>(
           std::forward<AllocFunctor>(alloc_functor),
           std::forward<FreeFunctor>(free_functor))) {}
 

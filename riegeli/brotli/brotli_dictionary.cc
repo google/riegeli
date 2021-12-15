@@ -25,6 +25,7 @@
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 
 namespace riegeli {
 
