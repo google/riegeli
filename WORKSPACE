@@ -81,11 +81,11 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "cfcba2df10feec52a84208693937c17a4b5df7775e1635c1e3baffc487b24c9b",
-    strip_prefix = "protobuf-3.9.2",
+    sha256 = "25f1292d4ea6666f460a2a30038eef121e6c3937ae0f61d610611dfb14b0bd32",
+    strip_prefix = "protobuf-3.19.1",
     urls = [
-        "http://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.9.2.zip",
-        "https://github.com/protocolbuffers/protobuf/archive/v3.9.2.zip",  # 2019-09-20
+        "http://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.19.1.zip",
+        "https://github.com/protocolbuffers/protobuf/archive/v3.19.1.zip",  # 2021-10-28
     ],
 )
 
@@ -120,6 +120,12 @@ http_archive(
         "https://mirror.bazel.build/github.com/bazelbuild/rules_cc/archive/b7fe9697c0c76ab2fd431a891dbb9a6a32ed7c3e.zip",
         "https://github.com/bazelbuild/rules_cc/archive/b7fe9697c0c76ab2fd431a891dbb9a6a32ed7c3e.zip",
     ],
+)
+
+http_archive(
+    name = "rules_python",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.5.0/rules_python-0.5.0.tar.gz",
+    sha256 = "cd6730ed53a002c56ce4e2f396ba3b3be262fd7cb68339f0377a45e8227fe332",
 )
 
 # Needed by @com_google_protobuf.
