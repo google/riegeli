@@ -31,11 +31,11 @@ namespace internal {
 // does nothing.
 
 template <typename T, typename Enable = void>
-struct HasClose : public std::false_type {};
+struct HasClose : std::false_type {};
 
 template <typename T>
 struct HasClose<T, absl::void_t<decltype(std::declval<T>().close())>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>
 inline void CloseStream(Stream& stream) {}

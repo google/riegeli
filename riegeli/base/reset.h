@@ -89,22 +89,22 @@ inline void ResetInternal(absl::Cord& object, absl::string_view src) {
 namespace internal {
 
 template <typename T, typename Enable, typename... Args>
-struct HasResetInternal : public std::false_type {};
+struct HasResetInternal : std::false_type {};
 
 template <typename T, typename... Args>
 struct HasResetInternal<T,
                         absl::void_t<decltype(ResetInternal(
                             std::declval<T&>(), std::declval<Args>()...))>,
-                        Args...> : public std::true_type {};
+                        Args...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Args>
-struct HasReset : public std::false_type {};
+struct HasReset : std::false_type {};
 
 template <typename T, typename... Args>
 struct HasReset<
     T,
     absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args>()...))>,
-    Args...> : public std::true_type {};
+    Args...> : std::true_type {};
 
 template <typename T, typename... Args,
           std::enable_if_t<HasResetInternal<T, void, Args...>::value, int> = 0>

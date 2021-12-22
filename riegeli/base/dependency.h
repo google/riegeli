@@ -127,13 +127,13 @@ class Dependency;
 // `Dependency<Ptr, Manager>` is defined.
 
 template <typename Ptr, typename Manager, typename Enable = void>
-struct IsValidDependency : public std::false_type {};
+struct IsValidDependency : std::false_type {};
 
 template <typename Ptr, typename Manager>
 struct IsValidDependency<
     Ptr, Manager,
     absl::void_t<decltype(std::declval<Dependency<Ptr, Manager>>().get())>>
-    : public std::true_type {};
+    : std::true_type {};
 
 // Implementation shared between most specializations of `Dependency`.
 template <typename Manager>
@@ -358,7 +358,7 @@ namespace internal {
 // This is useful for `static_assert()`.
 
 template <typename... T>
-struct AlwaysFalse : public std::false_type {};
+struct AlwaysFalse : std::false_type {};
 
 }  // namespace internal
 

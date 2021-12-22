@@ -38,14 +38,14 @@ using DereferenceIterableT = decltype(*begin(std::declval<T&>()));
 // `IsIterableOf<Iterable, Element>::value` is `true` if iterating over
 // `Iterable` yields elements convertible to `Element`.
 template <typename Iterable, typename Element, typename Enable = void>
-struct IsIterableOf : public std::false_type {};
+struct IsIterableOf : std::false_type {};
 
 template <typename Iterable, typename Element>
 struct IsIterableOf<
     Iterable, Element,
     std::enable_if_t<std::is_convertible<
         adl_begin_sandbox::DereferenceIterableT<Iterable>, Element>::value>>
-    : public std::true_type {};
+    : std::true_type {};
 
 // `AllConvertibleTo<Target, Source...>::value` is `true` if all `Source` types
 // are convertible to `Target`.
@@ -64,7 +64,7 @@ struct AllConvertibleTo<Target, FirstSource, RestSources...>
 // `HasMovableElements<Iterable>::value` is `true` if moving (rather than
 // copying) out of elements of `Iterable` is safe.
 template <typename Iterable, typename Enable = void>
-struct HasMovableElements : public std::false_type {};
+struct HasMovableElements : std::false_type {};
 
 // Moving out of elements of `Iterable` is unsafe if it is an lvalue, or a view
 // container like `absl::Span<T>`. View containers are detected by checking
@@ -79,7 +79,7 @@ struct HasMovableElements<
                                        std::decay_t<Iterable>>,
                                    adl_begin_sandbox::DereferenceIterableT<
                                        const std::decay_t<Iterable>>>::value>>
-    : public std::true_type {};
+    : std::true_type {};
 
 // `MaybeMoveElement<Src>(element)` is `std::move(element)` or `element`,
 // depending on whether moving out of elements of `Src` is safe.

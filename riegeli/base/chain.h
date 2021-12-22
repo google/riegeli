@@ -1120,20 +1120,20 @@ struct Chain::ExternalMethods {
 namespace internal {
 
 template <typename T, typename Enable = void>
-struct HasCallOperatorWithData : public std::false_type {};
+struct HasCallOperatorWithData : std::false_type {};
 
 template <typename T>
 struct HasCallOperatorWithData<T, absl::void_t<decltype(std::declval<T>()(
                                       std::declval<absl::string_view>()))>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
-struct HasCallOperatorWithoutData : public std::false_type {};
+struct HasCallOperatorWithoutData : std::false_type {};
 
 template <typename T>
 struct HasCallOperatorWithoutData<T,
                                   absl::void_t<decltype(std::declval<T>()())>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename T,
           absl::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
@@ -1156,22 +1156,22 @@ template <typename T,
 inline void CallOperator(T& object, absl::string_view data) {}
 
 template <typename T, typename Enable = void>
-struct HasRegisterSubobjectsWithData : public std::false_type {};
+struct HasRegisterSubobjectsWithData : std::false_type {};
 
 template <typename T>
 struct HasRegisterSubobjectsWithData<
     T,
     absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
         std::declval<absl::string_view>(), std::declval<MemoryEstimator&>()))>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
-struct HasRegisterSubobjectsWithoutData : public std::false_type {};
+struct HasRegisterSubobjectsWithoutData : std::false_type {};
 
 template <typename T>
 struct HasRegisterSubobjectsWithoutData<
     T, absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
-           std::declval<MemoryEstimator&>()))>> : public std::true_type {};
+           std::declval<MemoryEstimator&>()))>> : std::true_type {};
 
 template <typename T,
           absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
@@ -1206,21 +1206,21 @@ inline void RegisterSubobjects(absl::string_view& object,
                                MemoryEstimator& memory_estimator) {}
 
 template <typename T, typename Enable = void>
-struct HasDumpStructureWithData : public std::false_type {};
+struct HasDumpStructureWithData : std::false_type {};
 
 template <typename T>
 struct HasDumpStructureWithData<
     T, absl::void_t<decltype(std::declval<T>().DumpStructure(
            std::declval<absl::string_view>(), std::declval<std::ostream&>()))>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
-struct HasDumpStructureWithoutData : public std::false_type {};
+struct HasDumpStructureWithoutData : std::false_type {};
 
 template <typename T>
 struct HasDumpStructureWithoutData<
     T, absl::void_t<decltype(std::declval<T>().DumpStructure(
-           std::declval<std::ostream&>()))>> : public std::true_type {};
+           std::declval<std::ostream&>()))>> : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasDumpStructureWithData<T>::value, int> = 0>

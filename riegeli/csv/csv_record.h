@@ -266,7 +266,7 @@ class CsvHeader {
   friend std::ostream& operator<<(std::ostream& out, const CsvHeader& header);
 
  private:
-  struct Payload : public RefCountedBase<Payload> {
+  struct Payload : RefCountedBase<Payload> {
     Payload() noexcept {}
     Payload(const Payload& that);
 

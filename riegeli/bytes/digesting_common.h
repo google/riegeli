@@ -32,12 +32,12 @@ namespace internal {
 // `Digester::Write()` if that is not defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasWriteZeros : public std::false_type {};
+struct DigesterHasWriteZeros : std::false_type {};
 
 template <typename Digester>
 struct DigesterHasWriteZeros<
     Digester, absl::void_t<decltype(std::declval<Digester>().WriteZeros(
-                  std::declval<Position>()))>> : public std::true_type {};
+                  std::declval<Position>()))>> : std::true_type {};
 
 template <typename Digester,
           absl::enable_if_t<DigesterHasWriteZeros<Digester>::value, int> = 0>
@@ -61,12 +61,12 @@ inline void DigesterWriteZeros(Digester& digester, Position length) {
 // defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasClose : public std::false_type {};
+struct DigesterHasClose : std::false_type {};
 
 template <typename Digester>
 struct DigesterHasClose<
     Digester, absl::void_t<decltype(std::declval<Digester>().Close())>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename Digester,
           absl::enable_if_t<DigesterHasClose<Digester>::value, int> = 0>
@@ -85,12 +85,12 @@ inline void DigesterClose(Digester& digester) {}
 // not defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasDigest : public std::false_type {};
+struct DigesterHasDigest : std::false_type {};
 
 template <typename Digester>
 struct DigesterHasDigest<
     Digester, absl::void_t<decltype(std::declval<Digester>().Digest())>>
-    : public std::true_type {};
+    : std::true_type {};
 
 template <typename Digester, typename Enable = void>
 struct DigestTypeImpl {
