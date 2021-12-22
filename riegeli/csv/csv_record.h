@@ -20,11 +20,13 @@
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
+#include <new>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -282,6 +284,47 @@ class CsvHeader {
 
   RefCountedPtr<Payload> payload_;
 };
+
+// `CsvHeaderConstant<n>` lazily constructs and stores a `CsvHeader` with `n`
+// fields, and never calls its destructor.
+//
+// It should be used as the type of a variable with static storage duration.
+//
+// By relying on CTAD the template argument can be deduced as the number of
+// constructor arguments. This requires C++17.
+template <size_t num_fields>
+class CsvHeaderConstant {
+ public:
+  // Will create a `CsvHeader` consisting of the given sequence of field names.
+  //
+  // The number of `fields` must be `num_fields`, and all `fields` must have
+  // static storage duration.
+  template <typename... Fields,
+            std::enable_if_t<sizeof...(Fields) == num_fields &&
+                                 internal::AllConvertibleTo<absl::string_view,
+                                                            Fields...>::value,
+                             int> = 0>
+  /*implicit*/ constexpr CsvHeaderConstant(Fields&&... fields)
+      : fields_{std::forward<Fields>(fields)...} {}
+
+  CsvHeaderConstant(const CsvHeaderConstant&) = delete;
+  CsvHeaderConstant& operator=(const CsvHeaderConstant&) = delete;
+
+  const CsvHeader* get() const;
+  const CsvHeader& operator*() const { return *get(); }
+  const CsvHeader* operator->() const { return get(); }
+
+ private:
+  const absl::string_view fields_[num_fields];
+  mutable absl::once_flag once_;
+  alignas(CsvHeader) mutable char header_[sizeof(CsvHeader)] = {};
+};
+
+// Support CTAD.
+#if __cpp_deduction_guides
+template <typename... Fields>
+CsvHeaderConstant(Fields&&... fields) -> CsvHeaderConstant<sizeof...(Fields)>;
+#endif
 
 // A row of a CSV file, with fields accessed by name.
 //
@@ -722,6 +765,12 @@ inline bool operator==(const CsvHeader& a, const CsvHeader& b) {
 
 inline bool operator!=(const CsvHeader& a, const CsvHeader& b) {
   return !(a == b);
+}
+
+template <size_t num_fields>
+inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const {
+  absl::call_once(once_, [&] { new (header_) CsvHeader(fields_); });
+  return reinterpret_cast<const CsvHeader*>(header_);
 }
 
 template <typename FieldIterator>

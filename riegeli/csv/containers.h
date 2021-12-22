@@ -47,6 +47,20 @@ struct IsIterableOf<
         adl_begin_sandbox::DereferenceIterableT<Iterable>, Element>::value>>
     : public std::true_type {};
 
+// `AllConvertibleTo<Target, Source...>::value` is `true` if all `Source` types
+// are convertible to `Target`.
+template <typename Target, typename... Source>
+struct AllConvertibleTo;
+
+template <typename Target>
+struct AllConvertibleTo<Target> : std::true_type {};
+
+template <typename Target, typename FirstSource, typename... RestSources>
+struct AllConvertibleTo<Target, FirstSource, RestSources...>
+    : std::conditional_t<std::is_convertible<FirstSource, Target>::value,
+                         AllConvertibleTo<Target, RestSources...>,
+                         std::false_type> {};
+
 // `HasMovableElements<Iterable>::value` is `true` if moving (rather than
 // copying) out of elements of `Iterable` is safe.
 template <typename Iterable, typename Enable = void>
