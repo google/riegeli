@@ -272,6 +272,9 @@ class Writer : public Object {
   // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
   Reader* ReadMode(Position initial_pos);
 
+  // Support `absl::Format(&writer, format, args...)`.
+  friend void AbslFormatFlush(Writer* dest, absl::string_view src);
+
  protected:
   using Object::Object;
 
@@ -654,6 +657,10 @@ inline bool Writer::Truncate(Position new_size) {
 
 inline Reader* Writer::ReadMode(Position initial_pos) {
   return ReadModeImpl(initial_pos);
+}
+
+inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
+  dest->Write(src);
 }
 
 template <typename ReaderClass>

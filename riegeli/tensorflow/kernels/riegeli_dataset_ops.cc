@@ -46,15 +46,8 @@
 #include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/tstring.h"
 #include "tensorflow/core/platform/types.h"
-#include "tensorflow/core/public/version.h"
-
-// error_codes.proto.h was moved on 2019-09-18 when `TF_GRAPH_DEF_VERSION` was
-// defined to 162.
-#if TF_GRAPH_DEF_VERSION > 162
 #include "tensorflow/core/protobuf/error_codes.pb.h"
-#else
-#include "tensorflow/core/lib/core/error_codes.pb.h"
-#endif
+#include "tensorflow/core/public/version.h"
 
 namespace riegeli {
 namespace tensorflow {
@@ -79,10 +72,9 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           filenames_tensor->flat<::tensorflow::tstring>()(i));
     }
 
-    ::tensorflow::int64 buffer_size;
-    OP_REQUIRES_OK(ctx,
-                   ::tensorflow::data::ParseScalarArgument<::tensorflow::int64>(
-                       ctx, "buffer_size", &buffer_size));
+    int64_t buffer_size;
+    OP_REQUIRES_OK(ctx, ::tensorflow::data::ParseScalarArgument<int64_t>(
+                            ctx, "buffer_size", &buffer_size));
     OP_REQUIRES(
         ctx, buffer_size > 0,
         ::tensorflow::errors::InvalidArgument("`buffer_size` must be > 0"));
@@ -94,8 +86,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
   class Dataset : public ::tensorflow::data::DatasetBase {
    public:
     explicit Dataset(::tensorflow::OpKernelContext* ctx,
-                     std::vector<std::string> filenames,
-                     ::tensorflow::int64 buffer_size)
+                     std::vector<std::string> filenames, int64_t buffer_size)
         : DatasetBase(::tensorflow::data::DatasetContext(ctx)),
           filenames_(std::move(filenames)),
           buffer_size_(buffer_size) {}
@@ -123,13 +114,9 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       return "RiegeliDatasetOp::Dataset";
     }
 
-    // `::tensorflow::data::DatasetBase::CheckExternalState()` was added on
-    // 2019-08-07 when `TF_GRAPH_DEF_VERSION` was defined to 120.
-#if TF_GRAPH_DEF_VERSION > 120
     ::tensorflow::Status CheckExternalState() const override {
       return ::tensorflow::Status::OK();
     }
-#endif
 
     ::tensorflow::Status InputDatasets(
         std::vector<const ::tensorflow::data::DatasetBase*>* inputs)
@@ -216,17 +203,13 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
 
      protected:
       ::tensorflow::Status SaveInternal(
-// `::tensorflow::data::SerializationContext` argument was added on
-// 2019-03-17 when `TF_GRAPH_DEF_VERSION` was defined to 343.
-#if TF_GRAPH_DEF_VERSION > 343
           ::tensorflow::data::SerializationContext* ctx,
-#endif
           ::tensorflow::data::IteratorStateWriter* writer) override
           ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
-        TF_RETURN_IF_ERROR(writer->WriteScalar(
-            full_name("current_file_index"),
-            IntCast<::tensorflow::int64>(current_file_index_)));
+        TF_RETURN_IF_ERROR(
+            writer->WriteScalar(full_name("current_file_index"),
+                                IntCast<int64_t>(current_file_index_)));
         if (reader_ != absl::nullopt) {
           TF_RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
                                                  reader_->pos().ToBytes()));
@@ -242,7 +225,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         current_file_index_ = 0;
         reader_.reset();
 
-        ::tensorflow::int64 current_file_index;
+        int64_t current_file_index;
         TF_RETURN_IF_ERROR(reader->ReadScalar(full_name("current_file_index"),
                                               &current_file_index));
         if (TF_PREDICT_FALSE(current_file_index < 0 ||
@@ -297,7 +280,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     };
 
     const std::vector<std::string> filenames_;
-    const ::tensorflow::int64 buffer_size_;
+    const int64_t buffer_size_;
   };
 };
 

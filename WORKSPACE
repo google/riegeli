@@ -6,11 +6,11 @@ load("//tf_dependency:tf_configure.bzl", "tf_configure")
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "6a6eee57ce3375e26d49c542d191ceb90822984d5b587f0ea8e0d0c77016b02b",
-    strip_prefix = "abseil-cpp-20200225.3",
+    sha256 = "1a7edda1ff56967e33bc938a4f0a68bb9efc6ba73d62bb4a5f5662463698056c",
+    strip_prefix = "abseil-cpp-20210324.2",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/20200225.3.zip",
-        "https://github.com/abseil/abseil-cpp/archive/20200225.3.zip",  # 2020-10-09
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/20210324.2.zip",
+        "https://github.com/abseil/abseil-cpp/archive/20210324.2.zip",  # 2021-06-01
     ],
 )
 
@@ -81,6 +81,8 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
+    patches = ["//third_party:protobuf.patch"],
+    patch_args = ["-p1"],
     sha256 = "cfcba2df10feec52a84208693937c17a4b5df7775e1635c1e3baffc487b24c9b",
     strip_prefix = "protobuf-3.9.2",
     urls = [

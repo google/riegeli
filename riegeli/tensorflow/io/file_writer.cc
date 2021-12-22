@@ -15,6 +15,7 @@
 #include "riegeli/tensorflow/io/file_writer.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 #include <memory>
@@ -91,7 +92,7 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
 }
 
 void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
-  ::tensorflow::int64 file_pos;
+  int64_t file_pos;
   {
     const ::tensorflow::Status status = dest->Tell(&file_pos);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
