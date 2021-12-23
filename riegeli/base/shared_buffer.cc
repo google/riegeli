@@ -36,10 +36,7 @@ absl::Cord SharedBuffer::ToCord(absl::string_view substr) const {
   }
 
   void* ptr = Share();
-  // TODO: Remove the `absl::string_view` parameter when the Abseil
-  // dependency is upgraded.
-  return absl::MakeCordFromExternal(
-      substr, [ptr](absl::string_view) { DeleteShared(ptr); });
+  return absl::MakeCordFromExternal(substr, [ptr] { DeleteShared(ptr); });
 }
 
 }  // namespace riegeli

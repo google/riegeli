@@ -566,10 +566,8 @@ inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
     return;
   }
   Ref<ownership>();
-  // TODO: Remove the `absl::string_view` parameter when the Abseil
-  // dependency is upgraded.
-  dest.Append(absl::MakeCordFromExternal(
-      absl::string_view(*this), [this](absl::string_view) { Unref(); }));
+  dest.Append(absl::MakeCordFromExternal(absl::string_view(*this),
+                                         [this] { Unref(); }));
 }
 
 inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
@@ -627,10 +625,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
     return;
   }
   Ref();
-  // TODO: Remove the `absl::string_view` parameter when the Abseil
-  // dependency is upgraded.
-  dest.Append(absl::MakeCordFromExternal(
-      substr, [this](absl::string_view) { Unref(); }));
+  dest.Append(absl::MakeCordFromExternal(substr, [this] { Unref(); }));
 }
 
 template <Chain::Ownership ownership>
@@ -653,10 +648,8 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
     return;
   }
   Ref<ownership>();
-  // TODO: Remove the `absl::string_view` parameter when the Abseil
-  // dependency is upgraded.
-  dest.Prepend(absl::MakeCordFromExternal(
-      absl::string_view(*this), [this](absl::string_view) { Unref(); }));
+  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(*this),
+                                          [this] { Unref(); }));
 }
 
 size_t Chain::BlockIterator::CharIndexInChainInternal() const {

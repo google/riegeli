@@ -29,12 +29,10 @@ extern const std::array<char, kDefaultBufferSize> kArrayOfZeros = {0};
 absl::Cord CordOfZeros(size_t length) {
   absl::Cord result;
   while (length >= kArrayOfZeros.size()) {
-    // TODO: Remove the `absl::string_view` parameter when the Abseil
-    // dependency is upgraded.
     static const NoDestructor<absl::Cord> kCordOfZeros(
         absl::MakeCordFromExternal(
             absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size()),
-            [](absl::string_view) {}));
+            [] {}));
     result.Append(*kCordOfZeros);
     length -= kArrayOfZeros.size();
   }
@@ -42,11 +40,8 @@ absl::Cord CordOfZeros(size_t length) {
     if (length <= MaxBytesToCopyToCord(result)) {
       result.Append(absl::string_view(kArrayOfZeros.data(), length));
     } else {
-      // TODO: Remove the `absl::string_view` parameter when the Abseil
-      // dependency is upgraded.
       result.Append(absl::MakeCordFromExternal(
-          absl::string_view(kArrayOfZeros.data(), length),
-          [](absl::string_view) {}));
+          absl::string_view(kArrayOfZeros.data(), length), [] {}));
     }
   }
   return result;

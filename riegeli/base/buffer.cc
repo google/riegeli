@@ -37,9 +37,7 @@ absl::Cord Buffer::ToCord(absl::string_view substr) {
   }
 
   struct Releaser {
-    // TODO: Remove the `absl::string_view` parameter when the Abseil
-    // dependency is upgraded.
-    void operator()(absl::string_view) const {
+    void operator()() const {
       // Nothing to do: the destructor does the work.
     }
     Buffer buffer;
