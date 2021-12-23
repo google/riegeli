@@ -47,7 +47,6 @@
 #include "tensorflow/core/platform/tstring.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/protobuf/error_codes.pb.h"
-#include "tensorflow/core/public/version.h"
 
 namespace riegeli {
 namespace tensorflow {
