@@ -137,6 +137,29 @@ bool BackwardWriter::WriteZerosSlow(Position length) {
   return true;
 }
 
+bool BackwardWriter::WriteCharsSlow(Position length, char src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of BackwardWriter::WriteCharsSlow(): "
+         "enough space available, use WriteChars() instead";
+  if (src == '\0') return WriteZerosSlow(length);
+  while (length > available()) {
+    const size_t available_length = available();
+    if (
+        // `std::memset(nullptr, _, 0)` is undefined.
+        available_length > 0) {
+      move_cursor(available_length);
+      std::memset(cursor(), src, available_length);
+      length -= available_length;
+    }
+    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
+  }
+  move_cursor(IntCast<size_t>(length));
+  std::memset(cursor(), src, IntCast<size_t>(length));
+  return true;
+}
+
 bool BackwardWriter::FlushImpl(FlushType flush_type) { return healthy(); }
 
 bool BackwardWriter::TruncateImpl(Position new_size) {

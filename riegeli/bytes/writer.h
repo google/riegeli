@@ -114,13 +114,13 @@ class Writer : public Object {
   // Invariant: if `!healthy()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
-  // Writes a single byte to the buffer or the destination.
+  // Writes a single character or byte to the buffer or the destination.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  bool WriteChar(char data);
-  bool WriteByte(uint8_t data);
+  bool WriteChar(char src);
+  bool WriteByte(uint8_t src);
 
   // Writes a fixed number of bytes from `src` to the buffer and/or the
   // destination.
@@ -148,6 +148,15 @@ class Writer : public Object {
   //  * `true`  - success (`length` bytes written)
   //  * `false` - failure (less than `length` bytes written, `!healthy()`)
   bool WriteZeros(Position length);
+
+  // Writes the given number of copies of the given character or byte to the
+  // buffer and/or the destination.
+  //
+  // Return values:
+  //  * `true`  - success (`length` bytes written)
+  //  * `false` - failure (less than `length` bytes written, `!healthy()`)
+  bool WriteChars(Position length, char src);
+  bool WriteBytes(Position length, uint8_t src);
 
   // If `true`, a hint that there is no benefit in preparing a `Chain` or
   // `absl::Cord` for writing instead of `absl::string_view`, e.g. because
@@ -361,6 +370,12 @@ class Writer : public Object {
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   virtual bool WriteZerosSlow(Position length);
 
+  // Implementation of the slow part of `WriteChars()`.
+  //
+  // Precondition:
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
+  bool WriteCharsSlow(Position length, char src);
+
   // Implementation of `Flush()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
   //
@@ -513,15 +528,15 @@ inline void Writer::set_buffer(char* start, size_t start_to_limit,
   limit_ = start + start_to_limit;
 }
 
-inline bool Writer::WriteChar(char data) {
+inline bool Writer::WriteChar(char src) {
   if (ABSL_PREDICT_FALSE(!Push())) return false;
-  *cursor() = data;
+  *cursor() = src;
   move_cursor(1);
   return true;
 }
 
-inline bool Writer::WriteByte(uint8_t data) {
-  return WriteChar(static_cast<char>(data));
+inline bool Writer::WriteByte(uint8_t src) {
+  return WriteChar(static_cast<char>(src));
 }
 
 inline bool Writer::Write(absl::string_view src) {
@@ -613,6 +628,23 @@ inline bool Writer::WriteZeros(Position length) {
     return true;
   }
   return WriteZerosSlow(length);
+}
+
+inline bool Writer::WriteChars(Position length, char src) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memset(nullptr, _, 0)` is undefined.
+            length > 0)) {
+      std::memset(cursor(), src, IntCast<size_t>(length));
+      move_cursor(IntCast<size_t>(length));
+    }
+    return true;
+  }
+  return WriteCharsSlow(length, src);
+}
+
+inline bool Writer::WriteBytes(Position length, uint8_t src) {
+  return WriteChars(length, static_cast<char>(src));
 }
 
 inline bool Writer::Flush(FlushType flush_type) {

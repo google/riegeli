@@ -99,13 +99,13 @@ class BackwardWriter : public Object {
   // Invariant: if `!healthy()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(cursor_, start_); }
 
-  // Writes a single byte to the buffer or the destination.
+  // Writes a single character or byte to the buffer or the destination.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  bool WriteChar(char data);
-  bool WriteByte(uint8_t data);
+  bool WriteChar(char src);
+  bool WriteByte(uint8_t src);
 
   // Writes a fixed number of bytes from `src` to the buffer and/or the
   // destination. The whole `src` is prepended, bytes are not reversed.
@@ -134,6 +134,15 @@ class BackwardWriter : public Object {
   //  * `true`  - success (`length` bytes written)
   //  * `false` - failure (less than `length` bytes written, `!healthy()`)
   bool WriteZeros(Position length);
+
+  // Writes the given number of copies of the given character or byte to the
+  // buffer and/or the destination.
+  //
+  // Return values:
+  //  * `true`  - success (`length` bytes written)
+  //  * `false` - failure (less than `length` bytes written, `!healthy()`)
+  bool WriteChars(Position length, char src);
+  bool WriteBytes(Position length, uint8_t src);
 
   // If `true`, a hint that there is no benefit in preparing a `Chain` or
   // `absl::Cord` for writing instead of `absl::string_view`, e.g. because
@@ -291,6 +300,12 @@ class BackwardWriter : public Object {
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   virtual bool WriteZerosSlow(Position length);
 
+  // Implementation of the slow part of `WriteChars()`.
+  //
+  // Precondition:
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
+  bool WriteCharsSlow(Position length, char src);
+
   // Implementation of `Flush()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
   //
@@ -402,15 +417,15 @@ inline void BackwardWriter::set_buffer(char* limit, size_t start_to_limit,
   limit_ = limit;
 }
 
-inline bool BackwardWriter::WriteChar(char data) {
+inline bool BackwardWriter::WriteChar(char src) {
   if (ABSL_PREDICT_FALSE(!Push())) return false;
   move_cursor(1);
-  *cursor() = data;
+  *cursor() = src;
   return true;
 }
 
-inline bool BackwardWriter::WriteByte(uint8_t data) {
-  return WriteChar(static_cast<char>(data));
+inline bool BackwardWriter::WriteByte(uint8_t src) {
+  return WriteChar(static_cast<char>(src));
 }
 
 inline bool BackwardWriter::Write(absl::string_view src) {
@@ -502,6 +517,23 @@ inline bool BackwardWriter::WriteZeros(Position length) {
     return true;
   }
   return WriteZerosSlow(length);
+}
+
+inline bool BackwardWriter::WriteChars(Position length, char src) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memset(nullptr, _, 0)` is undefined.
+            length > 0)) {
+      move_cursor(IntCast<size_t>(length));
+      std::memset(cursor(), src, IntCast<size_t>(length));
+    }
+    return true;
+  }
+  return WriteCharsSlow(length, src);
+}
+
+inline bool BackwardWriter::WriteBytes(Position length, uint8_t src) {
+  return WriteChars(length, static_cast<char>(src));
 }
 
 inline bool BackwardWriter::Flush(FlushType flush_type) {
