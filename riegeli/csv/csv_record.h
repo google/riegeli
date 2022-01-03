@@ -29,6 +29,7 @@
 #include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -301,8 +302,8 @@ class CsvHeaderConstant {
   // static storage duration.
   template <typename... Fields,
             std::enable_if_t<sizeof...(Fields) == num_fields &&
-                                 internal::AllConvertibleTo<absl::string_view,
-                                                            Fields...>::value,
+                                 absl::conjunction<std::is_convertible<
+                                     Fields, absl::string_view>...>::value,
                              int> = 0>
   /*implicit*/ constexpr CsvHeaderConstant(Fields&&... fields)
       : fields_{std::forward<Fields>(fields)...} {}
