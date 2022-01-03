@@ -13,6 +13,12 @@ public class RecordReadWriteTest {
     public void setUp() {
     }
 
+    private String createTestString(int length) {
+        // String.repeat is only available from Java 11, so create a
+        // helper method instead.
+        return String.join("", java.util.Collections.nCopies(length, "a"));
+    }
+
     @Test
     public void writeWriteString() throws IOException {
         // TODO: create a random file on TEST_TEMP directory.
@@ -21,7 +27,7 @@ public class RecordReadWriteTest {
         writer.open(filename, "default");
         final int kNumRecords = 4096;
         for (int i = 0; i < kNumRecords; i++) {
-            final String s = "a".repeat(i + 1);
+            final String s = createTestString(i+1);
             writer.writeRecord(s);
         }
         writer.close();
@@ -30,7 +36,7 @@ public class RecordReadWriteTest {
         reader.open(filename);
         for (int i = 0; i < kNumRecords; i++) {
             byte[] record = reader.readRecord();
-            final String s = "a".repeat(i + 1);
+            final String s = createTestString(i+1);
             assertEquals(new String(record), s);
         }
         byte[] record = reader.readRecord();
