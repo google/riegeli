@@ -32,6 +32,7 @@ cc_library(
         "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
+        "//riegeli/bytes:string_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

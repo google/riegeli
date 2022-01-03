@@ -58,7 +58,19 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
   writer.WriteChar('"');
 }
 
-inline void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
+inline std::string DebugQuotedIfNeeded(absl::string_view src) {
+  std::string dest;
+  StringWriter<> writer(&dest);
+  internal::WriteDebugQuotedIfNeeded(src, writer);
+  writer.Close();
+  return dest;
+}
+
+}  // namespace
+
+namespace internal {
+
+void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
   for (size_t i = 0; i < src.size(); ++i) {
     switch (src[i]) {
       // For correct CSV syntax.
@@ -77,15 +89,7 @@ inline void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
   writer.Write(src);
 }
 
-inline std::string DebugQuotedIfNeeded(absl::string_view src) {
-  std::string dest;
-  StringWriter<> writer(&dest);
-  WriteDebugQuotedIfNeeded(src, writer);
-  writer.Close();
-  return dest;
-}
-
-}  // namespace
+}  // namespace internal
 
 inline CsvHeader::Payload::Payload(const Payload& that)
     : index_to_name(that.index_to_name), name_to_index(that.name_to_index) {}
@@ -130,7 +134,7 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
              duplicate_names.cbegin();
          iter != duplicate_names.cend(); ++iter) {
       if (iter != duplicate_names.cbegin()) message.WriteChar(',');
-      WriteDebugQuotedIfNeeded(*iter, message);
+      internal::WriteDebugQuotedIfNeeded(*iter, message);
     }
     message.Close();
     return absl::FailedPreconditionError(message.dest());
@@ -178,7 +182,7 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
            "only if some fields were already present";
     StringWriter<std::string> message;
     message.Write("Duplicate field name: ");
-    WriteDebugQuotedIfNeeded(name, message);
+    internal::WriteDebugQuotedIfNeeded(name, message);
     message.Close();
     return absl::FailedPreconditionError(message.dest());
   }
@@ -227,7 +231,7 @@ std::string CsvHeader::DebugString() const {
   StringWriter<> writer(&result);
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
-    WriteDebugQuotedIfNeeded(*iter, writer);
+    internal::WriteDebugQuotedIfNeeded(*iter, writer);
   }
   writer.Close();
   return result;
@@ -354,7 +358,7 @@ absl::Status CsvRecord::FailMerge(
   for (std::vector<std::string>::const_iterator iter = unknown_fields.cbegin();
        iter != unknown_fields.cend(); ++iter) {
     if (iter != unknown_fields.cbegin()) message.WriteChar(',');
-    WriteDebugQuotedIfNeeded(*iter, message);
+    internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
   message.Write("; existing fields: ");
   message.Write(header_.DebugString());
@@ -370,9 +374,9 @@ std::string CsvRecord::DebugString() const {
   StringWriter<> writer(&result);
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
-    WriteDebugQuotedIfNeeded(iter->first, writer);
+    internal::WriteDebugQuotedIfNeeded(iter->first, writer);
     writer.WriteChar(':');
-    WriteDebugQuotedIfNeeded(iter->second, writer);
+    internal::WriteDebugQuotedIfNeeded(iter->second, writer);
   }
   writer.Close();
   return result;

@@ -36,6 +36,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/csv/containers.h"
 
 namespace riegeli {
@@ -600,6 +601,12 @@ class CsvRecord {
   CsvHeader header_;
   std::vector<std::string> fields_;
 };
+
+namespace internal {
+
+void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer);
+
+}  // namespace internal
 
 // Implementation details follow.
 

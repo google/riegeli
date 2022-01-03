@@ -73,6 +73,20 @@ class CsvReaderBase : public Object {
     }
     bool read_header() const { return read_header_; }
 
+    // Specifies fields which must be present in the header, otherwise parsing
+    // fails.
+    //
+    // Default: `{}`.
+    Options& set_required_fields(CsvHeader required_fields) & {
+      required_fields_ = std::move(required_fields);
+      return *this;
+    }
+    Options&& set_required_fields(CsvHeader required_fields) && {
+      return std::move(set_required_fields(std::move(required_fields)));
+    }
+    CsvHeader& required_fields() { return required_fields_; }
+    const CsvHeader& required_fields() const { return required_fields_; }
+
     // Comment character.
     //
     // If not `absl::nullopt`, a line beginning with this character is skipped.
@@ -227,6 +241,7 @@ class CsvReaderBase : public Object {
 
    private:
     bool read_header_ = false;
+    CsvHeader required_fields_;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
