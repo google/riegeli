@@ -564,7 +564,10 @@ namespace internal {
 inline uint16_t DecodeLittleEndian16(uint16_t encoded) {
   const unsigned char* const ptr =
       reinterpret_cast<const unsigned char*>(&encoded);
-  return uint16_t{ptr[0]} | (uint16_t{ptr[1]} << 8);
+  // `static_cast<uint16_t>` avoids triggering `-Wimplicit-int-conversion`:
+  // the result of `uint16_t | uint16_t` is `int` (assuming that `uint16_t`
+  // is narrower than `int`).
+  return static_cast<uint16_t>(uint16_t{ptr[0]} | (uint16_t{ptr[1]} << 8));
 }
 
 inline uint32_t DecodeLittleEndian32(uint32_t encoded) {
@@ -586,7 +589,10 @@ inline uint64_t DecodeLittleEndian64(uint64_t encoded) {
 inline uint16_t DecodeBigEndian16(uint16_t encoded) {
   const unsigned char* const ptr =
       reinterpret_cast<const unsigned char*>(&encoded);
-  return (uint16_t{ptr[0]} << 8) | uint16_t{ptr[1]};
+  // `static_cast<uint16_t>` avoids triggering `-Wimplicit-int-conversion`:
+  // the result of `uint16_t | uint16_t` is `int` (assuming that `uint16_t`
+  // is narrower than `int`).
+  return static_cast<uint16_t>((uint16_t{ptr[0]} << 8) | uint16_t{ptr[1]});
 }
 
 inline uint32_t DecodeBigEndian32(uint32_t encoded) {
