@@ -24,6 +24,9 @@ namespace riegeli {
 absl::Status ErrnoToCanonicalStatus(int error_number,
                                     absl::string_view message);
 
+// Converts `absl::StatusCode` to `errno` value.
+int StatusCodeToErrno(absl::StatusCode status_code);
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_ERRNO_MAPPING_H_

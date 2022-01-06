@@ -713,3 +713,81 @@ cc_library(
         "@com_google_absl//absl/types:optional",
     ],
 )
+
+cc_library(
+    name = "cfile_writer",
+    srcs = [
+        "cfile_dependency.h",
+        "cfile_internal.h",
+        "cfile_writer.cc",
+    ],
+    hdrs = ["cfile_writer.h"],
+    deps = [
+        ":buffered_writer",
+        ":cfile_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "cfile_reader",
+    srcs = [
+        "cfile_dependency.h",
+        "cfile_internal.h",
+        "cfile_reader.cc",
+    ],
+    hdrs = ["cfile_reader.h"],
+    deps = [
+        ":buffered_reader",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "writer_cfile",
+    srcs = [
+        "cfile_dependency.h",
+        "writer_cfile.cc",
+    ],
+    hdrs = ["writer_cfile.h"],
+    deps = [
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "reader_cfile",
+    srcs = [
+        "cfile_dependency.h",
+        "reader_cfile.cc",
+    ],
+    hdrs = ["reader_cfile.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+    ],
+)

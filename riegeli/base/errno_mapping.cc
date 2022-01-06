@@ -31,7 +31,7 @@ namespace riegeli {
 
 namespace {
 
-absl::StatusCode ErrnoToCode(int error_number) {
+absl::StatusCode ErrnoToStatusCode(int error_number) {
   switch (error_number) {
     case 0:
       return absl::StatusCode::kOk;
@@ -205,8 +205,59 @@ std::string StrError(int error_code) {
 
 absl::Status ErrnoToCanonicalStatus(int error_number,
                                     absl::string_view message) {
-  return absl::Status(ErrnoToCode(error_number),
+  return absl::Status(ErrnoToStatusCode(error_number),
                       absl::StrCat(message, ": ", StrError(error_number)));
+}
+
+int StatusCodeToErrno(absl::StatusCode status_code) {
+  switch (status_code) {
+    case absl::StatusCode::kOk:
+      return 0;
+    case absl::StatusCode::kCancelled:
+      return ECANCELED;
+    case absl::StatusCode::kUnknown:
+      return EIO;
+    case absl::StatusCode::kInvalidArgument:
+      return EINVAL;
+    case absl::StatusCode::kDeadlineExceeded:
+      return ETIMEDOUT;
+    case absl::StatusCode::kNotFound:
+      return ENOENT;
+    case absl::StatusCode::kAlreadyExists:
+      return EEXIST;
+    case absl::StatusCode::kPermissionDenied:
+      return EACCES;
+    case absl::StatusCode::kResourceExhausted:
+      return ENOSPC;
+    case absl::StatusCode::kFailedPrecondition:
+      // Does not round trip:
+      // `ErrnoToStatusCode(EINVAL) == absl::StatusCode::kInvalidArgument`
+      return EINVAL;
+    case absl::StatusCode::kAborted:
+      return EDEADLK;
+    case absl::StatusCode::kOutOfRange:
+      return ERANGE;
+    case absl::StatusCode::kUnimplemented:
+      return ENOTSUP;
+    case absl::StatusCode::kInternal:
+      // Does not round trip:
+      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      return EIO;
+    case absl::StatusCode::kUnavailable:
+      return EAGAIN;
+    case absl::StatusCode::kDataLoss:
+      // Does not round trip:
+      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      return EIO;
+    case absl::StatusCode::kUnauthenticated:
+      // Does not round trip:
+      // `ErrnoToStatusCode(EACCES) == absl::StatusCode::kPermissionDenied`
+      return EACCES;
+    default:
+      // Does not round trip:
+      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      return EIO;
+  }
 }
 
 }  // namespace riegeli
