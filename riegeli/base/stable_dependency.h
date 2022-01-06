@@ -153,7 +153,10 @@ class StableDependency<P*, M,
   DerivedP* operator->() { return get(); }
   const DerivedP* operator->() const { return get(); }
 
-  bool is_owning() const { return dep_->is_owning(); }
+  bool is_owning() const {
+    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return false;
+    return dep_->is_owning();
+  }
 
  private:
   std::unique_ptr<Dependency<P*, M>> dep_;

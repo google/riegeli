@@ -230,6 +230,7 @@ bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
     return BufferedWriter::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  read_mode_ = false;
   std::ostream& dest = *dest_stream();
   errno = 0;
   if (new_pos > start_pos()) {
@@ -266,6 +267,7 @@ absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
     return BufferedWriter::SizeBehindBuffer();
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  read_mode_ = false;
   std::ostream& dest = *dest_stream();
   errno = 0;
   dest.seekp(0, std::ios_base::end);

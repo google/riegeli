@@ -31,7 +31,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/stream_dependency.h"
+#include "riegeli/bytes/stream_internal.h"
 
 namespace riegeli {
 

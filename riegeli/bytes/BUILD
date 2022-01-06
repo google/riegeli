@@ -650,7 +650,7 @@ cc_library(
     name = "ostream_writer",
     srcs = [
         "ostream_writer.cc",
-        "stream_dependency.h",
+        "stream_internal.h",
     ],
     hdrs = ["ostream_writer.h"],
     deps = [
@@ -671,7 +671,7 @@ cc_library(
     name = "istream_reader",
     srcs = [
         "istream_reader.cc",
-        "stream_dependency.h",
+        "stream_internal.h",
     ],
     hdrs = ["istream_reader.h"],
     deps = [

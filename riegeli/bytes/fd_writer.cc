@@ -137,7 +137,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
-    // If (flags & O_APPEND) == 0 then `lseek(SEEK_CUR)` succeeded, and
+    // If `(flags & O_APPEND) == 0` then `lseek(SEEK_CUR)` succeeded, and
     // `lseek(SEEK_END)` will be checked later.
     supports_random_access_ = (flags & O_APPEND) != 0 ? LazyBoolState::kTrue
                                                       : LazyBoolState::kUnknown;
@@ -308,6 +308,7 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
     return BufferedWriter::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  read_mode_ = false;
   const int dest = dest_fd();
   if (new_pos > start_pos()) {
     // Seeking forwards.
@@ -348,6 +349,7 @@ bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  read_mode_ = false;
   const int dest = dest_fd();
   if (new_size >= start_pos()) {
     // Seeking forwards.

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_STREAM_DEPENDENCY_H_
-#define RIEGELI_BYTES_STREAM_DEPENDENCY_H_
+#ifndef RIEGELI_BYTES_STREAM_INTERNAL_H_
+#define RIEGELI_BYTES_STREAM_INTERNAL_H_
 
 #include <type_traits>
 
@@ -59,4 +59,4 @@ inline std::istream* DetectIstream(T* stream) {
 }  // namespace internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_STREAM_DEPENDENCY_H_
+#endif  // RIEGELI_BYTES_STREAM_INTERNAL_H_

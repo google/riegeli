@@ -218,7 +218,7 @@ bool IstreamReaderBase::SeekBehindBuffer(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::istream& src = *src_stream();
   errno = 0;
-  if (new_pos >= limit_pos()) {
+  if (new_pos > limit_pos()) {
     // Seeking forwards.
     src.seekg(0, std::ios_base::end);
     if (ABSL_PREDICT_FALSE(src.fail())) {

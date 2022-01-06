@@ -32,7 +32,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/stream_dependency.h"
+#include "riegeli/bytes/stream_internal.h"
 
 namespace riegeli {
 
@@ -130,7 +130,7 @@ class OstreamWriterBase : public BufferedWriter {
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
+  //   if `is_open()` then `supports_read_mode_ != LazyBoolState::kUnknown`
   LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
 
   AssociatedReader<IstreamReader<std::istream*>> associated_reader_;
