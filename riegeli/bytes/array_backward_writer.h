@@ -96,8 +96,9 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<
+                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   explicit ArrayBackwardWriter(char* dest, size_t size);
 
   ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
@@ -116,8 +117,9 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   void Reset(Dest&& dest);
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args);
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<
+                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
@@ -212,8 +214,9 @@ inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(char* dest, size_t size)
     : ArrayBackwardWriter(absl::MakeSpan(dest, size)) {}
 
@@ -266,8 +269,9 @@ inline void ArrayBackwardWriter<Dest>::Reset(
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline void ArrayBackwardWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
 }

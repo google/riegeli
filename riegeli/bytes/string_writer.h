@@ -210,8 +210,9 @@ class StringWriter : public StringWriterBase {
 
   // Will append to an owned `std::string` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `std::string`.
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
+                             int> = 0>
   explicit StringWriter(Options options = Options());
 
   // Will append to the `std::string` provided by `dest`.
@@ -231,8 +232,9 @@ class StringWriter : public StringWriterBase {
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
   void Reset(Closed);
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
+                             int> = 0>
   void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -360,8 +362,9 @@ inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, std::string>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline StringWriter<Dest>::StringWriter(Options options)
     : StringWriter(std::forward_as_tuple(), std::move(options)) {}
 
@@ -413,8 +416,9 @@ inline void StringWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, std::string>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline void StringWriter<Dest>::Reset(Options options) {
   Reset(std::forward_as_tuple(), std::move(options));
 }

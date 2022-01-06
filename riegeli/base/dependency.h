@@ -145,12 +145,16 @@ struct IsValidDependency<
 template <typename Manager>
 class DependencyBase {
  public:
-  template <typename T = Manager,
-            std::enable_if_t<std::is_constructible<T, Closed>::value, int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<std::is_constructible<DependentManager, Closed>::value,
+                       int> = 0>
   DependencyBase() noexcept : manager_(kClosed) {}
 
-  template <typename T = Manager,
-            std::enable_if_t<!std::is_constructible<T, Closed>::value, int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_constructible<DependentManager, Closed>::value,
+                       int> = 0>
   DependencyBase() noexcept : manager_() {}
 
   explicit DependencyBase(const Manager& manager) : manager_(manager) {}
@@ -169,14 +173,18 @@ class DependencyBase {
     return *this;
   }
 
-  template <typename T = Manager,
-            std::enable_if_t<std::is_constructible<T, Closed>::value, int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<std::is_constructible<DependentManager, Closed>::value,
+                       int> = 0>
   void Reset() {
     riegeli::Reset(manager_, kClosed);
   }
 
-  template <typename T = Manager,
-            std::enable_if_t<!std::is_constructible<T, Closed>::value, int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_constructible<DependentManager, Closed>::value,
+                       int> = 0>
   void Reset() {
     riegeli::Reset(manager_);
   }

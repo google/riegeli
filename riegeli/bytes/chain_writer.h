@@ -192,8 +192,9 @@ class ChainWriter : public ChainWriterBase {
 
   // Will append to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, Chain>::value, int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
   explicit ChainWriter(Options options = Options());
 
   // Will append to the `Chain` provided by `dest`.
@@ -213,8 +214,9 @@ class ChainWriter : public ChainWriterBase {
   // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
   // constructing a temporary `ChainWriter` and moving from it.
   void Reset(Closed);
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, Chain>::value, int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
   void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -321,7 +323,8 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
 }
 
 template <typename Dest>
-template <typename T, std::enable_if_t<std::is_same<T, Chain>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline ChainWriter<Dest>::ChainWriter(Options options)
     : ChainWriter(std::forward_as_tuple(), std::move(options)) {}
 
@@ -370,7 +373,8 @@ inline void ChainWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-template <typename T, std::enable_if_t<std::is_same<T, Chain>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline void ChainWriter<Dest>::Reset(Options options) {
   Reset(std::forward_as_tuple(), std::move(options));
 }

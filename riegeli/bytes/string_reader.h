@@ -96,9 +96,9 @@ class StringReader : public StringReaderBase {
 
   // Will read from `absl::string_view(src, size)`. This constructor is present
   // only if `Src` is `absl::string_view`.
-  template <
-      typename T = Src,
-      std::enable_if_t<std::is_same<T, absl::string_view>::value, int> = 0>
+  template <typename DependentSrc = Src,
+            std::enable_if_t<
+                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
   explicit StringReader(const char* src, size_t size);
 
   StringReader(StringReader&& that) noexcept;
@@ -111,9 +111,9 @@ class StringReader : public StringReaderBase {
   void Reset(Src&& src);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args);
-  template <
-      typename T = Src,
-      std::enable_if_t<std::is_same<T, absl::string_view>::value, int> = 0>
+  template <typename DependentSrc = Src,
+            std::enable_if_t<
+                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
   void Reset(const char* src, size_t size);
 
   // Returns the object providing and possibly owning the `std::string` or array
@@ -186,8 +186,9 @@ inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
 }
 
 template <typename Src>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::string_view>::value, int>>
+template <
+    typename DependentSrc,
+    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
 inline StringReader<Src>::StringReader(const char* src, size_t size)
     : StringReader(absl::string_view(src, size)) {}
 
@@ -238,8 +239,9 @@ inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 }
 
 template <typename Src>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::string_view>::value, int>>
+template <
+    typename DependentSrc,
+    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
 inline void StringReader<Src>::Reset(const char* src, size_t size) {
   Reset(absl::string_view(src, size));
 }

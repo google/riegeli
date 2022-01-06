@@ -114,8 +114,9 @@ class ArrayWriter : public ArrayWriterBase {
 
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<
+                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   explicit ArrayWriter(char* dest, size_t size);
 
   ArrayWriter(ArrayWriter&& that) noexcept;
@@ -128,8 +129,9 @@ class ArrayWriter : public ArrayWriterBase {
   void Reset(Dest&& dest);
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args);
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<
+                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
@@ -221,8 +223,9 @@ inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline ArrayWriter<Dest>::ArrayWriter(char* dest, size_t size)
     : ArrayWriter(absl::MakeSpan(dest, size)) {}
 
@@ -273,8 +276,9 @@ inline void ArrayWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
 }
 
 template <typename Dest>
-template <typename T,
-          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline void ArrayWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
 }

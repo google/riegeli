@@ -197,8 +197,9 @@ class CordWriter : public CordWriterBase {
 
   // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `absl::Cord`.
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
   explicit CordWriter(Options options = Options());
 
   // Will append to the `absl::Cord` provided by `dest`.
@@ -218,8 +219,9 @@ class CordWriter : public CordWriterBase {
   // Makes `*this` equivalent to a newly constructed `CordWriter`. This avoids
   // constructing a temporary `CordWriter` and moving from it.
   void Reset(Closed);
-  template <typename T = Dest,
-            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
   void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -338,7 +340,8 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
 }
 
 template <typename Dest>
-template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline CordWriter<Dest>::CordWriter(Options options)
     : CordWriter(std::forward_as_tuple(), std::move(options)) {}
 
@@ -386,7 +389,8 @@ inline void CordWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline void CordWriter<Dest>::Reset(Options options) {
   Reset(std::forward_as_tuple(), std::move(options));
 }
