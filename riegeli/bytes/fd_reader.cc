@@ -220,7 +220,8 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
                              limit_pos())) {
-    return FailOverflow();
+    max_length = Position{std::numeric_limits<off_t>::max()} - limit_pos();
+    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
   }
   for (;;) {
   again:

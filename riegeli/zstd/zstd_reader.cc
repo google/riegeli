@@ -166,7 +166,8 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos())) {
-    return FailOverflow();
+    max_length = std::numeric_limits<Position>::max() - limit_pos();
+    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
   }
   size_t effective_min_length = min_length;
   if (just_initialized_ && !growing_source_ &&

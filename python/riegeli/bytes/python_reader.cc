@@ -120,7 +120,8 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos())) {
-    return FailOverflow();
+    max_length = std::numeric_limits<Position>::max() - limit_pos();
+    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
   }
   PythonLock lock;
   // Find a read function to use, preferring in order: `readinto1()`,

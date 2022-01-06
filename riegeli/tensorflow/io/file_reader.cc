@@ -206,11 +206,18 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
                  buffer_.data() + buffer_.size())
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
+  bool enough_read = true;
   if (ABSL_PREDICT_FALSE(flat_buffer.size() >
                          std::numeric_limits<uint64_t>::max() - limit_pos())) {
     buffer_.RemoveSuffix(flat_buffer.size());
-    set_buffer(buffer_.data(), buffer_.size(), cursor_index);
-    return FailOverflow();
+    if (ABSL_PREDICT_FALSE(limit_pos() ==
+                           std::numeric_limits<uint64_t>::max())) {
+      set_buffer(buffer_.data(), buffer_.size(), cursor_index);
+      return FailOverflow();
+    }
+    flat_buffer = buffer_.AppendBuffer(std::numeric_limits<uint64_t>::max() -
+                                       limit_pos());
+    enough_read = false;
   }
   absl::string_view result;
   const ::tensorflow::Status status =
@@ -238,7 +245,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
     }
     return false;
   }
-  return true;
+  return enough_read;
 }
 
 bool FileReaderBase::ReadSlow(size_t length, char* dest) {
