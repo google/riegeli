@@ -67,6 +67,7 @@ class Dependency<ChunkReader*, M,
   const DefaultChunkReader<M>& operator*() const { return *get(); }
   DefaultChunkReader<M>* operator->() { return get(); }
   const DefaultChunkReader<M>* operator->() const { return get(); }
+  DefaultChunkReader<M>* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }

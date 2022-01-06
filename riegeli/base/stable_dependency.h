@@ -152,6 +152,10 @@ class StableDependency<P*, M,
   const DerivedP& operator*() const { return *get(); }
   DerivedP* operator->() { return get(); }
   const DerivedP* operator->() const { return get(); }
+  DerivedP* Release() {
+    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return nullptr;
+    return dep_->Release();
+  }
 
   bool is_owning() const {
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return false;

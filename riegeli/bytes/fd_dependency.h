@@ -118,11 +118,7 @@ class Dependency<int, UnownedFd> : public DependencyBase<UnownedFd> {
   using DependencyBase<UnownedFd>::DependencyBase;
 
   int get() const { return this->manager().get(); }
-  int Release() {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Dependency<int, UnownedFd>::Release() called "
-           "but is_owning() is false";
-  }
+  int Release() { return -1; }
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }

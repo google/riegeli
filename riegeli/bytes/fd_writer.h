@@ -504,12 +504,18 @@ void FdWriter<Dest>::Initialize(absl::string_view filename, int flags,
 template <typename Dest>
 void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
-  if (dest_.is_owning()) {
+  {
     const int dest = dest_.Release();
-    if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
-        ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::kCloseFunctionName);
+    if (dest >= 0) {
+      if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
+          ABSL_PREDICT_TRUE(healthy())) {
+        FailOperation(internal::kCloseFunctionName);
+      }
     }
+  }
+  else {
+    RIEGELI_ASSERT(!dest_.is_owning())
+        << "The dependency type does not support closing the fd";
   }
 }
 

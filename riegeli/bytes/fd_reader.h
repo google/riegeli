@@ -700,12 +700,18 @@ void FdReader<Src>::Initialize(absl::string_view filename, int flags,
 template <typename Src>
 void FdReader<Src>::Done() {
   FdReaderBase::Done();
-  if (src_.is_owning()) {
+  {
     const int src = src_.Release();
-    if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
-        ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::kCloseFunctionName);
+    if (src >= 0) {
+      if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+          ABSL_PREDICT_TRUE(healthy())) {
+        FailOperation(internal::kCloseFunctionName);
+      }
     }
+  }
+  else {
+    RIEGELI_ASSERT(!src_.is_owning())
+        << "The dependency type does not support closing the fd";
   }
 }
 
@@ -821,12 +827,18 @@ void FdMMapReader<Src>::InitializeWithExistingData(int src,
 template <typename Src>
 void FdMMapReader<Src>::Done() {
   FdMMapReaderBase::Done();
-  if (src_.is_owning()) {
+  {
     const int src = src_.Release();
-    if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
-        ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::kCloseFunctionName);
+    if (src >= 0) {
+      if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+          ABSL_PREDICT_TRUE(healthy())) {
+        FailOperation(internal::kCloseFunctionName);
+      }
     }
+  }
+  else {
+    RIEGELI_ASSERT(!src_.is_owning())
+        << "The dependency type does not support closing the fd";
   }
 }
 

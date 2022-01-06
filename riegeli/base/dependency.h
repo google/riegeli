@@ -90,6 +90,12 @@ namespace riegeli {
 //   P* operator->() { return get(); }
 //   const P* operator->() const { return get(); }
 //
+//   // If Ptr is P*, the Release() function is present.
+//   //
+//   // If the Dependency owns the dependent object and can release it,
+//   // Release() returns the released pointer, otherwise returns nullptr.
+//   P* Release();
+//
 //   // If true, the Dependency owns the dependent object, i.e. closing the host
 //   // object should close the dependent object.
 //   bool is_owning() const;
@@ -261,6 +267,7 @@ class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   M* get() const { return this->manager(); }
   M& operator*() const { return *get(); }
   M* operator->() const { return get(); }
+  M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
@@ -280,6 +287,7 @@ class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   const M& operator*() const { return *get(); }
   M* operator->() { return get(); }
   const M* operator->() const { return get(); }
+  M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
@@ -297,6 +305,7 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
   M* get() const { return this->manager().get(); }
   M& operator*() const { return *get(); }
   M* operator->() const { return get(); }
+  M* Release() { return this->manager().release(); }
 
   bool is_owning() const { return this->manager() != nullptr; }
   static constexpr bool kIsStable() { return true; }
@@ -313,6 +322,7 @@ class Dependency<P*, M&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   M* get() const { return &this->manager(); }
   M& operator*() const { return *get(); }
   M* operator->() const { return get(); }
+  M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
@@ -338,6 +348,7 @@ class Dependency<P*, M&&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   M* get() const { return &this->manager(); }
   M& operator*() const { return *get(); }
   M* operator->() const { return get(); }
+  M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return true; }

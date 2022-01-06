@@ -67,6 +67,7 @@ class Dependency<ChunkWriter*, M,
   const DefaultChunkWriter<M>& operator*() const { return *get(); }
   DefaultChunkWriter<M>* operator->() { return get(); }
   const DefaultChunkWriter<M>* operator->() const { return get(); }
+  DefaultChunkWriter<M>* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
