@@ -15,6 +15,7 @@
 #include "riegeli/tensorflow/io/file_reader.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -40,7 +41,6 @@
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/platform/status.h"
-#include "tensorflow/core/platform/types.h"
 
 namespace riegeli {
 namespace tensorflow {
@@ -88,8 +88,7 @@ std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
 }
 
 void FileReaderBase::InitializePos(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(initial_pos >
-                         std::numeric_limits<::tensorflow::uint64>::max())) {
+  if (ABSL_PREDICT_FALSE(initial_pos > std::numeric_limits<uint64_t>::max())) {
     FailOverflow();
     return;
   }
@@ -178,22 +177,19 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 
 inline bool FileReaderBase::ReadToDest(size_t length,
                                        ::tensorflow::RandomAccessFile* src,
-                                       char* dest, size_t& length_read) {
+                                       char* dest) {
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<::tensorflow::uint64>::max() -
-                             limit_pos())) {
-    length_read = 0;
+                         std::numeric_limits<uint64_t>::max() - limit_pos())) {
     return FailOverflow();
   }
   absl::string_view result;
-  const ::tensorflow::Status status = src->Read(
-      IntCast<::tensorflow::uint64>(limit_pos()), length, &result, dest);
+  const ::tensorflow::Status status =
+      src->Read(IntCast<uint64_t>(limit_pos()), length, &result, dest);
   RIEGELI_ASSERT_LE(result.size(), length)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
   move_limit_pos(result.size());
-  length_read = result.size();
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
@@ -211,16 +207,15 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
   if (ABSL_PREDICT_FALSE(flat_buffer.size() >
-                         std::numeric_limits<::tensorflow::uint64>::max() -
-                             limit_pos())) {
+                         std::numeric_limits<uint64_t>::max() - limit_pos())) {
     buffer_.RemoveSuffix(flat_buffer.size());
     set_buffer(buffer_.data(), buffer_.size(), cursor_index);
     return FailOverflow();
   }
   absl::string_view result;
   const ::tensorflow::Status status =
-      src->Read(IntCast<::tensorflow::uint64>(limit_pos()), flat_buffer.size(),
-                &result, flat_buffer.data());
+      src->Read(IntCast<uint64_t>(limit_pos()), flat_buffer.size(), &result,
+                flat_buffer.data());
   RIEGELI_ASSERT_LE(result.size(), flat_buffer.size())
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() == flat_buffer.data()) {
@@ -264,8 +259,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
       SyncBuffer();
       return false;
     }
-    size_t length_read;
-    return ReadToDest(length, src, dest, length_read);
+    return ReadToDest(length, src, dest);
   }
   return Reader::ReadSlow(length, dest);
 }
@@ -494,7 +488,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   SyncBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    ::tensorflow::uint64 file_size;
+    uint64_t file_size;
     {
       const ::tensorflow::Status status =
           file_system_->GetFileSize(filename_, &file_size);
@@ -519,7 +513,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     return Reader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  ::tensorflow::uint64 file_size;
+  uint64_t file_size;
   {
     const ::tensorflow::Status status =
         file_system_->GetFileSize(filename_, &file_size);

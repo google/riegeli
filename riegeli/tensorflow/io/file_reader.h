@@ -155,11 +155,9 @@ class FileReaderBase : public Reader {
   // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, to `dest[]`.
   //
-  // Sets `length_read` to the length read. Returns `true` on success.
-  //
-  // Increments `limit_pos()` by the length read.
+  // Increments `limit_pos()` by the length read. Returns `true` on success.
   bool ReadToDest(size_t length, ::tensorflow::RandomAccessFile* src,
-                  char* dest, size_t& length_read);
+                  char* dest);
 
   // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, preferably to `flat_buffer.data()`. Newly

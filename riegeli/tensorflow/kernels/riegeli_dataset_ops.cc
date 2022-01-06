@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <memory>
 #include <string>
@@ -45,7 +46,6 @@
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/tstring.h"
-#include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/protobuf/error_codes.pb.h"
 
 namespace riegeli {
@@ -228,7 +228,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         TF_RETURN_IF_ERROR(reader->ReadScalar(full_name("current_file_index"),
                                               &current_file_index));
         if (TF_PREDICT_FALSE(current_file_index < 0 ||
-                             IntCast<::tensorflow::uint64>(current_file_index) >
+                             IntCast<uint64_t>(current_file_index) >
                                  dataset()->filenames_.size())) {
           return ::tensorflow::errors::Internal(
               "current_file_index out of range");

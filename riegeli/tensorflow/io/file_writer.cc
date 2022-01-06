@@ -40,7 +40,6 @@
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/platform/status.h"
-#include "tensorflow/core/platform/types.h"
 
 namespace riegeli {
 namespace tensorflow {
@@ -206,7 +205,7 @@ absl::optional<Position> FileWriterBase::SizeImpl() {
     return Writer::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  ::tensorflow::uint64 file_size;
+  uint64_t file_size;
   {
     const ::tensorflow::Status status =
         file_system_->GetFileSize(filename_, &file_size);
