@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
@@ -71,6 +72,9 @@ struct HasAvailableLength<
 template <typename DependentFILE,
           std::enable_if_t<HasAvailableLength<DependentFILE>::value, int> = 0>
 inline size_t AvailableLength(DependentFILE* src) {
+  // Msan does not properly track initialization performed by precompiled
+  // libraries.
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(src, sizeof(DependentFILE));
   return PtrDistance(src->_IO_read_ptr, src->_IO_read_end);
 }
 
