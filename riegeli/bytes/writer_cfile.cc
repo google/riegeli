@@ -39,6 +39,12 @@ namespace internal {
 
 WriterCFileCookieBase::~WriterCFileCookieBase() {}
 
+void WriterCFileCookieBase::Initialize(Writer* writer) {
+  RIEGELI_ASSERT(writer != nullptr)
+      << "Failed precondition of WriterCFile: null Writer pointer";
+  if (flush_type_ != absl::nullopt) writer->Flush(*flush_type_);
+}
+
 inline const char* WriterCFileCookieBase::OpenMode() {
   return dest_writer()->SupportsReadMode() ? "w+" : "w";
 }
@@ -97,6 +103,12 @@ inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
   if (ABSL_PREDICT_FALSE(!writer.Write(src, length))) {
     errno = StatusCodeToErrno(writer.status().code());
     return 0;
+  }
+  if (flush_type_ != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(!writer.Flush(*flush_type_))) {
+      errno = StatusCodeToErrno(writer.status().code());
+      return 0;
+    }
   }
   return IntCast<ssize_t>(length);
 }

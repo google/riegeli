@@ -35,12 +35,39 @@
 
 namespace riegeli {
 
+class WriterCFileOptions {
+ public:
+  WriterCFileOptions() noexcept {}
+
+  // If `absl::nullopt`, `fflush()` pushes data buffered in the `FILE` to the
+  // `Writer`, but does not call `Writer::Flush()`. There is no way to trigger
+  // `Writer::Flush()` from the `FILE`.
+  //
+  // If a `FlushType`, pushing data buffered in the `FILE` to the `Writer` calls
+  // `Writer::Flush()`. This is done by `fflush()`, but also when the `FILE`
+  // buffer is full. This degrades performance, but `fflush()` works as
+  // expected.
+  //
+  // There is no way for `WriterCFile()` to distinguish `fflush()` from the
+  // `FILE` buffer being fill, hence this option.
+  //
+  // Default: `absl::nullopt`.
+  WriterCFileOptions& set_flush_type(absl::optional<FlushType> flush_type) & {
+    flush_type_ = flush_type;
+    return *this;
+  }
+  WriterCFileOptions&& set_flush_type(absl::optional<FlushType> flush_type) && {
+    return std::move(set_flush_type(flush_type));
+  }
+  absl::optional<FlushType> flush_type() const { return flush_type_; }
+
+ private:
+  absl::optional<FlushType> flush_type_;
+};
+
 // A `FILE` which writes data to a `Writer`.
 //
 // This requires `fopencookie()` to be supported by the C library.
-//
-// The `FILE` does not support triggering `Writer::Flush()`; `fflush()` only
-// writes the `FILE` buffer to the `Writer`.
 //
 // The `FILE` supports reading and writing if `Writer::SupportsReadMode()`.
 // Otherwise the `FILE` is write-only.
@@ -60,11 +87,14 @@ namespace riegeli {
 // The `Writer` must not be accessed until the `FILE` is closed or no longer
 // used.
 template <typename Dest>
-FILE* WriterCFile(const Dest& dest);
+FILE* WriterCFile(const Dest& dest,
+                  WriterCFileOptions options = WriterCFileOptions());
 template <typename Dest>
-FILE* WriterCFile(Dest&& dest);
+FILE* WriterCFile(Dest&& dest,
+                  WriterCFileOptions options = WriterCFileOptions());
 template <typename Dest, typename... DestArgs>
-FILE* WriterCFile(std::tuple<DestArgs...> dest_args);
+FILE* WriterCFile(std::tuple<DestArgs...> dest_args,
+                  WriterCFileOptions options = WriterCFileOptions());
 
 // Implementation details follow.
 
@@ -72,11 +102,6 @@ namespace internal {
 
 class WriterCFileCookieBase {
  public:
-  WriterCFileCookieBase() noexcept {}
-
-  WriterCFileCookieBase(const WriterCFileCookieBase&) = delete;
-  WriterCFileCookieBase& operator=(const WriterCFileCookieBase&) = delete;
-
   virtual ~WriterCFileCookieBase();
 
   const char* OpenMode();
@@ -93,32 +118,38 @@ class WriterCFileCookieBase {
   virtual int Close() = 0;
 
  protected:
+  WriterCFileCookieBase(absl::optional<FlushType> flush_type) noexcept
+      : flush_type_(flush_type) {}
+
+  WriterCFileCookieBase(const WriterCFileCookieBase&) = delete;
+  WriterCFileCookieBase& operator=(const WriterCFileCookieBase&) = delete;
+
   virtual Writer* dest_writer() = 0;
 
   void Initialize(Writer* writer);
 
+  absl::optional<FlushType> flush_type_;
   // If `nullptr`, `*dest_writer()` was used last time. If not `nullptr`,
   // `*reader_` was used last time.
   Reader* reader_ = nullptr;
 };
 
-inline void WriterCFileCookieBase::Initialize(Writer* writer) {
-  RIEGELI_ASSERT(writer != nullptr)
-      << "Failed precondition of WriterCFile: null Writer pointer";
-}
-
 template <typename Dest>
 class WriterCFileCookie : public WriterCFileCookieBase {
  public:
-  explicit WriterCFileCookie(const Dest& dest) : dest_(dest) {
+  explicit WriterCFileCookie(const Dest& dest,
+                             absl::optional<FlushType> flush_type)
+      : WriterCFileCookieBase(flush_type), dest_(dest) {
     Initialize(dest_.get());
   }
-  explicit WriterCFileCookie(Dest&& dest) : dest_(std::move(dest)) {
+  explicit WriterCFileCookie(Dest&& dest, absl::optional<FlushType> flush_type)
+      : WriterCFileCookieBase(flush_type), dest_(std::move(dest)) {
     Initialize(dest_.get());
   }
   template <typename... DestArgs>
-  explicit WriterCFileCookie(std::tuple<DestArgs...> dest_args)
-      : dest_(std::move(dest_args)) {
+  explicit WriterCFileCookie(std::tuple<DestArgs...> dest_args,
+                             absl::optional<FlushType> flush_type)
+      : WriterCFileCookieBase(flush_type), dest_(std::move(dest_args)) {
     Initialize(dest_.get());
   }
 
@@ -146,22 +177,24 @@ FILE* WriterCFileImpl(WriterCFileCookieBase* cookie);
 }  // namespace internal
 
 template <typename Dest>
-FILE* WriterCFile(const Dest& dest) {
+FILE* WriterCFile(const Dest& dest, WriterCFileOptions options) {
   return internal::WriterCFileImpl(
-      new internal::WriterCFileCookie<std::decay_t<Dest>>(dest));
+      new internal::WriterCFileCookie<std::decay_t<Dest>>(dest),
+      options.flush_type());
 }
 
 template <typename Dest>
-FILE* WriterCFile(Dest&& dest) {
+FILE* WriterCFile(Dest&& dest, WriterCFileOptions options) {
   return internal::WriterCFileImpl(
       new internal::WriterCFileCookie<std::decay_t<Dest>>(
-          std::forward<Dest>(dest)));
+          std::forward<Dest>(dest), options.flush_type()));
 }
 
 template <typename Dest, typename... DestArgs>
-FILE* WriterCFile(std::tuple<DestArgs...> dest_args) {
-  return internal::WriterCFileImpl(
-      new internal::WriterCFileCookie<Dest>(std::move(dest_args)));
+FILE* WriterCFile(std::tuple<DestArgs...> dest_args,
+                  WriterCFileOptions options) {
+  return internal::WriterCFileImpl(new internal::WriterCFileCookie<Dest>(
+      std::move(dest_args), options.flush_type()));
 }
 
 }  // namespace riegeli
