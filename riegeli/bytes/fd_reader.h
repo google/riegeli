@@ -707,11 +707,10 @@ void FdReader<Src>::Done() {
           ABSL_PREDICT_TRUE(healthy())) {
         FailOperation(internal::kCloseFunctionName);
       }
+    } else {
+      RIEGELI_ASSERT(!src_.is_owning())
+          << "The dependency type does not support closing the fd";
     }
-  }
-  else {
-    RIEGELI_ASSERT(!src_.is_owning())
-        << "The dependency type does not support closing the fd";
   }
 }
 
@@ -834,11 +833,10 @@ void FdMMapReader<Src>::Done() {
           ABSL_PREDICT_TRUE(healthy())) {
         FailOperation(internal::kCloseFunctionName);
       }
+    } else {
+      RIEGELI_ASSERT(!src_.is_owning())
+          << "The dependency type does not support closing the fd";
     }
-  }
-  else {
-    RIEGELI_ASSERT(!src_.is_owning())
-        << "The dependency type does not support closing the fd";
   }
 }
 

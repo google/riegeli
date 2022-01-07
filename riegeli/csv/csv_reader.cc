@@ -97,26 +97,25 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
         const absl::Status status = header_.TryReset(std::move(header));
         if (ABSL_PREDICT_FALSE(!status.ok())) {
           FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
-        }
-      }
-      else {
-        std::vector<absl::string_view> missing_fields;
-        for (const absl::string_view field : options.required_fields()) {
-          if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
-            missing_fields.push_back(field);
+        } else {
+          std::vector<absl::string_view> missing_fields;
+          for (const absl::string_view field : options.required_fields()) {
+            if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
+              missing_fields.push_back(field);
+            }
           }
-        }
-        if (ABSL_PREDICT_FALSE(!missing_fields.empty())) {
-          StringWriter<std::string> message;
-          message.Write("Missing field name(s): ");
-          for (std::vector<absl::string_view>::const_iterator iter =
-                   missing_fields.cbegin();
-               iter != missing_fields.cend(); ++iter) {
-            if (iter != missing_fields.cbegin()) message.WriteChar(',');
-            internal::WriteDebugQuotedIfNeeded(*iter, message);
+          if (ABSL_PREDICT_FALSE(!missing_fields.empty())) {
+            StringWriter<std::string> message;
+            message.Write("Missing field name(s): ");
+            for (std::vector<absl::string_view>::const_iterator iter =
+                     missing_fields.cbegin();
+                 iter != missing_fields.cend(); ++iter) {
+              if (iter != missing_fields.cbegin()) message.WriteChar(',');
+              internal::WriteDebugQuotedIfNeeded(*iter, message);
+            }
+            message.Close();
+            FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
           }
-          message.Close();
-          FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
         }
       }
     }

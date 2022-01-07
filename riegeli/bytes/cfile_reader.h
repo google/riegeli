@@ -401,11 +401,10 @@ void CFileReader<Src>::Done() {
           ABSL_PREDICT_TRUE(healthy())) {
         FailOperation("fclose()");
       }
+    } else {
+      RIEGELI_ASSERT(!src_.is_owning())
+          << "The dependency type does not support closing the FILE";
     }
-  }
-  else {
-    RIEGELI_ASSERT(!src_.is_owning())
-        << "The dependency type does not support closing the FILE";
   }
 }
 

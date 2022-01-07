@@ -511,11 +511,10 @@ void FdWriter<Dest>::Done() {
           ABSL_PREDICT_TRUE(healthy())) {
         FailOperation(internal::kCloseFunctionName);
       }
+    } else {
+      RIEGELI_ASSERT(!dest_.is_owning())
+          << "The dependency type does not support closing the fd";
     }
-  }
-  else {
-    RIEGELI_ASSERT(!dest_.is_owning())
-        << "The dependency type does not support closing the fd";
   }
 }
 
