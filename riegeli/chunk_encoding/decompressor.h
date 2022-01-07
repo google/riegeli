@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/any_dependency.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -111,7 +112,7 @@ class Decompressor : public Object {
   template <typename SrcInit>
   void Initialize(SrcInit&& src_init, CompressionType compression_type);
 
-  std::unique_ptr<Reader> reader_;
+  AnyDependency<Reader*> decompressed_;
 };
 
 // Implementation details follow.
@@ -140,7 +141,7 @@ inline Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      reader_(std::move(that.reader_)) {}
+      decompressed_(std::move(that.decompressed_)) {}
 
 template <typename Src>
 inline Decompressor<Src>& Decompressor<Src>::operator=(
@@ -148,14 +149,14 @@ inline Decompressor<Src>& Decompressor<Src>::operator=(
   Object::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  reader_ = std::move(that.reader_);
+  decompressed_ = std::move(that.decompressed_);
   return *this;
 }
 
 template <typename Src>
 inline void Decompressor<Src>::Reset(Closed) {
   Object::Reset(kClosed);
-  reader_.reset();
+  decompressed_.Reset();
 }
 
 template <typename Src>
@@ -185,8 +186,7 @@ template <typename SrcInit>
 void Decompressor<Src>::Initialize(SrcInit&& src_init,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    reader_ =
-        std::make_unique<WrappedReader<Src>>(std::forward<SrcInit>(src_init));
+    decompressed_.Reset<Src>(std::forward<SrcInit>(src_init));
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
@@ -201,17 +201,17 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      reader_ = std::make_unique<BrotliReader<Src>>(
-          std::move(compressed_reader.manager()));
+      decompressed_.Reset<BrotliReader<Src>>(
+          std::forward_as_tuple(std::move(compressed_reader.manager())));
       return;
     case CompressionType::kZstd:
-      reader_ = std::make_unique<ZstdReader<Src>>(
+      decompressed_.Reset<ZstdReader<Src>>(std::forward_as_tuple(
           std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(uncompressed_size));
+          ZstdReaderBase::Options().set_size_hint(uncompressed_size)));
       return;
     case CompressionType::kSnappy:
-      reader_ = std::make_unique<SnappyReader<Src>>(
-          std::move(compressed_reader.manager()));
+      decompressed_.Reset<SnappyReader<Src>>(
+          std::forward_as_tuple(std::move(compressed_reader.manager())));
       return;
   }
   Fail(absl::UnimplementedError(absl::StrCat(
@@ -222,12 +222,14 @@ template <typename Src>
 inline Reader& Decompressor<Src>::reader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Decompressor::reader(): " << status();
-  return *reader_;
+  return *decompressed_;
 }
 
 template <typename Src>
 void Decompressor<Src>::Done() {
-  if (ABSL_PREDICT_FALSE(!reader_->Close())) Fail(reader_->status());
+  if (ABSL_PREDICT_FALSE(!decompressed_->Close())) {
+    Fail(decompressed_->status());
+  }
 }
 
 template <typename Src>
@@ -238,7 +240,7 @@ inline bool Decompressor<Src>::VerifyEndAndClose() {
 
 template <typename Src>
 inline void Decompressor<Src>::VerifyEnd() {
-  if (ABSL_PREDICT_TRUE(healthy())) reader_->VerifyEnd();
+  if (ABSL_PREDICT_TRUE(healthy())) decompressed_->VerifyEnd();
 }
 
 }  // namespace internal

@@ -21,6 +21,7 @@
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/any_dependency.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
@@ -122,6 +123,13 @@ class Dependency<int, UnownedFd> : public DependencyBase<UnownedFd> {
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
+};
+
+// Specialization of `AnyDependencyTraits<int>`.
+
+template <>
+struct AnyDependencyTraits<int> {
+  static int DefaultPtr() { return -1; }
 };
 
 // Implementation details follow.

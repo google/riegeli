@@ -27,6 +27,7 @@ cc_library(
         "object.cc",
     ],
     hdrs = [
+        "any_dependency.h",
         "base.h",
         "dependency.h",
         "memory.h",
@@ -42,6 +43,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/utility",
     ],
 )
 
