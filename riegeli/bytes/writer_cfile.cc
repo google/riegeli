@@ -26,6 +26,7 @@
 #include <cerrno>
 #include <limits>
 
+#include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
@@ -87,6 +88,9 @@ inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
 }
 
 inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
+  // Msan does not properly track initialization performed by precompiled
+  // libraries. The data to write might have been composed by e.g. `fprintf()`.
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(src, length);
   Writer& writer = *dest_writer();
   if (ABSL_PREDICT_FALSE(reader_ != nullptr)) {
     const Position pos = reader_->pos();
