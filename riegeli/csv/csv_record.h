@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
@@ -40,6 +41,13 @@
 #include "riegeli/csv/containers.h"
 
 namespace riegeli {
+
+// A normalizer for `CsvHeader` and `CsvReaderBase::Options::set_normalizer()`,
+// providing case insensitive matching.
+//
+// You may pass a pointer to this function, without wrapping it in a lambda
+// (it will not be overloaded).
+std::string AsciiCaseInsensitive(absl::string_view name);
 
 // A set of field names. This is commonly specified in a CSV file header.
 //
@@ -119,6 +127,15 @@ class CsvHeader {
   // Creates a `CsvHeader` with no field names.
   CsvHeader() noexcept {}
 
+  // Creates a `CsvHeader` with no field names.
+  //
+  // Field names are compared by passing them through `normalizer` first.
+  // `nullptr` is the same as the identity function.
+  //
+  // `riegeli::AsciiCaseInsensitive` is a normalizer providing case insensitive
+  // matching.
+  explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer);
+
   // Creates a set consisting of the given sequence of field names.
   //
   // The type of `names` must support iteration yielding `absl::string_view`:
@@ -133,6 +150,29 @@ class CsvHeader {
   /*implicit*/ CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::vector<std::string>&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
+
+  // Creates a set consisting of the given sequence of field names.
+  //
+  // The type of `names` must support iteration yielding `absl::string_view`:
+  // `for (absl::string_view name : names)`, e.g. `std::vector<std::string>`.
+  //
+  // Field names are compared by passing them through `normalizer` first.
+  // `nullptr` is the same as the identity function.
+  //
+  // `riegeli::AsciiCaseInsensitive` is a normalizer providing case insensitive
+  // matching.
+  //
+  // Precondition: normalized `names` have no duplicates
+  template <
+      typename Names,
+      std::enable_if_t<internal::IsIterableOf<Names, absl::string_view>::value,
+                       int> = 0>
+  explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     Names&& names);
+  explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     std::vector<std::string>&& names);
+  explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     std::initializer_list<absl::string_view> names);
 
   CsvHeader(const CsvHeader& that) noexcept = default;
   CsvHeader& operator=(const CsvHeader& that) noexcept = default;
@@ -153,6 +193,17 @@ class CsvHeader {
   void Reset(Names&& names);
   void Reset(std::vector<std::string>&& names);
   void Reset(std::initializer_list<absl::string_view> names);
+  void Reset(std::function<std::string(absl::string_view)> normalizer);
+  template <
+      typename Names,
+      std::enable_if_t<internal::IsIterableOf<Names, absl::string_view>::value,
+                       int> = 0>
+  void Reset(std::function<std::string(absl::string_view)> normalizer,
+             Names&& names);
+  void Reset(std::function<std::string(absl::string_view)> normalizer,
+             std::vector<std::string>&& names);
+  void Reset(std::function<std::string(absl::string_view)> normalizer,
+             std::initializer_list<absl::string_view> names);
 
   // Makes `*this` equivalent to a newly constructed `CsvHeader`, reporting
   // whether construction was successful.
@@ -169,6 +220,18 @@ class CsvHeader {
   absl::Status TryReset(Names&& names);
   absl::Status TryReset(std::vector<std::string>&& names);
   absl::Status TryReset(std::initializer_list<absl::string_view> names);
+  template <
+      typename Names,
+      std::enable_if_t<internal::IsIterableOf<Names, absl::string_view>::value,
+                       int> = 0>
+  absl::Status TryReset(
+      std::function<std::string(absl::string_view)> normalizer, Names&& names);
+  absl::Status TryReset(
+      std::function<std::string(absl::string_view)> normalizer,
+      std::vector<std::string>&& names);
+  absl::Status TryReset(
+      std::function<std::string(absl::string_view)> normalizer,
+      std::initializer_list<absl::string_view> names);
 
   // Adds the given field `name`, ordered at the end.
   //
@@ -270,8 +333,11 @@ class CsvHeader {
  private:
   struct Payload : RefCountedBase<Payload> {
     Payload() noexcept {}
+    Payload(std::function<std::string(absl::string_view)>&& normalizer)
+        : normalizer(std::move(normalizer)) {}
     Payload(const Payload& that);
 
+    std::function<std::string(absl::string_view)> normalizer;
     std::vector<std::string> index_to_name;
     absl::flat_hash_map<std::string, size_t> name_to_index;
 
@@ -279,7 +345,9 @@ class CsvHeader {
     //  * `!index_to_name.empty()`
     //  * `name_to_index.size() == index_to_name.size()`
     //  * for each `i` below `index_to_name.size()`:
-    //        `name_to_index[index_to_name[i]] == i`
+    //        `name_to_index[normalizer == nullptr
+    //                           ? index_to_name[i]
+    //                           : normalizer(index_to_name[i])] == i`
   };
 
   void EnsureUniqueOwner();
@@ -309,6 +377,22 @@ class CsvHeaderConstant {
   /*implicit*/ constexpr CsvHeaderConstant(Fields&&... fields)
       : fields_{std::forward<Fields>(fields)...} {}
 
+  // Will create a `CsvHeader` consisting of the given sequence of field names.
+  //
+  // The number of `fields` must be `num_fields`, and all `fields` must have
+  // static storage duration.
+  //
+  // Field names are compared by passing them through `normalizer` first.
+  // `nullptr` is the same as the identity function.
+  template <typename... Fields,
+            std::enable_if_t<sizeof...(Fields) == num_fields &&
+                                 absl::conjunction<std::is_convertible<
+                                     Fields, absl::string_view>...>::value,
+                             int> = 0>
+  explicit constexpr CsvHeaderConstant(
+      std::string (*normalizer)(absl::string_view), Fields&&... fields)
+      : normalizer_(normalizer), fields_{std::forward<Fields>(fields)...} {}
+
   CsvHeaderConstant(const CsvHeaderConstant&) = delete;
   CsvHeaderConstant& operator=(const CsvHeaderConstant&) = delete;
 
@@ -317,6 +401,7 @@ class CsvHeaderConstant {
   const CsvHeader* operator->() const { return get(); }
 
  private:
+  std::string (*const normalizer_)(absl::string_view) = nullptr;
   const absl::string_view fields_[num_fields];
   mutable absl::once_flag once_;
   alignas(CsvHeader) mutable char header_[sizeof(CsvHeader)] = {};
@@ -324,8 +409,19 @@ class CsvHeaderConstant {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-template <typename... Fields>
-CsvHeaderConstant(Fields&&... fields) -> CsvHeaderConstant<sizeof...(Fields)>;
+template <typename... Fields,
+          std::enable_if_t<absl::conjunction<std::is_convertible<
+                               Fields, absl::string_view>...>::value,
+                           int> = 0>
+/*implicit*/ CsvHeaderConstant(Fields&&... fields)
+    ->CsvHeaderConstant<sizeof...(Fields)>;
+template <typename... Fields,
+          std::enable_if_t<absl::conjunction<std::is_convertible<
+                               Fields, absl::string_view>...>::value,
+                           int> = 0>
+explicit CsvHeaderConstant(std::string (*normalizer)(absl::string_view),
+                           Fields&&... fields)
+    -> CsvHeaderConstant<sizeof...(Fields)>;
 #endif
 
 // A row of a CSV file, with fields accessed by name.
@@ -675,6 +771,14 @@ template <
 CsvHeader::CsvHeader(Names&& names)
     : CsvHeader(internal::ToVectorOfStrings(std::forward<Names>(names))) {}
 
+template <typename Names,
+          std::enable_if_t<
+              internal::IsIterableOf<Names, absl::string_view>::value, int>>
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     Names&& names)
+    : CsvHeader(std::move(normalizer),
+                internal::ToVectorOfStrings(std::forward<Names>(names))) {}
+
 template <
     typename Names,
     std::enable_if_t<internal::IsIterableOf<Names, absl::string_view>::value &&
@@ -684,6 +788,15 @@ void CsvHeader::Reset(Names&& names) {
   Reset(internal::ToVectorOfStrings(std::forward<Names>(names)));
 }
 
+template <typename Names,
+          std::enable_if_t<
+              internal::IsIterableOf<Names, absl::string_view>::value, int>>
+void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
+                      Names&& names) {
+  Reset(std::move(normalizer),
+        internal::ToVectorOfStrings(std::forward<Names>(names)));
+}
+
 template <
     typename Names,
     std::enable_if_t<internal::IsIterableOf<Names, absl::string_view>::value &&
@@ -691,6 +804,15 @@ template <
                      int>>
 absl::Status CsvHeader::TryReset(Names&& names) {
   return TryReset(internal::ToVectorOfStrings(std::forward<Names>(names)));
+}
+
+template <typename Names,
+          std::enable_if_t<
+              internal::IsIterableOf<Names, absl::string_view>::value, int>>
+absl::Status CsvHeader::TryReset(
+    std::function<std::string(absl::string_view)> normalizer, Names&& names) {
+  return TryReset(std::move(normalizer),
+                  internal::ToVectorOfStrings(std::forward<Names>(names)));
 }
 
 extern template void CsvHeader::Add(std::string&& name);
@@ -777,7 +899,8 @@ inline bool operator!=(const CsvHeader& a, const CsvHeader& b) {
 
 template <size_t num_fields>
 inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const {
-  absl::call_once(once_, [&] { new (header_) CsvHeader(fields_); });
+  absl::call_once(once_,
+                  [&] { new (header_) CsvHeader(normalizer_, fields_); });
   return reinterpret_cast<const CsvHeader*>(header_);
 }
 

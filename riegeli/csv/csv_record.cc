@@ -27,6 +27,7 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -91,8 +92,14 @@ void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
 
 }  // namespace internal
 
+std::string AsciiCaseInsensitive(absl::string_view name) {
+  return absl::AsciiStrToLower(name);
+}
+
 inline CsvHeader::Payload::Payload(const Payload& that)
-    : index_to_name(that.index_to_name), name_to_index(that.name_to_index) {}
+    : normalizer(that.normalizer),
+      index_to_name(that.index_to_name),
+      name_to_index(that.name_to_index) {}
 
 CsvHeader::CsvHeader(std::vector<std::string>&& names) {
   const absl::Status status = TryReset(std::move(names));
@@ -102,6 +109,20 @@ CsvHeader::CsvHeader(std::vector<std::string>&& names) {
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names)
     : CsvHeader(internal::ToVectorOfStrings(names)) {}
+
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
+    : payload_(new Payload(std::move(normalizer))) {}
+
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     std::vector<std::string>&& names) {
+  const absl::Status status = TryReset(std::move(normalizer), std::move(names));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
+}
+
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
+                     std::initializer_list<absl::string_view> names)
+    : CsvHeader(std::move(normalizer), internal::ToVectorOfStrings(names)) {}
 
 void CsvHeader::Reset() { payload_.reset(); }
 
@@ -115,13 +136,46 @@ void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
   Reset(internal::ToVectorOfStrings(names));
 }
 
+void CsvHeader::Reset(
+    std::function<std::string(absl::string_view)> normalizer) {
+  payload_.reset(new Payload(std::move(normalizer)));
+}
+
+void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
+                      std::vector<std::string>&& names) {
+  const absl::Status status = TryReset(std::move(normalizer), std::move(names));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+}
+
+void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
+                      std::initializer_list<absl::string_view> names) {
+  Reset(std::move(normalizer), internal::ToVectorOfStrings(names));
+}
+
 absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
+  return TryReset(nullptr, std::move(names));
+}
+
+absl::Status CsvHeader::TryReset(
+    std::initializer_list<absl::string_view> names) {
+  return TryReset(internal::ToVectorOfStrings(names));
+}
+
+absl::Status CsvHeader::TryReset(
+    std::function<std::string(absl::string_view)> normalizer,
+    std::vector<std::string>&& names) {
   EnsureUniqueOwner();
+  payload_->normalizer = std::move(normalizer);
   payload_->name_to_index.clear();
   std::vector<absl::string_view> duplicate_names;
   for (size_t index = 0; index < names.size(); ++index) {
     const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
-        insert_result = payload_->name_to_index.emplace(names[index], index);
+        insert_result =
+            payload_->normalizer == nullptr
+                ? payload_->name_to_index.emplace(names[index], index)
+                : payload_->name_to_index.emplace(
+                      payload_->normalizer(names[index]), index);
     if (ABSL_PREDICT_FALSE(!insert_result.second)) {
       duplicate_names.push_back(names[index]);
     }
@@ -144,8 +198,9 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
 }
 
 absl::Status CsvHeader::TryReset(
+    std::function<std::string(absl::string_view)> normalizer,
     std::initializer_list<absl::string_view> names) {
-  return TryReset(internal::ToVectorOfStrings(names));
+  return TryReset(std::move(normalizer), internal::ToVectorOfStrings(names));
 }
 
 void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }
@@ -174,7 +229,10 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
   const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
-      insert_result = payload_->name_to_index.emplace(name, index);
+      insert_result = payload_->normalizer == nullptr
+                          ? payload_->name_to_index.emplace(name, index)
+                          : payload_->name_to_index.emplace(
+                                payload_->normalizer(name), index);
   if (ABSL_PREDICT_FALSE(!insert_result.second)) {
     RIEGELI_ASSERT(!empty())
         << "It should not have been needed to ensure that an empty CsvHeader "
@@ -195,7 +253,9 @@ template absl::Status CsvHeader::TryAdd(std::string&& name);
 CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
   const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
-      payload_->name_to_index.find(name);
+      payload_->normalizer == nullptr
+          ? payload_->name_to_index.find(name)
+          : payload_->name_to_index.find(payload_->normalizer(name));
   if (ABSL_PREDICT_FALSE(iter == payload_->name_to_index.cend())) {
     return iterator(payload_->index_to_name.data() +
                     payload_->index_to_name.size());
@@ -205,13 +265,19 @@ CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
 
 bool CsvHeader::contains(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return false;
-  return payload_->name_to_index.find(name) != payload_->name_to_index.cend();
+  const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
+      payload_->normalizer == nullptr
+          ? payload_->name_to_index.find(name)
+          : payload_->name_to_index.find(payload_->normalizer(name));
+  return iter != payload_->name_to_index.cend();
 }
 
 absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return absl::nullopt;
   const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
-      payload_->name_to_index.find(name);
+      payload_->normalizer == nullptr
+          ? payload_->name_to_index.find(name)
+          : payload_->name_to_index.find(payload_->normalizer(name));
   if (ABSL_PREDICT_FALSE(iter == payload_->name_to_index.cend())) {
     return absl::nullopt;
   }

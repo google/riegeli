@@ -73,8 +73,32 @@ class CsvReaderBase : public Object {
     }
     bool read_header() const { return read_header_; }
 
-    // Specifies fields which must be present in the header, otherwise parsing
-    // fails.
+    // If `read_header` is `true`, field names are compared by passing them
+    // through `normalizer` first. `nullptr` is the same as the identity
+    // function.
+    //
+    // `riegeli::AsciiCaseInsensitive` is a normalizer preparing for case
+    // insensitive comparisons (ASCII only).
+    //
+    // Default: `nullptr`.
+    Options& set_normalizer(
+        std::function<std::string(absl::string_view)> normalizer) & {
+      normalizer_ = std::move(normalizer);
+      return *this;
+    }
+    Options&& set_normalizer(
+        std::function<std::string(absl::string_view)> normalizer) && {
+      return std::move(set_normalizer(std::move(normalizer)));
+    }
+    std::function<std::string(absl::string_view)>& normalizer() {
+      return normalizer_;
+    }
+    const std::function<std::string(absl::string_view)>& normalizer() const {
+      return normalizer_;
+    }
+
+    // If `read_header` is `true`, specifies fields which must be present in the
+    // header, otherwise parsing fails.
     //
     // Default: `{}`.
     Options& set_required_fields(CsvHeader required_fields) & {
@@ -241,6 +265,7 @@ class CsvReaderBase : public Object {
 
    private:
     bool read_header_ = false;
+    std::function<std::string(absl::string_view)> normalizer_;
     CsvHeader required_fields_;
     absl::optional<char> comment_;
     char field_separator_ = ',';

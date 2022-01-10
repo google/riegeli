@@ -94,7 +94,8 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     } else {
       --record_index_;
       {
-        const absl::Status status = header_.TryReset(std::move(header));
+        const absl::Status status = header_.TryReset(
+            std::move(options.normalizer()), std::move(header));
         if (ABSL_PREDICT_FALSE(!status.ok())) {
           FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
         } else {
