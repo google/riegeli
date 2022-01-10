@@ -34,6 +34,11 @@
 
 namespace riegeli {
 
+class ReaderCFileOptions {
+ public:
+  ReaderCFileOptions() noexcept {}
+};
+
 // A read-only `FILE` which reads data from a `Reader`.
 //
 // This requires `fopencookie()` to be supported by the C library.
@@ -51,11 +56,13 @@ namespace riegeli {
 // The `Reader` must not be accessed until the `FILE` is closed or no longer
 // used.
 template <typename Src>
-FILE* ReaderCFile(const Src& src);
+FILE* ReaderCFile(const Src& src,
+                  ReaderCFileOptions options = ReaderCFileOptions());
 template <typename Src>
-FILE* ReaderCFile(Src&& src);
+FILE* ReaderCFile(Src&& src, ReaderCFileOptions options = ReaderCFileOptions());
 template <typename Src, typename... SrcArgs>
-FILE* ReaderCFile(std::tuple<SrcArgs...> src_args);
+FILE* ReaderCFile(std::tuple<SrcArgs...> src_args,
+                  ReaderCFileOptions options = ReaderCFileOptions());
 
 // Implementation details follow.
 
@@ -63,11 +70,6 @@ namespace internal {
 
 class ReaderCFileCookieBase {
  public:
-  ReaderCFileCookieBase() noexcept {}
-
-  ReaderCFileCookieBase(const ReaderCFileCookieBase&) = delete;
-  ReaderCFileCookieBase& operator=(const ReaderCFileCookieBase&) = delete;
-
   virtual ~ReaderCFileCookieBase();
 
   ssize_t Read(char* dest, size_t length);
@@ -80,6 +82,11 @@ class ReaderCFileCookieBase {
   virtual int Close() = 0;
 
  protected:
+  ReaderCFileCookieBase() noexcept {}
+
+  ReaderCFileCookieBase(const ReaderCFileCookieBase&) = delete;
+  ReaderCFileCookieBase& operator=(const ReaderCFileCookieBase&) = delete;
+
   virtual Reader* src_reader() = 0;
 
   void Initialize(Reader* reader);
@@ -87,7 +94,7 @@ class ReaderCFileCookieBase {
 
 inline void ReaderCFileCookieBase::Initialize(Reader* reader) {
   RIEGELI_ASSERT(reader != nullptr)
-      << "Failed precondition of ReaderCFile: null Reader pointer";
+      << "Failed precondition of ReaderCFile(): null Reader pointer";
 }
 
 template <typename Src>
@@ -129,20 +136,20 @@ FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
 }  // namespace internal
 
 template <typename Src>
-FILE* ReaderCFile(const Src& src) {
+FILE* ReaderCFile(const Src& src, ReaderCFileOptions options) {
   return internal::ReaderCFileImpl(
       new internal::ReaderCFileCookie<std::decay_t<Src>>(src));
 }
 
 template <typename Src>
-FILE* ReaderCFile(Src&& src) {
+FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
   return internal::ReaderCFileImpl(
       new internal::ReaderCFileCookie<std::decay_t<Src>>(
           std::forward<Src>(src)));
 }
 
 template <typename Src, typename... SrcArgs>
-FILE* ReaderCFile(std::tuple<SrcArgs...> src_args) {
+FILE* ReaderCFile(std::tuple<SrcArgs...> src_args, ReaderCFileOptions options) {
   return internal::ReaderCFileImpl(
       new internal::ReaderCFileCookie<Src>(std::move(src_args)));
 }

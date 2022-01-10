@@ -29,6 +29,7 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
 namespace internal {
 
 class WriterStreambuf::BufferSync {
@@ -59,9 +60,9 @@ class WriterStreambuf::BufferSync {
 
 void WriterStreambuf::MoveEnd(Writer* dest,
                               absl::optional<Position> reader_pos) {
-  // In a closed `WriterIostream`, `WriterIostream::writer_.get() != nullptr`
+  // In a closed `WriterOstream`, `WriterOstream::writer_.get() != nullptr`
   // does not imply `WriterStreambuf::writer_ != nullptr`, because
-  // `WriterIostream::streambuf_` can be left uninitialized.
+  // `WriterOstream::streambuf_` can be left uninitialized.
   if (writer_ == nullptr) return;
   writer_ = dest;
   if (reader_pos != absl::nullopt) {
@@ -366,4 +367,10 @@ std::streampos WriterStreambuf::seekpos(std::streampos pos,
 }
 
 }  // namespace internal
+
+WriterOstreamBase& WriterOstreamBase::close() {
+  Done();
+  return *this;
+}
+
 }  // namespace riegeli

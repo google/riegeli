@@ -42,7 +42,7 @@ WriterCFileCookieBase::~WriterCFileCookieBase() {}
 
 void WriterCFileCookieBase::Initialize(Writer* writer) {
   RIEGELI_ASSERT(writer != nullptr)
-      << "Failed precondition of WriterCFile: null Writer pointer";
+      << "Failed precondition of WriterCFile(): null Writer pointer";
   if (flush_type_ != absl::nullopt) writer->Flush(*flush_type_);
 }
 

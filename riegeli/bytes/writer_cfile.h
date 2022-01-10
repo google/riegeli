@@ -118,7 +118,7 @@ class WriterCFileCookieBase {
   virtual int Close() = 0;
 
  protected:
-  WriterCFileCookieBase(absl::optional<FlushType> flush_type) noexcept
+  explicit WriterCFileCookieBase(absl::optional<FlushType> flush_type) noexcept
       : flush_type_(flush_type) {}
 
   WriterCFileCookieBase(const WriterCFileCookieBase&) = delete;

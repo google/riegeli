@@ -25,6 +25,7 @@
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
+
 namespace internal {
 
 class ReaderStreambuf::BufferSync {
@@ -178,4 +179,10 @@ std::streampos ReaderStreambuf::seekpos(std::streampos pos,
 }
 
 }  // namespace internal
+
+ReaderIstreamBase& ReaderIstreamBase::close() {
+  Done();
+  return *this;
+}
+
 }  // namespace riegeli
