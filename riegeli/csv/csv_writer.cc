@@ -47,9 +47,9 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
     RIEGELI_ASSERT(*options.quote() != options.field_separator())
         << "Quote character conflicts with field separator";
   }
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
-    return;
+  if (options.header() != absl::nullopt) {
+    has_header_ = true;
+    header_ = *std::move(options.header());
   }
 
   quotes_needed_['\n'] = true;
@@ -65,9 +65,11 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   field_separator_ = options.field_separator();
   quote_ = options.quote();
 
-  if (options.header() != absl::nullopt) {
-    has_header_ = true;
-    header_ = *std::move(options.header());
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
+    return;
+  }
+  if (has_header_) {
     if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) {
       --record_index_;
     }
