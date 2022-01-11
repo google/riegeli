@@ -32,16 +32,16 @@
 
 namespace riegeli {
 
-void IstreamReaderBase::Initialize(std::istream* src,
+void IStreamReaderBase::Initialize(std::istream* src,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of IstreamReader: null stream pointer";
+      << "Failed precondition of IStreamReader: null stream pointer";
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
-      << "Failed precondition of IstreamReaderBase::Initialize(): "
+      << "Failed precondition of IStreamReaderBase::Initialize(): "
          "supports_random_access_ not reset";
   if (ABSL_PREDICT_FALSE(src->fail())) {
     // Either constructing the stream failed or the stream was already in a
-    // failed state. In any case `IstreamReaderBase` should fail.
+    // failed state. In any case `IStreamReaderBase` should fail.
     FailOperation("istream::istream()");
     return;
   }
@@ -69,7 +69,7 @@ void IstreamReaderBase::Initialize(std::istream* src,
   }
 }
 
-void IstreamReaderBase::Done() {
+void IStreamReaderBase::Done() {
   BufferedReader::Done();
   // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
   // to `LazyBoolState::kFalse`, because trying to resolve it later might access
@@ -79,7 +79,7 @@ void IstreamReaderBase::Done() {
   }
 }
 
-bool IstreamReaderBase::FailOperation(absl::string_view operation) {
+bool IStreamReaderBase::FailOperation(absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.
@@ -93,7 +93,7 @@ bool IstreamReaderBase::FailOperation(absl::string_view operation) {
                   : ErrnoToCanonicalStatus(error_number, message));
 }
 
-bool IstreamReaderBase::supports_random_access() {
+bool IStreamReaderBase::supports_random_access() {
   switch (supports_random_access_) {
     case LazyBoolState::kFalse:
       return false;
@@ -103,7 +103,7 @@ bool IstreamReaderBase::supports_random_access() {
       break;
   }
   RIEGELI_ASSERT(is_open())
-      << "Failed invariant of IstreamReaderBase: "
+      << "Failed invariant of IStreamReaderBase: "
          "unresolved supports_random_access_ but object closed";
   std::istream& src = *src_stream();
   bool supported = false;
@@ -124,7 +124,7 @@ bool IstreamReaderBase::supports_random_access() {
   return supported;
 }
 
-bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
+bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                      char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
@@ -205,7 +205,7 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool IstreamReaderBase::SeekBehindBuffer(Position new_pos) {
+bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
@@ -242,7 +242,7 @@ bool IstreamReaderBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> IstreamReaderBase::SizeImpl() {
+absl::optional<Position> IStreamReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     // Delegate to base class version which fails, to avoid duplicating the
     // failure message here.

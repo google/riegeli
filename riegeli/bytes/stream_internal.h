@@ -47,12 +47,12 @@ inline void CloseStream(Stream& stream) {
 
 template <typename T,
           std::enable_if_t<std::is_base_of<std::istream, T>::value, int> = 0>
-inline std::istream* DetectIstream(T* stream) {
+inline std::istream* DetectIStream(T* stream) {
   return stream;
 }
 template <typename T,
           std::enable_if_t<!std::is_base_of<std::istream, T>::value, int> = 0>
-inline std::istream* DetectIstream(T* stream) {
+inline std::istream* DetectIStream(T* stream) {
   return nullptr;
 }
 

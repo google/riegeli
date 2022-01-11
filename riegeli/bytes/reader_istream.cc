@@ -180,7 +180,7 @@ std::streampos ReaderStreambuf::seekpos(std::streampos pos,
 
 }  // namespace internal
 
-ReaderIstreamBase& ReaderIstreamBase::close() {
+ReaderIStreamBase& ReaderIStreamBase::close() {
   Done();
   return *this;
 }

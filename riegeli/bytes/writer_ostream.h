@@ -93,8 +93,8 @@ class WriterStreambuf : public std::streambuf {
 
 }  // namespace internal
 
-// Template parameter independent part of `WriterOstream`.
-class WriterOstreamBase : public std::iostream {
+// Template parameter independent part of `WriterOStream`.
+class WriterOStreamBase : public std::iostream {
  public:
   class Options {
    public:
@@ -106,36 +106,36 @@ class WriterOstreamBase : public std::iostream {
   virtual const Writer* dest_writer() const = 0;
 
   // If `!is_open()`, does nothing. Otherwise:
-  //  * Synchronizes the current `WriterOstream` position to the `Writer`.
+  //  * Synchronizes the current `WriterOStream` position to the `Writer`.
   //  * Closes the `Writer` if it is owned.
   //
   // Returns `*this` for convenience of checking for failures.
   //
-  // Destroying or assigning to a `WriterOstream` closes it implicitly, but an
+  // Destroying or assigning to a `WriterOStream` closes it implicitly, but an
   // explicit `close()` call allows to detect failures (use `status()` for
   // failure details).
-  WriterOstreamBase& close();
+  WriterOStreamBase& close();
 
-  // Returns `true` if the `WriterOstream` is healthy, i.e. open and not
+  // Returns `true` if the `WriterOStream` is healthy, i.e. open and not
   // failed.
   bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns `true` if the `WriterOstream` is open, i.e. not closed.
+  // Returns `true` if the `WriterOStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
 
-  // Returns an `absl::Status` describing the failure if the `WriterOstream`
-  // is failed, or an `absl::FailedPreconditionError()` if the `WriterOstream`
-  // is closed, or `absl::OkStatus()` if the `WriterOstream` is healthy.
+  // Returns an `absl::Status` describing the failure if the `WriterOStream`
+  // is failed, or an `absl::FailedPreconditionError()` if the `WriterOStream`
+  // is closed, or `absl::OkStatus()` if the `WriterOStream` is healthy.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  explicit WriterOstreamBase(Closed) noexcept
+  explicit WriterOStreamBase(Closed) noexcept
       : std::iostream(&streambuf_), streambuf_(kClosed) {}
 
-  WriterOstreamBase() noexcept : std::iostream(&streambuf_) {}
+  WriterOStreamBase() noexcept : std::iostream(&streambuf_) {}
 
-  WriterOstreamBase(WriterOstreamBase&& that) noexcept;
-  WriterOstreamBase& operator=(WriterOstreamBase&& that) noexcept;
+  WriterOStreamBase(WriterOStreamBase&& that) noexcept;
+  WriterOStreamBase& operator=(WriterOStreamBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset();
@@ -163,35 +163,35 @@ class WriterOstreamBase : public std::iostream {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The `Writer` must not be accessed until the `WriterOstream` is closed or no
+// The `Writer` must not be accessed until the `WriterOStream` is closed or no
 // longer used, except that it is allowed to read the destination of the
 // `Writer` immediately after `flush()`.
 //
-// Destroying or assigning to a `WriterOstream` closes it first.
+// Destroying or assigning to a `WriterOStream` closes it first.
 template <typename Dest = Writer*>
-class WriterOstream : public WriterOstreamBase {
+class WriterOStream : public WriterOStreamBase {
  public:
-  // Creates a closed `WriterOstream`.
-  explicit WriterOstream(Closed) noexcept : WriterOstreamBase(kClosed) {}
+  // Creates a closed `WriterOStream`.
+  explicit WriterOStream(Closed) noexcept : WriterOStreamBase(kClosed) {}
 
   // Will write to the `Writer` provided by `dest`.
-  explicit WriterOstream(const Dest& dest, Options options = Options());
-  explicit WriterOstream(Dest&& dest, Options options = Options());
+  explicit WriterOStream(const Dest& dest, Options options = Options());
+  explicit WriterOStream(Dest&& dest, Options options = Options());
 
   // Will write to the `Writer` provided by a `Dest` constructed from elements
   // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
   // it.
   template <typename... DestArgs>
-  explicit WriterOstream(std::tuple<DestArgs...> dest_args,
+  explicit WriterOStream(std::tuple<DestArgs...> dest_args,
                          Options options = Options());
 
-  WriterOstream(WriterOstream&& that) noexcept;
-  WriterOstream& operator=(WriterOstream&& that) noexcept;
+  WriterOStream(WriterOStream&& that) noexcept;
+  WriterOStream& operator=(WriterOStream&& that) noexcept;
 
-  ~WriterOstream() override { Done(); }
+  ~WriterOStream() override { Done(); }
 
-  // Makes `*this` equivalent to a newly constructed `WriterOstream`. This
-  // avoids constructing a temporary `WriterOstream` and moving from it.
+  // Makes `*this` equivalent to a newly constructed `WriterOStream`. This
+  // avoids constructing a temporary `WriterOStream` and moving from it.
   void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -208,13 +208,43 @@ class WriterOstream : public WriterOstreamBase {
   void Done() override;
 
  private:
-  void MoveDest(WriterOstream&& that);
+  void MoveDest(WriterOStream&& that);
 
   // The object providing and possibly owning the `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 
 // Support CTAD.
+#if __cpp_deduction_guides
+explicit WriterOStream(Closed)->WriterOStream<DeleteCtad<Closed>>;
+template <typename Dest>
+explicit WriterOStream(const Dest& dest, WriterOStreamBase::Options options =
+                                             WriterOStreamBase::Options())
+    -> WriterOStream<std::decay_t<Dest>>;
+template <typename Dest>
+explicit WriterOStream(Dest&& dest, WriterOStreamBase::Options options =
+                                        WriterOStreamBase::Options())
+    -> WriterOStream<std::decay_t<Dest>>;
+template <typename... DestArgs>
+explicit WriterOStream(
+    std::tuple<DestArgs...> dest_args,
+    WriterOStreamBase::Options options = WriterOStreamBase::Options())
+    -> WriterOStream<DeleteCtad<std::tuple<DestArgs...>>>;
+#endif
+
+// Deprecated names, kept until users are migrated.
+using WriterOstreamBase = WriterOStreamBase;
+template <typename Dest = Writer*>
+class WriterOstream : public WriterOStream<Dest> {
+ public:
+  using WriterOStream<Dest>::WriterOStream;
+  WriterOstream(WriterOstream&& that) noexcept
+      : WriterOStream<Dest>(std::move(that)) {}
+  WriterOstream& operator=(WriterOstream&& that) noexcept {
+    WriterOStream<Dest>::operator=(std::move(that));
+    return *this;
+  }
+};
 #if __cpp_deduction_guides
 explicit WriterOstream(Closed)->WriterOstream<DeleteCtad<Closed>>;
 template <typename Dest>
@@ -231,6 +261,11 @@ explicit WriterOstream(
     WriterOstreamBase::Options options = WriterOstreamBase::Options())
     -> WriterOstream<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
+
+inline void Test() {
+  std::vector<WriterOstream<>> v;
+  v.reserve(10);
+}
 
 // Implementation details follow.
 
@@ -267,9 +302,9 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
 }
 
 inline absl::optional<Position> WriterStreambuf::MoveBegin() {
-  // In a closed `WriterOstream`, `WriterOstream::writer_.get() != nullptr`
+  // In a closed `WriterOStream`, `WriterOStream::writer_.get() != nullptr`
   // does not imply `WriterStreambuf::writer_ != nullptr`, because
-  // `WriterOstream::streambuf_` can be left uninitialized.
+  // `WriterOStream::streambuf_` can be left uninitialized.
   if (writer_ == nullptr) return absl::nullopt;
   if (reader_ != nullptr) {
     reader_->set_cursor(gptr());
@@ -292,7 +327,7 @@ inline void WriterStreambuf::Done() {
 
 }  // namespace internal
 
-inline WriterOstreamBase::WriterOstreamBase(WriterOstreamBase&& that) noexcept
+inline WriterOStreamBase::WriterOStreamBase(WriterOStreamBase&& that) noexcept
     : std::iostream(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
@@ -300,8 +335,8 @@ inline WriterOstreamBase::WriterOstreamBase(WriterOstreamBase&& that) noexcept
   set_rdbuf(&streambuf_);
 }
 
-inline WriterOstreamBase& WriterOstreamBase::operator=(
-    WriterOstreamBase&& that) noexcept {
+inline WriterOStreamBase& WriterOStreamBase::operator=(
+    WriterOStreamBase&& that) noexcept {
   std::iostream::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
@@ -309,17 +344,17 @@ inline WriterOstreamBase& WriterOstreamBase::operator=(
   return *this;
 }
 
-inline void WriterOstreamBase::Reset(Closed) {
+inline void WriterOStreamBase::Reset(Closed) {
   streambuf_ = internal::WriterStreambuf(kClosed);
   init(&streambuf_);
 }
 
-inline void WriterOstreamBase::Reset() {
+inline void WriterOStreamBase::Reset() {
   streambuf_ = internal::WriterStreambuf();
   init(&streambuf_);
 }
 
-inline void WriterOstreamBase::Initialize(Writer* dest) {
+inline void WriterOStreamBase::Initialize(Writer* dest) {
   streambuf_.Initialize(dest);
   if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
     setstate(std::ios_base::badbit);
@@ -327,39 +362,39 @@ inline void WriterOstreamBase::Initialize(Writer* dest) {
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::WriterOstream(const Dest& dest, Options options)
+inline WriterOStream<Dest>::WriterOStream(const Dest& dest, Options options)
     : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::WriterOstream(Dest&& dest, Options options)
+inline WriterOStream<Dest>::WriterOStream(Dest&& dest, Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline WriterOstream<Dest>::WriterOstream(std::tuple<DestArgs...> dest_args,
+inline WriterOStream<Dest>::WriterOStream(std::tuple<DestArgs...> dest_args,
                                           Options options)
     : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::WriterOstream(WriterOstream&& that) noexcept
-    : WriterOstreamBase(std::move(that)) {
+inline WriterOStream<Dest>::WriterOStream(WriterOStream&& that) noexcept
+    : WriterOStreamBase(std::move(that)) {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>& WriterOstream<Dest>::operator=(
-    WriterOstream&& that) noexcept {
+inline WriterOStream<Dest>& WriterOStream<Dest>::operator=(
+    WriterOStream&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Done();
-    WriterOstreamBase::operator=(std::move(that));
+    WriterOStreamBase::operator=(std::move(that));
     // Using `that` after it was moved is correct because only the base class
     // part was moved.
     MoveDest(std::move(that));
@@ -368,40 +403,40 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void WriterOstream<Dest>::Reset(Closed) {
+inline void WriterOStream<Dest>::Reset(Closed) {
   Done();
-  WriterOstreamBase::Reset(kClosed);
+  WriterOStreamBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
-inline void WriterOstream<Dest>::Reset(const Dest& dest, Options options) {
+inline void WriterOStream<Dest>::Reset(const Dest& dest, Options options) {
   Done();
-  WriterOstreamBase::Reset();
+  WriterOStreamBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void WriterOstream<Dest>::Reset(Dest&& dest, Options options) {
+inline void WriterOStream<Dest>::Reset(Dest&& dest, Options options) {
   Done();
-  WriterOstreamBase::Reset();
+  WriterOStreamBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline void WriterOstream<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+inline void WriterOStream<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                        Options options) {
   Done();
-  WriterOstreamBase::Reset();
+  WriterOStreamBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void WriterOstream<Dest>::MoveDest(WriterOstream&& that) {
+inline void WriterOStream<Dest>::MoveDest(WriterOStream&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
@@ -412,7 +447,7 @@ inline void WriterOstream<Dest>::MoveDest(WriterOstream&& that) {
 }
 
 template <typename Dest>
-void WriterOstream<Dest>::Done() {
+void WriterOStream<Dest>::Done() {
   if (ABSL_PREDICT_TRUE(is_open())) {
     streambuf_.Done();
     if (dest_.is_owning()) {

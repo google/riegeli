@@ -33,19 +33,19 @@
 
 namespace riegeli {
 
-void OstreamWriterBase::Initialize(std::ostream* dest,
+void OStreamWriterBase::Initialize(std::ostream* dest,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of OstreamWriter: null stream pointer";
+      << "Failed precondition of OStreamWriter: null stream pointer";
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
-      << "Failed precondition of OstreamWriterBase::Initialize(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_random_access_ not reset";
   RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kFalse)
-      << "Failed precondition of OstreamWriterBase::Initialize(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_read_mode_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     // Either constructing the stream failed or the stream was already in a
-    // failed state. In any case `OstreamWriterBase` should fail.
+    // failed state. In any case `OStreamWriterBase` should fail.
     FailOperation("ostream::ostream()");
     return;
   }
@@ -71,7 +71,7 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
   }
 }
 
-void OstreamWriterBase::Done() {
+void OStreamWriterBase::Done() {
   BufferedWriter::Done();
   // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
   // to `LazyBoolState::kFalse`, because trying to resolve it later might access
@@ -86,7 +86,7 @@ void OstreamWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-bool OstreamWriterBase::FailOperation(absl::string_view operation) {
+bool OStreamWriterBase::FailOperation(absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.
@@ -100,7 +100,7 @@ bool OstreamWriterBase::FailOperation(absl::string_view operation) {
                   : ErrnoToCanonicalStatus(error_number, message));
 }
 
-bool OstreamWriterBase::supports_random_access() {
+bool OStreamWriterBase::supports_random_access() {
   switch (supports_random_access_) {
     case LazyBoolState::kFalse:
       return false;
@@ -110,7 +110,7 @@ bool OstreamWriterBase::supports_random_access() {
       break;
   }
   RIEGELI_ASSERT(is_open())
-      << "Failed invariant of OstreamWriterBase: "
+      << "Failed invariant of OStreamWriterBase: "
          "unresolved supports_random_access_ but object closed";
   std::ostream& dest = *dest_stream();
   bool supported = false;
@@ -131,7 +131,7 @@ bool OstreamWriterBase::supports_random_access() {
   return supported;
 }
 
-bool OstreamWriterBase::supports_read_mode() {
+bool OStreamWriterBase::supports_read_mode() {
   switch (supports_read_mode_) {
     case LazyBoolState::kFalse:
       return false;
@@ -141,7 +141,7 @@ bool OstreamWriterBase::supports_read_mode() {
       break;
   }
   RIEGELI_ASSERT(is_open())
-      << "Failed invariant of OstreamWriterBase: "
+      << "Failed invariant of OStreamWriterBase: "
          "unresolved supports_read_mode_ but object closed";
   std::istream* const src = src_stream();
   bool supported = false;
@@ -168,7 +168,7 @@ bool OstreamWriterBase::supports_read_mode() {
   return supported;
 }
 
-inline bool OstreamWriterBase::WriteMode() {
+inline bool OStreamWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -181,7 +181,7 @@ inline bool OstreamWriterBase::WriteMode() {
   return true;
 }
 
-bool OstreamWriterBase::WriteInternal(absl::string_view src) {
+bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -208,7 +208,7 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool OstreamWriterBase::FlushBehindBuffer(absl::string_view src,
+bool OStreamWriterBase::FlushBehindBuffer(absl::string_view src,
                                           FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
@@ -217,7 +217,7 @@ bool OstreamWriterBase::FlushBehindBuffer(absl::string_view src,
   return BufferedWriter::FlushBehindBuffer(src, flush_type);
 }
 
-bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
+bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
@@ -257,7 +257,7 @@ bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
+absl::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
@@ -288,7 +288,7 @@ absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
   return IntCast<Position>(stream_size);
 }
 
-Reader* OstreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
@@ -299,8 +299,8 @@ Reader* OstreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   std::istream& src = *src_stream();
-  IstreamReader<>* const reader = associated_reader_.ResetReader(
-      &src, IstreamReaderBase::Options().set_buffer_size(buffer_size()));
+  IStreamReader<>* const reader = associated_reader_.ResetReader(
+      &src, IStreamReaderBase::Options().set_buffer_size(buffer_size()));
   read_mode_ = true;
   reader->Seek(initial_pos);
   return reader;

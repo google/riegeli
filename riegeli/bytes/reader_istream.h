@@ -76,8 +76,8 @@ class ReaderStreambuf : public std::streambuf {
 
 }  // namespace internal
 
-// Template parameter independent part of `ReaderIstream`.
-class ReaderIstreamBase : public std::istream {
+// Template parameter independent part of `ReaderIStream`.
+class ReaderIStreamBase : public std::istream {
  public:
   class Options {
    public:
@@ -89,39 +89,39 @@ class ReaderIstreamBase : public std::istream {
   virtual const Reader* src_reader() const = 0;
 
   // If `!is_open()`, does nothing. Otherwise:
-  //  * Synchronizes the current `ReaderIstream` position to the `Reader`.
+  //  * Synchronizes the current `ReaderIStream` position to the `Reader`.
   //  * Closes the `Reader` if it is owned.
   //
-  // Also, propagates `Reader` failures so that converting the `ReaderIstream`
+  // Also, propagates `Reader` failures so that converting the `ReaderIStream`
   // to `bool` indicates whether `Reader` was healthy before closing (doing this
   // during reading is not feasible without throwing exceptions).
   //
   // Returns `*this` for convenience of checking for failures.
   //
-  // Destroying or assigning to a `ReaderIstream` closes it implicitly, but an
+  // Destroying or assigning to a `ReaderIStream` closes it implicitly, but an
   // explicit `close()` call allows to detect failures (use `status()` for
   // failure details).
-  ReaderIstreamBase& close();
+  ReaderIStreamBase& close();
 
-  // Returns `true` if the `ReaderIstream` is healthy, i.e. open and not failed.
+  // Returns `true` if the `ReaderIStream` is healthy, i.e. open and not failed.
   bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns `true` if the `ReaderIstream` is open, i.e. not closed.
+  // Returns `true` if the `ReaderIStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
 
-  // Returns an `absl::Status` describing the failure if the `ReaderIstream`
-  // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIstream`
-  // is closed, or `absl::OkStatus()` if the `ReaderIstream` is healthy.
+  // Returns an `absl::Status` describing the failure if the `ReaderIStream`
+  // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIStream`
+  // is closed, or `absl::OkStatus()` if the `ReaderIStream` is healthy.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  explicit ReaderIstreamBase(Closed) noexcept
+  explicit ReaderIStreamBase(Closed) noexcept
       : std::istream(&streambuf_), streambuf_(kClosed) {}
 
-  ReaderIstreamBase() noexcept : std::istream(&streambuf_) {}
+  ReaderIStreamBase() noexcept : std::istream(&streambuf_) {}
 
-  ReaderIstreamBase(ReaderIstreamBase&& that) noexcept;
-  ReaderIstreamBase& operator=(ReaderIstreamBase&& that) noexcept;
+  ReaderIStreamBase(ReaderIStreamBase&& that) noexcept;
+  ReaderIStreamBase& operator=(ReaderIStreamBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset();
@@ -144,32 +144,32 @@ class ReaderIstreamBase : public std::istream {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The `Reader` must not be accessed until the `ReaderIstream` is closed or no
+// The `Reader` must not be accessed until the `ReaderIStream` is closed or no
 // longer used.
 template <typename Src = Reader*>
-class ReaderIstream : public ReaderIstreamBase {
+class ReaderIStream : public ReaderIStreamBase {
  public:
-  // Creates a closed `ReaderIstream`.
-  explicit ReaderIstream() noexcept : ReaderIstreamBase(kClosed) {}
+  // Creates a closed `ReaderIStream`.
+  explicit ReaderIStream() noexcept : ReaderIStreamBase(kClosed) {}
 
   // Will read from the `Reader` provided by `src`.
-  explicit ReaderIstream(const Src& src, Options options = Options());
-  explicit ReaderIstream(Src&& src, Options options = Options());
+  explicit ReaderIStream(const Src& src, Options options = Options());
+  explicit ReaderIStream(Src&& src, Options options = Options());
 
   // Will read from the `Reader` provided by a `Src` constructed from elements
   // of `src_args`. This avoids constructing a temporary `Src` and moving from
   // it.
   template <typename... SrcArgs>
-  explicit ReaderIstream(std::tuple<SrcArgs...> src_args,
+  explicit ReaderIStream(std::tuple<SrcArgs...> src_args,
                          Options options = Options());
 
-  ReaderIstream(ReaderIstream&& that) noexcept;
-  ReaderIstream& operator=(ReaderIstream&& that) noexcept;
+  ReaderIStream(ReaderIStream&& that) noexcept;
+  ReaderIStream& operator=(ReaderIStream&& that) noexcept;
 
-  ~ReaderIstream() override { Done(); }
+  ~ReaderIStream() override { Done(); }
 
-  // Makes `*this` equivalent to a newly constructed `ReaderIstream`. This
-  // avoids constructing a temporary `ReaderIstream` and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ReaderIStream`. This
+  // avoids constructing a temporary `ReaderIStream` and moving from it.
   void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
@@ -186,13 +186,43 @@ class ReaderIstream : public ReaderIstreamBase {
   void Done() override;
 
  private:
-  void MoveSrc(ReaderIstream&& that);
+  void MoveSrc(ReaderIStream&& that);
 
   // The object providing and possibly owning the `Reader`.
   Dependency<Reader*, Src> src_;
 };
 
 // Support CTAD.
+#if __cpp_deduction_guides
+explicit ReaderIStream(Closed)->ReaderIStream<DeleteCtad<Closed>>;
+template <typename Src>
+explicit ReaderIStream(const Src& src, ReaderIStreamBase::Options options =
+                                           ReaderIStreamBase::Options())
+    -> ReaderIStream<std::decay_t<Src>>;
+template <typename Src>
+explicit ReaderIStream(Src&& src, ReaderIStreamBase::Options options =
+                                      ReaderIStreamBase::Options())
+    -> ReaderIStream<std::decay_t<Src>>;
+template <typename... SrcArgs>
+explicit ReaderIStream(
+    std::tuple<SrcArgs...> src_args,
+    ReaderIStreamBase::Options options = ReaderIStreamBase::Options())
+    -> ReaderIStream<DeleteCtad<std::tuple<SrcArgs...>>>;
+#endif
+
+// Deprecated names, kept until users are migrated.
+using ReaderIstreamBase = ReaderIStreamBase;
+template <typename Src = Reader*>
+class ReaderIstream : public ReaderIStream<Src> {
+ public:
+  using ReaderIStream<Src>::ReaderIStream;
+  ReaderIstream(ReaderIstream&& that) noexcept
+      : ReaderIStream<Src>(std::move(that)) {}
+  ReaderIstream& operator=(ReaderIstream&& that) noexcept {
+    ReaderIStream<Src>::operator=(std::move(that));
+    return *this;
+  }
+};
 #if __cpp_deduction_guides
 explicit ReaderIstream(Closed)->ReaderIstream<DeleteCtad<Closed>>;
 template <typename Src>
@@ -245,17 +275,17 @@ inline void ReaderStreambuf::Initialize(Reader* src) {
 }
 
 inline void ReaderStreambuf::MoveBegin() {
-  // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
+  // In a closed `ReaderIStream`, `ReaderIStream::src_.get() != nullptr`
   // does not imply `ReaderStreambuf::reader_ != nullptr`, because
-  // `ReaderIstream::streambuf_` can be left uninitialized.
+  // `ReaderIStream::streambuf_` can be left uninitialized.
   if (reader_ == nullptr) return;
   reader_->set_cursor(gptr());
 }
 
 inline void ReaderStreambuf::MoveEnd(Reader* src) {
-  // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
+  // In a closed `ReaderIStream`, `ReaderIStream::src_.get() != nullptr`
   // does not imply `ReaderStreambuf::reader_ != nullptr`, because
-  // `ReaderIstream::streambuf_` can be left uninitialized.
+  // `ReaderIStream::streambuf_` can be left uninitialized.
   if (reader_ == nullptr) return;
   reader_ = src;
   setg(const_cast<char*>(reader_->start()),
@@ -270,7 +300,7 @@ inline void ReaderStreambuf::Done() {
 
 }  // namespace internal
 
-inline ReaderIstreamBase::ReaderIstreamBase(ReaderIstreamBase&& that) noexcept
+inline ReaderIStreamBase::ReaderIStreamBase(ReaderIStreamBase&& that) noexcept
     : std::istream(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
@@ -278,8 +308,8 @@ inline ReaderIstreamBase::ReaderIstreamBase(ReaderIstreamBase&& that) noexcept
   set_rdbuf(&streambuf_);
 }
 
-inline ReaderIstreamBase& ReaderIstreamBase::operator=(
-    ReaderIstreamBase&& that) noexcept {
+inline ReaderIStreamBase& ReaderIStreamBase::operator=(
+    ReaderIStreamBase&& that) noexcept {
   std::istream::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
@@ -287,17 +317,17 @@ inline ReaderIstreamBase& ReaderIstreamBase::operator=(
   return *this;
 }
 
-inline void ReaderIstreamBase::Reset(Closed) {
+inline void ReaderIStreamBase::Reset(Closed) {
   streambuf_ = internal::ReaderStreambuf(kClosed);
   init(&streambuf_);
 }
 
-inline void ReaderIstreamBase::Reset() {
+inline void ReaderIStreamBase::Reset() {
   streambuf_ = internal::ReaderStreambuf();
   init(&streambuf_);
 }
 
-inline void ReaderIstreamBase::Initialize(Reader* src) {
+inline void ReaderIStreamBase::Initialize(Reader* src) {
   streambuf_.Initialize(src);
   if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
     setstate(std::ios_base::badbit);
@@ -305,39 +335,39 @@ inline void ReaderIstreamBase::Initialize(Reader* src) {
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(const Src& src, Options options)
+inline ReaderIStream<Src>::ReaderIStream(const Src& src, Options options)
     : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(Src&& src, Options options)
+inline ReaderIStream<Src>::ReaderIStream(Src&& src, Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline ReaderIstream<Src>::ReaderIstream(std::tuple<SrcArgs...> src_args,
+inline ReaderIStream<Src>::ReaderIStream(std::tuple<SrcArgs...> src_args,
                                          Options options)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(ReaderIstream&& that) noexcept
-    : ReaderIstreamBase(std::move(that)) {
+inline ReaderIStream<Src>::ReaderIStream(ReaderIStream&& that) noexcept
+    : ReaderIStreamBase(std::move(that)) {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
-inline ReaderIstream<Src>& ReaderIstream<Src>::operator=(
-    ReaderIstream&& that) noexcept {
+inline ReaderIStream<Src>& ReaderIStream<Src>::operator=(
+    ReaderIStream&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Done();
-    ReaderIstreamBase::operator=(std::move(that));
+    ReaderIStreamBase::operator=(std::move(that));
     // Using `that` after it was moved is correct because only the base class
     // part was moved.
     MoveSrc(std::move(that));
@@ -346,40 +376,40 @@ inline ReaderIstream<Src>& ReaderIstream<Src>::operator=(
 }
 
 template <typename Src>
-inline void ReaderIstream<Src>::Reset(Closed) {
+inline void ReaderIStream<Src>::Reset(Closed) {
   Done();
-  ReaderIstreamBase::Reset(kClosed);
+  ReaderIStreamBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
-inline void ReaderIstream<Src>::Reset(const Src& src, Options options) {
+inline void ReaderIStream<Src>::Reset(const Src& src, Options options) {
   Done();
-  ReaderIstreamBase::Reset();
+  ReaderIStreamBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline void ReaderIstream<Src>::Reset(Src&& src, Options options) {
+inline void ReaderIStream<Src>::Reset(Src&& src, Options options) {
   Done();
-  ReaderIstreamBase::Reset();
+  ReaderIStreamBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline void ReaderIstream<Src>::Reset(std::tuple<SrcArgs...> src_args,
+inline void ReaderIStream<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
   Done();
-  ReaderIstreamBase::Reset();
+  ReaderIStreamBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline void ReaderIstream<Src>::MoveSrc(ReaderIstream&& that) {
+inline void ReaderIStream<Src>::MoveSrc(ReaderIStream&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
@@ -390,7 +420,7 @@ inline void ReaderIstream<Src>::MoveSrc(ReaderIstream&& that) {
 }
 
 template <typename Src>
-void ReaderIstream<Src>::Done() {
+void ReaderIStream<Src>::Done() {
   if (ABSL_PREDICT_TRUE(is_open())) {
     streambuf_.Done();
     if (src_.is_owning()) {

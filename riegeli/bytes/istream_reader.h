@@ -35,8 +35,8 @@
 
 namespace riegeli {
 
-// Template parameter independent part of `IstreamReader`.
-class IstreamReaderBase : public BufferedReader {
+// Template parameter independent part of `IStreamReader`.
+class IStreamReaderBase : public BufferedReader {
  public:
   class Options {
    public:
@@ -67,7 +67,7 @@ class IstreamReaderBase : public BufferedReader {
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
-             "IstreamReaderBase::Options::set_buffer_size(): "
+             "IStreamReaderBase::Options::set_buffer_size(): "
              "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
@@ -89,12 +89,12 @@ class IstreamReaderBase : public BufferedReader {
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:
-  explicit IstreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
+  explicit IStreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit IstreamReaderBase(size_t buffer_size);
+  explicit IStreamReaderBase(size_t buffer_size);
 
-  IstreamReaderBase(IstreamReaderBase&& that) noexcept;
-  IstreamReaderBase& operator=(IstreamReaderBase&& that) noexcept;
+  IStreamReaderBase(IStreamReaderBase&& that) noexcept;
+  IStreamReaderBase& operator=(IStreamReaderBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(size_t buffer_size);
@@ -120,7 +120,7 @@ class IstreamReaderBase : public BufferedReader {
 
 // A `Reader` which reads from a `std::istream`.
 //
-// `IstreamReader` supports random access if
+// `IStreamReader` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the stream supports random
 // access (this is checked by calling `std::istream::tellg()` and
 // `std::istream::seekg()` to the end and back).
@@ -128,9 +128,9 @@ class IstreamReaderBase : public BufferedReader {
 // On Linux, some virtual file systems ("/proc", "/sys") contain files with
 // contents generated on the fly when the files are read. The files appear as
 // regular files, with an apparent size of 0 or 4096, and random access is only
-// partially supported. `IstreamReader` does not properly detect lack of random
+// partially supported. `IStreamReader` does not properly detect lack of random
 // access for these files. An explicit
-// `IstreamReaderBase::Options().set_assumed_pos(0)` can be used to disable
+// `IStreamReaderBase::Options().set_assumed_pos(0)` can be used to disable
 // random access for such files.
 //
 // The `Src` template parameter specifies the type of the object providing and
@@ -145,29 +145,29 @@ class IstreamReaderBase : public BufferedReader {
 // it will have an unpredictable amount of extra data consumed because of
 // buffering.
 //
-// Until the `IstreamReader` is closed or no longer used, the stream must not be
+// Until the `IStreamReader` is closed or no longer used, the stream must not be
 // closed nor have its position changed.
 template <typename Src = std::istream*>
-class IstreamReader : public IstreamReaderBase {
+class IStreamReader : public IStreamReaderBase {
  public:
-  // Creates a closed `IstreamReader`.
-  explicit IstreamReader(Closed) noexcept : IstreamReaderBase(kClosed) {}
+  // Creates a closed `IStreamReader`.
+  explicit IStreamReader(Closed) noexcept : IStreamReaderBase(kClosed) {}
 
   // Will read from the stream provided by `src`.
-  explicit IstreamReader(const Src& src, Options options = Options());
-  explicit IstreamReader(Src&& src, Options options = Options());
+  explicit IStreamReader(const Src& src, Options options = Options());
+  explicit IStreamReader(Src&& src, Options options = Options());
 
   // Will read from the stream provided by a `Src` constructed from elements of
   // `src_args`. This avoids constructing a temporary `Src` and moving from it.
   template <typename... SrcArgs>
-  explicit IstreamReader(std::tuple<SrcArgs...> src_args,
+  explicit IStreamReader(std::tuple<SrcArgs...> src_args,
                          Options options = Options());
 
-  IstreamReader(IstreamReader&& that) noexcept;
-  IstreamReader& operator=(IstreamReader&& that) noexcept;
+  IStreamReader(IStreamReader&& that) noexcept;
+  IStreamReader& operator=(IStreamReader&& that) noexcept;
 
-  // Makes `*this` equivalent to a newly constructed `IstreamReader`. This
-  // avoids constructing a temporary `IstreamReader` and moving from it.
+  // Makes `*this` equivalent to a newly constructed `IStreamReader`. This
+  // avoids constructing a temporary `IStreamReader` and moving from it.
   void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
@@ -191,6 +191,36 @@ class IstreamReader : public IstreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+explicit IStreamReader(Closed)->IStreamReader<DeleteCtad<Closed>>;
+template <typename Src>
+explicit IStreamReader(const Src& src, IStreamReaderBase::Options options =
+                                           IStreamReaderBase::Options())
+    -> IStreamReader<std::decay_t<Src>>;
+template <typename Src>
+explicit IStreamReader(Src&& src, IStreamReaderBase::Options options =
+                                      IStreamReaderBase::Options())
+    -> IStreamReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+explicit IStreamReader(
+    std::tuple<SrcArgs...> src_args,
+    IStreamReaderBase::Options options = IStreamReaderBase::Options())
+    -> IStreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+#endif
+
+// Deprecated names, kept until users are migrated.
+using IstreamReaderBase = IStreamReaderBase;
+template <typename Src = std::istream*>
+class IstreamReader : public IStreamReader<Src> {
+ public:
+  using IStreamReader<Src>::IStreamReader;
+  IstreamReader(IstreamReader&& that) noexcept
+      : IStreamReader<Src>(std::move(that)) {}
+  IstreamReader& operator=(IstreamReader&& that) noexcept {
+    IStreamReader<Src>::operator=(std::move(that));
+    return *this;
+  }
+};
+#if __cpp_deduction_guides
 explicit IstreamReader(Closed)->IstreamReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit IstreamReader(const Src& src, IstreamReaderBase::Options options =
@@ -209,21 +239,21 @@ explicit IstreamReader(
 
 // Implementation details follow.
 
-inline IstreamReaderBase::IstreamReaderBase(size_t buffer_size)
+inline IStreamReaderBase::IStreamReaderBase(size_t buffer_size)
     : BufferedReader(buffer_size) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
 }
 
-inline IstreamReaderBase::IstreamReaderBase(IstreamReaderBase&& that) noexcept
+inline IStreamReaderBase::IStreamReaderBase(IStreamReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       supports_random_access_(that.supports_random_access_) {}
 
-inline IstreamReaderBase& IstreamReaderBase::operator=(
-    IstreamReaderBase&& that) noexcept {
+inline IStreamReaderBase& IStreamReaderBase::operator=(
+    IStreamReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
@@ -231,12 +261,12 @@ inline IstreamReaderBase& IstreamReaderBase::operator=(
   return *this;
 }
 
-inline void IstreamReaderBase::Reset(Closed) {
+inline void IStreamReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
 }
 
-inline void IstreamReaderBase::Reset(size_t buffer_size) {
+inline void IStreamReaderBase::Reset(size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
   supports_random_access_ = LazyBoolState::kFalse;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
@@ -245,36 +275,36 @@ inline void IstreamReaderBase::Reset(size_t buffer_size) {
 }
 
 template <typename Src>
-inline IstreamReader<Src>::IstreamReader(const Src& src, Options options)
-    : IstreamReaderBase(options.buffer_size()), src_(src) {
+inline IStreamReader<Src>::IStreamReader(const Src& src, Options options)
+    : IStreamReaderBase(options.buffer_size()), src_(src) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
-inline IstreamReader<Src>::IstreamReader(Src&& src, Options options)
-    : IstreamReaderBase(options.buffer_size()), src_(std::move(src)) {
+inline IStreamReader<Src>::IStreamReader(Src&& src, Options options)
+    : IStreamReaderBase(options.buffer_size()), src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline IstreamReader<Src>::IstreamReader(std::tuple<SrcArgs...> src_args,
+inline IStreamReader<Src>::IStreamReader(std::tuple<SrcArgs...> src_args,
                                          Options options)
-    : IstreamReaderBase(options.buffer_size()), src_(std::move(src_args)) {
+    : IStreamReaderBase(options.buffer_size()), src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
-inline IstreamReader<Src>::IstreamReader(IstreamReader&& that) noexcept
-    : IstreamReaderBase(std::move(that)),
+inline IStreamReader<Src>::IStreamReader(IStreamReader&& that) noexcept
+    : IStreamReaderBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       src_(std::move(that.src_)) {}
 
 template <typename Src>
-inline IstreamReader<Src>& IstreamReader<Src>::operator=(
-    IstreamReader&& that) noexcept {
-  IstreamReaderBase::operator=(std::move(that));
+inline IStreamReader<Src>& IStreamReader<Src>::operator=(
+    IStreamReader&& that) noexcept {
+  IStreamReaderBase::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   src_ = std::move(that.src_);
@@ -282,37 +312,37 @@ inline IstreamReader<Src>& IstreamReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void IstreamReader<Src>::Reset(Closed) {
-  IstreamReaderBase::Reset(kClosed);
+inline void IStreamReader<Src>::Reset(Closed) {
+  IStreamReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
-inline void IstreamReader<Src>::Reset(const Src& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size());
+inline void IStreamReader<Src>::Reset(const Src& src, Options options) {
+  IStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(src);
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
-inline void IstreamReader<Src>::Reset(Src&& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size());
+inline void IStreamReader<Src>::Reset(Src&& src, Options options) {
+  IStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+inline void IStreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
-  IstreamReaderBase::Reset(options.buffer_size());
+  IStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
-void IstreamReader<Src>::Done() {
-  IstreamReaderBase::Done();
+void IStreamReader<Src>::Done() {
+  IStreamReaderBase::Done();
   if (src_.is_owning()) {
     errno = 0;
     internal::CloseStream(*src_);
@@ -323,8 +353,8 @@ void IstreamReader<Src>::Done() {
 }
 
 template <typename Src>
-bool IstreamReader<Src>::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!IstreamReaderBase::SyncImpl(sync_type))) return false;
+bool IStreamReader<Src>::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SyncImpl(sync_type))) return false;
   if ((sync_type != SyncType::kFromObject || src_.is_owning()) &&
       supports_random_access()) {
     if (ABSL_PREDICT_FALSE(src_->sync() != 0)) {

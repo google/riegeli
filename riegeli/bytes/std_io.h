@@ -54,7 +54,7 @@ Reader& StdIn();
 // needed for fd 1), and `pos()` does not take other writers into account.
 //
 // As an alternative to `StdOut()`, creating and later closing an
-// `OstreamWriter(&std::cout)` makes it easier to combine writing to a `Writer`
+// `OStreamWriter(&std::cout)` makes it easier to combine writing to a `Writer`
 // with accessing `std::cout` afterwards.
 Writer& StdOut();
 
@@ -77,7 +77,7 @@ Writer& StdOut();
 // account.
 //
 // As an alternative to `StdErr()`, creating and later closing an
-// `OstreamWriter(&std::cerr)` makes it easier to combine writing to a `Writer`
+// `OStreamWriter(&std::cerr)` makes it easier to combine writing to a `Writer`
 // with accessing `std::cerr` afterwards.
 Writer& StdErr();
 
