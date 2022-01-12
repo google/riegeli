@@ -24,11 +24,12 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class BackwardWriter;
+class Writer;
 
 // Abstract class `BufferedReader` helps to implement a `Reader` for an
 // underlying source which provides data by copying to external byte arrays,

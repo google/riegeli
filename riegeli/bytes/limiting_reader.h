@@ -31,12 +31,12 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
+class BackwardWriter;
+class Writer;
 class ScopedLimiter;
 
 // Template parameter independent part of `LimitingReader`.

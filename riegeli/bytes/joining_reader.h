@@ -29,9 +29,10 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Writer;
 
 // Template parameter independent part of `JoiningReader`.
 class JoiningReaderBase : public PullableReader {

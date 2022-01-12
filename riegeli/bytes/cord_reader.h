@@ -29,12 +29,13 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class BackwardWriter;
+class Writer;
 
 // Template parameter independent part of `CordReader`.
 class CordReaderBase : public PullableReader {

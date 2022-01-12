@@ -31,9 +31,10 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Writer;
 
 // Template parameter independent part of `SnappyReader`.
 class SnappyReaderBase : public ChainReader<Chain> {
