@@ -54,62 +54,64 @@ class CsvReaderBase : public Object {
    public:
     Options() noexcept {}
 
-    // If `true`, automatically reads field names from the first record.
+    // If not `absl::nullopt`, automatically reads field names from the first
+    // record, specifies how field names are normalized, and verifies that all
+    // required fields are present (in any order).
     //
     // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no
     // particular header is assumed, and only `ReadRecord()` to a vector of
     // fields is supported.
     //
-    // If the file is empty, or if field names have duplicates, reading the
-    // header fails.
+    // If the file is empty, actual field names have duplicates, or some
+    // required fields are not present, reading the header fails.
     //
-    // Default: `false`.
+    // Default: `absl::nullopt`.
+    Options& set_required_header(absl::optional<CsvHeader> header) & {
+      required_header_ = std::move(header);
+      return *this;
+    }
+    Options&& set_required_header(absl::optional<CsvHeader> header) && {
+      return std::move(set_required_header(std::move(header)));
+    }
+    Options& set_required_header(
+        std::initializer_list<absl::string_view> names) & {
+      return set_required_header(CsvHeader(names));
+    }
+    Options&& set_required_header(
+        std::initializer_list<absl::string_view> names) && {
+      return std::move(set_required_header(names));
+    }
+    absl::optional<CsvHeader>& required_header() { return required_header_; }
+    const absl::optional<CsvHeader>& required_header() const {
+      return required_header_;
+    }
+
+    // Deprecated. Use `set_required_header({})` (or better include required
+    // fields)` instead of `set_read_header(true)`.
     Options& set_read_header(bool read_header) & {
-      read_header_ = read_header;
+      required_header_ =
+          read_header ? absl::make_optional(CsvHeader()) : absl::nullopt;
       return *this;
     }
     Options&& set_read_header(bool read_header) && {
       return std::move(set_read_header(read_header));
     }
-    bool read_header() const { return read_header_; }
 
-    // If `read_header` is `true`, field names are compared by passing them
-    // through `normalizer` first. `nullptr` is the same as the identity
-    // function.
-    //
-    // `riegeli::AsciiCaseInsensitive` is a normalizer preparing for case
-    // insensitive comparisons (ASCII only).
-    //
-    // Default: `nullptr`.
-    Options& set_normalizer(
-        std::function<std::string(absl::string_view)> normalizer) & {
-      normalizer_ = std::move(normalizer);
-      return *this;
+    // Deprecated. Use `set_required_header()`.
+    Options& set_required_fields(absl::optional<CsvHeader> header) & {
+      return set_required_header(std::move(header));
     }
-    Options&& set_normalizer(
-        std::function<std::string(absl::string_view)> normalizer) && {
-      return std::move(set_normalizer(std::move(normalizer)));
+    Options&& set_required_fields(absl::optional<CsvHeader> header) && {
+      return std::move(set_required_header(std::move(header)));
     }
-    std::function<std::string(absl::string_view)>& normalizer() {
-      return normalizer_;
+    Options& set_required_fields(
+        std::initializer_list<absl::string_view> names) & {
+      return set_required_header(CsvHeader(names));
     }
-    const std::function<std::string(absl::string_view)>& normalizer() const {
-      return normalizer_;
+    Options&& set_required_fields(
+        std::initializer_list<absl::string_view> names) && {
+      return std::move(set_required_header(names));
     }
-
-    // If `read_header` is `true`, specifies fields which must be present in the
-    // header, otherwise parsing fails.
-    //
-    // Default: `{}`.
-    Options& set_required_fields(CsvHeader required_fields) & {
-      required_fields_ = std::move(required_fields);
-      return *this;
-    }
-    Options&& set_required_fields(CsvHeader required_fields) && {
-      return std::move(set_required_fields(std::move(required_fields)));
-    }
-    CsvHeader& required_fields() { return required_fields_; }
-    const CsvHeader& required_fields() const { return required_fields_; }
 
     // Comment character.
     //
@@ -237,7 +239,7 @@ class CsvReaderBase : public Object {
     // the end of source was encountered.
     //
     // Recovery is not applicable to reading the header with
-    // `Options::read_header()`.
+    // `Options::required_header() != absl::nullopt`.
     //
     // Calling `ReadRecord()` may cause the recovery function to be called (in
     // the same thread).
@@ -264,9 +266,7 @@ class CsvReaderBase : public Object {
     }
 
    private:
-    bool read_header_ = false;
-    std::function<std::string(absl::string_view)> normalizer_;
-    CsvHeader required_fields_;
+    absl::optional<CsvHeader> required_header_;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
@@ -292,7 +292,7 @@ class CsvReaderBase : public Object {
   }
 
   // Returns `true` if reading the header was requested, i.e.
-  // `Options::read_header()`.
+  // `Options::required_header() != absl::nullopt`.
   //
   // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no particular
   // header is assumed, and only `ReadRecord()` to a vector of fields is
@@ -317,7 +317,7 @@ class CsvReaderBase : public Object {
   // been verified in the `header()`.
   //
   // Precondition:
-  //   `has_header()`, i.e. `Options::read_header()`
+  //   `has_header()`, i.e. `Options::required_header() != absl::nullopt`
   //
   // Return values:
   //  * `true`                      - success (`record` is set)
@@ -339,7 +339,7 @@ class CsvReaderBase : public Object {
   // The index of the most recently read record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::read_header()`.
+  // `Options::required_header() != absl::nullopt`.
   //
   // `last_record_index()` is unchanged by `Close()`.
   //
@@ -349,7 +349,7 @@ class CsvReaderBase : public Object {
   // The index of the next record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::read_header()`.
+  // `Options::required_header() != absl::nullopt`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -435,7 +435,7 @@ class CsvReaderBase : public Object {
 // extensions.
 //
 // By a common convention the first record consists of field names. This is
-// supported by `Options::read_header()` and `ReadRecord(CsvRecord&)`.
+// supported by `Options::required_header()` and `ReadRecord(CsvRecord&)`.
 //
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
@@ -535,7 +535,7 @@ explicit CsvReader(std::tuple<SrcArgs...> src_args,
 //
 // A record terminator must not be present in the string.
 //
-// Precondition: `!options.read_header()`
+// Precondition: `options.required_header() == absl::nullopt`
 absl::Status ReadCsvRecordFromString(
     absl::string_view src, std::vector<std::string>& record,
     CsvReaderBase::Options options = CsvReaderBase::Options());

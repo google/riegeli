@@ -85,37 +85,39 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 
   // Recovery is not applicable to reading the header. Hence `recovery_` is set
   // after reading the header.
-  if (options.read_header()) {
+  if (options.required_header() != absl::nullopt) {
     has_header_ = true;
     std::vector<std::string> header;
     if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
       Fail(absl::InvalidArgumentError("Empty CSV file"));
     } else {
       --record_index_;
-      {
-        const absl::Status status = header_.TryReset(
-            std::move(options.normalizer()), std::move(header));
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
-        } else {
-          std::vector<absl::string_view> missing_fields;
-          for (const absl::string_view field : options.required_fields()) {
-            if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
-              missing_fields.push_back(field);
-            }
+      if (header == options.required_header()->names()) {
+        header_ = *std::move(options.required_header());
+      } else if (const absl::Status status =
+                     header_.TryReset(options.required_header()->normalizer(),
+                                      std::move(header));
+                 ABSL_PREDICT_FALSE(!status.ok())) {
+        FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
+      } else {
+        std::vector<absl::string_view> missing_fields;
+        for (const absl::string_view field :
+             options.required_header()->names()) {
+          if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
+            missing_fields.push_back(field);
           }
-          if (ABSL_PREDICT_FALSE(!missing_fields.empty())) {
-            StringWriter<std::string> message;
-            message.Write("Missing field name(s): ");
-            for (std::vector<absl::string_view>::const_iterator iter =
-                     missing_fields.cbegin();
-                 iter != missing_fields.cend(); ++iter) {
-              if (iter != missing_fields.cbegin()) message.WriteChar(',');
-              internal::WriteDebugQuotedIfNeeded(*iter, message);
-            }
-            message.Close();
-            FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
+        }
+        if (ABSL_PREDICT_FALSE(!missing_fields.empty())) {
+          StringWriter<std::string> message;
+          message.Write("Missing field name(s): ");
+          for (std::vector<absl::string_view>::const_iterator iter =
+                   missing_fields.cbegin();
+               iter != missing_fields.cend(); ++iter) {
+            if (iter != missing_fields.cbegin()) message.WriteChar(',');
+            internal::WriteDebugQuotedIfNeeded(*iter, message);
           }
+          message.Close();
+          FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
         }
       }
     }
@@ -458,7 +460,7 @@ next_field:
 bool CsvReaderBase::ReadRecord(CsvRecord& record) {
   RIEGELI_CHECK(has_header())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
-         "CsvReaderBase::Options::read_header() is required";
+         "CsvReaderBase::Options::required_header() != nullopt is required";
   if (ABSL_PREDICT_FALSE(!healthy())) {
     record.Reset();
     return false;
@@ -550,9 +552,9 @@ try_again:
 absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
-  RIEGELI_ASSERT(!options.read_header())
+  RIEGELI_ASSERT(options.required_header() == absl::nullopt)
       << "Failed precondition of ReadCsvRecordFromString(): "
-         "options.read_header() not applicable";
+         "CsvReaderBase::Options::required_header() != nullopt not applicable";
   CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
                                        std::move(options));
   if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, record))) {
