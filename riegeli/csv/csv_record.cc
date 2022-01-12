@@ -102,17 +102,15 @@ inline CsvHeader::Payload::Payload(const Payload& that)
       index_to_name(that.index_to_name),
       name_to_index(that.name_to_index) {}
 
-CsvHeader::CsvHeader(std::vector<std::string>&& names) {
-  const absl::Status status = TryReset(std::move(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
-}
+CsvHeader::CsvHeader(std::vector<std::string>&& names)
+    : CsvHeader(nullptr, std::move(names)) {}
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names)
-    : CsvHeader(internal::ToVectorOfStrings(names)) {}
+    : CsvHeader(nullptr, internal::ToVectorOfStrings(names)) {}
 
-CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
-    : payload_(new Payload(std::move(normalizer))) {}
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer) {
+  if (normalizer != nullptr) payload_.reset(new Payload(std::move(normalizer)));
+}
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::vector<std::string>&& names) {
@@ -128,18 +126,20 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
 void CsvHeader::Reset() { payload_.reset(); }
 
 void CsvHeader::Reset(std::vector<std::string>&& names) {
-  const absl::Status status = TryReset(std::move(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+  Reset(nullptr, std::move(names));
 }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
-  Reset(internal::ToVectorOfStrings(names));
+  Reset(nullptr, internal::ToVectorOfStrings(names));
 }
 
 void CsvHeader::Reset(
     std::function<std::string(absl::string_view)> normalizer) {
-  payload_.reset(new Payload(std::move(normalizer)));
+  if (normalizer == nullptr) {
+    payload_.reset();
+  } else {
+    payload_.reset(new Payload(std::move(normalizer)));
+  }
 }
 
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
@@ -160,12 +160,16 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
 
 absl::Status CsvHeader::TryReset(
     std::initializer_list<absl::string_view> names) {
-  return TryReset(internal::ToVectorOfStrings(names));
+  return TryReset(nullptr, internal::ToVectorOfStrings(names));
 }
 
 absl::Status CsvHeader::TryReset(
     std::function<std::string(absl::string_view)> normalizer,
     std::vector<std::string>&& names) {
+  if (normalizer == nullptr && names.empty()) {
+    payload_.reset();
+    return absl::OkStatus();
+  }
   EnsureUniqueOwner();
   payload_->normalizer = std::move(normalizer);
   payload_->name_to_index.clear();

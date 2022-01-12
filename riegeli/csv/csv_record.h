@@ -129,7 +129,7 @@ class CsvHeader {
 
   // Creates a `CsvHeader` with no field names.
   //
-  // Field names are compared by passing them through `normalizer` first.
+  // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
   //
   // `riegeli::AsciiCaseInsensitive` is a normalizer providing case insensitive
@@ -156,7 +156,7 @@ class CsvHeader {
   // The type of `names` must support iteration yielding `absl::string_view`:
   // `for (absl::string_view name : names)`, e.g. `std::vector<std::string>`.
   //
-  // Field names are compared by passing them through `normalizer` first.
+  // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
   //
   // `riegeli::AsciiCaseInsensitive` is a normalizer providing case insensitive
@@ -289,6 +289,10 @@ class CsvHeader {
   // added.
   absl::Span<const std::string> names() const;
 
+  // Returns the normalizer used to match field names, or `nullptr` which is the
+  // same as the identity function.
+  std::function<std::string(absl::string_view)> normalizer() const;
+
   // Iterates over field names, in the order in which they have been added.
   iterator begin() const;
   iterator cbegin() const { return begin(); }
@@ -321,6 +325,7 @@ class CsvHeader {
   // field in multiple `CsvRecord`s sharing a `CsvHeader`.
   absl::optional<size_t> IndexOf(absl::string_view name) const;
 
+  // Compares the sequence of field names. Does not compare the normalizer.
   friend bool operator==(const CsvHeader& a, const CsvHeader& b);
   friend bool operator!=(const CsvHeader& a, const CsvHeader& b);
 
@@ -382,7 +387,7 @@ class CsvHeaderConstant {
   // The number of `fields` must be `num_fields`, and all `fields` must have
   // static storage duration.
   //
-  // Field names are compared by passing them through `normalizer` first.
+  // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
   template <typename... Fields,
             std::enable_if_t<sizeof...(Fields) == num_fields &&
@@ -769,7 +774,8 @@ template <
                          !std::is_same<std::decay_t<Names>, CsvHeader>::value,
                      int>>
 CsvHeader::CsvHeader(Names&& names)
-    : CsvHeader(internal::ToVectorOfStrings(std::forward<Names>(names))) {}
+    : CsvHeader(nullptr,
+                internal::ToVectorOfStrings(std::forward<Names>(names))) {}
 
 template <typename Names,
           std::enable_if_t<
@@ -785,7 +791,7 @@ template <
                          !std::is_same<std::decay_t<Names>, CsvHeader>::value,
                      int>>
 void CsvHeader::Reset(Names&& names) {
-  Reset(internal::ToVectorOfStrings(std::forward<Names>(names)));
+  Reset(nullptr, internal::ToVectorOfStrings(std::forward<Names>(names)));
 }
 
 template <typename Names,
@@ -803,7 +809,8 @@ template <
                          !std::is_same<std::decay_t<Names>, CsvHeader>::value,
                      int>>
 absl::Status CsvHeader::TryReset(Names&& names) {
-  return TryReset(internal::ToVectorOfStrings(std::forward<Names>(names)));
+  return TryReset(nullptr,
+                  internal::ToVectorOfStrings(std::forward<Names>(names)));
 }
 
 template <typename Names,
@@ -867,6 +874,12 @@ inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
 inline absl::Span<const std::string> CsvHeader::names() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return {};
   return payload_->index_to_name;
+}
+
+inline std::function<std::string(absl::string_view)> CsvHeader::normalizer()
+    const {
+  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return nullptr;
+  return payload_->normalizer;
 }
 
 inline CsvHeader::iterator CsvHeader::begin() const {
