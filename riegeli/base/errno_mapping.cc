@@ -20,6 +20,7 @@
 
 #include "riegeli/base/errno_mapping.h"
 
+#include <cerrno>
 #include <string>
 
 #include "absl/base/attributes.h"

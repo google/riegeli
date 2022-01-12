@@ -53,7 +53,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:intrusive_ref_count",
         "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@org_brotli//:brotlicommon",

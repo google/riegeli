@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <cstring>
-#include <iterator>
 #include <string>
 #include <vector>
 

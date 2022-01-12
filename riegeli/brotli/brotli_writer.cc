@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -33,6 +34,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

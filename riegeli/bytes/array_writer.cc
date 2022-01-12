@@ -15,11 +15,14 @@
 #include "riegeli/bytes/array_writer.h"
 
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

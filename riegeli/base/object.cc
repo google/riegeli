@@ -18,9 +18,9 @@
 
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 

@@ -8,7 +8,6 @@ cc_library(
     hdrs = ["file_reader.h"],
     deps = [
         "//riegeli/base",
-        "//riegeli/base:buffer",
         "//riegeli/base:chain",
         "//riegeli/base:status",
         "//riegeli/bytes:backward_writer",

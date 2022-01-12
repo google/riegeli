@@ -134,7 +134,6 @@ cc_library(
         "//riegeli/brotli:brotli_reader",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:reader",
-        "//riegeli/bytes:wrapped_reader",
         "//riegeli/snappy:snappy_reader",
         "//riegeli/varint:varint_reading",
         "//riegeli/zstd:zstd_reader",

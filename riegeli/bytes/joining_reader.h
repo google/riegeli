@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"

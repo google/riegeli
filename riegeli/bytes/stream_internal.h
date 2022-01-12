@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_STREAM_INTERNAL_H_
 #define RIEGELI_BYTES_STREAM_INTERNAL_H_
 
+#include <istream>
 #include <type_traits>
 
 #include "absl/meta/type_traits.h"

@@ -14,7 +14,7 @@
 
 #include "riegeli/records/skipped_region.h"
 
-#include <iostream>
+#include <ostream>
 #include <string>
 
 #include "absl/strings/str_cat.h"

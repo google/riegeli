@@ -16,13 +16,11 @@
 #define RIEGELI_BYTES_FD_DEPENDENCY_H_
 
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/any_dependency.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {

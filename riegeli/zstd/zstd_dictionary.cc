@@ -21,12 +21,11 @@
 
 #include "riegeli/zstd/zstd_dictionary.h"
 
-#include <limits>
+#include <atomic>
 #include <memory>
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 

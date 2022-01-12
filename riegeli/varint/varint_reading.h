@@ -18,10 +18,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <type_traits>
-
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/varint/varint_internal.h"
 

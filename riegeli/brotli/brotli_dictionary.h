@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "absl/base/call_once.h"
-#include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "brotli/encode.h"

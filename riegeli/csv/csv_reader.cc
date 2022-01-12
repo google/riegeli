@@ -29,7 +29,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"

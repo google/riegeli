@@ -48,7 +48,6 @@ cc_library(
     hdrs = ["zstd_dictionary.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "//riegeli/base",
         "//riegeli/base:intrusive_ref_count",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",

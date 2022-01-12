@@ -561,9 +561,9 @@ class RecordWriterBase : public Object {
       absl::Status status) override;
 
  private:
-  class Worker;
-  class SerialWorker;
   class ParallelWorker;
+  class SerialWorker;
+  class Worker;
 
   template <typename Record>
   bool WriteRecordImpl(Record&& record);

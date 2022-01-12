@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>

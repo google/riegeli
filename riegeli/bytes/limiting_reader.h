@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -36,8 +37,8 @@
 namespace riegeli {
 
 class BackwardWriter;
-class Writer;
 class ScopedLimiter;
+class Writer;
 
 // Template parameter independent part of `LimitingReader`.
 class LimitingReaderBase : public Reader {

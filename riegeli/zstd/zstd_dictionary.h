@@ -15,7 +15,6 @@
 #ifndef RIEGELI_ZSTD_ZSTD_DICTIONARY_H_
 #define RIEGELI_ZSTD_ZSTD_DICTIONARY_H_
 
-#include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>

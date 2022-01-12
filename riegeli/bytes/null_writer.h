@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"

@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <cerrno>
+#include <istream>
 #include <ostream>
 #include <tuple>
 #include <type_traits>
@@ -32,6 +33,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/stream_internal.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

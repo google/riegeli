@@ -22,6 +22,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"

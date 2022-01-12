@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"

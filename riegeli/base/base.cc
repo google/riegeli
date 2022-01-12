@@ -14,11 +14,14 @@
 
 #include "riegeli/base/base.h"
 
+#include <stddef.h>
+
 #include <cstring>
 #include <exception>
 #include <iostream>
 #include <new>
 #include <sstream>
+#include <string>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"

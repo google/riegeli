@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <ostream>
 #include <string>

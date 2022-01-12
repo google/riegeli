@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -26,6 +27,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"

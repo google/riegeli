@@ -15,7 +15,7 @@
 #ifndef RIEGELI_BYTES_WRITER_OSTREAM_H_
 #define RIEGELI_BYTES_WRITER_OSTREAM_H_
 
-#include <iostream>
+#include <istream>
 #include <streambuf>
 #include <tuple>
 #include <type_traits>

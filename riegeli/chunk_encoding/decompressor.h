@@ -17,7 +17,6 @@
 
 #include <stdint.h>
 
-#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -33,7 +32,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/wrapped_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/snappy/snappy_reader.h"
 #include "riegeli/varint/varint_reading.h"

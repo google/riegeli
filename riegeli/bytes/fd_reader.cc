@@ -34,8 +34,11 @@
 
 #include <cerrno>
 #include <limits>
+#include <memory>
+#include <ostream>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -47,10 +50,11 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 

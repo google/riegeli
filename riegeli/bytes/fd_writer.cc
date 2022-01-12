@@ -34,6 +34,7 @@
 #include <cerrno>
 #include <limits>
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -45,9 +46,9 @@
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

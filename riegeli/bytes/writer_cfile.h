@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BYTES_WRITER_CFILE_H_
 #define RIEGELI_BYTES_WRITER_CFILE_H_
 
-#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -22,7 +22,6 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <new>
 #include <ostream>
 #include <string>
 #include <tuple>

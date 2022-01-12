@@ -19,7 +19,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <cerrno>
 #include <tuple>
 #include <type_traits>
 #include <utility>

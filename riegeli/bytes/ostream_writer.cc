@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <cerrno>
+#include <istream>
 #include <limits>
 #include <ostream>
 #include <string>
@@ -28,8 +29,10 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/istream_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
