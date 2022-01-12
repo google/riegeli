@@ -25,11 +25,12 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
+
+class Reader;
 
 // A `ChunkWriter` writes chunks of a Riegeli/records file (rather than
 // individual records, as `RecordWriter` does) to a destination.

@@ -30,13 +30,13 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zstd/zstd_dictionary.h"
 #include "zstd.h"
 
 namespace riegeli {
 
+class Reader;
 template <typename Src>
 class ZstdReader;
 

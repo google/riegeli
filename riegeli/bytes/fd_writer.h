@@ -33,12 +33,12 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
 template <typename Src>
 class FdReader;
+class Reader;
 
 // Template parameter independent part of `FdWriter`.
 class FdWriterBase : public BufferedWriter {

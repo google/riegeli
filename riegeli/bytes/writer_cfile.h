@@ -30,10 +30,11 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/bytes/cfile_dependency.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Reader;
 
 class WriterCFileOptions {
  public:

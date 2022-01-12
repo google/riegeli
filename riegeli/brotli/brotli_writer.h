@@ -33,13 +33,13 @@
 #include "riegeli/brotli/brotli_allocator.h"
 #include "riegeli/brotli/brotli_dictionary.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 template <typename Src>
 class BrotliReader;
+class Reader;
 
 // Template parameter independent part of `BrotliWriter`.
 class BrotliWriterBase : public BufferedWriter {

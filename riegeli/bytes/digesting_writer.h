@@ -32,10 +32,11 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/bytes/digesting_common.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Reader;
 
 // Template parameter independent part of `DigestingWriter`.
 class DigestingWriterBase : public Writer {

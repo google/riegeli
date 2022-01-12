@@ -30,7 +30,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zlib/zlib_dictionary.h"
 #include "zconf.h"
@@ -38,6 +37,7 @@
 
 namespace riegeli {
 
+class Reader;
 template <typename Src>
 class ZlibReader;
 

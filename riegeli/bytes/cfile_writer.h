@@ -33,13 +33,13 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_dependency.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 template <typename Src>
 class CFileReader;
+class Reader;
 
 // Template parameter independent part of `CFileWriter`.
 class CFileWriterBase : public BufferedWriter {

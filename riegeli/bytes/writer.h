@@ -33,9 +33,11 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/reader.h"
+#include "riegeli/base/reset.h"
 
 namespace riegeli {
+
+class Reader;
 
 // Abstract class `Writer` writes sequences of bytes to a destination. The
 // nature of the destination depends on the particular class derived from
@@ -423,11 +425,12 @@ class Writer : public Object {
 };
 
 // Helps to implement `ReadMode()`. Stores a lazily created `Reader` of the
-// given type.
+// given concrete type.
 //
 // The `ReaderClass` type does not have to be complete, except in a context when
-// `ResetReader()` is called. This allows to have only a forward declaration of
-// `ReaderClass` in the header which defines the containing `Writer` class.
+// `ResetReader()` or `reader()` is called. This allows to have only a forward
+// declaration of `ReaderClass` in the header which defines the containing
+// `Writer` class.
 template <typename ReaderClass>
 class AssociatedReader {
  public:
@@ -435,6 +438,8 @@ class AssociatedReader {
 
   AssociatedReader(AssociatedReader&& that) noexcept;
   AssociatedReader& operator=(AssociatedReader&& that) noexcept;
+
+  ~AssociatedReader();
 
   // Destroys the contained `Reader`.
   void Reset();
@@ -445,10 +450,13 @@ class AssociatedReader {
   ReaderClass* ResetReader(Args&&... args);
 
   // Returns the `ReaderClass` pointer, or `nullptr` if it was not created yet.
+  // `ReaderClass` must be complete.
   ReaderClass* reader() const;
 
  private:
-  std::unique_ptr<Reader> reader_;
+  static void Delete(Reader* reader);
+
+  Reader* reader_ = nullptr;
 };
 
 // Implementation details follow.
@@ -695,37 +703,55 @@ inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
   dest->Write(src);
 }
 
+namespace internal {
+
+// Does `delete reader`. This is defined in a separate file because `Reader`
+// might be incomplete here.
+void DeleteReader(Reader* reader);
+
+}  // namespace internal
+
 template <typename ReaderClass>
 inline AssociatedReader<ReaderClass>::AssociatedReader(
     AssociatedReader&& that) noexcept
-    : reader_(std::move(that.reader_)) {}
+    : reader_(std::exchange(that.reader_, nullptr)) {}
 
 template <typename ReaderClass>
 inline AssociatedReader<ReaderClass>& AssociatedReader<ReaderClass>::operator=(
     AssociatedReader&& that) noexcept {
-  reader_ = std::move(that.reader_);
+  Delete(std::exchange(reader_, std::exchange(that.reader_, nullptr)));
   return *this;
 }
 
 template <typename ReaderClass>
+inline AssociatedReader<ReaderClass>::~AssociatedReader() {
+  Delete(reader_);
+}
+
+template <typename ReaderClass>
 inline void AssociatedReader<ReaderClass>::Reset() {
-  reader_.reset();
+  Delete(std::exchange(reader_, nullptr));
 }
 
 template <typename ReaderClass>
 template <typename... Args>
 inline ReaderClass* AssociatedReader<ReaderClass>::ResetReader(Args&&... args) {
   if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
-    reader_ = std::make_unique<ReaderClass>(std::forward<Args>(args)...);
+    reader_ = new ReaderClass(std::forward<Args>(args)...);
   } else {
-    reader()->Reset(std::forward<Args>(args)...);
+    riegeli::Reset(*reader(), std::forward<Args>(args)...);
   }
   return reader();
 }
 
 template <typename ReaderClass>
-inline ReaderClass* AssociatedReader<ReaderClass>::reader() const {
-  return static_cast<ReaderClass*>(reader_.get());
+ReaderClass* AssociatedReader<ReaderClass>::reader() const {
+  return static_cast<ReaderClass*>(reader_);
+}
+
+template <typename ReaderClass>
+void AssociatedReader<ReaderClass>::Delete(Reader* reader) {
+  if (ABSL_PREDICT_FALSE(reader != nullptr)) internal::DeleteReader(reader);
 }
 
 }  // namespace riegeli

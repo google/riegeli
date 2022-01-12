@@ -58,6 +58,20 @@ class WriterStreambuf::BufferSync {
   WriterStreambuf* streambuf_;
 };
 
+absl::optional<Position> WriterStreambuf::MoveBegin() {
+  // In a closed `WriterOstream`, `WriterOstream::writer_.get() != nullptr`
+  // does not imply `WriterStreambuf::writer_ != nullptr`, because
+  // `WriterOstream::streambuf_` can be left uninitialized.
+  if (writer_ == nullptr) return absl::nullopt;
+  if (reader_ != nullptr) {
+    reader_->set_cursor(gptr());
+    return reader_->pos();
+  } else {
+    writer_->set_cursor(pptr());
+    return absl::nullopt;
+  }
+}
+
 void WriterStreambuf::MoveEnd(Writer* dest,
                               absl::optional<Position> reader_pos) {
   // In a closed `WriterOStream`, `WriterOStream::writer_.get() != nullptr`
@@ -88,6 +102,16 @@ void WriterStreambuf::MoveEnd(Writer* dest,
          const_cast<char*>(reader_->limit()));
   } else {
     setp(writer_->cursor(), writer_->limit());
+  }
+}
+
+void WriterStreambuf::Done() {
+  if (reader_ != nullptr) {
+    reader_->set_cursor(gptr());
+    setg(nullptr, nullptr, nullptr);
+  } else {
+    writer_->set_cursor(pptr());
+    setp(nullptr, nullptr);
   }
 }
 

@@ -28,10 +28,11 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Reader;
 
 namespace internal {
 
@@ -299,30 +300,6 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
   writer_ = dest;
   setp(writer_->cursor(), writer_->limit());
   if (ABSL_PREDICT_FALSE(!writer_->healthy())) FailWriter();
-}
-
-inline absl::optional<Position> WriterStreambuf::MoveBegin() {
-  // In a closed `WriterOStream`, `WriterOStream::writer_.get() != nullptr`
-  // does not imply `WriterStreambuf::writer_ != nullptr`, because
-  // `WriterOStream::streambuf_` can be left uninitialized.
-  if (writer_ == nullptr) return absl::nullopt;
-  if (reader_ != nullptr) {
-    reader_->set_cursor(gptr());
-    return reader_->pos();
-  } else {
-    writer_->set_cursor(pptr());
-    return absl::nullopt;
-  }
-}
-
-inline void WriterStreambuf::Done() {
-  if (reader_ != nullptr) {
-    reader_->set_cursor(gptr());
-    setg(nullptr, nullptr, nullptr);
-  } else {
-    writer_->set_cursor(pptr());
-    setp(nullptr, nullptr);
-  }
 }
 
 }  // namespace internal

@@ -27,11 +27,11 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/pushable_writer.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/span_dependency.h"
 
 namespace riegeli {
 
+class Reader;
 template <typename Src>
 class StringReader;
 

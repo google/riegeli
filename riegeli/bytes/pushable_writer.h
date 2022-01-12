@@ -27,10 +27,11 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Reader;
 
 // Abstract class `PushableWriter` helps to implement
 // `Writer::PushSlow(min_length, recommended_length)` with `min_length > 1`.

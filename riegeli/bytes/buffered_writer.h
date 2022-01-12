@@ -24,10 +24,11 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class Reader;
 
 // Abstract class `BufferedWriter` helps to implement a `Writer` for an
 // underlying destination which accepts data by copying from external byte
