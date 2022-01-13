@@ -97,22 +97,6 @@ class CsvReaderBase : public Object {
       return std::move(set_read_header(read_header));
     }
 
-    // Deprecated. Use `set_required_header()`.
-    Options& set_required_fields(absl::optional<CsvHeader> header) & {
-      return set_required_header(std::move(header));
-    }
-    Options&& set_required_fields(absl::optional<CsvHeader> header) && {
-      return std::move(set_required_header(std::move(header)));
-    }
-    Options& set_required_fields(
-        std::initializer_list<absl::string_view> names) & {
-      return set_required_header(CsvHeader(names));
-    }
-    Options&& set_required_fields(
-        std::initializer_list<absl::string_view> names) && {
-      return std::move(set_required_header(names));
-    }
-
     // Comment character.
     //
     // If not `absl::nullopt`, a line beginning with this character is skipped.
