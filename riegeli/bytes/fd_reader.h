@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BYTES_FD_READER_H_
 #define RIEGELI_BYTES_FD_READER_H_
 
-#include <fcntl.h>
 #include <stddef.h>
 
 #include <memory>
