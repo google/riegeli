@@ -341,34 +341,7 @@ void BufferedReader::ReadHintSlow(size_t length) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  const size_t available_length = available();
-  size_t cursor_index = start_to_cursor();
-  const size_t buffer_length =
-      BufferLength(length, buffer_size_, size_hint_, pos());
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(
-      0, buffer_length - available_length,
-      SaturatingAdd(buffer_length, buffer_length) - available_length);
-  if (flat_buffer.size() < length - available_length) {
-    // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
-    buffer_.RemoveSuffix(flat_buffer.size());
-    buffer_.RemovePrefix(cursor_index);
-    cursor_index = 0;
-    flat_buffer = buffer_.AppendBuffer(
-        buffer_length - available_length, buffer_length - available_length,
-        SaturatingAdd(buffer_length, buffer_length) - available_length);
-  }
-  // Read more data into `buffer_`.
-  const Position pos_before = limit_pos();
-  ReadInternal(UnsignedMin(length, flat_buffer.size()), flat_buffer.size(),
-               flat_buffer.data());
-  RIEGELI_ASSERT_GE(limit_pos(), pos_before)
-      << "BufferedReader::ReadInternal() decreased limit_pos()";
-  const Position length_read = limit_pos() - pos_before;
-  RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
-      << "BufferedReader::ReadInternal() read more than requested";
-  buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-  set_buffer(buffer_.data(), buffer_.size(), cursor_index);
+  PullSlow(length, 0);
 }
 
 bool BufferedReader::SyncImpl(SyncType sync_type) {
