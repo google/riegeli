@@ -696,7 +696,7 @@ class CsvRecord {
  private:
   friend class CsvReaderBase;
 
-  absl::Status FailMerge(const std::vector<std::string>& unknown_fields) const;
+  absl::Status FailMerge(const std::vector<std::string>& missing_names) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;
@@ -1112,19 +1112,19 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
          "did not leave the source iterator at the end";
   // The assumption about matching fields no longer holds. Switch to string
   // lookups for the remaining fields.
-  std::vector<std::string> unknown_fields;
+  std::vector<std::string> missing_names;
   do {
     this_iter = find(src_iter->first);
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
-      unknown_fields.emplace_back(src_iter->first);
+      missing_names.emplace_back(src_iter->first);
     } else {
       internal::AssignToString(
           internal::MaybeMoveElement<Src>(src_iter->second), this_iter->second);
     }
     ++src_iter;
   } while (src_iter != src_end_iter);
-  if (ABSL_PREDICT_FALSE(!unknown_fields.empty())) {
-    return FailMerge(unknown_fields);
+  if (ABSL_PREDICT_FALSE(!missing_names.empty())) {
+    return FailMerge(missing_names);
   }
   return absl::OkStatus();
 }

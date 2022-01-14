@@ -188,7 +188,7 @@ absl::Status CsvHeader::TryReset(
   if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
     payload_.reset();
     StringWriter<std::string> message;
-    message.Write("Duplicate field name(s): ");
+    message.Write("Duplicate field names: ");
     for (std::vector<absl::string_view>::const_iterator iter =
              duplicate_names.cbegin();
          iter != duplicate_names.cend(); ++iter) {
@@ -370,18 +370,16 @@ void CsvRecord::Clear() {
 std::string& CsvRecord::operator[](absl::string_view name) {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "unknown field name: "
-      << DebugQuotedIfNeeded(name) << "; existing fields: " << header_;
+      << "Failed precondition of CsvRecord::operator[](): missing field name: "
+      << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
 }
 
 const std::string& CsvRecord::operator[](absl::string_view name) const {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "unknown field name: "
-      << DebugQuotedIfNeeded(name) << "; existing fields: " << header_;
+      << "Failed precondition of CsvRecord::operator[](): missing field name: "
+      << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
 }
 
@@ -423,16 +421,20 @@ absl::Status CsvRecord::TryMerge(
 }
 
 absl::Status CsvRecord::FailMerge(
-    const std::vector<std::string>& unknown_fields) const {
+    const std::vector<std::string>& missing_names) const {
   StringWriter<std::string> message;
-  message.Write("Unknown field name(s): ");
-  for (std::vector<std::string>::const_iterator iter = unknown_fields.cbegin();
-       iter != unknown_fields.cend(); ++iter) {
-    if (iter != unknown_fields.cbegin()) message.WriteChar(',');
+  message.Write("Missing field names: ");
+  for (std::vector<std::string>::const_iterator iter = missing_names.cbegin();
+       iter != missing_names.cend(); ++iter) {
+    if (iter != missing_names.cbegin()) message.WriteChar(',');
     internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
-  message.Write("; existing fields: ");
-  message.Write(header_.DebugString());
+  message.Write("; existing field names: ");
+  for (CsvHeader::const_iterator iter = header_.cbegin();
+       iter != header_.cend(); ++iter) {
+    if (iter != header_.cbegin()) message.WriteChar(',');
+    internal::WriteDebugQuotedIfNeeded(*iter, message);
+  }
   message.Close();
   return absl::FailedPreconditionError(message.dest());
 }
