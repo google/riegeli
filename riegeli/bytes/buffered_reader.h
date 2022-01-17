@@ -128,6 +128,9 @@ class BufferedReader : public Reader {
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
 
+  // Reuses `buffer_` as `reader.buffer_` if `reader.pos()` falls inside.
+  void ShareBufferTo(BufferedReader& reader) const;
+
  private:
   // Discards buffer contents and sets buffer pointers to `nullptr`.
   //

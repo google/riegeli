@@ -365,4 +365,14 @@ bool BufferedReader::SeekSlow(Position new_pos) {
   return SeekBehindBuffer(new_pos);
 }
 
+void BufferedReader::ShareBufferTo(BufferedReader& reader) const {
+  const Position new_pos = reader.pos();
+  if (new_pos >= start_pos() && new_pos < limit_pos()) {
+    reader.buffer_ = buffer_;
+    reader.set_buffer(start(), start_to_limit(),
+                      IntCast<size_t>(new_pos - start_pos()));
+    reader.set_limit_pos(limit_pos());
+  }
+}
+
 }  // namespace riegeli

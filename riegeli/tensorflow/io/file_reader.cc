@@ -539,11 +539,20 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   ::tensorflow::RandomAccessFile* const src = src_file();
-  return std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
-      src, FileReaderBase::Options()
-               .set_env(env_)
-               .set_initial_pos(initial_pos)
-               .set_buffer_size(buffer_size_));
+  std::unique_ptr<FileReader<::tensorflow::RandomAccessFile*>> reader =
+      std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
+          src, FileReaderBase::Options()
+                   .set_env(env_)
+                   .set_initial_pos(initial_pos)
+                   .set_buffer_size(buffer_size_));
+  if (initial_pos >= start_pos() && initial_pos < limit_pos()) {
+    // Share `buffer_` with `*reader`.
+    reader->buffer_ = buffer_;
+    reader->set_buffer(start(), start_to_limit(),
+                       IntCast<size_t>(initial_pos - start_pos()));
+    reader->set_limit_pos(limit_pos());
+  }
+  return reader;
 }
 
 }  // namespace tensorflow

@@ -321,11 +321,14 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   const int src = src_fd();
-  return std::make_unique<FdReader<UnownedFd>>(
-      src, FdReaderBase::Options()
-               .set_assumed_filename(filename())
-               .set_independent_pos(initial_pos)
-               .set_buffer_size(buffer_size()));
+  std::unique_ptr<FdReader<UnownedFd>> reader =
+      std::make_unique<FdReader<UnownedFd>>(
+          src, FdReaderBase::Options()
+                   .set_assumed_filename(filename())
+                   .set_independent_pos(initial_pos)
+                   .set_buffer_size(buffer_size()));
+  ShareBufferTo(*reader);
+  return reader;
 }
 
 void FdMMapReaderBase::Initialize(
