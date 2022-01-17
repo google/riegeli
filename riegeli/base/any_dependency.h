@@ -35,6 +35,13 @@ struct AnyDependencyTraits {
   static Ptr DefaultPtr() { return Ptr(); }
 };
 
+namespace internal {
+
+template <typename Ptr, typename Manager>
+struct AnyDependencyIsInline;
+
+}  // namespace internal
+
 // `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
 // type, erasing the `Manager` type from the type of the `AnyDependency`, or is
 // empty.
@@ -42,7 +49,7 @@ template <typename Ptr>
 class AnyDependency {
  public:
   // Creates an empty `AnyDependency`.
-  AnyDependency() noexcept {}
+  AnyDependency() noexcept;
 
   // Holds a `Dependency<Ptr, std::decay_t<Manager>>`.
   //
@@ -54,8 +61,7 @@ class AnyDependency {
                                                 AnyDependency<Ptr>>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
-  explicit AnyDependency(const Manager& manager)
-      : impl_(std::make_unique<Impl<std::decay_t<Manager>>>(manager)) {}
+  explicit AnyDependency(const Manager& manager);
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
@@ -63,9 +69,7 @@ class AnyDependency {
                                                 AnyDependency<Ptr>>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
-  explicit AnyDependency(Manager&& manager)
-      : impl_(std::make_unique<Impl<std::decay_t<Manager>>>(
-            std::forward<Manager>(manager))) {}
+  explicit AnyDependency(Manager&& manager);
 
   // Holds a `Dependency<Ptr, Manager>`.
   //
@@ -73,35 +77,28 @@ class AnyDependency {
   // because constructor templates do not support specifying template arguments
   // explicitly.
   template <typename Manager>
-  explicit AnyDependency(absl::in_place_type_t<Manager>, const Manager& manager)
-      : impl_(std::make_unique<Impl<Manager>>(manager)) {}
+  explicit AnyDependency(absl::in_place_type_t<Manager>,
+                         const Manager& manager);
   template <typename Manager>
-  explicit AnyDependency(absl::in_place_type_t<Manager>, Manager&& manager)
-      : impl_(std::make_unique<Impl<Manager>>(std::move(manager))) {}
+  explicit AnyDependency(absl::in_place_type_t<Manager>, Manager&& manager);
   template <typename Manager, typename... ManagerArgs>
   explicit AnyDependency(absl::in_place_type_t<Manager>,
-                         std::tuple<ManagerArgs...> manager_args)
-      : impl_(std::make_unique<Impl<Manager>>(std::move(manager_args))) {}
+                         std::tuple<ManagerArgs...> manager_args);
 
   AnyDependency(AnyDependency&& that) noexcept;
   AnyDependency& operator=(AnyDependency&& that) noexcept;
 
+  ~AnyDependency();
+
   // Makes `*this` equivalent to a newly constructed `AnyDependency`. This
   // avoids constructing a temporary `AnyDependency` and moving from it.
-  void Reset() { impl_.reset(); }
+  void Reset();
   template <typename Manager>
-  void Reset(const Manager& manager) {
-    impl_ = std::make_unique<Impl<std::decay_t<Manager>>>(manager);
-  }
+  void Reset(const Manager& manager);
   template <typename Manager>
-  void Reset(Manager&& manager) {
-    impl_ = std::make_unique<Impl<std::decay_t<Manager>>>(
-        std::forward<Manager>(manager));
-  }
+  void Reset(Manager&& manager);
   template <typename Manager, typename... ManagerArgs>
-  void Reset(std::tuple<ManagerArgs...> manager_args) {
-    impl_ = std::make_unique<Impl<Manager>>(std::move(manager_args));
-  }
+  void Reset(std::tuple<ManagerArgs...> manager_args);
 
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
   // `AnyDependency`.
@@ -120,12 +117,7 @@ class AnyDependency {
   // To avoid having two variants of `AnyDependency<P*>` based on this subtle
   // distinction, its only variant is more permissive regarding the `Dependency`
   // while also more permissive regarding its usage.
-  Ptr get() const {
-    if (ABSL_PREDICT_FALSE(impl_ == nullptr)) {
-      return AnyDependencyTraits<Ptr>::DefaultPtr();
-    }
-    return impl_->get();
-  }
+  Ptr get() const { return methods_->get(repr_); }
 
   // If `Ptr` is `P*`, `AnyDependency<P*>` can be used as a smart pointer to
   // `P`, for convenience.
@@ -142,66 +134,45 @@ class AnyDependency {
 
   // Returns the released `Ptr` if the `Dependency` owns the dependent object
   // and can release it, otherwise returns a default `Ptr`.
-  Ptr Release() {
-    if (ABSL_PREDICT_FALSE(impl_ == nullptr)) {
-      return AnyDependencyTraits<Ptr>::DefaultPtr();
-    }
-    return impl_->Release();
-  }
+  Ptr Release() { return methods_->release(repr_); }
 
   // If `true`, the `AnyDependency` owns the dependent object, i.e. closing the
   // host object should close the dependent object.
-  bool is_owning() const {
-    if (ABSL_PREDICT_FALSE(impl_ == nullptr)) return false;
-    return impl_->is_owning();
-  }
+  bool is_owning() const { return methods_->is_owning(repr_); }
 
  private:
-  class ImplBase {
-   public:
-    virtual ~ImplBase() {}
+  template <typename SomePtr, typename Manager>
+  friend struct internal::AnyDependencyIsInline;
 
-    virtual Ptr get() = 0;
-    virtual Ptr Release() = 0;
-    virtual bool is_owning() const = 0;
+  // Variants of `Repr`:
+  //  * Empty `AnyDependency`: `Repr` is not used
+  //  * Held by pointer: `ptr` is `Dependency<Ptr, Manager>*` cast to `void*`
+  //  * Stored inline: `Dependency<Ptr, Manager>` is inside `storage`
+  union Repr {
+    void* ptr;
+    char storage[sizeof(void*)];
   };
 
-  template <typename Manager>
-  class Impl : public ImplBase {
-   public:
-    explicit Impl(const Manager& manager) : dependency_(manager) {}
-    explicit Impl(Manager&& manager) : dependency_(std::move(manager)) {}
-    template <typename... ManagerArgs>
-    explicit Impl(std::tuple<ManagerArgs...> manager_args)
-        : dependency_(std::move(manager_args)) {}
-
-    Ptr get() override { return dependency_.get(); }
-    Ptr Release() override { return ReleaseImpl(); }
-    bool is_owning() const override { return dependency_.is_owning(); }
-
-   private:
-    template <typename T, typename Enable = void>
-    struct HasRelease : std::false_type {};
-    template <typename T>
-    struct HasRelease<T, absl::void_t<decltype(std::declval<T>().Release())>>
-        : std::true_type {};
-
-    template <typename DependentDependency = Dependency<Ptr, Manager>,
-              std::enable_if_t<HasRelease<DependentDependency>::value, int> = 0>
-    Ptr ReleaseImpl() {
-      return dependency_.Release();
-    }
-    template <
-        typename DependentDependency = Dependency<Ptr, Manager>,
-        std::enable_if_t<!HasRelease<DependentDependency>::value, int> = 0>
-    Ptr ReleaseImpl() {
-      return AnyDependencyTraits<Ptr>::DefaultPtr();
-    }
-
-    Dependency<Ptr, Manager> dependency_;
+  struct Methods {
+    // Constructs `self` by moving from `that`, and destroys `that`.
+    void (*move)(Repr& self, Repr& that);
+    // Destroys `self`.
+    void (*destroy)(Repr& self);
+    Ptr (*get)(const Repr& self);
+    Ptr (*release)(Repr& self);
+    bool (*is_owning)(const Repr& self);
   };
 
-  std::unique_ptr<ImplBase> impl_;
+  template <typename Manager, typename Enable = void>
+  struct IsInline;
+
+  struct NullMethods;
+
+  template <typename Manager, typename Enable = void>
+  struct MethodsFor;
+
+  const Methods* methods_;
+  Repr repr_;
 };
 
 // Specialization of `Dependency<Ptr, AnyDependency<Ptr>>`.
@@ -230,15 +201,267 @@ class Dependency<Ptr, AnyDependency<Ptr>>
 
 // Implementation details follow.
 
+namespace internal {
+
+// `internal::Release(dep)` calls `dep.Release()` if that is defined, otherwise
+// returns `AnyDependencyTraits<Ptr>::DefaultPtr()`.
+
+template <typename T, typename Enable = void>
+struct HasRelease : std::false_type {};
+template <typename T>
+struct HasRelease<T, absl::void_t<decltype(std::declval<T>().Release())>>
+    : std::true_type {};
+
+template <
+    typename Ptr, typename Manager,
+    std::enable_if_t<HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
+Ptr Release(Dependency<Ptr, Manager>& dep) {
+  return dep.Release();
+}
+template <
+    typename Ptr, typename Manager,
+    std::enable_if_t<!HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
+Ptr Release(Dependency<Ptr, Manager>& dep) {
+  return AnyDependencyTraits<Ptr>::DefaultPtr();
+}
+
+}  // namespace internal
+
+// A `Dependency<Ptr, Manager>` is stored inline if it fits and is stable.
+// In practice this applies mostly to `Dependency<P*, P*>` and
+// `Dependency<P*, std::unique_ptr<P>>`
+
+template <typename Ptr>
+template <typename Manager, typename Enable>
+struct AnyDependency<Ptr>::IsInline : std::false_type {};
+
+template <typename Ptr>
+template <typename Manager>
+struct AnyDependency<Ptr>::IsInline<
+    Manager, std::enable_if_t<sizeof(Dependency<Ptr, Manager>) <=
+                                  sizeof(typename AnyDependency<Ptr>::Repr) &&
+                              alignof(Dependency<Ptr, Manager>) <=
+                                  alignof(typename AnyDependency<Ptr>::Repr) &&
+                              Dependency<Ptr, Manager>::kIsStable()>>
+    : std::true_type {};
+
+namespace internal {
+
+// This indirection is needed for some mysterious reason, otherwise definitions
+// of members of partial specializations do not compile.
+template <typename Ptr, typename Manager>
+struct AnyDependencyIsInline : AnyDependency<Ptr>::template IsInline<Manager> {
+};
+
+}  // namespace internal
+
+template <typename Ptr>
+struct AnyDependency<Ptr>::NullMethods {
+  static const Methods methods;
+
+ private:
+  static void Move(Repr& self, Repr& that) {}
+  static void Destroy(Repr& self) {}
+  static Ptr Get(const Repr& self) {
+    return AnyDependencyTraits<Ptr>::DefaultPtr();
+  }
+  static Ptr Release(Repr& self) {
+    return AnyDependencyTraits<Ptr>::DefaultPtr();
+  }
+  static bool IsOwning(const Repr& self) { return false; }
+};
+
+template <typename Ptr>
+const typename AnyDependency<Ptr>::Methods
+    AnyDependency<Ptr>::NullMethods::methods = {Move, Destroy, Get, Release,
+                                                IsOwning};
+
+template <typename Ptr>
+template <typename Manager, typename Enable>
+struct AnyDependency<Ptr>::MethodsFor {
+  static const Methods methods;
+
+  static void Construct(Repr& self, const Manager& manager) {
+    self.ptr = new Dependency<Ptr, Manager>(manager);
+  }
+  static void Construct(Repr& self, Manager&& manager) {
+    self.ptr = new Dependency<Ptr, Manager>(std::move(manager));
+  }
+  template <typename... ManagerArgs>
+  static void Construct(Repr& self, std::tuple<ManagerArgs...> manager_args) {
+    self.ptr = new Dependency<Ptr, Manager>(std::move(manager_args));
+  }
+
+ private:
+  static Dependency<Ptr, Manager>* ptr(const Repr& self) {
+    return static_cast<Dependency<Ptr, Manager>*>(self.ptr);
+  }
+
+  static void Move(Repr& self, Repr& that) { self.ptr = that.ptr; }
+  static void Destroy(Repr& self) { delete ptr(self); }
+  static Ptr Get(const Repr& self) { return ptr(self)->get(); }
+  static Ptr Release(Repr& self) { return internal::Release(*ptr(self)); }
+  static bool IsOwning(const Repr& self) { return ptr(self)->is_owning(); }
+};
+
+template <typename Ptr>
+template <typename Manager, typename Enable>
+const typename AnyDependency<Ptr>::Methods
+    AnyDependency<Ptr>::MethodsFor<Manager, Enable>::methods = {
+        Move, Destroy, Get, Release, IsOwning};
+
+template <typename Ptr>
+template <typename Manager>
+struct AnyDependency<Ptr>::MethodsFor<
+    Manager,
+    std::enable_if_t<internal::AnyDependencyIsInline<Ptr, Manager>::value>> {
+  static const Methods methods;
+
+  static void Construct(Repr& self, const Manager& manager) {
+    new (self.storage) Dependency<Ptr, Manager>(manager);
+  }
+  static void Construct(Repr& self, Manager&& manager) {
+    new (self.storage) Dependency<Ptr, Manager>(std::move(manager));
+  }
+  template <typename... ManagerArgs>
+  static void Construct(Repr& self, std::tuple<ManagerArgs...> manager_args) {
+    new (self.storage) Dependency<Ptr, Manager>(std::move(manager_args));
+  }
+
+ private:
+  static Dependency<Ptr, Manager>& dep(Repr& self) {
+    return *reinterpret_cast<Dependency<Ptr, Manager>*>(self.storage);
+  }
+  static const Dependency<Ptr, Manager>& dep(const Repr& self) {
+    return *reinterpret_cast<const Dependency<Ptr, Manager>*>(self.storage);
+  }
+
+  static void Move(Repr& self, Repr& that) {
+    new (self.storage) Dependency<Ptr, Manager>(std::move(dep(that)));
+    dep(that).~Dependency<Ptr, Manager>();
+  }
+  static void Destroy(Repr& self) { dep(self).~Dependency<Ptr, Manager>(); }
+  static Ptr Get(const Repr& self) {
+    // See the caveat regarding const at `AnyDependency::get()`.
+    return const_cast<Dependency<Ptr, Manager>&>(dep(self)).get();
+  }
+  static Ptr Release(Repr& self) { return internal::Release(dep(self)); }
+  static bool IsOwning(const Repr& self) { return dep(self).is_owning(); }
+};
+
+template <typename Ptr>
+template <typename Manager>
+const typename AnyDependency<Ptr>::Methods AnyDependency<Ptr>::MethodsFor<
+    Manager,
+    std::enable_if_t<internal::AnyDependencyIsInline<Ptr, Manager>::value>>::
+    methods = {Move, Destroy, Get, Release, IsOwning};
+
+template <typename Ptr>
+inline AnyDependency<Ptr>::AnyDependency() noexcept
+    : methods_(&NullMethods::methods) {}
+
+template <typename Ptr>
+template <
+    typename Manager,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
+                                                      AnyDependency<Ptr>>>,
+                          IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+        int>>
+inline AnyDependency<Ptr>::AnyDependency(const Manager& manager)
+    : methods_(&MethodsFor<std::decay_t<Manager>>::methods) {
+  MethodsFor<std::decay_t<Manager>>::Construct(repr_, manager);
+}
+
+template <typename Ptr>
+template <
+    typename Manager,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
+                                                      AnyDependency<Ptr>>>,
+                          IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+        int>>
+inline AnyDependency<Ptr>::AnyDependency(Manager&& manager)
+    : methods_(&MethodsFor<std::decay_t<Manager>>::methods) {
+  MethodsFor<std::decay_t<Manager>>::Construct(repr_,
+                                               std::forward<Manager>(manager));
+}
+
+template <typename Ptr>
+template <typename Manager>
+inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
+                                         const Manager& manager)
+    : methods_(&MethodsFor<Manager>::methods) {
+  MethodsFor<Manager>::Construct(repr_, manager);
+}
+
+template <typename Ptr>
+template <typename Manager>
+inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
+                                         Manager&& manager)
+    : methods_(&MethodsFor<Manager>::methods) {
+  MethodsFor<Manager>::Construct(repr_, std::move(manager));
+}
+
+template <typename Ptr>
+template <typename Manager, typename... ManagerArgs>
+inline AnyDependency<Ptr>::AnyDependency(
+    absl::in_place_type_t<Manager>, std::tuple<ManagerArgs...> manager_args)
+    : methods_(&MethodsFor<Manager>::methods) {
+  MethodsFor<Manager>::Construct(repr_, std::move(manager_args));
+}
+
 template <typename Ptr>
 inline AnyDependency<Ptr>::AnyDependency(AnyDependency&& that) noexcept
-    : impl_(std::move(that.impl_)) {}
+    : methods_(std::exchange(that.methods_, &NullMethods::methods)) {
+  methods_->move(repr_, that.repr_);
+}
 
 template <typename Ptr>
 inline AnyDependency<Ptr>& AnyDependency<Ptr>::operator=(
     AnyDependency&& that) noexcept {
-  impl_ = std::move(that.impl_);
+  if (ABSL_PREDICT_TRUE(&that != this)) {
+    methods_->destroy(repr_);
+    methods_ = std::exchange(that.methods_, &NullMethods::methods);
+    methods_->move(repr_, that.repr_);
+  }
   return *this;
+}
+
+template <typename Ptr>
+inline AnyDependency<Ptr>::~AnyDependency() {
+  methods_->destroy(repr_);
+}
+
+template <typename Ptr>
+inline void AnyDependency<Ptr>::Reset() {
+  methods_->destroy(repr_);
+  methods_ = &NullMethods::methods;
+}
+
+template <typename Ptr>
+template <typename Manager>
+inline void AnyDependency<Ptr>::Reset(const Manager& manager) {
+  methods_->destroy(repr_);
+  methods_ = &MethodsFor<std::decay_t<Manager>>::methods;
+  MethodsFor<std::decay_t<Manager>>::Construct(repr_, manager);
+}
+
+template <typename Ptr>
+template <typename Manager>
+inline void AnyDependency<Ptr>::Reset(Manager&& manager) {
+  methods_->destroy(repr_);
+  methods_ = &MethodsFor<std::decay_t<Manager>>::methods;
+  MethodsFor<std::decay_t<Manager>>::Construct(repr_,
+                                               std::forward<Manager>(manager));
+}
+
+template <typename Ptr>
+template <typename Manager, typename... ManagerArgs>
+inline void AnyDependency<Ptr>::Reset(std::tuple<ManagerArgs...> manager_args) {
+  methods_->destroy(repr_);
+  methods_ = &MethodsFor<Manager>::methods;
+  MethodsFor<Manager>::Construct(repr_, std::move(manager_args));
 }
 
 }  // namespace riegeli
