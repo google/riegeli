@@ -194,9 +194,16 @@ class Reader : public Object {
   // Hints that several consecutive `Pull()`, `Read()`, or `Copy()` calls will
   // follow, reading this amount of data in total.
   //
-  // This can make these calls faster by by prefetching all the data at once
-  // into an internal buffer.
-  void ReadHint(size_t length);
+  // This can make these calls faster by prefetching all the data at once into
+  // memory. In contrast to `Pull()`, the data are not necessarily flattened
+  // into a single array.
+  //
+  // `ReadHint()` ensures that at least `min_length`, preferably
+  // `recommended_length` is available in memory.
+  //
+  // If `recommended_length < min_length`, `recommended_length` is assumed to be
+  // `min_length`.
+  void ReadHint(size_t min_length = 1, size_t recommended_length = 0);
 
   // Reads all remaining bytes from the buffer and/or the source to `dest`,
   // clearing any existing data in `dest`.
@@ -455,8 +462,8 @@ class Reader : public Object {
   //
   // By default does nothing.
   //
-  // Precondition: `length > available()`
-  virtual void ReadHintSlow(size_t length);
+  // Precondition: `available() < min_length`
+  virtual void ReadHintSlow(size_t min_length, size_t recommended_length);
 
   // Implementation of `Sync()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
@@ -684,9 +691,9 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest) {
   return ReadSlow(length, dest);
 }
 
-inline void Reader::ReadHint(size_t length) {
-  if (ABSL_PREDICT_TRUE(available() >= length)) return;
-  ReadHintSlow(length);
+inline void Reader::ReadHint(size_t min_length, size_t recommended_length) {
+  if (ABSL_PREDICT_TRUE(available() >= min_length)) return;
+  ReadHintSlow(min_length, recommended_length);
 }
 
 inline bool Reader::Sync(SyncType sync_type) { return SyncImpl(sync_type); }

@@ -337,11 +337,12 @@ bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-void BufferedReader::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void BufferedReader::ReadHintSlow(size_t min_length,
+                                  size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
-  PullSlow(length, 0);
+  PullSlow(min_length, recommended_length);
 }
 
 bool BufferedReader::SyncImpl(SyncType sync_type) {

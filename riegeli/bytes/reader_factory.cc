@@ -57,7 +57,8 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
-  void ReadHintBehindScratch(size_t length) override;
+  void ReadHintBehindScratch(size_t min_length,
+                             size_t recommended_length) override;
   bool SeekBehindScratch(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
@@ -397,8 +398,9 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   }
 }
 
-void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(
+    size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "enough data available, use ReadHint() instead";
   RIEGELI_ASSERT(!scratch_used())
@@ -407,20 +409,31 @@ void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t secondary_buffered_length =
       secondary_buffer_.size() - iter_.CharIndexInChain(start_to_cursor());
-  if (secondary_buffered_length < length) {
+  if (secondary_buffered_length < min_length) {
     set_limit_pos(pos());
     set_buffer();
     secondary_buffer_.RemovePrefix(secondary_buffer_.size() -
                                    secondary_buffered_length);
-    const size_t length_to_read = length - secondary_buffered_length;
+    const size_t min_length_to_read = min_length - secondary_buffered_length;
+    const size_t recommended_length_to_read =
+        UnsignedMax(recommended_length, min_length) - secondary_buffered_length;
     {
       absl::MutexLock l(&shared_->mutex);
-      if (ABSL_PREDICT_FALSE(
-              !shared_->reader->Seek(limit_pos() + secondary_buffered_length) ||
-              !shared_->reader->ReadAndAppend(length_to_read,
-                                              secondary_buffer_))) {
+      if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(
+              limit_pos() + secondary_buffered_length))) {
         if (ABSL_PREDICT_FALSE(!shared_->reader->healthy())) {
           FailWithoutAnnotation(shared_->reader->status());
+        }
+      } else {
+        if (recommended_length_to_read > min_length_to_read) {
+          shared_->reader->ReadHint(min_length_to_read,
+                                    recommended_length_to_read);
+        }
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ReadAndAppend(
+                min_length_to_read, secondary_buffer_))) {
+          if (ABSL_PREDICT_FALSE(!shared_->reader->healthy())) {
+            FailWithoutAnnotation(shared_->reader->status());
+          }
         }
       }
     }

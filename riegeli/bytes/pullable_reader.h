@@ -105,7 +105,8 @@ class PullableReader : public Reader {
   virtual bool ReadBehindScratch(size_t length, absl::Cord& dest);
   virtual bool CopyBehindScratch(Position length, Writer& dest);
   virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
-  virtual void ReadHintBehindScratch(size_t length);
+  virtual void ReadHintBehindScratch(size_t min_length,
+                                     size_t recommended_length);
   virtual bool SyncBehindScratch(SyncType sync_type);
   virtual bool SeekBehindScratch(Position new_pos);
 
@@ -116,7 +117,7 @@ class PullableReader : public Reader {
   bool ReadSlow(size_t length, absl::Cord& dest) override;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  void ReadHintSlow(size_t length) override;
+  void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
 

@@ -130,7 +130,8 @@ class JoiningReaderBase : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
-  void ReadHintBehindScratch(size_t length) override;
+  void ReadHintBehindScratch(size_t min_length,
+                             size_t recommended_length) override;
 
  private:
   bool OpenShardInternal();

@@ -298,8 +298,9 @@ bool PullableReader::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-void PullableReader::ReadHintBehindScratch(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void PullableReader::ReadHintBehindScratch(size_t min_length,
+                                           size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "enough data available, use ReadHint() instead";
   RIEGELI_ASSERT(!scratch_used())
@@ -483,20 +484,25 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
   return CopyBehindScratch(length, dest);
 }
 
-void PullableReader::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void PullableReader::ReadHintSlow(size_t min_length,
+                                  size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
-      length -= available();
+      recommended_length = UnsignedMax(recommended_length, min_length);
+      min_length -= available();
+      recommended_length -= available();
       BehindScratch behind_scratch(this);
-      if (available() < length) ReadHintBehindScratch(length);
+      if (available() < min_length) {
+        ReadHintBehindScratch(min_length, recommended_length);
+      }
       return;
     }
-    if (available() >= length) return;
+    if (available() >= min_length) return;
   }
-  ReadHintBehindScratch(length);
+  ReadHintBehindScratch(min_length, recommended_length);
 }
 
 bool PullableReader::SyncImpl(SyncType sync_type) {

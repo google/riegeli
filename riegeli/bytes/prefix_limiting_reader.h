@@ -98,7 +98,7 @@ class PrefixLimitingReaderBase : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  void ReadHintSlow(size_t length) override;
+  void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;

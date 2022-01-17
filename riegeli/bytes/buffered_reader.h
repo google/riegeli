@@ -124,7 +124,7 @@ class BufferedReader : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  void ReadHintSlow(size_t length) override;
+  void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
 

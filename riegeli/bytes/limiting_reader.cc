@@ -181,8 +181,9 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return true;
 }
 
-void LimitingReaderBase::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void LimitingReaderBase::ReadHintSlow(size_t min_length,
+                                      size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   RIEGELI_ASSERT_LE(pos(), max_pos_)
@@ -191,7 +192,9 @@ void LimitingReaderBase::ReadHintSlow(size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Reader& src = *src_reader();
   SyncBuffer(src);
-  src.ReadHint(UnsignedMin(length, max_pos_ - pos()));
+  const Position remaining = max_pos_ - pos();
+  src.ReadHint(UnsignedMin(min_length, remaining),
+               UnsignedMin(recommended_length, remaining));
   MakeBuffer(src);
 }
 

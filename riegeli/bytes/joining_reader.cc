@@ -318,8 +318,9 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   return true;
 }
 
-void JoiningReaderBase::ReadHintBehindScratch(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,
+                                              size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "enough data available, use ReadHint() instead";
   RIEGELI_ASSERT(!scratch_used())
@@ -333,7 +334,7 @@ void JoiningReaderBase::ReadHintBehindScratch(size_t length) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return;
     shard = shard_reader();
   }
-  shard->ReadHint(length);
+  shard->ReadHint(min_length, recommended_length);
   MakeBuffer(*shard);
 }
 

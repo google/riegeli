@@ -104,8 +104,10 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) return false;
   Reader& src = *src_reader();
   const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
-  src.ReadHint(SaturatingIntCast<size_t>(
-      internal::AddWithOverhead(chunk_end, ChunkHeader::size()) - src.pos()));
+  src.ReadHint(SaturatingIntCast<size_t>(chunk_end - src.pos()),
+               SaturatingIntCast<size_t>(
+                   internal::AddWithOverhead(chunk_end, ChunkHeader::size()) -
+                   src.pos()));
 
   while (chunk_.data.size() < chunk_.header.data_size()) {
     if (internal::RemainingInBlockHeader(src.pos()) > 0) {

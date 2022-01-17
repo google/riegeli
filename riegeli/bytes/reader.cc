@@ -228,8 +228,8 @@ bool Reader::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-void Reader::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void Reader::ReadHintSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
 }

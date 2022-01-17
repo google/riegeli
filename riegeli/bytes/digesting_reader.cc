@@ -121,14 +121,15 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   return ok;
 }
 
-void DigestingReaderBase::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
+void DigestingReaderBase::ReadHintSlow(size_t min_length,
+                                       size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Reader& src = *src_reader();
   SyncBuffer(src);
-  src.ReadHint(length);
+  src.ReadHint(min_length, recommended_length);
   MakeBuffer(src);
 }
 
