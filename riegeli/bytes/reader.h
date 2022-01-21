@@ -363,21 +363,24 @@ class Reader : public Object {
   virtual bool SupportsNewReader() { return false; }
 
   // Returns a `Reader` which reads from the same source, but has an independent
-  // current position, starting from `initial_pos`. It can be used concurrently
-  // with this `Reader` and other siblings.
+  // current position, starting from `initial_pos`. The returned `Reader` can be
+  // used concurrently with this `Reader` and other siblings.
   //
   // If the source ends before `initial_pos`, the position of the new `Reader`
   // is set to the end. The resulting `Reader` supports `Seek()` and
   // `NewReader()`.
   //
+  // The new `Reader` does not own the source, even if the this `Reader` does.
   // The source of this `Reader` must not be changed until the new `Reader` is
   // closed or no longer used.
-  //
-  // The new `Reader` does not own the source, even if the this `Reader` does.
   //
   // Returns `nullptr` on failure (`!healthy()`).
   //
   // `NewReader()` is supported if `SupportsNewReader()` is `true`.
+  //
+  // If `SupportsNewReader()` returned `true`, then `NewReader()` may be called
+  // concurrently. If also `healthy()` is `true`, then `NewReader()` does not
+  // return `nullptr`.
   std::unique_ptr<Reader> NewReader(Position initial_pos);
 
  protected:

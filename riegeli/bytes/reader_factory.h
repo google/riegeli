@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/base.h"
@@ -66,18 +67,22 @@ class ReaderFactoryBase : public Object {
   virtual const Reader* src_reader() const = 0;
 
   // Returns a `Reader` which reads from the same source as the original
-  // `Reader`, but has an independent current position.
+  // `Reader`, but has an independent current position, starting from
+  // `initial_pos`.
   //
-  // This allows for interleaved or concurrent reading of several regions of the
-  // same source.
+  // If the source ends before `initial_pos`, the position of the new `Reader`
+  // is set to the end. The resulting `Reader` supports `Seek()` and
+  // `NewReader()`. Calling `NewReader()` on the new `Reader` is equivalent to
+  // calling it on this `ReaderFactory` again.
   //
   // The new `Reader` does not own the source, even if the original `Reader`
   // does. The original `Reader` must not be accessed until the new `Reader` is
   // closed or no longer used.
   //
-  // Calling `NewReader()` on the new `Reader` is equivalent to calling it on
-  // this `ReaderFactory` again.
-  std::unique_ptr<Reader> NewReader(Position initial_pos);
+  // Returns `nullptr` only if `!healthy()` before `NewReader()` was called.
+  //
+  // `NewReader()` is const and thus may be called concurrently.
+  std::unique_ptr<Reader> NewReader(Position initial_pos) const;
 
  protected:
   using Object::Object;
@@ -102,19 +107,19 @@ class ReaderFactoryBase : public Object {
 
     size_t buffer_size;
     absl::Mutex mutex;
-    Reader* reader;
+    Reader* reader ABSL_GUARDED_BY(mutex);
   };
 
+  // If `shared_ == nullptr`, then `!is_open()` or `Reader::NewReader()` is
+  // used. If `shared_ != nullptr`, then `ConcurrentReader` emulation is used.
   std::unique_ptr<Shared> shared_;
 };
 
-// `ReaderFactory` provides a substitute of `Reader::NewReader()` for `Reader`
-// classes which do not support `NewReader()`.
+// `ReaderFactory` exposes `Reader::NewReader()`, or provides its emulation
+// for `Reader` classes which do not support `NewReader()`. This allows for
+// interleaved or concurrent reading of several regions of the same source.
 //
 // The original `Reader` must support random access.
-//
-// If the original `Reader` actually supports `NewReader()`, `ReaderFactory`
-// uses the original `Reader::NewReader()` rather than a substitute.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support

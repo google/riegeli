@@ -250,6 +250,7 @@ inline void CordReaderBase::SyncBuffer() {
 
 std::unique_ptr<Reader> CordReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   const absl::Cord& src = *src_cord();
   std::unique_ptr<Reader> reader = std::make_unique<CordReader<>>(&src);
   reader->Seek(initial_pos);

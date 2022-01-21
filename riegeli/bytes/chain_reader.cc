@@ -249,6 +249,7 @@ absl::optional<Position> ChainReaderBase::SizeImpl() {
 
 std::unique_ptr<Reader> ChainReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   const Chain& src = *iter_.chain();
   std::unique_ptr<Reader> reader = std::make_unique<ChainReader<>>(&src);
   reader->Seek(initial_pos);

@@ -257,6 +257,8 @@ bool FramedSnappyReaderBase::SupportsNewReader() {
 std::unique_ptr<Reader> FramedSnappyReaderBase::NewReaderImpl(
     Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point
+  // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);

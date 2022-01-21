@@ -538,6 +538,7 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
     return Reader::NewReaderImpl(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   ::tensorflow::RandomAccessFile* const src = src_file();
   std::unique_ptr<FileReader<::tensorflow::RandomAccessFile*>> reader =
       std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(

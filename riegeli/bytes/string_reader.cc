@@ -51,6 +51,7 @@ absl::optional<Position> StringReaderBase::SizeImpl() {
 
 std::unique_ptr<Reader> StringReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   std::unique_ptr<Reader> reader =
       std::make_unique<StringReader<>>(start(), start_to_limit());
   reader->Seek(initial_pos);

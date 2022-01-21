@@ -522,6 +522,7 @@ void ReaderFactoryBase::Initialize(size_t buffer_size, Reader* src) {
   if (!src->SupportsNewReader()) {
     shared_ = std::make_unique<Shared>(buffer_size, src);
   }
+  if (ABSL_PREDICT_FALSE(!src->healthy())) FailWithoutAnnotation(src->status());
 }
 
 void ReaderFactoryBase::Done() { shared_.reset(); }
@@ -539,14 +540,15 @@ absl::Status ReaderFactoryBase::AnnotateStatusImpl(absl::Status status) {
   return status;
 }
 
-std::unique_ptr<Reader> ReaderFactoryBase::NewReader(Position initial_pos) {
+std::unique_ptr<Reader> ReaderFactoryBase::NewReader(
+    Position initial_pos) const {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   if (shared_ == nullptr) {
-    Reader& src = *src_reader();
+    Reader& src = const_cast<Reader&>(*src_reader());
     std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
-    if (ABSL_PREDICT_FALSE(reader == nullptr)) {
-      FailWithoutAnnotation(src.status());
-    }
+    RIEGELI_ASSERT(reader != nullptr)
+        << "Failed postcondition of Reader::NewReader(): "
+           "returned null but Reader is healthy() and SupportsNewReader()";
     return reader;
   } else {
     return std::make_unique<ConcurrentReader>(initial_pos, shared_.get());

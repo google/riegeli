@@ -184,10 +184,13 @@ bool WrappedReaderBase::SupportsNewReader() {
 
 std::unique_ptr<Reader> WrappedReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point
+  // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();
-  SyncBuffer(src);
   std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
-  MakeBuffer(src);
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) {
+    FailWithoutAnnotation(src.status());
+  }
   return reader;
 }
 

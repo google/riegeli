@@ -205,12 +205,15 @@ bool PrefixLimitingReaderBase::SupportsNewReader() {
 std::unique_ptr<Reader> PrefixLimitingReaderBase::NewReaderImpl(
     Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point
+  // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();
-  SyncBuffer(src);
   std::unique_ptr<Reader> reader =
       src.NewReader(SaturatingAdd(base_pos_, initial_pos));
-  MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) {
+    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+    return nullptr;
+  }
   return std::make_unique<PrefixLimitingReader<std::unique_ptr<Reader>>>(
       std::move(reader),
       PrefixLimitingReaderBase::Options().set_base_pos(base_pos_));

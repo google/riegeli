@@ -320,6 +320,7 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
     return BufferedReader::NewReaderImpl(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   const int src = src_fd();
   std::unique_ptr<FdReader<UnownedFd>> reader =
       std::make_unique<FdReader<UnownedFd>>(
@@ -441,6 +442,7 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
 
 std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point.
   const int src = src_fd();
   std::unique_ptr<FdMMapReader<UnownedFd>> reader =
       std::make_unique<FdMMapReader<UnownedFd>>(kClosed);

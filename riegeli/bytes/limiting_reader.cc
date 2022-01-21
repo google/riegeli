@@ -246,12 +246,15 @@ bool LimitingReaderBase::SupportsNewReader() {
 std::unique_ptr<Reader> LimitingReaderBase::NewReaderImpl(
     Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  // `NewReaderImpl()` is thread-safe from this point
+  // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();
-  SyncBuffer(src);
   std::unique_ptr<Reader> reader =
       src.NewReader(UnsignedMin(initial_pos, max_pos_));
-  MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) {
+    FailWithoutAnnotation(src.status());
+    return nullptr;
+  }
   return std::make_unique<LimitingReader<std::unique_ptr<Reader>>>(
       std::move(reader),
       LimitingReaderBase::Options().set_max_pos(max_pos_).set_exact(exact_));
