@@ -1,0 +1,41 @@
+diff -ur a/c/common/shared_dictionary.c b/c/common/shared_dictionary.c
+--- a/c/common/shared_dictionary.c	2021-08-18 10:15:06.000000000 +0200
++++ b/c/common/shared_dictionary.c	2022-01-25 17:24:00.404106692 +0100
+@@ -460,7 +460,7 @@
+ 
+ BROTLI_BOOL BrotliSharedDictionaryAttach(
+     BrotliSharedDictionary* dict, BrotliSharedDictionaryType type,
+-    size_t data_size, const uint8_t* data) {
++    size_t data_size, const uint8_t data[BROTLI_ARRAY_PARAM(data_size)]) {
+   if (!dict) {
+     return BROTLI_FALSE;
+   }
+diff -ur a/c/dec/decode.c b/c/dec/decode.c
+--- a/c/dec/decode.c	2021-08-18 10:15:06.000000000 +0200
++++ b/c/dec/decode.c	2022-01-25 17:25:12.217127360 +0100
+@@ -1494,8 +1494,9 @@
+   return pos - orig_pos;
+ }
+ 
+-BROTLI_BOOL BrotliDecoderAttachDictionary(BrotliDecoderState* state,
+-    BrotliSharedDictionaryType type, size_t data_size, const uint8_t* data) {
++BROTLI_BOOL BrotliDecoderAttachDictionary(
++    BrotliDecoderState* state, BrotliSharedDictionaryType type,
++    size_t data_size, const uint8_t data[BROTLI_ARRAY_PARAM(data_size)]) {
+   uint32_t i;
+   uint32_t num_prefix_before = state->dictionary->num_prefix;
+   if (state->state != BROTLI_STATE_UNINITED) return BROTLI_FALSE;
+diff -ur a/c/enc/encode.c b/c/enc/encode.c
+--- a/c/enc/encode.c	2021-08-18 10:15:06.000000000 +0200
++++ b/c/enc/encode.c	2022-01-25 17:25:47.149623853 +0100
+@@ -1974,8 +1974,8 @@
+ }
+ 
+ BrotliEncoderPreparedDictionary* BrotliEncoderPrepareDictionary(
+-    BrotliSharedDictionaryType type, size_t size, const uint8_t* data,
+-    int quality,
++    BrotliSharedDictionaryType type, size_t size,
++    const uint8_t data[BROTLI_ARRAY_PARAM(size)], int quality,
+     brotli_alloc_func alloc_func, brotli_free_func free_func, void* opaque) {
+   ManagedDictionary* managed_dictionary = NULL;
+   if (type != BROTLI_SHARED_DICTIONARY_RAW &&

@@ -13,6 +13,8 @@ http_archive(
 
 http_archive(
     name = "org_brotli",
+    patch_args = ["-p1"],
+    patches = ["//third_party:brotli.patch"],
     sha256 = "fec5a1d26f3dd102c542548aaa704f655fecec3622a24ec6e97768dcb3c235ff",
     strip_prefix = "brotli-68f1b90ad0d204907beb58304d0bd06391001a4d",
     urls = ["https://github.com/google/brotli/archive/68f1b90ad0d204907beb58304d0bd06391001a4d.zip"],  # 2021-08-18
