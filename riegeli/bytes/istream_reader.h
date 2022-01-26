@@ -207,36 +207,6 @@ explicit IStreamReader(
     -> IStreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
-// Deprecated names, kept until users are migrated.
-using IstreamReaderBase = IStreamReaderBase;
-template <typename Src = std::istream*>
-class IstreamReader : public IStreamReader<Src> {
- public:
-  using IStreamReader<Src>::IStreamReader;
-  IstreamReader(IstreamReader&& that) noexcept
-      : IStreamReader<Src>(std::move(that)) {}
-  IstreamReader& operator=(IstreamReader&& that) noexcept {
-    IStreamReader<Src>::operator=(std::move(that));
-    return *this;
-  }
-};
-#if __cpp_deduction_guides
-explicit IstreamReader(Closed)->IstreamReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit IstreamReader(const Src& src, IstreamReaderBase::Options options =
-                                           IstreamReaderBase::Options())
-    -> IstreamReader<std::decay_t<Src>>;
-template <typename Src>
-explicit IstreamReader(Src&& src, IstreamReaderBase::Options options =
-                                      IstreamReaderBase::Options())
-    -> IstreamReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit IstreamReader(
-    std::tuple<SrcArgs...> src_args,
-    IstreamReaderBase::Options options = IstreamReaderBase::Options())
-    -> IstreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-#endif
-
 // Implementation details follow.
 
 inline IStreamReaderBase::IStreamReaderBase(size_t buffer_size)

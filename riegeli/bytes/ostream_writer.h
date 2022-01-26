@@ -228,36 +228,6 @@ explicit OStreamWriter(
     -> OStreamWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
-// Deprecated names, kept until users are migrated.
-using OstreamWriterBase = OStreamWriterBase;
-template <typename Dest = std::ostream*>
-class OstreamWriter : public OStreamWriter<Dest> {
- public:
-  using OStreamWriter<Dest>::OStreamWriter;
-  OstreamWriter(OstreamWriter&& that) noexcept
-      : OStreamWriter<Dest>(std::move(that)) {}
-  OstreamWriter& operator=(OstreamWriter&& that) noexcept {
-    OStreamWriter<Dest>::operator=(std::move(that));
-    return *this;
-  }
-};
-#if __cpp_deduction_guides
-explicit OstreamWriter(Closed)->OstreamWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit OstreamWriter(const Dest& dest, OstreamWriterBase::Options options =
-                                             OstreamWriterBase::Options())
-    -> OstreamWriter<std::decay_t<Dest>>;
-template <typename Dest>
-explicit OstreamWriter(Dest&& dest, OstreamWriterBase::Options options =
-                                        OstreamWriterBase::Options())
-    -> OstreamWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit OstreamWriter(
-    std::tuple<DestArgs...> dest_args,
-    OstreamWriterBase::Options options = OstreamWriterBase::Options())
-    -> OstreamWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-#endif
-
 // Implementation details follow.
 
 inline OStreamWriterBase::OStreamWriterBase(size_t buffer_size)

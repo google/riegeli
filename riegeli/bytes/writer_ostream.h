@@ -233,41 +233,6 @@ explicit WriterOStream(
     -> WriterOStream<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
-// Deprecated names, kept until users are migrated.
-using WriterOstreamBase = WriterOStreamBase;
-template <typename Dest = Writer*>
-class WriterOstream : public WriterOStream<Dest> {
- public:
-  using WriterOStream<Dest>::WriterOStream;
-  WriterOstream(WriterOstream&& that) noexcept
-      : WriterOStream<Dest>(std::move(that)) {}
-  WriterOstream& operator=(WriterOstream&& that) noexcept {
-    WriterOStream<Dest>::operator=(std::move(that));
-    return *this;
-  }
-};
-#if __cpp_deduction_guides
-explicit WriterOstream(Closed)->WriterOstream<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit WriterOstream(const Dest& dest, WriterOstreamBase::Options options =
-                                             WriterOstreamBase::Options())
-    -> WriterOstream<std::decay_t<Dest>>;
-template <typename Dest>
-explicit WriterOstream(Dest&& dest, WriterOstreamBase::Options options =
-                                        WriterOstreamBase::Options())
-    -> WriterOstream<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit WriterOstream(
-    std::tuple<DestArgs...> dest_args,
-    WriterOstreamBase::Options options = WriterOstreamBase::Options())
-    -> WriterOstream<DeleteCtad<std::tuple<DestArgs...>>>;
-#endif
-
-inline void Test() {
-  std::vector<WriterOstream<>> v;
-  v.reserve(10);
-}
-
 // Implementation details follow.
 
 namespace internal {

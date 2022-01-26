@@ -210,36 +210,6 @@ explicit ReaderIStream(
     -> ReaderIStream<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
-// Deprecated names, kept until users are migrated.
-using ReaderIstreamBase = ReaderIStreamBase;
-template <typename Src = Reader*>
-class ReaderIstream : public ReaderIStream<Src> {
- public:
-  using ReaderIStream<Src>::ReaderIStream;
-  ReaderIstream(ReaderIstream&& that) noexcept
-      : ReaderIStream<Src>(std::move(that)) {}
-  ReaderIstream& operator=(ReaderIstream&& that) noexcept {
-    ReaderIStream<Src>::operator=(std::move(that));
-    return *this;
-  }
-};
-#if __cpp_deduction_guides
-explicit ReaderIstream(Closed)->ReaderIstream<DeleteCtad<Closed>>;
-template <typename Src>
-explicit ReaderIstream(const Src& src, ReaderIstreamBase::Options options =
-                                           ReaderIstreamBase::Options())
-    -> ReaderIstream<std::decay_t<Src>>;
-template <typename Src>
-explicit ReaderIstream(Src&& src, ReaderIstreamBase::Options options =
-                                      ReaderIstreamBase::Options())
-    -> ReaderIstream<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit ReaderIstream(
-    std::tuple<SrcArgs...> src_args,
-    ReaderIstreamBase::Options options = ReaderIstreamBase::Options())
-    -> ReaderIstream<DeleteCtad<std::tuple<SrcArgs...>>>;
-#endif
-
 // Implementation details follow.
 
 namespace internal {
