@@ -172,6 +172,10 @@ inline void DigestingReaderBase::DigesterWrite(const Chain& src) {
 }
 
 inline void DigestingReaderBase::DigesterWrite(const absl::Cord& src) {
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    DigesterWrite(*flat);
+    return;
+  }
   for (const absl::string_view fragment : src.Chunks()) {
     DigesterWrite(fragment);
   }
