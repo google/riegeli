@@ -25,7 +25,7 @@
 #include "riegeli/base/chain.h"
 
 namespace riegeli {
-namespace internal {
+namespace chunk_encoding_internal {
 
 namespace {
 
@@ -61,5 +61,5 @@ uint64_t Hash(const Chain& data) {
   return result;
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 }  // namespace riegeli

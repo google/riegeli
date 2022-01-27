@@ -46,6 +46,7 @@
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -58,7 +59,7 @@ void FdWriterBase::Initialize(int dest,
                               absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
-  filename_ = internal::ResolveFilename(dest, std::move(assumed_filename));
+  filename_ = fd_internal::ResolveFilename(dest, std::move(assumed_filename));
   InitializePos(dest, assumed_pos, independent_pos);
 }
 

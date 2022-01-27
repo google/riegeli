@@ -114,13 +114,13 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                      missing_names.cbegin();
                  iter != missing_names.cend(); ++iter) {
               if (iter != missing_names.cbegin()) message.WriteChar(',');
-              internal::WriteDebugQuotedIfNeeded(*iter, message);
+              csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
             }
             message.Write("; existing field names: ");
             for (CsvHeader::const_iterator iter = header_.cbegin();
                  iter != header_.cend(); ++iter) {
               if (iter != header_.cbegin()) message.WriteChar(',');
-              internal::WriteDebugQuotedIfNeeded(*iter, message);
+              csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
             }
             message.Close();
             FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
@@ -497,7 +497,7 @@ try_again:
   return true;
 }
 
-namespace internal {
+namespace csv_internal {
 
 inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
                                  std::vector<std::string>& record) {
@@ -505,7 +505,7 @@ inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
   return csv_reader.ReadRecordInternal(record);
 }
 
-}  // namespace internal
+}  // namespace csv_internal
 
 bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
   return ReadRecordInternal(record);
@@ -564,7 +564,8 @@ absl::Status ReadCsvRecordFromString(absl::string_view src,
          "CsvReaderBase::Options::required_header() != nullopt not applicable";
   CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
                                        std::move(options));
-  if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, record))) {
+  if (ABSL_PREDICT_FALSE(
+          !csv_internal::ReadStandaloneRecord(csv_reader, record))) {
     RIEGELI_ASSERT(!csv_reader.healthy())
         << "ReadStandaloneRecord() returned false but healthy() is true";
     return csv_reader.status();

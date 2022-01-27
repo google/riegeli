@@ -111,7 +111,7 @@ std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
   return out << pos.ToString();
 }
 
-namespace internal {
+namespace records_internal {
 
 inline FutureChunkBegin::Unresolved::Unresolved(Position pos_before_chunks,
                                                 std::vector<Action> actions)
@@ -121,13 +121,13 @@ void FutureChunkBegin::Unresolved::Resolve() const {
   struct Visitor {
     void operator()(const std::shared_future<ChunkHeader>& chunk_header) {
       // Matches `DefaultChunkWriterBase::WriteChunk()`.
-      pos = internal::ChunkEnd(chunk_header.get(), pos);
+      pos = records_internal::ChunkEnd(chunk_header.get(), pos);
     }
     void operator()(const PadToBlockBoundary&) {
       // Matches `DefaultChunkWriterBase::PadToBlockBoundary()`.
-      Position length = internal::RemainingInBlock(pos);
+      Position length = records_internal::RemainingInBlock(pos);
       if (length == 0) return;
-      if (length < ChunkHeader::size()) length += internal::kBlockSize;
+      if (length < ChunkHeader::size()) length += records_internal::kBlockSize;
       pos += length;
     }
 
@@ -148,6 +148,6 @@ FutureChunkBegin::FutureChunkBegin(Position pos_before_chunks,
                       : new Unresolved(pos_before_chunks, std::move(actions))),
       resolved_(pos_before_chunks) {}
 
-}  // namespace internal
+}  // namespace records_internal
 
 }  // namespace riegeli

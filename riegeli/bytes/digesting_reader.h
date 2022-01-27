@@ -33,7 +33,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/bytes/digesting_common.h"
+#include "riegeli/bytes/digesting_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -129,7 +129,7 @@ template <typename Digester, typename Src = Reader*>
 class DigestingReader : public DigestingReaderBase {
  public:
   // The type of the digest.
-  using DigestType = internal::DigestType<Digester>;
+  using DigestType = digesting_internal::DigestType<Digester>;
 
   // Creates a closed `DigestingReader`.
   explicit DigestingReader(Closed) noexcept : DigestingReaderBase(kClosed) {}
@@ -340,7 +340,7 @@ DigestingReader<Digester, Src>::Digest() {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
   }
-  return internal::DigesterDigest(digester_);
+  return digesting_internal::Digest(digester_);
 }
 
 template <typename Digester, typename Src>
@@ -351,7 +351,7 @@ void DigestingReader<Digester, Src>::Done() {
       FailWithoutAnnotation(src_->status());
     }
   }
-  internal::DigesterClose(digester_);
+  digesting_internal::Close(digester_);
 }
 
 template <typename Digester, typename Src>

@@ -70,7 +70,7 @@ class SimpleDecoder : public Object {
   void Done() override;
 
  private:
-  internal::Decompressor<> values_decompressor_;
+  chunk_encoding_internal::Decompressor<> values_decompressor_;
 };
 
 // Implementation details follow.

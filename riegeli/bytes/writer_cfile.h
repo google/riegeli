@@ -98,7 +98,7 @@ FILE* WriterCFile(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-namespace internal {
+namespace cfile_internal {
 
 class WriterCFileCookieBase {
  public:
@@ -174,27 +174,28 @@ int WriterCFileCookie<Dest>::Close() {
 
 FILE* WriterCFileImpl(WriterCFileCookieBase* cookie);
 
-}  // namespace internal
+}  // namespace cfile_internal
 
 template <typename Dest>
 FILE* WriterCFile(const Dest& dest, WriterCFileOptions options) {
-  return internal::WriterCFileImpl(
-      new internal::WriterCFileCookie<std::decay_t<Dest>>(dest),
+  return cfile_internal::WriterCFileImpl(
+      new cfile_internal::WriterCFileCookie<std::decay_t<Dest>>(dest),
       options.flush_type());
 }
 
 template <typename Dest>
 FILE* WriterCFile(Dest&& dest, WriterCFileOptions options) {
-  return internal::WriterCFileImpl(
-      new internal::WriterCFileCookie<std::decay_t<Dest>>(
+  return cfile_internal::WriterCFileImpl(
+      new cfile_internal::WriterCFileCookie<std::decay_t<Dest>>(
           std::forward<Dest>(dest), options.flush_type()));
 }
 
 template <typename Dest, typename... DestArgs>
 FILE* WriterCFile(std::tuple<DestArgs...> dest_args,
                   WriterCFileOptions options) {
-  return internal::WriterCFileImpl(new internal::WriterCFileCookie<Dest>(
-      std::move(dest_args), options.flush_type()));
+  return cfile_internal::WriterCFileImpl(
+      new cfile_internal::WriterCFileCookie<Dest>(std::move(dest_args),
+                                                  options.flush_type()));
 }
 
 }  // namespace riegeli

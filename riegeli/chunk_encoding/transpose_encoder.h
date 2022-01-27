@@ -121,12 +121,12 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Information about a field with unique proto path.
   struct MessageNode {
-    explicit MessageNode(internal::MessageId message_id);
+    explicit MessageNode(chunk_encoding_internal::MessageId message_id);
     // Some nodes (such as `kStartGroup`) contain no data. Buffer is assigned in
     // the first `GetBuffer()` call when we have data to write.
     std::unique_ptr<BackwardWriter> writer;
     // Unique ID for every instance of this class within `TransposeEncoder`.
-    internal::MessageId message_id;
+    chunk_encoding_internal::MessageId message_id;
     // Position of encoded tag in `tags_list_` per subtype.
     // Size 14 works well with `kMaxVarintInline == 3`.
     absl::InlinedVector<uint32_t, 14> encoded_tag_pos;
@@ -135,7 +135,8 @@ class TransposeEncoder : public ChunkEncoder {
   // We build a tree structure of protocol buffer tags. `NodeId` uniquely
   // identifies a node in this tree.
   struct NodeId {
-    explicit NodeId(internal::MessageId parent_message_id, uint32_t tag);
+    explicit NodeId(chunk_encoding_internal::MessageId parent_message_id,
+                    uint32_t tag);
 
     friend bool operator==(NodeId a, NodeId b) {
       return a.parent_message_id == b.parent_message_id && a.tag == b.tag;
@@ -146,7 +147,7 @@ class TransposeEncoder : public ChunkEncoder {
                                 self.tag);
     }
 
-    internal::MessageId parent_message_id;
+    chunk_encoding_internal::MessageId parent_message_id;
     uint32_t tag;
   };
 
@@ -155,7 +156,8 @@ class TransposeEncoder : public ChunkEncoder {
   // on this message returns `true`.
   // `depth` is the recursion depth.
   bool AddMessage(LimitingReaderBase& record,
-                  internal::MessageId parent_message_id, int depth);
+                  chunk_encoding_internal::MessageId parent_message_id,
+                  int depth);
 
   // Write all buffer lengths to `header_writer` and data buffers in `data_` to
   // `data_writer` (compressed using `compressor_`). Fill map with the
@@ -184,7 +186,8 @@ class TransposeEncoder : public ChunkEncoder {
   // If `new_uncompressed_bucket_size` is not `absl::nullopt`, flush the current
   // bucket to `data_writer` first and create a new bucket of that size.
   bool AddBuffer(absl::optional<size_t> new_uncompressed_bucket_size,
-                 const Chain& buffer, internal::Compressor& bucket_compressor,
+                 const Chain& buffer,
+                 chunk_encoding_internal::Compressor& bucket_compressor,
                  Writer& data_writer,
                  std::vector<size_t>& compressed_bucket_sizes,
                  std::vector<size_t>& buffer_sizes);
@@ -226,7 +229,8 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Get possition of the (`node`, `subtype`) pair in `tags_list_`, adding it
   // if not in the list yet.
-  uint32_t GetPosInTagsList(Node* node, internal::Subtype subtype);
+  uint32_t GetPosInTagsList(Node* node,
+                            chunk_encoding_internal::Subtype subtype);
 
   // Get `BackwardWriter` for node. `type` is used to select the right category
   // for the buffer if not created yet.
@@ -245,9 +249,10 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Information about encoded tag.
   struct EncodedTagInfo {
-    explicit EncodedTagInfo(NodeId node_id, internal::Subtype subtype);
+    explicit EncodedTagInfo(NodeId node_id,
+                            chunk_encoding_internal::Subtype subtype);
     NodeId node_id;
-    internal::Subtype subtype;
+    chunk_encoding_internal::Subtype subtype;
     // Maps all destinations reachable from this encoded tag to `DestInfo`.
     absl::flat_hash_map<uint32_t, DestInfo> dest_info;
     // Number of incoming tranitions into this state.
@@ -289,12 +294,13 @@ class TransposeEncoder : public ChunkEncoder {
   std::vector<BufferWithMetadata> data_[kNumBufferTypes];
   // Every group creates a new message ID. We keep track of open groups in this
   // vector.
-  std::vector<internal::MessageId> group_stack_;
+  std::vector<chunk_encoding_internal::MessageId> group_stack_;
   // Tree of message nodes.
   absl::flat_hash_map<NodeId, MessageNode> message_nodes_;
   ChainBackwardWriter<Chain> nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
-  internal::MessageId next_message_id_ = internal::MessageId::kRoot + 1;
+  chunk_encoding_internal::MessageId next_message_id_ =
+      chunk_encoding_internal::MessageId::kRoot + 1;
 };
 
 }  // namespace riegeli

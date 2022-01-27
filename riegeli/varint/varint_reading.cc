@@ -22,7 +22,7 @@
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
-namespace internal {
+namespace varint_internal {
 
 absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
                                              uint32_t acc, uint32_t& dest) {
@@ -126,5 +126,5 @@ bool StreamingReadVarint64Slow(Reader& src, uint64_t& dest) {
   return true;
 }
 
-}  // namespace internal
+}  // namespace varint_internal
 }  // namespace riegeli

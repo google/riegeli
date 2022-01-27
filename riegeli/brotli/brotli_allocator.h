@@ -25,13 +25,15 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace brotli_internal {
+
 // Set the C calling convention for compatibility with the Brotli API.
 extern "C" {
 void* RiegeliBrotliAllocFunc(void* opaque, size_t size);
 void RiegeliBrotliFreeFunc(void* opaque, void* ptr);
 }  // extern "C"
-}  // namespace internal
+
+}  // namespace brotli_internal
 
 // Memory allocator used by the Brotli engine.
 //
@@ -58,8 +60,9 @@ class BrotliAllocator {
   void* opaque() const;
 
  private:
-  friend void* internal::RiegeliBrotliAllocFunc(void* opaque, size_t size);
-  friend void internal::RiegeliBrotliFreeFunc(void* opaque, void* ptr);
+  friend void* brotli_internal::RiegeliBrotliAllocFunc(void* opaque,
+                                                       size_t size);
+  friend void brotli_internal::RiegeliBrotliFreeFunc(void* opaque, void* ptr);
 
   class Interface;
 
@@ -105,11 +108,11 @@ inline BrotliAllocator::BrotliAllocator(AllocFunctor&& alloc_functor,
           std::forward<FreeFunctor>(free_functor))) {}
 
 inline brotli_alloc_func BrotliAllocator::alloc_func() const {
-  return impl_ == nullptr ? nullptr : internal::RiegeliBrotliAllocFunc;
+  return impl_ == nullptr ? nullptr : brotli_internal::RiegeliBrotliAllocFunc;
 }
 
 inline brotli_free_func BrotliAllocator::free_func() const {
-  return impl_ == nullptr ? nullptr : internal::RiegeliBrotliFreeFunc;
+  return impl_ == nullptr ? nullptr : brotli_internal::RiegeliBrotliFreeFunc;
 }
 
 inline void* BrotliAllocator::opaque() const {

@@ -33,6 +33,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -508,9 +509,9 @@ void FdWriter<Dest>::Done() {
   {
     const int dest = dest_.Release();
     if (dest >= 0) {
-      if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
+      if (ABSL_PREDICT_FALSE(fd_internal::Close(dest) < 0) &&
           ABSL_PREDICT_TRUE(healthy())) {
-        FailOperation(internal::kCloseFunctionName);
+        FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {
       RIEGELI_ASSERT(!dest_.is_owning())

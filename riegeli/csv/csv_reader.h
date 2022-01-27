@@ -42,10 +42,12 @@ namespace riegeli {
 
 class CsvReaderBase;
 
-namespace internal {
+namespace csv_internal {
+
 bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
                           std::vector<std::string>& record);
-}  // namespace internal
+
+}  // namespace csv_internal
 
 // Template parameter independent part of `CsvReader`.
 class CsvReaderBase : public Object {
@@ -373,8 +375,8 @@ class CsvReaderBase : public Object {
       absl::Status status) override;
 
  private:
-  friend bool internal::ReadStandaloneRecord(CsvReaderBase& csv_reader,
-                                             std::vector<std::string>& record);
+  friend bool csv_internal::ReadStandaloneRecord(
+      CsvReaderBase& csv_reader, std::vector<std::string>& record);
 
   enum class CharClass : uint8_t {
     kOther,

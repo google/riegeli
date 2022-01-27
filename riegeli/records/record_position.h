@@ -102,7 +102,7 @@ class RecordPosition {
 // It is used to implement `FutureRecordPosition` and internally in
 // `RecordWriter`.
 
-namespace internal {
+namespace records_internal {
 
 class FutureChunkBegin {
  public:
@@ -141,7 +141,7 @@ class FutureChunkBegin {
   Position resolved_ = 0;
 };
 
-}  // namespace internal
+}  // namespace records_internal
 
 // `FutureRecordPosition` is similar to `std::shared_future<RecordPosition>`.
 //
@@ -154,7 +154,7 @@ class FutureRecordPosition {
 
   /*implicit*/ FutureRecordPosition(RecordPosition pos) noexcept;
 
-  explicit FutureRecordPosition(internal::FutureChunkBegin chunk_begin,
+  explicit FutureRecordPosition(records_internal::FutureChunkBegin chunk_begin,
                                 uint64_t record_index);
 
   FutureRecordPosition(const FutureRecordPosition& that) noexcept;
@@ -167,7 +167,7 @@ class FutureRecordPosition {
   RecordPosition get() const;
 
  private:
-  internal::FutureChunkBegin chunk_begin_;
+  records_internal::FutureChunkBegin chunk_begin_;
   uint64_t record_index_ = 0;
 };
 
@@ -225,7 +225,7 @@ inline HashState AbslHashValue(HashState hash_state, RecordPosition self) {
                             self.record_index_);
 }
 
-namespace internal {
+namespace records_internal {
 
 class FutureChunkBegin::Unresolved : public RefCountedBase<Unresolved> {
  public:
@@ -281,13 +281,13 @@ inline Position FutureChunkBegin::get() const {
   return unresolved_ == nullptr ? resolved_ : unresolved_->get();
 }
 
-}  // namespace internal
+}  // namespace records_internal
 
 inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
     : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
 
 inline FutureRecordPosition::FutureRecordPosition(
-    internal::FutureChunkBegin chunk_begin, uint64_t record_index)
+    records_internal::FutureChunkBegin chunk_begin, uint64_t record_index)
     : chunk_begin_(std::move(chunk_begin)), record_index_(record_index) {}
 
 inline FutureRecordPosition::FutureRecordPosition(

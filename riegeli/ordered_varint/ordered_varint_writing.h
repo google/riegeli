@@ -61,25 +61,25 @@ size_t LengthOrderedVarint64(uint64_t data);
 
 // Implementation details follow.
 
-namespace internal {
+namespace ordered_varint_internal {
 
 bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest);
 bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest);
 
-}  // namespace internal
+}  // namespace ordered_varint_internal
 
 inline bool WriteOrderedVarint32(uint32_t data, Writer& dest) {
   if (ABSL_PREDICT_TRUE(data < 0x80)) {
     return dest.WriteByte(IntCast<uint8_t>(data));
   }
-  return internal::WriteOrderedVarint32Slow(data, dest);
+  return ordered_varint_internal::WriteOrderedVarint32Slow(data, dest);
 }
 
 inline bool WriteOrderedVarint64(uint64_t data, Writer& dest) {
   if (ABSL_PREDICT_TRUE(data < 0x80)) {
     return dest.WriteByte(IntCast<uint8_t>(data));
   }
-  return internal::WriteOrderedVarint64Slow(data, dest);
+  return ordered_varint_internal::WriteOrderedVarint64Slow(data, dest);
 }
 
 inline size_t LengthOrderedVarint32(uint32_t data) {

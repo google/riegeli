@@ -18,7 +18,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace brotli_internal {
 
 void* RiegeliBrotliAllocFunc(void* opaque, size_t size) {
   return static_cast<const BrotliAllocator::Interface*>(opaque)->Alloc(size);
@@ -28,7 +28,7 @@ void RiegeliBrotliFreeFunc(void* opaque, void* ptr) {
   static_cast<const BrotliAllocator::Interface*>(opaque)->Free(ptr);
 }
 
-}  // namespace internal
+}  // namespace brotli_internal
 
 BrotliAllocator::Interface::~Interface() {}
 

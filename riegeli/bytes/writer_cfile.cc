@@ -36,7 +36,7 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-namespace internal {
+namespace cfile_internal {
 
 WriterCFileCookieBase::~WriterCFileCookieBase() {}
 
@@ -289,5 +289,5 @@ FILE* WriterCFileImpl(WriterCFileCookieBase* cookie) {
       {WriterCFileRead, WriterCFileWrite, WriterCFileSeek, WriterCFileClose});
 }
 
-}  // namespace internal
+}  // namespace cfile_internal
 }  // namespace riegeli

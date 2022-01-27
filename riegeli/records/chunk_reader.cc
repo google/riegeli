@@ -44,7 +44,7 @@ void DefaultChunkReaderBase::Initialize(Reader* src) {
     FailWithoutAnnotation(src->status());
     return;
   }
-  if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
+  if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
     Fail(absl::InvalidArgumentError(
@@ -103,20 +103,20 @@ bool DefaultChunkReaderBase::CheckFileFormat() {
 bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) return false;
   Reader& src = *src_reader();
-  const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+  const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
   src.ReadHint(SaturatingIntCast<size_t>(chunk_end - src.pos()),
-               SaturatingIntCast<size_t>(
-                   internal::AddWithOverhead(chunk_end, ChunkHeader::size()) -
-                   src.pos()));
+               SaturatingIntCast<size_t>(records_internal::AddWithOverhead(
+                                             chunk_end, ChunkHeader::size()) -
+                                         src.pos()));
 
   while (chunk_.data.size() < chunk_.header.data_size()) {
-    if (internal::RemainingInBlockHeader(src.pos()) > 0) {
+    if (records_internal::RemainingInBlockHeader(src.pos()) > 0) {
       const Position block_begin =
-          internal::RoundDownToBlockBoundary(src.pos());
+          records_internal::RoundDownToBlockBoundary(src.pos());
       if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
                              block_begin - pos_)) {
-        if (block_header_.next_chunk() <= internal::kBlockSize) {
+        if (block_header_.next_chunk() <= records_internal::kBlockSize) {
           // Trust the rest of the block header: skip to the next chunk.
           recoverable_ = Recoverable::kHaveChunk;
           recoverable_pos_ = block_begin + block_header_.next_chunk();
@@ -148,7 +148,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
     if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(
             IntCast<size_t>(
                 UnsignedMin(chunk_.header.data_size() - chunk_.data.size(),
-                            internal::RemainingInBlock(src.pos()))),
+                            records_internal::RemainingInBlock(src.pos()))),
             chunk_.data))) {
       return FailReading(src);
     }
@@ -156,7 +156,8 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
 
   if (ABSL_PREDICT_FALSE(!src.Seek(chunk_end))) return FailReading(src);
 
-  const uint64_t computed_data_hash = internal::Hash(chunk_.data);
+  const uint64_t computed_data_hash =
+      chunk_encoding_internal::Hash(chunk_.data);
   if (ABSL_PREDICT_FALSE(computed_data_hash != chunk_.header.data_hash())) {
     // `Recoverable::kHaveChunk`, not `Recoverable::kFindChunk`, because while
     // chunk data are invalid, chunk header has a correct hash, and thus the
@@ -200,7 +201,7 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
   }
 
   const Position chunk_header_read =
-      internal::DistanceWithoutOverhead(pos_, src.pos());
+      records_internal::DistanceWithoutOverhead(pos_, src.pos());
   if (chunk_header_read < chunk_.header.size()) {
     if (ABSL_PREDICT_FALSE(!ReadChunkHeader())) return false;
   }
@@ -213,20 +214,20 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
       << status();
   Reader& src = *src_reader();
-  RIEGELI_ASSERT_LT(internal::DistanceWithoutOverhead(pos_, src.pos()),
+  RIEGELI_ASSERT_LT(records_internal::DistanceWithoutOverhead(pos_, src.pos()),
                     chunk_.header.size())
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
          "chunk header already read";
   size_t remaining_length;
   size_t length_to_read;
   do {
-    if (internal::RemainingInBlockHeader(src.pos()) > 0) {
+    if (records_internal::RemainingInBlockHeader(src.pos()) > 0) {
       const Position block_begin =
-          internal::RoundDownToBlockBoundary(src.pos());
+          records_internal::RoundDownToBlockBoundary(src.pos());
       if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
                              block_begin - pos_)) {
-        if (block_header_.next_chunk() <= internal::kBlockSize) {
+        if (block_header_.next_chunk() <= records_internal::kBlockSize) {
           // Trust the rest of the block header: skip to the next chunk.
           recoverable_ = Recoverable::kHaveChunk;
           recoverable_pos_ = block_begin + block_header_.next_chunk();
@@ -245,11 +246,11 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                                block_header_.previous_chunk() - block_begin))));
       }
     }
-    const size_t chunk_header_read =
-        IntCast<size_t>(internal::DistanceWithoutOverhead(pos_, src.pos()));
+    const size_t chunk_header_read = IntCast<size_t>(
+        records_internal::DistanceWithoutOverhead(pos_, src.pos()));
     remaining_length = chunk_.header.size() - chunk_header_read;
-    length_to_read =
-        UnsignedMin(remaining_length, internal::RemainingInBlock(src.pos()));
+    length_to_read = UnsignedMin(remaining_length,
+                                 records_internal::RemainingInBlock(src.pos()));
     if (ABSL_PREDICT_FALSE(!src.Read(
             length_to_read, chunk_.header.bytes() + chunk_header_read))) {
       return FailReading(src);
@@ -270,11 +271,12 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                   absl::PadSpec::kZeroPad16),
         "), chunk at ", pos_)));
   }
-  if (internal::RemainingInBlock(pos_) < chunk_.header.size()) {
+  if (records_internal::RemainingInBlock(pos_) < chunk_.header.size()) {
     // The chunk header was interrupted by a block header. Both headers have
     // been read so verify that they agree.
-    const Position block_begin = pos_ + internal::RemainingInBlock(pos_);
-    const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    const Position block_begin =
+        pos_ + records_internal::RemainingInBlock(pos_);
+    const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
     if (ABSL_PREDICT_FALSE(block_header_.next_chunk() !=
                            chunk_end - block_begin)) {
       recoverable_ = Recoverable::kFindChunk;
@@ -307,7 +309,8 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
       << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
       << status();
   Reader& src = *src_reader();
-  const size_t remaining_length = internal::RemainingInBlockHeader(src.pos());
+  const size_t remaining_length =
+      records_internal::RemainingInBlockHeader(src.pos());
   RIEGELI_ASSERT_GT(remaining_length, 0u)
       << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
          "not before nor inside a block header";
@@ -328,7 +331,8 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
         ", stored 0x",
         absl::Hex(block_header_.stored_header_hash(),
                   absl::PadSpec::kZeroPad16),
-        "), block at ", internal::RoundDownToBlockBoundary(recoverable_pos_))));
+        "), block at ",
+        records_internal::RoundDownToBlockBoundary(recoverable_pos_))));
   }
   return true;
 }
@@ -361,7 +365,8 @@ again:
         }
         return true;
       }
-      if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
+      if (ABSL_PREDICT_FALSE(
+              !records_internal::IsPossibleChunkBoundary(pos_))) {
         recoverable_ = Recoverable::kFindChunk;
         recoverable_pos_ = pos_;
         goto again;
@@ -379,7 +384,7 @@ again:
   pos_ = recoverable_pos;
 
 find_chunk:
-  pos_ += internal::RemainingInBlock(pos_);
+  pos_ += records_internal::RemainingInBlock(pos_);
   if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) {
     if (ABSL_PREDICT_FALSE(!src.healthy())) {
       return FailWithoutAnnotation(src.status());
@@ -399,7 +404,7 @@ find_chunk:
     // A chunk boundary coincides with block boundary. Recovery is done.
   } else {
     pos_ += block_header_.next_chunk();
-    if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
+    if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos_))) {
       goto find_chunk;
     }
     if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) {
@@ -433,7 +438,7 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
   pos_ = new_pos;
   chunk_.Clear();
   if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) return FailSeeking(src, pos_);
-  if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
+  if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
     return Fail(absl::InvalidArgumentError(
@@ -460,7 +465,8 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   if (pos_ == new_pos) return true;
   Reader& src = *src_reader();
   truncated_ = false;
-  const Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
+  const Position block_begin =
+      records_internal::RoundDownToBlockBoundary(new_pos);
   Position chunk_begin;
   if (pos_ < new_pos) {
     // The current chunk begins before `new_pos`. If it also ends at or after
@@ -475,7 +481,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
         pos_ + chunk_.header.num_records() > new_pos) {
       return true;
     }
-    const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
     if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     if (chunk_end < block_begin) {
       // The current chunk ends too early. Skip to `block_begin`.
@@ -517,7 +523,8 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       }
       chunk_begin = block_begin - block_header_.previous_chunk();
     }
-    if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(chunk_begin))) {
+    if (ABSL_PREDICT_FALSE(
+            !records_internal::IsPossibleChunkBoundary(chunk_begin))) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src.pos();
       return Fail(absl::InvalidArgumentError(absl::StrCat(
@@ -540,7 +547,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
         pos_ + chunk_.header.num_records() > new_pos) {
       return true;
     }
-    const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
     if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     chunk_begin = chunk_end;
   }

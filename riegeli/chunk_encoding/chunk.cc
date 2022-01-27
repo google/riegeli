@@ -33,14 +33,14 @@ ChunkHeader::ChunkHeader(const Chain& data, ChunkType chunk_type,
       << "Failed precondition of ChunkHeader::ChunkHeader(): "
          "number of records out of range";
   set_data_size(data.size());
-  set_data_hash(internal::Hash(data));
+  set_data_hash(chunk_encoding_internal::Hash(data));
   set_chunk_type_and_num_records(chunk_type, num_records);
   set_decoded_data_size(decoded_data_size);
   set_header_hash(computed_header_hash());
 }
 
 uint64_t ChunkHeader::computed_header_hash() const {
-  return internal::Hash(
+  return chunk_encoding_internal::Hash(
       absl::string_view(bytes() + sizeof(uint64_t), size() - sizeof(uint64_t)));
 }
 

@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace stream_internal {
 
 class ReaderStreambuf : public std::streambuf {
  public:
@@ -74,7 +74,7 @@ class ReaderStreambuf : public std::streambuf {
   //   `egptr() == (is_open() ? reader_->limit() : nullptr)`
 };
 
-}  // namespace internal
+}  // namespace stream_internal
 
 // Template parameter independent part of `ReaderIStream`.
 class ReaderIStreamBase : public std::istream {
@@ -129,7 +129,7 @@ class ReaderIStreamBase : public std::istream {
 
   virtual void Done() = 0;
 
-  internal::ReaderStreambuf streambuf_;
+  stream_internal::ReaderStreambuf streambuf_;
 
   // Invariant: `rdbuf() == &streambuf_`
 };
@@ -212,7 +212,7 @@ explicit ReaderIStream(
 
 // Implementation details follow.
 
-namespace internal {
+namespace stream_internal {
 
 inline ReaderStreambuf::ReaderStreambuf(ReaderStreambuf&& that) noexcept
     : std::streambuf(that),
@@ -268,7 +268,7 @@ inline void ReaderStreambuf::Done() {
   setg(nullptr, nullptr, nullptr);
 }
 
-}  // namespace internal
+}  // namespace stream_internal
 
 inline ReaderIStreamBase::ReaderIStreamBase(ReaderIStreamBase&& that) noexcept
     : std::istream(std::move(that)),
@@ -288,12 +288,12 @@ inline ReaderIStreamBase& ReaderIStreamBase::operator=(
 }
 
 inline void ReaderIStreamBase::Reset(Closed) {
-  streambuf_ = internal::ReaderStreambuf(kClosed);
+  streambuf_ = stream_internal::ReaderStreambuf(kClosed);
   init(&streambuf_);
 }
 
 inline void ReaderIStreamBase::Reset() {
-  streambuf_ = internal::ReaderStreambuf();
+  streambuf_ = stream_internal::ReaderStreambuf();
   init(&streambuf_);
 }
 

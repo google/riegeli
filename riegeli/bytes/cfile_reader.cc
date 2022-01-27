@@ -123,7 +123,7 @@ void CFileReaderBase::InitializePos(FILE* src,
     }
     set_limit_pos(*assumed_pos);
   } else {
-    const off_t file_pos = internal::FTell(src);
+    const off_t file_pos = cfile_internal::FTell(src);
     if (file_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
       clearerr(src);
@@ -179,27 +179,28 @@ bool CFileReaderBase::supports_random_access() {
     // recognize them, so `CFileReader` checks the filename.
   } else {
     FILE* const src = src_file();
-    if (internal::FSeek(src, 0, SEEK_END) != 0) {
+    if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
       clearerr(src);
     } else if (absl::StartsWith(filename(), "/proc/")) {
       // Some "/proc" files do not support random access. It is hard to reliably
       // recognize them using the `FILE` API, so `CFileReader` checks the
       // filename. Random access is assumed to be supported only if they claim
       // to have a non-zero size.
-      const off_t file_size = internal::FTell(src);
+      const off_t file_size = cfile_internal::FTell(src);
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
-        FailOperation(internal::kFTellFunctionName);
-      } else if (ABSL_PREDICT_FALSE(internal::FSeek(src,
-                                                    IntCast<off_t>(limit_pos()),
-                                                    SEEK_SET) != 0)) {
-        FailOperation(internal::kFSeekFunctionName);
+        FailOperation(cfile_internal::kFTellFunctionName);
+      } else if (ABSL_PREDICT_FALSE(
+                     cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
+                                           SEEK_SET) != 0)) {
+        FailOperation(cfile_internal::kFSeekFunctionName);
       } else {
         supported = file_size > 0;
       }
     } else {
-      if (ABSL_PREDICT_FALSE(internal::FSeek(src, IntCast<off_t>(limit_pos()),
-                                             SEEK_SET) != 0)) {
-        FailOperation(internal::kFSeekFunctionName);
+      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src,
+                                                   IntCast<off_t>(limit_pos()),
+                                                   SEEK_SET) != 0)) {
+        FailOperation(cfile_internal::kFSeekFunctionName);
       } else {
         supported = true;
       }
@@ -265,12 +266,12 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   FILE* const src = src_file();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(internal::FSeek(src, 0, SEEK_END) != 0)) {
-      return FailOperation(internal::kFSeekFunctionName);
+    if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END) != 0)) {
+      return FailOperation(cfile_internal::kFSeekFunctionName);
     }
-    const off_t file_size = internal::FTell(src);
+    const off_t file_size = cfile_internal::FTell(src);
     if (ABSL_PREDICT_FALSE(file_size < 0)) {
-      return FailOperation(internal::kFTellFunctionName);
+      return FailOperation(cfile_internal::kFTellFunctionName);
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
       // Stream ends.
@@ -279,8 +280,8 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
     }
   }
   if (ABSL_PREDICT_FALSE(
-          internal::FSeek(src, IntCast<off_t>(new_pos), SEEK_SET)) != 0) {
-    return FailOperation(internal::kFSeekFunctionName);
+          cfile_internal::FSeek(src, IntCast<off_t>(new_pos), SEEK_SET)) != 0) {
+    return FailOperation(cfile_internal::kFSeekFunctionName);
   }
   set_limit_pos(new_pos);
   return true;
@@ -294,18 +295,18 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   FILE* const src = src_file();
-  if (ABSL_PREDICT_FALSE(internal::FSeek(src, 0, SEEK_END)) != 0) {
-    FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END)) != 0) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
-  const off_t file_size = internal::FTell(src);
+  const off_t file_size = cfile_internal::FTell(src);
   if (ABSL_PREDICT_FALSE(file_size < 0)) {
-    FailOperation(internal::kFTellFunctionName);
+    FailOperation(cfile_internal::kFTellFunctionName);
     return absl::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(
-          internal::FSeek(src, IntCast<off_t>(limit_pos()), SEEK_SET) != 0)) {
-    FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
+                                               SEEK_SET) != 0)) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
   return IntCast<Position>(file_size);

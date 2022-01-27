@@ -21,15 +21,15 @@
 #include "absl/meta/type_traits.h"
 
 namespace riegeli {
-namespace internal {
+namespace stream_internal {
 
 // There is no `std::istream::close()` nor `std::ostream::close()`, but some
 // subclasses have `close()`, e.g. `std::ifstream`, `std::ofstream`,
 // `std::fstream`. It is important to call `close()` before their destructor
 // to detect errors.
 //
-// `CloseStream(stream)` calls `stream->close()` if that is defined, otherwise
-// does nothing.
+// `stream_internal::Close(stream)` calls `stream->close()` if that is defined,
+// otherwise does nothing.
 
 template <typename T, typename Enable = void>
 struct HasClose : std::false_type {};
@@ -39,10 +39,10 @@ struct HasClose<T, absl::void_t<decltype(std::declval<T>().close())>>
     : std::true_type {};
 
 template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>
-inline void CloseStream(Stream& stream) {}
+inline void Close(Stream& stream) {}
 
 template <typename Stream, std::enable_if_t<HasClose<Stream>::value, int> = 0>
-inline void CloseStream(Stream& stream) {
+inline void Close(Stream& stream) {
   stream.close();
 }
 
@@ -57,7 +57,7 @@ inline std::istream* DetectIStream(T* stream) {
   return nullptr;
 }
 
-}  // namespace internal
+}  // namespace stream_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_STREAM_INTERNAL_H_

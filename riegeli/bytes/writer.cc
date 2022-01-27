@@ -168,10 +168,10 @@ Reader* Writer::ReadModeImpl(Position initial_pos) {
   return nullptr;
 }
 
-namespace internal {
+namespace writer_internal {
 
 void DeleteReader(Reader* reader) { delete reader; }
 
-}  // namespace internal
+}  // namespace writer_internal
 
 }  // namespace riegeli

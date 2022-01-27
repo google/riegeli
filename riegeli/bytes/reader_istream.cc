@@ -26,7 +26,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace stream_internal {
 
 class ReaderStreambuf::BufferSync {
  public:
@@ -178,7 +178,7 @@ std::streampos ReaderStreambuf::seekpos(std::streampos pos,
   return seekoff(std::streamoff(pos), std::ios_base::beg, which);
 }
 
-}  // namespace internal
+}  // namespace stream_internal
 
 ReaderIStreamBase& ReaderIStreamBase::close() {
   Done();

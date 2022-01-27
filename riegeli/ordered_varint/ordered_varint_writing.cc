@@ -22,7 +22,7 @@
 #include "riegeli/endian/endian_writing.h"
 
 namespace riegeli {
-namespace internal {
+namespace ordered_varint_internal {
 
 bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest) {
   RIEGELI_ASSERT_GE(data, uint32_t{1} << 7)
@@ -113,5 +113,5 @@ bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest) {
   }
 }
 
-}  // namespace internal
+}  // namespace ordered_varint_internal
 }  // namespace riegeli

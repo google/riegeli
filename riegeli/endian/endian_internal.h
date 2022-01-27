@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 namespace riegeli {
-namespace internal {
+namespace endian_internal {
 
 // TODO: Use `std::endian` instead when C++20 is available.
 //
@@ -36,7 +36,7 @@ inline bool IsBigEndian() {
   return reinterpret_cast<const unsigned char*>(&value)[3] == 1;
 }
 
-}  // namespace internal
+}  // namespace endian_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_ENDIAN_ENDIAN_INTERNAL_H_

@@ -222,7 +222,7 @@ class Exception {
 // `RiegeliError`.
 void SetRiegeliError(const absl::Status& status);
 
-namespace internal {
+namespace py_internal {
 
 // Lazily initialized pointer to a Python object, persisting until interpreter
 // shutdown.
@@ -264,7 +264,7 @@ class ImportedCapsuleBase {
   const char* capsule_name_;
 };
 
-}  // namespace internal
+}  // namespace py_internal
 
 // Creates a Python string (type `str`) which persists until interpreter
 // shutdown. This is useful for attribute or method names in
@@ -276,7 +276,7 @@ class ImportedCapsuleBase {
 // ```
 //
 // Then `id_write.get()` is a borrowed reference to the Python object.
-class Identifier : public internal::StaticObject {
+class Identifier : public py_internal::StaticObject {
  public:
   explicit constexpr Identifier(absl::string_view name) : name_(name) {}
 
@@ -316,7 +316,7 @@ class Identifier : public internal::StaticObject {
 // ```
 //
 // Then `kRiegeliError.get()` is a borrowed reference to the Python object.
-class ImportedConstant : public internal::StaticObject {
+class ImportedConstant : public py_internal::StaticObject {
  public:
   explicit constexpr ImportedConstant(absl::string_view module_name,
                                       absl::string_view attr_name)
@@ -370,7 +370,7 @@ bool ExportCapsule(PyObject* module, const char* capsule_name, const void* ptr);
 //
 // Then `kRecordPositionApi.get()` is a pointer stored in the capsule.
 template <typename T>
-class ImportedCapsule : public internal::ImportedCapsuleBase {
+class ImportedCapsule : public py_internal::ImportedCapsuleBase {
  public:
   explicit constexpr ImportedCapsule(const char* capsule_name)
       : ImportedCapsuleBase(capsule_name) {}

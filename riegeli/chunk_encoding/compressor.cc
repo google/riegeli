@@ -35,7 +35,7 @@
 #include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
-namespace internal {
+namespace chunk_encoding_internal {
 
 Compressor::Compressor(CompressorOptions compressor_options,
                        TuningOptions tuning_options)
@@ -133,5 +133,5 @@ bool Compressor::LengthPrefixedEncodeAndClose(Writer& dest) {
   return Close();
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 }  // namespace riegeli

@@ -35,6 +35,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -703,9 +704,9 @@ void FdReader<Src>::Done() {
   {
     const int src = src_.Release();
     if (src >= 0) {
-      if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+      if (ABSL_PREDICT_FALSE(fd_internal::Close(src) < 0) &&
           ABSL_PREDICT_TRUE(healthy())) {
-        FailOperation(internal::kCloseFunctionName);
+        FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {
       RIEGELI_ASSERT(!src_.is_owning())
@@ -829,9 +830,9 @@ void FdMMapReader<Src>::Done() {
   {
     const int src = src_.Release();
     if (src >= 0) {
-      if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+      if (ABSL_PREDICT_FALSE(fd_internal::Close(src) < 0) &&
           ABSL_PREDICT_TRUE(healthy())) {
-        FailOperation(internal::kCloseFunctionName);
+        FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {
       RIEGELI_ASSERT(!src_.is_owning())

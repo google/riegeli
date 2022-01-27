@@ -533,7 +533,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
                     PadToBlockBoundaryRequest, FlushRequest>;
 
   bool HasCapacityForRequest() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  internal::FutureChunkBegin ChunkBegin() const;
+  records_internal::FutureChunkBegin ChunkBegin() const;
 
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
@@ -751,8 +751,8 @@ std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
   return done_future;
 }
 
-internal::FutureChunkBegin RecordWriterBase::ParallelWorker::ChunkBegin()
-    const {
+records_internal::FutureChunkBegin
+RecordWriterBase::ParallelWorker::ChunkBegin() const {
   struct Visitor {
     void operator()(const DoneRequest&) {}
     void operator()(const AnnotateStatusRequest&) {}
@@ -760,11 +760,12 @@ internal::FutureChunkBegin RecordWriterBase::ParallelWorker::ChunkBegin()
       actions.emplace_back(request.chunk_header);
     }
     void operator()(const PadToBlockBoundaryRequest&) {
-      actions.emplace_back(internal::FutureChunkBegin::PadToBlockBoundary());
+      actions.emplace_back(
+          records_internal::FutureChunkBegin::PadToBlockBoundary());
     }
     void operator()(const FlushRequest&) {}
 
-    std::vector<internal::FutureChunkBegin::Action> actions;
+    std::vector<records_internal::FutureChunkBegin::Action> actions;
   };
   Visitor visitor;
   absl::MutexLock lock(&mutex_);
@@ -772,8 +773,8 @@ internal::FutureChunkBegin RecordWriterBase::ParallelWorker::ChunkBegin()
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     absl::visit(visitor, request);
   }
-  return internal::FutureChunkBegin(pos_before_chunks_,
-                                    std::move(visitor.actions));
+  return records_internal::FutureChunkBegin(pos_before_chunks_,
+                                            std::move(visitor.actions));
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {

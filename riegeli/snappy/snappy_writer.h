@@ -430,7 +430,7 @@ void SnappyWriter<Dest>::Done() {
   }
 }
 
-namespace internal {
+namespace snappy_internal {
 
 absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
                                 SnappyCompressOptions options);
@@ -453,12 +453,12 @@ inline absl::Status SnappyCompressUsingDependency(
   return status;
 }
 
-}  // namespace internal
+}  // namespace snappy_internal
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(const Src& src, const Dest& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, const Src&>(src),
       Dependency<Writer*, const Dest&>(dest), std::move(options));
 }
@@ -466,7 +466,7 @@ inline absl::Status SnappyCompress(const Src& src, const Dest& dest,
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(const Src& src, Dest&& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, const Src&>(src),
       Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)),
       std::move(options));
@@ -476,7 +476,7 @@ template <typename Src, typename Dest, typename... DestArgs>
 inline absl::Status SnappyCompress(const Src& src,
                                    std::tuple<DestArgs...> dest_args,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, const Src&>(src),
       Dependency<Writer*, Dest>(std::move(dest_args)), std::move(options));
 }
@@ -484,7 +484,7 @@ inline absl::Status SnappyCompress(const Src& src,
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(Src&& src, const Dest& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src&&>(std::forward<Src>(src)),
       Dependency<Writer*, const Dest&>(dest), std::move(options));
 }
@@ -492,7 +492,7 @@ inline absl::Status SnappyCompress(Src&& src, const Dest& dest,
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src&&>(std::forward<Src>(src)),
       Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)),
       std::move(options));
@@ -501,7 +501,7 @@ inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
 template <typename Src, typename Dest, typename... DestArgs>
 inline absl::Status SnappyCompress(Src&& src, std::tuple<DestArgs...> dest_args,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src&&>(std::forward<Src>(src)),
       Dependency<Writer*, Dest>(std::move(dest_args)), std::move(options));
 }
@@ -510,7 +510,7 @@ template <typename Src, typename Dest, typename... SrcArgs>
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                                    const Dest& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, const Dest&>(dest), std::move(options));
 }
@@ -518,7 +518,7 @@ inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
 template <typename Src, typename Dest, typename... SrcArgs>
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args, Dest&& dest,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)),
       std::move(options));
@@ -529,7 +529,7 @@ template <typename Src, typename Dest, typename... SrcArgs,
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                                    std::tuple<DestArgs...> dest_args,
                                    SnappyCompressOptions options) {
-  return internal::SnappyCompressUsingDependency(
+  return snappy_internal::SnappyCompressUsingDependency(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, Dest>(std::move(dest_args)), std::move(options));
 }

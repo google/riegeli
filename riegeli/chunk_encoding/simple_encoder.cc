@@ -43,7 +43,8 @@ SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
       sizes_compressor_(options),
       values_compressor_(
           options,
-          internal::Compressor::TuningOptions().set_size_hint(size_hint)) {}
+          chunk_encoding_internal::Compressor::TuningOptions().set_size_hint(
+              size_hint)) {}
 
 void SimpleEncoder::Clear() {
   ChunkEncoder::Clear();

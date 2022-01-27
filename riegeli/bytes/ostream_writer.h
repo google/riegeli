@@ -345,7 +345,7 @@ inline void OStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline std::istream* OStreamWriter<Dest>::src_stream() {
-  return internal::DetectIStream(dest_.get());
+  return stream_internal::DetectIStream(dest_.get());
 }
 
 template <typename Dest>
@@ -353,7 +353,7 @@ void OStreamWriter<Dest>::Done() {
   OStreamWriterBase::Done();
   if (dest_.is_owning()) {
     errno = 0;
-    internal::CloseStream(*dest_);
+    stream_internal::Close(*dest_);
     if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(healthy())) {
       FailOperation("ostream::close()");
     }

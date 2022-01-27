@@ -92,13 +92,13 @@ inline void CFileWriterBase::InitializePos(FILE* dest,
     set_start_pos(*assumed_pos);
   } else {
     if (append) {
-      if (internal::FSeek(dest, 0, SEEK_END) != 0) {
+      if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
         // Random access is not supported. Assume the current position as 0.
         clearerr(dest);
         return;
       }
     }
-    const off_t file_pos = internal::FTell(dest);
+    const off_t file_pos = cfile_internal::FTell(dest);
     if (file_pos < 0) {
       // Random access is not supported. Assume the current position as 0.
       clearerr(dest);
@@ -162,27 +162,28 @@ bool CFileWriterBase::supports_random_access() {
     // recognize them, so `CFileWriter` checks the filename.
   } else {
     FILE* const dest = dest_file();
-    if (internal::FSeek(dest, 0, SEEK_END) != 0) {
+    if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
       clearerr(dest);
     } else if (absl::StartsWith(filename(), "/proc/")) {
       // Some "/proc" files do not support random access. It is hard to reliably
       // recognize them using the `FILE` API, so `CFileWriter` checks the
       // filename. Random access is assumed to be supported only if they claim
       // to have a non-zero size.
-      const off_t file_size = internal::FTell(dest);
+      const off_t file_size = cfile_internal::FTell(dest);
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
-        FailOperation(internal::kFTellFunctionName);
-      } else if (ABSL_PREDICT_FALSE(internal::FSeek(dest,
-                                                    IntCast<off_t>(limit_pos()),
-                                                    SEEK_SET) != 0)) {
-        FailOperation(internal::kFSeekFunctionName);
+        FailOperation(cfile_internal::kFTellFunctionName);
+      } else if (ABSL_PREDICT_FALSE(
+                     cfile_internal::FSeek(dest, IntCast<off_t>(limit_pos()),
+                                           SEEK_SET) != 0)) {
+        FailOperation(cfile_internal::kFSeekFunctionName);
       } else {
         supported = file_size > 0;
       }
     } else {
-      if (ABSL_PREDICT_FALSE(internal::FSeek(dest, IntCast<off_t>(limit_pos()),
-                                             SEEK_SET) != 0)) {
-        FailOperation(internal::kFSeekFunctionName);
+      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
+                                                   IntCast<off_t>(limit_pos()),
+                                                   SEEK_SET) != 0)) {
+        FailOperation(cfile_internal::kFSeekFunctionName);
       } else {
         supported = true;
       }
@@ -211,16 +212,17 @@ bool CFileWriterBase::supports_read_mode() {
   }
   FILE* const dest = dest_file();
   bool supported = false;
-  if (internal::FSeek(dest, 0, SEEK_END) != 0) {
+  if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     clearerr(dest);
   } else {
     char buf[1];
     fread(buf, 1, 1, dest);
     supported = !ferror(dest);
     clearerr(dest);
-    if (ABSL_PREDICT_FALSE(internal::FSeek(dest, IntCast<off_t>(start_pos()),
-                                           SEEK_SET) != 0)) {
-      return FailOperation(internal::kFSeekFunctionName);
+    if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
+                                                 IntCast<off_t>(start_pos()),
+                                                 SEEK_SET) != 0)) {
+      return FailOperation(cfile_internal::kFSeekFunctionName);
     }
   }
   supports_read_mode_ =
@@ -233,9 +235,10 @@ inline bool CFileWriterBase::WriteMode() {
   read_mode_ = false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   FILE* const dest = dest_file();
-  if (ABSL_PREDICT_FALSE(
-          internal::FSeek(dest, IntCast<off_t>(start_pos()), SEEK_SET) != 0)) {
-    return FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
+                                               IntCast<off_t>(start_pos()),
+                                               SEEK_SET) != 0)) {
+    return FailOperation(cfile_internal::kFSeekFunctionName);
   }
   return true;
 }
@@ -291,12 +294,12 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
   FILE* const dest = dest_file();
   if (new_pos > start_pos()) {
     // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(internal::FSeek(dest, 0, SEEK_END) != 0)) {
-      return FailOperation(internal::kFSeekFunctionName);
+    if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
+      return FailOperation(cfile_internal::kFSeekFunctionName);
     }
-    const off_t file_size = internal::FTell(dest);
+    const off_t file_size = cfile_internal::FTell(dest);
     if (ABSL_PREDICT_FALSE(file_size < 0)) {
-      return FailOperation(internal::kFTellFunctionName);
+      return FailOperation(cfile_internal::kFTellFunctionName);
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
       // Stream ends.
@@ -304,9 +307,9 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
       return false;
     }
   }
-  if (ABSL_PREDICT_FALSE(
-          internal::FSeek(dest, IntCast<off_t>(new_pos), SEEK_SET) != 0)) {
-    return FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, IntCast<off_t>(new_pos),
+                                               SEEK_SET) != 0)) {
+    return FailOperation(cfile_internal::kFSeekFunctionName);
   }
   set_start_pos(new_pos);
   return true;
@@ -324,18 +327,19 @@ absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   read_mode_ = false;
   FILE* const dest = dest_file();
-  if (ABSL_PREDICT_FALSE(internal::FSeek(dest, 0, SEEK_END) != 0)) {
-    FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
-  const off_t file_size = internal::FTell(dest);
+  const off_t file_size = cfile_internal::FTell(dest);
   if (ABSL_PREDICT_FALSE(file_size < 0)) {
-    FailOperation(internal::kFTellFunctionName);
+    FailOperation(cfile_internal::kFTellFunctionName);
     return absl::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(
-          internal::FSeek(dest, IntCast<off_t>(start_pos()), SEEK_SET) != 0)) {
-    FailOperation(internal::kFSeekFunctionName);
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
+                                               IntCast<off_t>(start_pos()),
+                                               SEEK_SET) != 0)) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
   return IntCast<Position>(file_size);

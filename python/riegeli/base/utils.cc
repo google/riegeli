@@ -149,7 +149,7 @@ void SetRiegeliError(const absl::Status& status) {
   PyErr_Restore(type, message.release(), nullptr);
 }
 
-namespace internal {
+namespace py_internal {
 
 namespace {
 
@@ -199,7 +199,7 @@ bool ImportedCapsuleBase::ImportValue() const {
   return value_ != nullptr;
 }
 
-}  // namespace internal
+}  // namespace py_internal
 
 bool Identifier::AllocateValue() const {
   value_ = StringToPython(name_).release();

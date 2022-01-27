@@ -179,7 +179,7 @@ class DefaultChunkReaderBase : public Object {
   //
   // Preconditions:
   //   `healthy()`
-  //   `internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
+  //   `records_internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
   bool ReadBlockHeader();
 
   // Shared implementation of `SeekToChunkContaining()`, `SeekToChunkBefore()`,
@@ -206,7 +206,7 @@ class DefaultChunkReaderBase : public Object {
   Chunk chunk_;
 
   // Block header, filled to the point derived from `src_reader()->pos()`.
-  internal::BlockHeader block_header_;
+  records_internal::BlockHeader block_header_;
 
   // Whether `Recover()` is applicable, and if so, how it should be performed:
   //

@@ -29,9 +29,9 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace chunk_encoding_internal {
 enum class CallbackType : uint8_t;
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 
 class TransposeDecoder : public Object {
  public:
@@ -86,7 +86,7 @@ class TransposeDecoder : public Object {
     // Proto tag of the node.
     uint32_t tag;
     // Tag subtype.
-    internal::Subtype subtype;
+    chunk_encoding_internal::Subtype subtype;
     // Length of the varint encoded tag.
     uint8_t tag_length;
   };
@@ -97,7 +97,7 @@ class TransposeDecoder : public Object {
     TagData tag_data;
     // Note: `callback_type` is after `tag_data` which is 7 bytes and may
     // benefit from being aligned.
-    internal::CallbackType callback_type;
+    chunk_encoding_internal::CallbackType callback_type;
     union {
       // Buffer to read data from.
       Reader* buffer;

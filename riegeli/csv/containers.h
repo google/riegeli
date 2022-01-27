@@ -24,7 +24,7 @@
 #include "absl/strings/string_view.h"
 
 namespace riegeli {
-namespace internal {
+namespace csv_internal {
 
 namespace adl_begin_sandbox {
 
@@ -134,7 +134,7 @@ std::vector<std::string> ToVectorOfStrings(Values&& values) {
                                   MaybeMakeMoveIterator<Values>(end(values)));
 }
 
-}  // namespace internal
+}  // namespace csv_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_CSV_CONTAINERS_H_

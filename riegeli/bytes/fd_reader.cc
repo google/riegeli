@@ -54,6 +54,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -89,7 +90,7 @@ void FdReaderBase::Initialize(int src,
                               absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  filename_ = internal::ResolveFilename(src, std::move(assumed_filename));
+  filename_ = fd_internal::ResolveFilename(src, std::move(assumed_filename));
   InitializePos(src, assumed_pos, independent_pos);
 }
 
@@ -337,7 +338,7 @@ void FdMMapReaderBase::Initialize(
     absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  filename_ = internal::ResolveFilename(src, std::move(assumed_filename));
+  filename_ = fd_internal::ResolveFilename(src, std::move(assumed_filename));
   InitializePos(src, independent_pos);
 }
 

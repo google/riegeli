@@ -35,7 +35,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace messages_internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                                    Writer& dest, SerializeOptions options) {
@@ -67,7 +67,7 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
   return absl::OkStatus();
 }
 
-}  // namespace internal
+}  // namespace messages_internal
 
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest, SerializeOptions options) {

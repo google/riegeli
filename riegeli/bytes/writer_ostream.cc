@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace stream_internal {
 
 class WriterStreambuf::BufferSync {
  public:
@@ -390,7 +390,7 @@ std::streampos WriterStreambuf::seekpos(std::streampos pos,
   return seekoff(std::streamoff(pos), std::ios_base::beg, which);
 }
 
-}  // namespace internal
+}  // namespace stream_internal
 
 WriterOStreamBase& WriterOStreamBase::close() {
   Done();

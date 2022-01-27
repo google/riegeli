@@ -71,8 +71,8 @@ class SimpleEncoder : public ChunkEncoder {
   bool AddRecordImpl(Record&& record);
 
   CompressionType compression_type_;
-  internal::Compressor sizes_compressor_;
-  internal::Compressor values_compressor_;
+  chunk_encoding_internal::Compressor sizes_compressor_;
+  chunk_encoding_internal::Compressor values_compressor_;
 };
 
 }  // namespace riegeli

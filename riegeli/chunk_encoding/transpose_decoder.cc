@@ -71,7 +71,7 @@ struct DataBucket {
   std::vector<size_t> buffer_sizes;
   // Decompressor for the remaining data, valid if some but not all buffers are
   // already decompressed, otherwise closed.
-  internal::Decompressor<ChainReader<>> decompressor{kClosed};
+  chunk_encoding_internal::Decompressor<ChainReader<>> decompressor{kClosed};
   // A prefix of decompressed data buffers, lazily extended.
   std::vector<ChainReader<Chain>> buffers;
 };
@@ -100,7 +100,7 @@ bool ValidTag(uint32_t tag) {
 
 }  // namespace
 
-namespace internal {
+namespace chunk_encoding_internal {
 
 // The types of callbacks in state machine states.
 enum class CallbackType : uint8_t {
@@ -362,7 +362,7 @@ inline bool IsImplicit(CallbackType callback_type) {
   return (callback_type & CallbackType::kImplicit) == CallbackType::kImplicit;
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 
 struct TransposeDecoder::Context {
   // Compression type of the input.
@@ -377,7 +377,7 @@ struct TransposeDecoder::Context {
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
-  internal::Decompressor<> transitions{kClosed};
+  chunk_encoding_internal::Decompressor<> transitions{kClosed};
 
   enum class IncludeType : uint8_t {
     // Field is included.
@@ -497,7 +497,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(src.StatusOrAnnotate(
         absl::InvalidArgumentError("Reading header failed")));
   }
-  internal::Decompressor<ChainReader<>> header_decompressor(
+  chunk_encoding_internal::Decompressor<ChainReader<>> header_decompressor(
       std::forward_as_tuple(&header), context.compression_type);
   if (ABSL_PREDICT_FALSE(!header_decompressor.healthy())) {
     return Fail(header_decompressor.status());
@@ -544,7 +544,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           absl::InvalidArgumentError("Reading field tag failed")));
     }
     tags.push_back(tag);
-    if (ValidTag(tag) && internal::HasSubtype(tag)) ++num_subtypes;
+    if (ValidTag(tag) && chunk_encoding_internal::HasSubtype(tag)) {
+      ++num_subtypes;
+    }
   }
   std::vector<uint32_t> next_node_indices;
   next_node_indices.reserve(state_machine_size);
@@ -568,12 +570,14 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     uint32_t tag = tags[i];
     StateMachineNode& state_machine_node = state_machine_nodes[i];
     state_machine_node.buffer = nullptr;
-    switch (static_cast<internal::MessageId>(tag)) {
-      case internal::MessageId::kNoOp:
-        state_machine_node.callback_type = internal::CallbackType::kNoOp;
+    switch (static_cast<chunk_encoding_internal::MessageId>(tag)) {
+      case chunk_encoding_internal::MessageId::kNoOp:
+        state_machine_node.callback_type =
+            chunk_encoding_internal::CallbackType::kNoOp;
         break;
-      case internal::MessageId::kNonProto: {
-        state_machine_node.callback_type = internal::CallbackType::kNonProto;
+      case chunk_encoding_internal::MessageId::kNonProto: {
+        state_machine_node.callback_type =
+            chunk_encoding_internal::CallbackType::kNonProto;
         uint32_t buffer_index;
         if (ABSL_PREDICT_FALSE(
                 !ReadVarint32(header_decompressor.reader(), buffer_index))) {
@@ -595,33 +599,37 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         }
         has_nonproto_op = true;
       } break;
-      case internal::MessageId::kStartOfMessage:
+      case chunk_encoding_internal::MessageId::kStartOfMessage:
         state_machine_node.callback_type =
-            internal::CallbackType::kMessageStart;
+            chunk_encoding_internal::CallbackType::kMessageStart;
         break;
-      case internal::MessageId::kStartOfSubmessage:
+      case chunk_encoding_internal::MessageId::kStartOfSubmessage:
         if (projection_enabled) {
-          context.node_templates[i].tag =
-              static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage);
+          context.node_templates[i].tag = static_cast<uint32_t>(
+              chunk_encoding_internal::MessageId::kStartOfSubmessage);
           state_machine_node.node_template = &context.node_templates[i];
           state_machine_node.callback_type =
-              internal::CallbackType::kSelectCallback;
+              chunk_encoding_internal::CallbackType::kSelectCallback;
         } else {
           state_machine_node.callback_type =
-              internal::CallbackType::kSubmessageStart;
+              chunk_encoding_internal::CallbackType::kSubmessageStart;
         }
         break;
       default: {
-        internal::Subtype subtype = internal::Subtype::kTrivial;
+        chunk_encoding_internal::Subtype subtype =
+            chunk_encoding_internal::Subtype::kTrivial;
         static_assert(
-            internal::Subtype::kLengthDelimitedString ==
-                internal::Subtype::kTrivial,
+            chunk_encoding_internal::Subtype::kLengthDelimitedString ==
+                chunk_encoding_internal::Subtype::kTrivial,
             "Subtypes kLengthDelimitedString and kTrivial must be equal");
         // End of submessage is encoded as `kSubmessageWireType`.
-        if (GetTagWireType(tag) == internal::kSubmessageWireType) {
-          tag -= static_cast<uint32_t>(internal::kSubmessageWireType) -
+        if (GetTagWireType(tag) ==
+            chunk_encoding_internal::kSubmessageWireType) {
+          tag -= static_cast<uint32_t>(
+                     chunk_encoding_internal::kSubmessageWireType) -
                  static_cast<uint32_t>(WireType::kLengthDelimited);
-          subtype = internal::Subtype::kLengthDelimitedEndOfSubmessage;
+          subtype =
+              chunk_encoding_internal::Subtype::kLengthDelimitedEndOfSubmessage;
         }
         if (ABSL_PREDICT_FALSE(!ValidTag(tag))) {
           return Fail(absl::InvalidArgumentError("Invalid tag"));
@@ -630,11 +638,12 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
             WriteVarint32(tag, state_machine_node.tag_data.data);
         const size_t tag_length =
             PtrDistance(state_machine_node.tag_data.data, tag_end);
-        if (internal::HasSubtype(tag)) {
-          subtype = static_cast<internal::Subtype>(subtypes[subtype_index++]);
+        if (chunk_encoding_internal::HasSubtype(tag)) {
+          subtype = static_cast<chunk_encoding_internal::Subtype>(
+              subtypes[subtype_index++]);
         }
         if (projection_enabled) {
-          if (internal::HasDataBuffer(tag, subtype)) {
+          if (chunk_encoding_internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
             if (ABSL_PREDICT_FALSE(!ReadVarint32(header_decompressor.reader(),
                                                  buffer_index))) {
@@ -656,9 +665,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           context.node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
           state_machine_node.node_template = &context.node_templates[i];
           state_machine_node.callback_type =
-              internal::CallbackType::kSelectCallback;
+              chunk_encoding_internal::CallbackType::kSelectCallback;
         } else {
-          if (internal::HasDataBuffer(tag, subtype)) {
+          if (chunk_encoding_internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
             if (ABSL_PREDICT_FALSE(!ReadVarint32(header_decompressor.reader(),
                                                  buffer_index))) {
@@ -671,18 +680,20 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
             state_machine_node.buffer = &context.buffers[buffer_index];
           }
           state_machine_node.callback_type =
-              internal::GetCallbackType(FieldIncluded::kYes, tag, subtype,
-                                        tag_length, projection_enabled);
-          if (ABSL_PREDICT_FALSE(state_machine_node.callback_type ==
-                                 internal::CallbackType::kUnknown)) {
+              chunk_encoding_internal::GetCallbackType(FieldIncluded::kYes, tag,
+                                                       subtype, tag_length,
+                                                       projection_enabled);
+          if (ABSL_PREDICT_FALSE(
+                  state_machine_node.callback_type ==
+                  chunk_encoding_internal::CallbackType::kUnknown)) {
             return Fail(absl::InvalidArgumentError("Invalid node"));
           }
         }
         // Store subtype right past tag in case this is inline numeric.
         if (GetTagWireType(tag) == WireType::kVarint &&
-            subtype >= internal::Subtype::kVarintInline0) {
+            subtype >= chunk_encoding_internal::Subtype::kVarintInline0) {
           state_machine_node.tag_data.data[tag_length] =
-              subtype - internal::Subtype::kVarintInline0;
+              subtype - chunk_encoding_internal::Subtype::kVarintInline0;
         } else {
           state_machine_node.tag_data.data[tag_length] = 0;
         }
@@ -694,7 +705,8 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
       // Callback is implicit.
       next_node_id -= state_machine_size;
       state_machine_node.callback_type =
-          state_machine_node.callback_type | internal::CallbackType::kImplicit;
+          state_machine_node.callback_type |
+          chunk_encoding_internal::CallbackType::kImplicit;
     }
     if (ABSL_PREDICT_FALSE(next_node_id >= state_machine_size)) {
       return Fail(absl::InvalidArgumentError("Node index too large"));
@@ -733,7 +745,8 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
 
   // Add `0xff` failure nodes so we never overflow this array.
   for (uint64_t i = state_machine_size; i < state_machine_size + 0xff; ++i) {
-    state_machine_nodes[i].callback_type = internal::CallbackType::kFailure;
+    state_machine_nodes[i].callback_type =
+        chunk_encoding_internal::CallbackType::kFailure;
   }
 
   if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(&state_machine_nodes))) {
@@ -772,7 +785,8 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
     return true;
   }
   context.buffers.reserve(num_buffers);
-  std::vector<internal::Decompressor<ChainReader<Chain>>> bucket_decompressors;
+  std::vector<chunk_encoding_internal::Decompressor<ChainReader<Chain>>>
+      bucket_decompressors;
   if (ABSL_PREDICT_FALSE(num_buckets > bucket_decompressors.max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many buckets"));
   }
@@ -885,8 +899,9 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
 
   uint32_t bucket_index = 0;
   first_buffer_indices.push_back(0);
-  absl::optional<uint64_t> remaining_bucket_size = internal::UncompressedSize(
-      context.buckets[0].compressed_data, context.compression_type);
+  absl::optional<uint64_t> remaining_bucket_size =
+      chunk_encoding_internal::UncompressedSize(
+          context.buckets[0].compressed_data, context.compression_type);
   if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
     return Fail(absl::InvalidArgumentError("Reading uncompressed size failed"));
   }
@@ -910,7 +925,7 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
     while (*remaining_bucket_size == 0 && bucket_index + 1 < num_buckets) {
       ++bucket_index;
       first_buffer_indices.push_back(buffer_index + 1);
-      remaining_bucket_size = internal::UncompressedSize(
+      remaining_bucket_size = chunk_encoding_internal::UncompressedSize(
           context.buckets[bucket_index].compressed_data,
           context.compression_type);
       if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
@@ -980,7 +995,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (implicit_loop_ids[i] != 0) continue;
     StateMachineNode* node = &(*state_machine_nodes)[i];
     implicit_loop_ids[i] = next_loop_id;
-    while (internal::IsImplicit(node->callback_type)) {
+    while (chunk_encoding_internal::IsImplicit(node->callback_type)) {
       node = node->next_node;
       const size_t j = node - state_machine_nodes->data();
       if (implicit_loop_ids[j] == next_loop_id) return true;
@@ -1096,23 +1111,24 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
   // without reading transition byte.
   int num_iters = 0;
 
-  if (internal::IsImplicit(node->callback_type)) ++num_iters;
+  if (chunk_encoding_internal::IsImplicit(node->callback_type)) ++num_iters;
   for (;;) {
-    switch (static_cast<internal::CallbackType>(
+    switch (static_cast<chunk_encoding_internal::CallbackType>(
         static_cast<uint8_t>(node->callback_type) &
-        ~static_cast<uint8_t>(internal::CallbackType::kImplicit))) {
-      case internal::CallbackType::kSelectCallback:
+        ~static_cast<uint8_t>(
+            chunk_encoding_internal::CallbackType::kImplicit))) {
+      case chunk_encoding_internal::CallbackType::kSelectCallback:
         if (ABSL_PREDICT_FALSE(!SetCallbackType(
                 context, skipped_submessage_level, submessage_stack, *node))) {
           return false;
         }
         continue;
 
-      case internal::CallbackType::kSkippedSubmessageEnd:
+      case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
         ++skipped_submessage_level;
         goto do_transition;
 
-      case internal::CallbackType::kSkippedSubmessageStart:
+      case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
         if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
           return Fail(
               absl::InvalidArgumentError("Skipped submessage stack underflow"));
@@ -1120,12 +1136,12 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         --skipped_submessage_level;
         goto do_transition;
 
-      case internal::CallbackType::kSubmessageEnd:
+      case chunk_encoding_internal::CallbackType::kSubmessageEnd:
         submessage_stack.push_back(
             {IntCast<size_t>(dest.pos()), node->tag_data});
         goto do_transition;
 
-      case internal::CallbackType::kSubmessageStart: {
+      case chunk_encoding_internal::CallbackType::kSubmessageStart: {
         if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
           return Fail(absl::InvalidArgumentError("Submessage stack underflow"));
         }
@@ -1150,62 +1166,64 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         goto do_transition;
 
 #define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
-  case internal::CallbackType::kCopyTag_##tag_length:                          \
+  case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:           \
     COPY_TAG_CALLBACK(tag_length);                                             \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_1_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:          \
     VARINT_CALLBACK(tag_length, 1);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_2_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:          \
     VARINT_CALLBACK(tag_length, 2);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_3_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:          \
     VARINT_CALLBACK(tag_length, 3);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_4_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:          \
     VARINT_CALLBACK(tag_length, 4);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_5_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:          \
     VARINT_CALLBACK(tag_length, 5);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_6_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:          \
     VARINT_CALLBACK(tag_length, 6);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_7_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:          \
     VARINT_CALLBACK(tag_length, 7);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_8_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:          \
     VARINT_CALLBACK(tag_length, 8);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_9_##tag_length:                         \
+  case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:          \
     VARINT_CALLBACK(tag_length, 9);                                            \
     goto do_transition;                                                        \
-  case internal::CallbackType::kVarint_10_##tag_length:                        \
+  case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:         \
     VARINT_CALLBACK(tag_length, 10);                                           \
     goto do_transition;                                                        \
-  case internal::CallbackType::kFixed32_##tag_length:                          \
+  case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:           \
     FIXED_CALLBACK(tag_length, 4);                                             \
     goto do_transition;                                                        \
-  case internal::CallbackType::kFixed64_##tag_length:                          \
+  case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:           \
     FIXED_CALLBACK(tag_length, 8);                                             \
     goto do_transition;                                                        \
-  case internal::CallbackType::kFixed32Existence_##tag_length:                 \
+  case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length:  \
     FIXED_EXISTENCE_CALLBACK(tag_length, 4);                                   \
     goto do_transition;                                                        \
-  case internal::CallbackType::kFixed64Existence_##tag_length:                 \
+  case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length:  \
     FIXED_EXISTENCE_CALLBACK(tag_length, 8);                                   \
     goto do_transition;                                                        \
-  case internal::CallbackType::kString_##tag_length:                           \
+  case chunk_encoding_internal::CallbackType::kString_##tag_length:            \
     STRING_CALLBACK(tag_length);                                               \
     goto do_transition;                                                        \
-  case internal::CallbackType::kStartProjectionGroup_##tag_length:             \
+  case chunk_encoding_internal::CallbackType::                                 \
+      kStartProjectionGroup_##tag_length:                                      \
     if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                        \
       return Fail(absl::InvalidArgumentError("Submessage stack underflow"));   \
     }                                                                          \
     submessage_stack.pop_back();                                               \
     COPY_TAG_CALLBACK(tag_length);                                             \
     goto do_transition;                                                        \
-  case internal::CallbackType::kEndProjectionGroup_##tag_length:               \
+  case chunk_encoding_internal::CallbackType::                                 \
+      kEndProjectionGroup_##tag_length:                                        \
     submessage_stack.push_back({IntCast<size_t>(dest.pos()), node->tag_data}); \
     COPY_TAG_CALLBACK(tag_length);                                             \
     goto do_transition
@@ -1217,15 +1235,15 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         ACTIONS_FOR_TAG_LEN(5);
 #undef ACTIONS_FOR_TAG_LEN
 
-      case internal::CallbackType::kCopyTag_6:
+      case chunk_encoding_internal::CallbackType::kCopyTag_6:
         COPY_TAG_CALLBACK(6);
         goto do_transition;
 
-      case internal::CallbackType::kUnknown:
-      case internal::CallbackType::kFailure:
+      case chunk_encoding_internal::CallbackType::kUnknown:
+      case chunk_encoding_internal::CallbackType::kFailure:
         return Fail(absl::InvalidArgumentError("Invalid node index"));
 
-      case internal::CallbackType::kNonProto: {
+      case chunk_encoding_internal::CallbackType::kNonProto: {
         uint32_t length;
         if (ABSL_PREDICT_FALSE(
                 !ReadVarint32(*context.nonproto_lengths, length))) {
@@ -1241,7 +1259,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       }
         ABSL_FALLTHROUGH_INTENDED;
 
-      case internal::CallbackType::kMessageStart:
+      case chunk_encoding_internal::CallbackType::kMessageStart:
         if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
           return Fail(absl::InvalidArgumentError("Submessages still open"));
         }
@@ -1251,7 +1269,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         limits.push_back(IntCast<size_t>(dest.pos()));
         ABSL_FALLTHROUGH_INTENDED;
 
-      case internal::CallbackType::kNoOp:
+      case chunk_encoding_internal::CallbackType::kNoOp:
       do_transition:
         node = node->next_node;
         if (num_iters == 0) {
@@ -1262,13 +1280,15 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
           }
           node += (transition_byte >> 2);
           num_iters = transition_byte & 3;
-          if (internal::IsImplicit(node->callback_type)) ++num_iters;
+          if (chunk_encoding_internal::IsImplicit(node->callback_type))
+            ++num_iters;
         } else {
-          if (!internal::IsImplicit(node->callback_type)) --num_iters;
+          if (!chunk_encoding_internal::IsImplicit(node->callback_type))
+            --num_iters;
         }
         continue;
 
-      case internal::CallbackType::kImplicit:
+      case chunk_encoding_internal::CallbackType::kImplicit:
         RIEGELI_ASSERT_UNREACHABLE() << "kImplicit is masked out";
     }
   }
@@ -1316,14 +1336,18 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     Context& context, int skipped_submessage_level,
     const std::vector<SubmessageStackElement>& submessage_stack,
     StateMachineNode& node) {
-  const bool is_implicit = internal::IsImplicit(node.callback_type);
+  const bool is_implicit =
+      chunk_encoding_internal::IsImplicit(node.callback_type);
   StateMachineNodeTemplate* node_template = node.node_template;
   if (node_template->tag ==
-      static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage)) {
+      static_cast<uint32_t>(
+          chunk_encoding_internal::MessageId::kStartOfSubmessage)) {
     if (skipped_submessage_level > 0) {
-      node.callback_type = internal::CallbackType::kSkippedSubmessageStart;
+      node.callback_type =
+          chunk_encoding_internal::CallbackType::kSkippedSubmessageStart;
     } else {
-      node.callback_type = internal::CallbackType::kSubmessageStart;
+      node.callback_type =
+          chunk_encoding_internal::CallbackType::kSubmessageStart;
     }
   } else {
     FieldIncluded field_included = FieldIncluded::kNo;
@@ -1408,7 +1432,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       node.tag_data.data[node_template->tag_length] = 0;
     }
   }
-  if (is_implicit) node.callback_type |= internal::CallbackType::kImplicit;
+  if (is_implicit) {
+    node.callback_type |= chunk_encoding_internal::CallbackType::kImplicit;
+  }
   return true;
 }
 

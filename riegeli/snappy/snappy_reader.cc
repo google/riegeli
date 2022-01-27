@@ -85,7 +85,7 @@ absl::Status SnappyReaderBase::AnnotateOverSrc(absl::Status status) {
   return status;
 }
 
-namespace internal {
+namespace snappy_internal {
 
 absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
                                   SnappyDecompressOptions options) {
@@ -102,7 +102,7 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
   return absl::OkStatus();
 }
 
-}  // namespace internal
+}  // namespace snappy_internal
 
 absl::optional<size_t> SnappyUncompressedSize(Reader& src) {
   // Uncompressed size is stored in up to 5 initial bytes.

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_DIGESTING_COMMON_H_
-#define RIEGELI_BYTES_DIGESTING_COMMON_H_
+#ifndef RIEGELI_BYTES_DIGESTING_INTERNAL_H_
+#define RIEGELI_BYTES_DIGESTING_INTERNAL_H_
 
 #include <stddef.h>
 
@@ -26,28 +26,28 @@
 #include "riegeli/base/memory.h"
 
 namespace riegeli {
-namespace internal {
+namespace digesting_internal {
 
-// `DigesterWriteZeros()`: calls `Digester::WriteZeros()`, or uses
+// `digester_internal::WriteZeros()` calls `Digester::WriteZeros()`, or uses
 // `Digester::Write()` if that is not defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasWriteZeros : std::false_type {};
+struct HasWriteZeros : std::false_type {};
 
 template <typename Digester>
-struct DigesterHasWriteZeros<
-    Digester, absl::void_t<decltype(std::declval<Digester>().WriteZeros(
-                  std::declval<Position>()))>> : std::true_type {};
+struct HasWriteZeros<Digester,
+                     absl::void_t<decltype(std::declval<Digester>().WriteZeros(
+                         std::declval<Position>()))>> : std::true_type {};
 
 template <typename Digester,
-          absl::enable_if_t<DigesterHasWriteZeros<Digester>::value, int> = 0>
-inline void DigesterWriteZeros(Digester& digester, Position length) {
+          absl::enable_if_t<HasWriteZeros<Digester>::value, int> = 0>
+inline void WriteZeros(Digester& digester, Position length) {
   digester.WriteZeros(length);
 }
 
 template <typename Digester,
-          absl::enable_if_t<!DigesterHasWriteZeros<Digester>::value, int> = 0>
-inline void DigesterWriteZeros(Digester& digester, Position length) {
+          absl::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
+inline void WriteZeros(Digester& digester, Position length) {
   while (length > kArrayOfZeros.size()) {
     digester.Write(
         absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size()));
@@ -57,39 +57,39 @@ inline void DigesterWriteZeros(Digester& digester, Position length) {
       absl::string_view(kArrayOfZeros.data(), IntCast<size_t>(length)));
 }
 
-// `DigesterClose()`: calls `Digester::Close()`, or does nothing if that is not
-// defined.
+// `digester_internal::Close()` calls `Digester::Close()`, or does nothing if
+// that is not defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasClose : std::false_type {};
+struct HasClose : std::false_type {};
 
 template <typename Digester>
-struct DigesterHasClose<
-    Digester, absl::void_t<decltype(std::declval<Digester>().Close())>>
+struct HasClose<Digester,
+                absl::void_t<decltype(std::declval<Digester>().Close())>>
     : std::true_type {};
 
 template <typename Digester,
-          absl::enable_if_t<DigesterHasClose<Digester>::value, int> = 0>
-inline void DigesterClose(Digester& digester) {
+          absl::enable_if_t<HasClose<Digester>::value, int> = 0>
+inline void Close(Digester& digester) {
   digester.Close();
 }
 
 template <typename Digester,
-          absl::enable_if_t<!DigesterHasClose<Digester>::value, int> = 0>
-inline void DigesterClose(Digester& digester) {}
+          absl::enable_if_t<!HasClose<Digester>::value, int> = 0>
+inline void Close(Digester& digester) {}
 
-// `DigesterType`: the result of `Digester::Digest()`, or `void` if that is not
-// defined.
+// `digester_internal::DigesterType` is the result of `Digester::Digest()`, or
+// `void` if that is not defined.
 //
-// `DigesterDigest()`: calls `Digester::Digest()`, or does nothing if that is
-// not defined.
+// `digester_internal::Digest()` calls `Digester::Digest()`, or does nothing if
+// that is not defined.
 
 template <typename Digester, typename Enable = void>
-struct DigesterHasDigest : std::false_type {};
+struct HasDigest : std::false_type {};
 
 template <typename Digester>
-struct DigesterHasDigest<
-    Digester, absl::void_t<decltype(std::declval<Digester>().Digest())>>
+struct HasDigest<Digester,
+                 absl::void_t<decltype(std::declval<Digester>().Digest())>>
     : std::true_type {};
 
 template <typename Digester, typename Enable = void>
@@ -98,8 +98,7 @@ struct DigestTypeImpl {
 };
 
 template <typename Digester>
-struct DigestTypeImpl<Digester,
-                      std::enable_if_t<DigesterHasDigest<Digester>::value>> {
+struct DigestTypeImpl<Digester, std::enable_if_t<HasDigest<Digester>::value>> {
   using type = decltype(std::declval<Digester>().Digest());
 };
 
@@ -107,16 +106,16 @@ template <typename Digester>
 using DigestType = typename DigestTypeImpl<Digester>::type;
 
 template <typename Digester,
-          absl::enable_if_t<DigesterHasDigest<Digester>::value, int> = 0>
-inline DigestType<Digester> DigesterDigest(Digester& digester) {
+          absl::enable_if_t<HasDigest<Digester>::value, int> = 0>
+inline DigestType<Digester> Digest(Digester& digester) {
   return digester.Digest();
 }
 
 template <typename Digester,
-          absl::enable_if_t<!DigesterHasDigest<Digester>::value, int> = 0>
-inline DigestType<Digester> DigesterDigest(Digester& digester) {}
+          absl::enable_if_t<!HasDigest<Digester>::value, int> = 0>
+inline DigestType<Digester> Digest(Digester& digester) {}
 
-}  // namespace internal
+}  // namespace digesting_internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_DIGESTING_COMMON_H_
+#endif  // RIEGELI_BYTES_DIGESTING_INTERNAL_H_

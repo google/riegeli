@@ -63,14 +63,14 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
 inline std::string DebugQuotedIfNeeded(absl::string_view src) {
   std::string dest;
   StringWriter<> writer(&dest);
-  internal::WriteDebugQuotedIfNeeded(src, writer);
+  csv_internal::WriteDebugQuotedIfNeeded(src, writer);
   writer.Close();
   return dest;
 }
 
 }  // namespace
 
-namespace internal {
+namespace csv_internal {
 
 void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
   for (size_t i = 0; i < src.size(); ++i) {
@@ -91,7 +91,7 @@ void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
   writer.Write(src);
 }
 
-}  // namespace internal
+}  // namespace csv_internal
 
 std::string AsciiCaseInsensitive(absl::string_view name) {
   return absl::AsciiStrToLower(name);
@@ -106,7 +106,7 @@ CsvHeader::CsvHeader(std::vector<std::string>&& names)
     : CsvHeader(nullptr, std::move(names)) {}
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names)
-    : CsvHeader(nullptr, internal::ToVectorOfStrings(names)) {}
+    : CsvHeader(nullptr, csv_internal::ToVectorOfStrings(names)) {}
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer) {
   if (normalizer != nullptr) payload_.reset(new Payload(std::move(normalizer)));
@@ -121,7 +121,8 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::initializer_list<absl::string_view> names)
-    : CsvHeader(std::move(normalizer), internal::ToVectorOfStrings(names)) {}
+    : CsvHeader(std::move(normalizer), csv_internal::ToVectorOfStrings(names)) {
+}
 
 void CsvHeader::Reset() { payload_.reset(); }
 
@@ -130,7 +131,7 @@ void CsvHeader::Reset(std::vector<std::string>&& names) {
 }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
-  Reset(nullptr, internal::ToVectorOfStrings(names));
+  Reset(nullptr, csv_internal::ToVectorOfStrings(names));
 }
 
 void CsvHeader::Reset(
@@ -151,7 +152,7 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
 
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       std::initializer_list<absl::string_view> names) {
-  Reset(std::move(normalizer), internal::ToVectorOfStrings(names));
+  Reset(std::move(normalizer), csv_internal::ToVectorOfStrings(names));
 }
 
 absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
@@ -160,7 +161,7 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
 
 absl::Status CsvHeader::TryReset(
     std::initializer_list<absl::string_view> names) {
-  return TryReset(nullptr, internal::ToVectorOfStrings(names));
+  return TryReset(nullptr, csv_internal::ToVectorOfStrings(names));
 }
 
 absl::Status CsvHeader::TryReset(
@@ -193,7 +194,7 @@ absl::Status CsvHeader::TryReset(
              duplicate_names.cbegin();
          iter != duplicate_names.cend(); ++iter) {
       if (iter != duplicate_names.cbegin()) message.WriteChar(',');
-      internal::WriteDebugQuotedIfNeeded(*iter, message);
+      csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
     }
     message.Close();
     return absl::FailedPreconditionError(message.dest());
@@ -205,7 +206,8 @@ absl::Status CsvHeader::TryReset(
 absl::Status CsvHeader::TryReset(
     std::function<std::string(absl::string_view)> normalizer,
     std::initializer_list<absl::string_view> names) {
-  return TryReset(std::move(normalizer), internal::ToVectorOfStrings(names));
+  return TryReset(std::move(normalizer),
+                  csv_internal::ToVectorOfStrings(names));
 }
 
 void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }
@@ -245,7 +247,7 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
            "only if some fields were already present";
     StringWriter<std::string> message;
     message.Write("Duplicate field name: ");
-    internal::WriteDebugQuotedIfNeeded(name, message);
+    csv_internal::WriteDebugQuotedIfNeeded(name, message);
     message.Close();
     return absl::FailedPreconditionError(message.dest());
   }
@@ -302,7 +304,7 @@ std::string CsvHeader::DebugString() const {
   StringWriter<> writer(&result);
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
-    internal::WriteDebugQuotedIfNeeded(*iter, writer);
+    csv_internal::WriteDebugQuotedIfNeeded(*iter, writer);
   }
   writer.Close();
   return result;
@@ -320,7 +322,7 @@ CsvRecord::CsvRecord(CsvHeader header, std::vector<std::string>&& fields) {
 
 CsvRecord::CsvRecord(CsvHeader header,
                      std::initializer_list<absl::string_view> fields)
-    : CsvRecord(std::move(header), internal::ToVectorOfStrings(fields)) {}
+    : CsvRecord(std::move(header), csv_internal::ToVectorOfStrings(fields)) {}
 
 void CsvRecord::Reset() {
   header_.Reset();
@@ -341,7 +343,7 @@ void CsvRecord::Reset(CsvHeader header, std::vector<std::string>&& fields) {
 
 void CsvRecord::Reset(CsvHeader header,
                       std::initializer_list<absl::string_view> fields) {
-  Reset(std::move(header), internal::ToVectorOfStrings(fields));
+  Reset(std::move(header), csv_internal::ToVectorOfStrings(fields));
 }
 
 absl::Status CsvRecord::TryReset(CsvHeader header,
@@ -360,7 +362,7 @@ absl::Status CsvRecord::TryReset(CsvHeader header,
 
 absl::Status CsvRecord::TryReset(
     CsvHeader header, std::initializer_list<absl::string_view> fields) {
-  return TryReset(std::move(header), internal::ToVectorOfStrings(fields));
+  return TryReset(std::move(header), csv_internal::ToVectorOfStrings(fields));
 }
 
 void CsvRecord::Clear() {
@@ -427,13 +429,13 @@ absl::Status CsvRecord::FailMerge(
   for (std::vector<std::string>::const_iterator iter = missing_names.cbegin();
        iter != missing_names.cend(); ++iter) {
     if (iter != missing_names.cbegin()) message.WriteChar(',');
-    internal::WriteDebugQuotedIfNeeded(*iter, message);
+    csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
   message.Write("; existing field names: ");
   for (CsvHeader::const_iterator iter = header_.cbegin();
        iter != header_.cend(); ++iter) {
     if (iter != header_.cbegin()) message.WriteChar(',');
-    internal::WriteDebugQuotedIfNeeded(*iter, message);
+    csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
   message.Close();
   return absl::FailedPreconditionError(message.dest());
@@ -447,9 +449,9 @@ std::string CsvRecord::DebugString() const {
   StringWriter<> writer(&result);
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
-    internal::WriteDebugQuotedIfNeeded(iter->first, writer);
+    csv_internal::WriteDebugQuotedIfNeeded(iter->first, writer);
     writer.WriteChar(':');
-    internal::WriteDebugQuotedIfNeeded(iter->second, writer);
+    csv_internal::WriteDebugQuotedIfNeeded(iter->second, writer);
   }
   writer.Close();
   return result;

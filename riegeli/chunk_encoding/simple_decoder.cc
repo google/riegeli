@@ -65,7 +65,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
         absl::InvalidArgumentError("Reading size of sizes failed")));
   }
 
-  internal::Decompressor<LimitingReader<>> sizes_decompressor(
+  chunk_encoding_internal::Decompressor<LimitingReader<>> sizes_decompressor(
       std::forward_as_tuple(
           src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
       compression_type);

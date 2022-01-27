@@ -315,7 +315,7 @@ void IStreamReader<Src>::Done() {
   IStreamReaderBase::Done();
   if (src_.is_owning()) {
     errno = 0;
-    internal::CloseStream(*src_);
+    stream_internal::Close(*src_);
     if (ABSL_PREDICT_FALSE(src_->fail()) && ABSL_PREDICT_TRUE(healthy())) {
       FailOperation("istream::close()");
     }

@@ -26,7 +26,7 @@
 #include "riegeli/endian/endian_writing.h"
 
 namespace riegeli {
-namespace internal {
+namespace records_internal {
 
 class BlockHeader {
  public:
@@ -46,8 +46,8 @@ class BlockHeader {
   static constexpr size_t size() { return sizeof(bytes_); }
 
   uint64_t computed_header_hash() const {
-    return internal::Hash(absl::string_view(bytes() + sizeof(uint64_t),
-                                            size() - sizeof(uint64_t)));
+    return chunk_encoding_internal::Hash(absl::string_view(
+        bytes() + sizeof(uint64_t), size() - sizeof(uint64_t)));
   }
   uint64_t stored_header_hash() const { return ReadLittleEndian64(bytes_); }
   uint64_t previous_chunk() const {
@@ -139,7 +139,7 @@ inline Position ChunkEnd(const ChunkHeader& header, Position chunk_begin) {
       RoundUpToPossibleChunkBoundary(chunk_begin + header.num_records()));
 }
 
-}  // namespace internal
+}  // namespace records_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_RECORDS_BLOCK_H_

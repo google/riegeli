@@ -213,7 +213,7 @@ cc_library(
 cc_library(
     name = "digesting_writer",
     srcs = [
-        "digesting_common.h",
+        "digesting_internal.h",
         "digesting_writer.cc",
     ],
     hdrs = ["digesting_writer.h"],
@@ -233,7 +233,7 @@ cc_library(
 cc_library(
     name = "digesting_reader",
     srcs = [
-        "digesting_common.h",
+        "digesting_internal.h",
         "digesting_reader.cc",
     ],
     hdrs = ["digesting_reader.h"],
@@ -599,11 +599,14 @@ cc_library(
 
 cc_library(
     name = "fd_writer",
-    srcs = ["fd_writer.cc"],
+    srcs = [
+        "fd_dependency.h",
+        "fd_writer.cc",
+    ],
     hdrs = ["fd_writer.h"],
     deps = [
         ":buffered_writer",
-        ":fd_dependency",
+        ":fd_internal",
         ":fd_reader",
         ":reader",
         ":writer",
@@ -618,12 +621,15 @@ cc_library(
 
 cc_library(
     name = "fd_reader",
-    srcs = ["fd_reader.cc"],
+    srcs = [
+        "fd_dependency.h",
+        "fd_reader.cc",
+    ],
     hdrs = ["fd_reader.h"],
     deps = [
         ":buffered_reader",
         ":chain_reader",
-        ":fd_dependency",
+        ":fd_internal",
         ":reader",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -650,12 +656,11 @@ cc_library(
 )
 
 cc_library(
-    name = "fd_dependency",
-    srcs = ["fd_dependency.cc"],
-    hdrs = ["fd_dependency.h"],
+    name = "fd_internal",
+    srcs = ["fd_internal.cc"],
+    hdrs = ["fd_internal.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",

@@ -50,7 +50,7 @@ inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
 
 }  // namespace
 
-namespace internal {
+namespace messages_internal {
 
 absl::Status ParseFromReaderImpl(Reader& src,
                                  google::protobuf::MessageLite& dest,
@@ -85,7 +85,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
   return CheckInitialized(dest, options);
 }
 
-}  // namespace internal
+}  // namespace messages_internal
 
 absl::Status ParseFromString(absl::string_view src,
                              google::protobuf::MessageLite& dest,
@@ -130,7 +130,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
                            ParseOptions options) {
   CordReader<> reader(&src);
   // Do not bother with `reader.Close()`. A `CordReader` can never fail.
-  return internal::ParseFromReaderImpl(reader, dest, options);
+  return messages_internal::ParseFromReaderImpl(reader, dest, options);
 }
 
 inline Position ReaderInputStream::relative_pos() const {

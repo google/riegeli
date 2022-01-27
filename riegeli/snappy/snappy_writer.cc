@@ -228,7 +228,7 @@ inline void SnappyWriterBase::SyncBuffer() {
   set_buffer();
 }
 
-namespace internal {
+namespace snappy_internal {
 
 absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
                                 SnappyCompressOptions options) {
@@ -240,7 +240,7 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
   return absl::OkStatus();
 }
 
-}  // namespace internal
+}  // namespace snappy_internal
 
 size_t SnappyMaxCompressedSize(size_t uncompressed_size) {
   return snappy::MaxCompressedLength(uncompressed_size);

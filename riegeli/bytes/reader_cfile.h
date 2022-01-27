@@ -65,7 +65,7 @@ FILE* ReaderCFile(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-namespace internal {
+namespace cfile_internal {
 
 class ReaderCFileCookieBase {
  public:
@@ -132,25 +132,25 @@ int ReaderCFileCookie<Src>::Close() {
 
 FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
 
-}  // namespace internal
+}  // namespace cfile_internal
 
 template <typename Src>
 FILE* ReaderCFile(const Src& src, ReaderCFileOptions options) {
-  return internal::ReaderCFileImpl(
-      new internal::ReaderCFileCookie<std::decay_t<Src>>(src));
+  return cfile_internal::ReaderCFileImpl(
+      new cfile_internal::ReaderCFileCookie<std::decay_t<Src>>(src));
 }
 
 template <typename Src>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
-  return internal::ReaderCFileImpl(
-      new internal::ReaderCFileCookie<std::decay_t<Src>>(
+  return cfile_internal::ReaderCFileImpl(
+      new cfile_internal::ReaderCFileCookie<std::decay_t<Src>>(
           std::forward<Src>(src)));
 }
 
 template <typename Src, typename... SrcArgs>
 FILE* ReaderCFile(std::tuple<SrcArgs...> src_args, ReaderCFileOptions options) {
-  return internal::ReaderCFileImpl(
-      new internal::ReaderCFileCookie<Src>(std::move(src_args)));
+  return cfile_internal::ReaderCFileImpl(
+      new cfile_internal::ReaderCFileCookie<Src>(std::move(src_args)));
 }
 
 }  // namespace riegeli

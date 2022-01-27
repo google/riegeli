@@ -135,7 +135,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
 
 // Implementation details follow.
 
-namespace internal {
+namespace messages_internal {
 
 absl::Status ParseFromReaderImpl(Reader& src,
                                  google::protobuf::MessageLite& dest,
@@ -152,13 +152,13 @@ inline absl::Status ParseFromReaderUsingDependency(
   return status;
 }
 
-}  // namespace internal
+}  // namespace messages_internal
 
 template <typename Src>
 inline absl::Status ParseFromReader(const Src& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderUsingDependency(
+  return messages_internal::ParseFromReaderUsingDependency(
       Dependency<Reader*, const Src&>(src), dest, options);
 }
 
@@ -166,7 +166,7 @@ template <typename Src>
 inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderUsingDependency(
+  return messages_internal::ParseFromReaderUsingDependency(
       Dependency<Reader*, Src&&>(std::forward<Src>(src)), dest, options);
 }
 
@@ -174,7 +174,7 @@ template <typename Src, typename... SrcArgs>
 inline absl::Status ParseFromReader(std::tuple<SrcArgs...> src_args,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderUsingDependency(
+  return messages_internal::ParseFromReaderUsingDependency(
       Dependency<Reader*, Src>(std::move(src_args)), dest, options);
 }
 

@@ -27,7 +27,7 @@
 #include "riegeli/chunk_encoding/compressor_options.h"
 
 namespace riegeli {
-namespace internal {
+namespace chunk_encoding_internal {
 
 class Compressor : public Object {
  public:
@@ -128,7 +128,7 @@ inline Writer& Compressor::writer() {
   return *writer_;
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_

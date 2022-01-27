@@ -44,7 +44,7 @@
 
 namespace riegeli {
 
-namespace internal {
+namespace chain_internal {
 
 // `Chain::Options` is defined at the namespace scope because clang has problems
 // with using nested classes in `constexpr` context.
@@ -141,7 +141,7 @@ class ChainBlockOptions {
   size_t min_block_size_ = kMinBufferSize;
 };
 
-}  // namespace internal
+}  // namespace chain_internal
 
 class ChainBlock;
 
@@ -157,7 +157,7 @@ class ChainBlock;
 // fragments.
 class Chain {
  public:
-  using Options = internal::ChainOptions;
+  using Options = chain_internal::ChainOptions;
 
   static constexpr Options kDefaultOptions = Options();
 
@@ -809,7 +809,7 @@ struct Chain::BlockAndChar {
 // `ChainBlock` uses no short data optimization.
 class ChainBlock {
  public:
-  using Options = internal::ChainBlockOptions;
+  using Options = chain_internal::ChainBlockOptions;
 
   static constexpr Options kDefaultOptions = Options();
 
@@ -1117,7 +1117,7 @@ struct Chain::ExternalMethods {
   void (*dump_structure)(const RawBlock* block, std::ostream& out);
 };
 
-namespace internal {
+namespace chain_internal {
 
 template <typename T, typename Enable = void>
 struct HasCallOperatorWithData : std::false_type {};
@@ -1247,7 +1247,7 @@ inline void DumpStructure(T& object, absl::string_view data,
   out << "[external] { }";
 }
 
-}  // namespace internal
+}  // namespace chain_internal
 
 template <typename T>
 struct Chain::ExternalMethodsFor {
@@ -1294,8 +1294,8 @@ const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
-  internal::CallOperator(block->unchecked_external_object<T>(),
-                         absl::string_view(*block));
+  chain_internal::CallOperator(block->unchecked_external_object<T>(),
+                               absl::string_view(*block));
   block->unchecked_external_object<T>().~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
       block, RawBlock::kExternalObjectOffset<T>() + sizeof(T));
@@ -1306,15 +1306,16 @@ void Chain::ExternalMethodsFor<T>::RegisterUnique(
     const RawBlock* block, MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
                                          sizeof(T));
-  internal::RegisterSubobjects(block->unchecked_external_object<T>(),
-                               absl::string_view(*block), memory_estimator);
+  chain_internal::RegisterSubobjects(block->unchecked_external_object<T>(),
+                                     absl::string_view(*block),
+                                     memory_estimator);
 }
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
                                                  std::ostream& out) {
-  internal::DumpStructure(block->unchecked_external_object<T>(),
-                          absl::string_view(*block), out);
+  chain_internal::DumpStructure(block->unchecked_external_object<T>(),
+                                absl::string_view(*block), out);
 }
 
 template <typename T, typename... Args>

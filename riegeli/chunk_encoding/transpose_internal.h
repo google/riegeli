@@ -22,7 +22,7 @@
 #include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
-namespace internal {
+namespace chunk_encoding_internal {
 
 enum class MessageId : uint32_t {
   kNoOp,
@@ -118,7 +118,7 @@ inline bool HasSubtype(uint32_t tag) {
   }
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_TRANSPOSE_INTERNAL_H_

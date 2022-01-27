@@ -56,12 +56,12 @@ bool ReadOrderedVarint64(Reader& src, uint64_t& dest);
 
 // Implementation details follow.
 
-namespace internal {
+namespace ordered_varint_internal {
 
 bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest);
 bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest);
 
-}  // namespace internal
+}  // namespace ordered_varint_internal
 
 inline bool ReadOrderedVarint32(Reader& src, uint32_t& dest) {
   if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint32))) {
@@ -73,7 +73,7 @@ inline bool ReadOrderedVarint32(Reader& src, uint32_t& dest) {
     src.move_cursor(1);
     return true;
   }
-  return internal::ReadOrderedVarint32Slow(src, dest);
+  return ordered_varint_internal::ReadOrderedVarint32Slow(src, dest);
 }
 
 inline bool ReadOrderedVarint64(Reader& src, uint64_t& dest) {
@@ -86,7 +86,7 @@ inline bool ReadOrderedVarint64(Reader& src, uint64_t& dest) {
     src.move_cursor(1);
     return true;
   }
-  return internal::ReadOrderedVarint64Slow(src, dest);
+  return ordered_varint_internal::ReadOrderedVarint64Slow(src, dest);
 }
 
 }  // namespace riegeli

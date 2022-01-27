@@ -210,12 +210,12 @@ inline bool ReadCanonicalVarint64(Reader& src, uint64_t& dest) {
   return true;
 }
 
-namespace internal {
+namespace varint_internal {
 
 bool StreamingReadVarint32Slow(Reader& src, uint32_t& dest);
 bool StreamingReadVarint64Slow(Reader& src, uint64_t& dest);
 
-}  // namespace internal
+}  // namespace varint_internal
 
 inline bool StreamingReadVarint32(Reader& src, uint32_t& dest) {
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
@@ -226,7 +226,7 @@ inline bool StreamingReadVarint32(Reader& src, uint32_t& dest) {
       // The buffer contains a potential varint terminator. Avoid pulling
       // repeatedly which can be expensive.
     } else if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
-      return internal::StreamingReadVarint32Slow(src, dest);
+      return varint_internal::StreamingReadVarint32Slow(src, dest);
     }
   }
   const absl::optional<const char*> cursor =
@@ -245,7 +245,7 @@ inline bool StreamingReadVarint64(Reader& src, uint64_t& dest) {
       // The buffer contains a potential varint terminator. Avoid pulling
       // repeatedly which can be expensive.
     } else if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint64)) {
-      return internal::StreamingReadVarint64Slow(src, dest);
+      return varint_internal::StreamingReadVarint64Slow(src, dest);
     }
   }
   const absl::optional<const char*> cursor =
@@ -255,7 +255,7 @@ inline bool StreamingReadVarint64(Reader& src, uint64_t& dest) {
   return true;
 }
 
-namespace internal {
+namespace varint_internal {
 
 constexpr size_t kReadVarintSlowThreshold = 3 * 7;
 
@@ -264,7 +264,7 @@ absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
 absl::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
                                              uint64_t acc, uint64_t& dest);
 
-}  // namespace internal
+}  // namespace varint_internal
 
 inline absl::optional<const char*> ReadVarint32(const char* src,
                                                 const char* limit,
@@ -274,8 +274,9 @@ inline absl::optional<const char*> ReadVarint32(const char* src,
   uint32_t acc{byte};
   size_t shift = 7;
   while (byte >= 0x80) {
-    if (ABSL_PREDICT_FALSE(shift == internal::kReadVarintSlowThreshold)) {
-      return internal::ReadVarint32Slow(src, limit, acc, dest);
+    if (ABSL_PREDICT_FALSE(shift ==
+                           varint_internal::kReadVarintSlowThreshold)) {
+      return varint_internal::ReadVarint32Slow(src, limit, acc, dest);
     }
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
@@ -294,8 +295,9 @@ inline absl::optional<const char*> ReadVarint64(const char* src,
   uint64_t acc{byte};
   size_t shift = 7;
   while (byte >= 0x80) {
-    if (ABSL_PREDICT_FALSE(shift == internal::kReadVarintSlowThreshold)) {
-      return internal::ReadVarint64Slow(src, limit, acc, dest);
+    if (ABSL_PREDICT_FALSE(shift ==
+                           varint_internal::kReadVarintSlowThreshold)) {
+      return varint_internal::ReadVarint64Slow(src, limit, acc, dest);
     }
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);

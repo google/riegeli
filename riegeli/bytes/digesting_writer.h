@@ -32,7 +32,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/bytes/digesting_common.h"
+#include "riegeli/bytes/digesting_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -143,7 +143,7 @@ template <typename Digester, typename Dest = Writer*>
 class DigestingWriter : public DigestingWriterBase {
  public:
   // The type of the digest.
-  using DigestType = internal::DigestType<Digester>;
+  using DigestType = digesting_internal::DigestType<Digester>;
 
   // Creates a closed `DigestingWriter`.
   explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
@@ -355,7 +355,7 @@ void DigestingWriter<Digester, Dest>::Done() {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  internal::DigesterClose(digester_);
+  digesting_internal::Close(digester_);
 }
 
 template <typename Digester, typename Dest>
@@ -366,7 +366,7 @@ DigestingWriter<Digester, Dest>::Digest() {
     set_start_pos(pos());
     set_buffer(cursor(), available());
   }
-  return internal::DigesterDigest(digester_);
+  return digesting_internal::Digest(digester_);
 }
 
 template <typename Digester, typename Dest>
@@ -388,7 +388,7 @@ void DigestingWriter<Digester, Dest>::DigesterWrite(absl::string_view src) {
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::DigesterWriteZeros(Position length) {
-  internal::DigesterWriteZeros(digester_, length);
+  digesting_internal::WriteZeros(digester_, length);
 }
 
 }  // namespace riegeli

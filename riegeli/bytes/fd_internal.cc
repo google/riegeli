@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_internal.h"
 
 #include <unistd.h>
 
@@ -22,10 +22,11 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 
 namespace riegeli {
-namespace internal {
+namespace fd_internal {
 
 std::string ResolveFilename(int fd,
                             absl::optional<std::string>&& assumed_filename) {
@@ -44,7 +45,7 @@ std::string ResolveFilename(int fd,
   }
 }
 
-int CloseFd(int fd) {
+int Close(int fd) {
   // http://austingroupbugs.net/view.php?id=529 explains this mess.
 #ifdef POSIX_CLOSE_RESTART
   // Avoid EINTR by using posix_close(_, 0) if available.
@@ -62,6 +63,11 @@ int CloseFd(int fd) {
 #endif
   return 0;
 }
+#ifdef POSIX_CLOSE_RESTART
+extern const absl::string_view kCloseFunctionName = "posix_close()";
+#else
+extern const absl::string_view kCloseFunctionName = "close()";
+#endif
 
-}  // namespace internal
+}  // namespace fd_internal
 }  // namespace riegeli

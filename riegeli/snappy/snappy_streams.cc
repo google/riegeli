@@ -26,7 +26,7 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-namespace internal {
+namespace snappy_internal {
 
 void WriterSnappySink::Append(const char* src, size_t length) {
   RIEGELI_ASSERT(std::less_equal<>()(src, dest_->cursor()) ||
@@ -94,5 +94,5 @@ const char* ReaderSnappySource::Peek(size_t* length) {
 
 void ReaderSnappySource::Skip(size_t length) { src_->Skip(length); }
 
-}  // namespace internal
+}  // namespace snappy_internal
 }  // namespace riegeli

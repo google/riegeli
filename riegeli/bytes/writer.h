@@ -704,13 +704,13 @@ inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
   dest->Write(src);
 }
 
-namespace internal {
+namespace writer_internal {
 
 // Does `delete reader`. This is defined in a separate file because `Reader`
 // might be incomplete here.
 void DeleteReader(Reader* reader);
 
-}  // namespace internal
+}  // namespace writer_internal
 
 template <typename ReaderClass>
 inline AssociatedReader<ReaderClass>::AssociatedReader(
@@ -752,7 +752,9 @@ ReaderClass* AssociatedReader<ReaderClass>::reader() const {
 
 template <typename ReaderClass>
 void AssociatedReader<ReaderClass>::Delete(Reader* reader) {
-  if (ABSL_PREDICT_FALSE(reader != nullptr)) internal::DeleteReader(reader);
+  if (ABSL_PREDICT_FALSE(reader != nullptr)) {
+    writer_internal::DeleteReader(reader);
+  }
 }
 
 }  // namespace riegeli

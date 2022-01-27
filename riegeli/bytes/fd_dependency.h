@@ -15,39 +15,13 @@
 #ifndef RIEGELI_BYTES_FD_DEPENDENCY_H_
 #define RIEGELI_BYTES_FD_DEPENDENCY_H_
 
-#include <string>
 #include <utility>
 
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/bytes/fd_internal.h"
 
 namespace riegeli {
-
-namespace internal {
-
-// Returns the `assumed_filename`. If `absl::nullopt`, then "/dev/stdin",
-// "/dev/stdout", "/dev/stderr", or "/proc/self/fd/<fd>" is inferred from `fd`.
-std::string ResolveFilename(int fd,
-                            absl::optional<std::string>&& assumed_filename);
-
-// Closes a file descriptor, taking interruption by signals into account.
-//
-// Return value:
-//  * 0  - success
-//  * -1 - failure (`errno` is set, `fd` is closed anyway)
-int CloseFd(int fd);
-
-#ifdef POSIX_CLOSE_RESTART
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName,
-                                  "posix_close()");
-#else
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName,
-                                  "close()");
-#endif
-
-}  // namespace internal
 
 // Owns a file descriptor (-1 means none).
 //
@@ -138,13 +112,13 @@ inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
 inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
   // Exchange `that.fd_` early to support self-assignment.
   const int fd = std::exchange(that.fd_, -1);
-  if (fd_ >= 0) internal::CloseFd(fd_);
+  if (fd_ >= 0) fd_internal::Close(fd_);
   fd_ = fd;
   return *this;
 }
 
 inline OwnedFd::~OwnedFd() {
-  if (fd_ >= 0) internal::CloseFd(fd_);
+  if (fd_ >= 0) fd_internal::Close(fd_);
 }
 
 }  // namespace riegeli

@@ -27,7 +27,7 @@
 #include "riegeli/base/base.h"
 
 namespace riegeli {
-namespace internal {
+namespace cfile_internal {
 
 // Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
 // `ftell()`.
@@ -78,7 +78,7 @@ inline off_t FTell(File* file) {
 constexpr absl::string_view kFTellFunctionName =
     HaveFSeekO<FILE>::value ? "ftello()" : "ftell()";
 
-}  // namespace internal
+}  // namespace cfile_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_CFILE_INTERNAL_H_

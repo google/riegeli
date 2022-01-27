@@ -34,7 +34,7 @@ namespace riegeli {
 
 class Reader;
 
-namespace internal {
+namespace stream_internal {
 
 class WriterStreambuf : public std::streambuf {
  public:
@@ -92,7 +92,7 @@ class WriterStreambuf : public std::streambuf {
   //                                                : nullptr)`
 };
 
-}  // namespace internal
+}  // namespace stream_internal
 
 // Template parameter independent part of `WriterOStream`.
 class WriterOStreamBase : public std::iostream {
@@ -144,7 +144,7 @@ class WriterOStreamBase : public std::iostream {
 
   virtual void Done() = 0;
 
-  internal::WriterStreambuf streambuf_;
+  stream_internal::WriterStreambuf streambuf_;
 
   // Invariant: `rdbuf() == &streambuf_`
 };
@@ -235,7 +235,7 @@ explicit WriterOStream(
 
 // Implementation details follow.
 
-namespace internal {
+namespace stream_internal {
 
 inline WriterStreambuf::WriterStreambuf(WriterStreambuf&& that) noexcept
     : std::streambuf(that),
@@ -267,7 +267,7 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!writer_->healthy())) FailWriter();
 }
 
-}  // namespace internal
+}  // namespace stream_internal
 
 inline WriterOStreamBase::WriterOStreamBase(WriterOStreamBase&& that) noexcept
     : std::iostream(std::move(that)),
@@ -287,12 +287,12 @@ inline WriterOStreamBase& WriterOStreamBase::operator=(
 }
 
 inline void WriterOStreamBase::Reset(Closed) {
-  streambuf_ = internal::WriterStreambuf(kClosed);
+  streambuf_ = stream_internal::WriterStreambuf(kClosed);
   init(&streambuf_);
 }
 
 inline void WriterOStreamBase::Reset() {
-  streambuf_ = internal::WriterStreambuf();
+  streambuf_ = stream_internal::WriterStreambuf();
   init(&streambuf_);
 }
 

@@ -191,7 +191,7 @@ inline size_t SerializeOptions::GetByteSize(
   return size;
 }
 
-namespace internal {
+namespace messages_internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                                    Writer& dest, SerializeOptions options);
@@ -207,20 +207,20 @@ inline absl::Status SerializeToWriterUsingDependency(
   return status;
 }
 
-}  // namespace internal
+}  // namespace messages_internal
 
 template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       const Dest& dest,
                                       SerializeOptions options) {
-  return internal::SerializeToWriterUsingDependency(
+  return messages_internal::SerializeToWriterUsingDependency(
       src, Dependency<Writer*, const Dest&>(dest), options);
 }
 
 template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
-  return internal::SerializeToWriterUsingDependency(
+  return messages_internal::SerializeToWriterUsingDependency(
       src, Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)), options);
 }
 
@@ -228,7 +228,7 @@ template <typename Dest, typename... DestArgs>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       std::tuple<DestArgs...> dest_args,
                                       SerializeOptions options) {
-  return internal::SerializeToWriterUsingDependency(
+  return messages_internal::SerializeToWriterUsingDependency(
       src, Dependency<Writer*, Dest>(std::move(dest_args)), options);
 }
 

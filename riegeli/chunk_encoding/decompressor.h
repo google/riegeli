@@ -38,7 +38,7 @@
 #include "riegeli/zstd/zstd_reader.h"
 
 namespace riegeli {
-namespace internal {
+namespace chunk_encoding_internal {
 
 // Returns uncompressed size of `compressed_data`.
 //
@@ -241,7 +241,7 @@ inline void Decompressor<Src>::VerifyEnd() {
   if (ABSL_PREDICT_TRUE(healthy())) decompressed_->VerifyEnd();
 }
 
-}  // namespace internal
+}  // namespace chunk_encoding_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_DECOMPRESSOR_H_

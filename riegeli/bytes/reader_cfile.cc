@@ -34,7 +34,7 @@
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
-namespace internal {
+namespace cfile_internal {
 
 ReaderCFileCookieBase::~ReaderCFileCookieBase() {}
 
@@ -178,5 +178,5 @@ FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie) {
       {ReaderCFileRead, nullptr, ReaderCFileSeek, ReaderCFileClose});
 }
 
-}  // namespace internal
+}  // namespace cfile_internal
 }  // namespace riegeli

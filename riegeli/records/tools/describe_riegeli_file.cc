@@ -138,7 +138,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       return absl::InvalidArgumentError("Reading size of sizes failed");
     }
 
-    internal::Decompressor<LimitingReader<>> sizes_decompressor(
+    chunk_encoding_internal::Decompressor<LimitingReader<>> sizes_decompressor(
         std::forward_as_tuple(
             &src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
         compression_type);
@@ -185,7 +185,8 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
     }
 
     if (show_records) {
-      internal::Decompressor<> records_decompressor(&src, compression_type);
+      chunk_encoding_internal::Decompressor<> records_decompressor(
+          &src, compression_type);
       if (ABSL_PREDICT_FALSE(!records_decompressor.healthy())) {
         return records_decompressor.status();
       }
