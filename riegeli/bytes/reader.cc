@@ -299,24 +299,12 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
     }
     return true;
   } else {
+    if (ABSL_PREDICT_FALSE(!Pull())) return healthy();
     size_t remaining_max_length = max_length;
-    for (;;) {
-      if (ABSL_PREDICT_FALSE(remaining_max_length == 0)) {
-        if (!Pull()) break;
-        return FailMaxLengthExceeded(max_length);
-      }
-      const size_t dest_pos = dest.size();
-      if (dest.capacity() - dest_pos <= available()) {
-        // `dest` has not enough space to fit currently available data and to
-        // determine whether the source ends.
-        dest.reserve(
-            UnsignedMin(UnsignedMax(dest_pos + available() + 1,
-                                    // Ensure that repeated growth has the cost
-                                    // proportional to the final size.
-                                    dest.capacity() + dest.capacity() / 2),
-                        dest_pos + remaining_max_length));
-      }
-      // Try to fill all remaining space in `dest`.
+    const size_t dest_pos = dest.size();
+    if (available() < dest.capacity() - dest_pos) {
+      // Try to fill all remaining space in `dest`, to avoid copying through the
+      // `Chain` in case the remaining length is smaller.
       const size_t length =
           UnsignedMin(dest.capacity() - dest_pos, remaining_max_length);
       dest.resize(dest_pos + length);
@@ -328,10 +316,21 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
         RIEGELI_ASSERT_LE(length_read, length)
             << "Reader::Read(char*) read more than requested";
         dest.erase(dest_pos + IntCast<size_t>(length_read));
-        break;
+        return healthy();
       }
       remaining_max_length -= length;
     }
+    Chain buffer;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        ReadAndAppend(remaining_max_length, buffer);
+        std::move(buffer).AppendTo(dest);
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      ReadAndAppend(available(), buffer);
+    } while (Pull());
+    std::move(buffer).AppendTo(dest);
     return healthy();
   }
 }
