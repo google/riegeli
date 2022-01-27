@@ -54,7 +54,7 @@ class LimitingReaderBase : public Reader {
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_max_pos(absl::optional<Position> max_pos) & {
       max_pos_ = max_pos;
       return *this;
@@ -78,7 +78,7 @@ class LimitingReaderBase : public Reader {
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_max_length(absl::optional<Position> max_length) & {
       max_length_ = max_length;
       return *this;
@@ -104,7 +104,7 @@ class LimitingReaderBase : public Reader {
     // Reading will end cleanly when the limit is reached, but will fail if the
     // source ends before the limit.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_exact(bool exact) & {
       exact_ = exact;
       return *this;

@@ -56,7 +56,7 @@ class FdReaderBase : public BufferedReader {
     // If `FdReader` reads from a filename, `set_assumed_filename()` has no
     // effect.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_assumed_filename(
         absl::optional<absl::string_view> assumed_filename) & {
       if (assumed_filename == absl::nullopt) {
@@ -213,7 +213,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // If `FdMMapReader` reads from a filename, `set_assumed_filename()` has no
     // effect.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_assumed_filename(
         absl::optional<absl::string_view> assumed_filename) & {
       if (assumed_filename == absl::nullopt) {

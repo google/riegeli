@@ -71,7 +71,7 @@ class CsvWriterBase : public Object {
     // fields has the same effect as writing a header containing one empty
     // field.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_header(absl::optional<CsvHeader> header) & {
       header_ = std::move(header);
       return *this;
@@ -106,7 +106,7 @@ class CsvWriterBase : public Object {
     //
     // Often used: '#'
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_comment(absl::optional<char> comment) & {
       RIEGELI_ASSERT(comment != '\n' && comment != '\r')
           << "Comment character conflicts with record separator";
@@ -120,7 +120,7 @@ class CsvWriterBase : public Object {
 
     // Field separator.
     //
-    // Default: ','
+    // Default: ','.
     Options& set_field_separator(char field_separator) & {
       RIEGELI_ASSERT(field_separator != '\n' && field_separator != '\r')
           << "Field separator conflicts with record separator";
@@ -144,7 +144,7 @@ class CsvWriterBase : public Object {
     // If `absl::nullopt`, special characters inside fields are not expressible,
     // and `CsvWriter` fails if they are encountered.
     //
-    // Default: `"`
+    // Default: '"'.
     Options& set_quote(absl::optional<char> quote) & {
       RIEGELI_ASSERT(quote != '\n' && quote != '\r')
           << "Quote character conflicts with record separator";

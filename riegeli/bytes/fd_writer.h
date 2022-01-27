@@ -58,7 +58,7 @@ class FdWriterBase : public BufferedWriter {
     // If `FdWriter` writes to a filename, `set_assumed_filename()` has no
     // effect.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_assumed_filename(
         absl::optional<absl::string_view> assumed_filename) & {
       if (assumed_filename == absl::nullopt) {

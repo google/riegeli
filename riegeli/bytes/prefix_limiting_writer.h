@@ -51,7 +51,7 @@ class PrefixLimitingWriterBase : public Writer {
     //
     // `absl::nullopt` means the current position.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_base_pos(absl::optional<Position> base_pos) & {
       base_pos_ = base_pos;
       return *this;

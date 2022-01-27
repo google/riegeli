@@ -103,7 +103,7 @@ class CsvReaderBase : public Object {
     //
     // Often used: '#'
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_comment(absl::optional<char> comment) & {
       RIEGELI_ASSERT(comment != '\n' && comment != '\r')
           << "Comment character conflicts with record separator";
@@ -117,7 +117,7 @@ class CsvReaderBase : public Object {
 
     // Field separator.
     //
-    // Default: ','
+    // Default: ','.
     Options& set_field_separator(char field_separator) & {
       RIEGELI_ASSERT(field_separator != '\n' && field_separator != '\r')
           << "Field separator conflicts with record separator";
@@ -141,7 +141,7 @@ class CsvReaderBase : public Object {
     // If `quote()` and `escape()` are both `absl::nullopt`, special characters
     // inside fields are not expressible.
     //
-    // Default: `"`
+    // Default: '"'.
     Options& set_quote(absl::optional<char> quote) & {
       RIEGELI_ASSERT(quote != '\n' && quote != '\r')
           << "Quote character conflicts with record separator";
@@ -163,7 +163,7 @@ class CsvReaderBase : public Object {
     // If `quote()` and `escape()` are both `absl::nullopt`, special characters
     // inside fields are not expressible.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_escape(absl::optional<char> escape) & {
       RIEGELI_ASSERT(escape != '\n' && escape != '\r')
           << "Escape character conflicts with record separator";
@@ -181,6 +181,7 @@ class CsvReaderBase : public Object {
     // `absl::ResourceExhaustedError()`.
     //
     // `max_num_fields` must be at least 1.
+    //
     // Default: `std::numeric_limits<size_t>::max()`.
     Options& set_max_num_fields(size_t max_num_fields) & {
       RIEGELI_ASSERT_GE(max_num_fields, 1u)

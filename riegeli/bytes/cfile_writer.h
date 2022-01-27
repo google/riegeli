@@ -55,7 +55,7 @@ class CFileWriterBase : public BufferedWriter {
     // If `CFileWriter` writes to a filename, `set_assumed_filename()` has no
     // effect.
     //
-    // Default: ""
+    // Default: "".
     Options& set_assumed_filename(absl::string_view assumed_filename) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `assumed_filename_ = assumed_filename`
@@ -99,7 +99,7 @@ class CFileWriterBase : public BufferedWriter {
     // `ftell()` reports 0 until the first write, so `set_append(true)` is
     // required.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_append(bool append) & {
       append_ = append;
       return *this;

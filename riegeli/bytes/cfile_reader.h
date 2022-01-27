@@ -50,7 +50,7 @@ class CFileReaderBase : public BufferedReader {
     // If `CFileReader` reads from a filename, `set_assumed_filename()` has no
     // effect.
     //
-    // Default: ""
+    // Default: "".
     Options& set_assumed_filename(absl::string_view assumed_filename) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `assumed_filename_ = assumed_filename`
