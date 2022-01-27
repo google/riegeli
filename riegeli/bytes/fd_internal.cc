@@ -63,6 +63,7 @@ int Close(int fd) {
 #endif
   return 0;
 }
+
 #ifdef POSIX_CLOSE_RESTART
 extern const absl::string_view kCloseFunctionName = "posix_close()";
 #else
