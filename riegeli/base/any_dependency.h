@@ -35,12 +35,50 @@ struct AnyDependencyTraits {
   static Ptr DefaultPtr() { return Ptr(); }
 };
 
-namespace internal {
+namespace any_dependency_internal {
+
+// Variants of `Repr`:
+//  * Empty `AnyDependency`: `Repr` is not used
+//  * Held by pointer: `ptr` is `Dependency<Ptr, Manager>*` cast to `void*`
+//  * Stored inline: `Dependency<Ptr, Manager>` is inside `storage`
+union Repr {
+  void* ptr;
+  char storage[sizeof(void*)];
+};
+
+// A `Dependency<Ptr, Manager>` is stored inline in `Repr` if it fits and is
+// stable. In practice this applies mostly to `Dependency<P*, P*>` and
+// `Dependency<P*, std::unique_ptr<P>>`
+
+template <typename Ptr, typename Manager, typename Enable = void>
+struct IsInline : std::false_type {};
 
 template <typename Ptr, typename Manager>
-struct AnyDependencyIsInline;
+struct IsInline<
+    Ptr, Manager,
+    std::enable_if_t<sizeof(Dependency<Ptr, Manager>) <= sizeof(Repr) &&
+                     alignof(Dependency<Ptr, Manager>) <= alignof(Repr) &&
+                     Dependency<Ptr, Manager>::kIsStable()>> : std::true_type {
+};
 
-}  // namespace internal
+template <typename Ptr>
+struct Methods {
+  // Constructs `self` by moving from `that`, and destroys `that`.
+  void (*move)(Repr& self, Repr& that);
+  // Destroys `self`.
+  void (*destroy)(Repr& self);
+  Ptr (*get)(const Repr& self);
+  Ptr (*release)(Repr& self);
+  bool (*is_owning)(const Repr& self);
+};
+
+template <typename Ptr>
+struct NullMethods;
+
+template <typename Ptr, typename Manager, typename Enable = void>
+struct MethodsFor;
+
+}  // namespace any_dependency_internal
 
 // `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
 // type, erasing the `Manager` type from the type of the `AnyDependency`, or is
@@ -141,35 +179,11 @@ class AnyDependency {
   bool is_owning() const { return methods_->is_owning(repr_); }
 
  private:
-  template <typename SomePtr, typename Manager>
-  friend struct internal::AnyDependencyIsInline;
-
-  // Variants of `Repr`:
-  //  * Empty `AnyDependency`: `Repr` is not used
-  //  * Held by pointer: `ptr` is `Dependency<Ptr, Manager>*` cast to `void*`
-  //  * Stored inline: `Dependency<Ptr, Manager>` is inside `storage`
-  union Repr {
-    void* ptr;
-    char storage[sizeof(void*)];
-  };
-
-  struct Methods {
-    // Constructs `self` by moving from `that`, and destroys `that`.
-    void (*move)(Repr& self, Repr& that);
-    // Destroys `self`.
-    void (*destroy)(Repr& self);
-    Ptr (*get)(const Repr& self);
-    Ptr (*release)(Repr& self);
-    bool (*is_owning)(const Repr& self);
-  };
-
-  template <typename Manager, typename Enable = void>
-  struct IsInline;
-
-  struct NullMethods;
-
-  template <typename Manager, typename Enable = void>
-  struct MethodsFor;
+  using Repr = any_dependency_internal::Repr;
+  using Methods = any_dependency_internal::Methods<Ptr>;
+  using NullMethods = any_dependency_internal::NullMethods<Ptr>;
+  template <typename Manager>
+  using MethodsFor = any_dependency_internal::MethodsFor<Ptr, Manager>;
 
   const Methods* methods_;
   Repr repr_;
@@ -201,10 +215,10 @@ class Dependency<Ptr, AnyDependency<Ptr>>
 
 // Implementation details follow.
 
-namespace internal {
+namespace any_dependency_internal {
 
-// `internal::Release(dep)` calls `dep.Release()` if that is defined, otherwise
-// returns `AnyDependencyTraits<Ptr>::DefaultPtr()`.
+// `any_dependency_internal::Release(dep)` calls `dep.Release()` if that is
+// defined, otherwise returns `AnyDependencyTraits<Ptr>::DefaultPtr()`.
 
 template <typename T, typename Enable = void>
 struct HasRelease : std::false_type {};
@@ -225,39 +239,9 @@ Ptr Release(Dependency<Ptr, Manager>& dep) {
   return AnyDependencyTraits<Ptr>::DefaultPtr();
 }
 
-}  // namespace internal
-
-// A `Dependency<Ptr, Manager>` is stored inline if it fits and is stable.
-// In practice this applies mostly to `Dependency<P*, P*>` and
-// `Dependency<P*, std::unique_ptr<P>>`
-
 template <typename Ptr>
-template <typename Manager, typename Enable>
-struct AnyDependency<Ptr>::IsInline : std::false_type {};
-
-template <typename Ptr>
-template <typename Manager>
-struct AnyDependency<Ptr>::IsInline<
-    Manager, std::enable_if_t<sizeof(Dependency<Ptr, Manager>) <=
-                                  sizeof(typename AnyDependency<Ptr>::Repr) &&
-                              alignof(Dependency<Ptr, Manager>) <=
-                                  alignof(typename AnyDependency<Ptr>::Repr) &&
-                              Dependency<Ptr, Manager>::kIsStable()>>
-    : std::true_type {};
-
-namespace internal {
-
-// This indirection is needed for some mysterious reason, otherwise definitions
-// of members of partial specializations do not compile.
-template <typename Ptr, typename Manager>
-struct AnyDependencyIsInline : AnyDependency<Ptr>::template IsInline<Manager> {
-};
-
-}  // namespace internal
-
-template <typename Ptr>
-struct AnyDependency<Ptr>::NullMethods {
-  static const Methods methods;
+struct NullMethods {
+  static const Methods<Ptr> methods;
 
  private:
   static void Move(Repr& self, Repr& that) {}
@@ -272,14 +256,12 @@ struct AnyDependency<Ptr>::NullMethods {
 };
 
 template <typename Ptr>
-const typename AnyDependency<Ptr>::Methods
-    AnyDependency<Ptr>::NullMethods::methods = {Move, Destroy, Get, Release,
+const Methods<Ptr> NullMethods<Ptr>::methods = {Move, Destroy, Get, Release,
                                                 IsOwning};
 
-template <typename Ptr>
-template <typename Manager, typename Enable>
-struct AnyDependency<Ptr>::MethodsFor {
-  static const Methods methods;
+template <typename Ptr, typename Manager, typename Enable>
+struct MethodsFor {
+  static const Methods<Ptr> methods;
 
   static void Construct(Repr& self, const Manager& manager) {
     self.ptr = new Dependency<Ptr, Manager>(manager);
@@ -300,22 +282,20 @@ struct AnyDependency<Ptr>::MethodsFor {
   static void Move(Repr& self, Repr& that) { self.ptr = that.ptr; }
   static void Destroy(Repr& self) { delete ptr(self); }
   static Ptr Get(const Repr& self) { return ptr(self)->get(); }
-  static Ptr Release(Repr& self) { return internal::Release(*ptr(self)); }
+  static Ptr Release(Repr& self) {
+    return any_dependency_internal::Release(*ptr(self));
+  }
   static bool IsOwning(const Repr& self) { return ptr(self)->is_owning(); }
 };
 
-template <typename Ptr>
-template <typename Manager, typename Enable>
-const typename AnyDependency<Ptr>::Methods
-    AnyDependency<Ptr>::MethodsFor<Manager, Enable>::methods = {
-        Move, Destroy, Get, Release, IsOwning};
+template <typename Ptr, typename Manager, typename Enable>
+const Methods<Ptr> MethodsFor<Ptr, Manager, Enable>::methods = {
+    Move, Destroy, Get, Release, IsOwning};
 
-template <typename Ptr>
-template <typename Manager>
-struct AnyDependency<Ptr>::MethodsFor<
-    Manager,
-    std::enable_if_t<internal::AnyDependencyIsInline<Ptr, Manager>::value>> {
-  static const Methods methods;
+template <typename Ptr, typename Manager>
+struct MethodsFor<Ptr, Manager,
+                  std::enable_if_t<IsInline<Ptr, Manager>::value>> {
+  static const Methods<Ptr> methods;
 
   static void Construct(Repr& self, const Manager& manager) {
     new (self.storage) Dependency<Ptr, Manager>(manager);
@@ -345,16 +325,18 @@ struct AnyDependency<Ptr>::MethodsFor<
     // See the caveat regarding const at `AnyDependency::get()`.
     return const_cast<Dependency<Ptr, Manager>&>(dep(self)).get();
   }
-  static Ptr Release(Repr& self) { return internal::Release(dep(self)); }
+  static Ptr Release(Repr& self) {
+    return any_dependency_internal::Release(dep(self));
+  }
   static bool IsOwning(const Repr& self) { return dep(self).is_owning(); }
 };
 
-template <typename Ptr>
-template <typename Manager>
-const typename AnyDependency<Ptr>::Methods AnyDependency<Ptr>::MethodsFor<
-    Manager,
-    std::enable_if_t<internal::AnyDependencyIsInline<Ptr, Manager>::value>>::
-    methods = {Move, Destroy, Get, Release, IsOwning};
+template <typename Ptr, typename Manager>
+const Methods<Ptr> MethodsFor<
+    Ptr, Manager, std::enable_if_t<IsInline<Ptr, Manager>::value>>::methods = {
+    Move, Destroy, Get, Release, IsOwning};
+
+}  // namespace any_dependency_internal
 
 template <typename Ptr>
 inline AnyDependency<Ptr>::AnyDependency() noexcept
