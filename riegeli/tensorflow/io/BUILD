@@ -30,8 +30,8 @@ cc_library(
     deps = [
         ":file_reader",
         "//riegeli/base",
-        "//riegeli/base:buffer",
         "//riegeli/base:chain",
+        "//riegeli/base:shared_buffer",
         "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",

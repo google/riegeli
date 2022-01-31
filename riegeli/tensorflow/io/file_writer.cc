@@ -29,9 +29,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -105,7 +105,7 @@ void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
 void FileWriterBase::Done() {
   SyncBuffer();
   Writer::Done();
-  buffer_ = Buffer();
+  buffer_ = SharedBuffer();
 }
 
 bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
@@ -160,7 +160,7 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   }
   const size_t buffer_length = UnsignedMax(buffer_size_, min_length);
   buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(),
+  set_buffer(buffer_.mutable_data(),
              UnsignedMin(buffer_.capacity(),
                          SaturatingAdd(buffer_length, buffer_length),
                          std::numeric_limits<Position>::max() - start_pos()));

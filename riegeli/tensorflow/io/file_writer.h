@@ -30,10 +30,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/shared_buffer.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -178,7 +178,7 @@ class FileWriterBase : public Writer {
   // Invariant: if `is_open()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // Buffered data to be written.
-  Buffer buffer_;
+  SharedBuffer buffer_;
 
   AssociatedReader<FileReader<std::unique_ptr<::tensorflow::RandomAccessFile>>>
       associated_reader_;
@@ -314,7 +314,7 @@ inline void FileWriterBase::Reset(Closed) {
   env_ = nullptr;
   file_system_ = nullptr;
   buffer_size_ = 0;
-  buffer_ = Buffer();
+  buffer_ = SharedBuffer();
   associated_reader_.Reset();
 }
 
