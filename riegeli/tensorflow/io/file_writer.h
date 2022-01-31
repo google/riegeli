@@ -142,6 +142,10 @@ class FileWriterBase : public Writer {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
+  bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
+  bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
   Reader* ReadModeImpl(Position initial_pos) override;
@@ -162,6 +166,7 @@ class FileWriterBase : public Writer {
   //   `!src.empty()`
   //   `healthy()`
   bool WriteInternal(absl::string_view src);
+  bool WriteInternal(const absl::Cord& src);
 
   std::string filename_;
   // Invariant:
