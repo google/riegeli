@@ -30,11 +30,11 @@ absl::Cord SharedBuffer::ToCord(absl::string_view substr) const {
                                      const_data() + capacity()))
       << "Failed precondition of SharedBuffer::ToCord(): "
          "substring not contained in the buffer";
-  if (substr.size() <= 15 /* `absl::Cord::InlineRep::kMaxInline` */ ||
-      Wasteful(capacity(), substr.size())) {
-    return MakeFlatCord(substr);
+  // `absl::cord_internal::kMaxInline`.
+  static constexpr size_t kMaxInline = 15;
+  if (substr.size() <= kMaxInline || Wasteful(capacity(), substr.size())) {
+    return MakeBlockyCord(substr);
   }
-
   void* ptr = Share();
   return absl::MakeCordFromExternal(substr, [ptr] { DeleteShared(ptr); });
 }

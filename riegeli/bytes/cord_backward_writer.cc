@@ -54,23 +54,22 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (limit() == short_buffer_) {
-    const size_t buffered_length = start_to_cursor();
+    const size_t cursor_index = start_to_cursor();
     if (ABSL_PREDICT_FALSE(
-            min_length > std::numeric_limits<size_t>::max() - buffered_length ||
-            buffered_length + min_length >
+            min_length > std::numeric_limits<size_t>::max() - cursor_index ||
+            cursor_index + min_length >
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
     buffer_.Reset(BufferLength(
-        buffered_length + min_length,
-        UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
+        cursor_index + min_length,
+        UnsignedMax(SaturatingAdd(cursor_index, recommended_length),
                     start_pos(), min_block_size_),
         max_block_size_, size_hint_, start_pos()));
     const size_t length = UnsignedMin(
         buffer_.capacity(), std::numeric_limits<size_t>::max() - dest.size());
-    std::memcpy(buffer_.data() + length - buffered_length, cursor(),
-                buffered_length);
-    set_buffer(buffer_.data(), length, buffered_length);
+    std::memcpy(buffer_.data() + length - cursor_index, cursor(), cursor_index);
+    set_buffer(buffer_.data(), length, cursor_index);
   } else {
     SyncBuffer(dest);
     if (ABSL_PREDICT_FALSE(min_length >
@@ -221,13 +220,13 @@ bool CordBackwardWriterBase::TruncateImpl(Position new_size) {
 }
 
 inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
+  if (limit() == nullptr) return;
   set_start_pos(pos());
-  if (start_to_cursor() <= MaxBytesToCopyToCord(dest) ||
-      limit() == short_buffer_) {
-    dest.Prepend(absl::string_view(cursor(), start_to_cursor()));
+  const absl::string_view data(cursor(), start_to_cursor());
+  if (limit() == short_buffer_) {
+    dest.Prepend(data);
   } else {
-    dest.Prepend(
-        buffer_.ToCord(absl::string_view(cursor(), start_to_cursor())));
+    std::move(buffer_).PrependSubstrTo(data, dest);
   }
   set_buffer();
 }

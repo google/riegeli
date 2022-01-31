@@ -15,6 +15,7 @@
 #include "riegeli/base/base.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <exception>
@@ -52,8 +53,11 @@ void ResizeStringAmortized(std::string& dest, size_t new_size) {
   dest.resize(new_size);
 }
 
-absl::Cord MakeFlatCord(absl::string_view src) {
-  if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
+absl::Cord MakeBlockyCord(absl::string_view src) {
+  // `absl::cord_internal::kMaxFlatLength`.
+  static constexpr size_t kMaxFlatLength =
+      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
+  if (src.size() <= kMaxFlatLength) {
     // `absl::Cord(absl::string_view)` allocates a single node of that length.
     return absl::Cord(src);
   }
@@ -67,6 +71,32 @@ absl::Cord MakeFlatCord(absl::string_view src) {
         operator delete(const_cast<char*>(data.data()));
 #endif
       });
+}
+
+void AppendToBlockyCord(absl::string_view src, absl::Cord& dest) {
+  // `absl::cord_internal::kMaxFlatLength`.
+  static constexpr size_t kMaxFlatLength =
+      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
+  if (src.size() <= kMaxFlatLength) {
+    // `absl::Cord::Append(absl::string_view)` can allocate a single node of
+    // that length.
+    dest.Append(src);
+    return;
+  }
+  dest.Append(MakeBlockyCord(src));
+}
+
+void PrependToBlockyCord(absl::string_view src, absl::Cord& dest) {
+  // `absl::cord_internal::kMaxFlatLength`.
+  static constexpr size_t kMaxFlatLength =
+      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
+  if (src.size() <= kMaxFlatLength) {
+    // `absl::Cord::Prepend(absl::string_view)` can allocate a single node of
+    // that length.
+    dest.Prepend(src);
+    return;
+  }
+  dest.Prepend(MakeBlockyCord(src));
 }
 
 }  // namespace riegeli

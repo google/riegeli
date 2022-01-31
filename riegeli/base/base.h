@@ -641,13 +641,15 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length.
 //
-// For an empty `absl::Cord` this matches `absl::Cord::InlineRep::kMaxInline`.
-//
-// For a non-empty `absl::Cord` this matches `kMaxBytesToCopy` from `cord.cc`.
-// `absl::Cord::Append(absl::Cord)` chooses to copy bytes from an `absl::Cord`
-// up to this length if the destination is not empty.
+// `absl::Cord::Append(absl::Cord)` chooses to copy bytes from a source up to
+// this length, so it is better to avoid constructing the source as `absl::Cord`
+// if it will not be shared anyway.
 inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
-  return dest.empty() ? 15 : 511;
+  // `absl::cord_internal::kMaxInline`.
+  static constexpr size_t kMaxInline = 15;
+  // `absl::cord_internal::kMaxBytesToCopy`.
+  static constexpr size_t kCordMaxBytesToCopy = 511;
+  return dest.empty() ? kMaxInline : kCordMaxBytesToCopy;
 }
 
 // Proposes a buffer length with constraints:
@@ -681,8 +683,18 @@ inline bool Wasteful(size_t total, size_t used) {
 // proportional to the final size. New contents are unspecified.
 void ResizeStringAmortized(std::string& dest, size_t new_size);
 
-// Like `absl::Cord(src)`, but avoids splitting `src` into 4083-byte fragments.
-absl::Cord MakeFlatCord(absl::string_view src);
+// Variants of `absl::Cord` operations with different block sizing tradeoffs:
+//  * `MakeBlockyCord(src)` is like `absl::Cord(src)`.
+//  * `AppendToBlockyCord(src, dest)` is like `dest.Append(src)`.
+//  * `PrependToBlockyCord(src, dest)` is like `dest.Prepend(src)`.
+//
+// They assume that the `absl::Cord` is constructed from fragments of reasonable
+// sizes, with adjacent sizes being not too small.
+//
+// They avoid splitting `src` into 4083-byte fragments and avoid overallocation.
+absl::Cord MakeBlockyCord(absl::string_view src);
+void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
+void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 
 }  // namespace riegeli
 

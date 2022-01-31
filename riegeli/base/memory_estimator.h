@@ -17,6 +17,8 @@
 
 #include <stddef.h>
 
+#include <utility>
+
 #include "absl/container/flat_hash_set.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"

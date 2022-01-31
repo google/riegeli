@@ -62,7 +62,15 @@ class Buffer {
 
   // Converts `*this` to `absl::Cord`. `substr` must be contained in `*this`.
   // `*this` is left unchanged or deallocated.
-  absl::Cord ToCord(absl::string_view substr);
+  absl::Cord ToCord(absl::string_view substr) &&;
+
+  // Appends `substr` to `dest`. `substr` must be contained in `*this`.
+  // `*this` is left unchanged or deallocated.
+  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) &&;
+
+  // Prepends `substr` to `dest`. `substr` must be contained in `*this`.
+  // `*this` is left unchanged or deallocated.
+  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest) &&;
 
  private:
   void AllocateInternal(size_t min_capacity);

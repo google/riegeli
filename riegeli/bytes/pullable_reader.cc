@@ -231,21 +231,12 @@ bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
       const Position length_read = pos() - pos_before;
       RIEGELI_ASSERT_LE(length_read, length_to_read)
           << "Reader::Read(char*) read more than requested";
-      if (length_read <= MaxBytesToCopyToCord(dest)) {
-        dest.Append(
-            absl::string_view(buffer.data(), IntCast<size_t>(length_read)));
-      } else {
-        dest.Append(buffer.ToCord(
-            absl::string_view(buffer.data(), IntCast<size_t>(length_read))));
-      }
+      const absl::string_view data(buffer.data(), IntCast<size_t>(length_read));
+      std::move(buffer).AppendSubstrTo(data, dest);
       return false;
     }
-    if (length_to_read <= MaxBytesToCopyToCord(dest)) {
-      dest.Append(absl::string_view(buffer.data(), length_to_read));
-    } else {
-      dest.Append(
-          buffer.ToCord(absl::string_view(buffer.data(), length_to_read)));
-    }
+    const absl::string_view data(buffer.data(), length_to_read);
+    std::move(buffer).AppendSubstrTo(data, dest);
     length -= length_to_read;
   } while (length > 0);
   return true;

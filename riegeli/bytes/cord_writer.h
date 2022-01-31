@@ -158,15 +158,15 @@ class CordWriterBase : public Writer {
   size_t min_block_size_ = kMinBufferSize;
   size_t max_block_size_ = kMaxBufferSize;
 
-  // Buffered data to be appended, in either `buffer_` or `short_buffer_`.
-  Buffer buffer_;
+  // Buffered data to be appended, in either `short_buffer_` or `buffer_`.
   char short_buffer_[kShortBufferSize];
+  Buffer buffer_;
 
   AssociatedReader<CordReader<const absl::Cord*>> associated_reader_;
 
   // Invariants:
-  //   `start() == nullptr` or `start() == buffer_.data()`
-  //       or `start() == short_buffer_`
+  //   `start() == nullptr` or `start() == short_buffer_`
+  //       or `start() == buffer_.data()`
   //   if `healthy()` then `start_pos() == dest_cord()->size()`
 };
 

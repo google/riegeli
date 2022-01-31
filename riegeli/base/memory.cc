@@ -37,11 +37,11 @@ absl::Cord CordOfZeros(size_t length) {
     length -= kArrayOfZeros.size();
   }
   if (length > 0) {
+    const absl::string_view zeros(kArrayOfZeros.data(), length);
     if (length <= MaxBytesToCopyToCord(result)) {
-      result.Append(absl::string_view(kArrayOfZeros.data(), length));
+      result.Append(zeros);
     } else {
-      result.Append(absl::MakeCordFromExternal(
-          absl::string_view(kArrayOfZeros.data(), length), [] {}));
+      result.Append(absl::MakeCordFromExternal(zeros, [] {}));
     }
   }
   return result;
