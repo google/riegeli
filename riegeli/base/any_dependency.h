@@ -95,16 +95,16 @@ class AnyDependency {
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_same<std::decay_t<Manager>,
-                                                AnyDependency<Ptr>>>,
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyDependency>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
   explicit AnyDependency(const Manager& manager);
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_same<std::decay_t<Manager>,
-                                                AnyDependency<Ptr>>>,
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyDependency>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
   explicit AnyDependency(Manager&& manager);
@@ -184,6 +184,34 @@ class AnyDependency {
   using NullMethods = any_dependency_internal::NullMethods<Ptr>;
   template <typename Manager>
   using MethodsFor = any_dependency_internal::MethodsFor<Ptr, Manager>;
+
+  template <typename... Args, size_t... Indices>
+  explicit AnyDependency(std::tuple<Args...>&& args,
+                         std::index_sequence<Indices...>)
+      : AnyDependency(std::forward<Args>(std::get<Indices>(args))...) {}
+
+  // Initializes `methods_` and `repr_`, avoiding a redundant indirection if
+  // `Manager` is already the same `AnyDependency` type.
+  template <
+      typename Manager,
+      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+  void Initialize(const Manager& manager);
+  template <
+      typename Manager,
+      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+  void Initialize(Manager&& manager);
+  template <
+      typename Manager,
+      std::enable_if_t<std::is_same<Manager, AnyDependency>::value, int> = 0>
+  void Initialize(Manager&& manager);
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+  void Initialize(std::tuple<ManagerArgs...> manager_args);
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<std::is_same<Manager, AnyDependency>::value, int> = 0>
+  void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
   Repr repr_;
@@ -350,9 +378,8 @@ template <
                                                       AnyDependency<Ptr>>>,
                           IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
         int>>
-inline AnyDependency<Ptr>::AnyDependency(const Manager& manager)
-    : methods_(&MethodsFor<std::decay_t<Manager>>::methods) {
-  MethodsFor<std::decay_t<Manager>>::Construct(repr_, manager);
+inline AnyDependency<Ptr>::AnyDependency(const Manager& manager) {
+  Initialize<std::decay_t<Manager>>(manager);
 }
 
 template <typename Ptr>
@@ -363,34 +390,29 @@ template <
                                                       AnyDependency<Ptr>>>,
                           IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
         int>>
-inline AnyDependency<Ptr>::AnyDependency(Manager&& manager)
-    : methods_(&MethodsFor<std::decay_t<Manager>>::methods) {
-  MethodsFor<std::decay_t<Manager>>::Construct(repr_,
-                                               std::forward<Manager>(manager));
+inline AnyDependency<Ptr>::AnyDependency(Manager&& manager) {
+  Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr>
 template <typename Manager>
 inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
-                                         const Manager& manager)
-    : methods_(&MethodsFor<Manager>::methods) {
-  MethodsFor<Manager>::Construct(repr_, manager);
+                                         const Manager& manager) {
+  Initialize<Manager>(manager);
 }
 
 template <typename Ptr>
 template <typename Manager>
 inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
-                                         Manager&& manager)
-    : methods_(&MethodsFor<Manager>::methods) {
-  MethodsFor<Manager>::Construct(repr_, std::move(manager));
+                                         Manager&& manager) {
+  Initialize<Manager>(std::move(manager));
 }
 
 template <typename Ptr>
 template <typename Manager, typename... ManagerArgs>
 inline AnyDependency<Ptr>::AnyDependency(
-    absl::in_place_type_t<Manager>, std::tuple<ManagerArgs...> manager_args)
-    : methods_(&MethodsFor<Manager>::methods) {
-  MethodsFor<Manager>::Construct(repr_, std::move(manager_args));
+    absl::in_place_type_t<Manager>, std::tuple<ManagerArgs...> manager_args) {
+  Initialize<Manager>(std::move(manager_args));
 }
 
 template <typename Ptr>
@@ -425,25 +447,72 @@ template <typename Ptr>
 template <typename Manager>
 inline void AnyDependency<Ptr>::Reset(const Manager& manager) {
   methods_->destroy(repr_);
-  methods_ = &MethodsFor<std::decay_t<Manager>>::methods;
-  MethodsFor<std::decay_t<Manager>>::Construct(repr_, manager);
+  Initialize<std::decay_t<Manager>>(manager);
 }
 
 template <typename Ptr>
 template <typename Manager>
 inline void AnyDependency<Ptr>::Reset(Manager&& manager) {
   methods_->destroy(repr_);
-  methods_ = &MethodsFor<std::decay_t<Manager>>::methods;
-  MethodsFor<std::decay_t<Manager>>::Construct(repr_,
-                                               std::forward<Manager>(manager));
+  Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr>
 template <typename Manager, typename... ManagerArgs>
 inline void AnyDependency<Ptr>::Reset(std::tuple<ManagerArgs...> manager_args) {
   methods_->destroy(repr_);
+  Initialize<Manager>(std::move(manager_args));
+}
+
+template <typename Ptr>
+template <
+    typename Manager,
+    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+inline void AnyDependency<Ptr>::Initialize(const Manager& manager) {
+  methods_ = &MethodsFor<Manager>::methods;
+  MethodsFor<Manager>::Construct(repr_, manager);
+}
+
+template <typename Ptr>
+template <
+    typename Manager,
+    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
+  methods_ = &MethodsFor<Manager>::methods;
+  MethodsFor<Manager>::Construct(repr_, std::forward<Manager>(manager));
+}
+
+template <typename Ptr>
+template <
+    typename Manager,
+    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
+  // Adopt `manager` instead of wrapping it.
+  methods_ = std::exchange(manager.methods_, &NullMethods::methods);
+  methods_->move(repr_, manager.repr_);
+}
+
+template <typename Ptr>
+template <
+    typename Manager, typename... ManagerArgs,
+    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+inline void AnyDependency<Ptr>::Initialize(
+    std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(repr_, std::move(manager_args));
+}
+
+template <typename Ptr>
+template <
+    typename Manager, typename... ManagerArgs,
+    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+inline void AnyDependency<Ptr>::Initialize(
+    std::tuple<ManagerArgs...> manager_args) {
+  AnyDependency<Ptr> manager(std::move(manager_args),
+                             std::index_sequence_for<ManagerArgs...>());
+  // Adopt `manager` instead of wrapping it.
+  methods_ = std::exchange(manager.methods_, &NullMethods::methods);
+  methods_->move(repr_, manager.repr_);
 }
 
 }  // namespace riegeli
