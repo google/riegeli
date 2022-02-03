@@ -64,6 +64,9 @@ class CsvReaderBase : public Object {
     // particular header is assumed, and only `ReadRecord()` to a vector of
     // fields is supported.
     //
+    // `set_required_header({})` specifies an empty set of required fields and
+    // thus accepts any field names.
+    //
     // If the file is empty, actual field names have duplicates, or some
     // required fields are not present, reading the header fails.
     //
@@ -86,17 +89,6 @@ class CsvReaderBase : public Object {
     absl::optional<CsvHeader>& required_header() { return required_header_; }
     const absl::optional<CsvHeader>& required_header() const {
       return required_header_;
-    }
-
-    // Deprecated. Use `set_required_header({})` (or better include required
-    // fields)` instead of `set_read_header(true)`.
-    Options& set_read_header(bool read_header) & {
-      required_header_ =
-          read_header ? absl::make_optional(CsvHeader()) : absl::nullopt;
-      return *this;
-    }
-    Options&& set_read_header(bool read_header) && {
-      return std::move(set_read_header(read_header));
     }
 
     // Comment character.
