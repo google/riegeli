@@ -48,7 +48,7 @@ class Dependency<ChunkWriter*, M,
     return *this;
   }
 
-  void Reset() { chunk_writer_.Reset(); }
+  void Reset() { chunk_writer_.Reset(kClosed); }
 
   void Reset(const M& manager) { chunk_writer_.Reset(manager); }
   void Reset(M&& manager) { chunk_writer_.Reset(std::move(manager)); }

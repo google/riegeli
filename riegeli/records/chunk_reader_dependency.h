@@ -48,7 +48,7 @@ class Dependency<ChunkReader*, M,
     return *this;
   }
 
-  void Reset() { chunk_reader_.Reset(); }
+  void Reset() { chunk_reader_.Reset(kClosed); }
 
   void Reset(const M& manager) { chunk_reader_.Reset(manager); }
   void Reset(M&& manager) { chunk_reader_.Reset(std::move(manager)); }
