@@ -86,7 +86,7 @@ inline void ResetInternal(absl::Cord& object, absl::string_view src) {
   object = src;
 }
 
-namespace internal {
+namespace reset_internal {
 
 template <typename T, typename Enable, typename... Args>
 struct HasResetInternal : std::false_type {};
@@ -128,7 +128,7 @@ inline void ResetImpl(T& object, Args&&... args) {
   object = T(std::forward<Args>(args)...);
 }
 
-}  // namespace internal
+}  // namespace reset_internal
 
 template <typename T>
 inline void Reset(T& object, const T& src) {
@@ -142,7 +142,7 @@ inline void Reset(T& object, T&& src) {
 
 template <typename T, typename... Args>
 inline void Reset(T& object, Args&&... args) {
-  internal::ResetImpl(object, std::forward<Args>(args)...);
+  reset_internal::ResetImpl(object, std::forward<Args>(args)...);
 }
 
 }  // namespace riegeli

@@ -26,7 +26,7 @@ namespace riegeli {
 
 // Specializations of `Dependency<absl::string_view, Manager>`.
 
-namespace internal {
+namespace string_view_internal {
 
 inline absl::string_view ToStringView(absl::string_view value) { return value; }
 
@@ -41,7 +41,7 @@ inline absl::string_view ToStringView(const T& value) {
   return absl::string_view(span.data(), span.size());
 }
 
-}  // namespace internal
+}  // namespace string_view_internal
 
 // Specializations for `absl::string_view`, `absl::Span<const char>`,
 // `absl::Span<char>`, `const char*`, and `char*` are defined separately for
@@ -65,7 +65,7 @@ class Dependency<absl::string_view, absl::Span<const char>>
   using DependencyBase<absl::Span<const char>>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(this->manager());
+    return string_view_internal::ToStringView(this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }
@@ -78,7 +78,7 @@ class Dependency<absl::string_view, absl::Span<char>>
   using DependencyBase<absl::Span<char>>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(this->manager());
+    return string_view_internal::ToStringView(this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }
@@ -91,7 +91,7 @@ class Dependency<absl::string_view, const char*>
   using DependencyBase<const char*>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(this->manager());
+    return string_view_internal::ToStringView(this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }
@@ -103,7 +103,7 @@ class Dependency<absl::string_view, char*> : public DependencyBase<char*> {
   using DependencyBase<char*>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(this->manager());
+    return string_view_internal::ToStringView(this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }
@@ -119,7 +119,7 @@ class Dependency<
   using DependencyBase<M*>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(*this->manager());
+    return string_view_internal::ToStringView(*this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }
@@ -135,7 +135,7 @@ class Dependency<
   using DependencyBase<M>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(this->manager());
+    return string_view_internal::ToStringView(this->manager());
   }
 
   static constexpr bool kIsStable() { return false; }
@@ -151,7 +151,7 @@ class Dependency<
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
   absl::string_view get() const {
-    return internal::ToStringView(*this->manager());
+    return string_view_internal::ToStringView(*this->manager());
   }
 
   static constexpr bool kIsStable() { return true; }

@@ -69,7 +69,7 @@ struct SearchGuide {
   Pos next;
 };
 
-namespace internal {
+namespace binary_search_internal {
 
 template <typename Test, typename Pos, typename Enable = void>
 struct TestReturnsOrderingOrSearchGuide : std::false_type {};
@@ -103,7 +103,7 @@ struct TestReturnsOptionalOrderingOrSearchGuide<
                                            SearchGuide<Pos>>::value)>>
     : std::true_type {};
 
-}  // namespace internal
+}  // namespace binary_search_internal
 
 // Searches a sequence of elements for a desired element, or for a desired
 // position between elements, given that it is possible to determine whether a
@@ -159,13 +159,15 @@ struct TestReturnsOptionalOrderingOrSearchGuide<
 // `equivalent` or `greater` result by a side effect of `test()`.
 template <
     typename Pos, typename Test,
-    std::enable_if_t<
-        internal::TestReturnsOrderingOrSearchGuide<Test, Pos>::value, int> = 0>
+    std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
+                         Test, Pos>::value,
+                     int> = 0>
 SearchResult<Pos> BinarySearch(Pos low, Pos high, Test test);
-template <typename Traits, typename Test,
-          std::enable_if_t<internal::TestReturnsOrderingOrSearchGuide<
-                               Test, typename Traits::Pos>::value,
-                           int> = 0>
+template <
+    typename Traits, typename Test,
+    std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
+                         Test, typename Traits::Pos>::value,
+                     int> = 0>
 SearchResult<typename Traits::Pos> BinarySearch(typename Traits::Pos low,
                                                 typename Traits::Pos high,
                                                 Test test,
@@ -176,14 +178,16 @@ SearchResult<typename Traits::Pos> BinarySearch(typename Traits::Pos low,
 // If a `test()` returns `absl::nullopt`, `BinarySearch()` returns
 // `absl::nullopt`.
 template <typename Pos, typename Test,
-          std::enable_if_t<internal::TestReturnsOptionalOrderingOrSearchGuide<
-                               Test, Pos>::value,
-                           int> = 0>
+          std::enable_if_t<
+              binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
+                  Test, Pos>::value,
+              int> = 0>
 absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test test);
 template <typename Traits, typename Test,
-          std::enable_if_t<internal::TestReturnsOptionalOrderingOrSearchGuide<
-                               Test, typename Traits::Pos>::value,
-                           int> = 0>
+          std::enable_if_t<
+              binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
+                  Test, typename Traits::Pos>::value,
+              int> = 0>
 absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test test,
     const Traits& traits);
@@ -228,7 +232,7 @@ class DefaultSearchTraits {
 
 // Implementation details follow.
 
-namespace internal {
+namespace binary_search_internal {
 
 template <typename Traits>
 inline SearchGuide<typename Traits::Pos> GetSearchGuide(
@@ -263,21 +267,23 @@ struct CancelSearch<SearchGuide<Pos>> {
   }
 };
 
-}  // namespace internal
+}  // namespace binary_search_internal
 
 template <
     typename Pos, typename Test,
-    std::enable_if_t<
-        internal::TestReturnsOrderingOrSearchGuide<Test, Pos>::value, int>>
+    std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
+                         Test, Pos>::value,
+                     int>>
 inline SearchResult<Pos> BinarySearch(Pos low, Pos high, Test test) {
   return BinarySearch(std::move(low), std::move(high), std::move(test),
                       DefaultSearchTraits<Pos>());
 }
 
-template <typename Traits, typename Test,
-          std::enable_if_t<internal::TestReturnsOrderingOrSearchGuide<
-                               Test, typename Traits::Pos>::value,
-                           int>>
+template <
+    typename Traits, typename Test,
+    std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
+                         Test, typename Traits::Pos>::value,
+                     int>>
 inline SearchResult<typename Traits::Pos> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test test,
     const Traits& traits) {
@@ -307,7 +313,7 @@ again:
   bool unordered_found = false;
   for (;;) {
     SearchGuide<Pos> guide =
-        internal::GetSearchGuide(test(middle), middle, traits);
+        binary_search_internal::GetSearchGuide(test(middle), middle, traits);
     if (guide.ordering < 0) {
       if (!(greater_result.ordering >= 0)) {
         greater_result.ordering = absl::partial_ordering::less;
@@ -342,9 +348,10 @@ again:
 }
 
 template <typename Pos, typename Test,
-          std::enable_if_t<internal::TestReturnsOptionalOrderingOrSearchGuide<
-                               Test, Pos>::value,
-                           int>>
+          std::enable_if_t<
+              binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
+                  Test, Pos>::value,
+              int>>
 inline absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
                                                       Test test) {
   return BinarySearch(std::move(low), std::move(high), std::move(test),
@@ -352,9 +359,10 @@ inline absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
 }
 
 template <typename Traits, typename Test,
-          std::enable_if_t<internal::TestReturnsOptionalOrderingOrSearchGuide<
-                               Test, typename Traits::Pos>::value,
-                           int>>
+          std::enable_if_t<
+              binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
+                  Test, typename Traits::Pos>::value,
+              int>>
 inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test test,
     const Traits& traits) {
@@ -365,7 +373,7 @@ inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
         auto test_result = test(pos);
         if (ABSL_PREDICT_FALSE(test_result == absl::nullopt)) {
           cancelled = true;
-          return internal::CancelSearch<
+          return binary_search_internal::CancelSearch<
               std::decay_t<decltype(*test_result)>>::At(pos);
         }
         return *std::move(test_result);
