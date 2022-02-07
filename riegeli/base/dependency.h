@@ -339,7 +339,10 @@ class Dependency<P*, M&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
 // Specialization of `Dependency<P*, M&>` when `M*` is not convertible to `P*`:
 // decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
-class Dependency<P*, M&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
+class Dependency<P*, M&,
+                 std::enable_if_t<absl::conjunction<
+                     absl::negation<std::is_convertible<M*, P*>>,
+                     IsValidDependency<P*, std::decay_t<M>>>::value>>
     : public Dependency<P*, std::decay_t<M>> {
  public:
   using Dependency<P*, std::decay_t<M>>::Dependency;
@@ -365,13 +368,16 @@ class Dependency<P*, M&&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
 // Specialization of `Dependency<P*, M&&>` when `M*` is not convertible to `P*`:
 // decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
-class Dependency<P*, M&&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
+class Dependency<P*, M&&,
+                 std::enable_if_t<absl::conjunction<
+                     absl::negation<std::is_convertible<M*, P*>>,
+                     IsValidDependency<P*, std::decay_t<M>>>::value>>
     : public Dependency<P*, std::decay_t<M>> {
  public:
   using Dependency<P*, std::decay_t<M>>::Dependency;
 };
 
-namespace internal {
+namespace dependency_internal {
 
 // `AlwaysFalse<T...>::value` is `false`, but formally depends on `T...`.
 // This is useful for `static_assert()`.
@@ -379,7 +385,7 @@ namespace internal {
 template <typename... T>
 struct AlwaysFalse : std::false_type {};
 
-}  // namespace internal
+}  // namespace dependency_internal
 
 // A placeholder `Dependency` manager to be deduced by CTAD, used to delete CTAD
 // for particular constructor argument types.
@@ -394,7 +400,7 @@ struct DeleteCtad {
 
 template <typename Ptr, typename... ConstructorArgTypes>
 class Dependency<Ptr, DeleteCtad<ConstructorArgTypes...>> {
-  static_assert(internal::AlwaysFalse<ConstructorArgTypes...>::value,
+  static_assert(dependency_internal::AlwaysFalse<ConstructorArgTypes...>::value,
                 "Template arguments must be written explicitly "
                 "with these constructor argument types");
 };
