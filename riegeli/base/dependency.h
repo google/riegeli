@@ -202,17 +202,17 @@ class DependencyBase {
   const Manager& manager() const { return manager_; }
 
  private:
-  template <typename... ManagerArgs, size_t... Indices>
+  template <typename... ManagerArgs, size_t... indices>
   explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
-                          std::index_sequence<Indices...>)
+                          std::index_sequence<indices...>)
       : manager_(
-            std::forward<ManagerArgs>(std::get<Indices>(manager_args))...) {}
+            std::forward<ManagerArgs>(std::get<indices>(manager_args))...) {}
 
-  template <typename... ManagerArgs, size_t... Indices>
+  template <typename... ManagerArgs, size_t... indices>
   void ResetInternal(std::tuple<ManagerArgs...>&& manager_args,
-                     std::index_sequence<Indices...>) {
+                     std::index_sequence<indices...>) {
     riegeli::Reset(manager_, std::forward<ManagerArgs>(
-                                 std::get<Indices>(manager_args))...);
+                                 std::get<indices>(manager_args))...);
   }
 
   Manager manager_;

@@ -185,10 +185,10 @@ class AnyDependency {
   template <typename Manager>
   using MethodsFor = any_dependency_internal::MethodsFor<Ptr, Manager>;
 
-  template <typename... Args, size_t... Indices>
+  template <typename... Args, size_t... indices>
   explicit AnyDependency(std::tuple<Args...>&& args,
-                         std::index_sequence<Indices...>)
-      : AnyDependency(std::forward<Args>(std::get<Indices>(args))...) {}
+                         std::index_sequence<indices...>)
+      : AnyDependency(std::forward<Args>(std::get<indices>(args))...) {}
 
   // Initializes `methods_` and `repr_`, avoiding a redundant indirection if
   // `Manager` is already the same `AnyDependency` type.

@@ -1080,9 +1080,9 @@ class Chain::RawBlock {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
-  template <typename T, typename... Args, size_t... Indices>
+  template <typename T, typename... Args, size_t... indices>
   void ConstructExternal(std::tuple<Args...>&& args,
-                         std::index_sequence<Indices...>);
+                         std::index_sequence<indices...>);
 
   bool is_mutable() const { return is_internal() && has_unique_owner(); }
 
@@ -1368,13 +1368,13 @@ void Chain::RawBlock::Unref() {
   }
 }
 
-template <typename T, typename... Args, size_t... Indices>
+template <typename T, typename... Args, size_t... indices>
 inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
-    std::index_sequence<Indices...>) {
+    std::index_sequence<indices...>) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (&unchecked_external_object<T>())
-      T(std::forward<Args>(std::get<Indices>(args))...);
+      T(std::forward<Args>(std::get<indices>(args))...);
 }
 
 inline bool Chain::RawBlock::has_unique_owner() const {
