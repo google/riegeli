@@ -70,7 +70,8 @@ class ParseOptions {
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-template <typename Src>
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ParseFromReader(Src&& src, google::protobuf::MessageLite& dest,
                              ParseOptions options = ParseOptions());
 
@@ -135,7 +136,8 @@ absl::Status ParseFromReaderImpl(Reader& src,
 
 }  // namespace messages_internal
 
-template <typename Src>
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
 inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {

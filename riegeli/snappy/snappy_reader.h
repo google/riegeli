@@ -211,7 +211,10 @@ class SnappyDecompressOptions {
 //
 // The compressed `Reader` must support `Size()` if
 // `SnappyDecompressOptions::assumed_size() == absl::nullopt`.
-template <typename Src, typename Dest>
+template <typename Src, typename Dest,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
+                               IsValidDependency<Writer*, Dest&&>::value,
+                           int> = 0>
 absl::Status SnappyDecompress(
     Src&& src, Dest&& dest,
     SnappyDecompressOptions options = SnappyDecompressOptions());
@@ -336,7 +339,10 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
 
 }  // namespace snappy_internal
 
-template <typename Src, typename Dest>
+template <typename Src, typename Dest,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
+                               IsValidDependency<Writer*, Dest&&>::value,
+                           int>>
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest,
                                      SnappyDecompressOptions options) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));

@@ -117,7 +117,8 @@ class SerializeOptions {
 // Returns status:
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-template <typename Dest>
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
 absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                Dest&& dest,
                                SerializeOptions options = SerializeOptions());
@@ -190,7 +191,8 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 
 }  // namespace messages_internal
 
-template <typename Dest>
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
