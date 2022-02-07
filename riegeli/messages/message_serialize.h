@@ -119,15 +119,7 @@ class SerializeOptions {
 //  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Dest>
 absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                               const Dest& dest,
-                               SerializeOptions options = SerializeOptions());
-template <typename Dest>
-absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                Dest&& dest,
-                               SerializeOptions options = SerializeOptions());
-template <typename Dest, typename... DestArgs>
-absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                               std::tuple<DestArgs...> dest_args,
                                SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `std::string`, clearing it
@@ -196,40 +188,18 @@ namespace messages_internal {
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                                    Writer& dest, SerializeOptions options);
 
-template <typename Dest>
-inline absl::Status SerializeToWriterUsingDependency(
-    const google::protobuf::MessageLite& src, Dependency<Writer*, Dest> dest,
-    SerializeOptions options) {
-  absl::Status status = SerializeToWriterImpl(src, *dest, options);
-  if (dest.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest->Close())) status = dest->status();
-  }
-  return status;
-}
-
 }  // namespace messages_internal
 
 template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                      const Dest& dest,
-                                      SerializeOptions options) {
-  return messages_internal::SerializeToWriterUsingDependency(
-      src, Dependency<Writer*, const Dest&>(dest), options);
-}
-
-template <typename Dest>
-inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
-  return messages_internal::SerializeToWriterUsingDependency(
-      src, Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)), options);
-}
-
-template <typename Dest, typename... DestArgs>
-inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                      std::tuple<DestArgs...> dest_args,
-                                      SerializeOptions options) {
-  return messages_internal::SerializeToWriterUsingDependency(
-      src, Dependency<Writer*, Dest>(std::move(dest_args)), options);
+  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  absl::Status status =
+      messages_internal::SerializeToWriterImpl(src, *dest_ref, options);
+  if (dest_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
+  }
+  return status;
 }
 
 }  // namespace riegeli

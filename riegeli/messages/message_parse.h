@@ -71,15 +71,7 @@ class ParseOptions {
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Src>
-absl::Status ParseFromReader(const Src& src,
-                             google::protobuf::MessageLite& dest,
-                             ParseOptions options = ParseOptions());
-template <typename Src>
 absl::Status ParseFromReader(Src&& src, google::protobuf::MessageLite& dest,
-                             ParseOptions options = ParseOptions());
-template <typename Src, typename... SrcArgs>
-absl::Status ParseFromReader(std::tuple<SrcArgs...> src_args,
-                             google::protobuf::MessageLite& dest,
                              ParseOptions options = ParseOptions());
 
 // Reads a message in binary format from the given `absl::string_view`. If
@@ -141,41 +133,19 @@ absl::Status ParseFromReaderImpl(Reader& src,
                                  google::protobuf::MessageLite& dest,
                                  ParseOptions options);
 
-template <typename Src>
-inline absl::Status ParseFromReaderUsingDependency(
-    Dependency<Reader*, Src> src, google::protobuf::MessageLite& dest,
-    ParseOptions options) {
-  absl::Status status = ParseFromReaderImpl(*src, dest, options);
-  if (src.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src->Close())) status = src->status();
-  }
-  return status;
-}
-
 }  // namespace messages_internal
-
-template <typename Src>
-inline absl::Status ParseFromReader(const Src& src,
-                                    google::protobuf::MessageLite& dest,
-                                    ParseOptions options) {
-  return messages_internal::ParseFromReaderUsingDependency(
-      Dependency<Reader*, const Src&>(src), dest, options);
-}
 
 template <typename Src>
 inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return messages_internal::ParseFromReaderUsingDependency(
-      Dependency<Reader*, Src&&>(std::forward<Src>(src)), dest, options);
-}
-
-template <typename Src, typename... SrcArgs>
-inline absl::Status ParseFromReader(std::tuple<SrcArgs...> src_args,
-                                    google::protobuf::MessageLite& dest,
-                                    ParseOptions options) {
-  return messages_internal::ParseFromReaderUsingDependency(
-      Dependency<Reader*, Src>(std::move(src_args)), dest, options);
+  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
+  absl::Status status =
+      messages_internal::ParseFromReaderImpl(*src_ref, dest, options);
+  if (src_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_ref->Close())) status = src_ref->status();
+  }
+  return status;
 }
 
 }  // namespace riegeli
