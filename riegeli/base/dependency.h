@@ -110,8 +110,8 @@ namespace riegeli {
 
 // `Manager` can also be an lvalue reference or rvalue reference. This case
 // is meant to be used only when the dependency is constructed locally in a
-// function, rather than stored in a host object, because such a dependency
-// stores the pointer to the dependent object, and by convention a reference
+// function rather than stored in a host object, because such a dependency
+// stores a reference to the dependent object, and by convention a reference
 // argument is expected to be valid only for the duration of the function call.
 // Typically the `Manager` type is deduced from a function argument.
 //
@@ -122,7 +122,7 @@ namespace riegeli {
 // moving it.
 //
 // Only a subset of operations is provided in this case: the dependency must be
-// initialized during construction, and initialization from a tuple of
+// initialized, assignment is not supported, and initialization from a tuple of
 // constructor arguments is not supported.
 
 // This template is specialized but does not have a primary definition.
@@ -221,47 +221,39 @@ class DependencyBase {
 // Specialization of `DependencyBase` for lvalue references.
 //
 // Only a subset of operations are provided: the dependency must be initialized,
-// and initialization from a tuple of constructor arguments is not supported.
+// assignment is not supported, and initialization from a tuple of constructor
+// arguments is not supported.
 template <typename Manager>
 class DependencyBase<Manager&> {
  public:
-  explicit DependencyBase(Manager& manager) noexcept : manager_(&manager) {}
+  explicit DependencyBase(Manager& manager) noexcept : manager_(manager) {}
 
   DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
-  DependencyBase& operator=(DependencyBase&& that) noexcept {
-    manager_ = that.manager_;
-    return *this;
-  }
+  DependencyBase& operator=(DependencyBase&&) = delete;
 
-  void Reset(Manager& manager) { manager_ = &manager; }
-
-  Manager& manager() const { return *manager_; }
+  Manager& manager() const { return manager_; }
 
  private:
-  Manager* manager_;
+  Manager& manager_;
 };
 
 // Specialization of `DependencyBase` for rvalue references.
 //
 // Only a subset of operations are provided: the dependency must be initialized,
-// and initialization from a tuple of constructor arguments is not supported.
+// assignment is not supported, and initialization from a tuple of constructor
+// arguments is not supported.
 template <typename Manager>
 class DependencyBase<Manager&&> {
  public:
-  explicit DependencyBase(Manager&& manager) noexcept : manager_(&manager) {}
+  explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 
   DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
-  DependencyBase& operator=(DependencyBase&& that) noexcept {
-    manager_ = that.manager_;
-    return *this;
-  }
+  DependencyBase& operator=(DependencyBase&&) = delete;
 
-  void Reset(Manager&& manager) { manager_ = &manager; }
-
-  Manager& manager() const { return *manager_; }
+  Manager& manager() const { return manager_; }
 
  private:
-  Manager* manager_;
+  Manager& manager_;
 };
 
 // Specialization of `Dependency<P*, M*>` when `M*` is convertible to `P*`:
