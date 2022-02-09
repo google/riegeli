@@ -437,6 +437,12 @@ inline size_t PtrDistance(const A* first, const A* last) {
 // `SignedMin()` returns the minimum of its arguments, which must be signed
 // integers, as their widest type.
 
+template <typename A>
+constexpr A SignedMin(A a) {
+  static_assert(std::is_signed<A>::value, "SignedMin() requires signed types");
+  return a;
+}
+
 template <typename A, typename B>
 constexpr std::common_type_t<A, B> SignedMin(A a, B b) {
   static_assert(std::is_signed<A>::value, "SignedMin() requires signed types");
@@ -452,6 +458,12 @@ constexpr std::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
 
 // `SignedMax()` returns the maximum of its arguments, which must be signed
 // integers, as their widest type.
+
+template <typename A>
+constexpr A SignedMax(A a) {
+  static_assert(std::is_signed<A>::value, "SignedMax() requires signed types");
+  return a;
+}
 
 template <typename A, typename B>
 constexpr std::common_type_t<A, B> SignedMax(A a, B b) {
@@ -510,6 +522,13 @@ template <typename A, typename B, typename... Rest>
 struct IntersectionType<A, B, Rest...>
     : IntersectionType<IntersectionTypeT<A, B>, Rest...> {};
 
+template <typename A>
+constexpr A UnsignedMin(A a) {
+  static_assert(std::is_unsigned<A>::value,
+                "UnsignedMin() requires unsigned types");
+  return a;
+}
+
 template <typename A, typename B>
 constexpr IntersectionTypeT<A, B> UnsignedMin(A a, B b) {
   static_assert(std::is_unsigned<A>::value,
@@ -527,6 +546,13 @@ constexpr IntersectionTypeT<A, B, Rest...> UnsignedMin(A a, B b, Rest... rest) {
 
 // `UnsignedMax()` returns the maximum of its arguments, which must be unsigned
 // integers, as their widest type.
+
+template <typename A>
+constexpr A UnsignedMax(A a) {
+  static_assert(std::is_unsigned<A>::value,
+                "UnsignedMax() requires unsigned types");
+  return a;
+}
 
 template <typename A, typename B>
 constexpr std::common_type_t<A, B> UnsignedMax(A a, B b) {
@@ -546,6 +572,13 @@ constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
 
 // `SaturatingAdd()` adds unsigned values, or returns max possible value of the
 // type if addition would overflow.
+
+template <typename T>
+constexpr T SaturatingAdd(T a) {
+  static_assert(std::is_unsigned<T>::value,
+                "SaturatingAdd() requires an unsigned type");
+  return a;
+}
 
 template <typename T>
 constexpr T SaturatingAdd(T a, T b) {
