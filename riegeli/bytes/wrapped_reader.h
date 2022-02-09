@@ -255,7 +255,7 @@ inline void WrappedReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 
 template <typename Src>
 inline void WrappedReader<Src>::MoveSrc(WrappedReader&& that) {
-  if (src_.kIsStable()) {
+  if (src_.kIsStable() || that.src_.get() == nullptr) {
     src_ = std::move(that.src_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

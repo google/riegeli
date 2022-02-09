@@ -261,7 +261,7 @@ inline void WrappedBackwardWriter<Dest>::Reset(
 template <typename Dest>
 inline void WrappedBackwardWriter<Dest>::MoveDest(
     WrappedBackwardWriter&& that) {
-  if (dest_.kIsStable()) {
+  if (dest_.kIsStable() || that.dest_.get() == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
