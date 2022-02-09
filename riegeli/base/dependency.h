@@ -269,6 +269,21 @@ class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   static constexpr bool kIsStable() { return true; }
 };
 
+// Specialization of `Dependency<P*, std::nullptr_t>`: an unowned dependency
+// passed by pointer, always missing. This is useful for `AnyDependency` and
+// `AnyDependencyRef`.
+template <typename P>
+class Dependency<P*, std::nullptr_t> : public DependencyBase<std::nullptr_t> {
+ public:
+  using DependencyBase<std::nullptr_t>::DependencyBase;
+
+  std::nullptr_t get() const { return nullptr; }
+  std::nullptr_t Release() { return nullptr; }
+
+  bool is_owning() const { return false; }
+  static constexpr bool kIsStable() { return true; }
+};
+
 // Specialization of `Dependency<P*, M>` when `M*` is convertible to `P*`:
 // an owned dependency stored by value.
 template <typename P, typename M>

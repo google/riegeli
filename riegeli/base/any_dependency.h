@@ -75,6 +75,9 @@ struct MethodsFor;
 
 }  // namespace any_dependency_internal
 
+template <typename Ptr>
+class AnyDependencyRef;
+
 // `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
 // type, erasing the `Manager` type from the type of the `AnyDependency`, or is
 // empty.
@@ -94,7 +97,7 @@ class AnyDependency {
                         std::is_same<std::decay_t<Manager>, AnyDependency>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
-  explicit AnyDependency(Manager&& manager);
+  /*implicit*/ AnyDependency(Manager&& manager);
 
   // Holds a `Dependency<Ptr, Manager>`.
   //
@@ -175,28 +178,39 @@ class AnyDependency {
       : AnyDependency(std::forward<Args>(std::get<indices>(args))...) {}
 
   // Initializes `methods_` and `repr_`, avoiding a redundant indirection if
-  // `Manager` is already the same `AnyDependency` type.
-  template <typename Manager,
-            std::enable_if_t<!std::is_reference<Manager>::value &&
-                                 !std::is_same<Manager, AnyDependency>::value,
-                             int> = 0>
+  // `Manager` is already the same `AnyDependency` type or the corresponding
+  // `AnyDependencyRef<Ptr>`.
+  template <
+      typename Manager,
+      std::enable_if_t<!std::is_reference<Manager>::value &&
+                           !std::is_same<Manager, AnyDependency>::value &&
+                           !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                       int> = 0>
   void Initialize(const Manager& manager);
   template <
       typename Manager,
-      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value &&
+                           !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                       int> = 0>
   void Initialize(Manager&& manager);
   template <
       typename Manager,
-      std::enable_if_t<std::is_same<Manager, AnyDependency>::value, int> = 0>
+      std::enable_if_t<std::is_same<Manager, AnyDependency>::value ||
+                           std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                       int> = 0>
   void Initialize(Manager&& manager);
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<!std::is_reference<Manager>::value &&
-                                 !std::is_same<Manager, AnyDependency>::value,
-                             int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<!std::is_reference<Manager>::value &&
+                           !std::is_same<Manager, AnyDependency>::value &&
+                           !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                       int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
   template <
       typename Manager, typename... ManagerArgs,
-      std::enable_if_t<std::is_same<Manager, AnyDependency>::value, int> = 0>
+      std::enable_if_t<std::is_same<Manager, AnyDependency>::value ||
+                           std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                       int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
@@ -209,6 +223,66 @@ class Dependency<Ptr, AnyDependency<Ptr>>
     : public DependencyBase<AnyDependency<Ptr>> {
  public:
   using DependencyBase<AnyDependency<Ptr>>::DependencyBase;
+
+  Ptr get() const { return this->manager().get(); }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<DependentPtr>& operator*() const {
+    return *get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<DependentPtr>* operator->() const {
+    return get();
+  }
+  Ptr Release() { return this->manager().Release(); }
+
+  bool is_owning() const { return this->manager().is_owning(); }
+  static constexpr bool kIsStable() { return true; }
+};
+
+// `AnyDependencyRef<Ptr>` derives from `AnyDependency<Ptr>`, replacing the
+// constructors such that the `Manager` type is deduced from the constructor
+// argument as a reference type rather than a value type.
+//
+// This is meant to be used only when the dependency is a function parameter
+// rather than stored in a host object, because such a dependency stores a
+// reference to the dependent object, and by convention a reference argument is
+// expected to be valid only for the duration of the function call.
+//
+// Only a subset of operations are provided: the dependency must be initialized,
+// assignment is not supported, and initialization from a tuple of constructor
+// arguments is not supported.
+template <typename Ptr>
+class AnyDependencyRef : public AnyDependency<Ptr> {
+ public:
+  // Holds a `Dependency<Ptr, Manager&&>` (which collapses to
+  // `Dependency<Ptr, Manager&>` if `Manager` is itself an lvalue reference).
+  //
+  // The `Manager` type is deduced from the constructor argument.
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<absl::negation<std::is_same<
+                                      std::decay_t<Manager>, AnyDependencyRef>>,
+                                  IsValidDependency<Ptr, Manager&&>>::value,
+                int> = 0>
+  /*implicit*/ AnyDependencyRef(Manager&& manager)
+      : AnyDependency<Ptr>(absl::in_place_type<Manager&&>,
+                           std::forward<Manager>(manager)) {}
+
+  AnyDependencyRef(AnyDependencyRef&& that) noexcept
+      : AnyDependency<Ptr>(std::move(that)) {}
+  AnyDependencyRef& operator=(AnyDependencyRef&&) = delete;
+
+  void Reset() = delete;
+};
+
+// Specialization of `Dependency<Ptr, AnyDependencyRef<Ptr>>`.
+template <typename Ptr>
+class Dependency<Ptr, AnyDependencyRef<Ptr>>
+    : public DependencyBase<AnyDependencyRef<Ptr>> {
+ public:
+  using DependencyBase<AnyDependencyRef<Ptr>>::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
   template <typename DependentPtr = Ptr,
@@ -432,7 +506,8 @@ template <typename Ptr>
 template <
     typename Manager,
     std::enable_if_t<!std::is_reference<Manager>::value &&
-                         !std::is_same<Manager, AnyDependency<Ptr>>::value,
+                         !std::is_same<Manager, AnyDependency<Ptr>>::value &&
+                         !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
                      int>>
 inline void AnyDependency<Ptr>::Initialize(const Manager& manager) {
   methods_ = &MethodsFor<Manager>::methods;
@@ -442,7 +517,9 @@ inline void AnyDependency<Ptr>::Initialize(const Manager& manager) {
 template <typename Ptr>
 template <
     typename Manager,
-    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value &&
+                         !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                     int>>
 inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(repr_, std::forward<Manager>(manager));
@@ -451,7 +528,9 @@ inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
 template <typename Ptr>
 template <
     typename Manager,
-    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value ||
+                         std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                     int>>
 inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
   // Adopt `manager` instead of wrapping it.
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
@@ -462,7 +541,8 @@ template <typename Ptr>
 template <
     typename Manager, typename... ManagerArgs,
     std::enable_if_t<!std::is_reference<Manager>::value &&
-                         !std::is_same<Manager, AnyDependency<Ptr>>::value,
+                         !std::is_same<Manager, AnyDependency<Ptr>>::value &&
+                         !std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
                      int>>
 inline void AnyDependency<Ptr>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
@@ -473,7 +553,9 @@ inline void AnyDependency<Ptr>::Initialize(
 template <typename Ptr>
 template <
     typename Manager, typename... ManagerArgs,
-    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+    std::enable_if_t<std::is_same<Manager, AnyDependency<Ptr>>::value ||
+                         std::is_same<Manager, AnyDependencyRef<Ptr>>::value,
+                     int>>
 inline void AnyDependency<Ptr>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   AnyDependency<Ptr> manager(std::move(manager_args),
