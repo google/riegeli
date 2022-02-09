@@ -50,16 +50,11 @@ union Repr {
 // stable. In practice this applies mostly to `Dependency<P*, P*>` and
 // `Dependency<P*, std::unique_ptr<P>>`
 
-template <typename Ptr, typename Manager, typename Enable = void>
-struct IsInline : std::false_type {};
-
 template <typename Ptr, typename Manager>
-struct IsInline<
-    Ptr, Manager,
-    std::enable_if_t<sizeof(Dependency<Ptr, Manager>) <= sizeof(Repr) &&
-                     alignof(Dependency<Ptr, Manager>) <= alignof(Repr) &&
-                     Dependency<Ptr, Manager>::kIsStable()>> : std::true_type {
-};
+using IsInline = std::integral_constant<
+    bool, sizeof(Dependency<Ptr, Manager>) <= sizeof(Repr) &&
+              alignof(Dependency<Ptr, Manager>) <= alignof(Repr) &&
+              Dependency<Ptr, Manager>::kIsStable()>;
 
 template <typename Ptr>
 struct Methods {
@@ -99,14 +94,6 @@ class AnyDependency {
                         std::is_same<std::decay_t<Manager>, AnyDependency>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
-  explicit AnyDependency(const Manager& manager);
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<
-                        std::is_same<std::decay_t<Manager>, AnyDependency>>,
-                    IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
-                int> = 0>
   explicit AnyDependency(Manager&& manager);
 
   // Holds a `Dependency<Ptr, Manager>`.
@@ -114,14 +101,13 @@ class AnyDependency {
   // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
   // because constructor templates do not support specifying template arguments
   // explicitly.
-  template <typename Manager>
+  //
+  // The dependency is constructed with `std::forward<ManagerArg>(manager_arg)`,
+  // which can be a `Manager` to copy or move, or a tuple of its constructor
+  // arguments.
+  template <typename Manager, typename ManagerArg>
   explicit AnyDependency(absl::in_place_type_t<Manager>,
-                         const Manager& manager);
-  template <typename Manager>
-  explicit AnyDependency(absl::in_place_type_t<Manager>, Manager&& manager);
-  template <typename Manager, typename... ManagerArgs>
-  explicit AnyDependency(absl::in_place_type_t<Manager>,
-                         std::tuple<ManagerArgs...> manager_args);
+                         ManagerArg&& manager_arg);
 
   AnyDependency(AnyDependency&& that) noexcept;
   AnyDependency& operator=(AnyDependency&& that) noexcept;
@@ -132,11 +118,9 @@ class AnyDependency {
   // avoids constructing a temporary `AnyDependency` and moving from it.
   void Reset();
   template <typename Manager>
-  void Reset(const Manager& manager);
-  template <typename Manager>
   void Reset(Manager&& manager);
-  template <typename Manager, typename... ManagerArgs>
-  void Reset(std::tuple<ManagerArgs...> manager_args);
+  template <typename Manager, typename ManagerArg>
+  void Reset(absl::in_place_type_t<Manager>, ManagerArg&& manager_arg);
 
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
   // `AnyDependency`.
@@ -192,9 +176,10 @@ class AnyDependency {
 
   // Initializes `methods_` and `repr_`, avoiding a redundant indirection if
   // `Manager` is already the same `AnyDependency` type.
-  template <
-      typename Manager,
-      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+  template <typename Manager,
+            std::enable_if_t<!std::is_reference<Manager>::value &&
+                                 !std::is_same<Manager, AnyDependency>::value,
+                             int> = 0>
   void Initialize(const Manager& manager);
   template <
       typename Manager,
@@ -204,9 +189,10 @@ class AnyDependency {
       typename Manager,
       std::enable_if_t<std::is_same<Manager, AnyDependency>::value, int> = 0>
   void Initialize(Manager&& manager);
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<!std::is_same<Manager, AnyDependency>::value, int> = 0>
+  template <typename Manager, typename... ManagerArgs,
+            std::enable_if_t<!std::is_reference<Manager>::value &&
+                                 !std::is_same<Manager, AnyDependency>::value,
+                             int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
   template <
       typename Manager, typename... ManagerArgs,
@@ -291,13 +277,18 @@ template <typename Ptr, typename Manager, typename Enable>
 struct MethodsFor {
   static const Methods<Ptr> methods;
 
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Repr& self, const Manager& manager) {
     self.ptr = new Dependency<Ptr, Manager>(manager);
   }
   static void Construct(Repr& self, Manager&& manager) {
-    self.ptr = new Dependency<Ptr, Manager>(std::move(manager));
+    self.ptr = new Dependency<Ptr, Manager>(std::forward<Manager>(manager));
   }
-  template <typename... ManagerArgs>
+  template <
+      typename... ManagerArgs, typename DependentManager = Manager,
+      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Repr& self, std::tuple<ManagerArgs...> manager_args) {
     self.ptr = new Dependency<Ptr, Manager>(std::move(manager_args));
   }
@@ -325,13 +316,18 @@ struct MethodsFor<Ptr, Manager,
                   std::enable_if_t<IsInline<Ptr, Manager>::value>> {
   static const Methods<Ptr> methods;
 
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Repr& self, const Manager& manager) {
     new (self.storage) Dependency<Ptr, Manager>(manager);
   }
   static void Construct(Repr& self, Manager&& manager) {
-    new (self.storage) Dependency<Ptr, Manager>(std::move(manager));
+    new (self.storage) Dependency<Ptr, Manager>(std::forward<Manager>(manager));
   }
-  template <typename... ManagerArgs>
+  template <
+      typename... ManagerArgs, typename DependentManager = Manager,
+      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Repr& self, std::tuple<ManagerArgs...> manager_args) {
     new (self.storage) Dependency<Ptr, Manager>(std::move(manager_args));
   }
@@ -378,41 +374,15 @@ template <
                                                       AnyDependency<Ptr>>>,
                           IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
         int>>
-inline AnyDependency<Ptr>::AnyDependency(const Manager& manager) {
-  Initialize<std::decay_t<Manager>>(manager);
-}
-
-template <typename Ptr>
-template <
-    typename Manager,
-    std::enable_if_t<
-        absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
-                                                      AnyDependency<Ptr>>>,
-                          IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
-        int>>
 inline AnyDependency<Ptr>::AnyDependency(Manager&& manager) {
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr>
-template <typename Manager>
+template <typename Manager, typename ManagerArg>
 inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
-                                         const Manager& manager) {
-  Initialize<Manager>(manager);
-}
-
-template <typename Ptr>
-template <typename Manager>
-inline AnyDependency<Ptr>::AnyDependency(absl::in_place_type_t<Manager>,
-                                         Manager&& manager) {
-  Initialize<Manager>(std::move(manager));
-}
-
-template <typename Ptr>
-template <typename Manager, typename... ManagerArgs>
-inline AnyDependency<Ptr>::AnyDependency(
-    absl::in_place_type_t<Manager>, std::tuple<ManagerArgs...> manager_args) {
-  Initialize<Manager>(std::move(manager_args));
+                                         ManagerArg&& manager_arg) {
+  Initialize<Manager>(std::forward<ManagerArg>(manager_arg));
 }
 
 template <typename Ptr>
@@ -445,29 +415,25 @@ inline void AnyDependency<Ptr>::Reset() {
 
 template <typename Ptr>
 template <typename Manager>
-inline void AnyDependency<Ptr>::Reset(const Manager& manager) {
-  methods_->destroy(repr_);
-  Initialize<std::decay_t<Manager>>(manager);
-}
-
-template <typename Ptr>
-template <typename Manager>
 inline void AnyDependency<Ptr>::Reset(Manager&& manager) {
   methods_->destroy(repr_);
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr>
-template <typename Manager, typename... ManagerArgs>
-inline void AnyDependency<Ptr>::Reset(std::tuple<ManagerArgs...> manager_args) {
+template <typename Manager, typename ManagerArg>
+inline void AnyDependency<Ptr>::Reset(absl::in_place_type_t<Manager>,
+                                      ManagerArg&& manager_arg) {
   methods_->destroy(repr_);
-  Initialize<Manager>(std::move(manager_args));
+  Initialize<Manager>(std::forward<ManagerArg>(manager_arg));
 }
 
 template <typename Ptr>
 template <
     typename Manager,
-    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+    std::enable_if_t<!std::is_reference<Manager>::value &&
+                         !std::is_same<Manager, AnyDependency<Ptr>>::value,
+                     int>>
 inline void AnyDependency<Ptr>::Initialize(const Manager& manager) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(repr_, manager);
@@ -495,7 +461,9 @@ inline void AnyDependency<Ptr>::Initialize(Manager&& manager) {
 template <typename Ptr>
 template <
     typename Manager, typename... ManagerArgs,
-    std::enable_if_t<!std::is_same<Manager, AnyDependency<Ptr>>::value, int>>
+    std::enable_if_t<!std::is_reference<Manager>::value &&
+                         !std::is_same<Manager, AnyDependency<Ptr>>::value,
+                     int>>
 inline void AnyDependency<Ptr>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;

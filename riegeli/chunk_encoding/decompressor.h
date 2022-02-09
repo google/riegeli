@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -184,7 +185,8 @@ template <typename SrcInit>
 void Decompressor<Src>::Initialize(SrcInit&& src_init,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    decompressed_.Reset<Src>(std::forward<SrcInit>(src_init));
+    decompressed_.Reset(absl::in_place_type<Src>,
+                        std::forward<SrcInit>(src_init));
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
@@ -199,16 +201,20 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      decompressed_.Reset<BrotliReader<Src>>(
+      decompressed_.Reset(
+          absl::in_place_type<BrotliReader<Src>>,
           std::forward_as_tuple(std::move(compressed_reader.manager())));
       return;
     case CompressionType::kZstd:
-      decompressed_.Reset<ZstdReader<Src>>(std::forward_as_tuple(
-          std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(uncompressed_size)));
+      decompressed_.Reset(
+          absl::in_place_type<ZstdReader<Src>>,
+          std::forward_as_tuple(
+              std::move(compressed_reader.manager()),
+              ZstdReaderBase::Options().set_size_hint(uncompressed_size)));
       return;
     case CompressionType::kSnappy:
-      decompressed_.Reset<SnappyReader<Src>>(
+      decompressed_.Reset(
+          absl::in_place_type<SnappyReader<Src>>,
           std::forward_as_tuple(std::move(compressed_reader.manager())));
       return;
   }
