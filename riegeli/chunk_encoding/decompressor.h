@@ -111,7 +111,9 @@ class Decompressor : public Object {
   template <typename SrcInit>
   void Initialize(SrcInit&& src_init, CompressionType compression_type);
 
-  AnyDependency<Reader*> decompressed_;
+  AnyDependency<Reader*, Src, BrotliReader<Src>, ZstdReader<Src>,
+                SnappyReader<Src>>
+      decompressed_;
 };
 
 // Implementation details follow.
