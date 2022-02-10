@@ -35,9 +35,16 @@ class AnyDependencyImpl;
 template <typename Ptr, size_t inline_size, size_t inline_align>
 class AnyDependencyRefImpl;
 
+// `AnyDependency<Ptr>` refers to an optionally owned object which is accessed
+// as `Ptr` and stored as some `Manager` type decided when the `AnyDependency`
+// is initialized.
+//
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M`, `M*` or
+// `std::unique_ptr<M>`, with `M` derived from `P` or sometimes containing `P`.
+//
 // `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
-// type, erasing the `Manager` type from the type of the `AnyDependency`, or is
-// empty.
+// type, erasing the `Manager` parameter from the type of the `AnyDependency`,
+// or is empty.
 //
 // The optional `InlineManagers` parameters specify the size of inline storage,
 // which allows to avoid heap allocation if `Manager` is among `InlineManagers`
@@ -48,6 +55,14 @@ using AnyDependency = AnyDependencyImpl<
     Ptr, UnsignedMax(size_t{0}, sizeof(Dependency<Ptr, InlineManagers>)...),
     UnsignedMax(size_t{0}, alignof(Dependency<Ptr, InlineManagers>)...)>;
 
+// `AnyDependencyRef<Ptr>` refers to an optionally owned object which is
+// accessed as `Ptr` and was passed as some `Manager` type decided when the
+// `AnyDependencyRef` was initialized.
+//
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M&`
+// (not owned), `M&&` (owned), or `std::unique_ptr<M>`, with `M` derived from
+// `P` or sometimes containing `P`.
+//
 // `AnyDependencyRef<Ptr>` derives from `AnyDependency<Ptr>`, replacing the
 // constructors such that the `Manager` type is deduced from the constructor
 // argument as a reference type rather than a value type.
@@ -56,6 +71,12 @@ using AnyDependency = AnyDependencyImpl<
 // rather than stored in a host object, because such a dependency stores a
 // reference to the dependent object, and by convention a reference argument is
 // expected to be valid only for the duration of the function call.
+//
+// This allows to pass an unowned dependency by lvalue reference instead of by
+// pointer, which allows for a more idiomatic API for passing an object which
+// does not need to be valid after the function returns. And this allows to pass
+// an owned dependency by rvalue reference instead of by value, which avoids
+// moving it.
 //
 // Only a subset of operations are provided: the dependency must be initialized,
 // assignment is not supported, and initialization from a tuple of constructor
@@ -105,7 +126,7 @@ using IsInline = std::integral_constant<
                   sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
               alignof(Dependency<Ptr, Manager>) <=
                   alignof(Repr<Ptr, inline_size, inline_align>::storage) &&
-              (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable())>;
+              (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>;
 
 // Method pointers.
 template <typename Ptr>
@@ -229,24 +250,49 @@ class AnyDependencyImpl {
   // `P`, for convenience.
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>& operator*() const {
+  std::remove_pointer_t<Ptr>& operator*() const {
     return *get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>* operator->() const {
+  Ptr operator->() const {
     return get();
   }
 
-  // Returns the released `Ptr` if the `Dependency` owns the dependent object
-  // and can release it, otherwise returns a default `Ptr`.
+  // If the `Dependency` owns the dependent object and can release it,
+  // `Release()` returns the released pointer, otherwise returns `nullptr`
+  // or another sentinel `Ptr` value specified with `AnyDependencyTraits<Ptr>`.
   Ptr Release() { return methods_->release(repr_.storage); }
+
+  // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be compared against
+  // `nullptr`.
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(const AnyDependencyImpl& a, std::nullptr_t) {
+    return a.get() == nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(const AnyDependencyImpl& a, std::nullptr_t) {
+    return a.get() != nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(std::nullptr_t, const AnyDependencyImpl& b) {
+    return nullptr == b.get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(std::nullptr_t, const AnyDependencyImpl& b) {
+    return nullptr != b.get();
+  }
 
   // If `true`, the `AnyDependencyImpl` owns the dependent object, i.e. closing
   // the host object should close the dependent object.
   bool is_owning() const { return methods_->is_owning(repr_.storage); }
 
-  static constexpr bool kIsStable() { return inline_size == 0; }
+  // If `true`, `get()` stays unchanged when an `AnyDependencyImpl` is moved.
+  static constexpr bool kIsStable = inline_size == 0;
 
  private:
   // For adopting `methods_` and `repr_` from an instantiation with a different
@@ -307,31 +353,20 @@ class AnyDependencyImpl {
   Repr repr_;
 };
 
-// Specialization of `Dependency<Ptr, AnyDependencyImpl<Ptr>>`.
+// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>>`.
 template <typename Ptr, size_t inline_size, size_t inline_align>
-class Dependency<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
+class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
     : public DependencyBase<AnyDependencyImpl<Ptr, inline_size, inline_align>> {
  public:
   using DependencyBase<
       AnyDependencyImpl<Ptr, inline_size, inline_align>>::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>& operator*() const {
-    return *get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>* operator->() const {
-    return get();
-  }
   Ptr Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
-  static constexpr bool kIsStable() {
-    return AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable();
-  }
+  static constexpr bool kIsStable =
+      AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
 };
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
@@ -362,9 +397,9 @@ class AnyDependencyRefImpl
   void Reset() = delete;
 };
 
-// Specialization of `Dependency<Ptr, AnyDependencyRefImpl<Ptr>>`.
+// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>>`.
 template <typename Ptr, size_t inline_size, size_t inline_align>
-class Dependency<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
+class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
     : public DependencyBase<
           AnyDependencyRefImpl<Ptr, inline_size, inline_align>> {
  public:
@@ -372,22 +407,11 @@ class Dependency<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
       AnyDependencyRefImpl<Ptr, inline_size, inline_align>>::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>& operator*() const {
-    return *get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>* operator->() const {
-    return get();
-  }
   Ptr Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
-  static constexpr bool kIsStable() {
-    return AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable();
-  }
+  static constexpr bool kIsStable =
+      AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
 };
 
 // Implementation details follow.
@@ -414,6 +438,29 @@ template <
     std::enable_if_t<!HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
 Ptr Release(Dependency<Ptr, Manager>& dep) {
   return AnyDependencyTraits<Ptr>::DefaultPtr();
+}
+
+// `any_dependency_internal::IsOwning(dep)` calls `dep.is_owning()` if that is
+// defined, otherwise returns `false`.
+
+template <typename T, typename Enable = void>
+struct HasIsOwning : std::false_type {};
+template <typename T>
+struct HasIsOwning<T,
+                   absl::void_t<decltype(std::declval<const T>().is_owning())>>
+    : std::true_type {};
+
+template <
+    typename Ptr, typename Manager,
+    std::enable_if_t<HasIsOwning<Dependency<Ptr, Manager>>::value, int> = 0>
+bool IsOwning(const Dependency<Ptr, Manager>& dep) {
+  return dep.is_owning();
+}
+template <
+    typename Ptr, typename Manager,
+    std::enable_if_t<!HasIsOwning<Dependency<Ptr, Manager>>::value, int> = 0>
+bool IsOwning(const Dependency<Ptr, Manager>& dep) {
+  return false;
 }
 
 template <typename Ptr>
@@ -471,7 +518,9 @@ struct MethodsFor {
   static Ptr Release(Storage self) {
     return any_dependency_internal::Release(*ptr(self));
   }
-  static bool IsOwning(const Storage self) { return ptr(self)->is_owning(); }
+  static bool IsOwning(const Storage self) {
+    return any_dependency_internal::IsOwning(*ptr(self));
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
@@ -523,7 +572,9 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
   static Ptr Release(Storage self) {
     return any_dependency_internal::Release(dep(self));
   }
-  static bool IsOwning(const Storage self) { return dep(self).is_owning(); }
+  static bool IsOwning(const Storage self) {
+    return any_dependency_internal::IsOwning(dep(self));
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,

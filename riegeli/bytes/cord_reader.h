@@ -285,7 +285,7 @@ inline void CordReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 
 template <typename Src>
 inline void CordReader<Src>::MoveSrc(CordReader&& that) {
-  if (src_.kIsStable()) {
+  if (src_.kIsStable) {
     src_ = std::move(that.src_);
     iter_ = std::exchange(that.iter_, absl::nullopt);
   } else {

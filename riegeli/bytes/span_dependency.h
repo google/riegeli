@@ -23,23 +23,23 @@
 
 namespace riegeli {
 
-// Specializations of `Dependency<absl::Span<char>, Manager>`.
+// Specializations of `DependencyImpl<absl::Span<char>, Manager>`.
 
 // Specialization for `absl::Span<char>` itself is defined separately for
-// `kIsStable()` to be `true`.
+// `kIsStable` to be `true`.
 template <>
-class Dependency<absl::Span<char>, absl::Span<char>>
+class DependencyImpl<absl::Span<char>, absl::Span<char>>
     : public DependencyBase<absl::Span<char>> {
  public:
   using DependencyBase<absl::Span<char>>::DependencyBase;
 
   absl::Span<char> get() const { return this->manager(); }
 
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 template <typename M>
-class Dependency<
+class DependencyImpl<
     absl::Span<char>, M*,
     std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
                      !std::is_pointer<M>::value>> : public DependencyBase<M*> {
@@ -48,11 +48,11 @@ class Dependency<
 
   absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 template <typename M>
-class Dependency<
+class DependencyImpl<
     absl::Span<char>, M,
     std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
                      !std::is_pointer<M>::value>> : public DependencyBase<M> {
@@ -64,11 +64,11 @@ class Dependency<
     return absl::Span<const char>(this->manager());
   }
 
-  static constexpr bool kIsStable() { return false; }
+  static constexpr bool kIsStable = false;
 };
 
 template <typename M, typename Deleter>
-class Dependency<
+class DependencyImpl<
     absl::Span<char>, std::unique_ptr<M, Deleter>,
     std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
                      !std::is_pointer<M>::value>>
@@ -78,7 +78,7 @@ class Dependency<
 
   absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 }  // namespace riegeli

@@ -28,82 +28,17 @@
 
 namespace riegeli {
 
-// A member of type `Dependency<Ptr, Manager>` specifies an optionally owned
-// dependent object needed by the host object.
+// `Dependency<Ptr, Manager>` refers to an optionally owned object which is
+// stored as `Manager` and accessed as `Ptr`.
 //
-// `Ptr` is a non-owning type which refers to the dependent object, usually a
-// pointer. `Manager` is a type which provides and possibly owns the dependent
-// object.
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M`, `M*` or
+// `std::unique_ptr<M>`, with `M` derived from `P` or sometimes containing `P`.
 //
-// Typically the host class of `Dependency<Ptr, Manager>` is a class template
-// parametrized by `Manager`, with `Ptr` fixed. A user of the host class
-// specifies ownership of the dependent object, and sometimes narrows its type,
-// by choosing the `Manager` type.
+// Often `Dependency<Ptr, Manager>` is a member of a host class template
+// parameterized by `Manager`, with `Ptr` fixed by the host class. A user of the
+// host class specifies ownership of the dependent object and possibly narrows
+// its type by choosing the `Manager` template argument of the host class.
 //
-// The following operations are typically provided by specializations of
-// `Dependency<Ptr, Manager>` (operations may differ depending on `Ptr`;
-// whenever `Ptr` is returned, a pointer to a derived class may be returned):
-//
-// ```
-//   // Constructs a dummy Manager: constructed with kClosed if it supports
-//   // that, otherwise default-constructed; nullptr for pointers. This is used
-//   // when the host object is closed and does not need a dependent object.
-//   Dependency();
-//
-//   // Copies or moves a Manager. This is used to specify the initial value of
-//   // the dependent object.
-//   explicit Dependency(const Manager& manager);
-//   explicit Dependency(Manager&& manager);
-//
-//   // Constructs a Manager from elements of manager_args. This is used to
-//   // specify the initial value of the dependent object. This avoids
-//   // constructing a temporary Manager and moving from it.
-//   template <typename... ManagerArgs>
-//   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
-//
-//   // Moves the dependency.
-//   Dependency(Dependency&& that) noexcept;
-//   Dependency& operator=(Dependency&& that) noexcept;
-//
-//   // Makes *this equivalent to a newly constructed Dependency. This avoids
-//   // constructing a temporary Dependency and moving from it.
-//   void Reset();
-//   void Reset(const Manager& manager);
-//   void Reset(Manager&& manager);
-//   template <typename... ManagerArgs>
-//   void Reset(std::tuple<ManagerArgs...> manager_args);
-//
-//   // Exposes the contained Manager.
-//   Manager& manager();
-//   const Manager& manager() const;
-//
-//   // Returns a Ptr to the Manager.
-//   //
-//   // A const variant of this method is expected for certain choices of Ptr,
-//   // in particular if Ptr is P*.
-//   Ptr get();
-//
-//   // If Ptr is P*, Dependency<P*, Manager> can be used as a smart pointer to
-//   // P, for convenience.
-//   P& operator*() { return *get(); }
-//   const P& operator*() const { return *get(); }
-//   P* operator->() { return get(); }
-//   const P* operator->() const { return get(); }
-//
-//   // If Ptr is P*, the Release() function is present.
-//   //
-//   // If the Dependency owns the dependent object and can release it,
-//   // Release() returns the released pointer, otherwise returns nullptr.
-//   P* Release();
-//
-//   // If true, the Dependency owns the dependent object, i.e. closing the host
-//   // object should close the dependent object.
-//   bool is_owning() const;
-//
-//   // If true, get() stays unchanged when a Dependency is moved.
-//   static constexpr bool kIsStable();
-// ```
-
 // `Manager` can also be an lvalue reference or rvalue reference. This case
 // is meant to be used only when the dependency is constructed locally in a
 // function rather than stored in a host object, because such a dependency
@@ -116,14 +51,117 @@ namespace riegeli {
 // does not need to be valid after the function returns. And this allows to pass
 // an owned dependency by rvalue reference instead of by value, which avoids
 // moving it.
+
+// `Dependency<Ptr, Manager>` derives from `DependencyImpl<Ptr, Manager>` which
+// has specializations for various combinations of `Ptr` and `Manager` types.
+// Most operations of `Dependency` are provided by `DependencyImpl`.
 //
-// Only a subset of operations is provided in this case: the dependency must be
-// initialized, assignment is not supported, and initialization from a tuple of
-// constructor arguments is not supported.
+// Operations of `Dependency<Ptr, Manager>`:
+//
+// ```
+//   // Constructs a dummy `Manager`: constructed with `kClosed` if it supports
+//   // that, otherwise value-initialized (`nullptr` for pointers). Used when
+//   // the host object is closed and does not need a dependent object.
+//   //
+//   // This constructor is optional.
+//   Dependency();
+//
+//   // Copies or moves a `Manager`. Used to specify the initial value of the
+//   // dependent object.
+//   explicit Dependency(const Manager& manager);
+//   explicit Dependency(Manager&& manager);
+//
+//   // Constructs a `Manager` from elements of `manager_args`. Used to specify
+//   // the initial value of the dependent object. This avoids constructing a
+//   // temporary `Manager` and moving from it.
+//   //
+//   // This constructor is optional.
+//   template <typename... ManagerArgs>
+//   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
+//
+//   // Moves the dependency.
+//   //
+//   // Assignment operator is optional.
+//   Dependency(Dependency&& that) noexcept;
+//   Dependency& operator=(Dependency&& that) noexcept;
+//
+//   // Makes `*this` equivalent to a newly constructed Dependency. This avoids
+//   // constructing a temporary Dependency and moving from it.
+//   //
+//   // These methods are optional.
+//   void Reset();
+//   void Reset(const Manager& manager);
+//   void Reset(Manager&& manager);
+//   template <typename... ManagerArgs>
+//   void Reset(std::tuple<ManagerArgs...> manager_args);
+//
+//   // Exposes the contained `Manager`.
+//   Manager& manager();
+//   const Manager& manager() const;
+//
+//   // Returns a `Ptr` to the `Manager`.
+//   //
+//   // This method might be const, and if `Ptr` is `P*` then this method might
+//   // return a pointer to a derived class.
+//   Ptr get();
+//
+//   // If `Ptr` is `P*`, `get()` has a const variant returning `const P*`,
+//   // which is present if `get()` returning `P*` is not const.
+//   //
+//   // This method might return a pointer to a derived class.
+//   const P* get() const;
+//
+//   // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart
+//   // pointer to `P`, for convenience.
+//   //
+//   // These methods might be const, and might return a pointer to a derived
+//   // class.
+//   //
+//   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
+//   P& operator*() { return *get(); }
+//   const P& operator*() const { return *get(); }
+//   P* operator->() { return get(); }
+//   const P* operator->() const { return get(); }
+//
+//   // If `Ptr` is `P*`, or possibly another applicable type, the `Release()`
+//   // function is present.
+//   //
+//   // If the `Dependency` owns the dependent object and can release it,
+//   // `Release()` returns the released pointer, otherwise returns `nullptr`
+//   // or another sentinel `Ptr` value.
+//   //
+//   // This method might return a pointer to a derived class.
+//   Ptr Release();
+//
+//   // If `Ptr` is `P*`, the dependency can be compared against `nullptr`.
+//   //
+//   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
+//   friend bool operator==(const Dependency& a, std::nullptr_t) {
+//     return a.get() == nullptr;
+//   }
+//   friend bool operator!=(const Dependency& a, std::nullptr_t) {
+//     return a.get() != nullptr;
+//   }
+//   friend bool operator==(std::nullptr_t, const Dependency& b) {
+//     return nullptr == b.get();
+//   }
+//   friend bool operator!=(std::nullptr_t, const Dependency& b) {
+//     return nullptr != b.get();
+//   }
+//
+//   // If `true`, the `Dependency` owns the dependent object, i.e. closing the
+//   // host object should close the dependent object.
+//   //
+//   // This method is optional.
+//   bool is_owning() const;
+//
+//   // If `true`, `get()` stays unchanged when a `Dependency` is moved.
+//   static constexpr bool kIsStable;
+// ```
 
 // This template is specialized but does not have a primary definition.
 template <typename Ptr, typename Manager, typename Enable = void>
-class Dependency;
+class DependencyImpl;
 
 // `IsValidDependency<Ptr, Manager>::value` is `true` when
 // `Dependency<Ptr, Manager>` is defined.
@@ -134,10 +172,10 @@ struct IsValidDependency : std::false_type {};
 template <typename Ptr, typename Manager>
 struct IsValidDependency<
     Ptr, Manager,
-    absl::void_t<decltype(std::declval<Dependency<Ptr, Manager>>().get())>>
+    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>>
     : std::true_type {};
 
-// Implementation shared between most specializations of `Dependency`.
+// Implementation shared between most specializations of `DependencyImpl`.
 template <typename Manager>
 class DependencyBase {
  public:
@@ -214,6 +252,68 @@ class DependencyBase {
   Manager manager_;
 };
 
+template <typename Ptr, typename Manager, typename Enable = void>
+class Dependency;
+
+template <typename Ptr, typename Manager>
+class Dependency<Ptr, Manager,
+                 std::enable_if_t<IsValidDependency<Ptr, Manager>::value>>
+    : public DependencyImpl<Ptr, Manager> {
+ public:
+  using DependencyImpl<Ptr, Manager>::DependencyImpl;
+
+  // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart pointer
+  // to `P`, for convenience: it provides `operator*`, `operator->`, and can be
+  // compared against `nullptr`.
+
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<
+      decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>&
+  operator*() {
+    return *this->get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<
+      decltype(std::declval<const DependencyImpl<Ptr, Manager>>().get())>&
+  operator*() const {
+    return *this->get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  decltype(std::declval<DependencyImpl<Ptr, Manager>>().get()) operator->() {
+    return this->get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  decltype(std::declval<const DependencyImpl<Ptr, Manager>>().get())
+  operator->() const {
+    return this->get();
+  }
+
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(const Dependency& a, std::nullptr_t) {
+    return a.get() == nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(const Dependency& a, std::nullptr_t) {
+    return a.get() != nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(std::nullptr_t, const Dependency& b) {
+    return nullptr == b.get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(std::nullptr_t, const Dependency& b) {
+    return nullptr != b.get();
+  }
+};
+
 // Specialization of `DependencyBase` for lvalue references.
 //
 // Only a subset of operations are provided: the dependency must be initialized,
@@ -252,28 +352,28 @@ class DependencyBase<Manager&&> {
   Manager& manager_;
 };
 
-// Specialization of `Dependency<P*, M*>` when `M*` is convertible to `P*`:
+// Specialization of `DependencyImpl<P*, M*>` when `M*` is convertible to `P*`:
 // an unowned dependency passed by pointer.
 template <typename P, typename M>
-class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<P*, M*,
+                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
 
   M* get() const { return this->manager(); }
-  M& operator*() const { return *get(); }
-  M* operator->() const { return get(); }
   M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
-// Specialization of `Dependency<P*, std::nullptr_t>`: an unowned dependency
+// Specialization of `DependencyImpl<P*, std::nullptr_t>`: an unowned dependency
 // passed by pointer, always missing. This is useful for `AnyDependency` and
 // `AnyDependencyRef`.
 template <typename P>
-class Dependency<P*, std::nullptr_t> : public DependencyBase<std::nullptr_t> {
+class DependencyImpl<P*, std::nullptr_t>
+    : public DependencyBase<std::nullptr_t> {
  public:
   using DependencyBase<std::nullptr_t>::DependencyBase;
 
@@ -281,103 +381,96 @@ class Dependency<P*, std::nullptr_t> : public DependencyBase<std::nullptr_t> {
   std::nullptr_t Release() { return nullptr; }
 
   bool is_owning() const { return false; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
-// Specialization of `Dependency<P*, M>` when `M*` is convertible to `P*`:
+// Specialization of `DependencyImpl<P*, M>` when `M*` is convertible to `P*`:
 // an owned dependency stored by value.
 template <typename P, typename M>
-class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<P*, M,
+                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
 
   M* get() { return &this->manager(); }
   const M* get() const { return &this->manager(); }
-  M& operator*() { return *get(); }
-  const M& operator*() const { return *get(); }
-  M* operator->() { return get(); }
-  const M* operator->() const { return get(); }
   M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
-  static constexpr bool kIsStable() { return false; }
+  static constexpr bool kIsStable = false;
 };
 
-// Specialization of `Dependency<P*, std::unique_ptr<M>>` when `M*` is
+// Specialization of `DependencyImpl<P*, std::unique_ptr<M>>` when `M*` is
 // convertible to `P*`: an owned dependency stored by `std::unique_ptr`.
 template <typename P, typename M, typename Deleter>
-class Dependency<P*, std::unique_ptr<M, Deleter>,
-                 std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
+                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
   M* get() const { return this->manager().get(); }
-  M& operator*() const { return *get(); }
-  M* operator->() const { return get(); }
   M* Release() { return this->manager().release(); }
 
   bool is_owning() const { return this->manager() != nullptr; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
-// Specialization of `Dependency<P*, M&>` when `M*` is convertible to `P*`:
+// Specialization of `DependencyImpl<P*, M&>` when `M*` is convertible to `P*`:
 // an unowned dependency passed by lvalue reference.
 template <typename P, typename M>
-class Dependency<P*, M&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<P*, M&,
+                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M&> {
  public:
   using DependencyBase<M&>::DependencyBase;
 
   M* get() const { return &this->manager(); }
-  M& operator*() const { return *get(); }
-  M* operator->() const { return get(); }
   M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
-// Specialization of `Dependency<P*, M&>` when `M*` is not convertible to `P*`:
-// decay to `Dependency<P*, std::decay_t<M>>`.
+// Specialization of `DependencyImpl<P*, M&>` when `M*` is not convertible to
+// `P*`: decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
-class Dependency<P*, M&,
-                 std::enable_if_t<absl::conjunction<
-                     absl::negation<std::is_convertible<M*, P*>>,
-                     IsValidDependency<P*, std::decay_t<M>>>::value>>
-    : public Dependency<P*, std::decay_t<M>> {
+class DependencyImpl<P*, M&,
+                     std::enable_if_t<absl::conjunction<
+                         absl::negation<std::is_convertible<M*, P*>>,
+                         IsValidDependency<P*, std::decay_t<M>>>::value>>
+    : public DependencyImpl<P*, std::decay_t<M>> {
  public:
-  using Dependency<P*, std::decay_t<M>>::Dependency;
+  using DependencyImpl<P*, std::decay_t<M>>::DependencyImpl;
 };
 
-// Specialization of `Dependency<P*, M&&>` when `M*` is convertible to `P*`:
+// Specialization of `DependencyImpl<P*, M&&>` when `M*` is convertible to `P*`:
 // an owned dependency passed by rvalue reference.
 template <typename P, typename M>
-class Dependency<P*, M&&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<P*, M&&,
+                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M&&> {
  public:
   using DependencyBase<M&&>::DependencyBase;
 
   M* get() const { return &this->manager(); }
-  M& operator*() const { return *get(); }
-  M* operator->() const { return get(); }
   M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
-// Specialization of `Dependency<P*, M&&>` when `M*` is not convertible to `P*`:
-// decay to `Dependency<P*, std::decay_t<M>>`.
+// Specialization of `DependencyImpl<P*, M&&>` when `M*` is not convertible to
+// `P*`: decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
-class Dependency<P*, M&&,
-                 std::enable_if_t<absl::conjunction<
-                     absl::negation<std::is_convertible<M*, P*>>,
-                     IsValidDependency<P*, std::decay_t<M>>>::value>>
-    : public Dependency<P*, std::decay_t<M>> {
+class DependencyImpl<P*, M&&,
+                     std::enable_if_t<absl::conjunction<
+                         absl::negation<std::is_convertible<M*, P*>>,
+                         IsValidDependency<P*, std::decay_t<M>>>::value>>
+    : public DependencyImpl<P*, std::decay_t<M>> {
  public:
-  using Dependency<P*, std::decay_t<M>>::Dependency;
+  using DependencyImpl<P*, std::decay_t<M>>::DependencyImpl;
 };
 
 namespace dependency_internal {

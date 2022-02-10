@@ -255,7 +255,7 @@ inline void WrappedWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
 
 template <typename Dest>
 inline void WrappedWriter<Dest>::MoveDest(WrappedWriter&& that) {
-  if (dest_.kIsStable() || that.dest_.get() == nullptr) {
+  if (dest_.kIsStable || that.dest_ == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

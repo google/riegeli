@@ -379,7 +379,7 @@ inline void WriterOStream<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline void WriterOStream<Dest>::MoveDest(WriterOStream&& that) {
-  if (dest_.kIsStable()) {
+  if (dest_.kIsStable) {
     dest_ = std::move(that.dest_);
   } else {
     const absl::optional<Position> reader_pos = streambuf_.MoveBegin();

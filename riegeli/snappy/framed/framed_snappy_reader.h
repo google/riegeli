@@ -270,7 +270,7 @@ template <typename Src>
 inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
   // Buffer pointers are already moved so `limit()` is taken from `*this`,
   // `src_` is not moved yet so `src_` is taken from `that`.
-  if (src_.kIsStable() || ABSL_PREDICT_FALSE(!is_open()) ||
+  if (src_.kIsStable || ABSL_PREDICT_FALSE(!is_open()) ||
       limit() != that.src_->cursor()) {
     src_ = std::move(that.src_);
   } else {

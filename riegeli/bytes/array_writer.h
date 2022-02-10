@@ -287,7 +287,7 @@ inline void ArrayWriter<Dest>::Reset(char* dest, size_t size) {
 
 template <typename Dest>
 inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
-  if (dest_.kIsStable()) {
+  if (dest_.kIsStable) {
     dest_ = std::move(that.dest_);
   } else {
     BehindScratch behind_scratch(this);

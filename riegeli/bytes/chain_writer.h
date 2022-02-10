@@ -404,7 +404,7 @@ inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
-  if (dest_.kIsStable()) {
+  if (dest_.kIsStable) {
     dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = start_to_cursor();

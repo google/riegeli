@@ -453,7 +453,7 @@ inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
     dest_ = std::move(that.dest_);
     MoveSecondaryBuffer(std::move(that));
   } else if (start() == &(*that.dest_)[0]) {
-    if (dest_.kIsStable()) {
+    if (dest_.kIsStable) {
       dest_ = std::move(that.dest_);
     } else {
       const size_t cursor_index = start_to_cursor();

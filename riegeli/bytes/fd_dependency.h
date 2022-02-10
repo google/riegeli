@@ -71,10 +71,10 @@ class UnownedFd {
   int fd_ = -1;
 };
 
-// Specializations of `Dependency<int, Manager>`.
+// Specializations of `DependencyImpl<int, Manager>`.
 
 template <>
-class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
+class DependencyImpl<int, OwnedFd> : public DependencyBase<OwnedFd> {
  public:
   using DependencyBase<OwnedFd>::DependencyBase;
 
@@ -82,11 +82,11 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
   int Release() { return this->manager().Release(); }
 
   bool is_owning() const { return get() >= 0; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 template <>
-class Dependency<int, UnownedFd> : public DependencyBase<UnownedFd> {
+class DependencyImpl<int, UnownedFd> : public DependencyBase<UnownedFd> {
  public:
   using DependencyBase<UnownedFd>::DependencyBase;
 
@@ -94,7 +94,7 @@ class Dependency<int, UnownedFd> : public DependencyBase<UnownedFd> {
   int Release() { return -1; }
 
   bool is_owning() const { return false; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 // Specialization of `AnyDependencyTraits<int>`.

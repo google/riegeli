@@ -245,7 +245,7 @@ inline void ReaderStreambuf::Initialize(Reader* src) {
 }
 
 inline void ReaderStreambuf::MoveBegin() {
-  // In a closed `ReaderIStream`, `ReaderIStream::src_.get() != nullptr`
+  // In a closed `ReaderIStream`, `ReaderIStream::src_ != nullptr`
   // does not imply `ReaderStreambuf::reader_ != nullptr`, because
   // `ReaderIStream::streambuf_` can be left uninitialized.
   if (reader_ == nullptr) return;
@@ -253,7 +253,7 @@ inline void ReaderStreambuf::MoveBegin() {
 }
 
 inline void ReaderStreambuf::MoveEnd(Reader* src) {
-  // In a closed `ReaderIStream`, `ReaderIStream::src_.get() != nullptr`
+  // In a closed `ReaderIStream`, `ReaderIStream::src_ != nullptr`
   // does not imply `ReaderStreambuf::reader_ != nullptr`, because
   // `ReaderIStream::streambuf_` can be left uninitialized.
   if (reader_ == nullptr) return;
@@ -380,7 +380,7 @@ inline void ReaderIStream<Src>::Reset(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline void ReaderIStream<Src>::MoveSrc(ReaderIStream&& that) {
-  if (src_.kIsStable()) {
+  if (src_.kIsStable) {
     src_ = std::move(that.src_);
   } else {
     streambuf_.MoveBegin();

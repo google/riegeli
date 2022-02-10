@@ -322,7 +322,7 @@ inline void DigestingReader<Digester, Src>::Reset(
 
 template <typename Digester, typename Src>
 inline void DigestingReader<Digester, Src>::MoveSrc(DigestingReader&& that) {
-  if (src_.kIsStable() || that.src_.get() == nullptr) {
+  if (src_.kIsStable || that.src_ == nullptr) {
     src_ = std::move(that.src_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

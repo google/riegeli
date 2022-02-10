@@ -336,7 +336,7 @@ inline void DigestingWriter<Digester, Dest>::Reset(
 
 template <typename Digester, typename Dest>
 inline void DigestingWriter<Digester, Dest>::MoveDest(DigestingWriter&& that) {
-  if (dest_.kIsStable() || that.dest_.get() == nullptr) {
+  if (dest_.kIsStable || that.dest_ == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

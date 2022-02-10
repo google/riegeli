@@ -44,6 +44,17 @@ class OwnedCFile {
   // Releases the owned `FILE` without closing it.
   FILE* Release() { return file_.release(); }
 
+  friend bool operator==(const OwnedCFile& a, const OwnedCFile& b) {
+    return a.get() == b.get();
+  }
+  friend bool operator!=(const OwnedCFile& a, const OwnedCFile& b) {
+    return a.get() != b.get();
+  }
+  friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
+  friend bool operator!=(const OwnedCFile& a, FILE* b) { return a.get() != b; }
+  friend bool operator==(FILE* a, const OwnedCFile& b) { return a == b.get(); }
+  friend bool operator!=(FILE* a, const OwnedCFile& b) { return a != b.get(); }
+
  private:
   struct CFileDeleter {
     void operator()(FILE* ptr) const { fclose(ptr); }
@@ -69,26 +80,38 @@ class UnownedCFile {
   // Returns the referred to `FILE`, or `nullptr` if none.
   FILE* get() const { return file_; }
 
+  friend bool operator==(UnownedCFile a, UnownedCFile b) {
+    return a.get() == b.get();
+  }
+  friend bool operator!=(UnownedCFile a, UnownedCFile b) {
+    return a.get() != b.get();
+  }
+  friend bool operator==(UnownedCFile a, FILE* b) { return a.get() == b; }
+  friend bool operator!=(UnownedCFile a, FILE* b) { return a.get() != b; }
+  friend bool operator==(FILE* a, UnownedCFile b) { return a == b.get(); }
+  friend bool operator!=(FILE* a, UnownedCFile b) { return a != b.get(); }
+
  private:
   FILE* file_ = nullptr;
 };
 
-// Specializations of `Dependency<FILE*, Manager>`.
+// Specializations of `DependencyImpl<FILE*, Manager>`.
 
 template <>
-class Dependency<FILE*, OwnedCFile> : public DependencyBase<OwnedCFile> {
+class DependencyImpl<FILE*, OwnedCFile> : public DependencyBase<OwnedCFile> {
  public:
   using DependencyBase<OwnedCFile>::DependencyBase;
 
   FILE* get() const { return this->manager().get(); }
   FILE* Release() { return this->manager().Release(); }
 
-  bool is_owning() const { return get() != nullptr; }
-  static constexpr bool kIsStable() { return true; }
+  bool is_owning() const { return this->manager() != nullptr; }
+  static constexpr bool kIsStable = true;
 };
 
 template <>
-class Dependency<FILE*, UnownedCFile> : public DependencyBase<UnownedCFile> {
+class DependencyImpl<FILE*, UnownedCFile>
+    : public DependencyBase<UnownedCFile> {
  public:
   using DependencyBase<UnownedCFile>::DependencyBase;
 
@@ -96,7 +119,7 @@ class Dependency<FILE*, UnownedCFile> : public DependencyBase<UnownedCFile> {
   FILE* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
-  static constexpr bool kIsStable() { return true; }
+  static constexpr bool kIsStable = true;
 };
 
 // Implementation details follow.

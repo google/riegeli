@@ -26,24 +26,24 @@
 
 namespace riegeli {
 
-// Specialization of `Dependency<ChunkWriter*, M>` adapted from
-// `Dependency<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
+// Specialization of `DependencyImpl<ChunkWriter*, M>` adapted from
+// `DependencyImpl<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
 template <typename M>
-class Dependency<ChunkWriter*, M,
-                 std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
+class DependencyImpl<ChunkWriter*, M,
+                     std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
  public:
-  Dependency() noexcept : chunk_writer_(kClosed) {}
+  DependencyImpl() noexcept : chunk_writer_(kClosed) {}
 
-  explicit Dependency(const M& manager) : chunk_writer_(manager) {}
-  explicit Dependency(M&& manager) : chunk_writer_(std::move(manager)) {}
+  explicit DependencyImpl(const M& manager) : chunk_writer_(manager) {}
+  explicit DependencyImpl(M&& manager) : chunk_writer_(std::move(manager)) {}
 
   template <typename... MArgs>
-  explicit Dependency(std::tuple<MArgs...> manager_args)
+  explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_writer_(std::move(manager_args)) {}
 
-  Dependency(Dependency&& that) noexcept
+  DependencyImpl(DependencyImpl&& that) noexcept
       : chunk_writer_(std::move(that.chunk_writer_)) {}
-  Dependency& operator=(Dependency&& that) noexcept {
+  DependencyImpl& operator=(DependencyImpl&& that) noexcept {
     chunk_writer_ = std::move(that.chunk_writer_);
     return *this;
   }
@@ -63,14 +63,10 @@ class Dependency<ChunkWriter*, M,
 
   DefaultChunkWriter<M>* get() { return &chunk_writer_; }
   const DefaultChunkWriter<M>* get() const { return &chunk_writer_; }
-  DefaultChunkWriter<M>& operator*() { return *get(); }
-  const DefaultChunkWriter<M>& operator*() const { return *get(); }
-  DefaultChunkWriter<M>* operator->() { return get(); }
-  const DefaultChunkWriter<M>* operator->() const { return get(); }
   DefaultChunkWriter<M>* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
-  static constexpr bool kIsStable() { return false; }
+  static constexpr bool kIsStable = false;
 
  private:
   DefaultChunkWriter<M> chunk_writer_;

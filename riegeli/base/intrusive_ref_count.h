@@ -64,7 +64,6 @@ class RefCountedPtr {
   T* get() const { return ptr_; }
   T& operator*() const { return *get(); }
   T* operator->() const { return get(); }
-
   T* release() { return std::exchange(ptr_, nullptr); }
 
   friend bool operator==(const RefCountedPtr& a, const RefCountedPtr& b) {

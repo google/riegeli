@@ -252,7 +252,7 @@ void JoiningReader<Shard>::Done() {
 
 template <typename Shard>
 inline void JoiningReader<Shard>::MoveShard(JoiningReader&& that) {
-  if (shard_.kIsStable() || !shard_is_open(that.shard_.get())) {
+  if (shard_.kIsStable || !shard_is_open(that.shard_.get())) {
     shard_ = std::move(that.shard_);
   } else {
     BehindScratch behind_scratch(this);

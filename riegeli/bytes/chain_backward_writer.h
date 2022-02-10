@@ -395,7 +395,7 @@ inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
-  if (dest_.kIsStable()) {
+  if (dest_.kIsStable) {
     dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = start_to_cursor();

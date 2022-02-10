@@ -295,7 +295,7 @@ void SplittingWriter<Shard>::Done() {
 
 template <typename Shard>
 inline void SplittingWriter<Shard>::MoveShard(SplittingWriter&& that) {
-  if (shard_.kIsStable() || !shard_is_open(that.shard_.get())) {
+  if (shard_.kIsStable || !shard_is_open(that.shard_.get())) {
     shard_ = std::move(that.shard_);
   } else {
     BehindScratch behind_scratch(this);

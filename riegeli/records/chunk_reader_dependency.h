@@ -26,24 +26,24 @@
 
 namespace riegeli {
 
-// Specialization of `Dependency<ChunkReader*, M>` adapted from
-// `Dependency<Reader*, M>` by wrapping `M` in `DefaultChunkReader<M>`.
+// Specialization of `DependencyImpl<ChunkReader*, M>` adapted from
+// `DependencyImpl<Reader*, M>` by wrapping `M` in `DefaultChunkReader<M>`.
 template <typename M>
-class Dependency<ChunkReader*, M,
-                 std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
+class DependencyImpl<ChunkReader*, M,
+                     std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
  public:
-  Dependency() noexcept : chunk_reader_(kClosed) {}
+  DependencyImpl() noexcept : chunk_reader_(kClosed) {}
 
-  explicit Dependency(const M& manager) : chunk_reader_(manager) {}
-  explicit Dependency(M&& manager) : chunk_reader_(std::move(manager)) {}
+  explicit DependencyImpl(const M& manager) : chunk_reader_(manager) {}
+  explicit DependencyImpl(M&& manager) : chunk_reader_(std::move(manager)) {}
 
   template <typename... MArgs>
-  explicit Dependency(std::tuple<MArgs...> manager_args)
+  explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_reader_(std::move(manager_args)) {}
 
-  Dependency(Dependency&& that) noexcept
+  DependencyImpl(DependencyImpl&& that) noexcept
       : chunk_reader_(std::move(that.chunk_reader_)) {}
-  Dependency& operator=(Dependency&& that) noexcept {
+  DependencyImpl& operator=(DependencyImpl&& that) noexcept {
     chunk_reader_ = std::move(that.chunk_reader_);
     return *this;
   }
@@ -63,14 +63,10 @@ class Dependency<ChunkReader*, M,
 
   DefaultChunkReader<M>* get() { return &chunk_reader_; }
   const DefaultChunkReader<M>* get() const { return &chunk_reader_; }
-  DefaultChunkReader<M>& operator*() { return *get(); }
-  const DefaultChunkReader<M>& operator*() const { return *get(); }
-  DefaultChunkReader<M>* operator->() { return get(); }
-  const DefaultChunkReader<M>* operator->() const { return get(); }
   DefaultChunkReader<M>* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
-  static constexpr bool kIsStable() { return false; }
+  static constexpr bool kIsStable = false;
 
  private:
   DefaultChunkReader<M> chunk_reader_;

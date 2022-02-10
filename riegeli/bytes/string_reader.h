@@ -248,7 +248,7 @@ inline void StringReader<Src>::Reset(const char* src, size_t size) {
 
 template <typename Src>
 inline void StringReader<Src>::MoveSrc(StringReader&& that) {
-  if (src_.kIsStable()) {
+  if (src_.kIsStable) {
     src_ = std::move(that.src_);
   } else {
     const size_t cursor_index = start_to_cursor();

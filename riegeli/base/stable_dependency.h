@@ -45,7 +45,8 @@ class StableDependency;
 
 // Specialization when `Dependency<P*, M>` is already stable.
 template <typename P, typename M>
-class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable()>>
+class StableDependency<P*, M,
+                       std::enable_if_t<DependencyImpl<P*, M>::kIsStable>>
     : public Dependency<P*, M> {
   using Dependency<P*, M>::Dependency;
 };
@@ -54,7 +55,7 @@ class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable()>>
 // dependency dynamically.
 template <typename P, typename M>
 class StableDependency<P*, M,
-                       std::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
+                       std::enable_if_t<!DependencyImpl<P*, M>::kIsStable>> {
  private:
   using DerivedP =
       std::remove_pointer_t<decltype(std::declval<Dependency<P*, M>>().get())>;
@@ -155,6 +156,19 @@ class StableDependency<P*, M,
   DerivedP* Release() {
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return nullptr;
     return dep_->Release();
+  }
+
+  friend bool operator==(const StableDependency& a, std::nullptr_t) {
+    return a.get() == nullptr;
+  }
+  friend bool operator!=(const StableDependency& a, std::nullptr_t) {
+    return a.get() != nullptr;
+  }
+  friend bool operator==(std::nullptr_t, const StableDependency& a) {
+    return nullptr == a.get();
+  }
+  friend bool operator!=(std::nullptr_t, const StableDependency& a) {
+    return nullptr != a.get();
   }
 
   bool is_owning() const {

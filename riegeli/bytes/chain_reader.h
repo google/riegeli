@@ -245,7 +245,7 @@ inline void ChainReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 
 template <typename Src>
 inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
-  if (src_.kIsStable()) {
+  if (src_.kIsStable) {
     src_ = std::move(that.src_);
   } else {
     BehindScratch behind_scratch(this);
