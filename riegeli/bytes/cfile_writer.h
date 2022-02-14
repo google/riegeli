@@ -52,8 +52,8 @@ class CFileWriterBase : public BufferedWriter {
     // `set_assumed_filename()` allows to override the filename which is
     // included in failure messages and returned by `filename()`.
     //
-    // If `CFileWriter` writes to a filename, `set_assumed_filename()` has no
-    // effect.
+    // If `CFileWriter` opens a `FILE` with a filename, `set_assumed_filename()`
+    // has no effect.
     //
     // Default: "".
     Options& set_assumed_filename(absl::string_view assumed_filename) & {
@@ -68,6 +68,28 @@ class CFileWriterBase : public BufferedWriter {
     }
     std::string& assumed_filename() { return assumed_filename_; }
     const std::string& assumed_filename() const { return assumed_filename_; }
+
+    // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
+    // argument of `fopen()` and specifies the open mode, typically "w" or "a".
+    //
+    // If `CFileWriter` writes to an already open `FILE`, `assumed_pos()` is
+    // not set, and `mode()` starts with "a", writing will start at the end of
+    // file instead of at the current `FILE` position. Specifying `mode()` for
+    // this effect is necessary only if the actual open mode was "a+" rather
+    // than "a", because in that case `ftell()` reports 0 until the first write,
+    // so the actual write position cannot be determined automatically.
+    //
+    // Default: "w".
+    Options& set_mode(absl::string_view mode) & {
+      // TODO: When `absl::string_view` becomes C++17
+      // `std::string_view`: `mode_ = mode`
+      mode_.assign(mode.data(), mode.size());
+      return *this;
+    }
+    Options&& set_mode(absl::string_view mode) && {
+      return std::move(set_mode(mode));
+    }
+    const std::string& mode() const { return mode_; }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
@@ -88,27 +110,6 @@ class CFileWriterBase : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // If `true`, writing will start at the end of file instead of at the
-    // current `FILE` position.
-    //
-    // If `assumed_pos()` is set, `append()` has no effect. If `CFileWriter`
-    // opens the file and the open mode starts with "a", `append()` is implied
-    // to be `true`. If `CFileWriter` writes to an already open file and the
-    // actual open mode was "a", `ftell()` reports the file size so the behavior
-    // is the same in either case. But if the actual open mode was "a+",
-    // `ftell()` reports 0 until the first write, so `set_append(true)` is
-    // required.
-    //
-    // Default: `false`.
-    Options& set_append(bool append) & {
-      append_ = append;
-      return *this;
-    }
-    Options&& set_append(bool append) && {
-      return std::move(set_append(append));
-    }
-    bool append() const { return append_; }
-
     // Tunes how much data is buffered before writing to the file.
     //
     // Default: `kDefaultBufferSize` (64K).
@@ -127,8 +128,8 @@ class CFileWriterBase : public BufferedWriter {
 
    private:
     std::string assumed_filename_;
+    std::string mode_ = "w";
     absl::optional<Position> assumed_pos_;
-    bool append_ = false;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -242,9 +243,12 @@ class CFileWriter : public CFileWriterBase {
 
   // Opens a file for writing.
   //
-  // `mode` is the second argument of `fopen()`, typically "w" or "a".
-  //
   // If opening the file fails, `CFileWriter` will be failed and closed.
+  explicit CFileWriter(absl::string_view filename, Options options = Options());
+
+  ABSL_DEPRECATED(
+      "If the second argument is \"w\", just remove it, "
+      "otherwise specify it with CFileWriterBase::Options().set_mode(mode)")
   explicit CFileWriter(absl::string_view filename, const char* mode,
                        Options options = Options());
 
@@ -258,6 +262,10 @@ class CFileWriter : public CFileWriterBase {
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_DEPRECATED(
+      "If the second argument is \"w\", just remove it, "
+      "otherwise specify it with CFileWriterBase::Options().set_mode(mode)")
   void Reset(absl::string_view filename, const char* mode,
              Options options = Options());
 
@@ -270,8 +278,7 @@ class CFileWriter : public CFileWriterBase {
 
  protected:
   using CFileWriterBase::Initialize;
-  void Initialize(absl::string_view filename, const char* mode,
-                  Options&& options);
+  void Initialize(absl::string_view filename, Options&& options);
 
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
@@ -287,14 +294,17 @@ explicit CFileWriter(Closed)->CFileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CFileWriter(const Dest& dest, CFileWriterBase::Options options =
                                            CFileWriterBase::Options())
-    -> CFileWriter<
-        std::conditional_t<std::is_convertible<const Dest&, FILE*>::value,
-                           OwnedCFile, std::decay_t<Dest>>>;
+    -> CFileWriter<std::conditional_t<
+        std::is_convertible<const Dest&, FILE*>::value ||
+            std::is_convertible<const Dest&, absl::string_view>::value,
+        OwnedCFile, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
-    -> CFileWriter<std::conditional_t<std::is_convertible<Dest&&, FILE*>::value,
-                                      OwnedCFile, std::decay_t<Dest>>>;
+    -> CFileWriter<std::conditional_t<
+        std::is_convertible<Dest&&, FILE*>::value ||
+            std::is_convertible<Dest&&, absl::string_view>::value,
+        OwnedCFile, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit CFileWriter(
     std::tuple<DestArgs...> dest_args,
@@ -356,14 +366,14 @@ template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(const Dest& dest, Options options)
     : CFileWriterBase(options.buffer_size()), dest_(dest) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
 }
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
     : CFileWriterBase(options.buffer_size()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
 }
 
 template <typename Dest>
@@ -372,15 +382,20 @@ inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
     : CFileWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
+}
+
+template <typename Dest>
+inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
+                                      Options options)
+    : CFileWriterBase(kClosed) {
+  Initialize(filename, std::move(options));
 }
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
                                       const char* mode, Options options)
-    : CFileWriterBase(kClosed) {
-  Initialize(filename, mode, std::move(options));
-}
+    : CFileWriter(filename, std::move(options).set_mode(mode)) {}
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(CFileWriter&& that) noexcept
@@ -410,7 +425,7 @@ inline void CFileWriter<Dest>::Reset(const Dest& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
 }
 
 template <typename Dest>
@@ -418,7 +433,7 @@ inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
 }
 
 template <typename Dest>
@@ -428,25 +443,30 @@ inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   CFileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.append());
+             options.assumed_pos(), options.mode()[0] == 'a');
+}
+
+template <typename Dest>
+inline void CFileWriter<Dest>::Reset(absl::string_view filename,
+                                     Options options) {
+  Reset(kClosed);
+  Initialize(filename, std::move(options));
 }
 
 template <typename Dest>
 inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      const char* mode, Options options) {
-  Reset(kClosed);
-  Initialize(filename, mode, std::move(options));
+  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Dest>
-void CFileWriter<Dest>::Initialize(absl::string_view filename, const char* mode,
+void CFileWriter<Dest>::Initialize(absl::string_view filename,
                                    Options&& options) {
-  FILE* const dest = OpenFile(filename, mode);
+  FILE* const dest = OpenFile(filename, options.mode().c_str());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
   CFileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), options.assumed_pos(),
-                options.append() || mode[0] == 'a');
+  InitializePos(dest_.get(), options.assumed_pos(), options.mode()[0] == 'a');
 }
 
 template <typename Dest>

@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_FD_WRITER_H_
 #define RIEGELI_BYTES_FD_WRITER_H_
 
+#include <fcntl.h>
 #include <stddef.h>
 #include <sys/types.h>
 
@@ -49,14 +50,14 @@ class FdWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `FdWriter` writes to an already open fd, `set_assumed_filename()`
-    // allows to override the filename which is included in failure messages and
+    // If `FdWriter` writes to an already open fd, `assumed_filename()` allows
+    // to override the filename which is included in failure messages and
     // returned by `filename()`.
     //
     // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
     // "/dev/stderr", or "/proc/self/fd/<fd>" is assumed.
     //
-    // If `FdWriter` writes to a filename, `set_assumed_filename()` has no
+    // If `FdWriter` opens a fd with a filename, `assumed_filename()` has no
     // effect.
     //
     // Default: `absl::nullopt`.
@@ -82,6 +83,23 @@ class FdWriterBase : public BufferedWriter {
     const absl::optional<std::string>& assumed_filename() const {
       return assumed_filename_;
     }
+
+    // If `FdWriter` opens a fd with a filename, `mode()` is the second argument
+    // of `open()` and specifies the open mode and flags, typically one of:
+    //  * `O_WRONLY | O_CREAT | O_TRUNC`
+    //  * `O_WRONLY | O_CREAT | O_APPEND`
+    //
+    // It must include either `O_WRONLY` or `O_RDWR`.
+    //
+    // If `FdWriter` reads from an already open fd, `mode()` has no effect.
+    //
+    // Default: `O_WRONLY | O_CREAT | O_TRUNC`.
+    Options& set_mode(int mode) & {
+      mode_ = mode;
+      return *this;
+    }
+    Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
+    int mode() const { return mode_; }
 
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
@@ -155,6 +173,7 @@ class FdWriterBase : public BufferedWriter {
 
    private:
     absl::optional<std::string> assumed_filename_;
+    int mode_ = O_WRONLY | O_CREAT | O_TRUNC;
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
@@ -187,7 +206,7 @@ class FdWriterBase : public BufferedWriter {
   void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
-  int OpenFd(absl::string_view filename, int flags, mode_t permissions);
+  int OpenFd(absl::string_view filename, int mode, mode_t permissions);
   void InitializePos(int dest, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
@@ -286,6 +305,8 @@ class FdWriter : public FdWriterBase {
   // Will write to the fd provided by `dest`.
   explicit FdWriter(const Dest& dest, Options options = Options());
   explicit FdWriter(Dest&& dest, Options options = Options());
+  // Disambiguating overload: literal 0 is not a null pointer.
+  explicit FdWriter(int dest, Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
   // `dest_args`. This avoids constructing a temporary `Dest` and moving from
@@ -296,15 +317,14 @@ class FdWriter : public FdWriterBase {
 
   // Opens a file for writing.
   //
-  // `flags` is the second argument of `open()`, typically one of:
-  //  * `O_WRONLY | O_CREAT | O_TRUNC`
-  //  * `O_WRONLY | O_CREAT | O_APPEND`
-  //
-  // `flags` must include either `O_WRONLY` or `O_RDWR`.
-  //
   // If opening the file fails, `FdWriter` will be failed and closed.
-  explicit FdWriter(absl::string_view filename, int flags,
+  explicit FdWriter(absl::string_view filename, int mode,
                     Options options = Options());
+
+  ABSL_DEPRECATED(
+      "If the second argument is O_WRONLY | O_CREAT | O_TRUNC, just remove it, "
+      "otherwise specify it with FdWriterBase::Options().set_mode(mode)")
+  explicit FdWriter(absl::string_view filename, Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
   FdWriter& operator=(FdWriter&& that) noexcept;
@@ -314,10 +334,14 @@ class FdWriter : public FdWriterBase {
   void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
+  void Reset(int dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
-  void Reset(absl::string_view filename, int flags,
-             Options options = Options());
+  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_DEPRECATED(
+      "If the second argument is O_WRONLY | O_CREAT | O_TRUNC, just remove it, "
+      "otherwise specify it with FdWriterBase::Options().set_mode(mode)")
+  void Reset(absl::string_view filename, int mode, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
@@ -327,7 +351,7 @@ class FdWriter : public FdWriterBase {
 
  protected:
   using FdWriterBase::Initialize;
-  void Initialize(absl::string_view filename, int flags, Options&& options);
+  void Initialize(absl::string_view filename, Options&& options);
 
   void Done() override;
 
@@ -342,18 +366,22 @@ explicit FdWriter(Closed)->FdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FdWriter(const Dest& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
-    -> FdWriter<std::conditional_t<std::is_convertible<const Dest&, int>::value,
-                                   OwnedFd, std::decay_t<Dest>>>;
+    -> FdWriter<std::conditional_t<
+        std::is_convertible<const Dest&, int>::value ||
+            std::is_convertible<const Dest&, absl::string_view>::value,
+        OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit FdWriter(Dest&& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
-    -> FdWriter<std::conditional_t<std::is_convertible<Dest&&, int>::value,
-                                   OwnedFd, std::decay_t<Dest>>>;
+    -> FdWriter<std::conditional_t<
+        std::is_convertible<Dest&&, int>::value ||
+            std::is_convertible<Dest&&, absl::string_view>::value,
+        OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit FdWriter(std::tuple<DestArgs...> dest_args,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit FdWriter(absl::string_view filename, int flags,
+explicit FdWriter(absl::string_view filename, int mode,
                   FdWriterBase::Options options = FdWriterBase::Options())
     ->FdWriter<>;
 #endif
@@ -422,6 +450,10 @@ inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
 }
 
 template <typename Dest>
+inline FdWriter<Dest>::FdWriter(int dest, Options options)
+    : FdWriter(Dest(dest), std::move(options)) {}
+
+template <typename Dest>
 template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
@@ -431,11 +463,15 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
-                                Options options)
+inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
     : FdWriterBase(kClosed) {
-  Initialize(filename, flags, std::move(options));
+  Initialize(filename, std::move(options));
 }
+
+template <typename Dest>
+inline FdWriter<Dest>::FdWriter(absl::string_view filename, int mode,
+                                Options options)
+    : FdWriter(filename, std::move(options).set_mode(mode)) {}
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
@@ -476,6 +512,11 @@ inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
 }
 
 template <typename Dest>
+inline void FdWriter<Dest>::Reset(int dest, Options options) {
+  Rest(Dest(dest), std::move(options));
+}
+
+template <typename Dest>
 template <typename... DestArgs>
 inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
@@ -486,20 +527,24 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
-inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
-                                  Options options) {
+inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   Reset(kClosed);
-  Initialize(filename, flags, std::move(options));
+  Initialize(filename, std::move(options));
 }
 
 template <typename Dest>
-void FdWriter<Dest>::Initialize(absl::string_view filename, int flags,
-                                Options&& options) {
-  const int dest = OpenFd(filename, flags, options.permissions());
+inline void FdWriter<Dest>::Reset(absl::string_view filename, int mode,
+                                  Options options) {
+  Reset(filename, std::move(options).set_mode(mode));
+}
+
+template <typename Dest>
+void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
+  const int dest = OpenFd(filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), flags, options.assumed_pos(),
+  InitializePos(dest_.get(), options.mode(), options.assumed_pos(),
                 options.independent_pos());
 }
 

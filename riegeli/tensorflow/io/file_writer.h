@@ -262,18 +262,19 @@ explicit FileWriter(Closed)->FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FileWriter(const Dest& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<std::decay_t<Dest>>;
+    -> FileWriter<std::conditional_t<
+        std::is_convertible<const Dest&, absl::string_view>::value,
+        std::unique_ptr<::tensorflow::WritableFile>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit FileWriter(Dest&& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<std::decay_t<Dest>>;
+    -> FileWriter<std::conditional_t<
+        std::is_convertible<Dest&&, absl::string_view>::value,
+        std::unique_ptr<::tensorflow::WritableFile>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit FileWriter(std::tuple<DestArgs...> dest_args,
                     FileWriterBase::Options options = FileWriterBase::Options())
     -> FileWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit FileWriter(absl::string_view filename,
-                    FileWriterBase::Options options = FileWriterBase::Options())
-    ->FileWriter<>;
 #endif
 
 // Implementation details follow.

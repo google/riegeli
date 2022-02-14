@@ -43,12 +43,12 @@ class CFileReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `CFileReader` reads from an already open `FILE`,
-    // `set_assumed_filename()` allows to override the filename which is
-    // included in failure messages and returned by `filename()`.
+    // If `CFileReader` reads from an already open `FILE`, `assumed_filename()`
+    // allows to override the filename which is included in failure messages and
+    // returned by `filename()`.
     //
-    // If `CFileReader` reads from a filename, `set_assumed_filename()` has no
-    // effect.
+    // If `CFileReader` opens a `FILE` with a filename, `assumed_filename()`
+    // has no effect.
     //
     // Default: "".
     Options& set_assumed_filename(absl::string_view assumed_filename) & {
@@ -63,6 +63,24 @@ class CFileReaderBase : public BufferedReader {
     }
     std::string& assumed_filename() { return assumed_filename_; }
     const std::string& assumed_filename() const { return assumed_filename_; }
+
+    // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
+    // argument of `fopen()` and specifies the open mode, typically "r".
+    //
+    // If `CFileReader` reads from an already open `FILE`, `mode()` has no
+    // effect.
+    //
+    // Default: "r".
+    Options& set_mode(absl::string_view mode) & {
+      // TODO: When `absl::string_view` becomes C++17
+      // `std::string_view`: `mode_ = mode`
+      mode_.assign(mode.data(), mode.size());
+      return *this;
+    }
+    Options&& set_mode(absl::string_view mode) && {
+      return std::move(set_mode(mode));
+    }
+    const std::string& mode() const { return mode_; }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
@@ -101,6 +119,7 @@ class CFileReaderBase : public BufferedReader {
 
    private:
     std::string assumed_filename_;
+    std::string mode_ = "r";
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -198,9 +217,12 @@ class CFileReader : public CFileReaderBase {
 
   // Opens a file for reading.
   //
-  // `mode` is the second argument of `fopen()`, typically "r".
-  //
   // If opening the file fails, `CFileReader` will be failed and closed.
+  explicit CFileReader(absl::string_view filename, Options options = Options());
+
+  ABSL_DEPRECATED(
+      "If the second argument is \"r\", just remove it, "
+      "otherwise specify it with CFileReaderBase::Options().set_mode(mode)")
   explicit CFileReader(absl::string_view filename, const char* mode,
                        Options options = Options());
 
@@ -214,6 +236,10 @@ class CFileReader : public CFileReaderBase {
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_DEPRECATED(
+      "If the second argument is \"r\", just remove it, "
+      "otherwise specify it with CFileReaderBase::Options().set_mode(mode)")
   void Reset(absl::string_view filename, const char* mode,
              Options options = Options());
 
@@ -229,8 +255,7 @@ class CFileReader : public CFileReaderBase {
 
  private:
   using CFileReaderBase::Initialize;
-  void Initialize(absl::string_view filename, const char* mode,
-                  Options&& options);
+  void Initialize(absl::string_view filename, Options&& options);
 
   // The object providing and possibly owning the `FILE` being read from.
   Dependency<FILE*, Src> src_;
@@ -242,14 +267,17 @@ explicit CFileReader(Closed)->CFileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CFileReader(const Src& src, CFileReaderBase::Options options =
                                          CFileReaderBase::Options())
-    -> CFileReader<
-        std::conditional_t<std::is_convertible<const Src&, FILE*>::value,
-                           OwnedCFile, std::decay_t<Src>>>;
+    -> CFileReader<std::conditional_t<
+        std::is_convertible<const Src&, FILE*>::value ||
+            std::is_convertible<const Src&, absl::string_view>::value,
+        OwnedCFile, std::decay_t<Src>>>;
 template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
-    -> CFileReader<std::conditional_t<std::is_convertible<Src&&, FILE*>::value,
-                                      OwnedCFile, std::decay_t<Src>>>;
+    -> CFileReader<std::conditional_t<
+        std::is_convertible<Src&&, FILE*>::value ||
+            std::is_convertible<Src&&, absl::string_view>::value,
+        OwnedCFile, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit CFileReader(
     std::tuple<SrcArgs...> src_args,
@@ -320,10 +348,15 @@ inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(absl::string_view filename,
-                                     const char* mode, Options options)
+                                     Options options)
     : CFileReaderBase(kClosed) {
-  Initialize(filename, mode, std::move(options));
+  Initialize(filename, std::move(options));
 }
+
+template <typename Src>
+inline CFileReader<Src>::CFileReader(absl::string_view filename,
+                                     const char* mode, Options options)
+    : CFileReader(filename, std::move(options).set_mode(mode)) {}
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(CFileReader&& that) noexcept
@@ -376,15 +409,21 @@ inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline void CFileReader<Src>::Reset(absl::string_view filename,
-                                    const char* mode, Options options) {
+                                    Options options) {
   Reset(kClosed);
-  Initialize(filename, mode, std::move(options));
+  Initialize(filename, std::move(options));
 }
 
 template <typename Src>
-void CFileReader<Src>::Initialize(absl::string_view filename, const char* mode,
+inline void CFileReader<Src>::Reset(absl::string_view filename,
+                                    const char* mode, Options options) {
+  Reset(filename, std::move(options).set_mode(mode));
+}
+
+template <typename Src>
+void CFileReader<Src>::Initialize(absl::string_view filename,
                                   Options&& options) {
-  FILE* const src = OpenFile(filename, mode);
+  FILE* const src = OpenFile(filename, options.mode().c_str());
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   CFileReaderBase::Reset(options.buffer_size());
   src_.Reset(std::forward_as_tuple(src));

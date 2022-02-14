@@ -63,17 +63,16 @@ void FdWriterBase::Initialize(int dest,
   InitializePos(dest, assumed_pos, independent_pos);
 }
 
-int FdWriterBase::OpenFd(absl::string_view filename, int flags,
+int FdWriterBase::OpenFd(absl::string_view filename, int mode,
                          mode_t permissions) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
+  RIEGELI_ASSERT((mode & O_ACCMODE) == O_WRONLY || (mode & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdWriter: "
-         "flags must include either O_WRONLY or O_RDWR";
+         "mode must include either O_WRONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
 again:
-  const int dest = open(filename_.c_str(), flags, permissions);
+  const int dest = open(filename_.c_str(), mode, permissions);
   if (ABSL_PREDICT_FALSE(dest < 0)) {
     if (errno == EINTR) goto again;
     FailOperation("open()");

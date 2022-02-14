@@ -16,7 +16,6 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
-#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -216,7 +215,7 @@ class Benchmarks {
 bool Benchmarks::ReadFile(absl::string_view filename,
                           std::vector<std::string>* records,
                           SizeLimiter* size_limiter, riegeli::Writer& report) {
-  riegeli::FdReader<> file_reader(filename, O_RDONLY);
+  riegeli::FdReader<> file_reader(filename);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
     absl::Format(&riegeli::StdErr(), "Could not open file: %s\n",
                  file_reader.status().ToString());
@@ -307,8 +306,7 @@ void Benchmarks::WriteRiegeli(
     riegeli::RecordWriterBase::Options record_writer_options,
     const std::vector<std::string>& records) {
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
-      std::forward_as_tuple(filename, O_WRONLY | O_CREAT | O_TRUNC),
-      std::move(record_writer_options));
+      std::forward_as_tuple(filename), std::move(record_writer_options));
   for (const std::string& record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
   }
@@ -320,8 +318,7 @@ bool Benchmarks::ReadRiegeli(
     riegeli::RecordReaderBase::Options record_reader_options,
     std::vector<std::string>* records, SizeLimiter* size_limiter) {
   riegeli::RecordReader<riegeli::FdReader<>> record_reader(
-      std::forward_as_tuple(filename, O_RDONLY),
-      std::move(record_reader_options));
+      std::forward_as_tuple(filename), std::move(record_reader_options));
   std::string record;
   while (record_reader.ReadRecord(record)) {
     if (size_limiter != nullptr &&

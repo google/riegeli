@@ -273,18 +273,19 @@ explicit FileReader(Closed)->FileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FileReader(const Src& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
-    -> FileReader<std::decay_t<Src>>;
+    -> FileReader<std::conditional_t<
+        std::is_convertible<const Src&, absl::string_view>::value,
+        std::unique_ptr<::tensorflow::RandomAccessFile>, std::decay_t<Src>>>;
 template <typename Src>
 explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
-    -> FileReader<std::decay_t<Src>>;
+    -> FileReader<std::conditional_t<
+        std::is_convertible<Src&&, absl::string_view>::value,
+        std::unique_ptr<::tensorflow::RandomAccessFile>, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit FileReader(std::tuple<SrcArgs...> src_args,
                     FileReaderBase::Options options = FileReaderBase::Options())
     -> FileReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-explicit FileReader(absl::string_view filename,
-                    FileReaderBase::Options options = FileReaderBase::Options())
-    ->FileReader<>;
 #endif
 
 // Implementation details follow.

@@ -94,16 +94,15 @@ void FdReaderBase::Initialize(int src,
   InitializePos(src, assumed_pos, independent_pos);
 }
 
-int FdReaderBase::OpenFd(absl::string_view filename, int flags) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
+int FdReaderBase::OpenFd(absl::string_view filename, int mode) {
+  RIEGELI_ASSERT((mode & O_ACCMODE) == O_RDONLY || (mode & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdReader: "
-         "flags must include either O_RDONLY or O_RDWR";
+         "mode must include either O_RDONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
 again:
-  const int src = open(filename_.c_str(), flags, 0666);
+  const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
     if (errno == EINTR) goto again;
     FailOperation("open()");
@@ -342,16 +341,15 @@ void FdMMapReaderBase::Initialize(
   InitializePos(src, independent_pos);
 }
 
-int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
+int FdMMapReaderBase::OpenFd(absl::string_view filename, int mode) {
+  RIEGELI_ASSERT((mode & O_ACCMODE) == O_RDONLY || (mode & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdMMapReader: "
-         "flags must include either O_RDONLY or O_RDWR";
+         "mode must include either O_RDONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
 again:
-  const int src = open(filename_.c_str(), flags, 0666);
+  const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
     if (errno == EINTR) goto again;
     FailOperation("open()");

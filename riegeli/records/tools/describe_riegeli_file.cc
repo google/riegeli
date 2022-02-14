@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -285,8 +284,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
                "file {\n"
                "  filename: \"%s\"\n",
                absl::Utf8SafeCEscape(filename));
-  DefaultChunkReader<FdReader<>> chunk_reader(
-      std::forward_as_tuple(filename, O_RDONLY));
+  DefaultChunkReader<FdReader<>> chunk_reader(std::forward_as_tuple(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const absl::optional<Position> size = chunk_reader.Size();
     if (size != absl::nullopt) {
