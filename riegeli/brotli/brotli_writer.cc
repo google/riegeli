@@ -66,7 +66,6 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
                                   absl::optional<Position> size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
