@@ -85,7 +85,7 @@ class Decompressor : public Object {
 
   // Returns the `Reader` from which uncompressed data should be read.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   Reader& reader();
 
   // Verifies that the source ends at the current position (i.e. has no more
@@ -95,7 +95,7 @@ class Decompressor : public Object {
   // Return values:
   //  * `true`  - success (the source ends at the former current position)
   //  * `false` - failure (the source does not end at the former current
-  //                       position or the `Decompressor` was not healthy before
+  //                       position or the `Decompressor` was not OK before
   //                       closing)
   bool VerifyEndAndClose();
 
@@ -226,8 +226,8 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
 
 template <typename Src>
 inline Reader& Decompressor<Src>::reader() {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Decompressor::reader(): " << status();
+  RIEGELI_ASSERT(ok()) << "Failed precondition of Decompressor::reader(): "
+                       << status();
   return *decompressed_;
 }
 
@@ -246,7 +246,7 @@ inline bool Decompressor<Src>::VerifyEndAndClose() {
 
 template <typename Src>
 inline void Decompressor<Src>::VerifyEnd() {
-  if (ABSL_PREDICT_TRUE(healthy())) decompressed_->VerifyEnd();
+  if (ABSL_PREDICT_TRUE(ok())) decompressed_->VerifyEnd();
 }
 
 }  // namespace chunk_encoding_internal

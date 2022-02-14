@@ -118,8 +118,7 @@ bool IsProtoMessage(Reader& record) {
         return false;
     }
   }
-  RIEGELI_ASSERT(record.healthy())
-      << "Reading record failed: " << record.status();
+  RIEGELI_ASSERT(record.ok()) << "Reading record failed: " << record.status();
   return started_groups.empty();
 }
 
@@ -235,8 +234,8 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
 }
 
 inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT(record.healthy())
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  RIEGELI_ASSERT(record.ok())
       << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
       << record.status();
   const Position pos_before = record.pos();
@@ -447,8 +446,7 @@ inline bool TransposeEncoder::AddMessage(
             << static_cast<uint32_t>(GetTagWireType(tag));
     }
   }
-  RIEGELI_ASSERT(record.healthy())
-      << "Reading record failed: " << record.status();
+  RIEGELI_ASSERT(record.ok()) << "Reading record failed: " << record.status();
   return true;
 }
 
@@ -1303,7 +1301,7 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   RIEGELI_ASSERT_LE(max_transition, 63u)
       << "Failed precondition of TransposeEncoder::EncodeAndCloseInternal(): "
          "maximum transition too large to encode";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   num_records = num_records_;
   decoded_data_size = decoded_data_size_;
   for (const std::pair<const NodeId, MessageNode>& entry : message_nodes_) {

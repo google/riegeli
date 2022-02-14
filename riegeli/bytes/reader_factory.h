@@ -79,7 +79,7 @@ class ReaderFactoryBase : public Object {
   // does. The original `Reader` must not be accessed until the new `Reader` is
   // closed or no longer used.
   //
-  // Returns `nullptr` only if `!healthy()` before `NewReader()` was called.
+  // Returns `nullptr` only if `!ok()` before `NewReader()` was called.
   //
   // `NewReader()` is const and thus may be called concurrently.
   std::unique_ptr<Reader> NewReader(Position initial_pos) const;

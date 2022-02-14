@@ -60,8 +60,7 @@ class Reader : public Object {
   // Return values:
   //  * `true`  - success (the source ends at the former current position)
   //  * `false` - failure (the source does not end at the former current
-  //                       position or the `Reader` was not healthy before
-  //                       closing)
+  //                       position or the `Reader` was not OK before closing)
   bool VerifyEndAndClose();
 
   // Verifies that the source ends at the current position, failing the `Reader`
@@ -80,9 +79,9 @@ class Reader : public Object {
   // `min_length`.
   //
   // Return values:
-  //  * `true`                      - success (`available() >= min_length`)
-  //  * `false` (when `healthy()`)  - source ends (`available() < min_length`)
-  //  * `false` (when `!healthy()`) - failure (`available() < min_length`)
+  //  * `true`                 - success (`available() >= min_length`)
+  //  * `false` (when `ok()`)  - source ends (`available() < min_length`)
+  //  * `false` (when `!ok()`) - failure (`available() < min_length`)
   bool Pull(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Data between `start()` and `limit()` are available for
@@ -111,8 +110,8 @@ class Reader : public Object {
   // `limit()`.
   //
   // It is possible that a `Reader` has a looming failure:
-  // `!healthy() && available() > 0`. This means that the source failed but some
-  // data are already buffered and can be read before experiencing the failure.
+  // `!ok() && available() > 0`. This means that the source failed but some data
+  // are already buffered and can be read before experiencing the failure.
   //
   // Invariant: if `!is_open()` then `available() == 0`
   size_t available() const { return PtrDistance(cursor_, limit_); }
@@ -127,9 +126,9 @@ class Reader : public Object {
   // Reads a single byte from the buffer or the source.
   //
   // Return values:
-  //  * `true`                      - success (`dest` is set)
-  //  * `false` (when `healthy()`)  - source ends (`dest` is undefined)
-  //  * `false` (when `!healthy()`) - failure (`dest` is undefined)
+  //  * `true`                 - success (`dest` is set)
+  //  * `false` (when `ok()`)  - source ends (`dest` is undefined)
+  //  * `false` (when `!ok()`) - failure (`dest` is undefined)
   bool ReadChar(char& dest);
   bool ReadByte(uint8_t& dest);
 
@@ -143,10 +142,9 @@ class Reader : public Object {
   //   `length <= dest.max_size()`
   //
   // Return values:
-  //  * `true`                      - success (`length` bytes read)
-  //  * `false` (when `healthy()`)  - source ends
-  //                                  (less than `length` bytes read)
-  //  * `false` (when `!healthy()`) - failure (less than `length` bytes read)
+  //  * `true`                 - success (`length` bytes read)
+  //  * `false` (when `ok()`)  - source ends (less than `length` bytes read)
+  //  * `false` (when `!ok()`) - failure (less than `length` bytes read)
   bool Read(size_t length, absl::string_view& dest);
   bool Read(size_t length, char* dest);
   bool Read(size_t length, std::string& dest);
@@ -163,10 +161,9 @@ class Reader : public Object {
   //   `length <= std::numeric_limits<size_t>::max() - dest->size()`
   //
   // Return values:
-  //  * `true`                      - success (`length` bytes read)
-  //  * `false` (when `healthy()`)  - source ends
-  //                                  (less than `length` bytes read)
-  //  * `false` (when `!healthy()`) - failure (less than `length` bytes read)
+  //  * `true`                 - success (`length` bytes read)
+  //  * `false` (when `ok()`)  - source ends (less than `length` bytes read)
+  //  * `false` (when `!ok()`) - failure (less than `length` bytes read)
   bool ReadAndAppend(size_t length, std::string& dest);
   bool ReadAndAppend(size_t length, Chain& dest);
   bool ReadAndAppend(size_t length, absl::Cord& dest);
@@ -182,12 +179,11 @@ class Reader : public Object {
   // if writing failed.
   //
   // Return values:
-  //  * `true`                                         - success (`length`
-  //                                                     bytes copied)
-  //  * `false` (when `dest.healthy() && healthy()`)   - source ends (less than
-  //                                                     `length` bytes copied)
-  //  * `false` (when `!dest.healthy() || !healthy()`) - failure (less than
-  //                                                     `length` bytes copied)
+  //  * `true`                               - success (`length` bytes copied)
+  //  * `false` (when `dest.ok() && ok()`)   - source ends
+  //                                           (less than `length` bytes copied)
+  //  * `false` (when `!dest.ok() || !ok()`) - failure
+  //                                           (less than `length` bytes copied)
   bool Copy(Position length, Writer& dest);
   bool Copy(size_t length, BackwardWriter& dest);
 
@@ -215,8 +211,8 @@ class Reader : public Object {
   // The array is valid until the next non-const operation on the `Reader`.
   //
   // Return values:
-  //  * `true` (`healthy()`)   - success
-  //  * `false` (`!healthy()`) - failure
+  //  * `true` (`ok()`)   - success
+  //  * `false` (`!ok()`) - failure
   bool ReadAll(absl::string_view& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
   bool ReadAll(std::string& dest,
@@ -233,8 +229,8 @@ class Reader : public Object {
   // would be read.
   //
   // Return values:
-  //  * `true` (`healthy()`)   - success
-  //  * `false` (`!healthy()`) - failure
+  //  * `true` (`ok()`)   - success
+  //  * `false` (`!ok()`) - failure
   bool ReadAndAppendAll(std::string& dest,
                         size_t max_length = std::numeric_limits<size_t>::max());
   bool ReadAndAppendAll(Chain& dest,
@@ -255,8 +251,8 @@ class Reader : public Object {
   // would be read.
   //
   // Return values:
-  //  * `true` (`dest.healthy() && healthy()`)    - success
-  //  * `false` (`!dest.healthy() || !healthy()`) - failure
+  //  * `true` (`dest.ok() && ok()`)    - success
+  //  * `false` (`!dest.ok() || !ok()`) - failure
   bool CopyAll(Writer& dest,
                Position max_length = std::numeric_limits<Position>::max());
   bool CopyAll(BackwardWriter& dest,
@@ -277,8 +273,8 @@ class Reader : public Object {
   //                               This is the default.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Sync(SyncType sync_type = SyncType::kFromProcess);
 
   // Returns the current position.
@@ -316,10 +312,10 @@ class Reader : public Object {
   // Sets the current position for subsequent operations.
   //
   // Return values:
-  //  * `true`                      - success (position is set to `new_pos`)
-  //  * `false` (when `healthy()`)  - source ends before `new_pos`
-  //                                  (position is set to the end)
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (position is set to `new_pos`)
+  //  * `false` (when `ok()`)  - source ends before `new_pos`
+  //                             (position is set to the end)
+  //  * `false` (when `!ok()`) - failure
   //
   // `Seek()` forwards (or backwards but within the buffer) is always supported,
   // although if `SupportsRandomAccess()` is `false`, then it is as inefficient
@@ -336,10 +332,10 @@ class Reader : public Object {
   // no overflow.
   //
   // Return values:
-  //  * `true`                      - success (`length` bytes skipped)
-  //  * `false` (when `healthy()`)  - source ends before skipping `length` bytes
-  //                                  (position is set to the end)
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`length` bytes skipped)
+  //  * `false` (when `ok()`)  - source ends before skipping `length` bytes
+  //                             (position is set to the end)
+  //  * `false` (when `!ok()`) - failure
   //
   // `Skip()` is always supported, although if `SupportsRandomAccess()` is
   // `false`, then it is as inefficient as reading and discarding the
@@ -353,7 +349,7 @@ class Reader : public Object {
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
-  // Returns `absl::nullopt` on failure (`!healthy()`).
+  // Returns `absl::nullopt` on failure (`!ok()`).
   //
   // `Size()` is supported if `SupportsRandomAccess()` or `SupportsSize()` is
   // `true`.
@@ -374,13 +370,13 @@ class Reader : public Object {
   // The source of this `Reader` must not be changed until the new `Reader` is
   // closed or no longer used.
   //
-  // Returns `nullptr` on failure (`!healthy()`).
+  // Returns `nullptr` on failure (`!ok()`).
   //
   // `NewReader()` is supported if `SupportsNewReader()` is `true`.
   //
   // If `SupportsNewReader()` returned `true`, then `NewReader()` may be called
-  // concurrently. If also `healthy()` is `true`, then `NewReader()` does not
-  // return `nullptr`.
+  // concurrently. If also `ok()` is `true`, then `NewReader()` does not return
+  // `nullptr`.
   std::unique_ptr<Reader> NewReader(Position initial_pos);
 
  protected:
@@ -471,7 +467,7 @@ class Reader : public Object {
   // Implementation of `Sync()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
   //
-  // By default does nothing and returns `healthy()`.
+  // By default does nothing and returns `ok()`.
   virtual bool SyncImpl(SyncType sync_type);
 
   // Increments the value of `limit_pos()`.
@@ -605,11 +601,11 @@ inline bool Reader::ReadByte(uint8_t& dest) {
 }
 
 inline bool Reader::Read(size_t length, absl::string_view& dest) {
-  const bool ok = Pull(length);
-  if (ABSL_PREDICT_FALSE(!ok)) length = available();
+  const bool pull_ok = Pull(length);
+  if (ABSL_PREDICT_FALSE(!pull_ok)) length = available();
   dest = absl::string_view(cursor(), length);
   move_cursor(length);
-  return ok;
+  return pull_ok;
 }
 
 inline bool Reader::Read(size_t length, char* dest) {

@@ -88,8 +88,8 @@ class ChunkDecoder : public Object {
   // Resets the `ChunkDecoder` and parses the chunk. Keeps options unchanged.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Decode(const Chunk& chunk);
 
   // Reads the next record.
@@ -101,20 +101,20 @@ class ChunkDecoder : public Object {
   // `ChunkDecoder`.
   //
   // Return values:
-  //  * `true`                      - success (`record` is set, `healthy()`)
-  //  * `false` (when `healthy()`)  - chunk ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`record` is set, `ok()`)
+  //  * `false` (when `ok()`)  - chunk ends
+  //  * `false` (when `!ok()`) - failure
   bool ReadRecord(google::protobuf::MessageLite& record);
   bool ReadRecord(absl::string_view& record);
   bool ReadRecord(std::string& record);
   bool ReadRecord(Chain& record);
   bool ReadRecord(absl::Cord& record);
 
-  // If `!healthy()` and the failure was caused by an unparsable message, then
+  // If `!ok()` and the failure was caused by an unparsable message, then
   // `Recover()` allows reading again by skipping the unparsable message.
   //
-  // If `healthy()`, or if `!healthy()` but the failure was not caused by an
-  // unparsable message, then `Recover()` does nothing and returns `false`.
+  // If `ok()`, or if `!ok()` but the failure was not caused by an unparsable
+  // message, then `Recover()` does nothing and returns `false`.
   //
   // Return values:
   //  * `true`  - success
@@ -128,7 +128,7 @@ class ChunkDecoder : public Object {
   //
   // If `index > num_records()`, the current index is set to `num_records()`.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   void SetIndex(uint64_t index);
 
   // Returns the number of records. Unchanged by `Close()`.
@@ -141,17 +141,17 @@ class ChunkDecoder : public Object {
   bool Parse(const ChunkHeader& header, Reader& src, Chain& dest);
 
   FieldProjection field_projection_;
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `limits_` are sorted
   //   `(limits_.empty() ? 0 : limits_.back())` == size of `values_reader_`
   //   `(index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()`
   std::vector<size_t> limits_;
   ChainReader<Chain> values_reader_;
-  // Invariant: if `healthy()` then `index_ <= num_records()`
+  // Invariant: if `ok()` then `index_ <= num_records()`
   uint64_t index_ = 0;
   // Whether `Recover()` is applicable.
   //
-  // Invariant: if `recoverable_` then `!healthy()`
+  // Invariant: if `recoverable_` then `!ok()`
   bool recoverable_ = false;
 };
 
@@ -197,7 +197,7 @@ inline void ChunkDecoder::Clear() {
 }
 
 inline bool ChunkDecoder::ReadRecord(absl::string_view& record) {
-  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
+  if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) {
     record = absl::string_view();
     return false;
   }
@@ -214,7 +214,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view& record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string& record) {
-  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
+  if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) {
     record.clear();
     return false;
   }
@@ -231,7 +231,7 @@ inline bool ChunkDecoder::ReadRecord(std::string& record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain& record) {
-  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
+  if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) {
     record.Clear();
     return false;
   }
@@ -248,7 +248,7 @@ inline bool ChunkDecoder::ReadRecord(Chain& record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(absl::Cord& record) {
-  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
+  if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) {
     record.Clear();
     return false;
   }
@@ -265,8 +265,8 @@ inline bool ChunkDecoder::ReadRecord(absl::Cord& record) {
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ChunkDecoder::SetIndex(): " << status();
+  RIEGELI_ASSERT(ok()) << "Failed precondition of ChunkDecoder::SetIndex(): "
+                       << status();
   index_ = UnsignedMin(index, num_records());
   const size_t start =
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];

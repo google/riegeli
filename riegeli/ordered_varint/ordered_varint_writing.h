@@ -49,8 +49,8 @@ namespace riegeli {
 // Writes an ordered varint.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 bool WriteOrderedVarint32(uint32_t data, Writer& dest);
 bool WriteOrderedVarint64(uint64_t data, Writer& dest);
 

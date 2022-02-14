@@ -41,7 +41,7 @@ bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -58,7 +58,7 @@ bool ChainWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -77,7 +77,7 @@ bool ChainWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -96,7 +96,7 @@ bool ChainWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -115,7 +115,7 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -134,7 +134,7 @@ bool ChainWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -150,7 +150,7 @@ bool ChainWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool ChainWriterBase::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -159,12 +159,12 @@ bool ChainWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 absl::optional<Position> ChainWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   return pos();
 }
 
 bool ChainWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
@@ -180,7 +180,7 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
 }
 
 Reader* ChainWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Chain& dest = *dest_chain();
   SyncBuffer(dest);
   ChainReader<>* const reader = associated_reader_.ResetReader(&dest);

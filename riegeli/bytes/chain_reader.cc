@@ -45,7 +45,7 @@ bool ChainReaderBase::PullBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -73,7 +73,7 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -111,7 +111,7 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -146,7 +146,7 @@ bool ChainReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -182,7 +182,7 @@ bool ChainReaderBase::CopyBehindScratch(size_t length, BackwardWriter& dest) {
       << "Failed precondition of "
          "PullableReader::CopyBehindScratch(BackwardWriter&): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -222,7 +222,7 @@ bool ChainReaderBase::SeekBehindScratch(Position new_pos) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
@@ -242,13 +242,13 @@ bool ChainReaderBase::SeekBehindScratch(Position new_pos) {
 }
 
 absl::optional<Position> ChainReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   const Chain& src = *iter_.chain();
   return src.size();
 }
 
 std::unique_ptr<Reader> ChainReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
   const Chain& src = *iter_.chain();
   std::unique_ptr<Reader> reader = std::make_unique<ChainReader<>>(&src);

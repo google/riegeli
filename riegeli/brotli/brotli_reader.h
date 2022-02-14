@@ -136,7 +136,7 @@ class BrotliReaderBase : public PullableReader {
   // will fail.
   bool truncated_ = false;
   Position initial_compressed_pos_ = 0;
-  // If `healthy()` but `decompressor_ == nullptr` then all data have been
+  // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
 
@@ -357,7 +357,7 @@ void BrotliReader<Src>::Done() {
 template <typename Src>
 void BrotliReader<Src>::VerifyEnd() {
   BrotliReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

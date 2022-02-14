@@ -218,7 +218,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
@@ -280,7 +280,7 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int src = src_fd();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
@@ -303,7 +303,7 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
     // failure message here.
     return BufferedReader::SizeImpl();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   const int src = src_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
@@ -319,7 +319,7 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
     // failure message here.
     return BufferedReader::NewReaderImpl(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
   const int src = src_fd();
   std::unique_ptr<FdReader<UnownedFd>> reader =
@@ -429,7 +429,7 @@ absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int src = src_fd();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
@@ -440,7 +440,7 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
 }
 
 std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
   const int src = src_fd();
   std::unique_ptr<FdMMapReader<UnownedFd>> reader =

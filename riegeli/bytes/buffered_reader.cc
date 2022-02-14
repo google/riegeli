@@ -76,7 +76,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t available_length = available();
   size_t cursor_index = start_to_cursor();
   const size_t buffer_length =
@@ -95,8 +95,8 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
-  const bool ok = ReadInternal(min_length - available_length,
-                               flat_buffer.size(), flat_buffer.data());
+  const bool read_ok = ReadInternal(min_length - available_length,
+                                    flat_buffer.size(), flat_buffer.data());
   RIEGELI_ASSERT_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;
@@ -104,7 +104,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
       << "BufferedReader::ReadInternal() read more than requested";
   buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
   set_buffer(buffer_.data(), buffer_.size(), cursor_index);
-  return ok;
+  return read_ok;
 }
 
 bool BufferedReader::SeekBehindBuffer(Position new_pos) {
@@ -144,7 +144,7 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
       length -= available_length;
     }
     SyncBuffer();
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return ReadInternal(length, length, dest);
   }
   return Reader::ReadSlow(length, dest);
@@ -158,9 +158,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   bool enough_read = true;
-  bool ok = true;
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -184,8 +184,8 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
-                      flat_buffer.size(), flat_buffer.data());
+    read_ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
+                           flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -207,9 +207,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   bool enough_read = true;
-  bool ok = true;
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -233,8 +233,8 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
-                      flat_buffer.size(), flat_buffer.data());
+    read_ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
+                           flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -255,7 +255,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
   bool enough_read = true;
   bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Copy as much as is available.
       length = available();
       enough_read = false;
@@ -349,13 +349,13 @@ bool BufferedReader::SyncImpl(SyncType sync_type) {
   if (available() > 0) {
     if (!SupportsRandomAccess()) {
       // Seeking back is not feasible.
-      return healthy();
+      return ok();
     }
     const Position new_pos = pos();
     SyncBuffer();
     SeekBehindBuffer(new_pos);
   }
-  return healthy();
+  return ok();
 }
 
 bool BufferedReader::SeekSlow(Position new_pos) {

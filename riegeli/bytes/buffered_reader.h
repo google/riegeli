@@ -101,7 +101,7 @@ class BufferedReader : public Reader {
   //
   // Preconditions:
   //   `0 < min_length <= max_length`
-  //   `healthy()`
+  //   `ok()`
   virtual bool ReadInternal(size_t min_length, size_t max_length,
                             char* dest) = 0;
 

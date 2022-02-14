@@ -441,8 +441,8 @@ class RecordWriterBase : public Object {
   // (e.g. `const char*`).
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool WriteRecord(const google::protobuf::MessageLite& record);
   bool WriteRecord(const google::protobuf::MessageLite& record,
                    SerializeOptions serialize_options);
@@ -480,8 +480,8 @@ class RecordWriterBase : public Object {
   //                                dependencies of the given writer.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Like `Flush()`, but if `Options::parallelism() > 0`, does not wait for

@@ -31,8 +31,8 @@ namespace riegeli {
 // Writes a number in a fixed width Little/Big Endian encoding.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 bool WriteLittleEndian16(uint16_t data, Writer& dest);
 bool WriteLittleEndian32(uint32_t data, Writer& dest);
 bool WriteLittleEndian64(uint64_t data, Writer& dest);
@@ -63,8 +63,8 @@ bool WriteBigEndianSigned64(int64_t data, BackwardWriter& dest);
 // `{u,}int{8,16,32,64}_t`.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 template <typename T>
 bool WriteLittleEndian(internal::type_identity_t<T> data, Writer& dest);
 template <typename T>
@@ -75,8 +75,8 @@ bool WriteBigEndian(internal::type_identity_t<T> data, Writer& dest);
 // This is faster than writing them individually for native endianness.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 bool WriteLittleEndian16s(absl::Span<const uint16_t> data, Writer& dest);
 bool WriteLittleEndian32s(absl::Span<const uint32_t> data, Writer& dest);
 bool WriteLittleEndian64s(absl::Span<const uint64_t> data, Writer& dest);
@@ -97,8 +97,8 @@ bool WriteBigEndianSigned64s(absl::Span<const int64_t> data, Writer& dest);
 // This is faster than writing them individually for native endianness.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 template <typename T>
 bool WriteLittleEndians(absl::Span<const internal::type_identity_t<T>> data,
                         Writer& dest);
@@ -158,8 +158,8 @@ void WriteBigEndianSigned64s(absl::Span<const int64_t> data, char* dest);
 // This is faster than writing them individually for native endianness.
 //
 // Return values:
-//  * `true`  - success (`dest.healthy()`)
-//  * `false` - failure (`!dest.healthy()`)
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
 template <typename T>
 void WriteLittleEndians(absl::Span<const internal::type_identity_t<T>> data,
                         char* dest);

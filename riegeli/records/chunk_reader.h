@@ -46,17 +46,17 @@ class DefaultChunkReaderBase : public Object {
   // can verify this before (or instead of) performing other operations.
   //
   // Return values:
-  //  * `true`                      - success
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool CheckFileFormat();
 
   // Reads the next chunk.
   //
   // Return values:
-  //  * `true`                      - success (`chunk` is set)
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`chunk` is set)
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool ReadChunk(Chunk& chunk);
 
   // Reads the next chunk header, from same chunk which will be read by an
@@ -66,20 +66,20 @@ class DefaultChunkReaderBase : public Object {
   // valid until the next non-const function of the `ChunkReader`.
   //
   // Return values:
-  //  * `true`                      - success (`*chunk_header` is set)
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`*chunk_header` is set)
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool PullChunkHeader(const ChunkHeader** chunk_header);
 
-  // If `!healthy()` and the failure was caused by invalid file contents, then
+  // If `!ok()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
   // skipping over the invalid region.
   //
   // If `Close()` failed and the failure was caused by truncated file contents,
   // then `Recover()` returns `true`. The `ChunkReader` remains closed.
   //
-  // If `healthy()`, or if `!healthy()` but the failure was not caused by
-  // invalid file contents, then `Recover()` returns false.
+  // If `ok()`, or if `!ok()` but the failure was not caused by invalid file
+  // contents, then `Recover()` returns false.
   //
   // If `skipped_region != nullptr`, `*skipped_region` is set to the position of
   // the skipped region on success.
@@ -107,7 +107,7 @@ class DefaultChunkReaderBase : public Object {
   //
   // Return values:
   //  * `true`  - success
-  //  * `false` - failure (`!healthy()`)
+  //  * `false` - failure (`!ok()`)
   bool Seek(Position new_pos);
 
   // Seeks to the nearest chunk boundary before or at `new_pos` if the position
@@ -117,26 +117,26 @@ class DefaultChunkReaderBase : public Object {
   //
   // Return values:
   //  * `true`  - success
-  //  * `false` - failure (`!healthy()`)
+  //  * `false` - failure (`!ok()`)
   bool SeekToChunkContaining(Position new_pos);
 
   // Seeks to the nearest chunk boundary at or before `new_pos`.
   //
   // Return values:
   //  * `true`  - success
-  //  * `false` - failure (`!healthy()`)
+  //  * `false` - failure (`!ok()`)
   bool SeekToChunkBefore(Position new_pos);
 
   // Seeks to the nearest chunk boundary at or after `new_pos`.
   //
   // Return values:
   //  * `true`  - success
-  //  * `false` - failure (`!healthy()`)
+  //  * `false` - failure (`!ok()`)
   bool SeekToChunkAfter(Position new_pos);
 
   // Returns the size of the file, i.e. the position corresponding to its end.
   //
-  // Returns `absl::nullopt` on failure (`!healthy()`).
+  // Returns `absl::nullopt` on failure (`!ok()`).
   absl::optional<Position> Size();
 
  protected:
@@ -159,15 +159,15 @@ class DefaultChunkReaderBase : public Object {
 
   // Interprets a `false` result from `src` reading or seeking function.
   //
-  // End of file (i.e. if `healthy()`) is propagated, setting `truncated_` if it
-  // was in the middle of a chunk.
+  // End of file (i.e. if `ok()`) is propagated, setting `truncated_` if it was
+  // in the middle of a chunk.
   //
   // Always returns `false`.
   bool FailReading(const Reader& src);
 
   // Interprets a `false` result from `src` reading or seeking function.
   //
-  // End of file (i.e. if `healthy()`) fails the `ChunkReader`.
+  // End of file (i.e. if `ok()`) fails the `ChunkReader`.
   //
   // Always returns `false`.
   bool FailSeeking(const Reader& src, Position new_pos);
@@ -178,7 +178,7 @@ class DefaultChunkReaderBase : public Object {
   // Reads or continues reading `block_header_`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `records_internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
   bool ReadBlockHeader();
 
@@ -218,7 +218,7 @@ class DefaultChunkReaderBase : public Object {
   //                                 the block
   //
   // Invariants:
-  //   if `healthy()` then `recoverable_ == Recoverable::kNo`
+  //   if `ok()` then `recoverable_ == Recoverable::kNo`
   //   if `!is_open()` then `recoverable_ == Recoverable::kNo ||
   //                         recoverable_ == Recoverable::kHaveChunk`
   Recoverable recoverable_ = Recoverable::kNo;

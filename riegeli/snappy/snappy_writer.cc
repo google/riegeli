@@ -46,9 +46,9 @@ constexpr size_t SnappyWriterBase::kBlockSize;
 #endif
 
 void SnappyWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
+  if (ABSL_PREDICT_TRUE(ok())) SyncBuffer();
   Writer::Done();
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *dest_writer();
     {
       absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
@@ -83,7 +83,7 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
                                           uncompressed_.size())) {
     return FailOverflow();
@@ -104,7 +104,7 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -119,7 +119,7 @@ bool SnappyWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
                                       IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -156,7 +156,7 @@ bool SnappyWriterBase::WriteSlow(Chain&& src) {
     // `SnappyWriterBase::WriteSlow(const Chain&)`.
     return Writer::WriteSlow(src);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -172,7 +172,7 @@ bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -193,7 +193,7 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
     // `SnappyWriterBase::WriteSlow(const absl::Cord&)`.
     return Writer::WriteSlow(src);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -205,7 +205,7 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
 }
 
 Reader* SnappyWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   SyncBuffer();
   ChainReader<>* const reader = associated_reader_.ResetReader(&uncompressed_);
   reader->Seek(initial_pos);
@@ -235,8 +235,8 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
   ReaderSnappySource source(&src, options.assumed_size());
   WriterSnappySink sink(&dest);
   snappy::Compress(&source, &sink);
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
-  if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
+  if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
+  if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   return absl::OkStatus();
 }
 

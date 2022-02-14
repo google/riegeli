@@ -137,13 +137,15 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
                      field_projection_.includes_all()
                          ? absl::make_optional(header.decoded_data_size())
                          : absl::nullopt));
-      const bool ok = transpose_decoder.Decode(
+      const bool decode_ok = transpose_decoder.Decode(
           header.num_records(), header.decoded_data_size(), field_projection_,
           src, dest_writer, limits_);
       if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
         return Fail(dest_writer.status());
       }
-      if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder.status());
+      if (ABSL_PREDICT_FALSE(!decode_ok)) {
+        return Fail(transpose_decoder.status());
+      }
       if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
         return Fail(src.status());
       }
@@ -159,7 +161,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
-  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
+  if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -184,8 +186,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
 
 bool ChunkDecoder::Recover() {
   if (!recoverable_) return false;
-  RIEGELI_ASSERT(!healthy()) << "Failed invariant of ChunkDecoder: "
-                                "recovery applicable but ChunkDecoder healthy";
+  RIEGELI_ASSERT(!ok()) << "Failed invariant of ChunkDecoder: "
+                           "recovery applicable but ChunkDecoder OK";
   recoverable_ = false;
   MarkNotFailed();
   ++index_;

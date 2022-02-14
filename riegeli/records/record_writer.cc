@@ -173,7 +173,7 @@ class RecordWriterBase::Worker {
 
   // Precondition: chunk is open.
   //
-  // If the result is `false` then `!healthy()`.
+  // If the result is `false` then `!ok()`.
   virtual bool CloseChunk() = 0;
 
   bool MaybePadToBlockBoundary();
@@ -194,7 +194,7 @@ class RecordWriterBase::Worker {
   void Initialize(Position initial_pos);
 
   virtual void Done() {}
-  virtual bool healthy() const = 0;
+  virtual bool ok() const = 0;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
   virtual bool FailWithoutAnnotation(absl::Status status) = 0;
 
@@ -220,7 +220,7 @@ inline RecordWriterBase::Worker::Worker(ChunkWriter* chunk_writer,
     : options_(std::move(options)),
       chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
       chunk_encoder_(MakeChunkEncoder()) {
-  if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) {
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->ok())) {
     // `FailWithoutAnnotation()` is pure virtual and must not be called from the
     // constructor.
     state_.Fail(chunk_writer_->status());
@@ -316,7 +316,7 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk& chunk) {
 
 template <typename Record>
 inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
     return Fail(chunk_encoder_->status());
@@ -327,7 +327,7 @@ inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
 inline bool RecordWriterBase::Worker::AddRecord(
     const google::protobuf::MessageLite& record,
     SerializeOptions serialize_options) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(record, std::move(serialize_options)))) {
     return Fail(chunk_encoder_->status());
@@ -337,7 +337,7 @@ inline bool RecordWriterBase::Worker::AddRecord(
 
 inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder& chunk_encoder,
                                                   Chunk& chunk) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   ChunkType chunk_type;
   uint64_t num_records;
   uint64_t decoded_data_size;
@@ -370,7 +370,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   Position EstimatedSize() const override;
 
  protected:
-  bool healthy() const override;
+  bool ok() const override;
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status) override;
 
   bool WriteSignature() override;
@@ -384,9 +384,7 @@ inline RecordWriterBase::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
   Initialize(chunk_writer_->pos());
 }
 
-inline bool RecordWriterBase::SerialWorker::healthy() const {
-  return state_.healthy();
-}
+inline bool RecordWriterBase::SerialWorker::ok() const { return state_.ok(); }
 
 inline absl::Status RecordWriterBase::SerialWorker::status() const {
   return state_.status();
@@ -403,7 +401,7 @@ absl::Status RecordWriterBase::SerialWorker::AnnotateStatus(
 }
 
 bool RecordWriterBase::SerialWorker::WriteSignature() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chunk chunk;
   EncodeSignature(chunk);
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
@@ -413,7 +411,7 @@ bool RecordWriterBase::SerialWorker::WriteSignature() {
 }
 
 bool RecordWriterBase::SerialWorker::WriteMetadata() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (options_.metadata() == absl::nullopt &&
       options_.serialized_metadata() == absl::nullopt) {
     return true;
@@ -427,7 +425,7 @@ bool RecordWriterBase::SerialWorker::WriteMetadata() {
 }
 
 bool RecordWriterBase::SerialWorker::CloseChunk() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!EncodeChunk(*chunk_encoder_, chunk))) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
@@ -437,7 +435,7 @@ bool RecordWriterBase::SerialWorker::CloseChunk() {
 }
 
 bool RecordWriterBase::SerialWorker::PadToBlockBoundary() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->PadToBlockBoundary())) {
     return FailWithoutAnnotation(chunk_writer_->status());
   }
@@ -445,7 +443,7 @@ bool RecordWriterBase::SerialWorker::PadToBlockBoundary() {
 }
 
 bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
     return FailWithoutAnnotation(chunk_writer_->status());
   }
@@ -496,7 +494,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
  protected:
   void Done() override;
-  bool healthy() const override;
+  bool ok() const override;
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status) override;
 
   bool WriteSignature() override;
@@ -557,11 +555,11 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       }
 
       bool operator()(WriteChunkRequest& request) const {
-        // If `!healthy()`, the chunk must still be waited for, to ensure that
-        // the chunk encoder thread exits before the chunk writer thread
-        // responds to `DoneRequest`.
+        // If `!ok()`, the chunk must still be waited for, to ensure that the
+        // chunk encoder thread exits before the chunk writer thread responds to
+        // `DoneRequest`.
         const Chunk chunk = request.chunk.get();
-        if (ABSL_PREDICT_FALSE(!self->healthy())) return true;
+        if (ABSL_PREDICT_FALSE(!self->ok())) return true;
         if (ABSL_PREDICT_FALSE(!self->chunk_writer_->WriteChunk(chunk))) {
           self->FailWithoutAnnotation(self->chunk_writer_->status());
         }
@@ -569,7 +567,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       }
 
       bool operator()(PadToBlockBoundaryRequest& request) const {
-        if (ABSL_PREDICT_FALSE(!self->healthy())) return true;
+        if (ABSL_PREDICT_FALSE(!self->ok())) return true;
         if (ABSL_PREDICT_FALSE(!self->chunk_writer_->PadToBlockBoundary())) {
           self->FailWithoutAnnotation(self->chunk_writer_->status());
         }
@@ -577,7 +575,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       }
 
       bool operator()(FlushRequest& request) const {
-        if (ABSL_PREDICT_FALSE(!self->healthy())) {
+        if (ABSL_PREDICT_FALSE(!self->ok())) {
           request.done.set_value(false);
           return true;
         }
@@ -630,9 +628,9 @@ void RecordWriterBase::ParallelWorker::Done() {
   done_future.get();
 }
 
-inline bool RecordWriterBase::ParallelWorker::healthy() const {
+inline bool RecordWriterBase::ParallelWorker::ok() const {
   absl::MutexLock l(&mutex_);
-  return state_.healthy();
+  return state_.ok();
 }
 
 inline absl::Status RecordWriterBase::ParallelWorker::status() const {
@@ -664,7 +662,7 @@ bool RecordWriterBase::ParallelWorker::HasCapacityForRequest() const {
 }
 
 bool RecordWriterBase::ParallelWorker::WriteSignature() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chunk chunk;
   EncodeSignature(chunk);
   ChunkPromises chunk_promises;
@@ -680,7 +678,7 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
 }
 
 bool RecordWriterBase::ParallelWorker::WriteMetadata() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (options_.metadata() == absl::nullopt &&
       options_.serialized_metadata() == absl::nullopt) {
     return true;
@@ -703,7 +701,7 @@ bool RecordWriterBase::ParallelWorker::WriteMetadata() {
 }
 
 bool RecordWriterBase::ParallelWorker::CloseChunk() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   ChunkEncoder* const chunk_encoder = chunk_encoder_.release();
   ChunkPromises* const chunk_promises = new ChunkPromises();
   mutex_.LockWhen(
@@ -725,7 +723,7 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
 }
 
 bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   mutex_.LockWhen(
       absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
   chunk_writer_requests_.emplace_back(PadToBlockBoundaryRequest());
@@ -903,7 +901,7 @@ absl::Status RecordWriterBase::AnnotateOverDest(absl::Status status) {
 
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
                                    SerializeOptions serialize_options) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
@@ -961,7 +959,7 @@ bool RecordWriterBase::WriteRecord(absl::Cord&& record) {
 
 template <typename Record>
 inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
@@ -987,7 +985,7 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
 }
 
 bool RecordWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   last_record_is_valid_ = false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
@@ -1011,7 +1009,7 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
 
 RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
     FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!ok())) {
     std::promise<bool> promise;
     promise.set_value(false);
     return promise.get_future();

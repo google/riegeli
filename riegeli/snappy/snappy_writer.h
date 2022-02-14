@@ -306,7 +306,7 @@ inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
 inline void SnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of SnappyWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
   }
 }

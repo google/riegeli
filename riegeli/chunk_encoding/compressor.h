@@ -93,7 +93,7 @@ class Compressor : public Object {
 
   // Returns the `Writer` to which uncompressed data should be written.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   Writer& writer();
 
   // Writes compressed data to `dest`. Closes the `Compressor` on success.
@@ -102,8 +102,8 @@ class Compressor : public Object {
   // uncompressed size as a varint before the data.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool EncodeAndClose(Writer& dest);
 
   // Like `EncodeAndClose()`, but writes the compressed size as a varint before
@@ -123,8 +123,8 @@ class Compressor : public Object {
 // Implementation details follow.
 
 inline Writer& Compressor::writer() {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Compressor::writer(): " << status();
+  RIEGELI_ASSERT(ok()) << "Failed precondition of Compressor::writer(): "
+                       << status();
   return *writer_;
 }
 

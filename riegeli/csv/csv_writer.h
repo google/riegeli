@@ -194,8 +194,8 @@ class CsvWriterBase : public Object {
   //  * `record.header() == header()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool WriteRecord(const CsvRecord& record);
 
   // Writes the next record expressed as a sequence of fields.
@@ -210,8 +210,8 @@ class CsvWriterBase : public Object {
   // fields has the same effect as writing a record containing one empty field.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   template <typename Record,
             std::enable_if_t<
                 csv_internal::IsIterableOf<Record, absl::string_view>::value,
@@ -470,7 +470,7 @@ inline bool CsvWriterBase::WriteRecord(
 
 template <typename Record>
 inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (standalone_record_) {
     RIEGELI_ASSERT_EQ(record_index_, 0u)
         << "Failed precondition of CsvWriterBase::WriteRecordInternal(): "

@@ -121,7 +121,7 @@ class PrefixLimitingWriterBase : public Writer {
 
   AssociatedReader<PrefixLimitingReader<Reader*>> associated_reader_;
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `start() == dest_writer()->cursor()`
   //   `limit() == dest_writer()->limit()`
   //   `start_pos() == dest_writer()->pos() - base_pos_`
@@ -266,7 +266,7 @@ inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
       << "PrefixLimitingWriter destination changed position unexpectedly";
   set_buffer(dest.cursor(), dest.available());
   set_start_pos(dest.pos() - base_pos_);
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) {
+  if (ABSL_PREDICT_FALSE(!dest.ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
 }
@@ -367,14 +367,14 @@ void PrefixLimitingWriter<Dest>::Done() {
 
 template <typename Dest>
 bool PrefixLimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
-  bool ok = true;
+  bool flush_ok = true;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    ok = dest_->Flush(flush_type);
+    flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);
-  return ok;
+  return flush_ok;
 }
 
 }  // namespace riegeli

@@ -775,7 +775,7 @@ void FdReader<Src>::Done() {
     const int src = src_.Release();
     if (src >= 0) {
       if (ABSL_PREDICT_FALSE(fd_internal::Close(src) < 0) &&
-          ABSL_PREDICT_TRUE(healthy())) {
+          ABSL_PREDICT_TRUE(ok())) {
         FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {
@@ -921,7 +921,7 @@ void FdMMapReader<Src>::Done() {
     const int src = src_.Release();
     if (src >= 0) {
       if (ABSL_PREDICT_FALSE(fd_internal::Close(src) < 0) &&
-          ABSL_PREDICT_TRUE(healthy())) {
+          ABSL_PREDICT_TRUE(ok())) {
         FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {

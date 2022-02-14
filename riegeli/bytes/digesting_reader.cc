@@ -32,7 +32,7 @@
 namespace riegeli {
 
 void DigestingReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Reader& src = *src_reader();
     SyncBuffer(src);
   }
@@ -55,24 +55,24 @@ bool DigestingReaderBase::PullSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src.Pull(min_length, recommended_length);
+  const bool pull_ok = src.Pull(min_length, recommended_length);
   MakeBuffer(src);
-  return ok;
+  return pull_ok;
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
   const Position pos_before = src.pos();
-  const bool ok = src.Read(length, dest);
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  const bool read_ok = src.Read(length, dest);
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
     RIEGELI_ASSERT_GE(src.pos(), pos_before)
         << "Reader::ReadSlow(char*) decreased pos()";
     const Position length_read = src.pos() - pos_before;
@@ -82,7 +82,7 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   }
   if (length > 0) DigesterWrite(absl::string_view(dest, length));
   MakeBuffer(src);
-  return ok;
+  return read_ok;
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
@@ -92,15 +92,15 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
   Chain data;
-  const bool ok = src.Read(length, data);
+  const bool read_ok = src.Read(length, data);
   DigesterWrite(data);
   dest.Append(std::move(data));
   MakeBuffer(src);
-  return ok;
+  return read_ok;
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
@@ -110,15 +110,15 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
   absl::Cord data;
-  const bool ok = src.Read(length, data);
+  const bool read_ok = src.Read(length, data);
   DigesterWrite(data);
   dest.Append(std::move(data));
   MakeBuffer(src);
-  return ok;
+  return read_ok;
 }
 
 void DigestingReaderBase::ReadHintSlow(size_t min_length,
@@ -126,7 +126,7 @@ void DigestingReaderBase::ReadHintSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  if (ABSL_PREDICT_FALSE(!ok())) return;
   Reader& src = *src_reader();
   SyncBuffer(src);
   src.ReadHint(min_length, recommended_length);
@@ -139,7 +139,7 @@ bool DigestingReaderBase::SupportsSize() {
 }
 
 absl::optional<Position> DigestingReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Reader& src = *src_reader();
   SyncBuffer(src);
   const absl::optional<Position> size = src.Size();
@@ -154,7 +154,7 @@ bool DigestingReaderBase::SupportsNewReader() {
 
 std::unique_ptr<Reader> DigestingReaderBase::NewReaderImpl(
     Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
   // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();

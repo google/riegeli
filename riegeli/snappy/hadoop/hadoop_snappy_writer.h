@@ -92,7 +92,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   // Compresses buffered data, but unlike `PushSlow()`, does not ensure that a
   // buffer is allocated.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   //
   // Postcondition: `start_to_cursor() == 0`
   bool PushInternal(Writer& dest);

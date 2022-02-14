@@ -54,8 +54,7 @@ namespace {
 
 Reader* kEmptyReader() {
   static NoDestructor<StringReader<>> kStaticEmptyReader((absl::string_view()));
-  RIEGELI_ASSERT(kStaticEmptyReader->healthy())
-      << "kEmptyReader() has been closed";
+  RIEGELI_ASSERT(kStaticEmptyReader->ok()) << "kEmptyReader() has been closed";
   return kStaticEmptyReader.get();
 }
 
@@ -497,7 +496,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   }
   chunk_encoding_internal::Decompressor<ChainReader<>> header_decompressor(
       std::forward_as_tuple(&header), context.compression_type);
-  if (ABSL_PREDICT_FALSE(!header_decompressor.healthy())) {
+  if (ABSL_PREDICT_FALSE(!header_decompressor.ok())) {
     return Fail(header_decompressor.status());
   }
 
@@ -753,7 +752,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(header_decompressor.status());
   }
   context.transitions.Reset(&src, context.compression_type);
-  if (ABSL_PREDICT_FALSE(!context.transitions.healthy())) {
+  if (ABSL_PREDICT_FALSE(!context.transitions.ok())) {
     return Fail(context.transitions.status());
   }
   return true;
@@ -804,7 +803,7 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
     }
     bucket_decompressors.emplace_back(std::forward_as_tuple(std::move(bucket)),
                                       context.compression_type);
-    if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().healthy())) {
+    if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().ok())) {
       return Fail(bucket_decompressors.back().status());
     }
   }
@@ -954,7 +953,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
       // This is the first buffer to be decompressed from this bucket.
       bucket.decompressor.Reset(std::forward_as_tuple(&bucket.compressed_data),
                                 context.compression_type);
-      if (ABSL_PREDICT_FALSE(!bucket.decompressor.healthy())) {
+      if (ABSL_PREDICT_FALSE(!bucket.decompressor.ok())) {
         Fail(bucket.decompressor.status());
         return nullptr;
       }
@@ -1076,7 +1075,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     }                                                                          \
     if (ABSL_PREDICT_FALSE(                                                    \
             !node->buffer->Copy(length_length + length, dest))) {              \
-      if (!dest.healthy()) return Fail(dest.status());                         \
+      if (!dest.ok()) return Fail(dest.status());                              \
       return Fail(node->buffer->StatusOrAnnotate(                              \
           absl::InvalidArgumentError("Reading string field failed")));         \
     }                                                                          \
@@ -1248,7 +1247,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                   "Reading non-proto record length failed")));
         }
         if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, dest))) {
-          if (!dest.healthy()) return Fail(dest.status());
+          if (!dest.ok()) return Fail(dest.status());
           return Fail(node->buffer->StatusOrAnnotate(
               absl::InvalidArgumentError("Reading non-proto record failed")));
         }

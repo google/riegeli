@@ -95,7 +95,7 @@ void Compressor::Initialize() {
 }
 
 bool Compressor::EncodeAndClose(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Position uncompressed_size = writer().pos();
   if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer().status());
   if (compressor_options_.compression_type() != CompressionType::kNone) {
@@ -111,7 +111,7 @@ bool Compressor::EncodeAndClose(Writer& dest) {
 }
 
 bool Compressor::LengthPrefixedEncodeAndClose(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Position uncompressed_size = writer().pos();
   if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer().status());
   uint64_t compressed_size = compressed_.size();

@@ -167,7 +167,7 @@ class CordWriterBase : public Writer {
   // Invariants:
   //   `start() == nullptr` or `start() == short_buffer_`
   //       or `start() == buffer_.data()`
-  //   if `healthy()` then `start_pos() == dest_cord()->size()`
+  //   if `ok()` then `start_pos() == dest_cord()->size()`
 };
 
 // A `Writer` which appends to an `absl::Cord`.

@@ -303,7 +303,7 @@ bool PullableReader::SyncBehindScratch(SyncType sync_type) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::SyncBehindScratch(): "
          "scratch used";
-  return healthy();
+  return ok();
 }
 
 bool PullableReader::SeekBehindScratch(Position new_pos) {
@@ -414,17 +414,17 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_copy = UnsignedMin(length, available());
-      bool ok;
+      bool write_ok;
       if (length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()) {
-        ok = dest.Write(cursor(), length_to_copy);
+        write_ok = dest.Write(cursor(), length_to_copy);
       } else {
         Chain data;
         scratch_->buffer.AppendSubstrTo(
             absl::string_view(cursor(), length_to_copy), data);
-        ok = dest.Write(std::move(data));
+        write_ok = dest.Write(std::move(data));
       }
       move_cursor(length_to_copy);
-      if (ABSL_PREDICT_FALSE(!ok)) return false;
+      if (ABSL_PREDICT_FALSE(!write_ok)) return false;
       length -= length_to_copy;
       if (length == 0) return true;
       SyncScratch();
@@ -446,17 +446,17 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     Chain from_scratch;
     if (!ScratchEnds()) {
       if (available() >= length) {
-        bool ok;
+        bool write_ok;
         if (length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-          ok = dest.Write(cursor(), length);
+          write_ok = dest.Write(cursor(), length);
         } else {
           Chain data;
           scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length),
                                           data);
-          ok = dest.Write(std::move(data));
+          write_ok = dest.Write(std::move(data));
         }
         move_cursor(length);
-        return ok;
+        return write_ok;
       }
       scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), available()),
                                       from_scratch);
@@ -500,7 +500,7 @@ bool PullableReader::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(scratch_used()) && !ScratchEnds()) {
     if (!SupportsRandomAccess()) {
       // Seeking back is not feasible.
-      return healthy();
+      return ok();
     }
     const Position new_pos = pos();
     SyncScratch();

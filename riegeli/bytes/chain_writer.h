@@ -159,7 +159,7 @@ class ChainWriterBase : public Writer {
 
   AssociatedReader<ChainReader<const Chain*>> associated_reader_;
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `limit() == nullptr || limit() == dest_chain()->blocks().back().data() +
   //                                     dest_chain()->blocks().back().size()`
   //   `limit_pos() == dest_chain()->size()`

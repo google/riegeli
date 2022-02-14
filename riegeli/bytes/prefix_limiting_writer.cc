@@ -36,7 +36,7 @@
 namespace riegeli {
 
 void PrefixLimitingWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
   }
@@ -68,12 +68,12 @@ bool PrefixLimitingWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool PrefixLimitingWriterBase::WriteSlow(absl::string_view src) {
@@ -113,24 +113,24 @@ bool PrefixLimitingWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool PrefixLimitingWriterBase::WriteInternal(Src&& src) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool PrefixLimitingWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool PrefixLimitingWriterBase::SupportsRandomAccess() {
@@ -142,19 +142,19 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  bool ok;
+  bool seek_ok;
   if (ABSL_PREDICT_FALSE(new_pos >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     dest.Seek(std::numeric_limits<Position>::max());
-    ok = false;
+    seek_ok = false;
   } else {
-    ok = dest.Seek(base_pos_ + new_pos);
+    seek_ok = dest.Seek(base_pos_ + new_pos);
   }
   MakeBuffer(dest);
-  return ok;
+  return seek_ok;
 }
 
 bool PrefixLimitingWriterBase::PrefersCopying() const {
@@ -168,7 +168,7 @@ bool PrefixLimitingWriterBase::SupportsSize() {
 }
 
 absl::optional<Position> PrefixLimitingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
@@ -183,19 +183,19 @@ bool PrefixLimitingWriterBase::SupportsTruncate() {
 }
 
 bool PrefixLimitingWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  bool ok;
+  bool truncate_ok;
   if (ABSL_PREDICT_FALSE(new_size >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     dest.Seek(std::numeric_limits<Position>::max());
-    ok = false;
+    truncate_ok = false;
   } else {
-    ok = dest.Truncate(base_pos_ + new_size);
+    truncate_ok = dest.Truncate(base_pos_ + new_size);
   }
   MakeBuffer(dest);
-  return ok;
+  return truncate_ok;
 }
 
 bool PrefixLimitingWriterBase::SupportsReadMode() {
@@ -204,7 +204,7 @@ bool PrefixLimitingWriterBase::SupportsReadMode() {
 }
 
 Reader* PrefixLimitingWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(SaturatingAdd(base_pos_, initial_pos));

@@ -31,7 +31,7 @@
 namespace riegeli {
 
 void WrappedWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
   }
@@ -53,12 +53,12 @@ bool WrappedWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool WrappedWriterBase::WriteSlow(absl::string_view src) {
@@ -98,24 +98,24 @@ bool WrappedWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool WrappedWriterBase::WriteInternal(Src&& src) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool WrappedWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool WrappedWriterBase::SupportsRandomAccess() {
@@ -127,12 +127,12 @@ bool WrappedWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Seek(new_pos);
+  const bool seek_ok = dest.Seek(new_pos);
   MakeBuffer(dest);
-  return ok;
+  return seek_ok;
 }
 
 bool WrappedWriterBase::PrefersCopying() const {
@@ -146,7 +146,7 @@ bool WrappedWriterBase::SupportsSize() {
 }
 
 absl::optional<Position> WrappedWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
@@ -160,12 +160,12 @@ bool WrappedWriterBase::SupportsTruncate() {
 }
 
 bool WrappedWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Truncate(new_size);
+  const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
-  return ok;
+  return truncate_ok;
 }
 
 bool WrappedWriterBase::SupportsReadMode() {
@@ -174,7 +174,7 @@ bool WrappedWriterBase::SupportsReadMode() {
 }
 
 Reader* WrappedWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(initial_pos);

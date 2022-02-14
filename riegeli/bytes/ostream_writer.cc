@@ -174,7 +174,7 @@ bool OStreamWriterBase::supports_read_mode() {
 inline bool OStreamWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   std::ostream& dest = *dest_stream();
   errno = 0;
   dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
@@ -186,7 +186,7 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   std::ostream& dest = *dest_stream();
@@ -230,7 +230,7 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
     // failure message here.
     return BufferedWriter::SeekBehindBuffer(new_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
   std::ostream& dest = *dest_stream();
   errno = 0;
@@ -265,7 +265,7 @@ absl::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
     // failure message here.
     return BufferedWriter::SizeBehindBuffer();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
   std::ostream& dest = *dest_stream();
   errno = 0;
@@ -296,7 +296,7 @@ Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     // failure message here.
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   std::istream& src = *src_stream();
   IStreamReader<>* const reader = associated_reader_.ResetReader(
       &src, IStreamReaderBase::Options().set_buffer_size(buffer_size()));

@@ -233,7 +233,7 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
 inline void DigestingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.cursor(), src.available());
   set_limit_pos(src.limit_pos());
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
+  if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Digester, typename Src>
@@ -357,7 +357,7 @@ void DigestingReader<Digester, Src>::Done() {
 template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::VerifyEnd() {
   DigestingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);
@@ -366,14 +366,14 @@ void DigestingReader<Digester, Src>::VerifyEnd() {
 
 template <typename Digester, typename Src>
 bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
-  bool ok = true;
+  bool sync_ok = true;
   if (sync_type != SyncType::kFromObject || src_.is_owning()) {
-    ok = src_->Sync(sync_type);
+    sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);
-  return ok;
+  return sync_ok;
 }
 
 template <typename Digester, typename Src>

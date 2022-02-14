@@ -128,7 +128,7 @@ absl::Status FileWriterBase::AnnotateStatusImpl(absl::Status status) {
 
 bool FileWriterBase::SyncBuffer() {
   if (start_to_cursor() > kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     const absl::Cord data =
         buffer_.ToCord(absl::string_view(start(), start_to_cursor()));
     set_buffer();
@@ -137,7 +137,7 @@ bool FileWriterBase::SyncBuffer() {
   const absl::string_view data(start(), start_to_cursor());
   set_buffer();
   if (data.empty()) return true;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   return WriteInternal(data);
 }
 
@@ -153,7 +153,7 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -171,7 +171,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
   ::tensorflow::WritableFile* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -194,7 +194,7 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);
@@ -206,7 +206,7 @@ bool FileWriterBase::WriteSlow(const Chain& src) {
          "enough space available, use Write(Chain) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(src));
   }
   return Writer::WriteSlow(src);
@@ -218,7 +218,7 @@ bool FileWriterBase::WriteSlow(Chain&& src) {
          "enough space available, use Write(Chain&&) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(std::move(src)));
   }
   // Not `std::move(src)`: forward to `Writer::WriteSlow(const Chain&)`,
@@ -233,7 +233,7 @@ bool FileWriterBase::WriteSlow(const absl::Cord& src) {
          "enough space available, use Write(Cord) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);
@@ -245,7 +245,7 @@ bool FileWriterBase::WriteZerosSlow(Position length) {
          "enough space available, use WriteZeros() instead";
   if (length >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     while (length > std::numeric_limits<size_t>::max()) {
       if (ABSL_PREDICT_FALSE(!WriteInternal(
               CordOfZeros(std::numeric_limits<size_t>::max())))) {
@@ -262,7 +262,7 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
   ::tensorflow::WritableFile* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -281,7 +281,7 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
 
 bool FileWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  return healthy();
+  return ok();
 }
 
 absl::optional<Position> FileWriterBase::SizeImpl() {
@@ -290,7 +290,7 @@ absl::optional<Position> FileWriterBase::SizeImpl() {
     // failure message here.
     return Writer::SizeImpl();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   uint64_t file_size;
   {
     const ::tensorflow::Status status =
@@ -309,7 +309,7 @@ Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
     // failure message here.
     return Writer::ReadModeImpl(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;
   return associated_reader_.ResetReader(filename_,
                                         FileReaderBase::Options()

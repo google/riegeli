@@ -273,12 +273,12 @@ PyObject* MemoryView::MutableToPython(absl::Span<char> value) {
 }
 
 bool MemoryView::Release() {
-  bool ok = true;
+  bool release_ok = true;
   if (object_ != nullptr && Py_REFCNT(object_.get()) > 1) {
-    ok = ReleaseInternal();
+    release_ok = ReleaseInternal();
   }
   object_.reset();
-  return ok;
+  return release_ok;
 }
 
 inline bool MemoryView::ReleaseInternal() {

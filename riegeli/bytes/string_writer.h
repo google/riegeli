@@ -173,7 +173,7 @@ class StringWriterBase : public Writer {
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `(start() == &(*dest_string())[0] &&
   //     start_to_limit() == dest_string()->size() &&
   //     secondary_buffer_.empty()) ||

@@ -97,7 +97,7 @@ bool PythonWriter::FailOperation(absl::string_view operation) {
       << "Failed precondition of PythonWriter::FailOperation(): "
          "Object closed";
   PythonLock::AssertHeld();
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!ok())) {
     // Ignore this error because `PythonWriter` already failed.
     PyErr_Clear();
     return false;
@@ -111,7 +111,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
@@ -245,7 +245,7 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
 }
 
 inline absl::optional<Position> PythonWriter::SizeInternal() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of PythonWriter::SizeInternal(): " << status();
   RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonWriter::SizeInternal(): "
@@ -295,7 +295,7 @@ absl::optional<Position> PythonWriter::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
     return absl::nullopt;
@@ -322,7 +322,7 @@ bool PythonWriter::TruncateBehindBuffer(Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(
         absl::UnimplementedError("PythonWriter::Truncate() not supported"));

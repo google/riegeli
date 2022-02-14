@@ -49,7 +49,7 @@ constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 void ZlibReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+  if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
@@ -165,7 +165,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *src_reader();
@@ -196,7 +196,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
             << "inflate() returned but there are still input data";
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           move_limit_pos(length_read);
-          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
             return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
           }
           if (ABSL_PREDICT_FALSE(!concatenate_ || stream_had_data_)) {
@@ -260,7 +260,7 @@ bool ZlibReaderBase::SeekBehindBuffer(Position new_pos) {
          "buffer not empty";
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     Reader& src = *src_reader();
     truncated_ = false;
     stream_had_data_ = false;
@@ -272,7 +272,7 @@ bool ZlibReaderBase::SeekBehindBuffer(Position new_pos) {
           absl::DataLossError("Zlib-compressed stream got truncated"))));
     }
     InitializeDecompressor();
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     if (new_pos == 0) return true;
   }
   return BufferedReader::SeekBehindBuffer(new_pos);
@@ -284,7 +284,7 @@ bool ZlibReaderBase::SupportsNewReader() {
 }
 
 std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
   // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();

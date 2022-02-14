@@ -98,7 +98,7 @@ bool PythonReader::FailOperation(absl::string_view operation) {
       << "Failed precondition of PythonReader::FailOperation(): "
          "Object closed";
   PythonLock::AssertHeld();
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!ok())) {
     // Ignore this error because `PythonReader` already failed.
     PyErr_Clear();
     return false;
@@ -116,7 +116,7 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos())) {
@@ -242,7 +242,7 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
@@ -272,7 +272,7 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
 }
 
 inline absl::optional<Position> PythonReader::SizeInternal() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of PythonReader::SizeInternal(): " << status();
   RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonReader::SizeInternal(): "
@@ -316,7 +316,7 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
 }
 
 absl::optional<Position> PythonReader::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
     return absl::nullopt;

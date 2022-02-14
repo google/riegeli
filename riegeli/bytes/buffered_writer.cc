@@ -50,7 +50,7 @@ bool BufferedWriter::SyncBuffer() {
   const absl::string_view data(start(), start_to_cursor());
   set_buffer();
   if (data.empty()) return true;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   return WriteInternal(data);
 }
 
@@ -72,7 +72,7 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -92,7 +92,7 @@ bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (src.empty()) return true;
   return WriteInternal(src);
 }
@@ -136,7 +136,7 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);

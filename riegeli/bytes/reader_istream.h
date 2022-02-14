@@ -47,7 +47,7 @@ class ReaderStreambuf : public std::streambuf {
   void MoveEnd(Reader* src);
   void Done();
 
-  bool healthy() const { return state_.healthy(); }
+  bool ok() const { return state_.ok(); }
   bool is_open() const { return state_.is_open(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
@@ -93,7 +93,7 @@ class ReaderIStreamBase : public std::istream {
   //  * Closes the `Reader` if it is owned.
   //
   // Also, propagates `Reader` failures so that converting the `ReaderIStream`
-  // to `bool` indicates whether `Reader` was healthy before closing (doing this
+  // to `bool` indicates whether `Reader` was OK before closing (doing this
   // during reading is not feasible without throwing exceptions).
   //
   // Returns `*this` for convenience of checking for failures.
@@ -103,15 +103,15 @@ class ReaderIStreamBase : public std::istream {
   // failure details).
   ReaderIStreamBase& close();
 
-  // Returns `true` if the `ReaderIStream` is healthy, i.e. open and not failed.
-  bool healthy() const { return streambuf_.healthy(); }
+  // Returns `true` if the `ReaderIStream` is OK, i.e. open and not failed.
+  bool ok() const { return streambuf_.ok(); }
 
   // Returns `true` if the `ReaderIStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
 
   // Returns an `absl::Status` describing the failure if the `ReaderIStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIStream`
-  // is closed, or `absl::OkStatus()` if the `ReaderIStream` is healthy.
+  // is closed, or `absl::OkStatus()` if the `ReaderIStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
@@ -239,9 +239,7 @@ inline void ReaderStreambuf::Initialize(Reader* src) {
   setg(const_cast<char*>(reader_->start()),
        const_cast<char*>(reader_->cursor()),
        const_cast<char*>(reader_->limit()));
-  if (ABSL_PREDICT_FALSE(!reader_->healthy()) && reader_->available() == 0) {
-    Fail();
-  }
+  if (ABSL_PREDICT_FALSE(!reader_->ok()) && reader_->available() == 0) Fail();
 }
 
 inline void ReaderStreambuf::MoveBegin() {
@@ -299,9 +297,7 @@ inline void ReaderIStreamBase::Reset() {
 
 inline void ReaderIStreamBase::Initialize(Reader* src) {
   streambuf_.Initialize(src);
-  if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
-    setstate(std::ios_base::badbit);
-  }
+  if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
 }
 
 template <typename Src>
@@ -396,9 +392,7 @@ void ReaderIStream<Src>::Done() {
     if (src_.is_owning()) {
       if (ABSL_PREDICT_FALSE(!src_->Close())) streambuf_.Fail();
     }
-    if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
-      setstate(std::ios_base::badbit);
-    }
+    if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
     streambuf_.MarkClosed();
   }
 }

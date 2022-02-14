@@ -475,8 +475,7 @@ void CFileWriter<Dest>::Done() {
   {
     FILE* const dest = dest_.Release();
     if (dest != nullptr) {
-      if (ABSL_PREDICT_FALSE((fclose(dest)) != 0) &&
-          ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE((fclose(dest)) != 0) && ABSL_PREDICT_TRUE(ok())) {
         FailOperation("fclose()");
       }
     } else {

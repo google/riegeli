@@ -78,7 +78,7 @@ class WrappedBackwardWriterBase : public BackwardWriter {
   template <typename Src>
   bool WriteInternal(Src&& src);
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `start() == dest_writer()->start()`
   //   `limit() == dest_writer()->limit()`
   //   `start_pos() == dest_writer()->start_pos()`
@@ -187,7 +187,7 @@ inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
 inline void WrappedBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
   set_buffer(dest.limit(), dest.start_to_limit(), dest.start_to_cursor());
   set_start_pos(dest.start_pos());
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest.status());
+  if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Dest>
@@ -284,14 +284,14 @@ void WrappedBackwardWriter<Dest>::Done() {
 
 template <typename Dest>
 bool WrappedBackwardWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
-  bool ok = true;
+  bool flush_ok = true;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    ok = dest_->Flush(flush_type);
+    flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);
-  return ok;
+  return flush_ok;
 }
 
 }  // namespace riegeli

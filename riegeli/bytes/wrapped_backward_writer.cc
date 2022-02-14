@@ -29,7 +29,7 @@
 namespace riegeli {
 
 void WrappedBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     BackwardWriter& dest = *dest_writer();
     SyncBuffer(dest);
   }
@@ -53,12 +53,12 @@ bool WrappedBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool WrappedBackwardWriterBase::WriteSlow(absl::string_view src) {
@@ -98,24 +98,24 @@ bool WrappedBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool WrappedBackwardWriterBase::WriteInternal(Src&& src) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool WrappedBackwardWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool WrappedBackwardWriterBase::PrefersCopying() const {
@@ -129,12 +129,12 @@ bool WrappedBackwardWriterBase::SupportsTruncate() {
 }
 
 bool WrappedBackwardWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Truncate(new_size);
+  const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
-  return ok;
+  return truncate_ok;
 }
 
 }  // namespace riegeli

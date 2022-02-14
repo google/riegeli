@@ -53,7 +53,7 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
   coded_stream.SetSerializationDeterministic(options.deterministic());
   src.SerializeWithCachedSizes(&coded_stream);
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
+  if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
   RIEGELI_ASSERT(!coded_stream.HadError())
       << "Failed to serialize message of type " << src.GetTypeName()
       << ": SerializeWithCachedSizes() failed for an unknown reason";

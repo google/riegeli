@@ -200,9 +200,9 @@ struct PyRecordWriterObject {
 extern PyTypeObject PyRecordWriter_Type;
 
 void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
-  RIEGELI_ASSERT(!self->record_writer->healthy())
+  RIEGELI_ASSERT(!self->record_writer->ok())
       << "Failed precondition of SetExceptionFromRecordWriter(): "
-         "RecordWriter healthy";
+         "RecordWriter OK";
   if (!self->record_writer->dest().exception().ok()) {
     self->record_writer->dest().exception().Restore();
     return;
@@ -314,7 +314,7 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     self->record_writer.emplace(std::move(python_writer),
                                 std::move(record_writer_options));
   });
-  if (ABSL_PREDICT_FALSE(!self->record_writer->healthy())) {
+  if (ABSL_PREDICT_FALSE(!self->record_writer->ok())) {
     self->record_writer->dest().Close();
     SetExceptionFromRecordWriter(self);
     return -1;
@@ -358,9 +358,9 @@ static PyObject* RecordWriterExit(PyRecordWriterObject* self, PyObject* args) {
   }
   // self.close(), suppressing exceptions if exc_type != None.
   if (ABSL_PREDICT_TRUE(self->record_writer.has_value())) {
-    const bool ok =
+    const bool close_ok =
         PythonUnlocked([&] { return self->record_writer->Close(); });
-    if (ABSL_PREDICT_FALSE(!ok) && exc_type == Py_None) {
+    if (ABSL_PREDICT_FALSE(!close_ok) && exc_type == Py_None) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
     }
@@ -370,9 +370,9 @@ static PyObject* RecordWriterExit(PyRecordWriterObject* self, PyObject* args) {
 
 static PyObject* RecordWriterClose(PyRecordWriterObject* self, PyObject* args) {
   if (ABSL_PREDICT_TRUE(self->record_writer.has_value())) {
-    const bool ok =
+    const bool close_ok =
         PythonUnlocked([&] { return self->record_writer->Close(); });
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!close_ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
     }
@@ -392,10 +392,10 @@ static PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
   BytesLike record;
   if (ABSL_PREDICT_FALSE(!record.FromPython(record_arg))) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  const bool ok = PythonUnlocked([&] {
+  const bool write_record_ok = PythonUnlocked([&] {
     return self->record_writer->WriteRecord(absl::string_view(record));
   });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!write_record_ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
   }
@@ -421,10 +421,10 @@ static PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  const bool ok = PythonUnlocked([&] {
+  const bool write_record_ok = PythonUnlocked([&] {
     return self->record_writer->WriteRecord(absl::string_view(serialized));
   });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!write_record_ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
   }
@@ -450,10 +450,10 @@ static PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
       return nullptr;
     }
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    const bool ok = PythonUnlocked([&] {
+    const bool write_record_ok = PythonUnlocked([&] {
       return self->record_writer->WriteRecord(absl::string_view(record));
     });
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!write_record_ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
     }
@@ -485,10 +485,10 @@ static PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
       return nullptr;
     }
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    const bool ok = PythonUnlocked([&] {
+    const bool write_record_ok = PythonUnlocked([&] {
       return self->record_writer->WriteRecord(absl::string_view(serialized));
     });
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!write_record_ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
     }
@@ -513,9 +513,9 @@ static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
     }
   }
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  const bool ok =
+  const bool flush_ok =
       PythonUnlocked([&] { return self->record_writer->Flush(flush_type); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!flush_ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
   }

@@ -33,7 +33,7 @@ constexpr uintptr_t ObjectState::kClosedSuccessfully;
 #endif
 
 absl::Status ObjectState::status() const {
-  if (status_ptr_ == kHealthy) return absl::OkStatus();
+  if (status_ptr_ == kOk) return absl::OkStatus();
   if (status_ptr_ == kClosedSuccessfully) {
     return absl::FailedPreconditionError("Object closed");
   }
@@ -43,7 +43,7 @@ absl::Status ObjectState::status() const {
 bool ObjectState::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of ObjectState::Fail(): status not failed";
-  if (status_ptr_ == kHealthy || status_ptr_ == kClosedSuccessfully) {
+  if (status_ptr_ == kOk || status_ptr_ == kClosedSuccessfully) {
     status_ptr_ = reinterpret_cast<uintptr_t>(new FailedStatus{
         status_ptr_ == kClosedSuccessfully, std::move(status)});
   }
@@ -91,7 +91,7 @@ bool Object::FailWithoutAnnotation(absl::Status status) {
 }
 
 absl::Status Object::StatusOrAnnotate(absl::Status other_status) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return status();
+  if (ABSL_PREDICT_FALSE(!ok())) return status();
   return AnnotateStatus(std::move(other_status));
 }
 

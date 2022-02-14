@@ -236,12 +236,12 @@ bool Reader::ReadAll(absl::string_view& dest, size_t max_length) {
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!Read(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!ok())) return false;
       }
       return FailMaxLengthExceeded(max_length);
     }
     if (ABSL_PREDICT_FALSE(!Read(IntCast<size_t>(remaining), dest))) {
-      return healthy();
+      return ok();
     }
     return true;
   } else {
@@ -254,7 +254,7 @@ bool Reader::ReadAll(absl::string_view& dest, size_t max_length) {
     } while (Pull(available() + 1));
     dest = absl::string_view(cursor(), available());
     move_cursor(available());
-    return healthy();
+    return ok();
   }
 }
 
@@ -281,16 +281,16 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!ok())) return false;
       }
       return FailMaxLengthExceeded(max_length);
     }
     if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return healthy();
+      return ok();
     }
     return true;
   } else {
-    if (ABSL_PREDICT_FALSE(!Pull())) return healthy();
+    if (ABSL_PREDICT_FALSE(!Pull())) return ok();
     size_t remaining_max_length = max_length;
     const size_t dest_pos = dest.size();
     if (available() < dest.capacity() - dest_pos) {
@@ -307,7 +307,7 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
         RIEGELI_ASSERT_LE(length_read, length)
             << "Reader::Read(char*) read more than requested";
         dest.erase(dest_pos + IntCast<size_t>(length_read));
-        return healthy();
+        return ok();
       }
       remaining_max_length -= length;
     }
@@ -322,7 +322,7 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
       ReadAndAppend(available(), buffer);
     } while (Pull());
     std::move(buffer).AppendTo(dest);
-    return healthy();
+    return ok();
   }
 }
 
@@ -335,12 +335,12 @@ bool Reader::ReadAndAppendAll(Chain& dest, size_t max_length) {
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!ok())) return false;
       }
       return FailMaxLengthExceeded(max_length);
     }
     if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return healthy();
+      return ok();
     }
     return true;
   } else {
@@ -353,7 +353,7 @@ bool Reader::ReadAndAppendAll(Chain& dest, size_t max_length) {
       remaining_max_length -= available();
       ReadAndAppend(available(), dest);
     } while (Pull());
-    return healthy();
+    return ok();
   }
 }
 
@@ -366,12 +366,12 @@ bool Reader::ReadAndAppendAll(absl::Cord& dest, size_t max_length) {
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!ok())) return false;
       }
       return FailMaxLengthExceeded(max_length);
     }
     if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return healthy();
+      return ok();
     }
     return true;
   } else {
@@ -384,7 +384,7 @@ bool Reader::ReadAndAppendAll(absl::Cord& dest, size_t max_length) {
       remaining_max_length -= available();
       ReadAndAppend(available(), dest);
     } while (Pull());
-    return healthy();
+    return ok();
   }
 }
 
@@ -394,30 +394,26 @@ bool Reader::CopyAll(Writer& dest, Position max_length) {
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!Copy(max_length, dest))) {
-        return dest.healthy() && healthy();
-      }
+      if (ABSL_PREDICT_FALSE(!Copy(max_length, dest))) return dest.ok() && ok();
       return FailMaxLengthExceeded(max_length);
     }
-    if (ABSL_PREDICT_FALSE(!Copy(remaining, dest))) {
-      return dest.healthy() && healthy();
-    }
+    if (ABSL_PREDICT_FALSE(!Copy(remaining, dest))) return dest.ok() && ok();
     return true;
   } else {
     Position remaining_max_length = max_length;
     do {
       if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
         if (ABSL_PREDICT_FALSE(!Copy(remaining_max_length, dest))) {
-          if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
+          if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
         }
         return FailMaxLengthExceeded(max_length);
       }
       remaining_max_length -= available();
       if (ABSL_PREDICT_FALSE(!Copy(available(), dest))) {
-        if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
       }
     } while (Pull());
-    return healthy();
+    return ok();
   }
 }
 
@@ -428,12 +424,12 @@ bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!Skip(max_length))) {
-        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+        if (ABSL_PREDICT_FALSE(!ok())) return false;
       }
       return FailMaxLengthExceeded(max_length);
     }
     if (ABSL_PREDICT_FALSE(!Copy(IntCast<size_t>(remaining), dest))) {
-      return dest.healthy() && healthy();
+      return dest.ok() && ok();
     }
     return true;
   } else {
@@ -447,12 +443,12 @@ bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
       remaining_max_length -= available();
       ReadAndAppend(available(), data);
     } while (Pull());
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     return dest.Write(std::move(data));
   }
 }
 
-bool Reader::SyncImpl(SyncType sync_type) { return healthy(); }
+bool Reader::SyncImpl(SyncType sync_type) { return ok(); }
 
 bool Reader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())

@@ -60,7 +60,7 @@ inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
       return -1;
     }
     if (ABSL_PREDICT_FALSE(reader_->pos() != pos)) {
-      if (ABSL_PREDICT_FALSE(!reader_->healthy())) {
+      if (ABSL_PREDICT_FALSE(!reader_->ok())) {
         errno = StatusCodeToErrno(reader_->status().code());
       } else {
         errno = EINVAL;
@@ -78,7 +78,7 @@ inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
     RIEGELI_ASSERT_LE(length_read, length)
         << "Reader::Read(char*) read more than requested";
     if (length_read > 0) return IntCast<ssize_t>(length_read);
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) {
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) {
       errno = StatusCodeToErrno(reader_->status().code());
       return -1;
     }
@@ -96,7 +96,7 @@ inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
     const Position pos = reader_->pos();
     reader_ = nullptr;
     if (ABSL_PREDICT_FALSE(!writer.Seek(pos))) {
-      if (ABSL_PREDICT_FALSE(!writer.healthy())) {
+      if (ABSL_PREDICT_FALSE(!writer.ok())) {
         errno = StatusCodeToErrno(writer.status().code());
       } else {
         errno = EINVAL;
@@ -203,7 +203,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
         << "Failed postcondition of Writer::ReadMode(): "
            "SupportsRewind() is false";
     if (ABSL_PREDICT_FALSE(!reader_->Seek(IntCast<Position>(new_pos)))) {
-      if (ABSL_PREDICT_FALSE(!reader_->healthy())) {
+      if (ABSL_PREDICT_FALSE(!reader_->ok())) {
         errno = StatusCodeToErrno(reader_->status().code());
       } else {
         errno = EINVAL;
@@ -214,7 +214,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
   }
   if (ABSL_PREDICT_TRUE(writer.SupportsRandomAccess())) {
     if (ABSL_PREDICT_FALSE(!writer.Seek(IntCast<Position>(new_pos)))) {
-      if (ABSL_PREDICT_FALSE(!writer.healthy())) {
+      if (ABSL_PREDICT_FALSE(!writer.ok())) {
         errno = StatusCodeToErrno(writer.status().code());
       } else {
         errno = EINVAL;
@@ -239,7 +239,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       << "Failed postcondition of Writer::ReadMode(): "
          "SupportsRewind() is false";
   if (ABSL_PREDICT_FALSE(reader_->pos() != IntCast<Position>(new_pos))) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) {
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) {
       errno = StatusCodeToErrno(reader_->status().code());
     } else {
       errno = EINVAL;

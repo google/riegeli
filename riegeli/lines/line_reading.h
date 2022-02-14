@@ -98,10 +98,10 @@ class ReadLineOptions {
 // between calls).
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends (`dest` is empty)
-//  * `false` (when `!src.healthy()`) - failure (`dest` is set to the partial
-//                                               line read before the failure)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends (`dest` is empty)
+//  * `false` (when `!src.ok()`) - failure (`dest` is set to the partial line
+//                                 read before the failure)
 bool ReadLine(Reader& src, absl::string_view& dest,
               ReadLineOptions options = ReadLineOptions());
 bool ReadLine(Reader& src, std::string& dest,

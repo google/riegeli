@@ -46,15 +46,15 @@ class ChunkWriter : public Object {
   // Writes a chunk, pushing data to the destination as needed.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   virtual bool WriteChunk(const Chunk& chunk) = 0;
 
   // Writes padding to reach a 64KB block boundary.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   virtual bool PadToBlockBoundary() = 0;
 
   // Pushes buffered data to the destination.
@@ -78,8 +78,8 @@ class ChunkWriter : public Object {
   //                                dependencies of the given writer.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current byte position. Unchanged by `Close()`.
@@ -350,7 +350,7 @@ void DefaultChunkWriter<Dest>::Done() {
 
 template <typename Dest>
 bool DefaultChunkWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(dest_->status());

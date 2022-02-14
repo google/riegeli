@@ -32,7 +32,7 @@ void ChunkEncoder::Done() {
 
 bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record,
                              SerializeOptions serialize_options) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain serialized;
   {
     absl::Status status =

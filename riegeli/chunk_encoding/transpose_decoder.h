@@ -49,9 +49,9 @@ class TransposeDecoder : public Object {
   // Precondition: `dest.pos() == 0`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`);
-  //              if `!dest.healthy()` then the problem was at `dest`
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`);
+  //              if `!dest.ok()` then the problem was at `dest`
   bool Decode(uint64_t num_records, uint64_t decoded_data_size,
               const FieldProjection& field_projection, Reader& src,
               BackwardWriter& dest, std::vector<size_t>& limits);

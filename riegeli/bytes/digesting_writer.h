@@ -90,7 +90,7 @@ class DigestingWriterBase : public Writer {
   template <typename Src>
   bool WriteInternal(Src&& src);
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `start() == dest_writer()->cursor()`
   //   `limit() == dest_writer()->limit()`
   //   `start_pos() == dest_writer()->pos()`
@@ -247,7 +247,7 @@ inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
 inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
   set_buffer(dest.cursor(), dest.available());
   set_start_pos(dest.pos());
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest.status());
+  if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Digester, typename Dest>
@@ -371,14 +371,14 @@ DigestingWriter<Digester, Dest>::Digest() {
 
 template <typename Digester, typename Dest>
 bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
-  bool ok = true;
+  bool flush_ok = true;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    ok = dest_->Flush(flush_type);
+    flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);
-  return ok;
+  return flush_ok;
 }
 
 template <typename Digester, typename Dest>

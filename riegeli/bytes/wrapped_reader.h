@@ -187,7 +187,7 @@ inline void WrappedReaderBase::SyncBuffer(Reader& src) {
 inline void WrappedReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.limit_pos());
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
+  if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Src>
@@ -279,7 +279,7 @@ void WrappedReader<Src>::Done() {
 template <typename Src>
 void WrappedReader<Src>::VerifyEnd() {
   WrappedReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);
@@ -288,14 +288,14 @@ void WrappedReader<Src>::VerifyEnd() {
 
 template <typename Src>
 bool WrappedReader<Src>::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
-  bool ok = true;
+  bool sync_ok = true;
   if (sync_type != SyncType::kFromObject || src_.is_owning()) {
-    ok = src_->Sync(sync_type);
+    sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);
-  return ok;
+  return sync_ok;
 }
 
 }  // namespace riegeli

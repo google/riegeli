@@ -73,7 +73,7 @@ class Writer : public Object {
   //
   // Return values:
   //  * `true`  - success (`available() >= min_length`)
-  //  * `false` - failure (`available() < min_length`, `!healthy()`)
+  //  * `false` - failure (`available() < min_length`, `!ok()`)
   bool Push(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Space between `start()` and `limit()` is available for
@@ -82,7 +82,7 @@ class Writer : public Object {
   //
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
-  //   if `!healthy()` then `start() == cursor() == limit() == nullptr`
+  //   if `!ok()` then `start() == cursor() == limit() == nullptr`
   char* start() const { return start_; }
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
@@ -102,25 +102,25 @@ class Writer : public Object {
   // Returns the amount of space available in the buffer, between `cursor()` and
   // `limit()`.
   //
-  // Invariant: if `!healthy()` then `available() == 0`
+  // Invariant: if `!ok()` then `available() == 0`
   size_t available() const { return PtrDistance(cursor_, limit_); }
 
   // Returns the buffer size, between `start()` and `limit()`.
   //
-  // Invariant: if `!healthy()` then `start_to_limit() == 0`
+  // Invariant: if `!ok()` then `start_to_limit() == 0`
   size_t start_to_limit() const { return PtrDistance(start_, limit_); }
 
   // Returns the amount of data written to the buffer, between `start()` and
   // `cursor()`.
   //
-  // Invariant: if `!healthy()` then `start_to_cursor() == 0`
+  // Invariant: if `!ok()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
   // Writes a single character or byte to the buffer or the destination.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool WriteChar(char src);
   bool WriteByte(uint8_t src);
 
@@ -133,7 +133,7 @@ class Writer : public Object {
   //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
-  //  * `false` - failure (less than `src.size()` bytes written, `!healthy()`)
+  //  * `false` - failure (less than `src.size()` bytes written, `!ok()`)
   bool Write(absl::string_view src);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
@@ -148,7 +148,7 @@ class Writer : public Object {
   //
   // Return values:
   //  * `true`  - success (`length` bytes written)
-  //  * `false` - failure (less than `length` bytes written, `!healthy()`)
+  //  * `false` - failure (less than `length` bytes written, `!ok()`)
   bool WriteZeros(Position length);
 
   // Writes the given number of copies of the given character or byte to the
@@ -156,7 +156,7 @@ class Writer : public Object {
   //
   // Return values:
   //  * `true`  - success (`length` bytes written)
-  //  * `false` - failure (less than `length` bytes written, `!healthy()`)
+  //  * `false` - failure (less than `length` bytes written, `!ok()`)
   bool WriteChars(Position length, char src);
   bool WriteBytes(Position length, uint8_t src);
 
@@ -188,8 +188,8 @@ class Writer : public Object {
   //                                dependencies of the given writer.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current position.
@@ -221,10 +221,10 @@ class Writer : public Object {
   // Sets the current position for subsequent operations.
   //
   // Return values:
-  //  * `true`                      - success (position is set to `new_pos`)
-  //  * `false` (when `healthy()`)  - destination ends before `new_pos`
-  //                                  (position is set to end)
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (position is set to `new_pos`)
+  //  * `false` (when `ok()`)  - destination ends before `new_pos`
+  //                             (position is set to end)
+  //  * `false` (when `!ok()`) - failure
   //
   // `Seek()` to the current position is always supported.
   //
@@ -240,7 +240,7 @@ class Writer : public Object {
   // Returns the size of the destination, i.e. the position corresponding to its
   // end.
   //
-  // Returns `absl::nullopt` on failure (`!healthy()`).
+  // Returns `absl::nullopt` on failure (`!ok()`).
   //
   // `Size()` is supported if `SupportsRandomAccess()` is `true`.
   absl::optional<Position> Size();
@@ -252,11 +252,10 @@ class Writer : public Object {
   // current position to the new end.
   //
   // Return values:
-  //  * `true`                      - success
-  //                                  (destination truncated, `healthy()`)
-  //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
-  //                                  (position is set to end)
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (destination truncated, `ok()`)
+  //  * `false` (when `ok()`)  - destination is smaller than `new_size`
+  //                             (position is set to end)
+  //  * `false` (when `!ok()`) - failure
   //
   // `Truncate()` is supported if `SupportsTruncate()` is `true`.
   bool Truncate(Position new_size);
@@ -278,7 +277,7 @@ class Writer : public Object {
   // The returned `Reader` is owned by this `Writer`. The `Reader` does not own
   // its source, even if this `Writer` owns its destination.
   //
-  // Returns `nullptr` on failure (`!healthy()`).
+  // Returns `nullptr` on failure (`!ok()`).
   //
   // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
   Reader* ReadMode(Position initial_pos);
@@ -381,7 +380,7 @@ class Writer : public Object {
   // Implementation of `Flush()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
   //
-  // By default does nothing and returns `healthy()`.
+  // By default does nothing and returns `ok()`.
   virtual bool FlushImpl(FlushType flush_type);
 
   // Increments the value of `start_pos()`.

@@ -329,7 +329,7 @@ void SnappyReader<Src>::Done() {
 template <typename Src>
 void SnappyReader<Src>::VerifyEnd() {
   SnappyReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 namespace snappy_internal {

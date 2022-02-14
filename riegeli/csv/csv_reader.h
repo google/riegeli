@@ -299,9 +299,9 @@ class CsvReaderBase : public Object {
   //   `has_header()`, i.e. `Options::required_header() != absl::nullopt`
   //
   // Return values:
-  //  * `true`                      - success (`record` is set)
-  //  * `false` (when `healthy()`)  - source ends (`record` is empty)
-  //  * `false` (when `!healthy()`) - failure (`record` is empty)
+  //  * `true`                 - success (`record` is set)
+  //  * `false` (when `ok()`)  - source ends (`record` is empty)
+  //  * `false` (when `!ok()`) - failure (`record` is empty)
   bool ReadRecord(CsvRecord& record);
 
   // Reads the next record expressed as a vector of fields.
@@ -310,9 +310,9 @@ class CsvReaderBase : public Object {
   // fields, but this is not enforced.
   //
   // Return values:
-  //  * `true`                      - success (`record` is set)
-  //  * `false` (when `healthy()`)  - source ends (`record` is empty)
-  //  * `false` (when `!healthy()`) - failure (`record` is empty)
+  //  * `true`                 - success (`record` is set)
+  //  * `false` (when `ok()`)  - source ends (`record` is empty)
+  //  * `false` (when `!ok()`) - failure (`record` is empty)
   bool ReadRecord(std::vector<std::string>& record);
 
   // The index of the most recently read record, starting from 0.

@@ -53,7 +53,7 @@ constexpr ZlibWriterBase::Header ZlibWriterBase::Options::kDefaultHeader;
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZlibWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
@@ -97,7 +97,7 @@ void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  if (ABSL_PREDICT_FALSE(!ok())) return;
   Writer& dest = *dest_writer();
   WriteInternal(src, dest, Z_FINISH);
 }
@@ -169,7 +169,7 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, Z_NO_FLUSH);
@@ -177,7 +177,7 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
 
 inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           int flush) {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of ZlibWriterBase::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
@@ -234,7 +234,7 @@ bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, Z_SYNC_FLUSH);
 }

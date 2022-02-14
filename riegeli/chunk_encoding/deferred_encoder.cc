@@ -46,7 +46,7 @@ void DeferredEncoder::Clear() {
 
 bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
                                 SerializeOptions serialize_options) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = serialize_options.GetByteSize(record);
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
@@ -91,7 +91,7 @@ bool DeferredEncoder::AddRecord(absl::Cord&& record) {
 
 template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
@@ -114,7 +114,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(limits.size() >
                          UnsignedMin(limits_.max_size(), kMaxNumRecords) -
                              num_records_)) {
@@ -138,7 +138,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
 bool DeferredEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
                                      uint64_t& num_records,
                                      uint64_t& decoded_data_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
     return Fail(records_writer_.status());
   }

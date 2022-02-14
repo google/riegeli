@@ -45,14 +45,14 @@ class SimpleDecoder : public Object {
   // accessed until closing the `SimpleDecoder`.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Decode(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
               std::vector<size_t>& limits);
 
   // Returns the `Reader` from which concatenated record values should be read.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   Reader& reader();
 
   // Verifies that the concatenated record values end at the current position,
@@ -62,7 +62,7 @@ class SimpleDecoder : public Object {
   //  * `true`  - success (concatenated messages end at the former current
   //              position)
   //  * `false` - failure (concatenated messages do not end at the former
-  //              current position or the `SimpleDecoder` was not healthy before
+  //              current position or the `SimpleDecoder` was not OK before
   //              closing)
   bool VerifyEndAndClose();
 
@@ -76,8 +76,8 @@ class SimpleDecoder : public Object {
 // Implementation details follow.
 
 inline Reader& SimpleDecoder::reader() {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of SimpleDecoder::reader(): " << status();
+  RIEGELI_ASSERT(ok()) << "Failed precondition of SimpleDecoder::reader(): "
+                       << status();
   return values_decompressor_.reader();
 }
 

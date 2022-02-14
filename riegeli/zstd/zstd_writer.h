@@ -283,7 +283,7 @@ class ZstdWriterBase : public BufferedWriter {
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
   Position initial_compressed_pos_ = 0;
-  // If `healthy()` but `compressor_ == nullptr` then `*pledged_size_` has been
+  // If `ok()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
 

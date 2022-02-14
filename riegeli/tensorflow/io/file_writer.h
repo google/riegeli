@@ -164,7 +164,7 @@ class FileWriterBase : public Writer {
   //
   // Preconditions:
   //   `!src.empty()`
-  //   `healthy()`
+  //   `ok()`
   bool WriteInternal(absl::string_view src);
   bool WriteInternal(const absl::Cord& src);
 
@@ -438,7 +438,7 @@ void FileWriter<Dest>::Done() {
   if (dest_.is_owning()) {
     {
       const ::tensorflow::Status status = dest_->Close();
-      if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(ok())) {
         FailOperation(status, "WritableFile::Close()");
       }
     }

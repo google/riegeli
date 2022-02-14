@@ -354,7 +354,7 @@ void OStreamWriter<Dest>::Done() {
   if (dest_.is_owning()) {
     errno = 0;
     stream_internal::Close(*dest_);
-    if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(healthy())) {
+    if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(ok())) {
       FailOperation("ostream::close()");
     }
   }

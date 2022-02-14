@@ -178,9 +178,9 @@ class RecordReaderBase : public Object {
   // then checking the file format is meaningless: any file can be read.
   //
   // Return values:
-  //  * `true`                      - success
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool CheckFileFormat();
 
   // Returns file metadata.
@@ -192,9 +192,9 @@ class RecordReaderBase : public Object {
   // `RecordsMetadataDescriptors`.
   //
   // Return values:
-  //  * `true`                      - success (`metadata` is set)
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`metadata` is set)
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool ReadMetadata(RecordsMetadata& metadata);
 
   // Like `ReadMetadata()`, but metadata is returned in the serialized form.
@@ -210,9 +210,9 @@ class RecordReaderBase : public Object {
   // next non-const operation on this `RecordReader`.
   //
   // Return values:
-  //  * `true`                      - success (`record` is set)
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`record` is set)
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool ReadRecord(google::protobuf::MessageLite& record);
   bool ReadRecord(absl::string_view& record);
   bool ReadRecord(std::string& record);
@@ -224,19 +224,19 @@ class RecordReaderBase : public Object {
   // This may cause reading the current chunk again.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool SetFieldProjection(FieldProjection field_projection);
 
-  // If `!healthy()` and the failure was caused by invalid file contents, then
+  // If `!ok()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
   // skipping over the invalid region.
   //
   // If `Close()` failed and the failure was caused by truncated file contents,
   // then `Recover()` returns `true`. The `RecordReader` remains closed.
   //
-  // If `healthy()`, or if `!healthy()` but the failure was not caused by
-  // invalid file contents, then `Recover()` returns `false`.
+  // If `ok()`, or if `!ok()` but the failure was not caused by invalid file
+  // contents, then `Recover()` returns `false`.
   //
   // If `skipped_region != nullptr`, `*skipped_region` is set to the position of
   // the skipped region on success.
@@ -298,23 +298,23 @@ class RecordReaderBase : public Object {
   // size. If it points between records, it is interpreted as the next record.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
 
   // Seeks back by one record.
   //
   // Return values:
-  //  * `true`                      - success (`healthy()`)
-  //  * `false` (when `healthy()`)  - beginning of the source reached
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`ok()`)
+  //  * `false` (when `ok()`)  - beginning of the source reached
+  //  * `false` (when `!ok()`) - failure
   bool SeekBack();
 
   // Returns the size of the file in bytes, i.e. the position corresponding to
   // its end.
   //
-  // Returns `absl::nullopt` on failure (`!healthy()`).
+  // Returns `absl::nullopt` on failure (`!ok()`).
   absl::optional<Position> Size();
 
   // Searches the file for a desired record, or for a desired position between
@@ -339,8 +339,8 @@ class RecordReaderBase : public Object {
   //    even if there are no `equivalent` records.
   //
   // Return values:
-  //  * `absl::nullopt` - Reading failed (`!healthy()`)
-  //                      or the search was cancelled (`healthy()`).
+  //  * `absl::nullopt` - Reading failed (`!ok()`)
+  //                      or the search was cancelled (`ok()`).
   //  * `equivalent`    - There is some `equivalent` record,
   //                      and `Search()` points to some such record.
   //  * `greater`       - There are no `equivalent` records
@@ -415,9 +415,9 @@ class RecordReaderBase : public Object {
   // Current chunk if a chunk has been read, empty otherwise.
   //
   // Invariants:
-  //   if `healthy()` then `chunk_decoder_.healthy()`
-  //   if `!healthy()` then
-  //       `!chunk_decoder_.healthy() ||
+  //   if `ok()` then `chunk_decoder_.ok()`
+  //   if `!ok()` then
+  //       `!chunk_decoder_.ok() ||
   //        chunk_decoder_.index() == chunk_decoder_.num_records()`
   ChunkDecoder chunk_decoder_;
 
@@ -433,7 +433,7 @@ class RecordReaderBase : public Object {
   //                                          if that failed
   //
   // Invariants:
-  //   if `healthy()` then `recoverable_ == Recoverable::kNo`
+  //   if `ok()` then `recoverable_ == Recoverable::kNo`
   //   if `!is_open()` then `recoverable_ == Recoverable::kNo ||
   //                         recoverable_ == Recoverable::kRecoverChunkReader`
   Recoverable recoverable_ = Recoverable::kNo;
@@ -454,7 +454,7 @@ class RecordReaderBase : public Object {
   // Reads the next chunk from `chunk_reader_` and decodes it into
   // `chunk_decoder_` and `chunk_begin_`. On failure resets `chunk_decoder_`.
   //
-  // Precondition: `healthy()`
+  // Precondition: `ok()`
   bool ReadChunk();
 };
 

@@ -200,7 +200,7 @@ class LimitingWriterBase : public Writer {
   template <typename Src>
   bool WriteInternal(Src&& src);
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `start() == dest_writer()->start()`
   //   `limit() == dest_writer()->limit()`
   //   `start_pos() == dest_writer()->start_pos()`
@@ -387,7 +387,7 @@ inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
 inline void LimitingWriterBase::MakeBuffer(Writer& dest) {
   set_buffer(dest.start(), dest.start_to_limit(), dest.start_to_cursor());
   set_start_pos(dest.start_pos());
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest.status());
+  if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Dest>
@@ -464,9 +464,9 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    const bool ok = SyncBuffer(*that.dest_);
+    const bool sync_buffer_ok = SyncBuffer(*that.dest_);
     dest_ = std::move(that.dest_);
-    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(*dest_);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*dest_);
   }
 }
 
@@ -482,14 +482,14 @@ void LimitingWriter<Dest>::Done() {
 
 template <typename Dest>
 bool LimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
-  bool ok = true;
+  bool flush_ok = true;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
-    ok = dest_->Flush(flush_type);
+    flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);
-  return ok;
+  return flush_ok;
 }
 
 }  // namespace riegeli

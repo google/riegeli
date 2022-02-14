@@ -55,12 +55,12 @@ class SplittingWriterBase : public PushableWriter {
   // shard data as `shard()`, to be moved to the final destination later.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `!shard_is_open()`
   //
   // Return values:
-  //  * size limit      - success (`healthy()`, `shard_is_open()`)
-  //  * `absl::nullopt` - failure (`!healthy()`)
+  //  * size limit      - success (`ok()`, `shard_is_open()`)
+  //  * `absl::nullopt` - failure (`!ok()`)
   //
   // When the size limit would be exceeded, the shard is closed and a new shard
   // is opened.
@@ -74,12 +74,12 @@ class SplittingWriterBase : public PushableWriter {
   // moves it to the final destination.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `shard_is_open()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
-  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  //  * `true`  - success (`ok()`, `!shard_is_open()`)
+  //  * `false` - failure (`!ok()`, `!shard_is_open()`)
   //
   // The default implementation calls `shard_witer()->Close()` and propagates
   // failures from that.
@@ -93,24 +93,24 @@ class SplittingWriterBase : public PushableWriter {
   // `*shard_writer()`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `!shard_is_open()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`, `shard_is_open()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`, `shard_is_open()`)
+  //  * `false` - failure (`!ok()`)
   bool OpenShard();
 
   // Synchronizes buffer pointers of `*this` with `*shard_writer()` and calls
   // `CloseShardImpl()`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `shard_is_open()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
-  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  //  * `true`  - success (`ok()`, `!shard_is_open()`)
+  //  * `false` - failure (`!ok()`, `!shard_is_open()`)
   bool CloseShard();
 
   // Returns `true` if a shard is open.
@@ -155,7 +155,7 @@ class SplittingWriterBase : public PushableWriter {
   // The limit of `pos()` for data written to the current shard.
   Position shard_pos_limit_ = 0;
 
-  // Invariants if `healthy()` and scratch is not used:
+  // Invariants if `ok()` and scratch is not used:
   //   `start() == (shard_is_open() ? shard_writer()->cursor() : nullptr)`
   //   `limit() <= (shard_is_open() ? shard_writer()->limit() : nullptr)`
   //   `pos() <= shard_pos_limit_`
@@ -252,7 +252,7 @@ inline void SplittingWriterBase::MakeBuffer(Writer& shard) {
          "current position exceeds the shard limit";
   set_buffer(shard.cursor(),
              UnsignedMin(shard.available(), shard_pos_limit_ - start_pos()));
-  if (ABSL_PREDICT_FALSE(!shard.healthy())) {
+  if (ABSL_PREDICT_FALSE(!shard.ok())) {
     FailWithoutAnnotation(AnnotateOverShard(shard.status()));
   }
 }

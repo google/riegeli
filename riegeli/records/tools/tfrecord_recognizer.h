@@ -31,10 +31,9 @@ class TFRecordRecognizer : public Object {
   // Updates `record_reader_options` on success.
   //
   // Return values:
-  //  * `true`                      - success
-  //                                  (`record_reader_options` is updated)
-  //  * `false` (when `healthy()`)  - source ends
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`record_reader_options` is updated)
+  //  * `false` (when `ok()`)  - source ends
+  //  * `false` (when `!ok()`) - failure
   bool CheckFileFormat(
       tensorflow::io::RecordReaderOptions& record_reader_options);
 

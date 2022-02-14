@@ -173,7 +173,7 @@ class ZstdReaderBase : public BufferedReader {
   bool truncated_ = false;
   ZstdDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
-  // If `healthy()` but `decompressor_ == nullptr` then all data have been
+  // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
   RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
@@ -416,7 +416,7 @@ void ZstdReader<Src>::Done() {
 template <typename Src>
 void ZstdReader<Src>::VerifyEnd() {
   ZstdReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

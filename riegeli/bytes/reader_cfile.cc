@@ -50,7 +50,7 @@ inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
     RIEGELI_ASSERT_LE(length_read, length)
         << "Reader::Read(char*) read more than requested";
     if (length_read > 0) return IntCast<ssize_t>(length_read);
-    if (ABSL_PREDICT_FALSE(!reader.healthy())) {
+    if (ABSL_PREDICT_FALSE(!reader.ok())) {
       errno = StatusCodeToErrno(reader.status().code());
       return -1;
     }
@@ -132,7 +132,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
     return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!reader.Seek(new_pos))) {
-    if (ABSL_PREDICT_FALSE(!reader.healthy())) {
+    if (ABSL_PREDICT_FALSE(!reader.ok())) {
       errno = StatusCodeToErrno(reader.status().code());
     } else {
       errno = EINVAL;

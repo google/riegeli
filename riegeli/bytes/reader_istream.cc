@@ -48,7 +48,7 @@ class ReaderStreambuf::BufferSync {
 void ReaderStreambuf::Fail() { state_.Fail(reader_->status()); }
 
 int ReaderStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
+  if (ABSL_PREDICT_FALSE(!ok())) return -1;
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!reader_->Sync())) {
     Fail();
@@ -58,10 +58,10 @@ int ReaderStreambuf::sync() {
 }
 
 std::streamsize ReaderStreambuf::showmanyc() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
+  if (ABSL_PREDICT_FALSE(!ok())) return -1;
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
     return -1;
   }
   return IntCast<std::streamsize>(
@@ -70,10 +70,10 @@ std::streamsize ReaderStreambuf::showmanyc() {
 }
 
 int ReaderStreambuf::underflow() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!ok())) return traits_type::eof();
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
     return traits_type::eof();
   }
   return traits_type::to_int_type(*reader_->cursor());
@@ -82,11 +82,11 @@ int ReaderStreambuf::underflow() {
 std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
-  if (ABSL_PREDICT_FALSE(!healthy())) return 0;
+  if (ABSL_PREDICT_FALSE(!ok())) return 0;
   BufferSync buffer_sync(this);
   const Position pos_before = reader_->pos();
   if (ABSL_PREDICT_FALSE(!reader_->Read(IntCast<size_t>(length), dest))) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
     RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
     const Position length_read = reader_->pos() - pos_before;
@@ -100,7 +100,7 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
 std::streampos ReaderStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::seekdir dir,
                                         std::ios_base::openmode which) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return std::streampos(std::streamoff{-1});
+  if (ABSL_PREDICT_FALSE(!ok())) return std::streampos(std::streamoff{-1});
   BufferSync buffer_sync(this);
   Position new_pos;
   switch (dir) {
@@ -166,7 +166,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       return std::streampos(std::streamoff{-1});
     }
     if (ABSL_PREDICT_FALSE(!reader_->Seek(new_pos))) {
-      if (ABSL_PREDICT_FALSE(!reader_->healthy())) Fail();
+      if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
       return std::streampos(std::streamoff{-1});
     }
   }

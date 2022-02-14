@@ -259,7 +259,7 @@ inline void PrefixLimitingReaderBase::MakeBuffer(Reader& src) {
       << "PrefixLimitingReader source changed position unexpectedly";
   set_buffer(src.cursor(), src.available());
   set_limit_pos(src.limit_pos() - base_pos_);
-  if (ABSL_PREDICT_FALSE(!src.healthy())) {
+  if (ABSL_PREDICT_FALSE(!src.ok())) {
     FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   }
 }
@@ -360,7 +360,7 @@ void PrefixLimitingReader<Src>::Done() {
 template <typename Src>
 void PrefixLimitingReader<Src>::VerifyEnd() {
   PrefixLimitingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);
@@ -369,14 +369,14 @@ void PrefixLimitingReader<Src>::VerifyEnd() {
 
 template <typename Src>
 bool PrefixLimitingReader<Src>::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
-  bool ok = true;
+  bool sync_ok = true;
   if (sync_type != SyncType::kFromObject || src_.is_owning()) {
-    ok = src_->Sync(sync_type);
+    sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);
-  return ok;
+  return sync_ok;
 }
 
 }  // namespace riegeli

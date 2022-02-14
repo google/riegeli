@@ -147,7 +147,7 @@ bool Writer::WriteCharsSlow(Position length, char src) {
   return true;
 }
 
-bool Writer::FlushImpl(FlushType flush_type) { return healthy(); }
+bool Writer::FlushImpl(FlushType flush_type) { return ok(); }
 
 bool Writer::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())

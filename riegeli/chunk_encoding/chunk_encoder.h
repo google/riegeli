@@ -57,8 +57,8 @@ class ChunkEncoder : public Object {
   // (e.g. `const char*`).
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(const google::protobuf::MessageLite& record,
                          SerializeOptions serialize_options);
@@ -79,8 +79,8 @@ class ChunkEncoder : public Object {
   //   `(limits.empty() ? 0 : limits.back()) == records.size()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   virtual bool AddRecords(Chain records, std::vector<size_t> limits) = 0;
 
   // Returns the number of records added so far.
@@ -93,9 +93,9 @@ class ChunkEncoder : public Object {
   // `decoded_data_size`. Closes the `ChunkEncoder` on success.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`);
-  //              if `!dest.healthy()` then the problem was at `dest`
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`);
+  //              if `!dest.ok()` then the problem was at `dest`
   virtual bool EncodeAndClose(Writer& dest, ChunkType& chunk_type,
                               uint64_t& num_records,
                               uint64_t& decoded_data_size) = 0;

@@ -149,7 +149,7 @@ void RecordReaderBase::Reset() {
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of RecordReader: null ChunkReader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->ok())) {
     FailWithoutAnnotation(src->status());
     return;
   }
@@ -194,12 +194,12 @@ absl::Status RecordReaderBase::AnnotateOverSrc(absl::Status status) {
 }
 
 bool RecordReaderBase::CheckFileFormat() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (chunk_decoder_.num_records() > 0) return true;
   ChunkReader& src = *src_chunk_reader();
   if (ABSL_PREDICT_FALSE(!src.CheckFileFormat())) {
     chunk_decoder_.Clear();
-    if (ABSL_PREDICT_FALSE(!src.healthy())) {
+    if (ABSL_PREDICT_FALSE(!src.ok())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
@@ -225,7 +225,7 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata& metadata) {
 
 bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
   metadata.Clear();
-  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
+  if (ABSL_PREDICT_FALSE(!ok())) return TryRecovery();
   ChunkReader& src = *src_chunk_reader();
   if (ABSL_PREDICT_FALSE(src.pos() != 0)) {
     return Fail(absl::FailedPreconditionError(
@@ -236,7 +236,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
   chunk_begin_ = src.pos();
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!src.ReadChunk(chunk))) {
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return FailReading(src);
+    if (ABSL_PREDICT_FALSE(!src.ok())) return FailReading(src);
     return false;
   }
   RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature)
@@ -246,7 +246,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
   chunk_begin_ = src.pos();
   const ChunkHeader* chunk_header;
   if (ABSL_PREDICT_FALSE(!src.PullChunkHeader(&chunk_header))) {
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return FailReading(src);
+    if (ABSL_PREDICT_FALSE(!src.ok())) return FailReading(src);
     return false;
   }
   if (chunk_header->chunk_type() != ChunkType::kFileMetadata) {
@@ -254,7 +254,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
     return true;
   }
   if (ABSL_PREDICT_FALSE(!src.ReadChunk(chunk))) {
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return FailReading(src);
+    if (ABSL_PREDICT_FALSE(!src.ok())) return FailReading(src);
     return false;
   }
   if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
@@ -280,13 +280,13 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
       &metadata, ChainBackwardWriterBase::Options().set_size_hint(
                      chunk.header.decoded_data_size()));
   std::vector<size_t> limits;
-  const bool ok = transpose_decoder.Decode(1, chunk.header.decoded_data_size(),
-                                           FieldProjection::All(), data_reader,
-                                           serialized_metadata_writer, limits);
+  const bool decode_ok = transpose_decoder.Decode(
+      1, chunk.header.decoded_data_size(), FieldProjection::All(), data_reader,
+      serialized_metadata_writer, limits);
   if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
     return Fail(serialized_metadata_writer.status());
   }
-  if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder.status());
+  if (ABSL_PREDICT_FALSE(!decode_ok)) return Fail(transpose_decoder.status());
   if (ABSL_PREDICT_FALSE(!data_reader.VerifyEndAndClose())) {
     return Fail(data_reader.status());
   }
@@ -327,11 +327,11 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
       last_record_is_valid_ = true;
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!healthy())) {
+    if (ABSL_PREDICT_FALSE(!ok())) {
       if (!TryRecovery()) return false;
       continue;
     }
-    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
+    if (ABSL_PREDICT_FALSE(!chunk_decoder_.ok())) {
       recoverable_ = Recoverable::kRecoverChunkDecoder;
       Fail(chunk_decoder_.status());
       if (!TryRecovery()) return false;
@@ -344,7 +344,7 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
 }
 
 bool RecordReaderBase::SetFieldProjection(FieldProjection field_projection) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   ChunkReader& src = *src_chunk_reader();
   const uint64_t record_index = chunk_decoder_.index();
   chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
@@ -360,8 +360,8 @@ bool RecordReaderBase::SetFieldProjection(FieldProjection field_projection) {
 bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
   ChunkReader& src = *src_chunk_reader();
-  RIEGELI_ASSERT(!healthy()) << "Failed invariant of RecordReader: "
-                                "recovery applicable but RecordReader healthy";
+  RIEGELI_ASSERT(!ok()) << "Failed invariant of RecordReader: "
+                           "recovery applicable but RecordReader OK";
   const Recoverable recoverable = recoverable_;
   recoverable_ = Recoverable::kNo;
   if (recoverable != Recoverable::kRecoverChunkReader) {
@@ -402,7 +402,7 @@ bool RecordReaderBase::SupportsRandomAccess() {
 
 bool RecordReaderBase::Seek(RecordPosition new_pos) {
   last_record_is_valid_ = false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
+  if (ABSL_PREDICT_FALSE(!ok())) return TryRecovery();
   ChunkReader& src = *src_chunk_reader();
   if (new_pos.chunk_begin() == chunk_begin_) {
     if (new_pos.record_index() == 0 || src.pos() > chunk_begin_) {
@@ -432,7 +432,7 @@ skip_reading_chunk:
 
 bool RecordReaderBase::Seek(Position new_pos) {
   last_record_is_valid_ = false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
+  if (ABSL_PREDICT_FALSE(!ok())) return TryRecovery();
   ChunkReader& src = *src_chunk_reader();
   if (new_pos >= chunk_begin_ && new_pos <= src.pos()) {
     // Seeking inside or just after the current chunk which has been read,
@@ -460,7 +460,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
 }
 
 bool RecordReaderBase::SeekBack() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   last_record_is_valid_ = false;
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() > 0)) {
     chunk_decoder_.SetIndex(chunk_decoder_.index() - 1);
@@ -494,7 +494,7 @@ bool RecordReaderBase::SeekBack() {
 }
 
 absl::optional<Position> RecordReaderBase::Size() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
@@ -544,7 +544,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
     absl::FunctionRef<
         absl::optional<absl::partial_ordering>(RecordReaderBase& reader)>
         test) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   last_record_is_valid_ = false;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
@@ -571,7 +571,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
         }
         if (ABSL_PREDICT_FALSE(!ReadChunk())) {
           if (!TryRecovery()) {
-            if (!healthy()) return absl::nullopt;
+            if (!ok()) return absl::nullopt;
             // The chunk is truncated. Continue the search before the chunk.
             greater_record_index = 0;
             return SearchGuide<Position>{absl::partial_ordering::greater,
@@ -593,7 +593,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
             return absl::nullopt;
           }
           const absl::optional<absl::partial_ordering> ordering = test(*this);
-          if (ABSL_PREDICT_FALSE(!healthy())) {
+          if (ABSL_PREDICT_FALSE(!ok())) {
             // Reading the record made the `RecordReader` unhealthy, probably
             // because a message could not be parsed (or `test()` did something
             // unusual).
@@ -635,7 +635,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
                        }
                        const absl::optional<absl::partial_ordering> ordering =
                            test(*this);
-                       if (ABSL_PREDICT_FALSE(!healthy())) {
+                       if (ABSL_PREDICT_FALSE(!ok())) {
                          // Reading the record made the `RecordReader`
                          // unhealthy, probably because a message could not be
                          // parsed (or `test()` did something unusual).
@@ -663,14 +663,14 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
 }
 
 inline bool RecordReaderBase::ReadChunk() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of RecordReaderBase::ReadChunk(): " << status();
   ChunkReader& src = *src_chunk_reader();
   chunk_begin_ = src.pos();
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!src.ReadChunk(chunk))) {
     chunk_decoder_.Clear();
-    if (ABSL_PREDICT_FALSE(!src.healthy())) {
+    if (ABSL_PREDICT_FALSE(!src.ok())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }

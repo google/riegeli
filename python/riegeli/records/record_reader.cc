@@ -146,8 +146,7 @@ struct PyRecordIterObject {
 extern PyTypeObject PyRecordIter_Type;
 
 bool RecordReaderHasException(PyRecordReaderObject* self) {
-  return self->recovery_exception.has_value() ||
-         !self->record_reader->healthy();
+  return self->recovery_exception.has_value() || !self->record_reader->ok();
 }
 
 void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
@@ -155,9 +154,9 @@ void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
     self->recovery_exception->Restore();
     return;
   }
-  RIEGELI_ASSERT(!self->record_reader->healthy())
+  RIEGELI_ASSERT(!self->record_reader->ok())
       << "Failed precondition of SetExceptionFromRecordReader(): "
-         "RecordReader healthy";
+         "RecordReader OK";
   if (!self->record_reader->src().exception().ok()) {
     self->record_reader->src().exception().Restore();
     return;
@@ -348,7 +347,7 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     self->record_reader.emplace(std::move(python_reader),
                                 std::move(record_reader_options));
   });
-  if (ABSL_PREDICT_FALSE(!self->record_reader->healthy())) {
+  if (ABSL_PREDICT_FALSE(!self->record_reader->ok())) {
     self->record_reader->src().Close();
     SetExceptionFromRecordReader(self);
     return -1;
@@ -392,9 +391,9 @@ static PyObject* RecordReaderExit(PyRecordReaderObject* self, PyObject* args) {
   }
   // self.close(), suppressing exceptions if exc_type != None.
   if (ABSL_PREDICT_TRUE(self->record_reader.has_value())) {
-    const bool ok =
+    const bool close_ok =
         PythonUnlocked([&] { return self->record_reader->Close(); });
-    if (ABSL_PREDICT_FALSE(!ok) && exc_type == Py_None) {
+    if (ABSL_PREDICT_FALSE(!close_ok) && exc_type == Py_None) {
       SetExceptionFromRecordReader(self);
       return nullptr;
     }
@@ -404,9 +403,9 @@ static PyObject* RecordReaderExit(PyRecordReaderObject* self, PyObject* args) {
 
 static PyObject* RecordReaderClose(PyRecordReaderObject* self, PyObject* args) {
   if (ABSL_PREDICT_TRUE(self->record_reader.has_value())) {
-    const bool ok =
+    const bool close_ok =
         PythonUnlocked([&] { return self->record_reader->Close(); });
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!close_ok)) {
       SetExceptionFromRecordReader(self);
       return nullptr;
     }
@@ -417,9 +416,9 @@ static PyObject* RecordReaderClose(PyRecordReaderObject* self, PyObject* args) {
 static PyObject* RecordReaderCheckFileFormat(PyRecordReaderObject* self,
                                              PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const bool ok =
+  const bool check_file_format_ok =
       PythonUnlocked([&] { return self->record_reader->CheckFileFormat(); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!check_file_format_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;
@@ -433,9 +432,9 @@ static PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
                                           PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
-  const bool ok = PythonUnlocked(
+  const bool read_serialized_metadata_ok = PythonUnlocked(
       [&] { return self->record_reader->ReadSerializedMetadata(metadata); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!read_serialized_metadata_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;
@@ -457,9 +456,9 @@ static PyObject* RecordReaderReadSerializedMetadata(PyRecordReaderObject* self,
                                                     PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
-  const bool ok = PythonUnlocked(
+  const bool read_serialized_metadata_ok = PythonUnlocked(
       [&] { return self->record_reader->ReadSerializedMetadata(metadata); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!read_serialized_metadata_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;
@@ -473,9 +472,9 @@ static PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
                                         PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain record;
-  const bool ok =
+  const bool read_record_ok =
       PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!read_record_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;
@@ -496,9 +495,9 @@ static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::string_view record;
-  const bool ok =
+  const bool read_record_ok =
       PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!read_record_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;
@@ -572,11 +571,11 @@ static PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
     if (ABSL_PREDICT_FALSE(field_projection == absl::nullopt)) return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const bool ok = PythonUnlocked([&] {
+  const bool set_field_projection_ok = PythonUnlocked([&] {
     return self->record_reader->SetFieldProjection(
         *std::move(field_projection));
   });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!set_field_projection_ok)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
   }
@@ -622,9 +621,9 @@ static PyObject* RecordReaderSeek(PyRecordReaderObject* self, PyObject* args,
       kRecordPositionApi->RecordPositionFromPython(pos_arg);
   if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const bool ok =
+  const bool seek_ok =
       PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!seek_ok)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
   }
@@ -643,9 +642,9 @@ static PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
   const absl::optional<Position> pos = PositionFromPython(pos_arg);
   if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const bool ok =
+  const bool seek_ok =
       PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!seek_ok)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
   }
@@ -655,9 +654,9 @@ static PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
 static PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
                                       PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const bool ok =
+  const bool seek_back_ok =
       PythonUnlocked([&] { return self->record_reader->SeekBack(); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  if (ABSL_PREDICT_FALSE(!seek_back_ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
       return nullptr;

@@ -62,13 +62,13 @@ absl::Status ParseFromReaderImpl(Reader& src,
     if (src.limit_pos() == *size) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      const bool ok =
+      const bool parse_ok =
           ABSL_PREDICT_TRUE(src.available() <=
                             size_t{std::numeric_limits<int>::max()}) &&
           dest.ParsePartialFromArray(src.cursor(),
                                      IntCast<int>(src.available()));
       src.move_cursor(src.available());
-      if (ABSL_PREDICT_FALSE(!ok)) {
+      if (ABSL_PREDICT_FALSE(!parse_ok)) {
         return absl::InvalidArgumentError(absl::StrCat(
             "Failed to parse message of type ", dest.GetTypeName()));
       }
@@ -76,9 +76,9 @@ absl::Status ParseFromReaderImpl(Reader& src,
     }
   }
   ReaderInputStream input_stream(&src);
-  const bool ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
-  if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  const bool parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+  if (ABSL_PREDICT_FALSE(!parse_ok)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
@@ -115,8 +115,8 @@ absl::Status ParseFromChain(const Chain& src,
     }
   }
   ChainReader<> reader(&src);
-  // Do not bother with `reader.healthy()` or `reader.Close()`. A `ChainReader`
-  // can never fail.
+  // Do not bother with `reader.ok()` or `reader.Close()`. A `ChainReader` can
+  // never fail.
   ReaderInputStream input_stream(&reader);
   if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
     return absl::InvalidArgumentError(
@@ -140,8 +140,8 @@ absl::Status ParseFromCord(const absl::Cord& src,
     }
   }
   CordReader<> reader(&src);
-  // Do not bother with `reader.healthy()` or `reader.Close()`. A `CordReader`
-  // can never fail.
+  // Do not bother with `reader.ok()` or `reader.Close()`. A `CordReader` can
+  // never fail.
   ReaderInputStream input_stream(&reader);
   if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
     return absl::InvalidArgumentError(

@@ -71,11 +71,11 @@ bool PushableWriter::SyncScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source ChainBlock cleared";
   if (length_to_write <= kMaxBytesToCopy || PrefersCopying()) {
-    const bool ok = Write(buffer.data(), length_to_write);
+    const bool write_ok = Write(buffer.data(), length_to_write);
     // Restore buffer allocation.
     buffer.Clear();
     scratch_->buffer = std::move(buffer);
-    return ok;
+    return write_ok;
   } else if (length_to_write == buffer.size()) {
     return Write(Chain(std::move(buffer)));
   } else {
@@ -248,7 +248,7 @@ bool PushableWriter::FlushBehindScratch(FlushType flush_type) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
-  return healthy();
+  return ok();
 }
 
 bool PushableWriter::SeekBehindScratch(Position new_pos) {

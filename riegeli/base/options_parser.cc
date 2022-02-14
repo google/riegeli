@@ -194,7 +194,7 @@ bool ValueParser::InvalidValue(absl::string_view valid_values) {
 }
 
 bool OptionsParser::FromString(absl::string_view text) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   size_t option_begin = 0;
   for (;;) {
     size_t option_end = text.find(',', option_begin);
@@ -232,14 +232,14 @@ bool OptionsParser::FromString(absl::string_view text) {
       }
       ValueParser value_parser(this, key, value);
       if (ABSL_PREDICT_FALSE(!option->function(value_parser))) {
-        if (!value_parser.healthy()) return Fail(value_parser.status());
+        if (!value_parser.ok()) return Fail(value_parser.status());
         return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Option ", key, ": ",
             "invalid value: ", value.empty() ? "(empty)" : value,
             value_parser.valid_values_.empty() ? "" : ", valid values: ",
             value_parser.valid_values_)));
       }
-      RIEGELI_ASSERT(value_parser.healthy())
+      RIEGELI_ASSERT(value_parser.ok())
           << "Value parser of option " << key
           << " returned true but failed the ValueParser: "
           << value_parser.status();

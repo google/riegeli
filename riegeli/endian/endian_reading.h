@@ -30,13 +30,13 @@ namespace riegeli {
 // Reads a number in a fixed width Little/Big Endian encoding.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 bool ReadLittleEndian16(Reader& src, uint16_t& dest);
 bool ReadLittleEndian32(Reader& src, uint32_t& dest);
 bool ReadLittleEndian64(Reader& src, uint64_t& dest);
@@ -55,13 +55,13 @@ bool ReadBigEndianSigned64(Reader& src, int64_t& dest);
 // `{u,}int{8,16,32,64}_t`.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 template <typename T>
 bool ReadLittleEndian(Reader& src, internal::type_identity_t<T>& dest);
 template <typename T>
@@ -72,13 +72,13 @@ bool ReadBigEndian(Reader& src, internal::type_identity_t<T>& dest);
 // This is faster than reading them individually for native endianness.
 //
 // Return values:
-//  * `true`                          - success (`dest[]` is filled)
-//  * `false` (when `src.healthy()`)  - source ends
-//                                      (`src` position is undefined,
-//                                      `dest[]` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is undefined,
-//                                      `dest[]` is undefined)
+//  * `true`                     - success (`dest[]` is filled)
+//  * `false` (when `src.ok()`)  - source ends
+//                                 (`src` position is undefined,
+//                                 `dest[]` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is undefined,
+//                                 `dest[]` is undefined)
 bool ReadLittleEndian16s(Reader& src, absl::Span<uint16_t> dest);
 bool ReadLittleEndian32s(Reader& src, absl::Span<uint32_t> dest);
 bool ReadLittleEndian64s(Reader& src, absl::Span<uint64_t> dest);
@@ -99,13 +99,13 @@ bool ReadBigEndianSigned64s(Reader& src, absl::Span<int64_t> dest);
 // This is faster than reading them individually for native endianness.
 //
 // Return values:
-//  * `true`                          - success (`dest[]` is filled)
-//  * `false` (when `src.healthy()`)  - source ends
-//                                      (`src` position is undefined,
-//                                      `dest[]` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is undefined,
-//                                      `dest[]` is undefined)
+//  * `true`                     - success (`dest[]` is filled)
+//  * `false` (when `src.ok()`)  - source ends
+//                                 (`src` position is undefined,
+//                                 `dest[]` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is undefined,
+//                                 `dest[]` is undefined)
 template <typename T>
 bool ReadLittleEndians(Reader& src,
                        absl::Span<internal::type_identity_t<T>> dest);

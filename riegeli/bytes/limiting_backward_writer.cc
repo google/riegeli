@@ -32,7 +32,7 @@ namespace riegeli {
 
 void LimitingBackwardWriterBase::Done() {
   BackwardWriter& dest = *dest_writer();
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer(dest);
+  if (ABSL_PREDICT_TRUE(ok())) SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
     // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
     // buffer again.
@@ -61,9 +61,9 @@ absl::Status LimitingBackwardWriterBase::AnnotateStatusImpl(
   // Fully delegate annotations to `*dest_writer()`.
   if (is_open()) {
     BackwardWriter& dest = *dest_writer();
-    const bool ok = SyncBuffer(dest);
+    const bool sync_buffer_ok = SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
-    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(dest);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(dest);
   }
   return status;
 }
@@ -76,12 +76,12 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
@@ -124,30 +124,30 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
     return FailLimitExceeded(dest);
   }
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
     return FailLimitExceeded(dest);
   }
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool LimitingBackwardWriterBase::PrefersCopying() const {
@@ -161,12 +161,12 @@ bool LimitingBackwardWriterBase::SupportsTruncate() {
 }
 
 bool LimitingBackwardWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Truncate(new_size);
+  const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
-  return ok;
+  return truncate_ok;
 }
 
 }  // namespace riegeli

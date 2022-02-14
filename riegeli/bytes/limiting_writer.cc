@@ -34,7 +34,7 @@ namespace riegeli {
 
 void LimitingWriterBase::Done() {
   Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer(dest);
+  if (ABSL_PREDICT_TRUE(ok())) SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
     // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
     // buffer again.
@@ -62,9 +62,9 @@ absl::Status LimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
   // Fully delegate annotations to `*dest_writer()`.
   if (is_open()) {
     Writer& dest = *dest_writer();
-    const bool ok = SyncBuffer(dest);
+    const bool sync_buffer_ok = SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
-    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(dest);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(dest);
   }
   return status;
 }
@@ -77,12 +77,12 @@ bool LimitingWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool LimitingWriterBase::WriteSlow(absl::string_view src) {
@@ -125,30 +125,30 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
     return FailLimitExceeded(dest);
   }
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool LimitingWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
     return FailLimitExceeded(dest);
   }
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool LimitingWriterBase::SupportsRandomAccess() {
@@ -160,13 +160,13 @@ bool LimitingWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const Position pos_to_seek = UnsignedMin(new_pos, max_pos_);
-  const bool ok = dest.Seek(pos_to_seek);
+  const bool seek_ok = dest.Seek(pos_to_seek);
   MakeBuffer(dest);
-  return ok && pos_to_seek == new_pos;
+  return seek_ok && pos_to_seek == new_pos;
 }
 
 bool LimitingWriterBase::PrefersCopying() const {
@@ -180,7 +180,7 @@ bool LimitingWriterBase::SupportsSize() {
 }
 
 absl::optional<Position> LimitingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
   const absl::optional<Position> size = dest.Size();
@@ -195,12 +195,12 @@ bool LimitingWriterBase::SupportsTruncate() {
 }
 
 bool LimitingWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Truncate(new_size);
+  const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
-  return ok;
+  return truncate_ok;
 }
 
 bool LimitingWriterBase::SupportsReadMode() {
@@ -209,7 +209,7 @@ bool LimitingWriterBase::SupportsReadMode() {
 }
 
 Reader* LimitingWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return nullptr;
   Reader* const reader = dest.ReadMode(initial_pos);

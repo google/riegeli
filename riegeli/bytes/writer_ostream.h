@@ -50,7 +50,7 @@ class WriterStreambuf : public std::streambuf {
   void MoveEnd(Writer* dest, absl::optional<Position> reader_pos);
   void Done();
 
-  bool healthy() const { return state_.healthy(); }
+  bool ok() const { return state_.ok(); }
   bool is_open() const { return state_.is_open(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
@@ -117,16 +117,15 @@ class WriterOStreamBase : public std::iostream {
   // failure details).
   WriterOStreamBase& close();
 
-  // Returns `true` if the `WriterOStream` is healthy, i.e. open and not
-  // failed.
-  bool healthy() const { return streambuf_.healthy(); }
+  // Returns `true` if the `WriterOStream` is OK, i.e. open and not failed.
+  bool ok() const { return streambuf_.ok(); }
 
   // Returns `true` if the `WriterOStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
 
   // Returns an `absl::Status` describing the failure if the `WriterOStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `WriterOStream`
-  // is closed, or `absl::OkStatus()` if the `WriterOStream` is healthy.
+  // is closed, or `absl::OkStatus()` if the `WriterOStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
@@ -264,7 +263,7 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
       << "Failed precondition of WriterStreambuf: null Writer pointer";
   writer_ = dest;
   setp(writer_->cursor(), writer_->limit());
-  if (ABSL_PREDICT_FALSE(!writer_->healthy())) FailWriter();
+  if (ABSL_PREDICT_FALSE(!writer_->ok())) FailWriter();
 }
 
 }  // namespace stream_internal
@@ -298,9 +297,7 @@ inline void WriterOStreamBase::Reset() {
 
 inline void WriterOStreamBase::Initialize(Writer* dest) {
   streambuf_.Initialize(dest);
-  if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
-    setstate(std::ios_base::badbit);
-  }
+  if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
 }
 
 template <typename Dest>
@@ -395,9 +392,7 @@ void WriterOStream<Dest>::Done() {
     if (dest_.is_owning()) {
       if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.FailWriter();
     }
-    if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
-      setstate(std::ios_base::badbit);
-    }
+    if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
     streambuf_.MarkClosed();
   }
 }

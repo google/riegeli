@@ -35,14 +35,14 @@ namespace riegeli {
 
 void JoiningReaderBase::Done() {
   PullableReader::Done();
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Reader* shard = shard_reader();
     if (shard_is_open(shard)) CloseShardInternal();
   }
 }
 
 bool JoiningReaderBase::CloseShardImpl() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
       << status();
   RIEGELI_ASSERT(shard_is_open())
@@ -56,14 +56,14 @@ bool JoiningReaderBase::CloseShardImpl() {
 }
 
 inline bool JoiningReaderBase::OpenShardInternal() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
       << status();
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardImpl())) return false;
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
       << status();
   RIEGELI_ASSERT(shard_is_open())
@@ -73,30 +73,30 @@ inline bool JoiningReaderBase::OpenShardInternal() {
 }
 
 inline bool JoiningReaderBase::CloseShardInternal() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
       << status();
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
          "shard already closed";
-  const bool ok = CloseShardImpl();
+  const bool close_shard_ok = CloseShardImpl();
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
          "shard not closed";
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    RIEGELI_ASSERT(!healthy())
+  if (ABSL_PREDICT_FALSE(!close_shard_ok)) {
+    RIEGELI_ASSERT(!ok())
         << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
-           "false returned but JoiningReaderBase healthy";
+           "false returned but JoiningReaderBase OK";
     return false;
   }
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
       << status();
   return true;
 }
 
 bool JoiningReaderBase::OpenShard() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of JoiningReaderBase::OpenShard(): " << status();
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShard(): "
@@ -108,7 +108,7 @@ bool JoiningReaderBase::OpenShard() {
 }
 
 bool JoiningReaderBase::CloseShard() {
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of JoiningReaderBase::CloseShard(): " << status();
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShard(): "
@@ -141,7 +141,7 @@ bool JoiningReaderBase::PullBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
@@ -153,7 +153,7 @@ bool JoiningReaderBase::PullBehindScratch() {
     shard = shard_reader();
   }
   while (ABSL_PREDICT_FALSE(!shard->Pull())) {
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+    if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
@@ -171,7 +171,7 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
@@ -189,7 +189,7 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
       move_limit_pos(length);
       break;
     }
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+    if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
@@ -236,7 +236,7 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
 
 template <typename Dest>
 inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
@@ -254,7 +254,7 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
       move_limit_pos(length);
       break;
     }
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+    if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
@@ -279,7 +279,7 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
@@ -297,8 +297,8 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
       move_limit_pos(length);
       break;
     }
-    if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
-    if (ABSL_PREDICT_FALSE(!shard->healthy())) {
+    if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
+    if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
     RIEGELI_ASSERT_GE(shard->pos(), pos_before)
@@ -324,7 +324,7 @@ void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  if (ABSL_PREDICT_FALSE(!ok())) return;
   Reader* shard = shard_reader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);

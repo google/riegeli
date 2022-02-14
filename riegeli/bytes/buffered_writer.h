@@ -94,7 +94,7 @@ class BufferedWriter : public Writer {
   //
   // Preconditions:
   //   `!src.empty()`
-  //   `healthy()`
+  //   `ok()`
   virtual bool WriteInternal(absl::string_view src) = 0;
 
   // Implementation of `FlushImpl()`, called with the last piece of data.

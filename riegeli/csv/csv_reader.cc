@@ -56,7 +56,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     RIEGELI_ASSERT(*options.escape() != options.quote())
         << "Escape character conflicts with quote character";
   }
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->ok())) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
@@ -215,7 +215,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
-        if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        if (ABSL_PREDICT_FALSE(!src.ok())) {
           return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
         }
         recoverable_ = true;
@@ -240,7 +240,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
           field.append(src.cursor(), src.available());
           src.move_cursor(src.available());
           if (ABSL_PREDICT_FALSE(!src.Pull())) {
-            if (ABSL_PREDICT_FALSE(!src.healthy())) {
+            if (ABSL_PREDICT_FALSE(!src.ok())) {
               return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
             }
             recoverable_ = true;
@@ -271,7 +271,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kQuote:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
             return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
           }
           return true;
@@ -284,7 +284,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         return true;
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
             return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
           }
           recoverable_ = true;
@@ -312,7 +312,7 @@ next_record:
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
       // End of file at the beginning of a record.
-      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+      if (ABSL_PREDICT_FALSE(!src.ok())) {
         return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
       }
       return false;
@@ -343,7 +343,7 @@ next_field:
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
-        if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        if (ABSL_PREDICT_FALSE(!src.ok())) {
           return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
         }
         // Set `line_number_` as if the last line was terminated by a newline.
@@ -401,7 +401,7 @@ next_field:
       case CharClass::kQuote: {
         if (ABSL_PREDICT_FALSE(!ReadQuoted(src, field))) return false;
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
             return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
           }
           // Set `line_number_` as if the last line was terminated by a newline.
@@ -449,7 +449,7 @@ next_field:
       }
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
             return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
           }
           recoverable_ = true;
@@ -468,7 +468,7 @@ bool CsvReaderBase::ReadRecord(CsvRecord& record) {
   RIEGELI_CHECK(has_header())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
          "CsvReaderBase::Options::required_header() != nullopt is required";
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!ok())) {
     record.Reset();
     return false;
   }
@@ -513,7 +513,7 @@ bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
 
 inline bool CsvReaderBase::ReadRecordInternal(
     std::vector<std::string>& record) {
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!ok())) {
     record.clear();
     return false;
   }
@@ -566,8 +566,8 @@ absl::Status ReadCsvRecordFromString(absl::string_view src,
                                        std::move(options));
   if (ABSL_PREDICT_FALSE(
           !csv_internal::ReadStandaloneRecord(csv_reader, record))) {
-    RIEGELI_ASSERT(!csv_reader.healthy())
-        << "ReadStandaloneRecord() returned false but healthy() is true";
+    RIEGELI_ASSERT(!csv_reader.ok())
+        << "ReadStandaloneRecord() returned false but ok() is true";
     return csv_reader.status();
   }
   return absl::OkStatus();

@@ -133,7 +133,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
   const size_t buffer_length = UnsignedMax(buffer_size_, min_length);
   const size_t available_length = available();
@@ -261,7 +261,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
       dest += available_length;
       length -= available_length;
     }
-    if (ABSL_PREDICT_FALSE(!healthy())) {
+    if (ABSL_PREDICT_FALSE(!ok())) {
       SyncBuffer();
       return false;
     }
@@ -279,9 +279,9 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
          "Chain size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool ok = true;
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -315,7 +315,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       }
     }
     // Read more data, preferably into `buffer_`.
-    ok = ReadToBuffer(cursor_index, src, flat_buffer);
+    read_ok = ReadToBuffer(cursor_index, src, flat_buffer);
   }
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
@@ -335,9 +335,9 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool ok = true;
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -371,7 +371,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       }
     }
     // Read more data, preferably into `buffer_`.
-    ok = ReadToBuffer(cursor_index, src, flat_buffer);
+    read_ok = ReadToBuffer(cursor_index, src, flat_buffer);
   }
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
@@ -390,7 +390,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   bool enough_read = true;
   bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok || !healthy())) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
       // Copy as much as is available.
       length = available();
       enough_read = false;
@@ -490,7 +490,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SeekSlow(new_pos);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
@@ -518,7 +518,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     // failure message here.
     return Reader::SizeImpl();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   uint64_t file_size;
   {
     const ::tensorflow::Status status =
@@ -537,7 +537,7 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
     // failure message here.
     return Reader::NewReaderImpl(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
   ::tensorflow::RandomAccessFile* const src = src_file();
   std::unique_ptr<FileReader<::tensorflow::RandomAccessFile*>> reader =

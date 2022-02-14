@@ -282,7 +282,7 @@ void HadoopSnappyReader<Src>::Done() {
 template <typename Src>
 void HadoopSnappyReader<Src>::VerifyEnd() {
   HadoopSnappyReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

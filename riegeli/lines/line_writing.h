@@ -64,7 +64,7 @@ class WriteLineOptions {
 //
 // Return values:
 //  * `true`  - success
-//  * `false` - failure (`!healthy()`)
+//  * `false` - failure (`!ok()`)
 bool WriteLine(absl::string_view src, Writer& dest,
                WriteLineOptions options = WriteLineOptions());
 template <typename Src,

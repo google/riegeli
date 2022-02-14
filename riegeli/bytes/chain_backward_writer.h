@@ -150,7 +150,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
 
   Chain::Options options_;
 
-  // Invariants if `healthy()`:
+  // Invariants if `ok()`:
   //   `limit() == nullptr || limit() == dest_chain()->blocks().front().data()`
   //   `limit_pos() == dest_chain()->size()`
 };

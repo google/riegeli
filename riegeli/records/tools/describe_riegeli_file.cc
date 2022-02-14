@@ -81,13 +81,13 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
       ChainBackwardWriterBase::Options().set_size_hint(
           chunk.header.decoded_data_size()));
   std::vector<size_t> limits;
-  const bool ok = transpose_decoder.Decode(1, chunk.header.decoded_data_size(),
-                                           FieldProjection::All(), data_reader,
-                                           serialized_metadata_writer, limits);
+  const bool decode_ok = transpose_decoder.Decode(
+      1, chunk.header.decoded_data_size(), FieldProjection::All(), data_reader,
+      serialized_metadata_writer, limits);
   if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
     return serialized_metadata_writer.status();
   }
-  if (ABSL_PREDICT_FALSE(!ok)) return transpose_decoder.status();
+  if (ABSL_PREDICT_FALSE(!decode_ok)) return transpose_decoder.status();
   if (ABSL_PREDICT_FALSE(!data_reader.VerifyEndAndClose())) {
     return data_reader.status();
   }
@@ -141,7 +141,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
         std::forward_as_tuple(
             &src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
         compression_type);
-    if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
+    if (ABSL_PREDICT_FALSE(!sizes_decompressor.ok())) {
       return sizes_decompressor.status();
     }
     if (show_record_sizes) {
@@ -186,7 +186,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
     if (show_records) {
       chunk_encoding_internal::Decompressor<> records_decompressor(
           &src, compression_type);
-      if (ABSL_PREDICT_FALSE(!records_decompressor.healthy())) {
+      if (ABSL_PREDICT_FALSE(!records_decompressor.ok())) {
         return records_decompressor.status();
       }
       {
@@ -235,11 +235,11 @@ absl::Status DescribeTransposedChunk(
       dest_writer = &null_dest_writer;
     }
     std::vector<size_t> limits;
-    const bool ok = transpose_decoder.Decode(
+    const bool decode_ok = transpose_decoder.Decode(
         chunk.header.num_records(), chunk.header.decoded_data_size(),
         FieldProjection::All(), src, *dest_writer, limits);
     if (ABSL_PREDICT_FALSE(!dest_writer->Close())) return dest_writer->status();
-    if (ABSL_PREDICT_FALSE(!ok)) return transpose_decoder.status();
+    if (ABSL_PREDICT_FALSE(!decode_ok)) return transpose_decoder.status();
     if (show_record_sizes) {
       if (ABSL_PREDICT_FALSE(limits.size() >
                              unsigned{std::numeric_limits<int>::max()})) {

@@ -87,7 +87,7 @@ void WriterStreambuf::MoveEnd(Writer* dest,
       return;
     }
     if (ABSL_PREDICT_FALSE(reader_->pos() != *reader_pos)) {
-      if (!reader_->healthy()) {
+      if (!reader_->ok()) {
         FailReader();
       } else {
         state_.Fail(absl::OutOfRangeError(absl::StrCat(
@@ -129,7 +129,7 @@ bool WriterStreambuf::ReadMode() {
       return false;
     }
     if (ABSL_PREDICT_FALSE(reader_->pos() != new_pos)) {
-      if (!reader_->healthy()) {
+      if (!reader_->ok()) {
         FailReader();
       } else {
         state_.Fail(absl::OutOfRangeError(absl::StrCat(
@@ -148,7 +148,7 @@ bool WriterStreambuf::WriteMode() {
     const Position new_pos = reader_->pos();
     reader_ = nullptr;
     if (ABSL_PREDICT_FALSE(!writer_->Seek(new_pos))) {
-      if (!writer_->healthy()) {
+      if (!writer_->ok()) {
         FailWriter();
       } else {
         state_.Fail(absl::OutOfRangeError(absl::StrCat(
@@ -162,7 +162,7 @@ bool WriterStreambuf::WriteMode() {
 }
 
 int WriterStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
+  if (ABSL_PREDICT_FALSE(!ok())) return -1;
   BufferSync buffer_sync(this);
   if (reader_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!reader_->Sync())) {
@@ -179,7 +179,7 @@ int WriterStreambuf::sync() {
 }
 
 std::streamsize WriterStreambuf::showmanyc() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
+  if (ABSL_PREDICT_FALSE(!ok())) return -1;
   BufferSync buffer_sync(this);
   if (reader_ == nullptr && ABSL_PREDICT_FALSE(!writer_->SupportsReadMode())) {
     // Indicate that reading is not supported.
@@ -187,7 +187,7 @@ std::streamsize WriterStreambuf::showmanyc() {
   }
   if (ABSL_PREDICT_FALSE(!ReadMode())) return -1;
   if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) FailReader();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) FailReader();
     return -1;
   }
   return IntCast<std::streamsize>(
@@ -196,7 +196,7 @@ std::streamsize WriterStreambuf::showmanyc() {
 }
 
 int WriterStreambuf::underflow() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!ok())) return traits_type::eof();
   BufferSync buffer_sync(this);
   if (reader_ == nullptr && ABSL_PREDICT_FALSE(!writer_->SupportsReadMode())) {
     // Indicate that reading is not supported.
@@ -204,7 +204,7 @@ int WriterStreambuf::underflow() {
   }
   if (ABSL_PREDICT_FALSE(!ReadMode())) return traits_type::eof();
   if (ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) FailReader();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) FailReader();
     return traits_type::eof();
   }
   return traits_type::to_int_type(*reader_->cursor());
@@ -213,7 +213,7 @@ int WriterStreambuf::underflow() {
 std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
-  if (ABSL_PREDICT_FALSE(!healthy())) return 0;
+  if (ABSL_PREDICT_FALSE(!ok())) return 0;
   BufferSync buffer_sync(this);
   if (reader_ == nullptr && ABSL_PREDICT_FALSE(!writer_->SupportsReadMode())) {
     // Indicate that reading is not supported.
@@ -222,7 +222,7 @@ std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
   if (ABSL_PREDICT_FALSE(!ReadMode())) return 0;
   const Position pos_before = reader_->pos();
   if (ABSL_PREDICT_FALSE(!reader_->Read(IntCast<size_t>(length), dest))) {
-    if (ABSL_PREDICT_FALSE(!reader_->healthy())) FailReader();
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) FailReader();
     RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
     const Position length_read = reader_->pos() - pos_before;
@@ -234,7 +234,7 @@ std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
 }
 
 int WriterStreambuf::overflow(int ch) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!ok())) return traits_type::eof();
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!WriteMode())) return traits_type::eof();
   if (ABSL_PREDICT_FALSE(!writer_->Push())) {
@@ -252,7 +252,7 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
                                         std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsputn(): negative length";
-  if (ABSL_PREDICT_FALSE(!healthy())) return 0;
+  if (ABSL_PREDICT_FALSE(!ok())) return 0;
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!WriteMode())) return 0;
   const Position pos_before = writer_->pos();
@@ -271,7 +271,7 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
 std::streampos WriterStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::seekdir dir,
                                         std::ios_base::openmode which) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return std::streampos(std::streamoff{-1});
+  if (ABSL_PREDICT_FALSE(!ok())) return std::streampos(std::streamoff{-1});
   BufferSync buffer_sync(this);
   Position new_pos;
   switch (dir) {
@@ -343,7 +343,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
   }
   if ((which & std::ios_base::in) != 0) {
     // Switch to read mode.
-    bool ok;
+    bool seek_ok;
     if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
       setp(nullptr, nullptr);
       reader_ = writer_->ReadMode(new_pos);
@@ -351,15 +351,15 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
         FailWriter();
         return std::streampos(std::streamoff{-1});
       }
-      ok = reader_->pos() == new_pos;
+      seek_ok = reader_->pos() == new_pos;
     } else {
       RIEGELI_ASSERT(reader_->SupportsRewind())
           << "Failed postcondition of Writer::ReadMode(): "
              "SupportsRewind() is false";
-      ok = reader_->Seek(new_pos);
+      seek_ok = reader_->Seek(new_pos);
     }
-    if (ABSL_PREDICT_FALSE(!ok)) {
-      if (ABSL_PREDICT_FALSE(!reader_->healthy())) FailReader();
+    if (ABSL_PREDICT_FALSE(!seek_ok)) {
+      if (ABSL_PREDICT_FALSE(!reader_->ok())) FailReader();
       return std::streampos(std::streamoff{-1});
     }
   } else {
@@ -377,7 +377,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
         return std::streampos(std::streamoff{-1});
       }
       if (ABSL_PREDICT_FALSE(!writer_->Seek(new_pos))) {
-        if (ABSL_PREDICT_FALSE(!writer_->healthy())) FailWriter();
+        if (ABSL_PREDICT_FALSE(!writer_->ok())) FailWriter();
         return std::streampos(std::streamoff{-1});
       }
     }

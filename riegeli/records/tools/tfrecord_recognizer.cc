@@ -29,13 +29,13 @@ namespace riegeli {
 
 bool TFRecordRecognizer::CheckFileFormat(
     tensorflow::io::RecordReaderOptions& record_reader_options) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
+    if (ABSL_PREDICT_FALSE(!byte_reader_->ok())) {
       return Fail(byte_reader_->status());
     }
-    // Empty file: return `false` but leave `healthy()` as `true`. This mimics
-    // the behavior of reading functions at end of file.
+    // Empty file: return `false` but leave `ok()` as `true`. This mimics the
+    // behavior of reading functions at end of file.
     return false;
   }
 
@@ -61,7 +61,7 @@ bool TFRecordRecognizer::CheckFileFormat(
   }
 
   if (ABSL_PREDICT_FALSE(!reader->Pull(sizeof(uint64_t) + sizeof(uint32_t)))) {
-    if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(reader->status());
+    if (ABSL_PREDICT_FALSE(!reader->ok())) return Fail(reader->status());
     return Fail(absl::InvalidArgumentError("Truncated TFRecord file"));
   }
   if (tensorflow::crc32c::Unmask(

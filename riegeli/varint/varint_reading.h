@@ -44,13 +44,13 @@ namespace riegeli {
 // negative values are possible.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends too early
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends too early
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 bool ReadVarint32(Reader& src, uint32_t& dest);
 bool ReadVarint64(Reader& src, uint64_t& dest);
 
@@ -60,13 +60,13 @@ bool ReadVarint64(Reader& src, uint64_t& dest);
 // trailing zero byte, except for 0 itself.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends too early
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends too early
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 bool ReadCanonicalVarint32(Reader& src, uint32_t& dest);
 bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 
@@ -77,13 +77,13 @@ bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 // `ReadVarint{32,64}()`.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends too early
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends too early
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 bool StreamingReadVarint32(Reader& src, uint32_t& dest);
 bool StreamingReadVarint64(Reader& src, uint64_t& dest);
 
@@ -102,13 +102,13 @@ absl::optional<const char*> ReadVarint64(const char* src, const char* limit,
 // Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
 //
 // Return values:
-//  * varint length                           - success (`dest[]` is filled)
-//  * `absl::nullopt` (when `src.healthy()`)  - source ends too early
-//                                              (`src` position is unchanged,
-//                                             `dest[]` is undefined)
-//  * `absl::nullopt` (when `!src.healthy()`) - failure
-//                                              (`src` position is unchanged,
-//                                              `dest[]` is undefined)
+//  * varint length                      - success (`dest[]` is filled)
+//  * `absl::nullopt` (when `src.ok()`)  - source ends too early
+//                                         (`src` position is unchanged,
+//                                        `dest[]` is undefined)
+//  * `absl::nullopt` (when `!src.ok()`) - failure
+//                                         (`src` position is unchanged,
+//                                         `dest[]` is undefined)
 absl::optional<size_t> CopyVarint32(Reader& src, char* dest);
 absl::optional<size_t> CopyVarint64(Reader& src, char* dest);
 

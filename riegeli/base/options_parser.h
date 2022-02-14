@@ -164,8 +164,8 @@ class OptionsParser : public Object {
   // If ":" with value is absent, `absl::string_view()` is passed as the value.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
   bool FromString(absl::string_view text);
 
  private:

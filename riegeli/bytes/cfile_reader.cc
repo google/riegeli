@@ -219,7 +219,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   FILE* const src = src_file();
   if (ABSL_PREDICT_FALSE(max_length >
@@ -262,7 +262,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   FILE* const src = src_file();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
@@ -293,7 +293,7 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
     // failure message here.
     return BufferedReader::SizeImpl();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   FILE* const src = src_file();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END)) != 0) {
     FailOperation(cfile_internal::kFSeekFunctionName);

@@ -46,9 +46,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
     pos += length;
   }
   ChunkWriter::Initialize(pos);
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-    FailWithoutAnnotation(dest->status());
-  }
+  if (ABSL_PREDICT_FALSE(!dest->ok())) FailWithoutAnnotation(dest->status());
 }
 
 absl::Status DefaultChunkWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -64,7 +62,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
                     chunk_encoding_internal::Hash(chunk.data))
       << "Failed precondition of ChunkWriter::WriteChunk(): "
          "Wrong chunk data hash";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   Writer& dest = *dest_writer();
   StringReader<> header_reader(chunk.header.bytes(), chunk.header.size());
@@ -148,7 +146,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
 }
 
 bool DefaultChunkWriterBase::PadToBlockBoundary() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   size_t length = IntCast<size_t>(records_internal::RemainingInBlock(pos_));
   if (length == 0) return true;

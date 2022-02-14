@@ -436,8 +436,7 @@ void CFileReader<Src>::Done() {
   {
     FILE* const src = src_.Release();
     if (src != nullptr) {
-      if (ABSL_PREDICT_FALSE((fclose(src)) != 0) &&
-          ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE((fclose(src)) != 0) && ABSL_PREDICT_TRUE(ok())) {
         FailOperation("fclose()");
       }
     } else {

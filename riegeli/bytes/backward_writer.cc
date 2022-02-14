@@ -161,7 +161,7 @@ bool BackwardWriter::WriteCharsSlow(Position length, char src) {
   return true;
 }
 
-bool BackwardWriter::FlushImpl(FlushType flush_type) { return healthy(); }
+bool BackwardWriter::FlushImpl(FlushType flush_type) { return ok(); }
 
 bool BackwardWriter::TruncateImpl(Position new_size) {
   return Fail(

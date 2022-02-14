@@ -50,7 +50,7 @@ inline uint32_t MaskChecksum(uint32_t x) {
 void FramedSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of FramedSnappyWriter: null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
@@ -96,7 +96,7 @@ bool FramedSnappyWriterBase::PushBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
@@ -153,7 +153,7 @@ bool FramedSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   return PushInternal(dest);
 }

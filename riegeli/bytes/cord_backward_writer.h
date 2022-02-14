@@ -158,7 +158,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   // Invariants:
   //   `limit() == nullptr` or `limit() == short_buffer_`
   //       or `limit() == buffer_.data()`
-  //   if `healthy()` then `start_pos() == dest_cord()->size()`
+  //   if `ok()` then `start_pos() == dest_cord()->size()`
 };
 
 // A `Writer` which prepends to an `absl::Cord`.

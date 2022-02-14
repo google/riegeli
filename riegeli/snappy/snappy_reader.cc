@@ -39,7 +39,7 @@ void SnappyReaderBase::Initialize(Reader* src,
                                   absl::optional<Position> assumed_size) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of SnappyReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+  if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
@@ -91,10 +91,10 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
                                   SnappyDecompressOptions options) {
   ReaderSnappySource source(&src, options.assumed_size());
   WriterSnappySink sink(&dest);
-  const bool ok = snappy::Uncompress(&source, &sink);
-  if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
-  if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  const bool uncompress_ok = snappy::Uncompress(&source, &sink);
+  if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
+  if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+  if (ABSL_PREDICT_FALSE(!uncompress_ok)) {
     return Annotate(src.AnnotateStatus(absl::InvalidArgumentError(
                         "Invalid snappy-compressed stream")),
                     absl::StrCat("at uncompressed byte ", dest.pos()));

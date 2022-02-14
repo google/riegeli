@@ -52,7 +52,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -98,7 +98,7 @@ bool CordWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (src.size() <= kMaxBytesToCopy) return Writer::WriteSlow(src);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -122,7 +122,7 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
     // `CordWriterBase::WriteSlow(const Chain&)`.
     return Writer::WriteSlow(src);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -141,7 +141,7 @@ bool CordWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (src.size() <= kMaxBytesToCopy) return Writer::WriteSlow(src);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -165,7 +165,7 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
     // `CordWriterBase::WriteSlow(const absl::Cord&)`.
     return Writer::WriteSlow(src);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -184,7 +184,7 @@ bool CordWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (length <= kMaxBytesToCopy) return Writer::WriteZerosSlow(length);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -199,7 +199,7 @@ bool CordWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool CordWriterBase::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -208,12 +208,12 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 absl::optional<Position> CordWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   return pos();
 }
 
 bool CordWriterBase::TruncateImpl(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
@@ -229,7 +229,7 @@ bool CordWriterBase::TruncateImpl(Position new_size) {
 }
 
 Reader* CordWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   absl::Cord& dest = *dest_cord();
   SyncBuffer(dest);
   CordReader<>* const reader = associated_reader_.ResetReader(&dest);

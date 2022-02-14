@@ -216,7 +216,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
                           std::vector<std::string>* records,
                           SizeLimiter* size_limiter, riegeli::Writer& report) {
   riegeli::FdReader<> file_reader(filename);
-  if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
+  if (ABSL_PREDICT_FALSE(!file_reader.ok())) {
     absl::Format(&riegeli::StdErr(), "Could not open file: %s\n",
                  file_reader.status().ToString());
     std::exit(1);

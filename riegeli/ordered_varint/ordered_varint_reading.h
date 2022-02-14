@@ -44,13 +44,13 @@ namespace riegeli {
 // Reads an ordered varint.
 //
 // Return values:
-//  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
-//  * `false` (when `!src.healthy()`) - failure
-//                                      (`src` position is unchanged,
-//                                      `dest` is undefined)
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
 bool ReadOrderedVarint32(Reader& src, uint32_t& dest);
 bool ReadOrderedVarint64(Reader& src, uint64_t& dest);
 

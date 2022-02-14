@@ -493,7 +493,7 @@ void ZlibReader<Src>::Done() {
 template <typename Src>
 void ZlibReader<Src>::VerifyEnd() {
   ZlibReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

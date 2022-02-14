@@ -209,7 +209,7 @@ bool FdWriterBase::supports_random_access() {
 inline bool FdWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int dest = dest_fd();
   return SeekInternal(dest, start_pos());
 }
@@ -218,7 +218,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   const int dest = dest_fd();
@@ -284,7 +284,7 @@ inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of FdWriterBase::SeekInternal(): " << status();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(new_pos), SEEK_SET) <
@@ -308,7 +308,7 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
     // failure message here.
     return BufferedWriter::SeekBehindBuffer(new_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
   const int dest = dest_fd();
   if (new_pos > start_pos()) {
@@ -335,7 +335,7 @@ absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
     // failure message here.
     return BufferedWriter::SizeBehindBuffer();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   const int dest = dest_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
@@ -349,7 +349,7 @@ bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
   const int dest = dest_fd();
   if (new_size >= start_pos()) {
@@ -381,7 +381,7 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     // failure message here.
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   const int dest = dest_fd();
   FdReader<UnownedFd>* const reader = associated_reader_.ResetReader(
       dest, FdReaderBase::Options()

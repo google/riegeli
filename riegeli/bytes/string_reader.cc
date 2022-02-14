@@ -36,7 +36,7 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   RIEGELI_ASSERT_EQ(start_pos(), 0u)
       << "Failed invariant of StringReader: non-zero position of buffer start";
   // Seeking forwards. Source ends.
@@ -45,12 +45,12 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> StringReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   return limit_pos();
 }
 
 std::unique_ptr<Reader> StringReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
   std::unique_ptr<Reader> reader =
       std::make_unique<StringReader<>>(start(), start_to_limit());

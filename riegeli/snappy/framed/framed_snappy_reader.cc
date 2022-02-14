@@ -49,7 +49,7 @@ inline uint32_t MaskChecksum(uint32_t x) {
 void FramedSnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of FramedSnappyReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+  if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
     return;
   }
@@ -95,7 +95,7 @@ bool FramedSnappyReaderBase::PullBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   truncated_ = false;
   while (src.Pull(sizeof(uint32_t))) {
@@ -104,7 +104,7 @@ bool FramedSnappyReaderBase::PullBehindScratch() {
     const size_t chunk_length = IntCast<size_t>(chunk_header >> 8);
     if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t) + chunk_length))) {
       set_buffer();
-      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+      if (ABSL_PREDICT_FALSE(!src.ok())) {
         return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
       }
       truncated_ = true;
@@ -212,7 +212,7 @@ bool FramedSnappyReaderBase::PullBehindScratch() {
     }
   }
   set_buffer();
-  if (ABSL_PREDICT_FALSE(!src.healthy())) {
+  if (ABSL_PREDICT_FALSE(!src.ok())) {
     return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   }
   if (ABSL_PREDICT_FALSE(src.available() > 0)) truncated_ = true;
@@ -233,7 +233,7 @@ bool FramedSnappyReaderBase::SeekBehindScratch(Position new_pos) {
          "scratch used";
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     Reader& src = *src_reader();
     truncated_ = false;
     set_buffer();
@@ -243,7 +243,7 @@ bool FramedSnappyReaderBase::SeekBehindScratch(Position new_pos) {
           AnnotateOverSrc(src.StatusOrAnnotate(absl::DataLossError(
               "FramedSnappy-compressed stream got truncated"))));
     }
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
     if (new_pos == 0) return true;
   }
   return PullableReader::SeekBehindScratch(new_pos);
@@ -256,7 +256,7 @@ bool FramedSnappyReaderBase::SupportsNewReader() {
 
 std::unique_ptr<Reader> FramedSnappyReaderBase::NewReaderImpl(
     Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
   // if `src_reader()->SupportsNewReader()`.
   Reader& src = *src_reader();

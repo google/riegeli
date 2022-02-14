@@ -555,7 +555,7 @@ void FdWriter<Dest>::Done() {
     const int dest = dest_.Release();
     if (dest >= 0) {
       if (ABSL_PREDICT_FALSE(fd_internal::Close(dest) < 0) &&
-          ABSL_PREDICT_TRUE(healthy())) {
+          ABSL_PREDICT_TRUE(ok())) {
         FailOperation(fd_internal::kCloseFunctionName);
       }
     } else {

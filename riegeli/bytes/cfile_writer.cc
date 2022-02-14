@@ -233,7 +233,7 @@ bool CFileWriterBase::supports_read_mode() {
 inline bool CFileWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   FILE* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
                                                IntCast<off_t>(start_pos()),
@@ -247,7 +247,7 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(healthy())
+  RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   FILE* const dest = dest_file();
@@ -289,7 +289,7 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
     // failure message here.
     return BufferedWriter::SeekBehindBuffer(new_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
   FILE* const dest = dest_file();
   if (new_pos > start_pos()) {
@@ -324,7 +324,7 @@ absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
     // failure message here.
     return BufferedWriter::SizeBehindBuffer();
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
   FILE* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
@@ -354,7 +354,7 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     // failure message here.
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   FILE* const dest = dest_file();
   CFileReader<UnownedCFile>* const reader =
       associated_reader_.ResetReader(dest, CFileReaderBase::Options()

@@ -466,7 +466,7 @@ inline void LimitingReaderBase::MakeBuffer(Reader& src) {
                start_to_cursor());
     set_limit_pos(max_pos_);
   }
-  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src.status());
+  if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
 }
 
 template <typename Src>
@@ -562,7 +562,7 @@ void LimitingReader<Src>::Done() {
 template <typename Src>
 void LimitingReader<Src>::VerifyEnd() {
   LimitingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);
@@ -571,14 +571,14 @@ void LimitingReader<Src>::VerifyEnd() {
 
 template <typename Src>
 bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
-  bool ok = true;
+  bool sync_ok = true;
   if (sync_type != SyncType::kFromObject || src_.is_owning()) {
-    ok = src_->Sync(sync_type);
+    sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);
-  return ok;
+  return sync_ok;
 }
 
 inline ScopedLimiter::ScopedLimiter(LimitingReaderBase* reader, Options options)

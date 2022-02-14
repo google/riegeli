@@ -64,7 +64,7 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   field_separator_ = options.field_separator();
   quote_ = options.quote();
 
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
   }
@@ -138,7 +138,7 @@ bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
   RIEGELI_CHECK(has_header_)
       << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
          "CsvWriterBase::Options::header() is required";
-  if (healthy()) {
+  if (ok()) {
     RIEGELI_CHECK_EQ(record.header(), header_)
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
         << "mismatched CSV header and record";

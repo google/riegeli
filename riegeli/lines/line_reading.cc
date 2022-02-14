@@ -142,7 +142,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
     options.set_max_length(options.max_length() - src.available());
     ReadFlat(src, src.available(), dest);
   } while (src.Pull());
-  return src.healthy();
+  return src.ok();
 }
 
 }  // namespace
@@ -193,7 +193,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   } while (src.Pull(length + 1));
   dest = absl::string_view(src.cursor(), src.available());
   src.move_cursor(src.available());
-  return src.healthy();
+  return src.ok();
 }
 
 bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {

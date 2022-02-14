@@ -49,13 +49,13 @@ class JoiningReaderBase : public PullableReader {
   // Opens the next shard as `shard()` if it exists.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `!shard_is_open()`
   //
   // Return values:
-  //  * `true`                      - success (`healthy()`, `shard_is_open()`)
-  //  * `false` (when `healthy()`)  - there is no next shard
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`ok()`, `shard_is_open()`)
+  //  * `false` (when `ok()`)  - there is no next shard
+  //  * `false` (when `!ok()`) - failure
   //
   // `OpenShardImpl()` must be overridden but should not be called directly
   // because it does not synchronize buffer pointers of `*this` with
@@ -65,12 +65,12 @@ class JoiningReaderBase : public PullableReader {
   // Closes `shard()`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `shard_is_open()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
-  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  //  * `true`  - success (`ok()`, `!shard_is_open()`)
+  //  * `false` - failure (`!ok()`, `!shard_is_open()`)
   //
   // The default implementation calls `shard_reader()->Close()` and propagates
   // failures from that.
@@ -84,25 +84,25 @@ class JoiningReaderBase : public PullableReader {
   // `*shard_reader()`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `!shard_is_open()`
   //
   // Return values:
-  //  * `true`                      - success (`healthy()`, `shard_is_open()`)
-  //  * `false` (when `healthy()`)  - there is no next shard
-  //  * `false` (when `!healthy()`) - failure
+  //  * `true`                 - success (`ok()`, `shard_is_open()`)
+  //  * `false` (when `ok()`)  - there is no next shard
+  //  * `false` (when `!ok()`) - failure
   bool OpenShard();
 
   // Synchronizes buffer pointers of `*this` with `*shard_reader()` and calls
   // `CloseShardImpl()`.
   //
   // Preconditions:
-  //   `healthy()`
+  //   `ok()`
   //   `shard_is_open()`
   //
   // Return values:
-  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
-  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  //  * `true`  - success (`ok()`, `!shard_is_open()`)
+  //  * `false` - failure (`!ok()`, `!shard_is_open()`)
   bool CloseShard();
 
   // Returns `true` if a shard is open.
@@ -209,7 +209,7 @@ inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
              UnsignedMin(shard.available(),
                          std::numeric_limits<Position>::max() - limit_pos()));
   move_limit_pos(available());
-  if (ABSL_PREDICT_FALSE(!shard.healthy())) {
+  if (ABSL_PREDICT_FALSE(!shard.ok())) {
     FailWithoutAnnotation(AnnotateOverShard(shard.status()));
   }
 }

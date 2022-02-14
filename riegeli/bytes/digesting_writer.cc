@@ -31,7 +31,7 @@
 namespace riegeli {
 
 void DigestingWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
   }
@@ -54,12 +54,12 @@ bool DigestingWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest.Push(min_length, recommended_length);
+  const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
-  return ok;
+  return push_ok;
 }
 
 bool DigestingWriterBase::WriteSlow(absl::string_view src) {
@@ -99,26 +99,26 @@ bool DigestingWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool DigestingWriterBase::WriteInternal(Src&& src) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   DigesterWrite(src);
-  const bool ok = dest.Write(std::forward<Src>(src));
+  const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool DigestingWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   DigesterWriteZeros(length);
-  const bool ok = dest.WriteZeros(length);
+  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
-  return ok;
+  return write_ok;
 }
 
 bool DigestingWriterBase::PrefersCopying() const {
@@ -132,7 +132,7 @@ bool DigestingWriterBase::SupportsSize() {
 }
 
 absl::optional<Position> DigestingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
@@ -146,7 +146,7 @@ bool DigestingWriterBase::SupportsReadMode() {
 }
 
 Reader* DigestingWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(initial_pos);

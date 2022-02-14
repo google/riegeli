@@ -69,7 +69,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
       std::forward_as_tuple(
           src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
       compression_type);
-  if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
+  if (ABSL_PREDICT_FALSE(!sizes_decompressor.ok())) {
     return Fail(sizes_decompressor.status());
   }
   limits.clear();
@@ -96,7 +96,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
   }
 
   values_decompressor_.Reset(src, compression_type);
-  if (ABSL_PREDICT_FALSE(!values_decompressor_.healthy())) {
+  if (ABSL_PREDICT_FALSE(!values_decompressor_.ok())) {
     return Fail(values_decompressor_.status());
   }
   return true;
