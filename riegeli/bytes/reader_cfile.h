@@ -52,8 +52,10 @@ class ReaderCFileOptions {
 // With a `src_args` parameter, reads from a `Src` constructed from elements of
 // `src_args`. This avoids constructing a temporary `Src` and moving from it.
 //
-// The `Reader` must not be accessed until the `FILE` is closed or no longer
-// used.
+// The `Reader` must not be accessed until the `FILE` is closed. Warning: this
+// includes implicit closing of all `FILE` objects which are still open at
+// program exit, hence if the `FILE` persists until program exit, then the
+// `Reader` must do so as well.
 template <typename Src>
 FILE* ReaderCFile(const Src& src,
                   ReaderCFileOptions options = ReaderCFileOptions());

@@ -84,8 +84,10 @@ class WriterCFileOptions {
 // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
 // it.
 //
-// The `Writer` must not be accessed until the `FILE` is closed or no longer
-// used.
+// The `Writer` must not be accessed until the `FILE` is closed. Warning: this
+// includes implicit closing of all `FILE` objects which are still open at
+// program exit, hence if the `FILE` persists until program exit, then the
+// `Writer` must do so as well.
 template <typename Dest>
 FILE* WriterCFile(const Dest& dest,
                   WriterCFileOptions options = WriterCFileOptions());
