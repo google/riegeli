@@ -455,8 +455,9 @@ inline bool ReadBigEndianSigned16s(Reader& src, absl::Span<int16_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (int16_t& dest_value : dest) {
-      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned16(src, dest_value)))
+      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned16(src, dest_value))) {
         return false;
+      }
     }
     return true;
   }
@@ -468,8 +469,9 @@ inline bool ReadBigEndianSigned32s(Reader& src, absl::Span<int32_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (int32_t& dest_value : dest) {
-      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned32(src, dest_value)))
+      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned32(src, dest_value))) {
         return false;
+      }
     }
     return true;
   }
@@ -481,8 +483,9 @@ inline bool ReadBigEndianSigned64s(Reader& src, absl::Span<int64_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (int64_t& dest_value : dest) {
-      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned64(src, dest_value)))
+      if (ABSL_PREDICT_FALSE(!ReadBigEndianSigned64(src, dest_value))) {
         return false;
+      }
     }
     return true;
   }

@@ -458,9 +458,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     uint32_t current_id = kInvalidPos;
     for (size_t i = 0; i < path_len; ++i) {
       const int field_number = include_field.path()[i];
-      if (field_number == Field::kExistenceOnly) {
-        return false;
-      }
+      if (field_number == Field::kExistenceOnly) return false;
       uint32_t next_id = context.include_fields.size();
       Context::IncludeType include_type = Context::IncludeType::kIncludeChild;
       if (i + 1 == path_len) {
@@ -726,9 +724,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
       const uint32_t bucket = bucket_indices[num_buffers - 1];
       context.nonproto_lengths = GetBuffer(
           context, bucket, num_buffers - 1 - first_buffer_indices[bucket]);
-      if (ABSL_PREDICT_FALSE(context.nonproto_lengths == nullptr)) {
-        return false;
-      }
+      if (ABSL_PREDICT_FALSE(context.nonproto_lengths == nullptr)) return false;
     } else {
       context.nonproto_lengths = &context.buffers.back();
     }
@@ -1280,11 +1276,13 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
           }
           node += (transition_byte >> 2);
           num_iters = transition_byte & 3;
-          if (chunk_encoding_internal::IsImplicit(node->callback_type))
+          if (chunk_encoding_internal::IsImplicit(node->callback_type)) {
             ++num_iters;
+          }
         } else {
-          if (!chunk_encoding_internal::IsImplicit(node->callback_type))
+          if (!chunk_encoding_internal::IsImplicit(node->callback_type)) {
             --num_iters;
+          }
         }
         continue;
 

@@ -178,9 +178,7 @@ inline bool OStreamWriterBase::WriteMode() {
   std::ostream& dest = *dest_stream();
   errno = 0;
   dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(dest.fail())) {
-    return FailOperation("ostream::seekp()");
-  }
+  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::seekp()");
   return true;
 }
 
@@ -253,9 +251,7 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
     }
   }
   dest.seekp(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(dest.fail())) {
-    return FailOperation("ostream::seekp()");
-  }
+  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::seekp()");
   set_start_pos(new_pos);
   return true;
 }

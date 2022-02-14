@@ -388,9 +388,7 @@ inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   if (ref_count != 1) out << " ref_count: " << ref_count;
   out << " size: " << size();
   if (is_internal()) {
-    if (raw_space_before() > 0) {
-      out << " space_before: " << raw_space_before();
-    }
+    if (raw_space_before() > 0) out << " space_before: " << raw_space_before();
     out << " space_after: " << raw_space_after();
   } else {
     out << " ";

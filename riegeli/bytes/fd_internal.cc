@@ -30,9 +30,7 @@ namespace fd_internal {
 
 std::string ResolveFilename(int fd,
                             absl::optional<std::string>&& assumed_filename) {
-  if (assumed_filename != absl::nullopt) {
-    return *std::move(assumed_filename);
-  }
+  if (assumed_filename != absl::nullopt) return *std::move(assumed_filename);
   switch (fd) {
     case 0:
       return "/dev/stdin";

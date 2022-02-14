@@ -429,9 +429,7 @@ bool RecordWriterBase::SerialWorker::WriteMetadata() {
 bool RecordWriterBase::SerialWorker::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
-  if (ABSL_PREDICT_FALSE(!EncodeChunk(*chunk_encoder_, chunk))) {
-    return false;
-  }
+  if (ABSL_PREDICT_FALSE(!EncodeChunk(*chunk_encoder_, chunk))) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
     return FailWithoutAnnotation(chunk_writer_->status());
   }

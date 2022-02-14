@@ -199,9 +199,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       if (ABSL_PREDICT_FALSE(!records_decompressor.VerifyEndAndClose())) {
         return records_decompressor.status();
       }
-      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
-        return src.status();
-      }
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return src.status();
     }
   }
   return absl::OkStatus();
@@ -272,9 +270,7 @@ absl::Status DescribeTransposedChunk(
         return records_reader.status();
       }
     }
-    if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
-      return src.status();
-    }
+    if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return src.status();
   }
   return absl::OkStatus();
 }

@@ -219,9 +219,7 @@ bool StreamingReadVarint64Slow(Reader& src, uint64_t& dest);
 
 inline bool StreamingReadVarint32(Reader& src, uint32_t& dest) {
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
-    if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) {
-      return false;
-    }
+    if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return false;
     if (static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
       // The buffer contains a potential varint terminator. Avoid pulling
       // repeatedly which can be expensive.
@@ -238,9 +236,7 @@ inline bool StreamingReadVarint32(Reader& src, uint32_t& dest) {
 
 inline bool StreamingReadVarint64(Reader& src, uint64_t& dest) {
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint64)) {
-    if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) {
-      return false;
-    }
+    if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) return false;
     if (static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
       // The buffer contains a potential varint terminator. Avoid pulling
       // repeatedly which can be expensive.

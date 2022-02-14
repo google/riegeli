@@ -844,12 +844,7 @@ extern template absl::Status CsvHeader::TryAdd(std::string&& name);
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(absl::string_view name,
                                       Names&&... names) {
-  {
-    absl::Status status = TryAdd(name);
-    if (!status.ok()) {
-      return status;
-    }
-  }
+  if (absl::Status status = TryAdd(name); !status.ok()) return status;
   return TryAdd(std::forward<Names>(names)...);
 }
 
@@ -1101,9 +1096,7 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   // verify the assumption.
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
-    if (this_iter == this->end() || this_iter->first != src_iter->first) {
-      break;
-    }
+    if (this_iter == this->end() || this_iter->first != src_iter->first) break;
     csv_internal::AssignToString(
         csv_internal::MaybeMoveElement<Src>(src_iter->second),
         this_iter->second);

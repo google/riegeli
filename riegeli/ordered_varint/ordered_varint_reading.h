@@ -64,9 +64,7 @@ bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest);
 }  // namespace ordered_varint_internal
 
 inline bool ReadOrderedVarint32(Reader& src, uint32_t& dest) {
-  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint32))) {
-    return false;
-  }
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint32))) return false;
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
   if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
     dest = first_byte;
@@ -77,9 +75,7 @@ inline bool ReadOrderedVarint32(Reader& src, uint32_t& dest) {
 }
 
 inline bool ReadOrderedVarint64(Reader& src, uint64_t& dest) {
-  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint64))) {
-    return false;
-  }
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint64))) return false;
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
   if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
     dest = first_byte;

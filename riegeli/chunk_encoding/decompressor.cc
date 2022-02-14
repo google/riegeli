@@ -29,9 +29,7 @@ namespace chunk_encoding_internal {
 
 absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
                                           CompressionType compression_type) {
-  if (compression_type == CompressionType::kNone) {
-    return compressed_data.size();
-  }
+  if (compression_type == CompressionType::kNone) return compressed_data.size();
   ChainReader<> compressed_data_reader(&compressed_data);
   uint64_t size;
   if (ABSL_PREDICT_FALSE(!ReadVarint64(compressed_data_reader, size))) {

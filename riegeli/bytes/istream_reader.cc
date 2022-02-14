@@ -235,9 +235,7 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
     }
   }
   src.seekg(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(src.fail())) {
-    return FailOperation("istream::seekg()");
-  }
+  if (ABSL_PREDICT_FALSE(src.fail())) return FailOperation("istream::seekg()");
   set_limit_pos(new_pos);
   return true;
 }

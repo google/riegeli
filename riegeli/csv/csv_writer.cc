@@ -69,9 +69,7 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
     return;
   }
   if (has_header_) {
-    if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) {
-      --record_index_;
-    }
+    if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) --record_index_;
   }
 }
 

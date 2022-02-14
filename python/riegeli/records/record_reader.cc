@@ -202,8 +202,9 @@ absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
         PyIter_Next(field_number_iter.get())}) {
       const absl::optional<int> field_number =
           FieldNumberFromPython(field_number_object.get());
-      if (ABSL_PREDICT_FALSE(field_number == absl::nullopt))
+      if (ABSL_PREDICT_FALSE(field_number == absl::nullopt)) {
         return absl::nullopt;
+      }
       field.AddFieldNumber(*field_number);
     }
     if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;

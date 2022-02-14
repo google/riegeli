@@ -1518,36 +1518,28 @@ inline bool operator!=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
 inline bool operator<(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
   RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
       << "Incompatible BlockPtrPtr values";
-  if (a.is_special()) {
-    return a.repr < b.repr;
-  }
+  if (a.is_special()) return a.repr < b.repr;
   return a.as_ptr() < b.as_ptr();
 }
 
 inline bool operator>(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
   RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
       << "Incompatible BlockPtrPtr values";
-  if (a.is_special()) {
-    return a.repr > b.repr;
-  }
+  if (a.is_special()) return a.repr > b.repr;
   return a.as_ptr() > b.as_ptr();
 }
 
 inline bool operator<=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
   RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
       << "Incompatible BlockPtrPtr values";
-  if (a.is_special()) {
-    return a.repr <= b.repr;
-  }
+  if (a.is_special()) return a.repr <= b.repr;
   return a.as_ptr() <= b.as_ptr();
 }
 
 inline bool operator>=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
   RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
       << "Incompatible BlockPtrPtr values";
-  if (a.is_special()) {
-    return a.repr >= b.repr;
-  }
+  if (a.is_special()) return a.repr >= b.repr;
   return a.as_ptr() >= b.as_ptr();
 }
 
@@ -2161,9 +2153,7 @@ inline void ChainBlock::RemoveSuffix(size_t length, const Options& options) {
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of ChainBlock::RemoveSuffix(): "
       << "length to remove greater than current size";
-  if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) {
-    return;
-  }
+  if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) return;
   RemoveSuffixSlow(length, options);
 }
 
@@ -2172,9 +2162,7 @@ inline void ChainBlock::RemovePrefix(size_t length, const Options& options) {
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of ChainBlock::RemovePrefix(): "
       << "length to remove greater than current size";
-  if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) {
-    return;
-  }
+  if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) return;
   RemovePrefixSlow(length, options);
 }
 

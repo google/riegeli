@@ -488,9 +488,7 @@ void CFileWriter<Dest>::Done() {
 
 template <typename Dest>
 bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!CFileWriterBase::FlushImpl(flush_type))) {
-    return false;
-  }
+  if (ABSL_PREDICT_FALSE(!CFileWriterBase::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.is_owning()) return true;
