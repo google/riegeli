@@ -594,7 +594,7 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
           }
           const absl::optional<absl::partial_ordering> ordering = test(*this);
           if (ABSL_PREDICT_FALSE(!ok())) {
-            // Reading the record made the `RecordReader` unhealthy, probably
+            // Reading the record made the `RecordReader` not OK, probably
             // because a message could not be parsed (or `test()` did something
             // unusual).
             if (!TryRecovery()) return absl::nullopt;
@@ -636,9 +636,9 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
                        const absl::optional<absl::partial_ordering> ordering =
                            test(*this);
                        if (ABSL_PREDICT_FALSE(!ok())) {
-                         // Reading the record made the `RecordReader`
-                         // unhealthy, probably because a message could not be
-                         // parsed (or `test()` did something unusual).
+                         // Reading the record made the `RecordReader` not OK,
+                         // probably because a message could not be parsed
+                         // (or `test()` did something unusual).
                          if (!TryRecovery()) return absl::nullopt;
                          // Declare the skipped record unordered.
                          return absl::partial_ordering::unordered;

@@ -222,7 +222,7 @@ class Object {
   // `AnnotateStatus(std::move(other_status))`.
   //
   // This is typically used after a failed call which does not necessarily
-  // make the object unhealthy, e.g. after reading functions, to return an
+  // make the object not OK, e.g. after reading functions, to return an
   // explanation if the source ends prematurely or has unexpected contents.
   ABSL_ATTRIBUTE_COLD absl::Status StatusOrAnnotate(absl::Status other_status);
 

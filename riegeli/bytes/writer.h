@@ -198,7 +198,7 @@ class Writer : public Object {
   // destination with existing contents, or if the `Writer` wraps another writer
   // or output stream propagating its position.
   //
-  // This may decrease when the `Writer` becomes unhealthy (due to buffering,
+  // This may decrease when the `Writer` becomes not OK (due to buffering,
   // previously written but unflushed data may be lost).
   //
   // `pos()` is unchanged by a successful `Close()`.

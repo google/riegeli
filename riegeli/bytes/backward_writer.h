@@ -184,7 +184,7 @@ class BackwardWriter : public Object {
   // `BackwardWriter` wraps another writer or output stream propagating its
   // position.
   //
-  // This may decrease when the `BackwardWriter` becomes unhealthy (due to
+  // This may decrease when the `BackwardWriter` becomes not OK (due to
   // buffering, previously written but unflushed data may be lost).
   //
   // `pos()` is unchanged by a successful `Close()`.
