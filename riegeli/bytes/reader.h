@@ -623,7 +623,7 @@ inline bool Reader::Read(size_t length, char* dest) {
 
 inline bool Reader::Read(size_t length, std::string& dest) {
   RIEGELI_CHECK_LE(length, dest.max_size())
-      << "Failed precondition of Reader::Read(string*): "
+      << "Failed precondition of Reader::Read(string&): "
          "string size overflow";
   if (ABSL_PREDICT_TRUE(available() >= length)) {
     dest.assign(cursor(), length);
@@ -656,7 +656,7 @@ inline bool Reader::Read(size_t length, absl::Cord& dest) {
 
 inline bool Reader::ReadAndAppend(size_t length, std::string& dest) {
   RIEGELI_CHECK_LE(length, dest.max_size() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(string*): "
+      << "Failed precondition of Reader::ReadAndAppend(string&): "
          "string size overflow";
   if (ABSL_PREDICT_TRUE(available() >= length)) {
     dest.append(cursor(), length);
@@ -668,7 +668,7 @@ inline bool Reader::ReadAndAppend(size_t length, std::string& dest) {
 
 inline bool Reader::ReadAndAppend(size_t length, Chain& dest) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Chain*): "
+      << "Failed precondition of Reader::ReadAndAppend(Chain&): "
          "Chain size overflow";
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     dest.Append(absl::string_view(cursor(), length));
@@ -680,7 +680,7 @@ inline bool Reader::ReadAndAppend(size_t length, Chain& dest) {
 
 inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Cord*): "
+      << "Failed precondition of Reader::ReadAndAppend(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     dest.Append(absl::string_view(cursor(), length));
