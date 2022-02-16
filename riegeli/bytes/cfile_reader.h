@@ -208,6 +208,7 @@ class CFileReader : public CFileReaderBase {
   // Will read from the `FILE` provided by `src`.
   explicit CFileReader(const Src& src, Options options = Options());
   explicit CFileReader(Src&& src, Options options = Options());
+  explicit CFileReader(FILE* src, Options options = Options());
 
   // Will read from the `FILE` provided by a `Src` constructed from elements of
   // `src_args`. This avoids constructing a temporary `Src` and moving from it.
@@ -234,6 +235,7 @@ class CFileReader : public CFileReaderBase {
   void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
+  void Reset(FILE* src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
@@ -338,6 +340,10 @@ inline CFileReader<Src>::CFileReader(Src&& src, Options options)
 }
 
 template <typename Src>
+inline CFileReader<Src>::CFileReader(FILE* src, Options options)
+    : CFileReader(std::forward_as_tuple(src), std::move(options)) {}
+
+template <typename Src>
 template <typename... SrcArgs>
 inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
                                      Options options)
@@ -395,6 +401,11 @@ inline void CFileReader<Src>::Reset(Src&& src, Options options) {
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
+}
+
+template <typename Src>
+inline void CFileReader<Src>::Reset(FILE* src, Options options) {
+  Reset(std::forward_as_tuple(src), std::move(options));
 }
 
 template <typename Src>

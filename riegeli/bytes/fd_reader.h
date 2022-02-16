@@ -383,7 +383,6 @@ class FdReader : public FdReaderBase {
   // Will read from the fd provided by `src`.
   explicit FdReader(const Src& src, Options options = Options());
   explicit FdReader(Src&& src, Options options = Options());
-  // Disambiguating overload: literal 0 is not a null pointer.
   explicit FdReader(int src, Options options = Options());
 
   // Will read from the fd provided by a `Src` constructed from elements of
@@ -495,7 +494,6 @@ class FdMMapReader : public FdMMapReaderBase {
   // Will read from the fd provided by `src`.
   explicit FdMMapReader(const Src& src, Options options = Options());
   explicit FdMMapReader(Src&& src, Options options = Options());
-  // Disambiguating overload: literal 0 is not a null pointer.
   explicit FdMMapReader(int src, Options options = Options());
 
   // Will read from the fd provided by a `Src` constructed from elements of
@@ -673,7 +671,7 @@ inline FdReader<Src>::FdReader(Src&& src, Options options)
 
 template <typename Src>
 inline FdReader<Src>::FdReader(int src, Options options)
-    : FdReader(Src(src), std::move(options)) {}
+    : FdReader(std::forward_as_tuple(src), std::move(options)) {}
 
 template <typename Src>
 template <typename... SrcArgs>
@@ -734,7 +732,7 @@ inline void FdReader<Src>::Reset(Src&& src, Options options) {
 
 template <typename Src>
 inline void FdReader<Src>::Reset(int src, Options options) {
-  Reset(Src(src), std::move(options));
+  Reset(std::forward_as_tuple(src), std::move(options));
 }
 
 template <typename Src>
@@ -802,7 +800,7 @@ inline FdMMapReader<Src>::FdMMapReader(Src&& src, Options options)
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(int src, Options options)
-    : FdMMapReader(Src(src), std::move(options)) {}
+    : FdMMapReader(std::forward_as_tuple(src), std::move(options)) {}
 
 template <typename Src>
 template <typename... SrcArgs>
@@ -867,7 +865,7 @@ inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(int src, Options options) {
-  Reset(Src(src), std::move(options));
+  Reset(std::forward_as_tuple(src), std::move(options));
 }
 
 template <typename Src>

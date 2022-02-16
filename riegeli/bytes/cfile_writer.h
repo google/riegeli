@@ -233,6 +233,7 @@ class CFileWriter : public CFileWriterBase {
   // Will write to the `FILE` provided by `dest`.
   explicit CFileWriter(const Dest& dest, Options options = Options());
   explicit CFileWriter(Dest&& dest, Options options = Options());
+  explicit CFileWriter(FILE* dest, Options options = Options());
 
   // Will write to the `FILE` provided by a `Dest` constructed from elements of
   // `dest_args`. This avoids constructing a temporary `Dest` and moving from
@@ -260,6 +261,7 @@ class CFileWriter : public CFileWriterBase {
   void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
+  void Reset(FILE* dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
@@ -377,6 +379,10 @@ inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
 }
 
 template <typename Dest>
+inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
+    : CFileWriter(std::forward_as_tuple(dest), std::move(options)) {}
+
+template <typename Dest>
 template <typename... DestArgs>
 inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
@@ -434,6 +440,11 @@ inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.mode()[0] == 'a');
+}
+
+template <typename Dest>
+inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
+  Reset(std::forward_as_tuple(dest), std::move(options));
 }
 
 template <typename Dest>

@@ -39,6 +39,9 @@ class OwnedFd {
 
   ~OwnedFd();
 
+  void Reset();
+  void Reset(int fd);
+
   // Returns the owned file descriptor, or -1 if none.
   int get() const { return fd_; }
 
@@ -63,6 +66,9 @@ class UnownedFd {
 
   UnownedFd(const UnownedFd& that) noexcept = default;
   UnownedFd& operator=(const UnownedFd& that) noexcept = default;
+
+  void Reset() { fd_ = -1; }
+  void Reset(int fd) { fd_ = fd; }
 
   // Returns the owned file descriptor, or a negative value if none.
   int get() const { return fd_; }
@@ -119,6 +125,16 @@ inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
 
 inline OwnedFd::~OwnedFd() {
   if (fd_ >= 0) fd_internal::Close(fd_);
+}
+
+inline void OwnedFd::Reset() {
+  if (fd_ >= 0) fd_internal::Close(fd_);
+  fd_ = -1;
+}
+
+inline void OwnedFd::Reset(int fd) {
+  if (fd_ >= 0) fd_internal::Close(fd_);
+  fd_ = fd;
 }
 
 }  // namespace riegeli

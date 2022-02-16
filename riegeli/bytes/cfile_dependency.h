@@ -38,6 +38,9 @@ class OwnedCFile {
   OwnedCFile(OwnedCFile&& that) noexcept;
   OwnedCFile& operator=(OwnedCFile&& that) noexcept;
 
+  void Reset() { file_.reset(); }
+  void Reset(FILE* file) { file_.reset(file); }
+
   // Returns the owned `FILE`, or `nullptr` if none.
   FILE* get() const { return file_.get(); }
 
@@ -76,6 +79,9 @@ class UnownedCFile {
 
   UnownedCFile(const UnownedCFile& that) noexcept = default;
   UnownedCFile& operator=(const UnownedCFile& that) noexcept = default;
+
+  void Reset() { file_ = nullptr; }
+  void Reset(FILE* file) { file_ = file; }
 
   // Returns the referred to `FILE`, or `nullptr` if none.
   FILE* get() const { return file_; }

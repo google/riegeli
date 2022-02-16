@@ -305,7 +305,6 @@ class FdWriter : public FdWriterBase {
   // Will write to the fd provided by `dest`.
   explicit FdWriter(const Dest& dest, Options options = Options());
   explicit FdWriter(Dest&& dest, Options options = Options());
-  // Disambiguating overload: literal 0 is not a null pointer.
   explicit FdWriter(int dest, Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
@@ -451,7 +450,7 @@ inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(int dest, Options options)
-    : FdWriter(Dest(dest), std::move(options)) {}
+    : FdWriter(std::forward_as_tuple(dest), std::move(options)) {}
 
 template <typename Dest>
 template <typename... DestArgs>
@@ -513,7 +512,7 @@ inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(int dest, Options options) {
-  Rest(Dest(dest), std::move(options));
+  Reset(std::forward_as_tuple(dest), std::move(options));
 }
 
 template <typename Dest>
