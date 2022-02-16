@@ -119,14 +119,22 @@ using Storage = char[];
 // A `Dependency<Ptr, Manager>` is stored inline in
 // `Repr<Ptr, inline_size, inline_align>` if it fits in that storage.
 // If `inline_size == 0`, the dependency is also required to be stable.
+
+template <typename Ptr, size_t inline_size, size_t inline_align,
+          typename Manager, typename Enable = void>
+struct IsInline : std::false_type {};
+
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
-using IsInline = std::integral_constant<
-    bool, sizeof(Dependency<Ptr, Manager>) <=
-                  sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
-              alignof(Dependency<Ptr, Manager>) <=
-                  alignof(Repr<Ptr, inline_size, inline_align>::storage) &&
-              (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>;
+struct IsInline<
+    Ptr, inline_size, inline_align, Manager,
+    std::enable_if_t<
+        sizeof(Dependency<Ptr, Manager>) <=
+            sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
+        alignof(Dependency<Ptr, Manager>) <=
+            alignof(Repr<Ptr, inline_size, inline_align>::storage) &&
+        (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
+    : std::true_type {};
 
 // Method pointers.
 template <typename Ptr>
