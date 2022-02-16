@@ -186,7 +186,7 @@ class FdWriterBase : public BufferedWriter {
 
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
-  const std::string& filename() const { return filename_; }
+  absl::string_view filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsReadMode() override {

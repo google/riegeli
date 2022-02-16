@@ -139,7 +139,8 @@ class CsvHeader {
   // Creates a set consisting of the given sequence of field names.
   //
   // The type of `names` must support iteration yielding `absl::string_view`:
-  // `for (absl::string_view name : names)`, e.g. `std::vector<std::string>`.
+  // `for (const absl::string_view name : names)`,
+  // e.g. `std::vector<std::string>`.
   //
   // Precondition: `names` have no duplicates
   template <typename Names,
@@ -154,7 +155,8 @@ class CsvHeader {
   // Creates a set consisting of the given sequence of field names.
   //
   // The type of `names` must support iteration yielding `absl::string_view`:
-  // `for (absl::string_view name : names)`, e.g. `std::vector<std::string>`.
+  // `for (const absl::string_view name : names)`,
+  // e.g. `std::vector<std::string>`.
   //
   // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
@@ -696,7 +698,7 @@ class CsvRecord {
  private:
   friend class CsvReaderBase;
 
-  absl::Status FailMerge(const std::vector<std::string>& missing_names) const;
+  absl::Status FailMerge(absl::Span<const std::string> missing_names) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;

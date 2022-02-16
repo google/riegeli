@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -1331,7 +1332,7 @@ done:
 // the main loop in `Decode()`.
 ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     Context& context, int skipped_submessage_level,
-    const std::vector<SubmessageStackElement>& submessage_stack,
+    absl::Span<const SubmessageStackElement> submessage_stack,
     StateMachineNode& node) {
   const bool is_implicit =
       chunk_encoding_internal::IsImplicit(node.callback_type);

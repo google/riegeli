@@ -138,7 +138,7 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
   if (start() == &dest[0]) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         // TODO: When `absl::string_view` becomes C++17
         // `std::string_view`: `dest.append(fragment)`
         dest.append(fragment.data(), fragment.size());
@@ -171,7 +171,7 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
   if (start() == &dest[0]) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         // TODO: When `absl::string_view` becomes C++17
         // `std::string_view`: `dest.append(fragment)`
         dest.append(fragment.data(), fragment.size());

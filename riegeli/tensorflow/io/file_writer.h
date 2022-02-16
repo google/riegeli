@@ -114,7 +114,7 @@ class FileWriterBase : public Writer {
 
   // Returns the name of the `::tensorflow::WritableFile` being written to.
   // Unchanged by `Close()`.
-  const std::string& filename() const { return filename_; }
+  absl::string_view filename() const { return filename_; }
 
   bool SupportsSize() override { return !filename_.empty(); }
   bool SupportsReadMode() override { return !filename_.empty(); }

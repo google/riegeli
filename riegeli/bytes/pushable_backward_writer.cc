@@ -221,7 +221,7 @@ bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
   if (src.size() <= available()) {
     move_cursor(src.size());
     char* dest = cursor();
-    for (absl::string_view fragment : src.Chunks()) {
+    for (const absl::string_view fragment : src.Chunks()) {
       std::memcpy(dest, fragment.data(), fragment.size());
       dest += fragment.size();
     }
@@ -349,7 +349,7 @@ bool PushableBackwardWriter::WriteSlow(const absl::Cord& src) {
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       move_cursor(src.size());
       char* dest = cursor();
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         std::memcpy(dest, fragment.data(), fragment.size());
         dest += fragment.size();
       }
@@ -368,7 +368,7 @@ bool PushableBackwardWriter::WriteSlow(absl::Cord&& src) {
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       move_cursor(src.size());
       char* dest = cursor();
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         std::memcpy(dest, fragment.data(), fragment.size());
         dest += fragment.size();
       }

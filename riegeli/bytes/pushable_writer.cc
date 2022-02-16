@@ -342,7 +342,7 @@ bool PushableWriter::WriteSlow(const absl::Cord& src) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       char* dest = cursor();
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         std::memcpy(dest, fragment.data(), fragment.size());
         dest += fragment.size();
       }
@@ -361,7 +361,7 @@ bool PushableWriter::WriteSlow(absl::Cord&& src) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       char* dest = cursor();
-      for (absl::string_view fragment : src.Chunks()) {
+      for (const absl::string_view fragment : src.Chunks()) {
         std::memcpy(dest, fragment.data(), fragment.size());
         dest += fragment.size();
       }

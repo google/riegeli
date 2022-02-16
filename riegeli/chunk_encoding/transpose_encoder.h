@@ -27,6 +27,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -198,7 +199,7 @@ class TransposeEncoder : public ChunkEncoder {
   // set yet. It contains pairs of (`tag_index`, `state_index`).
   void ComputeBaseIndices(
       uint32_t max_transition, uint32_t public_list_base,
-      const std::vector<std::pair<uint32_t, uint32_t>>& public_list_noops,
+      absl::Span<const std::pair<uint32_t, uint32_t>> public_list_noops,
       std::vector<StateInfo>& state_machine);
 
   // Traverse `encoded_tags_` and populate `num_incoming_transitions` and
@@ -212,13 +213,13 @@ class TransposeEncoder : public ChunkEncoder {
   // Write state machine states into `header_writer` and all data buffers and
   // transitions into `data_writer` (compressed using `compressor_`).
   bool WriteStatesAndData(uint32_t max_transition,
-                          const std::vector<StateInfo>& state_machine,
+                          absl::Span<const StateInfo> state_machine,
                           Writer& header_writer, Writer& data_writer);
 
   // Write all state machine transitions from `encoded_tags_` into
   // `compressor_.writer()`.
   bool WriteTransitions(uint32_t max_transition,
-                        const std::vector<StateInfo>& state_machine,
+                        absl::Span<const StateInfo> state_machine,
                         Writer& transitions_writer);
 
   // Value type of node in Nodes map.

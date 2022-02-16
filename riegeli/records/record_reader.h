@@ -64,7 +64,7 @@ class RecordsMetadataDescriptors : public Object {
   const google::protobuf::Descriptor* descriptor() const;
 
   // Returns record type full name, or an empty string if not available.
-  const std::string& record_type_name() const { return record_type_name_; }
+  absl::string_view record_type_name() const { return record_type_name_; }
 
  private:
   class ErrorCollector;

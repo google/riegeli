@@ -33,6 +33,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -504,7 +505,7 @@ inline bool TransposeEncoder::WriteBuffers(
   buffer_sizes.reserve(num_buffers);
 
   chunk_encoding_internal::Compressor bucket_compressor(compressor_options_);
-  for (const std::vector<BufferWithMetadata>& buffers : data_) {
+  for (absl::Span<const BufferWithMetadata> buffers : data_) {
     // Split data into buckets.
     size_t remaining_buffers_size = 0;
     for (const BufferWithMetadata& buffer : buffers) {
@@ -513,7 +514,7 @@ inline bool TransposeEncoder::WriteBuffers(
 
     std::vector<size_t> uncompressed_bucket_sizes;
     size_t current_bucket_size = 0;
-    for (std::vector<BufferWithMetadata>::const_reverse_iterator iter =
+    for (absl::Span<const BufferWithMetadata>::const_reverse_iterator iter =
              buffers.crbegin();
          iter != buffers.crend(); ++iter) {
       const size_t current_buffer_size = iter->buffer->size();
@@ -608,7 +609,7 @@ inline bool TransposeEncoder::WriteBuffers(
 }
 
 inline bool TransposeEncoder::WriteStatesAndData(
-    uint32_t max_transition, const std::vector<StateInfo>& state_machine,
+    uint32_t max_transition, absl::Span<const StateInfo> state_machine,
     Writer& header_writer, Writer& data_writer) {
   if (!encoded_tags_.empty() &&
       tags_list_[encoded_tags_[0]].dest_info.size() == 1) {
@@ -769,7 +770,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
 }
 
 inline bool TransposeEncoder::WriteTransitions(
-    uint32_t max_transition, const std::vector<StateInfo>& state_machine,
+    uint32_t max_transition, absl::Span<const StateInfo> state_machine,
     Writer& transitions_writer) {
   if (encoded_tags_.empty()) return true;
   uint32_t prev_etag = encoded_tags_.back();
@@ -921,7 +922,7 @@ inline void TransposeEncoder::CollectTransitionStatistics() {
 
 inline void TransposeEncoder::ComputeBaseIndices(
     uint32_t max_transition, uint32_t public_list_base,
-    const std::vector<std::pair<uint32_t, uint32_t>>& public_list_noops,
+    absl::Span<const std::pair<uint32_t, uint32_t>> public_list_noops,
     std::vector<StateInfo>& state_machine) {
   // The related transitions reach a state in the public list so the valid
   // approach would be to simply set all of these to `public_list_base`.

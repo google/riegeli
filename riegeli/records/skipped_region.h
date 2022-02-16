@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -47,7 +48,7 @@ class SkippedRegion {
   Position length() const { return end_ - begin_; }
 
   // Message explaining why the region is invalid.
-  const std::string& message() const { return message_; }
+  absl::string_view message() const { return message_; }
 
   // Formats `SkippedRegion` as string: "[<begin>..<end>): <message>".
   std::string ToString() const;

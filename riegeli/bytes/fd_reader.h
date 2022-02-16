@@ -167,7 +167,7 @@ class FdReaderBase : public BufferedReader {
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
-  const std::string& filename() const { return filename_; }
+  absl::string_view filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsNewReader() override { return supports_random_access(); }
@@ -300,7 +300,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
-  const std::string& filename() const { return filename_; }
+  absl::string_view filename() const { return filename_; }
 
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool SupportsNewReader() override { return true; }

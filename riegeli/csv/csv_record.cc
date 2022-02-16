@@ -423,10 +423,11 @@ absl::Status CsvRecord::TryMerge(
 }
 
 absl::Status CsvRecord::FailMerge(
-    const std::vector<std::string>& missing_names) const {
+    absl::Span<const std::string> missing_names) const {
   StringWriter<std::string> message;
   message.Write("Missing field names: ");
-  for (std::vector<std::string>::const_iterator iter = missing_names.cbegin();
+  for (absl::Span<const std::string>::const_iterator iter =
+           missing_names.cbegin();
        iter != missing_names.cend(); ++iter) {
     if (iter != missing_names.cbegin()) message.WriteChar(',');
     csv_internal::WriteDebugQuotedIfNeeded(*iter, message);

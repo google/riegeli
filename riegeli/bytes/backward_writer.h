@@ -483,7 +483,7 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     char* dest = cursor();
-    for (absl::string_view fragment : src.Chunks()) {
+    for (const absl::string_view fragment : src.Chunks()) {
       std::memcpy(dest, fragment.data(), fragment.size());
       dest += fragment.size();
     }
@@ -497,7 +497,7 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     char* dest = cursor();
-    for (absl::string_view fragment : src.Chunks()) {
+    for (const absl::string_view fragment : src.Chunks()) {
       std::memcpy(dest, fragment.data(), fragment.size());
       dest += fragment.size();
     }

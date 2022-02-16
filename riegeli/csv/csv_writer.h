@@ -201,7 +201,8 @@ class CsvWriterBase : public Object {
   // Writes the next record expressed as a sequence of fields.
   //
   // The type of `record` must support iteration yielding `absl::string_view`:
-  // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
+  // `for (const absl::string_view field : record)`,
+  // e.g. `std::vector<std::string>`.
   //
   // By a common convention each record should consist of the same number of
   // fields, but this is not enforced.
@@ -380,7 +381,8 @@ explicit CsvWriter(std::tuple<DestArgs...> dest_args,
 // A record terminator will not be included.
 //
 // The type of `record` must support iteration yielding `absl::string_view`:
-// `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
+// `for (const absl::string_view field : record)`,
+// e.g. `std::vector<std::string>`.
 //
 // Preconditions:
 //  * `options.header() == absl::nullopt`

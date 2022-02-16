@@ -43,6 +43,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/options_parser.h"
@@ -176,7 +177,7 @@ class Benchmarks {
   static void WriteTFRecord(
       absl::string_view filename,
       const tensorflow::io::RecordWriterOptions& record_writer_options,
-      const std::vector<std::string>& records);
+      absl::Span<const std::string> records);
   static bool ReadTFRecord(
       absl::string_view filename,
       const tensorflow::io::RecordReaderOptions& record_reader_options,
@@ -185,7 +186,7 @@ class Benchmarks {
   static void WriteRiegeli(
       absl::string_view filename,
       riegeli::RecordWriterBase::Options record_writer_options,
-      const std::vector<std::string>& records);
+      absl::Span<const std::string> records);
   static bool ReadRiegeli(
       absl::string_view filename,
       riegeli::RecordReaderBase::Options record_reader_options,
@@ -193,8 +194,7 @@ class Benchmarks {
 
   void RunOne(
       absl::string_view name,
-      absl::FunctionRef<void(absl::string_view,
-                             const std::vector<std::string>&)>
+      absl::FunctionRef<void(absl::string_view, absl::Span<const std::string>)>
           write_records,
       absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
           read_records,
@@ -253,7 +253,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
 void Benchmarks::WriteTFRecord(
     absl::string_view filename,
     const tensorflow::io::RecordWriterOptions& record_writer_options,
-    const std::vector<std::string>& records) {
+    absl::Span<const std::string> records) {
   tensorflow::Env* const env = tensorflow::Env::Default();
   std::unique_ptr<tensorflow::WritableFile> file_writer;
   {
@@ -263,7 +263,7 @@ void Benchmarks::WriteTFRecord(
   }
   tensorflow::io::RecordWriter record_writer(file_writer.get(),
                                              record_writer_options);
-  for (absl::string_view record : records) {
+  for (const absl::string_view record : records) {
     const tensorflow::Status status = record_writer.WriteRecord(record);
     RIEGELI_CHECK(status.ok()) << status;
   }
@@ -304,10 +304,10 @@ bool Benchmarks::ReadTFRecord(
 void Benchmarks::WriteRiegeli(
     absl::string_view filename,
     riegeli::RecordWriterBase::Options record_writer_options,
-    const std::vector<std::string>& records) {
+    absl::Span<const std::string> records) {
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
       std::forward_as_tuple(filename), std::move(record_writer_options));
-  for (const std::string& record : records) {
+  for (const absl::string_view record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
   }
   RIEGELI_CHECK(record_writer.Close()) << record_writer.status();
@@ -349,7 +349,7 @@ Benchmarks::Benchmarks(std::vector<std::string> records, std::string output_dir,
       original_size_(0),
       output_dir_(std::move(output_dir)),
       repetitions_(repetitions) {
-  for (const std::string& record : records_) {
+  for (const absl::string_view record : records_) {
     original_size_ += riegeli::LengthVarint64(record.size()) + record.size();
   }
 }
@@ -405,8 +405,7 @@ void Benchmarks::RunAll(riegeli::Writer& report) {
        tfrecord_benchmarks_) {
     RunOne(
         absl::StrCat("tfrecord ", tfrecord_options.first),
-        [&](absl::string_view filename,
-            const std::vector<std::string>& records) {
+        [&](absl::string_view filename, absl::Span<const std::string> records) {
           WriteTFRecord(
               filename,
               tensorflow::io::RecordWriterOptions::CreateRecordWriterOptions(
@@ -426,8 +425,7 @@ void Benchmarks::RunAll(riegeli::Writer& report) {
            riegeli_options : riegeli_benchmarks_) {
     RunOne(
         absl::StrCat("riegeli ", riegeli_options.first),
-        [&](absl::string_view filename,
-            const std::vector<std::string>& records) {
+        [&](absl::string_view filename, absl::Span<const std::string> records) {
           WriteRiegeli(filename, riegeli_options.second, records);
         },
         [&](absl::string_view filename, std::vector<std::string>* records) {
@@ -440,7 +438,7 @@ void Benchmarks::RunAll(riegeli::Writer& report) {
 
 void Benchmarks::RunOne(
     absl::string_view name,
-    absl::FunctionRef<void(absl::string_view, const std::vector<std::string>&)>
+    absl::FunctionRef<void(absl::string_view, absl::Span<const std::string>)>
         write_records,
     absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
         read_records,

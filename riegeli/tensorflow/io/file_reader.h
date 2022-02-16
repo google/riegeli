@@ -108,7 +108,7 @@ class FileReaderBase : public Reader {
 
   // Returns the name of the `::tensorflow::RandomAccessFile` being read from.
   // Unchanged by `Close()`.
-  const std::string& filename() const { return filename_; }
+  absl::string_view filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return !filename_.empty(); }
   bool SupportsNewReader() override { return !filename_.empty(); }

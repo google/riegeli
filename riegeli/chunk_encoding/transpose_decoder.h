@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "absl/types/span.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -147,7 +148,7 @@ class TransposeDecoder : public Object {
   // `submessage_stack`, and `node.node_template`.
   bool SetCallbackType(
       Context& context, int skipped_submessage_level,
-      const std::vector<SubmessageStackElement>& submessage_stack,
+      absl::Span<const SubmessageStackElement> submessage_stack,
       StateMachineNode& node);
 };
 
