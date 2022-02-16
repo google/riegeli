@@ -844,7 +844,10 @@ extern template absl::Status CsvHeader::TryAdd(std::string&& name);
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(absl::string_view name,
                                       Names&&... names) {
-  if (absl::Status status = TryAdd(name); !status.ok()) return status;
+  {
+    absl::Status status = TryAdd(name);
+    if (!status.ok()) return status;
+  }
   return TryAdd(std::forward<Names>(names)...);
 }
 
