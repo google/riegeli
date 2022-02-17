@@ -209,6 +209,14 @@ class AnyDependencyImpl {
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
   /*implicit*/ AnyDependencyImpl(Manager&& manager);
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
+                    IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+                int> = 0>
+  AnyDependencyImpl& operator=(Manager&& manager);
 
   // Holds a `Dependency<Ptr, Manager>`.
   //
@@ -613,6 +621,23 @@ template <typename Manager,
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
     Manager&& manager) {
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<std::is_same<
+                      std::decay_t<Manager>,
+                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
+                  IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+              int>>
+inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
+AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
+    Manager&& manager) {
+  methods_->destroy(repr_.storage);
+  Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
+  return *this;
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
