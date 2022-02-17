@@ -39,8 +39,9 @@ class AnyDependencyRefImpl;
 // as `Ptr` and stored as some `Manager` type decided when the `AnyDependency`
 // is initialized.
 //
-// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M`, `M*` or
-// `std::unique_ptr<M>`, with `M` derived from `P` or sometimes containing `P`.
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
+// `M*` (not owned), `M` (owned), or `std::unique_ptr<M>` (owned), with `M`
+// derived from `P`.
 //
 // `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
 // type, erasing the `Manager` parameter from the type of the `AnyDependency`,
@@ -59,9 +60,9 @@ using AnyDependency = AnyDependencyImpl<
 // accessed as `Ptr` and was passed as some `Manager` type decided when the
 // `AnyDependencyRef` was initialized.
 //
-// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M&`
-// (not owned), `M&&` (owned), or `std::unique_ptr<M>`, with `M` derived from
-// `P` or sometimes containing `P`.
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
+// `M&` (not owned), `M&&` (owned), or `std::unique_ptr<M>` (owned), with `M`
+// derived from `P`.
 //
 // `AnyDependencyRef<Ptr>` derives from `AnyDependency<Ptr>`, replacing the
 // constructors such that the `Manager` type is deduced from the constructor

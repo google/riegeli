@@ -31,26 +31,33 @@ namespace riegeli {
 // `Dependency<Ptr, Manager>` refers to an optionally owned object which is
 // stored as `Manager` and accessed as `Ptr`.
 //
-// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g. `M`, `M*` or
-// `std::unique_ptr<M>`, with `M` derived from `P` or sometimes containing `P`.
+// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
+// `M*` (not owned), `M` (owned), or `std::unique_ptr<M>` (owned), with `M`
+// derived from `P`.
 //
 // Often `Dependency<Ptr, Manager>` is a member of a host class template
-// parameterized by `Manager`, with `Ptr` fixed by the host class. A user of the
-// host class specifies ownership of the dependent object and possibly narrows
-// its type by choosing the `Manager` template argument of the host class.
+// parameterized by `Manager`, with `Ptr` fixed by the host class. The member
+// is often initialized from a constructor argument. A user of the host class
+// specifies ownership of the dependent object and possibly narrows its type by
+// choosing the `Manager` template argument of the host class. The `Manager`
+// type can be deduced from a constructor argument using CTAD (since C++17).
 //
-// `Manager` can also be an lvalue reference or rvalue reference. This case
-// is meant to be used only when the dependency is constructed locally in a
-// function rather than stored in a host object, because such a dependency
-// stores a reference to the dependent object, and by convention a reference
-// argument is expected to be valid only for the duration of the function call.
-// Typically the `Manager` type is deduced from a function argument.
+// `Manager` can also be `M&` (not owned) or `M&&` (owned). This is primarily
+// meant to be used when the dependency is constructed locally in a function
+// rather than stored in a host object, because such a dependency stores only a
+// reference to the dependent object, and by convention a reference argument is
+// expected to be valid only for the duration of the function call. Typically
+// the `Manager` type is deduced from a function argument.
 //
-// This case allows to pass an unowned dependency by lvalue reference instead of
-// by pointer, which allows for a more idiomatic API for passing an object which
-// does not need to be valid after the function returns. And this allows to pass
-// an owned dependency by rvalue reference instead of by value, which avoids
-// moving it.
+// `Manager` being `M&` is functionally equivalent to `M*`, but offers a more
+// idiomatic API for passing an object which does not need to be valid after the
+// function returns.
+//
+// `Manager` being `M&&` owns an object without moving it. This can be useful
+// also as a template argument of a host class, as long as the user ensures that
+// the dependent object lives longer than the host object, i.e. the constructor
+// argument should be `std::move()` applied to a longer lived dependent object,
+// not a temporary.
 
 // `Dependency<Ptr, Manager>` derives from `DependencyImpl<Ptr, Manager>` which
 // has specializations for various combinations of `Ptr` and `Manager` types.
