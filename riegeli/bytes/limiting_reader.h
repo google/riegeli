@@ -288,8 +288,6 @@ class LimitingReader : public LimitingReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
   bool SyncImpl(SyncType sync_type) override;
@@ -556,16 +554,6 @@ void LimitingReader<Src>::Done() {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }
-  }
-}
-
-template <typename Src>
-void LimitingReader<Src>::VerifyEnd() {
-  LimitingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
-    SyncBuffer(*src_);
-    src_->VerifyEnd();
-    MakeBuffer(*src_);
   }
 }
 
