@@ -349,15 +349,13 @@ inline absl::Status SnappyDecompress(Src&& src, Dest&& dest,
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
   absl::Status status = snappy_internal::SnappyDecompressImpl(
       *src_ref, *dest_ref, std::move(options));
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest_ref->status();
+  if (src_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
+      status = src_ref->status();
     }
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src_ref->status();
-    }
+  if (dest_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
   }
   return status;
 }

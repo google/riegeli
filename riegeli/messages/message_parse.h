@@ -60,9 +60,9 @@ class ParseOptions {
 // entire input will be consumed.
 //
 // The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
-// e.g. `Reader&` (not owned), `Reader*` (not owned),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// possibly owning the `Reader`. `Src` must support
+// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
 //
 // With a `src_args` parameter, reads from a `Src` constructed from elements of
 // `src_args`. This avoids constructing a temporary `Src` and moving from it.
@@ -145,7 +145,9 @@ inline absl::Status ParseFromReader(Src&& src,
   absl::Status status =
       messages_internal::ParseFromReaderImpl(*src_ref, dest, options);
   if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->Close())) status = src_ref->status();
+    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
+      status = src_ref->status();
+    }
   }
   return status;
 }
