@@ -32,6 +32,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 
@@ -423,6 +424,37 @@ class Writer : public Object {
   Position start_pos_ = 0;
 };
 
+// Combines creating a `Writer`, calling `Write()`, and `Close()` (if the
+// `Writer` is owned).
+//
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
+// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned).
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(absl::string_view src, Dest&& dest);
+template <typename Src, typename Dest,
+          std::enable_if_t<std::is_same<Src, std::string>::value &&
+                               IsValidDependency<Writer*, Dest&&>::value,
+                           int> = 0>
+absl::Status Write(Src&& src, Dest&& dest);
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(const char* src, size_t length, Dest&& dest);
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(const Chain& src, Dest&& dest);
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(Chain&& src, Dest&& dest);
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(const absl::Cord& src, Dest&& dest);
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+absl::Status Write(absl::Cord&& src, Dest&& dest);
+
 // Helps to implement `ReadMode()`. Stores a lazily created `Reader` of the
 // given concrete type.
 //
@@ -700,6 +732,70 @@ inline Reader* Writer::ReadMode(Position initial_pos) {
 
 inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
   dest->Write(src);
+}
+
+namespace writer_internal {
+
+template <typename Src, typename Dest>
+inline absl::Status WriteImpl(Src&& src, Dest&& dest) {
+  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  absl::Status status;
+  if (ABSL_PREDICT_FALSE(!dest_ref->Write(std::forward<Src>(src)))) {
+    status = dest_ref->status();
+  }
+  if (dest_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
+  }
+  return status;
+}
+
+}  // namespace writer_internal
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(absl::string_view src, Dest&& dest) {
+  return writer_internal::WriteImpl(src, std::forward<Dest>(dest));
+}
+
+template <typename Src, typename Dest,
+          std::enable_if_t<std::is_same<Src, std::string>::value &&
+                               IsValidDependency<Writer*, Dest&&>::value,
+                           int>>
+inline absl::Status Write(Src&& src, Dest&& dest) {
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
+  return writer_internal::WriteImpl(std::move(src), std::forward<Dest>(dest));
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(const char* src, size_t length, Dest&& dest) {
+  return writer_internal::WriteImpl(absl::string_view(src, length),
+                                    std::forward<Dest>(dest));
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(const Chain& src, Dest&& dest) {
+  return writer_internal::WriteImpl(src, std::forward<Dest>(dest));
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(Chain&& src, Dest&& dest) {
+  return writer_internal::WriteImpl(std::move(src), std::forward<Dest>(dest));
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(const absl::Cord& src, Dest&& dest) {
+  return writer_internal::WriteImpl(src, std::forward<Dest>(dest));
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status Write(absl::Cord&& src, Dest&& dest) {
+  return writer_internal::WriteImpl(std::move(src), std::forward<Dest>(dest));
 }
 
 namespace writer_internal {
