@@ -83,7 +83,8 @@ class RecyclingPool {
   // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
-  Handle Get(Factory factory, Refurbisher refurbisher = DefaultRefurbisher());
+  Handle Get(Factory&& factory,
+             Refurbisher&& refurbisher = DefaultRefurbisher());
 
  private:
   void EnsureMaxSize(size_t max_size) ABSL_LOCKS_EXCLUDED(mutex_);
@@ -159,8 +160,8 @@ class KeyedRecyclingPool {
   // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
-  Handle Get(Key key, Factory factory,
-             Refurbisher refurbisher = DefaultRefurbisher());
+  Handle Get(Key key, Factory&& factory,
+             Refurbisher&& refurbisher = DefaultRefurbisher());
 
  private:
   // Adding or removing elements in `ByFreshness` must not invalidate other
@@ -267,7 +268,7 @@ inline void RecyclingPool<T, Deleter>::EnsureMaxSize(size_t max_size) {
 template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
-    Factory factory, Refurbisher refurbisher) {
+    Factory&& factory, Refurbisher&& refurbisher) {
   std::unique_ptr<T, Deleter> returned;
   {
     absl::MutexLock lock(&mutex_);
@@ -281,9 +282,9 @@ typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
     }
   }
   if (ABSL_PREDICT_TRUE(returned != nullptr)) {
-    refurbisher(returned.get());
+    std::forward<Refurbisher>(refurbisher)(returned.get());
   } else {
-    returned = factory();
+    returned = std::forward<Factory>(factory)();
   }
   return Handle(returned.release(),
                 Recycler(this, std::move(returned.get_deleter())));
@@ -361,8 +362,8 @@ inline void KeyedRecyclingPool<T, Key, Deleter>::EnsureMaxSize(
 template <typename T, typename Key, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename KeyedRecyclingPool<T, Key, Deleter>::Handle
-KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory factory,
-                                         Refurbisher refurbisher) {
+KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
+                                         Refurbisher&& refurbisher) {
   std::unique_ptr<T, Deleter> returned;
   {
     absl::MutexLock lock(&mutex_);
@@ -394,9 +395,9 @@ KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory factory,
     cache_ = by_key_iter;
   }
   if (ABSL_PREDICT_TRUE(returned != nullptr)) {
-    refurbisher(returned.get());
+    std::forward<Refurbisher>(refurbisher)(returned.get());
   } else {
-    returned = factory();
+    returned = std::forward<Factory>(factory)();
   }
   return Handle(
       returned.release(),

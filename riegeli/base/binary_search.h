@@ -162,7 +162,7 @@ template <
     std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
                          Test, Pos>::value,
                      int> = 0>
-SearchResult<Pos> BinarySearch(Pos low, Pos high, Test test);
+SearchResult<Pos> BinarySearch(Pos low, Pos high, Test&& test);
 template <
     typename Traits, typename Test,
     std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
@@ -170,7 +170,7 @@ template <
                      int> = 0>
 SearchResult<typename Traits::Pos> BinarySearch(typename Traits::Pos low,
                                                 typename Traits::Pos high,
-                                                Test test,
+                                                Test&& test,
                                                 const Traits& traits);
 
 // A variant of `BinarySearch()` which supports cancellation.
@@ -182,14 +182,14 @@ template <typename Pos, typename Test,
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, Pos>::value,
               int> = 0>
-absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test test);
+absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test&& test);
 template <typename Traits, typename Test,
           std::enable_if_t<
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, typename Traits::Pos>::value,
               int> = 0>
 absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
-    typename Traits::Pos low, typename Traits::Pos high, Test test,
+    typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits);
 
 // The `traits` parameter of `BinarySearch()` specifies the space of positions
@@ -274,8 +274,8 @@ template <
     std::enable_if_t<binary_search_internal::TestReturnsOrderingOrSearchGuide<
                          Test, Pos>::value,
                      int>>
-inline SearchResult<Pos> BinarySearch(Pos low, Pos high, Test test) {
-  return BinarySearch(std::move(low), std::move(high), std::move(test),
+inline SearchResult<Pos> BinarySearch(Pos low, Pos high, Test&& test) {
+  return BinarySearch(std::move(low), std::move(high), std::forward<Test>(test),
                       DefaultSearchTraits<Pos>());
 }
 
@@ -285,7 +285,7 @@ template <
                          Test, typename Traits::Pos>::value,
                      int>>
 inline SearchResult<typename Traits::Pos> BinarySearch(
-    typename Traits::Pos low, typename Traits::Pos high, Test test,
+    typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits) {
   // Invariants:
   //  * All positions between the original `low` and the current `low` are
@@ -353,8 +353,8 @@ template <typename Pos, typename Test,
                   Test, Pos>::value,
               int>>
 inline absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
-                                                      Test test) {
-  return BinarySearch(std::move(low), std::move(high), std::move(test),
+                                                      Test&& test) {
+  return BinarySearch(std::move(low), std::move(high), std::forward<Test>(test),
                       DefaultSearchTraits<Pos>());
 }
 
@@ -364,7 +364,7 @@ template <typename Traits, typename Test,
                   Test, typename Traits::Pos>::value,
               int>>
 inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
-    typename Traits::Pos low, typename Traits::Pos high, Test test,
+    typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits) {
   bool cancelled = false;
   SearchResult<typename Traits::Pos> result = BinarySearch(

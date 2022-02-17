@@ -384,7 +384,7 @@ class RecordReaderBase : public Object {
   // callable with an argument of type `Record&` or `const Record&`, returning
   // `absl::optional<absl::partial_ordering>`.
   template <typename Record, typename Test>
-  absl::optional<absl::partial_ordering> Search(Test test);
+  absl::optional<absl::partial_ordering> Search(Test&& test);
 
  protected:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
@@ -635,7 +635,7 @@ inline RecordPosition RecordReaderBase::pos() const {
 }
 
 template <typename Record, typename Test>
-absl::optional<absl::partial_ordering> RecordReaderBase::Search(Test test) {
+absl::optional<absl::partial_ordering> RecordReaderBase::Search(Test&& test) {
   Record record;
   return Search(
       [&](RecordReaderBase& self) -> absl::optional<absl::partial_ordering> {

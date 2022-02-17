@@ -513,7 +513,7 @@ const char kUsage[] =
     "FILEs may be TFRecord or Riegeli/records files.\n";
 
 template <typename Function>
-void ForEachWord(absl::string_view words, Function f) {
+void ForEachWord(absl::string_view words, Function&& f) {
   for (const absl::string_view word :
        absl::StrSplit(words, absl::ByAnyChar("\t\n "), absl::SkipEmpty())) {
     f(word);
