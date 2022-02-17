@@ -26,14 +26,14 @@ namespace riegeli {
 
 // Owns a `FILE` (`nullptr` means none).
 //
-// `OwnedCFile` is implicitly convertible from `FILE*`.
+// `OwnedCFile` is explicitly convertible from `FILE*`.
 class OwnedCFile {
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() noexcept {}
 
   // Creates an `OwnedCFile` which owns `file` if `file != nullptr`.
-  /*implicit*/ OwnedCFile(FILE* file) noexcept : file_(file) {}
+  explicit OwnedCFile(FILE* file) noexcept : file_(file) {}
 
   OwnedCFile(OwnedCFile&& that) noexcept;
   OwnedCFile& operator=(OwnedCFile&& that) noexcept;
@@ -68,14 +68,14 @@ class OwnedCFile {
 
 // Refers to a `FILE` but does not own it (`nullptr` means none).
 //
-// `UnownedCFile` is implicitly convertible from `FILE*`.
+// `UnownedCFile` is explicitly convertible from `FILE*`.
 class UnownedCFile {
  public:
   // Creates an `UnownedCFile` which does not refer to a file.
   UnownedCFile() noexcept {}
 
   // Creates an `UnownedCFile` which refers to `file` if `file != nullptr`.
-  /*implicit*/ UnownedCFile(FILE* file) noexcept : file_(file) {}
+  explicit UnownedCFile(FILE* file) noexcept : file_(file) {}
 
   UnownedCFile(const UnownedCFile& that) noexcept = default;
   UnownedCFile& operator=(const UnownedCFile& that) noexcept = default;

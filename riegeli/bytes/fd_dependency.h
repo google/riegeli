@@ -25,14 +25,14 @@ namespace riegeli {
 
 // Owns a file descriptor (-1 means none).
 //
-// `OwnedFd` is implicitly convertible from `int`.
+// `OwnedFd` is explicitly convertible from `int`.
 class OwnedFd {
  public:
   // Creates an `OwnedFd` which does not own a fd.
   OwnedFd() noexcept {}
 
   // Creates an `OwnedFd` which owns `fd` if `fd >= 0`.
-  /*implicit*/ OwnedFd(int fd) noexcept : fd_(fd) {}
+  explicit OwnedFd(int fd) noexcept : fd_(fd) {}
 
   OwnedFd(OwnedFd&& that) noexcept;
   OwnedFd& operator=(OwnedFd&& that) noexcept;
@@ -55,14 +55,14 @@ class OwnedFd {
 // Refers to a file descriptor but does not own it (a negative value means
 // none).
 //
-// `UnownedFd` is implicitly convertible from `int`.
+// `UnownedFd` is explicitly convertible from `int`.
 class UnownedFd {
  public:
   // Creates an `UnownedFd` which does not refer to a fd.
   UnownedFd() noexcept {}
 
   // Creates an `UnownedFd` which refers to `fd` if `fd >= 0`.
-  /*implicit*/ UnownedFd(int fd) noexcept : fd_(fd) {}
+  explicit UnownedFd(int fd) noexcept : fd_(fd) {}
 
   UnownedFd(const UnownedFd& that) noexcept = default;
   UnownedFd& operator=(const UnownedFd& that) noexcept = default;
