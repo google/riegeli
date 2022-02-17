@@ -223,6 +223,7 @@ bool LimitingReaderBase::SeekSlow(Position new_pos) {
 }
 
 bool LimitingReaderBase::SupportsSize() {
+  if (exact_) return true;
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsSize();
 }
