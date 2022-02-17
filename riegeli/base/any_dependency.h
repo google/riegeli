@@ -99,6 +99,12 @@ struct AnyDependencyTraits {
   static Ptr DefaultPtr() { return Ptr(); }
 };
 
+// Specialization of `AnyDependencyTraits<int>`, used for file descriptors.
+template <>
+struct AnyDependencyTraits<int> {
+  static int DefaultPtr() { return -1; }
+};
+
 namespace any_dependency_internal {
 
 // Variants of `Repr`:

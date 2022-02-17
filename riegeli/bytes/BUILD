@@ -428,10 +428,7 @@ cc_library(
 
 cc_library(
     name = "array_writer",
-    srcs = [
-        "array_writer.cc",
-        "span_dependency.h",
-    ],
+    srcs = ["array_writer.cc"],
     hdrs = ["array_writer.h"],
     deps = [
         ":pushable_writer",
@@ -448,10 +445,7 @@ cc_library(
 
 cc_library(
     name = "array_backward_writer",
-    srcs = [
-        "array_backward_writer.cc",
-        "span_dependency.h",
-    ],
+    srcs = ["array_backward_writer.cc"],
     hdrs = ["array_backward_writer.h"],
     deps = [
         ":pushable_backward_writer",
@@ -481,10 +475,7 @@ cc_library(
 
 cc_library(
     name = "string_reader",
-    srcs = [
-        "string_reader.cc",
-        "string_view_dependency.h",
-    ],
+    srcs = ["string_reader.cc"],
     hdrs = ["string_reader.h"],
     deps = [
         ":reader",
@@ -492,7 +483,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

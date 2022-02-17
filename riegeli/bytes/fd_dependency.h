@@ -103,13 +103,6 @@ class DependencyImpl<int, UnownedFd> : public DependencyBase<UnownedFd> {
   static constexpr bool kIsStable = true;
 };
 
-// Specialization of `AnyDependencyTraits<int>`.
-
-template <>
-struct AnyDependencyTraits<int> {
-  static int DefaultPtr() { return -1; }
-};
-
 // Implementation details follow.
 
 inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept

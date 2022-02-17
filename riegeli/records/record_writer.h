@@ -42,7 +42,6 @@
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/messages/message_serialize.h"
 #include "riegeli/records/chunk_writer.h"
-#include "riegeli/records/chunk_writer_dependency.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
 

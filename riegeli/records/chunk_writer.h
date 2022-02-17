@@ -229,6 +229,52 @@ explicit DefaultChunkWriter(
     -> DefaultChunkWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
+// Specialization of `DependencyImpl<ChunkWriter*, M>` adapted from
+// `DependencyImpl<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
+template <typename M>
+class DependencyImpl<ChunkWriter*, M,
+                     std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
+ public:
+  DependencyImpl() noexcept : chunk_writer_(kClosed) {}
+
+  explicit DependencyImpl(const M& manager) : chunk_writer_(manager) {}
+  explicit DependencyImpl(M&& manager) : chunk_writer_(std::move(manager)) {}
+
+  template <typename... MArgs>
+  explicit DependencyImpl(std::tuple<MArgs...> manager_args)
+      : chunk_writer_(std::move(manager_args)) {}
+
+  DependencyImpl(DependencyImpl&& that) noexcept
+      : chunk_writer_(std::move(that.chunk_writer_)) {}
+  DependencyImpl& operator=(DependencyImpl&& that) noexcept {
+    chunk_writer_ = std::move(that.chunk_writer_);
+    return *this;
+  }
+
+  void Reset() { chunk_writer_.Reset(kClosed); }
+
+  void Reset(const M& manager) { chunk_writer_.Reset(manager); }
+  void Reset(M&& manager) { chunk_writer_.Reset(std::move(manager)); }
+
+  template <typename... MArgs>
+  void Reset(std::tuple<MArgs...> manager_args) {
+    chunk_writer_.Reset(std::move(manager_args));
+  }
+
+  M& manager() { return chunk_writer_.dest(); }
+  const M& manager() const { return chunk_writer_.dest(); }
+
+  DefaultChunkWriter<M>* get() { return &chunk_writer_; }
+  const DefaultChunkWriter<M>* get() const { return &chunk_writer_; }
+  DefaultChunkWriter<M>* Release() { return nullptr; }
+
+  bool is_owning() const { return true; }
+  static constexpr bool kIsStable = false;
+
+ private:
+  DefaultChunkWriter<M> chunk_writer_;
+};
+
 // Implementation details follow.
 
 inline ChunkWriter::ChunkWriter(ChunkWriter&& that) noexcept

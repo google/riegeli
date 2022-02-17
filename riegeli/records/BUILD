@@ -6,10 +6,7 @@ licenses(["notice"])
 
 cc_library(
     name = "record_writer",
-    srcs = [
-        "chunk_writer_dependency.h",
-        "record_writer.cc",
-    ],
+    srcs = ["record_writer.cc"],
     hdrs = ["record_writer.h"],
     deps = [
         ":chunk_writer",
@@ -44,10 +41,7 @@ cc_library(
 
 cc_library(
     name = "record_reader",
-    srcs = [
-        "chunk_reader_dependency.h",
-        "record_reader.cc",
-    ],
+    srcs = ["record_reader.cc"],
     hdrs = ["record_reader.h"],
     deps = [
         ":chunk_reader",

@@ -41,7 +41,6 @@
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/records/chunk_reader.h"
-#include "riegeli/records/chunk_reader_dependency.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
 #include "riegeli/records/skipped_region.h"

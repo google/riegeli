@@ -23,6 +23,8 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 
@@ -506,6 +508,197 @@ class Dependency<Ptr, DeleteCtad<ConstructorArgTypes...>> {
   static_assert(dependency_internal::AlwaysFalse<ConstructorArgTypes...>::value,
                 "Template arguments must be written explicitly "
                 "with these constructor argument types");
+};
+
+// Specializations of `DependencyImpl<absl::string_view, Manager>`.
+
+namespace string_view_internal {
+
+inline absl::string_view ToStringView(absl::string_view value) { return value; }
+
+// `absl::Span<const char>` is accepted with a template to avoid implicit
+// conversions which can be ambiguous against `absl::string_view`
+// (e.g. `std::string`).
+template <typename T,
+          std::enable_if_t<
+              std::is_convertible<T, absl::Span<const char>>::value, int> = 0>
+inline absl::string_view ToStringView(const T& value) {
+  const absl::Span<const char> span = value;
+  return absl::string_view(span.data(), span.size());
+}
+
+}  // namespace string_view_internal
+
+// Specializations for `absl::string_view`, `absl::Span<const char>`,
+// `absl::Span<char>`, `const char*`, and `char*` are defined separately for
+// `kIsStable` to be `true`.
+
+template <>
+class DependencyImpl<absl::string_view, absl::string_view>
+    : public DependencyBase<absl::string_view> {
+ public:
+  using DependencyBase<absl::string_view>::DependencyBase;
+
+  absl::string_view get() const { return this->manager(); }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <>
+class DependencyImpl<absl::string_view, absl::Span<const char>>
+    : public DependencyBase<absl::Span<const char>> {
+ public:
+  using DependencyBase<absl::Span<const char>>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <>
+class DependencyImpl<absl::string_view, absl::Span<char>>
+    : public DependencyBase<absl::Span<char>> {
+ public:
+  using DependencyBase<absl::Span<char>>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <>
+class DependencyImpl<absl::string_view, const char*>
+    : public DependencyBase<const char*> {
+ public:
+  using DependencyBase<const char*>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <>
+class DependencyImpl<absl::string_view, char*> : public DependencyBase<char*> {
+ public:
+  using DependencyBase<char*>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <typename M>
+class DependencyImpl<
+    absl::string_view, M*,
+    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
+                     std::is_convertible<M, absl::Span<const char>>::value>>
+    : public DependencyBase<M*> {
+ public:
+  using DependencyBase<M*>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(*this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <typename M>
+class DependencyImpl<
+    absl::string_view, M,
+    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
+                     std::is_convertible<M, absl::Span<const char>>::value>>
+    : public DependencyBase<M> {
+ public:
+  using DependencyBase<M>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable = false;
+};
+
+template <typename M, typename Deleter>
+class DependencyImpl<
+    absl::string_view, std::unique_ptr<M, Deleter>,
+    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
+                     std::is_convertible<M, absl::Span<const char>>::value>>
+    : public DependencyBase<std::unique_ptr<M, Deleter>> {
+ public:
+  using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
+
+  absl::string_view get() const {
+    return string_view_internal::ToStringView(*this->manager());
+  }
+
+  static constexpr bool kIsStable = true;
+};
+
+// Specializations of `DependencyImpl<absl::Span<char>, Manager>`.
+
+// Specialization for `absl::Span<char>` itself is defined separately for
+// `kIsStable` to be `true`.
+template <>
+class DependencyImpl<absl::Span<char>, absl::Span<char>>
+    : public DependencyBase<absl::Span<char>> {
+ public:
+  using DependencyBase<absl::Span<char>>::DependencyBase;
+
+  absl::Span<char> get() const { return this->manager(); }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <typename M>
+class DependencyImpl<
+    absl::Span<char>, M*,
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>> : public DependencyBase<M*> {
+ public:
+  using DependencyBase<M*>::DependencyBase;
+
+  absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
+
+  static constexpr bool kIsStable = true;
+};
+
+template <typename M>
+class DependencyImpl<
+    absl::Span<char>, M,
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>> : public DependencyBase<M> {
+ public:
+  using DependencyBase<M>::DependencyBase;
+
+  absl::Span<char> get() { return absl::Span<char>(this->manager()); }
+  absl::Span<const char> get() const {
+    return absl::Span<const char>(this->manager());
+  }
+
+  static constexpr bool kIsStable = false;
+};
+
+template <typename M, typename Deleter>
+class DependencyImpl<
+    absl::Span<char>, std::unique_ptr<M, Deleter>,
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>>
+    : public DependencyBase<std::unique_ptr<M, Deleter>> {
+ public:
+  using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
+
+  absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
+
+  static constexpr bool kIsStable = true;
 };
 
 }  // namespace riegeli
