@@ -396,12 +396,6 @@ class FdReader : public FdReaderBase {
   // If opening the file fails, `FdReader` will be failed and closed.
   explicit FdReader(absl::string_view filename, Options options = Options());
 
-  ABSL_DEPRECATED(
-      "If the second argument is O_RDONLY, just remove it, "
-      "otherwise specify it with FdReaderBase::Options().set_mode(mode)")
-  explicit FdReader(absl::string_view filename, int mode,
-                    Options options = Options());
-
   FdReader(FdReader&& that) noexcept;
   FdReader& operator=(FdReader&& that) noexcept;
 
@@ -414,10 +408,6 @@ class FdReader : public FdReaderBase {
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
-  ABSL_DEPRECATED(
-      "If the second argument is O_RDONLY, just remove it, "
-      "otherwise specify it with FdReaderBase::Options().set_mode(mode)")
-  void Reset(absl::string_view filename, int mode, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
@@ -457,9 +447,6 @@ template <typename... SrcArgs>
 explicit FdReader(std::tuple<SrcArgs...> src_args,
                   FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-explicit FdReader(absl::string_view filename, int mode,
-                  FdReaderBase::Options options = FdReaderBase::Options())
-    ->FdReader<>;
 #endif
 
 // A `Reader` which reads from a file descriptor by mapping the whole file to
@@ -508,12 +495,6 @@ class FdMMapReader : public FdMMapReaderBase {
   explicit FdMMapReader(absl::string_view filename,
                         Options options = Options());
 
-  ABSL_DEPRECATED(
-      "If the second argument is O_RDONLY, just remove it, "
-      "otherwise specify it with FdMMapReaderBase::Options().set_mode(mode)")
-  explicit FdMMapReader(absl::string_view filename, int mode,
-                        Options options = Options());
-
   FdMMapReader(FdMMapReader&& that) noexcept;
   FdMMapReader& operator=(FdMMapReader&& that) noexcept;
 
@@ -526,10 +507,6 @@ class FdMMapReader : public FdMMapReaderBase {
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
-  ABSL_DEPRECATED(
-      "If the second argument is O_RDONLY, just remove it, "
-      "otherwise specify it with FdMMapReaderBase::Options().set_mode(mode)")
-  void Reset(absl::string_view filename, int mode, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
@@ -575,10 +552,6 @@ explicit FdMMapReader(
     std::tuple<SrcArgs...> src_args,
     FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
     -> FdMMapReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-explicit FdMMapReader(
-    absl::string_view filename, int mode,
-    FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
-    ->FdMMapReader<>;
 #endif
 
 // Implementation details follow.
@@ -688,11 +661,6 @@ inline FdReader<Src>::FdReader(absl::string_view filename, Options options)
 }
 
 template <typename Src>
-inline FdReader<Src>::FdReader(absl::string_view filename, int mode,
-                               Options options)
-    : FdReader(filename, std::move(options).set_mode(mode)) {}
-
-template <typename Src>
 inline FdReader<Src>::FdReader(FdReader&& that) noexcept
     : FdReaderBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -749,12 +717,6 @@ template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
-}
-
-template <typename Src>
-inline void FdReader<Src>::Reset(absl::string_view filename, int mode,
-                                 Options options) {
-  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Src>
@@ -820,11 +782,6 @@ inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
 }
 
 template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int mode,
-                                       Options options)
-    : FdMMapReader(filename, std::move(options).set_mode(mode)) {}
-
-template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
     : FdMMapReaderBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -883,12 +840,6 @@ inline void FdMMapReader<Src>::Reset(absl::string_view filename,
                                      Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
-}
-
-template <typename Src>
-inline void FdMMapReader<Src>::Reset(absl::string_view filename, int mode,
-                                     Options options) {
-  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Src>

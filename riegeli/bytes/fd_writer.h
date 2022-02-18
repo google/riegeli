@@ -317,12 +317,6 @@ class FdWriter : public FdWriterBase {
   // Opens a file for writing.
   //
   // If opening the file fails, `FdWriter` will be failed and closed.
-  explicit FdWriter(absl::string_view filename, int mode,
-                    Options options = Options());
-
-  ABSL_DEPRECATED(
-      "If the second argument is O_WRONLY | O_CREAT | O_TRUNC, just remove it, "
-      "otherwise specify it with FdWriterBase::Options().set_mode(mode)")
   explicit FdWriter(absl::string_view filename, Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
@@ -337,10 +331,6 @@ class FdWriter : public FdWriterBase {
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
-  ABSL_DEPRECATED(
-      "If the second argument is O_WRONLY | O_CREAT | O_TRUNC, just remove it, "
-      "otherwise specify it with FdWriterBase::Options().set_mode(mode)")
-  void Reset(absl::string_view filename, int mode, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
@@ -380,9 +370,6 @@ template <typename... DestArgs>
 explicit FdWriter(std::tuple<DestArgs...> dest_args,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit FdWriter(absl::string_view filename, int mode,
-                  FdWriterBase::Options options = FdWriterBase::Options())
-    ->FdWriter<>;
 #endif
 
 // Implementation details follow.
@@ -468,11 +455,6 @@ inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(absl::string_view filename, int mode,
-                                Options options)
-    : FdWriter(filename, std::move(options).set_mode(mode)) {}
-
-template <typename Dest>
 inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
     : FdWriterBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -529,12 +511,6 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
-}
-
-template <typename Dest>
-inline void FdWriter<Dest>::Reset(absl::string_view filename, int mode,
-                                  Options options) {
-  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Dest>

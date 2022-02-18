@@ -247,12 +247,6 @@ class CFileWriter : public CFileWriterBase {
   // If opening the file fails, `CFileWriter` will be failed and closed.
   explicit CFileWriter(absl::string_view filename, Options options = Options());
 
-  ABSL_DEPRECATED(
-      "If the second argument is \"w\", just remove it, "
-      "otherwise specify it with CFileWriterBase::Options().set_mode(mode)")
-  explicit CFileWriter(absl::string_view filename, const char* mode,
-                       Options options = Options());
-
   CFileWriter(CFileWriter&& that) noexcept;
   CFileWriter& operator=(CFileWriter&& that) noexcept;
 
@@ -265,11 +259,6 @@ class CFileWriter : public CFileWriterBase {
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
-  ABSL_DEPRECATED(
-      "If the second argument is \"w\", just remove it, "
-      "otherwise specify it with CFileWriterBase::Options().set_mode(mode)")
-  void Reset(absl::string_view filename, const char* mode,
-             Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
   // to. If the `FILE` is owned then changed to `nullptr` by `Close()`,
@@ -312,10 +301,6 @@ explicit CFileWriter(
     std::tuple<DestArgs...> dest_args,
     CFileWriterBase::Options options = CFileWriterBase::Options())
     -> CFileWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit CFileWriter(
-    absl::string_view filename, const char* mode,
-    CFileWriterBase::Options options = CFileWriterBase::Options())
-    ->CFileWriter<>;
 #endif
 
 // Implementation details follow.
@@ -399,11 +384,6 @@ inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
 }
 
 template <typename Dest>
-inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
-                                      const char* mode, Options options)
-    : CFileWriter(filename, std::move(options).set_mode(mode)) {}
-
-template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(CFileWriter&& that) noexcept
     : CFileWriterBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -462,12 +442,6 @@ inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
-}
-
-template <typename Dest>
-inline void CFileWriter<Dest>::Reset(absl::string_view filename,
-                                     const char* mode, Options options) {
-  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Dest>

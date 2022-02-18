@@ -221,12 +221,6 @@ class CFileReader : public CFileReaderBase {
   // If opening the file fails, `CFileReader` will be failed and closed.
   explicit CFileReader(absl::string_view filename, Options options = Options());
 
-  ABSL_DEPRECATED(
-      "If the second argument is \"r\", just remove it, "
-      "otherwise specify it with CFileReaderBase::Options().set_mode(mode)")
-  explicit CFileReader(absl::string_view filename, const char* mode,
-                       Options options = Options());
-
   CFileReader(CFileReader&& that) noexcept;
   CFileReader& operator=(CFileReader&& that) noexcept;
 
@@ -239,11 +233,6 @@ class CFileReader : public CFileReaderBase {
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
-  ABSL_DEPRECATED(
-      "If the second argument is \"r\", just remove it, "
-      "otherwise specify it with CFileReaderBase::Options().set_mode(mode)")
-  void Reset(absl::string_view filename, const char* mode,
-             Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. If the `FILE` is owned then changed to `nullptr` by `Close()`,
@@ -285,10 +274,6 @@ explicit CFileReader(
     std::tuple<SrcArgs...> src_args,
     CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-explicit CFileReader(
-    absl::string_view filename, const char* mode,
-    CFileReaderBase::Options options = CFileReaderBase::Options())
-    ->CFileReader<>;
 #endif
 
 // Implementation details follow.
@@ -360,11 +345,6 @@ inline CFileReader<Src>::CFileReader(absl::string_view filename,
 }
 
 template <typename Src>
-inline CFileReader<Src>::CFileReader(absl::string_view filename,
-                                     const char* mode, Options options)
-    : CFileReader(filename, std::move(options).set_mode(mode)) {}
-
-template <typename Src>
 inline CFileReader<Src>::CFileReader(CFileReader&& that) noexcept
     : CFileReaderBase(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -423,12 +403,6 @@ inline void CFileReader<Src>::Reset(absl::string_view filename,
                                     Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
-}
-
-template <typename Src>
-inline void CFileReader<Src>::Reset(absl::string_view filename,
-                                    const char* mode, Options options) {
-  Reset(filename, std::move(options).set_mode(mode));
 }
 
 template <typename Src>
