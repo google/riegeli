@@ -229,14 +229,10 @@ template <typename T>
 inline void RefCountedBase<T>::Unref() const {
   // Optimization: avoid an expensive atomic read-modify-write operation if the
   // reference count is 1.
-  if (ref_count_.load(std::memory_order_acquire) != 1) {
-    if (ABSL_PREDICT_TRUE(ref_count_.fetch_sub(1, std::memory_order_release) !=
-                          1)) {
-      return;
-    }
-    std::atomic_thread_fence(std::memory_order_acquire);
+  if (ref_count_.load(std::memory_order_acquire) == 1 ||
+      ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+    delete static_cast<T*>(const_cast<RefCountedBase*>(this));
   }
-  delete static_cast<T*>(const_cast<RefCountedBase*>(this));
 }
 
 template <typename T>
