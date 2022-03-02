@@ -29,15 +29,26 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/port.h"
 
 namespace riegeli {
 
 // Entities defined in namespace `riegeli` and macros beginning with `RIEGELI_`
 // are a part of the public API, except for entities defined in namespace
 // `riegeli::internal` and macros beginning with `RIEGELI_INTERNAL_`.
+
+// Clang has `__has_builtin()`. Other compilers need other means to detect
+// availability of builtins.
+#ifdef __has_builtin
+#define RIEGELI_INTERNAL_HAS_BUILTIN(x) __has_builtin(x)
+#else
+#define RIEGELI_INTERNAL_HAS_BUILTIN(x) 0
+#endif
+
+#define RIEGELI_INTERNAL_IS_GCC_VERSION(major, minor) \
+  (__GNUC__ > (major) || (__GNUC__ == (major) && __GNUC_MINOR__ >= (minor)))
 
 // `RIEGELI_DEBUG` determines whether assertions are verified or just assumed.
 // By default it follows `NDEBUG`.
@@ -585,20 +596,20 @@ constexpr T SaturatingSub(T a, T b) {
 
 // `RoundDown()` rounds an unsigned value downwards to the nearest multiple of
 // the given power of 2.
-template <size_t alignment, typename T,
-          std::enable_if_t<std::is_unsigned<T>::value && alignment != 0 &&
-                               (alignment & (alignment - 1)) == 0,
-                           int> = 0>
+template <
+    size_t alignment, typename T,
+    std::enable_if_t<
+        std::is_unsigned<T>::value && absl::has_single_bit(alignment), int> = 0>
 constexpr T RoundDown(T value) {
   return value & ~T{alignment - 1};
 }
 
 // `RoundUp()` rounds an unsigned value upwards to the nearest multiple of the
 // given power of 2.
-template <size_t alignment, typename T,
-          std::enable_if_t<std::is_unsigned<T>::value && alignment != 0 &&
-                               (alignment & (alignment - 1)) == 0,
-                           int> = 0>
+template <
+    size_t alignment, typename T,
+    std::enable_if_t<
+        std::is_unsigned<T>::value && absl::has_single_bit(alignment), int> = 0>
 constexpr T RoundUp(T value) {
   return ((value - 1) | T{alignment - 1}) + 1;
 }

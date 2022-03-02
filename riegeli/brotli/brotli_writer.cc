@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -30,7 +31,6 @@
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
-#include "riegeli/base/port.h"
 #include "riegeli/base/status.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -87,19 +87,12 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   // Reduce `window_log` if `size_hint` indicates that data will be smaller.
   // TODO(eustas): Do this automatically in the Brotli engine.
   if (size_hint != absl::nullopt) {
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-    const int ceil_log2 =
-        __builtin_clzll(1) -
-        __builtin_clzll((SaturatingSub(*size_hint, Position{1})) | 1) + 1;
+    // Constrain the argument of `bit_ceil()` from above, even though the result
+    // is constrained again, to avoid undefined behavior on overflow.
+    const int ceil_log2 = IntCast<int>(absl::bit_ceil(
+        UnsignedMin(*size_hint, Position{1} << Options::kMaxWindowLog)));
     window_log =
         SignedMin(window_log, SignedMax(ceil_log2, Options::kMinWindowLog));
-#else
-    while (Position{1} << (window_log - 1) >= *size_hint &&
-           window_log > Options::kMinWindowLog) {
-      --window_log;
-    }
-#endif
   }
   if (ABSL_PREDICT_FALSE(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,

@@ -22,6 +22,7 @@
 #include <new>
 #include <utility>
 
+#include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 
@@ -84,7 +85,7 @@ inline size_t EstimatedAllocatedSize(size_t requested_size) {
 
 template <typename T, size_t alignment = alignof(T), typename... Args>
 inline T* NewAligned(size_t num_bytes, Args&&... args) {
-  static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
+  static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   // Allocate enough space to construct the object, even if the caller does not
   // need the whole tail part of the object.
@@ -124,7 +125,7 @@ inline T* NewAligned(size_t num_bytes, Args&&... args) {
 
 template <typename T, size_t alignment = alignof(T)>
 inline void DeleteAligned(T* ptr, size_t num_bytes) {
-  static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
+  static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   num_bytes = UnsignedMax(num_bytes, sizeof(T));
   ptr->~T();
@@ -185,7 +186,7 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
 template <typename T, size_t alignment = alignof(T), typename... Args>
 inline T* SizeReturningNewAligned(size_t min_num_bytes,
                                   size_t* actual_num_bytes, Args&&... args) {
-  static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
+  static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   // Allocate enough space to construct the object, even if the caller does not
   // need the whole tail part of the object.

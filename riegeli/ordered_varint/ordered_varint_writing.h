@@ -19,8 +19,8 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/port.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/ordered_varint/ordered_varint_internal.h"
 
@@ -83,41 +83,18 @@ inline bool WriteOrderedVarint64(uint64_t data, Writer& dest) {
 }
 
 inline size_t LengthOrderedVarint32(uint32_t data) {
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clz) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 = IntCast<size_t>(
-      sizeof(unsigned) >= 4 ? __builtin_clz(data | 1) ^ __builtin_clz(1)
-                            : __builtin_clzl(data | 1) ^ __builtin_clzl(1));
-  // This is the same as `floor_log2 / 7 + 1` for `floor_log2` in [0..31],
+  const size_t width = IntCast<size_t>(absl::bit_width(data | 1));
+  // This is the same as `(width + 6) / 7` for `width` in [1..32],
   // but performs division by a power of 2.
-  return (floor_log2 * 9 + 72) / 64;
-#else
-  size_t length = 1;
-  while (data >= 0x80) {
-    ++length;
-    data >>= 7;
-  }
-  return length;
-#endif
+  return (width * 9 + 63) / 64;
 }
 
 inline size_t LengthOrderedVarint64(uint64_t data) {
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 =
-      IntCast<size_t>(__builtin_clzll(data | 1) ^ __builtin_clzll(1));
-  // This is the same as `floor_log2 == 63 ? 9 : floor_log2 / 7 + 1`
-  // for `floor_log2` in [0..63], but performs division by a power of 2
+  const size_t width = IntCast<size_t>(absl::bit_width(data | 1));
+  // This is the same as `width == 64 ? 9 : (width + 6) / 7`
+  // for `width` in [1..64], but performs division by a power of 2
   // and does not need a special case for 63.
-  return (floor_log2 * 9 + 72) / 64;
-#else
-  size_t length = 1;
-  while (data >= 0x80) {
-    ++length;
-    data >>= 7;
-  }
-  return UnsignedMin(length, size_t{9});
-#endif
+  return (width * 9 + 63) / 64;
 }
 
 }  // namespace riegeli
