@@ -33,12 +33,12 @@ namespace cfile_internal {
 // `ftell()`.
 
 template <typename File, typename Enable = void>
-struct HaveFSeekO : public std::false_type {};
+struct HaveFSeekO : std::false_type {};
 
 template <typename File>
 struct HaveFSeekO<File, absl::void_t<decltype(fseeko(
                             std::declval<File*>(), std::declval<off_t>(),
-                            std::declval<int>()))>> : public std::true_type {};
+                            std::declval<int>()))>> : std::true_type {};
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
 inline int FSeek(File* file, off_t offset, int whence) {
