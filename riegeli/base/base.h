@@ -421,7 +421,7 @@ template <typename A, typename B,
           std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
                            int> = 0>
 constexpr std::common_type_t<A, B> SignedMin(A a, B b) {
-  return a < b ? a : b;
+  return a <= b ? a : b;
 }
 
 template <
@@ -446,7 +446,7 @@ template <typename A, typename B,
           std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
                            int> = 0>
 constexpr std::common_type_t<A, B> SignedMax(A a, B b) {
-  return a > b ? a : b;
+  return a >= b ? a : b;
 }
 
 template <
@@ -513,7 +513,7 @@ template <
     std::enable_if_t<std::is_unsigned<A>::value && std::is_unsigned<B>::value,
                      int> = 0>
 constexpr IntersectionTypeT<A, B> UnsignedMin(A a, B b) {
-  return static_cast<IntersectionTypeT<A, B>>(a < b ? a : b);
+  return static_cast<IntersectionTypeT<A, B>>(a <= b ? a : b);
 }
 
 template <typename A, typename B, typename... Rest,
@@ -539,7 +539,7 @@ template <
     std::enable_if_t<std::is_unsigned<A>::value && std::is_unsigned<B>::value,
                      int> = 0>
 constexpr std::common_type_t<A, B> UnsignedMax(A a, B b) {
-  return a > b ? a : b;
+  return a >= b ? a : b;
 }
 
 template <typename A, typename B, typename... Rest,

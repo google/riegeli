@@ -109,7 +109,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
     // If `uncompressed_size_` is 0, set `size_hint` to 1, because the first
     // `Pull()` call will need a non-empty destination buffer before calling the
     // Zstd decoder.
-    set_size_hint(UnsignedMax(Position{1}, *uncompressed_size_));
+    set_size_hint(UnsignedMax(*uncompressed_size_, Position{1}));
   }
   just_initialized_ = true;
 }
