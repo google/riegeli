@@ -274,12 +274,18 @@ class AnyDependencyImpl {
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<Ptr>& operator*() const {
-    return *get();
+    const Ptr ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of AnyDependency::operator*: null pointer";
+    return *ptr;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   Ptr operator->() const {
-    return get();
+    const Ptr ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of AnyDependency::operator->: null pointer";
+    return ptr;
   }
 
   // If the `Dependency` owns the dependent object and can release it,

@@ -149,10 +149,30 @@ class StableDependency<P*, M,
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.get();
     return dep_->get();
   }
-  DerivedP& operator*() { return *get(); }
-  const DerivedP& operator*() const { return *get(); }
-  DerivedP* operator->() { return get(); }
-  const DerivedP* operator->() const { return get(); }
+  DerivedP& operator*() {
+    DerivedP* const ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of StableDependency::operator*: null pointer";
+    return *ptr;
+  }
+  const DerivedP& operator*() const {
+    const DerivedP* const ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of StableDependency::operator*: null pointer";
+    return *ptr;
+  }
+  DerivedP* operator->() {
+    DerivedP* const ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of StableDependency::operator->: null pointer";
+    return ptr;
+  }
+  const DerivedP* operator->() const {
+    const DerivedP* const ptr = get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of StableDependency::operator->: null pointer";
+    return ptr;
+  }
   DerivedP* Release() {
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return nullptr;
     return dep_->Release();

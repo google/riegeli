@@ -62,8 +62,16 @@ class RefCountedPtr {
   void reset(T* ptr);
 
   T* get() const { return ptr_; }
-  T& operator*() const { return *get(); }
-  T* operator->() const { return get(); }
+  T& operator*() const {
+    RIEGELI_ASSERT(ptr_ != nullptr)
+        << "Failed precondition of RefCountedPtr::operator*: null pointer";
+    return *ptr_;
+  }
+  T* operator->() const {
+    RIEGELI_ASSERT(ptr_ != nullptr)
+        << "Failed precondition of RefCountedPtr::operator->: null pointer";
+    return ptr_;
+  }
   T* release() { return std::exchange(ptr_, nullptr); }
 
   friend bool operator==(const RefCountedPtr& a, const RefCountedPtr& b) {
