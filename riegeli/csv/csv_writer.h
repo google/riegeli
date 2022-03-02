@@ -402,9 +402,7 @@ std::string WriteCsvRecordToString(
 // Implementation details follow.
 
 inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       standalone_record_(that.standalone_record_),
       has_header_(that.has_header_),
       header_(std::move(that.header_)),
@@ -415,9 +413,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
       record_index_(std::exchange(that.record_index_, 0)) {}
 
 inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   standalone_record_ = that.standalone_record_;
   has_header_ = that.has_header_;
   header_ = std::move(that.header_);
@@ -533,16 +529,12 @@ inline CsvWriter<Dest>::CsvWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline CsvWriter<Dest>::CsvWriter(CsvWriter&& that) noexcept
-    : CsvWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : CsvWriterBase(static_cast<CsvWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline CsvWriter<Dest>& CsvWriter<Dest>::operator=(CsvWriter&& that) noexcept {
-  CsvWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CsvWriterBase::operator=(static_cast<CsvWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

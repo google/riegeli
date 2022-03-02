@@ -275,9 +275,7 @@ inline ZstdReaderBase::ZstdReaderBase(bool growing_source,
       dictionary_(std::move(dictionary)) {}
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
       just_initialized_(that.just_initialized_),
       truncated_(that.truncated_),
@@ -288,9 +286,7 @@ inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
   just_initialized_ = that.just_initialized_;
   truncated_ = that.truncated_;
@@ -354,16 +350,12 @@ inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(ZstdReader&& that) noexcept
-    : ZstdReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ZstdReaderBase(static_cast<ZstdReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
-  ZstdReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ZstdReaderBase::operator=(static_cast<ZstdReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

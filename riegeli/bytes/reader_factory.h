@@ -195,16 +195,11 @@ explicit ReaderFactory(
 // Implementation details follow.
 
 inline ReaderFactoryBase::ReaderFactoryBase(ReaderFactoryBase&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
-      shared_(std::move(that.shared_)) {}
+    : Object(static_cast<Object&&>(that)), shared_(std::move(that.shared_)) {}
 
 inline ReaderFactoryBase& ReaderFactoryBase::operator=(
     ReaderFactoryBase&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   shared_ = std::move(that.shared_);
   return *this;
 }
@@ -241,17 +236,13 @@ inline ReaderFactory<Src>::ReaderFactory(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline ReaderFactory<Src>::ReaderFactory(ReaderFactory&& that) noexcept
-    : ReaderFactoryBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ReaderFactoryBase(static_cast<ReaderFactoryBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline ReaderFactory<Src>& ReaderFactory<Src>::operator=(
     ReaderFactory&& that) noexcept {
-  ReaderFactoryBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ReaderFactoryBase::operator=(static_cast<ReaderFactoryBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

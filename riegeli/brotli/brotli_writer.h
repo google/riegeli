@@ -321,9 +321,7 @@ inline BrotliWriterBase::BrotliWriterBase(BrotliDictionary&& dictionary,
       allocator_(std::move(allocator)) {}
 
 inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dictionary_(std::move(that.dictionary_)),
       allocator_(std::move(that.allocator_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
@@ -332,9 +330,7 @@ inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
 
 inline BrotliWriterBase& BrotliWriterBase::operator=(
     BrotliWriterBase&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dictionary_ = std::move(that.dictionary_);
   allocator_ = std::move(that.allocator_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
@@ -398,17 +394,13 @@ inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
-    : BrotliWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BrotliWriterBase(static_cast<BrotliWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
     BrotliWriter&& that) noexcept {
-  BrotliWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BrotliWriterBase::operator=(static_cast<BrotliWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

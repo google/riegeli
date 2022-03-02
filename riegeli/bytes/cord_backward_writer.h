@@ -267,9 +267,7 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(
     CordBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BackwardWriter(static_cast<BackwardWriter&&>(that)),
       size_hint_(that.size_hint_),
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
@@ -282,9 +280,7 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
 
 inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
     CordBackwardWriterBase&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   size_hint_ = that.size_hint_;
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
@@ -360,17 +356,14 @@ inline CordBackwardWriter<Dest>::CordBackwardWriter(
 template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(
     CordBackwardWriter&& that) noexcept
-    : CordBackwardWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : CordBackwardWriterBase(static_cast<CordBackwardWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline CordBackwardWriter<Dest>& CordBackwardWriter<Dest>::operator=(
     CordBackwardWriter&& that) noexcept {
-  CordBackwardWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CordBackwardWriterBase::operator=(
+      static_cast<CordBackwardWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

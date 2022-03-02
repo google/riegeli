@@ -165,11 +165,11 @@ explicit WrappedWriter(std::tuple<DestArgs...> dest_args)
 // Implementation details follow.
 
 inline WrappedWriterBase::WrappedWriterBase(WrappedWriterBase&& that) noexcept
-    : Writer(std::move(that)) {}
+    : Writer(static_cast<Writer&&>(that)) {}
 
 inline WrappedWriterBase& WrappedWriterBase::operator=(
     WrappedWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
+  Writer::operator=(static_cast<Writer&&>(that));
   return *this;
 }
 
@@ -209,18 +209,14 @@ inline WrappedWriter<Dest>::WrappedWriter(std::tuple<DestArgs...> dest_args)
 
 template <typename Dest>
 inline WrappedWriter<Dest>::WrappedWriter(WrappedWriter&& that) noexcept
-    : WrappedWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : WrappedWriterBase(static_cast<WrappedWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline WrappedWriter<Dest>& WrappedWriter<Dest>::operator=(
     WrappedWriter&& that) noexcept {
-  WrappedWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  WrappedWriterBase::operator=(static_cast<WrappedWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

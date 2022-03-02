@@ -309,9 +309,7 @@ inline CFileWriterBase::CFileWriterBase(size_t buffer_size)
     : BufferedWriter(buffer_size) {}
 
 inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
       supports_read_mode_(that.supports_read_mode_),
@@ -320,9 +318,7 @@ inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
 
 inline CFileWriterBase& CFileWriterBase::operator=(
     CFileWriterBase&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   supports_read_mode_ = that.supports_read_mode_;
@@ -385,17 +381,13 @@ inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(CFileWriter&& that) noexcept
-    : CFileWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : CFileWriterBase(static_cast<CFileWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline CFileWriter<Dest>& CFileWriter<Dest>::operator=(
     CFileWriter&& that) noexcept {
-  CFileWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CFileWriterBase::operator=(static_cast<CFileWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

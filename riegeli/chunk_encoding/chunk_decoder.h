@@ -162,9 +162,7 @@ inline ChunkDecoder::ChunkDecoder(Options options)
       values_reader_(std::forward_as_tuple()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
       values_reader_(std::move(that.values_reader_)),
@@ -172,9 +170,7 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
       recoverable_(std::exchange(that.recoverable_, false)) {}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   field_projection_ = std::move(that.field_projection_);
   limits_ = std::move(that.limits_);
   values_reader_ = std::move(that.values_reader_);

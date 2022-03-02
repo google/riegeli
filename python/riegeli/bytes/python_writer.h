@@ -151,9 +151,7 @@ class PythonWriter : public BufferedWriter {
 };
 
 inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dest_(std::move(that.dest_)),
       owns_dest_(that.owns_dest_),
       supports_random_access_(that.supports_random_access_),
@@ -162,9 +160,7 @@ inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
       use_bytes_(that.use_bytes_) {}
 
 inline PythonWriter& PythonWriter::operator=(PythonWriter&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dest_ = std::move(that.dest_);
   owns_dest_ = that.owns_dest_;
   supports_random_access_ = that.supports_random_access_;

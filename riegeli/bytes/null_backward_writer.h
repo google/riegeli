@@ -68,16 +68,12 @@ class NullBackwardWriter : public BackwardWriter {
 
 inline NullBackwardWriter::NullBackwardWriter(
     NullBackwardWriter&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BackwardWriter(static_cast<BackwardWriter&&>(that)),
       buffer_(std::move(that.buffer_)) {}
 
 inline NullBackwardWriter& NullBackwardWriter::operator=(
     NullBackwardWriter&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   buffer_ = std::move(that.buffer_);
   return *this;
 }

@@ -367,17 +367,13 @@ inline LimitingReaderBase::LimitingReaderBase(bool exact) : exact_(exact) {}
 
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
-    : Reader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Reader(static_cast<Reader&&>(that)),
       max_pos_(that.max_pos_),
       exact_(that.exact_) {}
 
 inline LimitingReaderBase& LimitingReaderBase::operator=(
     LimitingReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Reader::operator=(static_cast<Reader&&>(that));
   max_pos_ = that.max_pos_;
   exact_ = that.exact_;
   return *this;
@@ -489,18 +485,14 @@ inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline LimitingReader<Src>::LimitingReader(LimitingReader&& that) noexcept
-    : LimitingReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : LimitingReaderBase(static_cast<LimitingReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
 inline LimitingReader<Src>& LimitingReader<Src>::operator=(
     LimitingReader&& that) noexcept {
-  LimitingReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  LimitingReaderBase::operator=(static_cast<LimitingReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }

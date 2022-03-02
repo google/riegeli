@@ -174,17 +174,13 @@ explicit ArrayWriter(char* dest, size_t size)->ArrayWriter<absl::Span<char>>;
 // Implementation details follow.
 
 inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
-    : PushableWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PushableWriter(static_cast<PushableWriter&&>(that)),
       written_(that.written_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
     ArrayWriterBase&& that) noexcept {
-  PushableWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PushableWriter::operator=(static_cast<PushableWriter&&>(that));
   written_ = that.written_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
@@ -232,18 +228,14 @@ inline ArrayWriter<Dest>::ArrayWriter(char* dest, size_t size)
 
 template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
-    : ArrayWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : ArrayWriterBase(static_cast<ArrayWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
     ArrayWriter&& that) noexcept {
-  ArrayWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ArrayWriterBase::operator=(static_cast<ArrayWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

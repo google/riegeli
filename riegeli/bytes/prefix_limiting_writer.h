@@ -214,17 +214,13 @@ explicit PrefixLimitingWriter(std::tuple<DestArgs...> dest_args,
 
 inline PrefixLimitingWriterBase::PrefixLimitingWriterBase(
     PrefixLimitingWriterBase&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Writer(static_cast<Writer&&>(that)),
       base_pos_(that.base_pos_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline PrefixLimitingWriterBase& PrefixLimitingWriterBase::operator=(
     PrefixLimitingWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   base_pos_ = that.base_pos_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
@@ -296,18 +292,15 @@ inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
 template <typename Dest>
 inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
     PrefixLimitingWriter&& that) noexcept
-    : PrefixLimitingWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : PrefixLimitingWriterBase(static_cast<PrefixLimitingWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline PrefixLimitingWriter<Dest>& PrefixLimitingWriter<Dest>::operator=(
     PrefixLimitingWriter&& that) noexcept {
-  PrefixLimitingWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PrefixLimitingWriterBase::operator=(
+      static_cast<PrefixLimitingWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

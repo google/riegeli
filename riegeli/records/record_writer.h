@@ -705,18 +705,14 @@ inline RecordWriter<Dest>::RecordWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
-    : RecordWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : RecordWriterBase(static_cast<RecordWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
     RecordWriter&& that) noexcept {
   DoneBackground();
-  RecordWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  RecordWriterBase::operator=(static_cast<RecordWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

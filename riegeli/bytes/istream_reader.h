@@ -217,16 +217,12 @@ inline IStreamReaderBase::IStreamReaderBase(size_t buffer_size)
 }
 
 inline IStreamReaderBase::IStreamReaderBase(IStreamReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       supports_random_access_(that.supports_random_access_) {}
 
 inline IStreamReaderBase& IStreamReaderBase::operator=(
     IStreamReaderBase&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   supports_random_access_ = that.supports_random_access_;
   return *this;
 }
@@ -266,17 +262,13 @@ inline IStreamReader<Src>::IStreamReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline IStreamReader<Src>::IStreamReader(IStreamReader&& that) noexcept
-    : IStreamReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : IStreamReaderBase(static_cast<IStreamReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline IStreamReader<Src>& IStreamReader<Src>::operator=(
     IStreamReader&& that) noexcept {
-  IStreamReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  IStreamReaderBase::operator=(static_cast<IStreamReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

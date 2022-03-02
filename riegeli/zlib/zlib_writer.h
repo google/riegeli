@@ -340,9 +340,7 @@ inline ZlibWriterBase::ZlibWriterBase(int window_bits,
       dictionary_(std::move(dictionary)) {}
 
 inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       window_bits_(that.window_bits_),
       dictionary_(std::move(that.dictionary_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
@@ -351,9 +349,7 @@ inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
 
 inline ZlibWriterBase& ZlibWriterBase::operator=(
     ZlibWriterBase&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   window_bits_ = that.window_bits_;
   dictionary_ = std::move(that.dictionary_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
@@ -416,17 +412,13 @@ inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(ZlibWriter&& that) noexcept
-    : ZlibWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ZlibWriterBase(static_cast<ZlibWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
     ZlibWriter&& that) noexcept {
-  ZlibWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ZlibWriterBase::operator=(static_cast<ZlibWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

@@ -414,7 +414,9 @@ class AnyDependencyRefImpl
             absl::in_place_type<Manager&&>, std::forward<Manager>(manager)) {}
 
   AnyDependencyRefImpl(AnyDependencyRefImpl&& that) noexcept
-      : AnyDependencyImpl<Ptr, inline_size, inline_align>(std::move(that)) {}
+      : AnyDependencyImpl<Ptr, inline_size, inline_align>(
+            static_cast<AnyDependencyImpl<Ptr, inline_size, inline_align>&&>(
+                that)) {}
   AnyDependencyRefImpl& operator=(AnyDependencyRefImpl&&) = delete;
 
   void Reset() = delete;

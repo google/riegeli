@@ -228,9 +228,7 @@ inline BrotliReaderBase::BrotliReaderBase(BrotliDictionary&& dictionary,
     : dictionary_(std::move(dictionary)), allocator_(std::move(allocator)) {}
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
-    : PullableReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PullableReader(static_cast<PullableReader&&>(that)),
       dictionary_(std::move(that.dictionary_)),
       allocator_(std::move(that.allocator_)),
       truncated_(that.truncated_),
@@ -239,9 +237,7 @@ inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
     BrotliReaderBase&& that) noexcept {
-  PullableReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PullableReader::operator=(static_cast<PullableReader&&>(that));
   dictionary_ = std::move(that.dictionary_);
   allocator_ = std::move(that.allocator_);
   truncated_ = that.truncated_;
@@ -297,17 +293,13 @@ inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
-    : BrotliReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BrotliReaderBase(static_cast<BrotliReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline BrotliReader<Src>& BrotliReader<Src>::operator=(
     BrotliReader&& that) noexcept {
-  BrotliReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BrotliReaderBase::operator=(static_cast<BrotliReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

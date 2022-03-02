@@ -296,9 +296,7 @@ inline FileReaderBase::FileReaderBase(::tensorflow::Env* env,
       buffer_size_(buffer_size) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
-    : Reader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Reader(static_cast<Reader&&>(that)),
       filename_(std::move(that.filename_)),
       env_(that.env_),
       file_system_(that.file_system_),
@@ -307,9 +305,7 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
 
 inline FileReaderBase& FileReaderBase::operator=(
     FileReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Reader::operator=(static_cast<Reader&&>(that));
   filename_ = std::move(that.filename_);
   env_ = that.env_;
   file_system_ = that.file_system_;
@@ -425,16 +421,12 @@ inline void FileReader<Src>::Initialize(absl::string_view filename,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(FileReader&& that) noexcept
-    : FileReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : FileReaderBase(static_cast<FileReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
-  FileReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  FileReaderBase::operator=(static_cast<FileReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

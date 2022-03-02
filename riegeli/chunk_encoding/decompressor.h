@@ -139,17 +139,13 @@ inline Decompressor<Src>::Decompressor(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       decompressed_(std::move(that.decompressed_)) {}
 
 template <typename Src>
 inline Decompressor<Src>& Decompressor<Src>::operator=(
     Decompressor&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   decompressed_ = std::move(that.decompressed_);
   return *this;
 }

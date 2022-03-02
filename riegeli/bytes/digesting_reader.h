@@ -206,11 +206,11 @@ explicit DigestingReader(std::tuple<SrcArgs...> src_args, Digester&& digester)
 
 inline DigestingReaderBase::DigestingReaderBase(
     DigestingReaderBase&& that) noexcept
-    : Reader(std::move(that)) {}
+    : Reader(static_cast<Reader&&>(that)) {}
 
 inline DigestingReaderBase& DigestingReaderBase::operator=(
     DigestingReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
+  Reader::operator=(static_cast<Reader&&>(that));
   return *this;
 }
 
@@ -265,9 +265,7 @@ inline DigestingReader<Digester, Src>::DigestingReader(
 template <typename Digester, typename Src>
 inline DigestingReader<Digester, Src>::DigestingReader(
     DigestingReader&& that) noexcept
-    : DigestingReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : DigestingReaderBase(static_cast<DigestingReaderBase&&>(that)),
       digester_(std::move(that.digester_)) {
   MoveSrc(std::move(that));
 }
@@ -275,9 +273,7 @@ inline DigestingReader<Digester, Src>::DigestingReader(
 template <typename Digester, typename Src>
 inline DigestingReader<Digester, Src>&
 DigestingReader<Digester, Src>::operator=(DigestingReader&& that) noexcept {
-  DigestingReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  DigestingReaderBase::operator=(static_cast<DigestingReaderBase&&>(that));
   digester_ = std::move(that.digester_);
   MoveSrc(std::move(that));
   return *this;

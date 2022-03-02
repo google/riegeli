@@ -268,16 +268,12 @@ inline ChainBackwardWriterBase::ChainBackwardWriterBase(const Options& options)
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BackwardWriter(static_cast<BackwardWriter&&>(that)),
       options_(that.options_) {}
 
 inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
     ChainBackwardWriterBase&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   options_ = that.options_;
   return *this;
 }
@@ -340,18 +336,15 @@ inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     ChainBackwardWriter&& that) noexcept
-    : ChainBackwardWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : ChainBackwardWriterBase(static_cast<ChainBackwardWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
     ChainBackwardWriter&& that) noexcept {
-  ChainBackwardWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ChainBackwardWriterBase::operator=(
+      static_cast<ChainBackwardWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

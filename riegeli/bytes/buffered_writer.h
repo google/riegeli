@@ -156,18 +156,14 @@ inline BufferedWriter::BufferedWriter(
 }
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Writer(static_cast<Writer&&>(that)),
       buffer_size_(that.buffer_size_),
       size_hint_(that.size_hint_),
       buffer_(std::move(that.buffer_)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   buffer_size_ = that.buffer_size_;
   size_hint_ = that.size_hint_;
   buffer_ = std::move(that.buffer_);

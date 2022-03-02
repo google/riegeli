@@ -106,9 +106,7 @@ RecordReaderBase::RecordReaderBase(Closed) noexcept : Object(kClosed) {}
 RecordReaderBase::RecordReaderBase() noexcept {}
 
 RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       chunk_begin_(that.chunk_begin_),
       chunk_decoder_(std::move(that.chunk_decoder_)),
       last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
@@ -117,9 +115,7 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
 
 RecordReaderBase& RecordReaderBase::operator=(
     RecordReaderBase&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   chunk_begin_ = that.chunk_begin_;
   chunk_decoder_ = std::move(that.chunk_decoder_);
   last_record_is_valid_ = std::exchange(that.last_record_is_valid_, false);

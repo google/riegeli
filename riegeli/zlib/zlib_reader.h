@@ -340,9 +340,7 @@ inline ZlibReaderBase::ZlibReaderBase(int window_bits,
       dictionary_(std::move(dictionary)) {}
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       window_bits_(that.window_bits_),
       concatenate_(that.concatenate_),
       truncated_(that.truncated_),
@@ -353,9 +351,7 @@ inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
     ZlibReaderBase&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   window_bits_ = that.window_bits_;
   concatenate_ = that.concatenate_;
   truncated_ = that.truncated_;
@@ -431,16 +427,12 @@ inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(ZlibReader&& that) noexcept
-    : ZlibReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ZlibReaderBase(static_cast<ZlibReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
-  ZlibReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ZlibReaderBase::operator=(static_cast<ZlibReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

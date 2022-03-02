@@ -377,9 +377,7 @@ absl::Status Write(absl::Cord&& src, Dest&& dest);
 // Implementation details follow.
 
 inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       start_(std::exchange(that.start_, nullptr)),
       cursor_(std::exchange(that.cursor_, nullptr)),
       limit_(std::exchange(that.limit_, nullptr)),
@@ -387,9 +385,7 @@ inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
 
 inline BackwardWriter& BackwardWriter::operator=(
     BackwardWriter&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   start_ = std::exchange(that.start_, nullptr);
   cursor_ = std::exchange(that.cursor_, nullptr);
   limit_ = std::exchange(that.limit_, nullptr);

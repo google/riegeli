@@ -220,11 +220,11 @@ explicit DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
 
 inline DigestingWriterBase::DigestingWriterBase(
     DigestingWriterBase&& that) noexcept
-    : Writer(std::move(that)) {}
+    : Writer(static_cast<Writer&&>(that)) {}
 
 inline DigestingWriterBase& DigestingWriterBase::operator=(
     DigestingWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
+  Writer::operator=(static_cast<Writer&&>(that));
   return *this;
 }
 
@@ -279,9 +279,7 @@ inline DigestingWriter<Digester, Dest>::DigestingWriter(
 template <typename Digester, typename Dest>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     DigestingWriter&& that) noexcept
-    : DigestingWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : DigestingWriterBase(static_cast<DigestingWriterBase&&>(that)),
       digester_(std::move(that.digester_)) {
   MoveDest(std::move(that));
 }
@@ -289,9 +287,7 @@ inline DigestingWriter<Digester, Dest>::DigestingWriter(
 template <typename Digester, typename Dest>
 inline DigestingWriter<Digester, Dest>&
 DigestingWriter<Digester, Dest>::operator=(DigestingWriter&& that) noexcept {
-  DigestingWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  DigestingWriterBase::operator=(static_cast<DigestingWriterBase&&>(that));
   digester_ = std::move(that.digester_);
   MoveDest(std::move(that));
   return *this;

@@ -378,9 +378,7 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdDictionary&& dictionary,
       reserve_max_size_(reserve_max_size) {}
 
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dictionary_(std::move(that.dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
@@ -390,9 +388,7 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
     ZstdWriterBase&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dictionary_ = std::move(that.dictionary_);
   pledged_size_ = std::move(that.pledged_size_);
   reserve_max_size_ = that.reserve_max_size_;
@@ -460,17 +456,13 @@ inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& that) noexcept
-    : ZstdWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ZstdWriterBase(static_cast<ZstdWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
     ZstdWriter&& that) noexcept {
-  ZstdWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ZstdWriterBase::operator=(static_cast<ZstdWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

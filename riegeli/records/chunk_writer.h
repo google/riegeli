@@ -278,15 +278,10 @@ class DependencyImpl<ChunkWriter*, M,
 // Implementation details follow.
 
 inline ChunkWriter::ChunkWriter(ChunkWriter&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
-      pos_(that.pos_) {}
+    : Object(static_cast<Object&&>(that)), pos_(that.pos_) {}
 
 inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   pos_ = that.pos_;
   return *this;
 }
@@ -307,11 +302,11 @@ inline bool ChunkWriter::Flush(FlushType flush_type) {
 
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(
     DefaultChunkWriterBase&& that) noexcept
-    : ChunkWriter(std::move(that)) {}
+    : ChunkWriter(static_cast<ChunkWriter&&>(that)) {}
 
 inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
     DefaultChunkWriterBase&& that) noexcept {
-  ChunkWriter::operator=(std::move(that));
+  ChunkWriter::operator=(static_cast<ChunkWriter&&>(that));
   return *this;
 }
 
@@ -340,17 +335,14 @@ inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
 template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
     DefaultChunkWriter&& that) noexcept
-    : DefaultChunkWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : DefaultChunkWriterBase(static_cast<DefaultChunkWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
     DefaultChunkWriter&& that) noexcept {
-  DefaultChunkWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  DefaultChunkWriterBase::operator=(
+      static_cast<DefaultChunkWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

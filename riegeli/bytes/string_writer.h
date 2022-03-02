@@ -293,17 +293,13 @@ inline StringWriterBase::StringWriterBase(size_t min_buffer_size,
                    .set_max_block_size(max_buffer_size)) {}
 
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
     StringWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class
-  // part was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
@@ -393,18 +389,14 @@ inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
-    : StringWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : StringWriterBase(static_cast<StringWriterBase&&>(that)) {
   MoveDestAndSecondaryBuffer(std::move(that));
 }
 
 template <typename Dest>
 inline StringWriter<Dest>& StringWriter<Dest>::operator=(
     StringWriter&& that) noexcept {
-  StringWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  StringWriterBase::operator=(static_cast<StringWriterBase&&>(that));
   MoveDestAndSecondaryBuffer(std::move(that));
   return *this;
 }

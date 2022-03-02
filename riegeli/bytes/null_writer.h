@@ -67,15 +67,10 @@ class NullWriter : public Writer {
 // Implementation details follow.
 
 inline NullWriter::NullWriter(NullWriter&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
-      buffer_(std::move(that.buffer_)) {}
+    : Writer(static_cast<Writer&&>(that)), buffer_(std::move(that.buffer_)) {}
 
 inline NullWriter& NullWriter::operator=(NullWriter&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   buffer_ = std::move(that.buffer_);
   return *this;
 }

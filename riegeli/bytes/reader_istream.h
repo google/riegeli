@@ -269,18 +269,14 @@ inline void ReaderStreambuf::Done() {
 }  // namespace stream_internal
 
 inline ReaderIStreamBase::ReaderIStreamBase(ReaderIStreamBase&& that) noexcept
-    : std::istream(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : std::istream(static_cast<std::istream&&>(that)),
       streambuf_(std::move(that.streambuf_)) {
   set_rdbuf(&streambuf_);
 }
 
 inline ReaderIStreamBase& ReaderIStreamBase::operator=(
     ReaderIStreamBase&& that) noexcept {
-  std::istream::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  std::istream::operator=(static_cast<std::istream&&>(that));
   streambuf_ = std::move(that.streambuf_);
   return *this;
 }
@@ -322,9 +318,7 @@ inline ReaderIStream<Src>::ReaderIStream(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline ReaderIStream<Src>::ReaderIStream(ReaderIStream&& that) noexcept
-    : ReaderIStreamBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
@@ -333,9 +327,7 @@ inline ReaderIStream<Src>& ReaderIStream<Src>::operator=(
     ReaderIStream&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Done();
-    ReaderIStreamBase::operator=(std::move(that));
-    // Using `that` after it was moved is correct because only the base class
-    // part was moved.
+    ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
     MoveSrc(std::move(that));
   }
   return *this;

@@ -173,13 +173,13 @@ explicit CordReader(std::tuple<SrcArgs...> src_args)
 // Implementation details follow.
 
 inline CordReaderBase::CordReaderBase(CordReaderBase&& that) noexcept
-    : PullableReader(std::move(that)) {
+    : PullableReader(static_cast<PullableReader&&>(that)) {
   // `iter_` will be moved by `CordReader<Src>::MoveSrc()`.
 }
 
 inline CordReaderBase& CordReaderBase::operator=(
     CordReaderBase&& that) noexcept {
-  PullableReader::operator=(std::move(that));
+  PullableReader::operator=(static_cast<PullableReader&&>(that));
   // `iter_` will be moved by `CordReader<Src>::MoveSrc()`.
   return *this;
 }
@@ -240,17 +240,13 @@ inline CordReader<Src>::CordReader(std::tuple<SrcArgs...> src_args)
 
 template <typename Src>
 inline CordReader<Src>::CordReader(CordReader&& that) noexcept
-    : CordReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : CordReaderBase(static_cast<CordReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
 inline CordReader<Src>& CordReader<Src>::operator=(CordReader&& that) noexcept {
-  CordReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CordReaderBase::operator=(static_cast<CordReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }

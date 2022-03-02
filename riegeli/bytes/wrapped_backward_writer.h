@@ -165,11 +165,11 @@ explicit WrappedBackwardWriter(std::tuple<DestArgs...> dest_args)
 
 inline WrappedBackwardWriterBase::WrappedBackwardWriterBase(
     WrappedBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)) {}
+    : BackwardWriter(static_cast<BackwardWriter&&>(that)) {}
 
 inline WrappedBackwardWriterBase& WrappedBackwardWriterBase::operator=(
     WrappedBackwardWriterBase&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
+  BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   return *this;
 }
 
@@ -213,18 +213,16 @@ inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(
 template <typename Dest>
 inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(
     WrappedBackwardWriter&& that) noexcept
-    : WrappedBackwardWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : WrappedBackwardWriterBase(
+          static_cast<WrappedBackwardWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline WrappedBackwardWriter<Dest>& WrappedBackwardWriter<Dest>::operator=(
     WrappedBackwardWriter&& that) noexcept {
-  WrappedBackwardWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  WrappedBackwardWriterBase::operator=(
+      static_cast<WrappedBackwardWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

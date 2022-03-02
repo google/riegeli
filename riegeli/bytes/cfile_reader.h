@@ -282,17 +282,13 @@ inline CFileReaderBase::CFileReaderBase(size_t buffer_size)
     : BufferedReader(buffer_size) {}
 
 inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   return *this;
@@ -346,17 +342,13 @@ inline CFileReader<Src>::CFileReader(absl::string_view filename,
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(CFileReader&& that) noexcept
-    : CFileReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : CFileReaderBase(static_cast<CFileReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline CFileReader<Src>& CFileReader<Src>::operator=(
     CFileReader&& that) noexcept {
-  CFileReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CFileReaderBase::operator=(static_cast<CFileReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

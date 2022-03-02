@@ -378,9 +378,7 @@ inline FdWriterBase::FdWriterBase(size_t buffer_size)
     : BufferedWriter(buffer_size) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
@@ -389,9 +387,7 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
       read_mode_(that.read_mode_) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
-  BufferedWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
@@ -456,16 +452,12 @@ inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
-    : FdWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : FdWriterBase(static_cast<FdWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
-  FdWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  FdWriterBase::operator=(static_cast<FdWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

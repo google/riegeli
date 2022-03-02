@@ -196,9 +196,7 @@ inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     HadoopSnappyWriterBase&& that) noexcept
-    : PushableWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PushableWriter(static_cast<PushableWriter&&>(that)),
       size_hint_(that.size_hint_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       uncompressed_(std::move(that.uncompressed_)),
@@ -206,9 +204,7 @@ inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
 
 inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
     HadoopSnappyWriterBase&& that) noexcept {
-  PushableWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PushableWriter::operator=(static_cast<PushableWriter&&>(that));
   size_hint_ = that.size_hint_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
@@ -256,17 +252,14 @@ inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
 template <typename Dest>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
     HadoopSnappyWriter&& that) noexcept
-    : HadoopSnappyWriterBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : HadoopSnappyWriterBase(static_cast<HadoopSnappyWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline HadoopSnappyWriter<Dest>& HadoopSnappyWriter<Dest>::operator=(
     HadoopSnappyWriter&& that) noexcept {
-  HadoopSnappyWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  HadoopSnappyWriterBase::operator=(
+      static_cast<HadoopSnappyWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;
 }

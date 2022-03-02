@@ -361,9 +361,7 @@ class DependencyImpl<ChunkReader*, M,
 
 inline DefaultChunkReaderBase::DefaultChunkReaderBase(
     DefaultChunkReaderBase&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       truncated_(that.truncated_),
       pos_(that.pos_),
       chunk_(std::move(that.chunk_)),
@@ -373,9 +371,7 @@ inline DefaultChunkReaderBase::DefaultChunkReaderBase(
 
 inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
     DefaultChunkReaderBase&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   truncated_ = that.truncated_;
   pos_ = that.pos_;
   chunk_ = that.chunk_;
@@ -425,17 +421,14 @@ inline DefaultChunkReader<Src>::DefaultChunkReader(
 template <typename Src>
 inline DefaultChunkReader<Src>::DefaultChunkReader(
     DefaultChunkReader&& that) noexcept
-    : DefaultChunkReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : DefaultChunkReaderBase(static_cast<DefaultChunkReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
     DefaultChunkReader&& that) noexcept {
-  DefaultChunkReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  DefaultChunkReaderBase::operator=(
+      static_cast<DefaultChunkReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

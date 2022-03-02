@@ -164,16 +164,13 @@ explicit ArrayBackwardWriter(char* dest, size_t size)
 
 inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
     ArrayBackwardWriterBase&& that) noexcept
-    : PushableBackwardWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PushableBackwardWriter(static_cast<PushableBackwardWriter&&>(that)),
       written_(that.written_) {}
 
 inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
     ArrayBackwardWriterBase&& that) noexcept {
-  PushableBackwardWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PushableBackwardWriter::operator=(
+      static_cast<PushableBackwardWriter&&>(that));
   written_ = that.written_;
   return *this;
 }
@@ -222,18 +219,15 @@ inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(char* dest, size_t size)
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
     ArrayBackwardWriter&& that) noexcept
-    : ArrayBackwardWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : ArrayBackwardWriterBase(static_cast<ArrayBackwardWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
     ArrayBackwardWriter&& that) noexcept {
-  ArrayBackwardWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ArrayBackwardWriterBase::operator=(
+      static_cast<ArrayBackwardWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

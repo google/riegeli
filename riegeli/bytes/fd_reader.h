@@ -560,17 +560,13 @@ inline FdReaderBase::FdReaderBase(size_t buffer_size)
     : BufferedReader(buffer_size) {}
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
@@ -598,17 +594,13 @@ inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
       has_independent_pos_(has_independent_pos) {}
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
-    : ChainReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : ChainReader(static_cast<ChainReader&&>(that)),
       filename_(std::move(that.filename_)),
       has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
-  ChainReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  ChainReader::operator=(static_cast<ChainReader&&>(that));
   filename_ = std::move(that.filename_);
   has_independent_pos_ = that.has_independent_pos_;
   return *this;
@@ -662,16 +654,12 @@ inline FdReader<Src>::FdReader(absl::string_view filename, Options options)
 
 template <typename Src>
 inline FdReader<Src>::FdReader(FdReader&& that) noexcept
-    : FdReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : FdReaderBase(static_cast<FdReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
-  FdReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  FdReaderBase::operator=(static_cast<FdReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }
@@ -783,17 +771,13 @@ inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
-    : FdMMapReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : FdMMapReaderBase(static_cast<FdMMapReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
     FdMMapReader&& that) noexcept {
-  FdMMapReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  FdMMapReaderBase::operator=(static_cast<FdMMapReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

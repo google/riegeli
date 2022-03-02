@@ -154,11 +154,11 @@ explicit StringReader(const char* src, size_t size)
 // Implementation details follow.
 
 inline StringReaderBase::StringReaderBase(StringReaderBase&& that) noexcept
-    : Reader(std::move(that)) {}
+    : Reader(static_cast<Reader&&>(that)) {}
 
 inline StringReaderBase& StringReaderBase::operator=(
     StringReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
+  Reader::operator=(static_cast<Reader&&>(that));
   return *this;
 }
 
@@ -193,18 +193,14 @@ inline StringReader<Src>::StringReader(const char* src, size_t size)
 
 template <typename Src>
 inline StringReader<Src>::StringReader(StringReader&& that) noexcept
-    : StringReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : StringReaderBase(static_cast<StringReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
 inline StringReader<Src>& StringReader<Src>::operator=(
     StringReader&& that) noexcept {
-  StringReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  StringReaderBase::operator=(static_cast<StringReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }

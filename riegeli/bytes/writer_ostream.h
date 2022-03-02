@@ -269,18 +269,14 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
 }  // namespace stream_internal
 
 inline WriterOStreamBase::WriterOStreamBase(WriterOStreamBase&& that) noexcept
-    : std::iostream(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : std::iostream(static_cast<std::iostream&&>(that)),
       streambuf_(std::move(that.streambuf_)) {
   set_rdbuf(&streambuf_);
 }
 
 inline WriterOStreamBase& WriterOStreamBase::operator=(
     WriterOStreamBase&& that) noexcept {
-  std::iostream::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  std::iostream::operator=(static_cast<std::iostream&&>(that));
   streambuf_ = std::move(that.streambuf_);
   return *this;
 }
@@ -322,9 +318,7 @@ inline WriterOStream<Dest>::WriterOStream(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline WriterOStream<Dest>::WriterOStream(WriterOStream&& that) noexcept
-    : WriterOStreamBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
@@ -333,9 +327,7 @@ inline WriterOStream<Dest>& WriterOStream<Dest>::operator=(
     WriterOStream&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Done();
-    WriterOStreamBase::operator=(std::move(that));
-    // Using `that` after it was moved is correct because only the base class
-    // part was moved.
+    WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
     MoveDest(std::move(that));
   }
   return *this;

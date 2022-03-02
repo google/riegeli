@@ -211,16 +211,11 @@ explicit PrefixLimitingReader(std::tuple<SrcArgs...> src_args,
 
 inline PrefixLimitingReaderBase::PrefixLimitingReaderBase(
     PrefixLimitingReaderBase&& that) noexcept
-    : Reader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
-      base_pos_(that.base_pos_) {}
+    : Reader(static_cast<Reader&&>(that)), base_pos_(that.base_pos_) {}
 
 inline PrefixLimitingReaderBase& PrefixLimitingReaderBase::operator=(
     PrefixLimitingReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Reader::operator=(static_cast<Reader&&>(that));
   base_pos_ = that.base_pos_;
   return *this;
 }
@@ -289,18 +284,15 @@ inline PrefixLimitingReader<Src>::PrefixLimitingReader(
 template <typename Src>
 inline PrefixLimitingReader<Src>::PrefixLimitingReader(
     PrefixLimitingReader&& that) noexcept
-    : PrefixLimitingReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : PrefixLimitingReaderBase(static_cast<PrefixLimitingReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
 inline PrefixLimitingReader<Src>& PrefixLimitingReader<Src>::operator=(
     PrefixLimitingReader&& that) noexcept {
-  PrefixLimitingReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PrefixLimitingReaderBase::operator=(
+      static_cast<PrefixLimitingReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }

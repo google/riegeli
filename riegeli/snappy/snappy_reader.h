@@ -234,11 +234,11 @@ inline SnappyReaderBase::SnappyReaderBase()
     : ChainReader(std::forward_as_tuple()) {}
 
 inline SnappyReaderBase::SnappyReaderBase(SnappyReaderBase&& that) noexcept
-    : ChainReader(std::move(that)) {}
+    : ChainReader(static_cast<ChainReader&&>(that)) {}
 
 inline SnappyReaderBase& SnappyReaderBase::operator=(
     SnappyReaderBase&& that) noexcept {
-  ChainReader::operator=(std::move(that));
+  ChainReader::operator=(static_cast<ChainReader&&>(that));
   return *this;
 }
 
@@ -272,17 +272,13 @@ inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(SnappyReader&& that) noexcept
-    : SnappyReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : SnappyReaderBase(static_cast<SnappyReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline SnappyReader<Src>& SnappyReader<Src>::operator=(
     SnappyReader&& that) noexcept {
-  SnappyReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  SnappyReaderBase::operator=(static_cast<SnappyReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

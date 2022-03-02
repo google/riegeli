@@ -166,11 +166,11 @@ explicit WrappedReader(std::tuple<SrcArgs...> src_args)
 // Implementation details follow.
 
 inline WrappedReaderBase::WrappedReaderBase(WrappedReaderBase&& that) noexcept
-    : Reader(std::move(that)) {}
+    : Reader(static_cast<Reader&&>(that)) {}
 
 inline WrappedReaderBase& WrappedReaderBase::operator=(
     WrappedReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
+  Reader::operator=(static_cast<Reader&&>(that));
   return *this;
 }
 
@@ -209,18 +209,14 @@ inline WrappedReader<Src>::WrappedReader(std::tuple<SrcArgs...> src_args)
 
 template <typename Src>
 inline WrappedReader<Src>::WrappedReader(WrappedReader&& that) noexcept
-    : WrappedReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : WrappedReaderBase(static_cast<WrappedReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
 inline WrappedReader<Src>& WrappedReader<Src>::operator=(
     WrappedReader&& that) noexcept {
-  WrappedReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  WrappedReaderBase::operator=(static_cast<WrappedReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }

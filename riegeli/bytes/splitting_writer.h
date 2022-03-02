@@ -202,16 +202,12 @@ class SplittingWriter : public SplittingWriterBase {
 
 inline SplittingWriterBase::SplittingWriterBase(
     SplittingWriterBase&& that) noexcept
-    : PushableWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PushableWriter(static_cast<PushableWriter&&>(that)),
       shard_pos_limit_(that.shard_pos_limit_) {}
 
 inline SplittingWriterBase& SplittingWriterBase::operator=(
     SplittingWriterBase&& that) noexcept {
-  PushableWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PushableWriter::operator=(static_cast<PushableWriter&&>(that));
   shard_pos_limit_ = that.shard_pos_limit_;
   return *this;
 }
@@ -259,18 +255,14 @@ inline void SplittingWriterBase::MakeBuffer(Writer& shard) {
 
 template <typename Shard>
 inline SplittingWriter<Shard>::SplittingWriter(SplittingWriter&& that) noexcept
-    : SplittingWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : SplittingWriterBase(static_cast<SplittingWriterBase&&>(that)) {
   MoveShard(std::move(that));
 }
 
 template <typename Shard>
 inline SplittingWriter<Shard>& SplittingWriter<Shard>::operator=(
     SplittingWriter&& that) noexcept {
-  SplittingWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  SplittingWriterBase::operator=(static_cast<SplittingWriterBase&&>(that));
   MoveShard(std::move(that));
   return *this;
 }

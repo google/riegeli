@@ -294,17 +294,13 @@ inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(bool exact)
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BackwardWriter(static_cast<BackwardWriter&&>(that)),
       max_pos_(that.max_pos_),
       exact_(that.exact_) {}
 
 inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
     LimitingBackwardWriterBase&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   max_pos_ = that.max_pos_;
   exact_ = that.exact_;
   return *this;
@@ -412,18 +408,16 @@ inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
 template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
     LimitingBackwardWriter&& that) noexcept
-    : LimitingBackwardWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : LimitingBackwardWriterBase(
+          static_cast<LimitingBackwardWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline LimitingBackwardWriter<Dest>& LimitingBackwardWriter<Dest>::operator=(
     LimitingBackwardWriter&& that) noexcept {
-  LimitingBackwardWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  LimitingBackwardWriterBase::operator=(
+      static_cast<LimitingBackwardWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

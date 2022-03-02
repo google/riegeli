@@ -153,9 +153,7 @@ class PythonReader : public BufferedReader {
 };
 
 inline PythonReader::PythonReader(PythonReader&& that) noexcept
-    : BufferedReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : BufferedReader(static_cast<BufferedReader&&>(that)),
       src_(std::move(that.src_)),
       owns_src_(that.owns_src_),
       supports_random_access_(that.supports_random_access_),
@@ -165,9 +163,7 @@ inline PythonReader::PythonReader(PythonReader&& that) noexcept
       use_bytes_(that.use_bytes_) {}
 
 inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
-  BufferedReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   src_ = std::move(that.src_);
   owns_src_ = that.owns_src_;
   supports_random_access_ = that.supports_random_access_;

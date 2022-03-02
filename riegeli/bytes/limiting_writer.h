@@ -299,17 +299,13 @@ inline LimitingWriterBase::LimitingWriterBase(bool exact) : exact_(exact) {}
 
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Writer(static_cast<Writer&&>(that)),
       max_pos_(that.max_pos_),
       exact_(that.exact_) {}
 
 inline LimitingWriterBase& LimitingWriterBase::operator=(
     LimitingWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   max_pos_ = that.max_pos_;
   exact_ = that.exact_;
   return *this;
@@ -412,18 +408,14 @@ inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(LimitingWriter&& that) noexcept
-    : LimitingWriterBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : LimitingWriterBase(static_cast<LimitingWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
 inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
     LimitingWriter&& that) noexcept {
-  LimitingWriterBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  LimitingWriterBase::operator=(static_cast<LimitingWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }

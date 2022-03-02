@@ -216,18 +216,14 @@ inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
 
 template <typename Shard>
 inline JoiningReader<Shard>::JoiningReader(JoiningReader&& that) noexcept
-    : JoiningReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : JoiningReaderBase(static_cast<JoiningReaderBase&&>(that)) {
   MoveShard(std::move(that));
 }
 
 template <typename Shard>
 inline JoiningReader<Shard>& JoiningReader<Shard>::operator=(
     JoiningReader&& that) noexcept {
-  JoiningReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  JoiningReaderBase::operator=(static_cast<JoiningReaderBase&&>(that));
   MoveShard(std::move(that));
   return *this;
 }

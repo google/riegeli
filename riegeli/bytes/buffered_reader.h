@@ -166,18 +166,14 @@ inline BufferedReader::BufferedReader(
 }
 
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
-    : Reader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Reader(static_cast<Reader&&>(that)),
       buffer_size_(that.buffer_size_),
       size_hint_(that.size_hint_),
       buffer_(std::move(that.buffer_)) {}
 
 inline BufferedReader& BufferedReader::operator=(
     BufferedReader&& that) noexcept {
-  Reader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Reader::operator=(static_cast<Reader&&>(that));
   buffer_size_ = that.buffer_size_;
   size_hint_ = that.size_hint_;
   buffer_ = std::move(that.buffer_);

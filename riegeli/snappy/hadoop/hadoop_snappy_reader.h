@@ -165,9 +165,7 @@ explicit HadoopSnappyReader(
 
 inline HadoopSnappyReaderBase::HadoopSnappyReaderBase(
     HadoopSnappyReaderBase&& that) noexcept
-    : PullableReader(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : PullableReader(static_cast<PullableReader&&>(that)),
       truncated_(that.truncated_),
       remaining_chunk_length_(that.remaining_chunk_length_),
       initial_compressed_pos_(that.initial_compressed_pos_),
@@ -175,9 +173,7 @@ inline HadoopSnappyReaderBase::HadoopSnappyReaderBase(
 
 inline HadoopSnappyReaderBase& HadoopSnappyReaderBase::operator=(
     HadoopSnappyReaderBase&& that) noexcept {
-  PullableReader::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  PullableReader::operator=(static_cast<PullableReader&&>(that));
   truncated_ = that.truncated_;
   remaining_chunk_length_ = that.remaining_chunk_length_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
@@ -224,18 +220,15 @@ inline HadoopSnappyReader<Src>::HadoopSnappyReader(
 template <typename Src>
 inline HadoopSnappyReader<Src>::HadoopSnappyReader(
     HadoopSnappyReader&& that) noexcept
-    : HadoopSnappyReaderBase(std::move(that)) {
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+    : HadoopSnappyReaderBase(static_cast<HadoopSnappyReaderBase&&>(that)) {
   src_ = std::move(that.src_);
 }
 
 template <typename Src>
 inline HadoopSnappyReader<Src>& HadoopSnappyReader<Src>::operator=(
     HadoopSnappyReader&& that) noexcept {
-  HadoopSnappyReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  HadoopSnappyReaderBase::operator=(
+      static_cast<HadoopSnappyReaderBase&&>(that));
   src_ = std::move(that.src_);
   return *this;
 }

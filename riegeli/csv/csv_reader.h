@@ -522,9 +522,7 @@ absl::Status ReadCsvRecordFromString(
 // Implementation details follow.
 
 inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
-    : Object(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : Object(static_cast<Object&&>(that)),
       standalone_record_(that.standalone_record_),
       has_header_(that.has_header_),
       header_(std::move(that.header_)),
@@ -539,9 +537,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       recoverable_(std::exchange(that.recoverable_, false)) {}
 
 inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
-  Object::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Object::operator=(static_cast<Object&&>(that));
   standalone_record_ = that.standalone_record_;
   has_header_ = that.has_header_;
   header_ = std::move(that.header_);
@@ -610,16 +606,12 @@ inline CsvReader<Src>::CsvReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline CsvReader<Src>::CsvReader(CsvReader&& that) noexcept
-    : CsvReaderBase(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
+    : CsvReaderBase(static_cast<CsvReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline CsvReader<Src>& CsvReader<Src>::operator=(CsvReader&& that) noexcept {
-  CsvReaderBase::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  CsvReaderBase::operator=(CsvReaderBase(that));
   src_ = std::move(that.src_);
   return *this;
 }

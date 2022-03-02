@@ -187,16 +187,11 @@ class PushableWriter::BehindScratch {
 // Implementation details follow.
 
 inline PushableWriter::PushableWriter(PushableWriter&& that) noexcept
-    : Writer(std::move(that)),
-      // Using `that` after it was moved is correct because only the base class
-      // part was moved.
-      scratch_(std::move(that.scratch_)) {}
+    : Writer(static_cast<Writer&&>(that)), scratch_(std::move(that.scratch_)) {}
 
 inline PushableWriter& PushableWriter::operator=(
     PushableWriter&& that) noexcept {
-  Writer::operator=(std::move(that));
-  // Using `that` after it was moved is correct because only the base class part
-  // was moved.
+  Writer::operator=(static_cast<Writer&&>(that));
   scratch_ = std::move(that.scratch_);
   return *this;
 }
