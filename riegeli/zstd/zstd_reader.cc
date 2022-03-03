@@ -115,8 +115,10 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
 }
 
 void ZstdReaderBase::Done() {
-  if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
+  if (ABSL_PREDICT_FALSE(truncated_) && growing_source_) {
+    Reader& src = *src_reader();
+    FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
+        absl::InvalidArgumentError("Truncated Zstd-compressed stream"))));
   }
   BufferedReader::Done();
   decompressor_.reset();
@@ -125,6 +127,9 @@ void ZstdReaderBase::Done() {
 
 absl::Status ZstdReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    if (ABSL_PREDICT_FALSE(truncated_)) {
+      status = Annotate(status, "reading truncated Zstd-compressed stream");
+    }
     Reader& src = *src_reader();
     status = src.AnnotateStatus(std::move(status));
   }
@@ -213,10 +218,11 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src.ok())) {
         FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-      } else if (growing_source_) {
-        truncated_ = true;
       } else {
-        Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
+        if (!growing_source_) {
+          Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
+        }
+        truncated_ = true;
       }
       return output.pos >= min_length;
     }

@@ -81,7 +81,9 @@ inline void BrotliReaderBase::InitializeDecompressor() {
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(absl::InvalidArgumentError("Truncated Brotli-compressed stream"));
+    Reader& src = *src_reader();
+    FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
+        absl::InvalidArgumentError("Truncated Brotli-compressed stream"))));
   }
   PullableReader::Done();
   decompressor_.reset();
@@ -91,6 +93,9 @@ void BrotliReaderBase::Done() {
 
 absl::Status BrotliReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    if (ABSL_PREDICT_FALSE(truncated_)) {
+      status = Annotate(status, "reading truncated Brotli-compressed stream");
+    }
     Reader& src = *src_reader();
     status = src.AnnotateStatus(std::move(status));
   }

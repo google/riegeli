@@ -48,8 +48,10 @@ void HadoopSnappyReaderBase::Initialize(Reader* src) {
 
 void HadoopSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(
-        absl::InvalidArgumentError("Truncated HadoopSnappy-compressed stream"));
+    Reader& src = *src_reader();
+    FailWithoutAnnotation(
+        AnnotateOverSrc(src.AnnotateStatus(absl::InvalidArgumentError(
+            "Truncated HadoopSnappy-compressed stream"))));
   }
   PullableReader::Done();
   uncompressed_ = Buffer();
@@ -62,6 +64,10 @@ bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {
 
 absl::Status HadoopSnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    if (ABSL_PREDICT_FALSE(truncated_)) {
+      status =
+          Annotate(status, "reading truncated HadoopSnappy-compressed stream");
+    }
     Reader& src = *src_reader();
     status = src.AnnotateStatus(std::move(status));
   }

@@ -58,8 +58,10 @@ void FramedSnappyReaderBase::Initialize(Reader* src) {
 
 void FramedSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(
-        absl::InvalidArgumentError("Truncated FramedSnappy-compressed stream"));
+    Reader& src = *src_reader();
+    FailWithoutAnnotation(
+        AnnotateOverSrc(src.AnnotateStatus(absl::InvalidArgumentError(
+            "Truncated FramedSnappy-compressed stream"))));
   }
   PullableReader::Done();
   uncompressed_ = Buffer();
@@ -72,6 +74,10 @@ bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
 
 absl::Status FramedSnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
+    if (ABSL_PREDICT_FALSE(truncated_)) {
+      status =
+          Annotate(status, "reading truncated FramedSnappy-compressed stream");
+    }
     Reader& src = *src_reader();
     status = src.AnnotateStatus(std::move(status));
   }

@@ -45,9 +45,9 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
       << src.InitializationErrorString();
   const size_t size = options.GetByteSize(src);
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return absl::ResourceExhaustedError(absl::StrCat(
+    return dest.AnnotateStatus(absl::ResourceExhaustedError(absl::StrCat(
         "Failed to serialize message of type ", src.GetTypeName(),
-        " because it exceeds maximum protobuf size of 2GB: ", size));
+        " because it exceeds maximum protobuf size of 2GB: ", size)));
   }
   WriterOutputStream output_stream(&dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);

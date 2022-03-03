@@ -822,7 +822,7 @@ inline absl::Status ReadAllImpl(Src&& src, Dest& dest, size_t max_length) {
   }
   if (src_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status = src_ref->status();
+      status.Update(src_ref->status());
     }
   }
   return status;
@@ -838,7 +838,7 @@ inline absl::Status ReadAndAppendAllImpl(Src&& src, Dest& dest,
   }
   if (src_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status = src_ref->status();
+      status.Update(src_ref->status());
     }
   }
   return status;
@@ -852,13 +852,15 @@ inline absl::Status CopyAllImpl(Src&& src, Dest&& dest, LengthType max_length) {
   if (ABSL_PREDICT_FALSE(!src_ref->CopyAll(*dest_ref, max_length))) {
     status = !dest_ref->ok() ? dest_ref->status() : src_ref->status();
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status = src_ref->status();
+  if (dest_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
+      status.Update(dest_ref->status());
     }
   }
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
+  if (src_ref.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
+      status.Update(src_ref->status());
+    }
   }
   return status;
 }

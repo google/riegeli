@@ -146,7 +146,7 @@ inline absl::Status ParseFromReader(Src&& src,
       messages_internal::ParseFromReaderImpl(*src_ref, dest, options);
   if (src_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status = src_ref->status();
+      status.Update(src_ref->status());
     }
   }
   return status;

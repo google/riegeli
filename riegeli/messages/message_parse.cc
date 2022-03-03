@@ -37,6 +37,18 @@ namespace riegeli {
 
 namespace {
 
+inline absl::Status CheckInitialized(Reader& src,
+                                     google::protobuf::MessageLite& dest,
+                                     ParseOptions options) {
+  if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
+    return src.AnnotateStatus(absl::InvalidArgumentError(
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
+                     " because it is missing required fields: ",
+                     dest.InitializationErrorString())));
+  }
+  return absl::OkStatus();
+}
+
 inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
                                      ParseOptions options) {
   if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
@@ -69,20 +81,20 @@ absl::Status ParseFromReaderImpl(Reader& src,
                                      IntCast<int>(src.available()));
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!parse_ok)) {
-        return absl::InvalidArgumentError(absl::StrCat(
-            "Failed to parse message of type ", dest.GetTypeName()));
+        return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
+            "Failed to parse message of type ", dest.GetTypeName())));
       }
-      return CheckInitialized(dest, options);
+      return CheckInitialized(src, dest, options);
     }
   }
   ReaderInputStream input_stream(&src);
   const bool parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
+    return src.AnnotateStatus(absl::InvalidArgumentError(
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName())));
   }
-  return CheckInitialized(dest, options);
+  return CheckInitialized(src, dest, options);
 }
 
 }  // namespace messages_internal

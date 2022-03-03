@@ -198,7 +198,9 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
   absl::Status status =
       messages_internal::SerializeToWriterImpl(src, *dest_ref, options);
   if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
+      status.Update(dest_ref->status());
+    }
   }
   return status;
 }

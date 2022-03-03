@@ -616,7 +616,9 @@ inline absl::Status WriteImpl(Src&& src, Dest&& dest) {
     status = dest_ref->status();
   }
   if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) status = dest_ref->status();
+    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
+      status.Update(dest_ref->status());
+    }
   }
   return status;
 }
