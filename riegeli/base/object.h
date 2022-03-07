@@ -107,8 +107,8 @@ class ObjectState {
 
   static void DeleteStatus(uintptr_t status_ptr);
 
-  // `status_ptr_` is either `kHealthy`, or `kClosedSuccessfully`, or
-  // `FailedStatus*` `reinterpret_cast` to `uintptr_t`.
+  // `status_ptr_` is `kOk`, or `kClosedSuccessfully`, or a `FailedStatus*`
+  // `reinterpret_cast` to `uintptr_t`.
   uintptr_t status_ptr_;
 };
 
