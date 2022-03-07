@@ -64,7 +64,7 @@ class IStreamReaderBase : public BufferedReader {
     // If `true`, supports reading up to the end of the stream, then retrying
     // when the stream has grown. This disables caching the stream size.
     //
-    // Default: `false`.
+    // Default: `true` (TODO: make it `false`).
     Options& set_growing_source(bool growing_source) & {
       growing_source_ = growing_source;
       return *this;
@@ -92,7 +92,7 @@ class IStreamReaderBase : public BufferedReader {
 
    private:
     absl::optional<Position> assumed_pos_;
-    bool growing_source_ = false;
+    bool growing_source_ = true;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
