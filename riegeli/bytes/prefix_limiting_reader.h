@@ -351,8 +351,9 @@ void PrefixLimitingReader<Src>::Done() {
 
 template <typename Src>
 void PrefixLimitingReader<Src>::VerifyEnd() {
-  PrefixLimitingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
+  if (!src_.is_owning()) {
+    PrefixLimitingReaderBase::VerifyEnd();
+  } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);

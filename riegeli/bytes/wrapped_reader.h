@@ -274,8 +274,9 @@ void WrappedReader<Src>::Done() {
 
 template <typename Src>
 void WrappedReader<Src>::VerifyEnd() {
-  WrappedReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
+  if (!src_.is_owning()) {
+    WrappedReaderBase::VerifyEnd();
+  } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);

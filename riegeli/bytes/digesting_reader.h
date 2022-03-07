@@ -352,8 +352,9 @@ void DigestingReader<Digester, Src>::Done() {
 
 template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::VerifyEnd() {
-  DigestingReaderBase::VerifyEnd();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) {
+  if (!src_.is_owning()) {
+    DigestingReaderBase::VerifyEnd();
+  } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
     MakeBuffer(*src_);

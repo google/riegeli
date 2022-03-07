@@ -157,18 +157,14 @@ bool CFileWriterBase::supports_random_access() {
       << "Failed invariant of CFileWriterBase: "
          "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (absl::StartsWith(filename(), "/sys/")) {
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
     // "/sys" files do not support random access. It is hard to reliably
     // recognize them, so `CFileWriter` checks the filename.
   } else {
     FILE* const dest = dest_file();
     if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
       clearerr(dest);
-    } else if (absl::StartsWith(filename(), "/proc/")) {
-      // Some "/proc" files do not support random access. It is hard to reliably
-      // recognize them using the `FILE` API, so `CFileWriter` checks the
-      // filename. Random access is assumed to be supported only if they claim
-      // to have a non-zero size.
+    } else {
       const off_t file_size = cfile_internal::FTell(dest);
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
         FailOperation(cfile_internal::kFTellFunctionName);
@@ -176,15 +172,12 @@ bool CFileWriterBase::supports_random_access() {
                      cfile_internal::FSeek(dest, IntCast<off_t>(limit_pos()),
                                            SEEK_SET) != 0)) {
         FailOperation(cfile_internal::kFSeekFunctionName);
-      } else {
-        supported = file_size > 0;
-      }
-    } else {
-      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
-                                                   IntCast<off_t>(limit_pos()),
-                                                   SEEK_SET) != 0)) {
-        FailOperation(cfile_internal::kFSeekFunctionName);
-      } else {
+      } else if (file_size > 0 ||
+                 ABSL_PREDICT_TRUE(!absl::StartsWith(filename(), "/proc/"))) {
+        // Some "/proc" files do not support random access. It is hard to
+        // reliably recognize them using the `FILE` API, so `CFileWriter` checks
+        // the filename. Random access is assumed to be supported only if they
+        // claim to have a non-zero size.
         supported = true;
       }
     }

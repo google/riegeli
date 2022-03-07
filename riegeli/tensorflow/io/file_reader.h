@@ -79,6 +79,19 @@ class FileReaderBase : public Reader {
     }
     Position initial_pos() const { return initial_pos_; }
 
+    // If `true`, supports reading up to the end of the file, then retrying when
+    // the file has grown. This disables caching the file size.
+    //
+    // Default: `false`.
+    Options& set_growing_source(bool growing_source) & {
+      growing_source_ = growing_source;
+      return *this;
+    }
+    Options&& set_growing_source(bool growing_source) && {
+      return std::move(set_growing_source(growing_source));
+    }
+    bool growing_source() const { return growing_source_; }
+
     // Tunes how much data is buffered after reading from the file.
     //
     // Default: `kDefaultBufferSize` (64K).
@@ -98,6 +111,7 @@ class FileReaderBase : public Reader {
    private:
     ::tensorflow::Env* env_ = nullptr;
     Position initial_pos_ = 0;
+    bool growing_source_ = false;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -116,13 +130,14 @@ class FileReaderBase : public Reader {
  protected:
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  explicit FileReaderBase(::tensorflow::Env* env, size_t buffer_size);
+  explicit FileReaderBase(::tensorflow::Env* env, bool growing_source,
+                          size_t buffer_size);
 
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(::tensorflow::Env* env, size_t buffer_size);
+  void Reset(::tensorflow::Env* env, bool growing_source, size_t buffer_size);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
   bool InitializeFilename(absl::string_view filename, ::tensorflow::Env* env);
@@ -146,6 +161,8 @@ class FileReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  void FoundSize(Position size);
+
   // Discards buffer contents.
   void SyncBuffer();
 
@@ -181,6 +198,8 @@ class FileReaderBase : public Reader {
   // Invariant:
   //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
+  bool growing_source_ = false;
+  absl::optional<Position> size_;
   // Invariant: if `is_open()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // If `buffer_` is not empty, it contains buffered data, read directly before
@@ -291,8 +310,9 @@ explicit FileReader(std::tuple<SrcArgs...> src_args,
 // Implementation details follow.
 
 inline FileReaderBase::FileReaderBase(::tensorflow::Env* env,
-                                      size_t buffer_size)
+                                      bool growing_source, size_t buffer_size)
     : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
+      growing_source_(growing_source),
       buffer_size_(buffer_size) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
@@ -300,6 +320,8 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
       filename_(std::move(that.filename_)),
       env_(that.env_),
       file_system_(that.file_system_),
+      growing_source_(that.growing_source_),
+      size_(that.size_),
       buffer_size_(that.buffer_size_),
       buffer_(std::move(that.buffer_)) {}
 
@@ -309,6 +331,8 @@ inline FileReaderBase& FileReaderBase::operator=(
   filename_ = std::move(that.filename_);
   env_ = that.env_;
   file_system_ = that.file_system_;
+  growing_source_ = that.growing_source_;
+  size_ = that.size_;
   buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
@@ -319,15 +343,20 @@ inline void FileReaderBase::Reset(Closed) {
   filename_ = std::string();
   env_ = nullptr;
   file_system_ = nullptr;
+  growing_source_ = false;
+  size_ = absl::nullopt;
   buffer_size_ = 0;
   buffer_ = ChainBlock();
 }
 
-inline void FileReaderBase::Reset(::tensorflow::Env* env, size_t buffer_size) {
+inline void FileReaderBase::Reset(::tensorflow::Env* env, bool growing_source,
+                                  size_t buffer_size) {
   Reader::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
+  growing_source_ = growing_source;
+  size_ = absl::nullopt;
   buffer_size_ = buffer_size;
   buffer_.Clear();
 }
@@ -342,13 +371,16 @@ inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(const Src& src, Options options)
-    : FileReaderBase(options.env(), options.buffer_size()), src_(src) {
+    : FileReaderBase(options.env(), options.growing_source(),
+                     options.buffer_size()),
+      src_(src) {
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FileReader<Src>::FileReader(Src&& src, Options options)
-    : FileReaderBase(options.env(), options.buffer_size()),
+    : FileReaderBase(options.env(), options.growing_source(),
+                     options.buffer_size()),
       src_(std::move(src)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -357,7 +389,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : FileReaderBase(options.env(), options.buffer_size()),
+    : FileReaderBase(options.env(), options.growing_source(),
+                     options.buffer_size()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -376,14 +409,16 @@ inline void FileReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void FileReader<Src>::Reset(const Src& src, Options options) {
-  FileReaderBase::Reset(options.env(), options.buffer_size());
+  FileReaderBase::Reset(options.env(), options.growing_source(),
+                        options.buffer_size());
   src_.Reset(src);
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FileReader<Src>::Reset(Src&& src, Options options) {
-  FileReaderBase::Reset(options.env(), options.buffer_size());
+  FileReaderBase::Reset(options.env(), options.growing_source(),
+                        options.buffer_size());
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -392,7 +427,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  FileReaderBase::Reset(options.env(), options.buffer_size());
+  FileReaderBase::Reset(options.env(), options.growing_source(),
+                        options.buffer_size());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -414,7 +450,8 @@ inline void FileReader<Src>::Initialize(absl::string_view filename,
   }
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  FileReaderBase::Reset(options.env(), options.buffer_size());
+  FileReaderBase::Reset(options.env(), options.growing_source(),
+                        options.buffer_size());
   src_.Reset(std::forward_as_tuple(src.release()));
   InitializePos(options.initial_pos());
 }

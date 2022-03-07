@@ -58,6 +58,12 @@ class Reader : public Object {
   // Verifies that the source ends at the current position, failing the `Reader`
   // with an `absl::InvalidArgumentError()` if not. Closes the `Reader`.
   //
+  // This is an alternative to `Close()` if the presence of unread data at the
+  // current position should be treated as an error.
+  //
+  // If `*this` reads data from an owned source, such as a decompressor reading
+  // compressed data, then generally the source is verified too.
+  //
   // Return values:
   //  * `true`  - success (the source ends at the former current position)
   //  * `false` - failure (the source does not end at the former current
@@ -66,6 +72,9 @@ class Reader : public Object {
 
   // Verifies that the source ends at the current position, failing the `Reader`
   // with an `absl::InvalidArgumentError()` if not.
+  //
+  // If `*this` reads data from an owned source, such as a decompressor reading
+  // compressed data, then generally the source is verified too.
   virtual void VerifyEnd();
 
   // Ensures that enough data are available in the buffer: if less than

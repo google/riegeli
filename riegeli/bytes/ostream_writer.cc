@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <cerrno>
+#include <ios>
 #include <istream>
 #include <limits>
 #include <ostream>

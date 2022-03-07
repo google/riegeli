@@ -188,7 +188,7 @@ bool FdReaderBase::supports_random_access() {
       << "Failed invariant of FdReaderBase: "
          "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (absl::StartsWith(filename(), "/sys/")) {
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
     // "/sys" files do not support random access. It is hard to reliably
     // recognize them, so `FdReader` checks the filename.
     //
@@ -196,18 +196,25 @@ bool FdReaderBase::supports_random_access() {
     // recognized by a failing `lseek(SEEK_END)`.
   } else {
     const int src = src_fd();
-    if (lseek(src, 0, SEEK_END) >= 0) {
-      if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) <
-                             0)) {
-        FailOperation("lseek()");
-      } else {
-        supported = true;
-      }
+    const off_t file_size = lseek(src, 0, SEEK_END);
+    if (file_size < 0) {
+      // Not supported.
+    } else if (ABSL_PREDICT_FALSE(
+                   lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
+      FailOperation("lseek()");
+    } else {
+      FoundSize(IntCast<Position>(file_size));
+      supported = true;
     }
   }
   supports_random_access_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
+}
+
+inline void FdReaderBase::FoundSize(Position size) {
+  if (!growing_source_) size_ = size;
+  set_size_hint(size);
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -220,6 +227,9 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+    return false;
+  }
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
@@ -229,20 +239,20 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
   for (;;) {
   again:
+    const size_t length_to_read =
+        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()});
     const ssize_t length_read =
         has_independent_pos_
-            ? pread(src, dest,
-                    UnsignedMin(max_length,
-                                size_t{std::numeric_limits<ssize_t>::max()}),
-                    IntCast<off_t>(limit_pos()))
-            : read(src, dest,
-                   UnsignedMin(max_length,
-                               size_t{std::numeric_limits<ssize_t>::max()}));
+            ? pread(src, dest, length_to_read, IntCast<off_t>(limit_pos()))
+            : read(src, dest, length_to_read);
     if (ABSL_PREDICT_FALSE(length_read < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
-    if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
+    if (ABSL_PREDICT_FALSE(length_read == 0)) {
+      FoundSize(limit_pos());
+      return false;
+    }
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
         << (has_independent_pos_ ? "pread()" : "read()")
         << " read more than requested";
@@ -284,13 +294,20 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   const int src = src_fd();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-      return FailOperation("fstat()");
+    Position file_size;
+    if (size_ != absl::nullopt) {
+      file_size = *size_;
+    } else {
+      struct stat stat_info;
+      if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
+        return FailOperation("fstat()");
+      }
+      file_size = IntCast<Position>(stat_info.st_size);
+      FoundSize(file_size);
     }
-    if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
+    if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
-      SeekInternal(src, IntCast<Position>(stat_info.st_size));
+      SeekInternal(src, file_size);
       return false;
     }
   }
@@ -304,12 +321,14 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
     return BufferedReader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (size_ != absl::nullopt) return *size_;
   const int src = src_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
     return absl::nullopt;
   }
+  FoundSize(IntCast<Position>(stat_info.st_size));
   return IntCast<Position>(stat_info.st_size);
 }
 
@@ -327,7 +346,9 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
           src, FdReaderBase::Options()
                    .set_assumed_filename(filename())
                    .set_independent_pos(initial_pos)
+                   .set_growing_source(growing_source_)
                    .set_buffer_size(buffer_size()));
+  reader->size_ = size_;
   ShareBufferTo(*reader);
   return reader;
 }

@@ -101,6 +101,19 @@ class CFileReaderBase : public BufferedReader {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
+    // If `true`, supports reading up to the end of the file, then retrying when
+    // the file has grown. This disables caching the file size.
+    //
+    // Default: `false`.
+    Options& set_growing_source(bool growing_source) & {
+      growing_source_ = growing_source;
+      return *this;
+    }
+    Options&& set_growing_source(bool growing_source) && {
+      return std::move(set_growing_source(growing_source));
+    }
+    bool growing_source() const { return growing_source_; }
+
     // Tunes how much data is buffered after reading from the `FILE`.
     //
     // Default: `kDefaultBufferSize` (64K).
@@ -121,6 +134,7 @@ class CFileReaderBase : public BufferedReader {
     std::string assumed_filename_;
     std::string mode_ = "r";
     absl::optional<Position> assumed_pos_;
+    bool growing_source_ = false;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -137,13 +151,13 @@ class CFileReaderBase : public BufferedReader {
  protected:
   explicit CFileReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit CFileReaderBase(size_t buffer_size);
+  explicit CFileReaderBase(bool growing_source, size_t buffer_size);
 
   CFileReaderBase(CFileReaderBase&& that) noexcept;
   CFileReaderBase& operator=(CFileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(size_t buffer_size);
+  void Reset(bool growing_source, size_t buffer_size);
   void Initialize(FILE* src, std::string&& assumed_filename,
                   absl::optional<Position> assumed_pos);
   FILE* OpenFile(absl::string_view filename, const char* mode);
@@ -161,10 +175,14 @@ class CFileReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
+  void FoundSize(Position size);
+
   std::string filename_;
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+  bool growing_source_ = false;
+  absl::optional<Position> size_;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -278,19 +296,23 @@ explicit CFileReader(
 
 // Implementation details follow.
 
-inline CFileReaderBase::CFileReaderBase(size_t buffer_size)
-    : BufferedReader(buffer_size) {}
+inline CFileReaderBase::CFileReaderBase(bool growing_source, size_t buffer_size)
+    : BufferedReader(buffer_size), growing_source_(growing_source) {}
 
 inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::move(that.filename_)),
-      supports_random_access_(that.supports_random_access_) {}
+      supports_random_access_(that.supports_random_access_),
+      growing_source_(that.growing_source_),
+      size_(that.size_) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
+  growing_source_ = that.growing_source_;
+  size_ = that.size_;
   return *this;
 }
 
@@ -298,24 +320,30 @@ inline void CFileReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   filename_ = std::string();
   supports_random_access_ = LazyBoolState::kFalse;
+  growing_source_ = false;
+  size_ = absl::nullopt;
 }
 
-inline void CFileReaderBase::Reset(size_t buffer_size) {
+inline void CFileReaderBase::Reset(bool growing_source, size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
   // `filename_` was set by `OpenFile()` or will be set by `Initialize()`.
   supports_random_access_ = LazyBoolState::kFalse;
+  growing_source_ = growing_source;
+  size_ = absl::nullopt;
 }
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(const Src& src, Options options)
-    : CFileReaderBase(options.buffer_size()), src_(src) {
+    : CFileReaderBase(options.growing_source(), options.buffer_size()),
+      src_(src) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
 }
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(Src&& src, Options options)
-    : CFileReaderBase(options.buffer_size()), src_(std::move(src)) {
+    : CFileReaderBase(options.growing_source(), options.buffer_size()),
+      src_(std::move(src)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
 }
@@ -328,7 +356,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
                                      Options options)
-    : CFileReaderBase(options.buffer_size()), src_(std::move(src_args)) {
+    : CFileReaderBase(options.growing_source(), options.buffer_size()),
+      src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
 }
@@ -361,7 +390,7 @@ inline void CFileReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void CFileReader<Src>::Reset(const Src& src, Options options) {
-  CFileReaderBase::Reset(options.buffer_size());
+  CFileReaderBase::Reset(options.growing_source(), options.buffer_size());
   src_.Reset(src);
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
@@ -369,7 +398,7 @@ inline void CFileReader<Src>::Reset(const Src& src, Options options) {
 
 template <typename Src>
 inline void CFileReader<Src>::Reset(Src&& src, Options options) {
-  CFileReaderBase::Reset(options.buffer_size());
+  CFileReaderBase::Reset(options.growing_source(), options.buffer_size());
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
@@ -384,7 +413,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                     Options options) {
-  CFileReaderBase::Reset(options.buffer_size());
+  CFileReaderBase::Reset(options.growing_source(), options.buffer_size());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos());
@@ -402,7 +431,7 @@ void CFileReader<Src>::Initialize(absl::string_view filename,
                                   Options&& options) {
   FILE* const src = OpenFile(filename, options.mode().c_str());
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  CFileReaderBase::Reset(options.buffer_size());
+  CFileReaderBase::Reset(options.growing_source(), options.buffer_size());
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.assumed_pos());
 }

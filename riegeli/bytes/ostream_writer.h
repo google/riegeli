@@ -67,7 +67,7 @@ class OStreamWriterBase : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered before writing to the file.
+    // Tunes how much data is buffered before writing to the stream.
     //
     // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {

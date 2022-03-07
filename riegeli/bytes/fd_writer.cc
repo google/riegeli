@@ -184,7 +184,7 @@ bool FdWriterBase::supports_random_access() {
       << "Failed invariant of FdWriterBase: "
          "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (absl::StartsWith(filename(), "/sys/")) {
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
     // "/sys" files do not support random access. It is hard to reliably
     // recognize them, so `FdWriter` checks the filename.
     //
@@ -192,13 +192,13 @@ bool FdWriterBase::supports_random_access() {
     // recognized by a failing `lseek(SEEK_END)`.
   } else {
     const int dest = dest_fd();
-    if (lseek(dest, 0, SEEK_END) >= 0) {
-      if (ABSL_PREDICT_FALSE(
-              lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) < 0)) {
-        FailOperation("lseek()");
-      } else {
-        supported = true;
-      }
+    if (lseek(dest, 0, SEEK_END) < 0) {
+      // Not supported.
+    } else if (ABSL_PREDICT_FALSE(
+                   lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) < 0)) {
+      FailOperation("lseek()");
+    } else {
+      supported = true;
     }
   }
   supports_random_access_ =
@@ -229,15 +229,12 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   }
   do {
   again:
+    const size_t length_to_write =
+        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()});
     const ssize_t length_written =
-        has_independent_pos_
-            ? pwrite(dest, src.data(),
-                     UnsignedMin(src.size(),
-                                 size_t{std::numeric_limits<ssize_t>::max()}),
-                     IntCast<off_t>(start_pos()))
-            : write(dest, src.data(),
-                    UnsignedMin(src.size(),
-                                size_t{std::numeric_limits<ssize_t>::max()}));
+        has_independent_pos_ ? pwrite(dest, src.data(), length_to_write,
+                                      IntCast<off_t>(start_pos()))
+                             : write(dest, src.data(), length_to_write);
     if (ABSL_PREDICT_FALSE(length_written < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation(has_independent_pos_ ? "pwrite()" : "write()");

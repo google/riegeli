@@ -117,6 +117,10 @@ void FileReaderBase::Done() {
   buffer_ = ChainBlock();
 }
 
+inline void FileReaderBase::FoundSize(Position size) {
+  if (!growing_source_) size_ = size;
+}
+
 inline void FileReaderBase::SyncBuffer() {
   buffer_.Clear();
   set_buffer();
@@ -178,6 +182,9 @@ inline bool FileReaderBase::ReadToDest(size_t length,
                                        ::tensorflow::RandomAccessFile* src,
                                        char* dest) {
   SyncBuffer();
+  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+    return false;
+  }
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<uint64_t>::max() - limit_pos())) {
     return FailOverflow();
@@ -193,6 +200,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
+    FoundSize(limit_pos());
     return false;
   }
   return true;
@@ -205,6 +213,9 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
                  buffer_.data() + buffer_.size())
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
+  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+    return false;
+  }
   bool enough_read = true;
   if (ABSL_PREDICT_FALSE(flat_buffer.size() >
                          std::numeric_limits<uint64_t>::max() - limit_pos())) {
@@ -242,6 +253,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
+    FoundSize(limit_pos());
     return false;
   }
   return enough_read;
@@ -495,12 +507,17 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     uint64_t file_size;
-    {
-      const ::tensorflow::Status status =
-          file_system_->GetFileSize(filename_, &file_size);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation(status, "FileSystem::GetFileSize()");
+    if (size_ != absl::nullopt) {
+      file_size = IntCast<uint64_t>(*size_);
+    } else {
+      {
+        const ::tensorflow::Status status =
+            file_system_->GetFileSize(filename_, &file_size);
+        if (ABSL_PREDICT_FALSE(!status.ok())) {
+          return FailOperation(status, "FileSystem::GetFileSize()");
+        }
       }
+      FoundSize(Position{file_size});
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
@@ -519,6 +536,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     return Reader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (size_ != absl::nullopt) return *size_;
   uint64_t file_size;
   {
     const ::tensorflow::Status status =
@@ -528,6 +546,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
       return absl::nullopt;
     }
   }
+  FoundSize(Position{file_size});
   return Position{file_size};
 }
 
@@ -545,7 +564,9 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
           src, FileReaderBase::Options()
                    .set_env(env_)
                    .set_initial_pos(initial_pos)
+                   .set_growing_source(growing_source_)
                    .set_buffer_size(buffer_size_));
+  reader->size_ = size_;
   if (initial_pos >= start_pos() && initial_pos < limit_pos()) {
     // Share `buffer_` with `*reader`.
     reader->buffer_ = buffer_;
