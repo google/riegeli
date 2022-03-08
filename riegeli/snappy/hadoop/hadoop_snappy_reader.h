@@ -132,10 +132,9 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
+  void VerifyEndImpl() override;
 
  private:
   // The object providing and possibly owning the compressed `Reader`.
@@ -273,8 +272,8 @@ void HadoopSnappyReader<Src>::Done() {
 }
 
 template <typename Src>
-void HadoopSnappyReader<Src>::VerifyEnd() {
-  HadoopSnappyReaderBase::VerifyEnd();
+void HadoopSnappyReader<Src>::VerifyEndImpl() {
+  HadoopSnappyReaderBase::VerifyEndImpl();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 

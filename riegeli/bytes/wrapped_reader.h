@@ -138,10 +138,9 @@ class WrappedReader : public WrappedReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
+  void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
 
  private:
@@ -273,9 +272,9 @@ void WrappedReader<Src>::Done() {
 }
 
 template <typename Src>
-void WrappedReader<Src>::VerifyEnd() {
+void WrappedReader<Src>::VerifyEndImpl() {
   if (!src_.is_owning()) {
-    WrappedReaderBase::VerifyEnd();
+    WrappedReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();

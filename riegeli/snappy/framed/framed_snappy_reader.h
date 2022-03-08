@@ -131,10 +131,9 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
+  void VerifyEndImpl() override;
 
  private:
   void MoveSrc(FramedSnappyReader&& that);
@@ -291,8 +290,8 @@ void FramedSnappyReader<Src>::Done() {
 }
 
 template <typename Src>
-void FramedSnappyReader<Src>::VerifyEnd() {
-  FramedSnappyReaderBase::VerifyEnd();
+void FramedSnappyReader<Src>::VerifyEndImpl() {
+  FramedSnappyReaderBase::VerifyEndImpl();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 

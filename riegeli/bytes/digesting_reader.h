@@ -171,10 +171,9 @@ class DigestingReader : public DigestingReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
+  void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
 
   using DigestingReaderBase::DigesterWrite;
@@ -351,9 +350,9 @@ void DigestingReader<Digester, Src>::Done() {
 }
 
 template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::VerifyEnd() {
+void DigestingReader<Digester, Src>::VerifyEndImpl() {
   if (!src_.is_owning()) {
-    DigestingReaderBase::VerifyEnd();
+    DigestingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();

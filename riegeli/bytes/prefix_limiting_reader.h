@@ -174,10 +174,9 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void VerifyEnd() override;
-
  protected:
   void Done() override;
+  void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
 
  private:
@@ -350,9 +349,9 @@ void PrefixLimitingReader<Src>::Done() {
 }
 
 template <typename Src>
-void PrefixLimitingReader<Src>::VerifyEnd() {
+void PrefixLimitingReader<Src>::VerifyEndImpl() {
   if (!src_.is_owning()) {
-    PrefixLimitingReaderBase::VerifyEnd();
+    PrefixLimitingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();

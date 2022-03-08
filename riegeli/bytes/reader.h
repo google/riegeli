@@ -75,7 +75,7 @@ class Reader : public Object {
   //
   // If `*this` reads data from an owned source, such as a decompressor reading
   // compressed data, then generally the source is verified too.
-  virtual void VerifyEnd();
+  void VerifyEnd();
 
   // Ensures that enough data are available in the buffer: if less than
   // `min_length` of data is available, pulls more data from the source, and
@@ -421,6 +421,11 @@ class Reader : public Object {
   // This can be called if `limit_pos()` would overflow.
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
+  // Implementation of `VerifyEnd()`.
+  //
+  // By default is implemented in terms of `Pull()`.
+  virtual void VerifyEndImpl();
+
   // Implementation of the slow part of `Pull()`.
   //
   // Precondition: `available() < min_length`
@@ -629,6 +634,8 @@ inline bool Reader::VerifyEndAndClose() {
   VerifyEnd();
   return Close();
 }
+
+inline void Reader::VerifyEnd() { VerifyEndImpl(); }
 
 inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;

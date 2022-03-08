@@ -38,9 +38,6 @@ class Writer;
 // `BufferedReader` accumulates data which has been pulled in a flat buffer.
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
- public:
-  void VerifyEnd() override;
-
  protected:
   // Creates a closed `BufferedReader`.
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
@@ -116,6 +113,7 @@ class BufferedReader : public Reader {
   virtual bool SeekBehindBuffer(Position new_pos);
 
   void Done() override;
+  void VerifyEndImpl() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;

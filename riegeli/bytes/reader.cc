@@ -38,7 +38,7 @@
 
 namespace riegeli {
 
-void Reader::VerifyEnd() {
+void Reader::VerifyEndImpl() {
   if (ABSL_PREDICT_FALSE(Pull())) {
     Fail(absl::InvalidArgumentError("End of data expected"));
     if (SupportsSize()) {

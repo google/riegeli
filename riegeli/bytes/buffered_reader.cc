@@ -49,13 +49,6 @@ void BufferedReader::Done() {
   buffer_ = ChainBlock();
 }
 
-void BufferedReader::VerifyEnd() {
-  // No more data are expected, so allocate a minimum non-empty buffer for
-  // verifying that.
-  set_size_hint(SaturatingAdd(pos(), Position{1}));
-  Reader::VerifyEnd();
-}
-
 inline void BufferedReader::SyncBuffer() {
   set_buffer();
   buffer_.Clear();
@@ -70,6 +63,13 @@ inline size_t BufferedReader::LengthToReadDirectly() const {
     return UnsignedMin(buffer_size_, size_hint_ - pos());
   }
   return buffer_size_;
+}
+
+void BufferedReader::VerifyEndImpl() {
+  // No more data are expected, so allocate a minimum non-empty buffer for
+  // verifying that if no buffer was allocated yet.
+  set_size_hint(SaturatingAdd(pos(), Position{1}));
+  Reader::VerifyEndImpl();
 }
 
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
