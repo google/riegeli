@@ -214,8 +214,8 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
   if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
-    buffer_.Clear();
-    set_buffer();
+    buffer_.RemoveSuffix(flat_buffer.size());
+    set_buffer(buffer_.data(), buffer_.size(), cursor_index);
     return false;
   }
   bool enough_read = true;
