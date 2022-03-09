@@ -141,7 +141,7 @@ class FdReaderBase : public BufferedReader {
     // If `true`, supports reading up to the end of the file, then retrying when
     // the file has grown. This disables caching the file size.
     //
-    // Default: `true` (TODO: make it `false`).
+    // Default: `false`.
     Options& set_growing_source(bool growing_source) & {
       growing_source_ = growing_source;
       return *this;
@@ -171,7 +171,7 @@ class FdReaderBase : public BufferedReader {
     int mode_ = O_RDONLY;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
-    bool growing_source_ = true;
+    bool growing_source_ = false;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
