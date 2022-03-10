@@ -96,12 +96,14 @@ class RecordWriterBase : public Object {
     //  * `!status.ok()` - failure
     absl::Status FromString(absl::string_view text);
 
-    // If `true`, records should be serialized proto messages (but nothing will
-    // break if they are not). A chunk of records will be processed in a way
-    // which allows for better compression.
+    // If `false`, records can be arbitrary strings. A chunk of records is
+    // stored in a simple format, directly or with compression.
     //
-    // If `false`, a chunk of records will be stored in a simpler format,
-    // directly or with compression.
+    // If `true`, records should be serialized proto messages, but nothing
+    // breaks if they are not. A chunk of records is processed in a way which
+    // allows for better compression of proto messages, by putting next to each
+    // other occurrences of the same field across records or across elements of
+    // a repeated field.
     //
     // Default: `false`.
     Options& set_transpose(bool transpose) & {
@@ -212,7 +214,7 @@ class RecordWriterBase : public Object {
       return compressor_options_;
     }
 
-    // Sets the desired uncompressed size of a chunk which groups messages to be
+    // Desired uncompressed size of a chunk which groups messages to be
     // transposed, compressed, and written together.
     //
     // A larger chunk size improves compression density; a smaller chunk size
@@ -245,11 +247,11 @@ class RecordWriterBase : public Object {
       return *chunk_size_;
     }
 
-    // Sets the desired uncompressed size of a bucket which groups values of
-    // several fields of the given wire type to be compressed together,
-    // relative to the desired chunk size, on the scale between 0.0 (compress
-    // each field separately) to 1.0 (put all fields of the same wire type in
-    // the same bucket).
+    // Desired uncompressed size of a bucket which groups values of several
+    // fields of the given wire type to be compressed together, relative to the
+    // desired chunk size, on the scale between 0.0 (compress each field
+    // separately) to 1.0 (put all fields of the same wire type in the same
+    // bucket).
     //
     // This is meaningful if transpose and compression are enabled. A larger
     // bucket size improves compression density; a smaller bucket size makes
@@ -274,15 +276,15 @@ class RecordWriterBase : public Object {
     }
     double bucket_fraction() const { return bucket_fraction_; }
 
-    // Sets file metadata to be written at the beginning (unless
-    // `absl::nullopt`).
+    // If not `absl::nullopt`, sets file metadata to be written at the
+    // beginning.
     //
     // Metadata are written only when the file is written from the beginning,
     // not when it is appended to.
     //
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
-    // Default: no fields set.
+    // Default: `absl::nullopt`.
     Options& set_metadata(const absl::optional<RecordsMetadata>& metadata) & {
       metadata_ = metadata;
       serialized_metadata_ = absl::nullopt;
@@ -389,9 +391,9 @@ class RecordWriterBase : public Object {
     }
     bool pad_to_block_boundary() const { return pad_to_block_boundary_; }
 
-    // Sets the maximum number of chunks being encoded in parallel in
-    // background. Larger parallelism can increase throughput, up to a point
-    // where it no longer matters; smaller parallelism reduces memory usage.
+    // Maximum number of chunks being encoded in parallel in background. Larger
+    // parallelism can increase throughput, up to a point where it no longer
+    // matters; smaller parallelism reduces memory usage.
     //
     // If `parallelism > 0`, chunks are written to the byte `Writer` in
     // background and reporting writing errors is delayed.

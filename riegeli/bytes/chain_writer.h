@@ -43,10 +43,10 @@ class ChainWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // If `true`, appends to existing contents of the destination.
-    //
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
+    //
+    // If `true`, appends to existing contents of the destination.
     //
     // Default: `false`.
     Options& set_append(bool append) & {

@@ -48,12 +48,12 @@ class CFileWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `CFileWriter` writes to an already open `FILE`,
-    // `set_assumed_filename()` allows to override the filename which is
-    // included in failure messages and returned by `filename()`.
+    // If `CFileWriter` writes to an already open `FILE`, `assumed_filename()`
+    // allows to override the filename which is included in failure messages and
+    // returned by `filename()`.
     //
-    // If `CFileWriter` opens a `FILE` with a filename, `set_assumed_filename()`
-    // has no effect.
+    // If `CFileWriter` opens a `FILE` with a filename, `assumed_filename()` has
+    // no effect.
     //
     // Default: "".
     Options& set_assumed_filename(absl::string_view assumed_filename) & {

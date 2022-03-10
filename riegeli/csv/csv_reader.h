@@ -95,7 +95,7 @@ class CsvReaderBase : public Object {
     //
     // If not `absl::nullopt`, a line beginning with this character is skipped.
     //
-    // Often used: '#'
+    // Often used: '#'.
     //
     // Default: `absl::nullopt`.
     Options& set_comment(absl::optional<char> comment) & {
@@ -205,17 +205,14 @@ class CsvReaderBase : public Object {
     }
     size_t max_field_length() const { return max_field_length_; }
 
-    // Sets the recovery function to be called after skipping over an invalid
-    // line.
+    // Recovery function called after skipping over an invalid line.
     //
-    // If the recovery function is set to `nullptr`, then an invalid line causes
-    // `CsvReader` to fail.
+    // If `nullptr`, then an invalid line causes `CsvReader` to fail.
     //
-    // If the recovery function is set to a value other than `nullptr`, then
-    // an invalid line causes `CsvReader` to skip over the invalid line and call
-    // the recovery function. If the recovery function returns `true`, reading
-    // continues. If the recovery function returns `false`, reading ends as if
-    // the end of source was encountered.
+    // If not `nullptr`, then an invalid line causes `CsvReader` to skip over
+    // the invalid line and call the recovery function. If the recovery function
+    // returns `true`, reading continues. If the recovery function returns
+    // `false`, reading ends as if the end of source was encountered.
     //
     // Recovery is not applicable to reading the header with
     // `Options::required_header() != absl::nullopt`.

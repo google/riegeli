@@ -106,7 +106,7 @@ class CsvWriterBase : public Object {
     //
     // If not `absl::nullopt`, fields containing this character will be quoted.
     //
-    // Often used: '#'
+    // Often used: '#'.
     //
     // Default: `absl::nullopt`.
     Options& set_comment(absl::optional<char> comment) & {

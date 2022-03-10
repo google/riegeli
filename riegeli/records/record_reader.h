@@ -107,18 +107,15 @@ class RecordReaderBase : public Object {
       return field_projection_;
     }
 
-    // Sets the recovery function to be called after skipping over invalid file
-    // contents.
+    // Recovery function to be called after skipping over invalid file contents.
     //
-    // If the recovery function is set to `nullptr`, then invalid file contents
-    // cause `RecordReader` to fail. `Recover()` can be used to skip over the
-    // invalid region.
+    // If `nullptr`, then invalid file contents cause `RecordReader` to fail.
+    // `Recover()` can be used to skip over the invalid region.
     //
-    // If the recovery function is set to a value other than `nullptr`, then
-    // invalid file contents cause `RecordReader` to skip over the invalid
-    // region and call the recovery function. If the recovery function returns
-    // `true`, reading continues. If the recovery function returns `false`,
-    // reading ends as if the end of source was encountered.
+    // If not `nullptr`, then invalid file contents cause `RecordReader` to skip
+    // over the invalid region and call the recovery function. If the recovery
+    // function returns `true`, reading continues. If the recovery function
+    // returns `false`, reading ends as if the end of source was encountered.
     //
     // If `Close()` is called and file contents were truncated, the recovery
     // function is called if set. The `RecordReader` remains closed.

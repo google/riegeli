@@ -177,17 +177,17 @@ class ZstdWriterBase : public BufferedWriter {
       return size_hint();
     }
 
-    // If `true`, tries to compress all data in one step:
+    // If `false`, `ZstdWriter` lets the destination choose buffer sizes.
+    //
+    // If `true`, `ZstdWriter` tries to compress all data in one step:
     //
     //  * Flattens uncompressed data if `pledged_size()` is not `absl::nullopt`.
     //
     //  * Asks the destination for a flat buffer with the maximum possible
     //    compressed size, as long as the uncompressed size is known before
-    //    compression begins, e.g. if `pledged_size()` is not`absl::nullopt`.
+    //    compression begins, e.g. if `pledged_size()` is not `absl::nullopt`.
     //
     // This makes compression slightly faster, but increases memory usage.
-    //
-    // If `false`, lets the destination choose buffer sizes.
     //
     // Default: `false`.
     Options& set_reserve_max_size(bool reserve_max_size) & {
@@ -201,7 +201,7 @@ class ZstdWriterBase : public BufferedWriter {
 
     // Tunes how much data is buffered before calling the compression engine.
     //
-    // If `reserve_max_size()` is `true`, `pledged_size()`, if not
+    // If `reserve_max_size()` is `true`, then `pledged_size()`, if not
     // `absl::nullopt`, overrides `buffer_size()`.
     //
     // Default: `ZSTD_CStreamInSize()`.

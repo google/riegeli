@@ -51,9 +51,9 @@ class ReadLineOptions {
   }
   Newline newline() const { return newline_; }
 
-  // If `false`, line terminators will be stripped.
+  // If `false`, line terminators are stripped.
   //
-  // If `true`, each returned line will include its terminator if it was present
+  // If `true`, each returned line includes its terminator if it was present
   // (it can be absent in the last line).
   //
   // Default: `false`.

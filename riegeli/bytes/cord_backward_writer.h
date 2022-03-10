@@ -41,10 +41,10 @@ class CordBackwardWriterBase : public BackwardWriter {
    public:
     Options() noexcept {}
 
-    // If `true`, prepends to existing contents of the destination.
-    //
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
+    //
+    // If `true`, prepends to existing contents of the destination.
     //
     // Default: `false`.
     Options& set_prepend(bool prepend) & {
