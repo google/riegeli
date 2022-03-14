@@ -37,6 +37,21 @@ class ParseOptions {
  public:
   ParseOptions() noexcept {}
 
+  // If `false`, replaces existing contents of the destination, clearing it
+  // first.
+  //
+  // If `true`, merges to existing contents of the destination.
+  //
+  // Default: `false`.
+  ParseOptions& set_merge(bool merge) & {
+    merge_ = merge;
+    return *this;
+  }
+  ParseOptions&& set_merge(bool merge) && {
+    return std::move(set_merge(merge));
+  }
+  bool merge() const { return merge_; }
+
   // If `false`, missing required fields cause a failure.
   //
   // If `true`, missing required fields result in a partial parsed message,
@@ -53,6 +68,7 @@ class ParseOptions {
   bool partial() const { return partial_; }
 
  private:
+  bool merge_ = false;
   bool partial_ = false;
 };
 

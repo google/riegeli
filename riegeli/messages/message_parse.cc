@@ -26,6 +26,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "google/protobuf/io/coded_stream.h"
+#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -68,7 +70,8 @@ absl::Status ParseFromReaderImpl(Reader& src,
                                  google::protobuf::MessageLite& dest,
                                  ParseOptions options) {
   src.Pull();
-  if (src.available() <= kMaxBytesToCopy && src.SupportsSize()) {
+  if (!options.merge() && src.available() <= kMaxBytesToCopy &&
+      src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
     if (src.limit_pos() == *size) {
@@ -88,7 +91,14 @@ absl::Status ParseFromReaderImpl(Reader& src,
     }
   }
   ReaderInputStream input_stream(&src);
-  const bool parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  bool parse_ok;
+  if (options.merge()) {
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  } else {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  }
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) {
     return src.AnnotateStatus(absl::InvalidArgumentError(
@@ -102,9 +112,20 @@ absl::Status ParseFromReaderImpl(Reader& src,
 absl::Status ParseFromString(absl::string_view src,
                              google::protobuf::MessageLite& dest,
                              ParseOptions options) {
-  if (ABSL_PREDICT_FALSE(
-          src.size() > size_t{std::numeric_limits<int>::max()} ||
-          !dest.ParsePartialFromArray(src.data(), IntCast<int>(src.size())))) {
+  bool parse_ok;
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         size_t{std::numeric_limits<int>::max()})) {
+    parse_ok = false;
+  } else if (options.merge()) {
+    google::protobuf::io::ArrayInputStream input_stream(
+        src.data(), IntCast<int>(src.size()));
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  } else {
+    parse_ok = dest.ParsePartialFromArray(src.data(), IntCast<int>(src.size()));
+  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
@@ -114,7 +135,7 @@ absl::Status ParseFromString(absl::string_view src,
 absl::Status ParseFromChain(const Chain& src,
                             google::protobuf::MessageLite& dest,
                             ParseOptions options) {
-  if (src.size() <= kMaxBytesToCopy) {
+  if (!options.merge() && src.size() <= kMaxBytesToCopy) {
     if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
@@ -130,7 +151,15 @@ absl::Status ParseFromChain(const Chain& src,
   // Do not bother with `reader.ok()` or `reader.Close()`. A `ChainReader` can
   // never fail.
   ReaderInputStream input_stream(&reader);
-  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
+  bool parse_ok;
+  if (options.merge()) {
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  } else {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
@@ -140,7 +169,7 @@ absl::Status ParseFromChain(const Chain& src,
 absl::Status ParseFromCord(const absl::Cord& src,
                            google::protobuf::MessageLite& dest,
                            ParseOptions options) {
-  if (src.size() <= kMaxBytesToCopy) {
+  if (!options.merge() && src.size() <= kMaxBytesToCopy) {
     if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
@@ -155,7 +184,15 @@ absl::Status ParseFromCord(const absl::Cord& src,
   // Do not bother with `reader.ok()` or `reader.Close()`. A `CordReader` can
   // never fail.
   ReaderInputStream input_stream(&reader);
-  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
+  bool parse_ok;
+  if (options.merge()) {
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  } else {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
