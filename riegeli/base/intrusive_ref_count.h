@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <atomic>
+#include <type_traits>
 #include <utility>
 
 #include "riegeli/base/base.h"
@@ -46,8 +47,24 @@ template <typename T>
 class RefCountedPtr {
  public:
   constexpr RefCountedPtr() noexcept {}
+  /*implicit*/ constexpr RefCountedPtr(std::nullptr_t) noexcept {}
 
   explicit RefCountedPtr(T* ptr) noexcept : ptr_(ptr) {}
+
+  template <typename Other,
+            std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
+  /*implicit*/ RefCountedPtr(const RefCountedPtr<Other>& that) noexcept;
+  template <typename Other,
+            std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
+  RefCountedPtr& operator=(const RefCountedPtr<Other>& that) noexcept;
+
+  // The source `RefCountedPtr` is left as nullptr.
+  template <typename Other,
+            std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
+  /*implicit*/ RefCountedPtr(RefCountedPtr<Other>&& that) noexcept;
+  template <typename Other,
+            std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
+  RefCountedPtr& operator=(RefCountedPtr<Other>&& that) noexcept;
 
   RefCountedPtr(const RefCountedPtr& that) noexcept;
   RefCountedPtr& operator=(const RefCountedPtr& that) noexcept;
@@ -59,6 +76,7 @@ class RefCountedPtr {
   ~RefCountedPtr();
 
   void reset();
+  void reset(std::nullptr_t) { reset(); }
   void reset(T* ptr);
 
   T* get() const { return ptr_; }
@@ -96,6 +114,15 @@ class RefCountedPtr {
  private:
   T* ptr_ = nullptr;
 };
+
+// Create an object with `new` and wrap it in `RefCountedPtr`.
+//
+// `MakeRefCounted()` is to `RefCountedPtr` like `std::make_unique()` is to
+// `std::unique_ptr`.
+template <typename T, typename... Args>
+inline RefCountedPtr<T> MakeRefCounted(Args&&... args) {
+  return RefCountedPtr<T>(new T(std::forward<Args>(args)...));
+}
 
 // A subset of what `std::atomic<RefCountedPtr<T>>` would provide.
 template <typename T>
@@ -146,6 +173,39 @@ class RefCountedBase {
 // Implementation details follow.
 
 template <typename T>
+template <typename Other,
+          std::enable_if_t<std::is_convertible<Other*, T*>::value, int>>
+inline RefCountedPtr<T>::RefCountedPtr(
+    const RefCountedPtr<Other>& that) noexcept
+    : ptr_(that.ptr_) {
+  if (ptr_ != nullptr) ptr_->Ref();
+}
+
+template <typename T>
+template <typename Other,
+          std::enable_if_t<std::is_convertible<Other*, T*>::value, int>>
+inline RefCountedPtr<T>& RefCountedPtr<T>::operator=(
+    const RefCountedPtr<Other>& that) noexcept {
+  reset(RefCountedPtr<Other>(that).release());
+  return *this;
+}
+
+template <typename T>
+template <typename Other,
+          std::enable_if_t<std::is_convertible<Other*, T*>::value, int>>
+inline RefCountedPtr<T>::RefCountedPtr(RefCountedPtr<Other>&& that) noexcept
+    : ptr_(that.release()) {}
+
+template <typename T>
+template <typename Other,
+          std::enable_if_t<std::is_convertible<Other*, T*>::value, int>>
+inline RefCountedPtr<T>& RefCountedPtr<T>::operator=(
+    RefCountedPtr<Other>&& that) noexcept {
+  reset(that.release());
+  return *this;
+}
+
+template <typename T>
 inline RefCountedPtr<T>::RefCountedPtr(const RefCountedPtr& that) noexcept
     : ptr_(that.ptr_) {
   if (ptr_ != nullptr) ptr_->Ref();
@@ -154,10 +214,7 @@ inline RefCountedPtr<T>::RefCountedPtr(const RefCountedPtr& that) noexcept
 template <typename T>
 inline RefCountedPtr<T>& RefCountedPtr<T>::operator=(
     const RefCountedPtr& that) noexcept {
-  T* const ptr = that.ptr_;
-  if (ptr != nullptr) ptr->Ref();
-  if (ptr_ != nullptr) ptr_->Unref();
-  ptr_ = ptr;
+  reset(RefCountedPtr(that).release());
   return *this;
 }
 
@@ -168,10 +225,7 @@ inline RefCountedPtr<T>::RefCountedPtr(RefCountedPtr&& that) noexcept
 template <typename T>
 inline RefCountedPtr<T>& RefCountedPtr<T>::operator=(
     RefCountedPtr&& that) noexcept {
-  // Exchange `that.ptr_` early to support self-assignment.
-  T* const ptr = that.release();
-  if (ptr_ != nullptr) ptr_->Unref();
-  ptr_ = ptr;
+  reset(that.release());
   return *this;
 }
 

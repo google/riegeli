@@ -102,8 +102,8 @@ class BrotliAllocator::Implementation : public Interface {
 template <typename AllocFunctor, typename FreeFunctor>
 inline BrotliAllocator::BrotliAllocator(AllocFunctor&& alloc_functor,
                                         FreeFunctor&& free_functor)
-    : impl_(new Implementation<std::decay_t<AllocFunctor>,
-                               std::decay_t<FreeFunctor>>(
+    : impl_(MakeRefCounted<const Implementation<std::decay_t<AllocFunctor>,
+                                                std::decay_t<FreeFunctor>>>(
           std::forward<AllocFunctor>(alloc_functor),
           std::forward<FreeFunctor>(free_functor))) {}
 

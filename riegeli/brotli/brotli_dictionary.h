@@ -163,25 +163,6 @@ class BrotliDictionary {
 
 class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
  public:
-  Chunk(const Chunk&) = delete;
-  Chunk& operator=(const Chunk&) = delete;
-
-  Type type() const { return type_; }
-  absl::string_view data() const {
-    RIEGELI_ASSERT_NE(static_cast<int>(type_), static_cast<int>(Type::kNative))
-        << "Original data are not available "
-           "for a native Brotli dictionary chunk";
-    return data_;
-  }
-
-  // Returns the compression dictionary in the prepared form, or `nullptr` if
-  // `BrotliEncoderPrepareDictionary()` failed.
-  std::shared_ptr<const BrotliEncoderPreparedDictionary>
-  PrepareCompressionDictionary() const;
-
- private:
-  friend class BrotliDictionary;
-
   // Owns a copy of `data`.
   explicit Chunk(Type type, absl::string_view data,
                  std::integral_constant<Ownership, Ownership::kCopied>)
@@ -204,6 +185,23 @@ class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
       std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared)
       : type_(Type::kNative), compression_dictionary_(std::move(prepared)) {}
 
+  Chunk(const Chunk&) = delete;
+  Chunk& operator=(const Chunk&) = delete;
+
+  Type type() const { return type_; }
+  absl::string_view data() const {
+    RIEGELI_ASSERT_NE(static_cast<int>(type_), static_cast<int>(Type::kNative))
+        << "Original data are not available "
+           "for a native Brotli dictionary chunk";
+    return data_;
+  }
+
+  // Returns the compression dictionary in the prepared form, or `nullptr` if
+  // `BrotliEncoderPrepareDictionary()` failed.
+  std::shared_ptr<const BrotliEncoderPreparedDictionary>
+  PrepareCompressionDictionary() const;
+
+ private:
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
@@ -239,9 +237,9 @@ inline BrotliDictionary& BrotliDictionary::Reset() & {
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw(absl::string_view data) & {
-  chunks_.emplace_back(
-      new Chunk(Type::kRaw, data,
-                std::integral_constant<Ownership, Ownership::kCopied>()));
+  chunks_.push_back(MakeRefCounted<const Chunk>(
+      Type::kRaw, data,
+      std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
@@ -250,24 +248,24 @@ template <typename Src,
 inline BrotliDictionary& BrotliDictionary::add_raw(Src&& data) & {
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.emplace_back(new Chunk(Type::kRaw, std::move(data)));
+  chunks_.push_back(MakeRefCounted<const Chunk>(Type::kRaw, std::move(data)));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
     absl::string_view data) & {
-  chunks_.emplace_back(
-      new Chunk(Type::kRaw, data,
-                std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.push_back(MakeRefCounted<const Chunk>(
+      Type::kRaw, data,
+      std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized(
     absl::string_view data) & {
   Reset();
-  chunks_.emplace_back(
-      new Chunk(Type::kSerialized, data,
-                std::integral_constant<Ownership, Ownership::kCopied>()));
+  chunks_.push_back(MakeRefCounted<const Chunk>(
+      Type::kSerialized, data,
+      std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
@@ -277,22 +275,23 @@ inline BrotliDictionary& BrotliDictionary::set_serialized(Src&& data) & {
   Reset();
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.emplace_back(new Chunk(Type::kSerialized, std::move(data)));
+  chunks_.push_back(
+      MakeRefCounted<const Chunk>(Type::kSerialized, std::move(data)));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
     absl::string_view data) & {
   Reset();
-  chunks_.emplace_back(
-      new Chunk(Type::kSerialized, data,
-                std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.push_back(MakeRefCounted<const Chunk>(
+      Type::kSerialized, data,
+      std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_native(
     std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared) & {
-  chunks_.emplace_back(new Chunk(std::move(prepared)));
+  chunks_.push_back(MakeRefCounted<const Chunk>(std::move(prepared)));
   return *this;
 }
 

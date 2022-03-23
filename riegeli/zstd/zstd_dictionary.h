@@ -129,22 +129,6 @@ class ZstdDictionary {
 
 class ZstdDictionary::Repr : public RefCountedBase<Repr> {
  public:
-  // Returns the compression dictionary in the prepared form, or `nullptr` if
-  // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
-      int compression_level) const;
-
-  // Returns the decompression dictionary in the prepared form, or `nullptr`
-  // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
-
-  absl::string_view data() const { return data_; }
-
- private:
-  friend class ZstdDictionary;
-
-  struct CompressionCache;
-
   // Owns a copy of `data`.
   explicit Repr(Type type, absl::string_view data,
                 std::integral_constant<Ownership, Ownership::kCopied>)
@@ -160,6 +144,20 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
   explicit Repr(Type type, absl::string_view data,
                 std::integral_constant<Ownership, Ownership::kUnowned>)
       : type_(type), data_(data) {}
+
+  // Returns the compression dictionary in the prepared form, or `nullptr` if
+  // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
+  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
+      int compression_level) const;
+
+  // Returns the decompression dictionary in the prepared form, or `nullptr`
+  // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
+  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
+
+  absl::string_view data() const { return data_; }
+
+ private:
+  struct CompressionCache;
 
   Type type_;
   std::string owned_data_;
@@ -214,8 +212,8 @@ inline ZstdDictionary& ZstdDictionary::Reset() & {
 
 inline ZstdDictionary& ZstdDictionary::set_data(absl::string_view data,
                                                 Type type) & {
-  repr_.reset(new Repr(
-      type, data, std::integral_constant<Ownership, Ownership::kCopied>()));
+  repr_ = MakeRefCounted<const Repr>(
+      type, data, std::integral_constant<Ownership, Ownership::kCopied>());
   return *this;
 }
 
@@ -224,14 +222,14 @@ template <typename Src,
 inline ZstdDictionary& ZstdDictionary::set_data(Src&& data, Type type) & {
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  repr_.reset(new Repr(type, std::move(data)));
+  repr_ = MakeRefCounted<const Repr>(type, std::move(data));
   return *this;
 }
 
 inline ZstdDictionary& ZstdDictionary::set_data_unowned(absl::string_view data,
                                                         Type type) & {
-  repr_.reset(new Repr(
-      type, data, std::integral_constant<Ownership, Ownership::kUnowned>()));
+  repr_ = MakeRefCounted<const Repr>(
+      type, data, std::integral_constant<Ownership, Ownership::kUnowned>());
   return *this;
 }
 

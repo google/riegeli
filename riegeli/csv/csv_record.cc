@@ -108,9 +108,10 @@ CsvHeader::CsvHeader(std::vector<std::string>&& names)
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names)
     : CsvHeader(nullptr, csv_internal::ToVectorOfStrings(names)) {}
 
-CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer) {
-  if (normalizer != nullptr) payload_.reset(new Payload(std::move(normalizer)));
-}
+CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
+    : payload_(normalizer == nullptr
+                   ? nullptr
+                   : MakeRefCounted<Payload>(std::move(normalizer))) {}
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::vector<std::string>&& names) {
@@ -136,11 +137,9 @@ void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
 
 void CsvHeader::Reset(
     std::function<std::string(absl::string_view)> normalizer) {
-  if (normalizer == nullptr) {
-    payload_.reset();
-  } else {
-    payload_.reset(new Payload(std::move(normalizer)));
-  }
+  payload_ = normalizer == nullptr
+                 ? nullptr
+                 : MakeRefCounted<Payload>(std::move(normalizer));
 }
 
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
@@ -293,9 +292,9 @@ absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
 
 inline void CsvHeader::EnsureUniqueOwner() {
   if (payload_ == nullptr) {
-    payload_.reset(new Payload());
+    payload_ = MakeRefCounted<Payload>();
   } else if (ABSL_PREDICT_FALSE(!payload_->has_unique_owner())) {
-    payload_.reset(new Payload(*payload_));
+    payload_ = MakeRefCounted<Payload>(*payload_);
   }
 }
 

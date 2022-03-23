@@ -143,9 +143,9 @@ void FutureChunkBegin::Unresolved::Resolve() const {
 
 FutureChunkBegin::FutureChunkBegin(Position pos_before_chunks,
                                    std::vector<Action> actions)
-    : unresolved_(actions.empty()
-                      ? nullptr
-                      : new Unresolved(pos_before_chunks, std::move(actions))),
+    : unresolved_(actions.empty() ? nullptr
+                                  : MakeRefCounted<const Unresolved>(
+                                        pos_before_chunks, std::move(actions))),
       resolved_(pos_before_chunks) {}
 
 }  // namespace records_internal

@@ -62,7 +62,8 @@ ZstdDictionary::Repr::PrepareCompressionDictionary(
       compression_cache_.load(std::memory_order_acquire);
   if (compression_cache == nullptr ||
       compression_cache->compression_level != compression_level) {
-    compression_cache.reset(new CompressionCache(compression_level));
+    compression_cache =
+        MakeRefCounted<const CompressionCache>(compression_level);
     compression_cache_.store(compression_cache, std::memory_order_release);
   }
   absl::call_once(compression_cache->compression_once, [&] {
