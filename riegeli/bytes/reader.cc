@@ -40,15 +40,15 @@ namespace riegeli {
 
 void Reader::VerifyEndImpl() {
   if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(absl::InvalidArgumentError("End of data expected"));
+    absl::Status status = absl::InvalidArgumentError("End of data expected");
     if (SupportsSize()) {
       const absl::optional<Position> size = Size();
       if (size != absl::nullopt) {
-        SetStatus(Annotate(
-            status(),
-            absl::StrCat("remaining length: ", SaturatingSub(*size, pos()))));
+        status = Annotate(status, absl::StrCat("remaining length: ",
+                                               SaturatingSub(*size, pos())));
       }
     }
+    Fail(std::move(status));
   }
 }
 
