@@ -160,6 +160,12 @@ class AtomicRefCountedPtr {
 template <typename T>
 class RefCountedBase {
  public:
+  RefCountedBase() noexcept {
+    static_assert(std::is_base_of<RefCountedBase<T>, T>::value,
+                  "The template argument T in RefCountedBase<T> "
+                  "must be the class derived from RefCountedBase<T>");
+  }
+
   void Ref() const;
   void Unref() const;
 
