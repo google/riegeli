@@ -177,8 +177,6 @@ class Object {
 
   // Returns `true` if the `Object` is OK, i.e. open and not failed.
   bool ok() const { return state_.ok(); }
-  ABSL_DEPRECATED("Use ok() instead")
-  bool healthy() const { return ok(); }
 
   // Returns `true` if the `Object` is open, i.e. not closed.
   bool is_open() const { return state_.is_open(); }
