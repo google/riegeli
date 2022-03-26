@@ -634,6 +634,10 @@ struct Chain::BlockPtrPtr {
 
 class Chain::BlockIterator {
  public:
+  using iterator_concept = std::random_access_iterator_tag;
+  // `iterator_category` is only `std::input_iterator_tag` because the
+  // `LegacyForwardIterator` requirement and above require `reference` to be
+  // a true reference type.
   using iterator_category = std::input_iterator_tag;
   using value_type = absl::string_view;
   using reference = value_type;
@@ -668,9 +672,9 @@ class Chain::BlockIterator {
   reference operator*() const;
   pointer operator->() const;
   BlockIterator& operator++();
-  const BlockIterator operator++(int);
+  BlockIterator operator++(int);
   BlockIterator& operator--();
-  const BlockIterator operator--(int);
+  BlockIterator operator--(int);
   BlockIterator& operator+=(difference_type n);
   BlockIterator operator+(difference_type n) const;
   BlockIterator& operator-=(difference_type n);
@@ -1591,7 +1595,7 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator++() {
   return *this;
 }
 
-inline const Chain::BlockIterator Chain::BlockIterator::operator++(int) {
+inline Chain::BlockIterator Chain::BlockIterator::operator++(int) {
   const BlockIterator tmp = *this;
   ++*this;
   return tmp;
@@ -1602,7 +1606,7 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator--() {
   return *this;
 }
 
-inline const Chain::BlockIterator Chain::BlockIterator::operator--(int) {
+inline Chain::BlockIterator Chain::BlockIterator::operator--(int) {
   const BlockIterator tmp = *this;
   --*this;
   return tmp;
