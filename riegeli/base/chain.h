@@ -69,7 +69,7 @@ class ChainOptions {
   //
   // This is used initially, while the destination is small.
   //
-  // Default: `kMinBufferSize` (256).
+  // Default: `kDefaultMinBlockSize` (256).
   ChainOptions& set_min_block_size(size_t min_block_size) & {
     min_block_size_ = min_block_size;
     return *this;
@@ -84,7 +84,7 @@ class ChainOptions {
   // This is for performance tuning, not a guarantee: does not apply to objects
   // allocated separately and then appended to this `Chain`.
   //
-  // Default: `kMaxBufferSize` (64K).
+  // Default: `kDefaultMaxBlockSize` (64K).
   ChainOptions& set_max_block_size(size_t max_block_size) & {
     RIEGELI_ASSERT_GT(max_block_size, 0u)
         << "Failed precondition of Chain::Options::set_max_block_size(): "
@@ -99,8 +99,8 @@ class ChainOptions {
 
  private:
   size_t size_hint_ = 0;
-  size_t min_block_size_ = kMinBufferSize;
-  size_t max_block_size_ = kMaxBufferSize;
+  size_t min_block_size_ = kDefaultMinBlockSize;
+  size_t max_block_size_ = kDefaultMaxBlockSize;
 };
 
 // `ChainBlock::Options` is defined at the namespace scope because clang has
@@ -126,7 +126,7 @@ class ChainBlockOptions {
   //
   // This is used initially, while the destination is small.
   //
-  // Default: `kMinBufferSize` (256).
+  // Default: `kDefaultMinBlockSize` (256).
   ChainBlockOptions& set_min_block_size(size_t min_block_size) & {
     min_block_size_ = min_block_size;
     return *this;
@@ -138,7 +138,7 @@ class ChainBlockOptions {
 
  private:
   size_t size_hint_ = 0;
-  size_t min_block_size_ = kMinBufferSize;
+  size_t min_block_size_ = kDefaultMinBlockSize;
 };
 
 }  // namespace chain_internal
@@ -953,8 +953,9 @@ Chain ChainOfZeros(size_t length);
 //
 // Definitions:
 //  - empty block: a block with size == 0
-//  - tiny block: a block with size < `kMinBufferSize`
-//  - wasteful block: a block with free space > max(size, `kMinBufferSize`)
+//  - tiny block: a block with size < `kDefaultMinBlockSize`
+//  - wasteful block: a block with free space > max(size,
+//  `kDefaultMinBlockSize`)
 //
 // Invariants of a `Chain`:
 //  - A block can be empty or wasteful only if it is the first or last block.

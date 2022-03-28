@@ -649,9 +649,10 @@ enum class SyncType {
 // expensive destination/source.
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 
-// Typical bounds of sizes of buffers holding pieces of data in objects.
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMinBufferSize, 256);
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
+// Typical bounds of sizes of memory blocks holding pieces of data in objects.
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultMinBlockSize, 256);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultMaxBlockSize,
+                                  size_t{64} << 10);
 
 // When deciding whether to copy an array of bytes or share memory, prefer
 // copying up to this length.
@@ -699,7 +700,7 @@ inline size_t BufferLength(size_t min_length, size_t max_length,
 
 // Heuristics for whether a partially filled buffer is wasteful.
 inline bool Wasteful(size_t total, size_t used) {
-  return total - used > UnsignedMax(used, kMinBufferSize);
+  return total - used > UnsignedMax(used, kDefaultMinBlockSize);
 }
 
 // Resize `dest` to `size`, ensuring that repeated growth has the cost

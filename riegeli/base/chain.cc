@@ -351,7 +351,7 @@ inline bool Chain::RawBlock::tiny(size_t extra_size) const {
            "non-zero extra size of external block";
   }
   const size_t final_size = size() + extra_size;
-  return final_size < kMinBufferSize;
+  return final_size < kDefaultMinBlockSize;
 }
 
 inline bool Chain::RawBlock::wasteful(size_t extra_size) const {

@@ -80,7 +80,7 @@ class StringWriterBase : public Writer {
     // This is used initially, while data buffered after the destination is
     // small.
     //
-    // Default: `kMinBufferSize` (256).
+    // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_buffer_size(size_t min_buffer_size) & {
       min_buffer_size_ = min_buffer_size;
       return *this;
@@ -93,7 +93,7 @@ class StringWriterBase : public Writer {
     // Maximal size of a block of buffered data after the initial capacity of
     // the destination.
     //
-    // Default: `kMaxBufferSize` (64K).
+    // Default: `kDefaultMaxBlockSize` (64K).
     Options& set_max_buffer_size(size_t max_buffer_size) & {
       RIEGELI_ASSERT_GT(max_buffer_size, 0u)
           << "Failed precondition of "
@@ -110,8 +110,8 @@ class StringWriterBase : public Writer {
    private:
     bool append_ = false;
     absl::optional<Position> size_hint_;
-    size_t min_buffer_size_ = kMinBufferSize;
-    size_t max_buffer_size_ = kDefaultBufferSize;
+    size_t min_buffer_size_ = kDefaultMinBlockSize;
+    size_t max_buffer_size_ = kDefaultMaxBlockSize;
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.

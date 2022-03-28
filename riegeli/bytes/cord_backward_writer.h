@@ -75,7 +75,7 @@ class CordBackwardWriterBase : public BackwardWriter {
     //
     // This is used initially, while the destination is small.
     //
-    // Default: `kMinBufferSize` (256).
+    // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_block_size(size_t min_block_size) & {
       min_block_size_ = min_block_size;
       return *this;
@@ -91,7 +91,7 @@ class CordBackwardWriterBase : public BackwardWriter {
     // objects allocated separately and then written to this
     // `CordBackwardWriter`.
     //
-    // Default: `kMaxBufferSize` (64K).
+    // Default: `kDefaultMaxBlockSize` (64K).
     Options& set_max_block_size(size_t max_block_size) & {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
@@ -108,8 +108,8 @@ class CordBackwardWriterBase : public BackwardWriter {
    private:
     bool prepend_ = false;
     absl::optional<Position> size_hint_;
-    size_t min_block_size_ = kMinBufferSize;
-    size_t max_block_size_ = kMaxBufferSize;
+    size_t min_block_size_ = kDefaultMinBlockSize;
+    size_t max_block_size_ = kDefaultMaxBlockSize;
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
@@ -148,8 +148,8 @@ class CordBackwardWriterBase : public BackwardWriter {
   void SyncBuffer(absl::Cord& dest);
 
   size_t size_hint_ = 0;
-  size_t min_block_size_ = kMinBufferSize;
-  size_t max_block_size_ = kMaxBufferSize;
+  size_t min_block_size_ = kDefaultMinBlockSize;
+  size_t max_block_size_ = kDefaultMaxBlockSize;
 
   // Buffered data to be prepended, in either `short_buffer_` or `buffer_`.
   char short_buffer_[kShortBufferSize];
@@ -295,8 +295,8 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
 inline void CordBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
   size_hint_ = 0;
-  min_block_size_ = kMinBufferSize;
-  max_block_size_ = kMaxBufferSize;
+  min_block_size_ = kDefaultMinBlockSize;
+  max_block_size_ = kDefaultMaxBlockSize;
   buffer_ = Buffer();
 }
 

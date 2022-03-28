@@ -160,7 +160,7 @@ bool Reader::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   Buffer buffer;
   do {
-    buffer.Reset(UnsignedMin(length, kMaxBufferSize));
+    buffer.Reset(UnsignedMin(length, kDefaultMaxBlockSize));
     const size_t length_to_read = UnsignedMin(length, buffer.capacity());
     const Position pos_before = pos();
     if (ABSL_PREDICT_FALSE(!Read(length_to_read, buffer.data()))) {
