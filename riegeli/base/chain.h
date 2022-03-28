@@ -954,8 +954,8 @@ Chain ChainOfZeros(size_t length);
 // Definitions:
 //  - empty block: a block with size == 0
 //  - tiny block: a block with size < `kDefaultMinBlockSize`
-//  - wasteful block: a block with free space > max(size,
-//  `kDefaultMinBlockSize`)
+//  - wasteful block: a block with free space >
+//    max(size, `kDefaultMinBlockSize`)
 //
 // Invariants of a `Chain`:
 //  - A block can be empty or wasteful only if it is the first or last block.
