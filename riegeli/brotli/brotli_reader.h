@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BROTLI_BROTLI_READER_H_
 #define RIEGELI_BROTLI_BROTLI_READER_H_
 
+#include <stddef.h>
+
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -116,7 +118,7 @@ class BrotliReaderBase : public PullableReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullBehindScratch() override;
+  bool PullBehindScratch(size_t recommended_length) override;
   bool SeekBehindScratch(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 

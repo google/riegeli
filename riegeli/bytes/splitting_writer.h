@@ -132,7 +132,7 @@ class SplittingWriterBase : public PushableWriter {
   // `*this` if `shard` failed.
   void MakeBuffer(Writer& shard);
 
-  bool PushBehindScratch() override;
+  bool PushBehindScratch(size_t recommended_length) override;
   bool WriteBehindScratch(absl::string_view src) override;
   bool WriteBehindScratch(const Chain& src) override;
   bool WriteBehindScratch(Chain&& src) override;

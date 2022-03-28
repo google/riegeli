@@ -151,7 +151,7 @@ absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
   return status;
 }
 
-bool SplittingWriterBase::PushBehindScratch() {
+bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
@@ -169,7 +169,7 @@ bool SplittingWriterBase::PushBehindScratch() {
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     return ForcePushUsingScratch();
   }
-  const bool push_ok = shard->Push();
+  const bool push_ok = shard->Push(1, recommended_length);
   MakeBuffer(*shard);
   return push_ok;
 }

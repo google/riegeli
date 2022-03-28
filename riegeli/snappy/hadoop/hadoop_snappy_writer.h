@@ -15,6 +15,8 @@
 #ifndef RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_WRITER_H_
 #define RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_WRITER_H_
 
+#include <stddef.h>
+
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -84,7 +86,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PushBehindScratch() override;
+  bool PushBehindScratch(size_t recommended_length) override;
   bool FlushBehindScratch(FlushType flush_type);
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 

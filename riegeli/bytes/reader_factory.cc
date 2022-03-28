@@ -50,7 +50,7 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullBehindScratch() override;
+  bool PullBehindScratch(size_t recommended_length) override;
   using PullableReader::ReadBehindScratch;
   bool ReadBehindScratch(size_t length, char* dest) override;
   bool ReadBehindScratch(size_t length, Chain& dest) override;
@@ -126,7 +126,8 @@ inline bool ReaderFactoryBase::ConcurrentReader::ReadSome() {
   return true;
 }
 
-bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch() {
+bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
+    size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";

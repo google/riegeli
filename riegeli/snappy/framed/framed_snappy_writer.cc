@@ -89,7 +89,7 @@ absl::Status FramedSnappyWriterBase::AnnotateOverDest(absl::Status status) {
   return status;
 }
 
-bool FramedSnappyWriterBase::PushBehindScratch() {
+bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";

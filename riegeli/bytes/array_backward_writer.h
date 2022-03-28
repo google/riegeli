@@ -54,7 +54,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   void Reset();
   void Initialize(absl::Span<char> dest);
 
-  bool PushBehindScratch() override;
+  bool PushBehindScratch(size_t recommended_length) override;
   bool FlushBehindScratch(FlushType flush_type) override;
   bool TruncateBehindScratch(Position new_size) override;
 

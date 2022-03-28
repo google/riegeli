@@ -124,7 +124,7 @@ class JoiningReaderBase : public PullableReader {
   // `*this` if `shard` failed.
   void MakeBuffer(Reader& shard);
 
-  bool PullBehindScratch() override;
+  bool PullBehindScratch(size_t recommended_length) override;
   bool ReadBehindScratch(size_t length, char* dest) override;
   bool ReadBehindScratch(size_t length, Chain& dest) override;
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;

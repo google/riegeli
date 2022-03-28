@@ -14,6 +14,8 @@
 
 #include "riegeli/bytes/array_writer.h"
 
+#include <stddef.h>
+
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -31,7 +33,7 @@ void ArrayWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-bool ArrayWriterBase::PushBehindScratch() {
+bool ArrayWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";

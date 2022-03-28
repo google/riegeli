@@ -14,13 +14,15 @@
 
 #include "riegeli/bytes/array_backward_writer.h"
 
+#include <stddef.h>
+
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
 
-bool ArrayBackwardWriterBase::PushBehindScratch() {
+bool ArrayBackwardWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableBackwardWriter::PushBehindScratch(): "
          "some space available, use Push() instead";

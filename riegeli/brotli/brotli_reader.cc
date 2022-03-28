@@ -112,7 +112,7 @@ absl::Status BrotliReaderBase::AnnotateOverSrc(absl::Status status) {
   return status;
 }
 
-bool BrotliReaderBase::PullBehindScratch() {
+bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "some data available, use Pull() instead";

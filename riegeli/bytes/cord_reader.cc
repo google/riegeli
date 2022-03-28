@@ -38,7 +38,7 @@ void CordReaderBase::Done() {
   iter_ = absl::nullopt;
 }
 
-bool CordReaderBase::PullBehindScratch() {
+bool CordReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";

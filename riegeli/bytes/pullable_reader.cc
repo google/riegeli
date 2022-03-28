@@ -92,71 +92,74 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    if (scratch_used() && ScratchEnds() && available() >= min_length) {
-      return true;
+  if (ABSL_PREDICT_TRUE(min_length == 1)) {
+    if (ABSL_PREDICT_FALSE(scratch_used())) {
+      SyncScratch();
+      if (available() > 0) return true;
     }
-    if (available() == 0) {
-      RIEGELI_ASSERT(!scratch_used())
-          << "Scratch should have ended but is still used";
-      if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
-      if (available() >= min_length) return true;
-    }
-    size_t remaining_min_length = min_length;
-    recommended_length = UnsignedMax(min_length, recommended_length);
-    size_t max_length = SaturatingAdd(recommended_length, recommended_length);
-    std::unique_ptr<Scratch> new_scratch;
-    if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
-      new_scratch = std::make_unique<Scratch>();
-    } else {
-      new_scratch = std::move(scratch_);
-      if (!new_scratch->buffer.empty()) {
-        // Scratch is used but it does have enough data after the cursor.
-        new_scratch->buffer.RemovePrefix(start_to_cursor());
-        remaining_min_length -= new_scratch->buffer.size();
-        recommended_length -= new_scratch->buffer.size();
-        max_length -= new_scratch->buffer.size();
-        set_buffer(new_scratch->original_start,
-                   new_scratch->original_start_to_limit,
-                   new_scratch->original_start_to_cursor);
-        move_limit_pos(available());
-      }
-    }
-    const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
-        remaining_min_length, recommended_length, max_length);
-    char* dest = flat_buffer.data();
-    char* const min_limit = flat_buffer.data() + remaining_min_length;
-    char* const max_limit = flat_buffer.data() + flat_buffer.size();
-    do {
-      const size_t length =
-          UnsignedMin(available(), PtrDistance(dest, max_limit));
-      if (
-          // `std::memcpy(_, nullptr, 0)` is undefined.
-          length > 0) {
-        std::memcpy(dest, cursor(), length);
-        move_cursor(length);
-        dest += length;
-        if (dest >= min_limit) break;
-      }
-      if (ABSL_PREDICT_FALSE(scratch_used())) {
-        SyncScratch();
-        if (available() > 0) continue;
-      }
-    } while (PullBehindScratch());
-    new_scratch->buffer.RemoveSuffix(PtrDistance(dest, max_limit));
-    set_limit_pos(pos());
-    new_scratch->original_start = start();
-    new_scratch->original_start_to_limit = start_to_limit();
-    new_scratch->original_start_to_cursor = start_to_cursor();
-    scratch_ = std::move(new_scratch);
-    set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
-    return available() >= min_length;
+    return PullBehindScratch(recommended_length);
   }
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    SyncScratch();
-    if (available() > 0) return true;
+  if (scratch_used() && ScratchEnds() && available() >= min_length) {
+    return true;
   }
-  return PullBehindScratch();
+  if (available() == 0) {
+    RIEGELI_ASSERT(!scratch_used())
+        << "Scratch should have ended but is still used";
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch(recommended_length))) {
+      return false;
+    }
+    if (available() >= min_length) return true;
+  }
+  size_t remaining_min_length = min_length;
+  recommended_length = UnsignedMax(min_length, recommended_length);
+  size_t max_length = SaturatingAdd(recommended_length, recommended_length);
+  std::unique_ptr<Scratch> new_scratch;
+  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
+    new_scratch = std::make_unique<Scratch>();
+  } else {
+    new_scratch = std::move(scratch_);
+    if (!new_scratch->buffer.empty()) {
+      // Scratch is used but it does have enough data after the cursor.
+      new_scratch->buffer.RemovePrefix(start_to_cursor());
+      remaining_min_length -= new_scratch->buffer.size();
+      recommended_length -= new_scratch->buffer.size();
+      max_length -= new_scratch->buffer.size();
+      set_buffer(new_scratch->original_start,
+                 new_scratch->original_start_to_limit,
+                 new_scratch->original_start_to_cursor);
+      move_limit_pos(available());
+    }
+  }
+  const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
+      remaining_min_length, recommended_length, max_length);
+  char* dest = flat_buffer.data();
+  char* const min_limit = flat_buffer.data() + remaining_min_length;
+  char* const recommended_limit = flat_buffer.data() + recommended_length;
+  char* const max_limit = flat_buffer.data() + flat_buffer.size();
+  do {
+    const size_t length =
+        UnsignedMin(available(), PtrDistance(dest, max_limit));
+    if (
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        length > 0) {
+      std::memcpy(dest, cursor(), length);
+      move_cursor(length);
+      dest += length;
+      if (dest >= min_limit) break;
+    }
+    if (ABSL_PREDICT_FALSE(scratch_used())) {
+      SyncScratch();
+      if (available() > 0) continue;
+    }
+  } while (PullBehindScratch(PtrDistance(dest, recommended_limit)));
+  new_scratch->buffer.RemoveSuffix(PtrDistance(dest, max_limit));
+  set_limit_pos(pos());
+  new_scratch->original_start = start();
+  new_scratch->original_start_to_limit = start_to_limit();
+  new_scratch->original_start_to_cursor = start_to_cursor();
+  scratch_ = std::move(new_scratch);
+  set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
+  return available() >= min_length;
 }
 
 bool PullableReader::ReadBehindScratch(size_t length, char* dest) {
@@ -176,7 +179,7 @@ bool PullableReader::ReadBehindScratch(size_t length, char* dest) {
       dest += available_length;
       length -= available_length;
     }
-    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch(length))) return false;
   } while (length > available());
   std::memcpy(dest, cursor(), length);
   move_cursor(length);
@@ -254,7 +257,7 @@ bool PullableReader::CopyBehindScratch(Position length, Writer& dest) {
     move_cursor(data.size());
     if (ABSL_PREDICT_FALSE(!dest.Write(data))) return false;
     length -= data.size();
-    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch(length))) return false;
   }
   const absl::string_view data(cursor(), IntCast<size_t>(length));
   move_cursor(IntCast<size_t>(length));
@@ -320,7 +323,7 @@ bool PullableReader::SeekBehindScratch(Position new_pos) {
   // Seeking forwards.
   do {
     move_cursor(available());
-    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch(0))) return false;
   } while (new_pos > limit_pos());
   const Position available_length = limit_pos() - new_pos;
   RIEGELI_ASSERT_LE(available_length, start_to_limit())

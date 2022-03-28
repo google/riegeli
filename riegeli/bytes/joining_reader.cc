@@ -134,7 +134,7 @@ absl::Status JoiningReaderBase::AnnotateOverShard(absl::Status status) {
   return status;
 }
 
-bool JoiningReaderBase::PullBehindScratch() {
+bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";
@@ -152,7 +152,7 @@ bool JoiningReaderBase::PullBehindScratch() {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = shard_reader();
   }
-  while (ABSL_PREDICT_FALSE(!shard->Pull())) {
+  while (ABSL_PREDICT_FALSE(!shard->Pull(1, recommended_length))) {
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }

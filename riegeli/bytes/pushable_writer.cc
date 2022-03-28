@@ -100,30 +100,32 @@ bool PushableWriter::PushSlow(size_t min_length, size_t recommended_length) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= min_length) return true;
   }
-  if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    if (available() == 0) {
-      if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
-      if (available() >= min_length) return true;
-      if (ABSL_PREDICT_FALSE(scratch_used())) {
-        // `PushBehindScratch()` must have called `ForcePushUsingScratch()` but
-        // scratch is too small.
-        if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
-        if (available() >= min_length) return true;
-      }
-    }
-    if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
-      scratch_ = std::make_unique<Scratch>();
-    }
-    const absl::Span<char> flat_buffer =
-        scratch_->buffer.AppendBuffer(min_length, recommended_length);
-    set_start_pos(pos());
-    scratch_->original_start = start();
-    scratch_->original_start_to_limit = start_to_limit();
-    scratch_->original_start_to_cursor = start_to_cursor();
-    set_buffer(flat_buffer.data(), flat_buffer.size());
-    return true;
+  if (ABSL_PREDICT_TRUE(min_length == 1)) {
+    return PushBehindScratch(recommended_length);
   }
-  return PushBehindScratch();
+  if (available() == 0) {
+    if (ABSL_PREDICT_FALSE(!PushBehindScratch(recommended_length))) {
+      return false;
+    }
+    if (available() >= min_length) return true;
+    if (ABSL_PREDICT_FALSE(scratch_used())) {
+      // `PushBehindScratch()` must have called `ForcePushUsingScratch()` but
+      // scratch is too small.
+      if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+      if (available() >= min_length) return true;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
+    scratch_ = std::make_unique<Scratch>();
+  }
+  const absl::Span<char> flat_buffer =
+      scratch_->buffer.AppendBuffer(min_length, recommended_length);
+  set_start_pos(pos());
+  scratch_->original_start = start();
+  scratch_->original_start_to_limit = start_to_limit();
+  scratch_->original_start_to_cursor = start_to_cursor();
+  set_buffer(flat_buffer.data(), flat_buffer.size());
+  return true;
 }
 
 bool PushableWriter::ForcePushUsingScratch() {
@@ -163,7 +165,7 @@ bool PushableWriter::WriteBehindScratch(absl::string_view src) {
       move_cursor(available_length);
       src.remove_prefix(available_length);
     }
-    if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
+    if (ABSL_PREDICT_FALSE(!PushBehindScratch(src.size()))) return false;
   } while (src.size() > available());
   std::memcpy(cursor(), src.data(), src.size());
   move_cursor(src.size());
@@ -237,7 +239,10 @@ bool PushableWriter::WriteZerosBehindScratch(Position length) {
       move_cursor(available_length);
       length -= available_length;
     }
-    if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
+    if (ABSL_PREDICT_FALSE(
+            !PushBehindScratch(SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
   }
   std::memset(cursor(), 0, IntCast<size_t>(length));
   move_cursor(IntCast<size_t>(length));

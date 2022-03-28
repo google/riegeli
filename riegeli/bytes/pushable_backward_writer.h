@@ -74,12 +74,13 @@ class PushableBackwardWriter : public BackwardWriter {
   // Precondition: `!scratch_used()`
   virtual void DoneBehindScratch();
 
-  // Implementation of `PushSlow(1, 0)`, called while scratch is not used.
+  // Implementation of `PushSlow(1, recommended_length)`, called while scratch
+  // is not used.
   //
   // Preconditions:
   //   `available() == 0`
   //   `!scratch_used()`
-  virtual bool PushBehindScratch() = 0;
+  virtual bool PushBehindScratch(size_t recommended_length) = 0;
 
   // Force using scratch as the buffer.
   //

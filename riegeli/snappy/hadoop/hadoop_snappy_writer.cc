@@ -68,7 +68,7 @@ absl::Status HadoopSnappyWriterBase::AnnotateOverDest(absl::Status status) {
   return status;
 }
 
-bool HadoopSnappyWriterBase::PushBehindScratch() {
+bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";

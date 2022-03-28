@@ -15,6 +15,7 @@
 #ifndef RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_READER_H_
 #define RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_READER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <memory>
@@ -61,7 +62,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullBehindScratch() override;
+  bool PullBehindScratch(size_t recommended_length) override;
   bool SeekBehindScratch(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 

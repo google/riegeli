@@ -57,7 +57,7 @@ class CordReaderBase : public PullableReader {
   void Initialize(const absl::Cord* src);
 
   void Done() override;
-  bool PullBehindScratch() override;
+  bool PullBehindScratch(size_t recommended_length) override;
   using PullableReader::ReadBehindScratch;
   bool ReadBehindScratch(size_t length, Chain& dest) override;
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;

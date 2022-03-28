@@ -38,7 +38,7 @@ void ChainReaderBase::Done() {
   iter_ = Chain::BlockIterator();
 }
 
-bool ChainReaderBase::PullBehindScratch() {
+bool ChainReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";

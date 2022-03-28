@@ -20,6 +20,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
@@ -80,12 +81,20 @@ class PullableReader : public Reader {
   // Precondition: `!scratch_used()`
   virtual void DoneBehindScratch();
 
-  // Implementation of `PullSlow(1, 0)`, called while scratch is not used.
+  // Implementation of `PullSlow(1, recommended_length)`, called while scratch
+  // is not used.
   //
   // Preconditions:
   //   `available() == 0`
   //   `!scratch_used()`
-  virtual bool PullBehindScratch() = 0;
+  virtual bool PullBehindScratch(size_t recommended_length) {
+    return PullBehindScratch();
+  }
+  ABSL_DEPRECATED("Override PullBehindScratch(size_t) instead")
+  virtual bool PullBehindScratch() {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Either overload of PullBehindScratch() must be overridden";
+  }
 
   // Implementation of `ReadSlow()`, `CopySlow()`, `ReadHintSlow()`,
   // `SyncImpl()`, and `SeekSlow()`, called while scratch is not used.
