@@ -221,23 +221,41 @@ class CsvReaderBase : public Object {
     // the same thread).
     //
     // Default: `nullptr`.
-    Options& set_recovery(const std::function<bool(absl::Status)>& recovery) & {
+    Options& set_recovery(
+        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) & {
       recovery_ = recovery;
       return *this;
     }
-    Options& set_recovery(std::function<bool(absl::Status)>&& recovery) & {
+    Options& set_recovery(
+        std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) & {
       recovery_ = std::move(recovery);
       return *this;
     }
+    ABSL_DEPRECATED("Add CsvReaderBase& parameter")
+    Options& set_recovery(std::function<bool(absl::Status)> recovery) & {
+      return set_recovery(
+          recovery == nullptr
+              ? std::function<bool(absl::Status, CsvReaderBase&)>(nullptr)
+              : [recovery](absl::Status status, CsvReaderBase& csv_reader) {
+                  return recovery(std::move(status));
+                });
+    }
     Options&& set_recovery(
-        const std::function<bool(absl::Status)>& recovery) && {
+        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) && {
       return std::move(set_recovery(recovery));
     }
-    Options&& set_recovery(std::function<bool(absl::Status)>&& recovery) && {
+    Options&& set_recovery(
+        std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
-    std::function<bool(absl::Status)>& recovery() { return recovery_; }
-    const std::function<bool(absl::Status)>& recovery() const {
+    ABSL_DEPRECATED("Add CsvReaderBase& parameter")
+    Options&& set_recovery(std::function<bool(absl::Status)> recovery) && {
+      return std::move(set_recovery(std::move(recovery)));
+    }
+    std::function<bool(absl::Status, CsvReaderBase&)>& recovery() {
+      return recovery_;
+    }
+    const std::function<bool(absl::Status, CsvReaderBase&)>& recovery() const {
       return recovery_;
     }
 
@@ -249,7 +267,7 @@ class CsvReaderBase : public Object {
     absl::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
     size_t max_field_length_ = std::numeric_limits<size_t>::max();
-    std::function<bool(absl::Status)> recovery_;
+    std::function<bool(absl::Status, CsvReaderBase&)> recovery_;
   };
 
   // Returns the byte `Reader` being read from. Unchanged by `Close()`.
@@ -260,11 +278,22 @@ class CsvReaderBase : public Object {
   // line.
   //
   // See `Options::set_recovery()` for details.
-  void set_recovery(const std::function<bool(absl::Status)>& recovery) {
+  void set_recovery(
+      const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) {
     recovery_ = recovery;
   }
-  void set_recovery(std::function<bool(absl::Status)>&& recovery) {
+  void set_recovery(
+      std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) {
     recovery_ = std::move(recovery);
+  }
+  ABSL_DEPRECATED("Add CsvReaderBase& parameter")
+  void set_recovery(std::function<bool(absl::Status)> recovery) {
+    set_recovery(
+        recovery == nullptr
+            ? std::function<bool(absl::Status, CsvReaderBase&)>(nullptr)
+            : [recovery](absl::Status status, CsvReaderBase& csv_reader) {
+                return recovery(std::move(status));
+              });
   }
 
   // Returns `true` if reading the header was requested, i.e.
@@ -394,7 +423,7 @@ class CsvReaderBase : public Object {
   char quote_ = '\0';
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
-  std::function<bool(absl::Status)> recovery_;
+  std::function<bool(absl::Status, CsvReaderBase&)> recovery_;
   uint64_t record_index_ = 0;
   int64_t last_line_number_ = 1;
   int64_t line_number_ = 1;

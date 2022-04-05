@@ -490,7 +490,7 @@ try_again:
     if (recovery_ != nullptr) {
       absl::Status status = this->status();
       MarkNotFailed();
-      if (recovery_(std::move(status))) goto try_again;
+      if (recovery_(std::move(status), *this)) goto try_again;
     }
     return false;
   }
@@ -534,7 +534,7 @@ try_again:
       absl::Status status = this->status();
       MarkNotFailed();
       SkipLine(src);
-      if (recovery_(std::move(status))) goto try_again;
+      if (recovery_(std::move(status), *this)) goto try_again;
       if (standalone_record_) {
         // Recovery was cancelled. Return the same result as for an empty input:
         // one empty field.
