@@ -178,6 +178,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
         return absl::InvalidArgumentError(absl::StrCat(
             "Failed to parse message of type ", dest.GetTypeName()));
       }
+      return CheckInitialized(dest, options);
     }
   }
   CordReader<> reader(&src);
