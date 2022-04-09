@@ -20,6 +20,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -39,16 +40,16 @@ namespace riegeli {
 
 namespace {
 
-inline absl::Status CheckInitialized(Reader& src,
-                                     google::protobuf::MessageLite& dest,
-                                     ParseOptions options) {
-  if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
-    return src.AnnotateStatus(absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
-                     " because it is missing required fields: ",
-                     dest.InitializationErrorString())));
-  }
-  return absl::OkStatus();
+ABSL_ATTRIBUTE_COLD
+inline absl::Status ParseError(google::protobuf::MessageLite& dest) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
+}
+
+ABSL_ATTRIBUTE_COLD
+inline absl::Status ParseError(Reader& src,
+                               google::protobuf::MessageLite& dest) {
+  return src.AnnotateStatus(ParseError(dest));
 }
 
 inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
@@ -58,6 +59,18 @@ inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
                      " because it is missing required fields: ",
                      dest.InitializationErrorString()));
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status CheckInitialized(Reader& src,
+                                     google::protobuf::MessageLite& dest,
+                                     ParseOptions options) {
+  if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
+    return src.AnnotateStatus(absl::InvalidArgumentError(
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
+                     " because it is missing required fields: ",
+                     dest.InitializationErrorString())));
   }
   return absl::OkStatus();
 }
@@ -83,10 +96,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
           dest.ParsePartialFromArray(src.cursor(),
                                      IntCast<int>(src.available()));
       src.move_cursor(src.available());
-      if (ABSL_PREDICT_FALSE(!parse_ok)) {
-        return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
-            "Failed to parse message of type ", dest.GetTypeName())));
-      }
+      if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src, dest);
       return CheckInitialized(src, dest, options);
     }
   }
@@ -100,10 +110,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
     parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   }
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
-  if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    return src.AnnotateStatus(absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName())));
-  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src, dest);
   return CheckInitialized(src, dest, options);
 }
 
@@ -125,10 +132,7 @@ absl::Status ParseFromString(absl::string_view src,
   } else {
     parse_ok = dest.ParsePartialFromArray(src.data(), IntCast<int>(src.size()));
   }
-  if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
-  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
 
@@ -141,8 +145,7 @@ absl::Status ParseFromChain(const Chain& src,
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
-        return absl::InvalidArgumentError(absl::StrCat(
-            "Failed to parse message of type ", dest.GetTypeName()));
+        return ParseError(dest);
       }
       return CheckInitialized(dest, options);
     }
@@ -159,10 +162,7 @@ absl::Status ParseFromChain(const Chain& src,
   } else {
     parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   }
-  if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
-  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
 
@@ -175,8 +175,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
-        return absl::InvalidArgumentError(absl::StrCat(
-            "Failed to parse message of type ", dest.GetTypeName()));
+        return ParseError(dest);
       }
       return CheckInitialized(dest, options);
     }
@@ -193,10 +192,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
   } else {
     parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   }
-  if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
-  }
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
 
