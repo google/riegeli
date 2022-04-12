@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
