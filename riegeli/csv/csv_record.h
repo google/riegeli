@@ -41,6 +41,78 @@
 #include "riegeli/csv/containers.h"
 
 namespace riegeli {
+namespace csv_internal {
+
+// A pair-like type which supports C++20 `std::common_reference` with similar
+// enough pairs. This is needed for `CsvRecord::{,const_}iterator` to satisfy
+// C++20 input iterator requirements.
+//
+// Since C++23, `std::pair<T1, T2>` can be used directly instead, because it has
+// the necessary conversions and `std::basic_common_reference` specializations.
+template <typename T1, typename T2>
+class ReferencePair : public std::pair<T1, T2> {
+ public:
+  using std::pair<T1, T2>::pair;
+
+  template <class U1, class U2,
+            std::enable_if_t<std::is_constructible<T1, U1&>::value &&
+                                 std::is_constructible<T2, U2&>::value &&
+                                 !(std::is_convertible<U1&, T1>::value &&
+                                   std::is_convertible<U2&, T2>::value),
+                             int> = 0>
+  explicit constexpr ReferencePair(std::pair<U1, U2>& p)
+      : std::pair<T1, T2>(p.first, p.second) {}
+
+  template <class U1, class U2,
+            std::enable_if_t<std::is_convertible<U1&, T1>::value &&
+                                 std::is_convertible<U2&, T2>::value,
+                             int> = 0>
+  /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
+      : std::pair<T1, T2>(p.first, p.second) {}
+};
+
+}  // namespace csv_internal
+}  // namespace riegeli
+
+#if __cplusplus >= 202002L
+
+namespace std {
+
+template <typename T1, typename T2, template <typename> class TQual,
+          template <typename> class UQual>
+struct basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
+                              std::pair<std::string, std::string>, TQual,
+                              UQual> {
+  using type = riegeli::csv_internal::ReferencePair<
+      std::common_reference_t<TQual<T1>, UQual<std::string>>,
+      std::common_reference_t<TQual<T2>, UQual<std::string>>>;
+};
+
+template <typename T1, typename T2, template <typename> class TQual,
+          template <typename> class UQual>
+struct basic_common_reference<std::pair<std::string, std::string>,
+                              riegeli::csv_internal::ReferencePair<T1, T2>,
+                              TQual, UQual> {
+  using type = riegeli::csv_internal::ReferencePair<
+      std::common_reference_t<TQual<std::string>, UQual<T1>>,
+      std::common_reference_t<TQual<std::string>, UQual<T2>>>;
+};
+
+template <typename T1, typename T2, typename U1, typename U2,
+          template <typename> class TQual, template <typename> class UQual>
+struct basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
+                              riegeli::csv_internal::ReferencePair<U1, U2>,
+                              TQual, UQual> {
+  using type = riegeli::csv_internal::ReferencePair<
+      std::common_reference_t<TQual<T1>, UQual<U1>>,
+      std::common_reference_t<TQual<T2>, UQual<U2>>>;
+};
+
+}  // namespace std
+
+#endif
+
+namespace riegeli {
 
 // A normalizer for `CsvHeader` and `CsvReaderBase::Options::set_normalizer()`,
 // providing case insensitive matching.
@@ -73,9 +145,9 @@ class CsvHeader {
     reference operator*() const;
     pointer operator->() const;
     iterator& operator++();
-    const iterator operator++(int);
+    iterator operator++(int);
     iterator& operator--();
-    const iterator operator--(int);
+    iterator operator--(int);
     iterator& operator+=(difference_type n);
     iterator operator+(difference_type n) const;
     iterator& operator-=(difference_type n);
@@ -441,11 +513,15 @@ class CsvRecord {
   template <typename FieldIterator>
   class IteratorImpl {
    public:
+    using iterator_concept = std::random_access_iterator_tag;
+    // `iterator_category` is only `std::input_iterator_tag` because the
+    // `LegacyForwardIterator` requirement and above require `reference` to be
+    // a true reference type.
     using iterator_category = std::input_iterator_tag;
     using value_type = std::pair<std::string, std::string>;
-    using reference =
-        std::pair<const std::string&,
-                  typename std::iterator_traits<FieldIterator>::reference>;
+    using reference = csv_internal::ReferencePair<
+        const std::string&,
+        typename std::iterator_traits<FieldIterator>::reference>;
     using difference_type = ptrdiff_t;
 
     class pointer {
@@ -476,9 +552,9 @@ class CsvRecord {
     reference operator*() const;
     pointer operator->() const;
     IteratorImpl& operator++();
-    const IteratorImpl operator++(int);
+    IteratorImpl operator++(int);
     IteratorImpl& operator--();
-    const IteratorImpl operator--(int);
+    IteratorImpl operator--(int);
     IteratorImpl& operator+=(difference_type n);
     IteratorImpl operator+(difference_type n) const;
     IteratorImpl& operator-=(difference_type n);
@@ -526,8 +602,10 @@ class CsvRecord {
   using key_type = std::string;
   using mapped_type = std::string;
   using value_type = std::pair<std::string, std::string>;
-  using reference = std::pair<const std::string&, std::string&>;
-  using const_reference = std::pair<const std::string&, const std::string&>;
+  using reference =
+      csv_internal::ReferencePair<const std::string&, std::string&>;
+  using const_reference =
+      csv_internal::ReferencePair<const std::string&, const std::string&>;
   using iterator = IteratorImpl<std::vector<std::string>::iterator>;
   using const_iterator = IteratorImpl<std::vector<std::string>::const_iterator>;
   using reverse_iterator = std::reverse_iterator<iterator>;
@@ -726,7 +804,7 @@ inline CsvHeader::iterator& CsvHeader::iterator::operator++() {
   return *this;
 }
 
-inline const CsvHeader::iterator CsvHeader::iterator::operator++(int) {
+inline CsvHeader::iterator CsvHeader::iterator::operator++(int) {
   const iterator tmp = *this;
   ++*this;
   return tmp;
@@ -737,7 +815,7 @@ inline CsvHeader::iterator& CsvHeader::iterator::operator--() {
   return *this;
 }
 
-inline const CsvHeader::iterator CsvHeader::iterator::operator--(int) {
+inline CsvHeader::iterator CsvHeader::iterator::operator--(int) {
   const iterator tmp = *this;
   --*this;
   return tmp;
@@ -951,7 +1029,7 @@ CsvRecord::IteratorImpl<FieldIterator>::operator++() {
 }
 
 template <typename FieldIterator>
-inline const CsvRecord::IteratorImpl<FieldIterator>
+inline CsvRecord::IteratorImpl<FieldIterator>
 CsvRecord::IteratorImpl<FieldIterator>::operator++(int) {
   const IteratorImpl<FieldIterator> tmp = *this;
   ++*this;
@@ -967,7 +1045,7 @@ CsvRecord::IteratorImpl<FieldIterator>::operator--() {
 }
 
 template <typename FieldIterator>
-inline const CsvRecord::IteratorImpl<FieldIterator>
+inline CsvRecord::IteratorImpl<FieldIterator>
 CsvRecord::IteratorImpl<FieldIterator>::operator--(int) {
   const IteratorImpl<FieldIterator> tmp = *this;
   --*this;
