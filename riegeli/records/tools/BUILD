@@ -1,6 +1,9 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
-package(default_visibility = ["//riegeli:__subpackages__"])
+package(
+    default_visibility = ["//riegeli:__subpackages__"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 

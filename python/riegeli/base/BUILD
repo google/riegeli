@@ -7,6 +7,9 @@ cc_library(
     srcs = ["utils.cc"],
     hdrs = ["utils.h"],
     data = [":riegeli_error"],  # Python module imported from C++.
+    # utils.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         "//riegeli/base",
         "//riegeli/base:chain",

@@ -1,4 +1,7 @@
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 cc_library(
     name = "tf_header_lib",

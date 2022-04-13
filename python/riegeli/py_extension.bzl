@@ -5,6 +5,7 @@ def py_extension(
         srcs = None,
         hdrs = None,
         data = None,
+        features = None,
         visibility = None,
         deps = None):
     """Creates a Python module implemented in C++.
@@ -17,6 +18,7 @@ def py_extension(
       srcs: C++ source files.
       hdrs: C++ header files, for other py_extensions which depend on this.
       data: Files needed at runtime. This may include Python libraries.
+      features: Passed to cc_library.
       visibility: Controls which rules can depend on this.
       deps: Other C++ libraries that this library depends upon.
     """
@@ -29,6 +31,7 @@ def py_extension(
         srcs = srcs,
         hdrs = hdrs,
         data = data,
+        features = features,
         visibility = visibility,
         deps = deps,
         alwayslink = True,

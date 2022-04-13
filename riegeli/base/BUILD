@@ -1,4 +1,7 @@
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 
@@ -12,6 +15,9 @@ cc_library(
         "errno_mapping.h",
         "status.h",
     ],
+    # errno_mapping.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

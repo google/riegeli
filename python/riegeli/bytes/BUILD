@@ -6,6 +6,9 @@ cc_library(
     name = "python_writer",
     srcs = ["python_writer.cc"],
     hdrs = ["python_writer.h"],
+    # python_writer.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base",
@@ -22,6 +25,9 @@ cc_library(
     name = "python_reader",
     srcs = ["python_reader.cc"],
     hdrs = ["python_reader.h"],
+    # python_reader.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base",

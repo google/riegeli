@@ -1,4 +1,7 @@
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 
@@ -13,8 +16,14 @@ cc_library(
         "snappy-stubs-internal.h",
         "snappy-stubs-public.h",
     ],
-    hdrs = ["snappy-sinksource.h", "snappy.h"],
-    copts = ["-DHAVE_CONFIG_H", "-Wno-sign-compare"],
+    hdrs = [
+        "snappy.h",
+        "snappy-sinksource.h",
+    ],
+    copts = [
+        "-DHAVE_CONFIG_H",
+        "-Wno-sign-compare",
+    ],
 )
 
 genrule(

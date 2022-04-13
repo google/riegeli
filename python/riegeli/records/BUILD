@@ -8,6 +8,9 @@ licenses(["notice"])
 py_extension(
     name = "record_writer",
     srcs = ["record_writer.cc"],
+    # record_writer.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":record_position_cc",
         "//python/riegeli/base:utils",
@@ -33,6 +36,9 @@ py_extension(
         ":skipped_region",
         "@com_google_protobuf//:protobuf_python",
     ],
+    # record_reader.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":record_position_cc",
         "//python/riegeli/base:utils",
@@ -55,6 +61,9 @@ py_extension(
     name = "record_position",
     srcs = ["record_position.cc"],
     hdrs = ["record_position.h"],
+    # record_position.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base",

@@ -1,4 +1,7 @@
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 
@@ -595,6 +598,9 @@ cc_library(
         "fd_writer.cc",
     ],
     hdrs = ["fd_writer.h"],
+    # fd_writer.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":buffered_writer",
         ":fd_internal",
@@ -617,6 +623,9 @@ cc_library(
         "fd_reader.cc",
     ],
     hdrs = ["fd_reader.h"],
+    # fd_reader.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":buffered_reader",
         ":chain_reader",
@@ -735,6 +744,9 @@ cc_library(
         "cfile_writer.cc",
     ],
     hdrs = ["cfile_writer.h"],
+    # cfile_writer.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":buffered_writer",
         ":cfile_reader",
@@ -758,6 +770,9 @@ cc_library(
         "cfile_reader.cc",
     ],
     hdrs = ["cfile_reader.h"],
+    # cfile_writer.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":buffered_reader",
         "//riegeli/base",
@@ -778,6 +793,9 @@ cc_library(
         "writer_cfile.cc",
     ],
     hdrs = ["writer_cfile.h"],
+    # writer_cfile.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":reader",
         ":writer",
@@ -797,6 +815,9 @@ cc_library(
         "reader_cfile.cc",
     ],
     hdrs = ["reader_cfile.h"],
+    # reader_cfile.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
         ":reader",
         "//riegeli/base",
