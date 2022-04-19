@@ -44,6 +44,46 @@ cc_library(
 )
 
 cc_library(
+    name = "text_print",
+    srcs = ["text_print.cc"],
+    hdrs = ["text_print.h"],
+    deps = [
+        ":message_serialize",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:cord_writer",
+        "//riegeli/bytes:string_writer",
+        "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "text_parse",
+    srcs = ["text_parse.cc"],
+    hdrs = ["text_parse.h"],
+    deps = [
+        ":message_parse",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:cord_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/bytes:string_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
     name = "message_wire_format",
     hdrs = ["message_wire_format.h"],
     deps = [

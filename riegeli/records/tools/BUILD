@@ -30,6 +30,7 @@ cc_binary(
         "//riegeli/chunk_encoding:transpose_decoder",
         "//riegeli/messages:message_parse",
         "//riegeli/messages:message_serialize",
+        "//riegeli/messages:text_print",
         "//riegeli/records:chunk_reader",
         "//riegeli/records:records_metadata_cc_proto",
         "//riegeli/records:skipped_region",
@@ -42,7 +43,6 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 

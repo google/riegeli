@@ -30,7 +30,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -50,6 +49,7 @@
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/messages/message_parse.h"
 #include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/text_print.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/records_metadata.pb.h"
 #include "riegeli/records/skipped_region.h"
@@ -287,10 +287,10 @@ void DescribeFile(absl::string_view filename, Writer& report) {
       absl::Format(&report, "  file_size: %u\n", *size);
     }
   }
-  google::protobuf::TextFormat::Printer printer;
-  printer.SetInitialIndentLevel(2);
-  printer.SetUseShortRepeatedPrimitives(true);
-  printer.SetUseUtf8StringEscaping(true);
+  TextPrintOptions print_options;
+  print_options.printer().SetInitialIndentLevel(2);
+  print_options.printer().SetUseShortRepeatedPrimitives(true);
+  print_options.printer().SetUseUtf8StringEscaping(true);
   for (;;) {
     report.Flush();
     const Position chunk_begin = chunk_reader.pos();
@@ -335,8 +335,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
       }
     }
     absl::Format(&report, "  chunk {\n");
-    WriterOutputStream proto_out(&report);
-    printer.Print(chunk_summary, &proto_out);
+    TextPrintToWriter(chunk_summary, report, print_options).IgnoreError();
     absl::Format(&report, "  }\n");
   }
   absl::Format(&report, "}\n");

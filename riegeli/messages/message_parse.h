@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -91,8 +91,7 @@ template <typename Src,
 absl::Status ParseFromReader(Src&& src, google::protobuf::MessageLite& dest,
                              ParseOptions options = ParseOptions());
 
-// Reads a message in binary format from the given `absl::string_view`. If
-// successful, the entire input will be consumed.
+// Reads a message in binary format from the given `absl::string_view`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
@@ -101,8 +100,7 @@ absl::Status ParseFromString(absl::string_view src,
                              google::protobuf::MessageLite& dest,
                              ParseOptions options = ParseOptions());
 
-// Reads a message in binary format from the given `Chain`. If successful, the
-// entire input will be consumed.
+// Reads a message in binary format from the given `Chain`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
@@ -111,8 +109,7 @@ absl::Status ParseFromChain(const Chain& src,
                             google::protobuf::MessageLite& dest,
                             ParseOptions options = ParseOptions());
 
-// Reads a message in binary format from the given `absl::Cord`. If successful,
-// the entire input will be consumed.
+// Reads a message in binary format from the given `absl::Cord`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
