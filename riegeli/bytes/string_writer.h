@@ -134,6 +134,7 @@ class StringWriterBase : public Writer {
   void Reset(size_t min_buffer_size, size_t max_buffer_size);
   void Initialize(std::string* dest, bool append,
                   absl::optional<Position> size_hint);
+  bool UsesSecondaryBuffer() const { return !secondary_buffer_.empty(); }
   void MoveSecondaryBuffer(StringWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
 
@@ -174,9 +175,9 @@ class StringWriterBase : public Writer {
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
   // Invariants if `ok()`:
-  //   `(start() == &(*dest_string())[0] &&
-  //     start_to_limit() == dest_string()->size() &&
-  //     secondary_buffer_.empty()) ||
+  //   `(secondary_buffer_.empty() &&
+  //     start() == &(*dest_string())[0] &&
+  //     start_to_limit() == dest_string()->size()) ||
   //    limit() == nullptr ||
   //    limit() == secondary_buffer_.blocks().back().data() +
   //               secondary_buffer_.blocks().back().size()`
@@ -441,10 +442,7 @@ inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
     StringWriter&& that) {
-  if (start() == nullptr) {
-    dest_ = std::move(that.dest_);
-    MoveSecondaryBuffer(std::move(that));
-  } else if (start() == &(*that.dest_)[0]) {
+  if (!that.UsesSecondaryBuffer()) {
     if (dest_.kIsStable) {
       dest_ = std::move(that.dest_);
     } else {

@@ -51,7 +51,7 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (min_length <= dest.capacity() - dest.size()) {
       MakeDestBuffer(dest);
@@ -77,7 +77,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       src.AppendTo(dest);
@@ -106,7 +106,7 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       std::move(src).AppendTo(dest);
@@ -135,7 +135,7 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       for (const absl::string_view fragment : src.Chunks()) {
@@ -168,7 +168,7 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       for (const absl::string_view fragment : src.Chunks()) {
@@ -200,7 +200,7 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(length > dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
     if (length <= dest.capacity() - dest.size()) {
       dest.append(length, '\0');
@@ -222,7 +222,7 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (start() == &dest[0]) {
+  if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
   } else {
     SyncSecondaryBuffer();
@@ -245,9 +245,7 @@ bool StringWriterBase::TruncateImpl(Position new_size) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-  if (start() == &dest[0]) {
-    set_cursor(start() + new_size);
-  } else if (new_size < dest.size()) {
+  if (new_size < dest.size()) {
     secondary_buffer_.Clear();
     set_start_pos(0);
     set_buffer(&dest[0], dest.size(), IntCast<size_t>(new_size));
@@ -273,7 +271,7 @@ Reader* StringWriterBase::ReadModeImpl(Position initial_pos) {
 }
 
 inline void StringWriterBase::SyncDestBuffer(std::string& dest) {
-  dest.erase(start_to_cursor());
+  dest.erase(dest.size() - available());
   set_buffer(&dest[0], dest.size(), dest.size());
 }
 
