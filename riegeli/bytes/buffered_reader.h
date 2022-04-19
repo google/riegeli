@@ -129,6 +129,21 @@ class BufferedReader : public Reader {
   // Reuses `buffer_` as `reader.buffer_` if `reader.pos()` falls inside.
   void ShareBufferTo(BufferedReader& reader) const;
 
+  // Extracts available data from the buffer, leaving it empty.
+  //
+  // `SaveBuffer()` is meant to be called in `Done()` to preserve pending data
+  // across instances reading from the same source.
+  ChainBlock SaveBuffer();
+
+  // Restores available data to the buffer.
+  //
+  // `RestoreBuffer()` is meant to be called in a constructor or `Reset()` with
+  // data previously returned by `SaveBuffer()`, to preserve pending data across
+  // instances reading from the same source.
+  //
+  // Precondition: `start_to_limit() == 0`
+  void RestoreBuffer(ChainBlock buffer);
+
  private:
   // Discards buffer contents and sets buffer pointers to `nullptr`.
   //

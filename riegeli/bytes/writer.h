@@ -57,7 +57,7 @@ class Reader;
 // access.
 //
 // A `Writer` must be explicitly closed, and `Close()` must succeed, in order
-// for its output to be available in the destination.
+// for its output to be guaranteed to be available in the destination.
 class Writer : public Object {
  public:
   // Ensures that enough space is available in the buffer: if less than

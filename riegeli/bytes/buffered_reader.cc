@@ -376,4 +376,22 @@ void BufferedReader::ShareBufferTo(BufferedReader& reader) const {
   }
 }
 
+ChainBlock BufferedReader::SaveBuffer() {
+  set_limit_pos(pos());
+  buffer_.RemovePrefix(start_to_cursor());
+  ChainBlock buffer = std::move(buffer_);
+  set_buffer();
+  return buffer;
+}
+
+void BufferedReader::RestoreBuffer(ChainBlock buffer) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedReader::RestoreBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  buffer_ = std::move(buffer);
+  set_buffer(buffer_.data(), buffer_.size());
+  move_limit_pos(available());
+}
+
 }  // namespace riegeli

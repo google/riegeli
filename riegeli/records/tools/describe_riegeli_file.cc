@@ -275,7 +275,7 @@ absl::Status DescribeTransposedChunk(
   return absl::OkStatus();
 }
 
-void DescribeFile(absl::string_view filename, Writer& report) {
+void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
   absl::Format(&report,
                "file {\n"
                "  filename: \"%s\"\n",
@@ -298,7 +298,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        absl::Format(&StdErr(), "%s\n", skipped_region.message());
+        absl::Format(&errors, "%s\n", skipped_region.message());
         continue;
       }
       break;
@@ -331,7 +331,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
           break;
       }
       if (ABSL_PREDICT_FALSE(!status.ok())) {
-        absl::Format(&StdErr(), "%s\n", status.message());
+        absl::Format(&errors, "%s\n", status.message());
       }
     }
     absl::Format(&report, "  chunk {\n");
@@ -341,7 +341,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
   absl::Format(&report, "}\n");
   report.Flush();
   if (!chunk_reader.Close()) {
-    absl::Format(&StdErr(), "%s\n", chunk_reader.status().message());
+    absl::Format(&errors, "%s\n", chunk_reader.status().message());
   }
 }
 
@@ -357,7 +357,11 @@ const char kUsage[] =
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
+  riegeli::NewStdOut std_out;
+  riegeli::NewStdErr std_err;
   for (size_t i = 1; i < args.size(); ++i) {
-    riegeli::tools::DescribeFile(args[i], riegeli::StdOut());
+    riegeli::tools::DescribeFile(args[i], std_out, std_err);
   }
+  std_out.Close();
+  std_err.Close();
 }

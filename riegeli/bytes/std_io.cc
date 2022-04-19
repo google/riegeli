@@ -20,6 +20,8 @@
 #include <memory>
 #include <utility>
 
+#include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -27,6 +29,72 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+namespace {
+
+int std_in_fd = STDIN_FILENO;
+int std_out_fd = STDOUT_FILENO;
+int std_err_fd = STDERR_FILENO;
+
+ChainBlock& StdInPending() {
+  static NoDestructor<ChainBlock> pending;
+  return *pending;
+}
+
+}  // namespace
+
+NewStdIn::NewStdIn(Options options) : FdReader(std_in_fd, std::move(options)) {
+  ChainBlock& pending = StdInPending();
+  if (!pending.empty()) RestoreBuffer(std::move(pending));
+}
+
+void NewStdIn::Reset(Options options) {
+  FdReader::Reset(std_in_fd, std::move(options));
+  ChainBlock& pending = StdInPending();
+  if (!pending.empty()) RestoreBuffer(std::move(pending));
+}
+
+void NewStdIn::Done() {
+  RIEGELI_ASSERT(StdInPending().empty())
+      << "Multiple instances of NewStdIn in use at a time";
+  if (available() > 0 && !supports_random_access()) {
+    StdInPending() = SaveBuffer();
+  }
+  FdReader::Done();
+}
+
+NewStdOut::NewStdOut(Options options)
+    : FdWriter(std_out_fd, std::move(options)) {}
+
+void NewStdOut::Reset(Options options) {
+  FdWriter::Reset(std_out_fd, std::move(options));
+}
+
+NewStdErr::NewStdErr(Options options)
+    : FdWriter(std_err_fd, std::move(options)) {}
+
+void NewStdErr::Reset(Options options) {
+  FdWriter::Reset(std_err_fd, std::move(options));
+}
+
+InjectedStdInFd::InjectedStdInFd(int fd)
+    : old_fd_(std::exchange(std_in_fd, fd)),
+      old_pending_(std::move(StdInPending())) {}
+
+InjectedStdInFd::~InjectedStdInFd() {
+  std_in_fd = old_fd_;
+  StdInPending() = std::move(old_pending_);
+}
+
+InjectedStdOutFd::InjectedStdOutFd(int fd)
+    : old_fd_(std::exchange(std_out_fd, fd)) {}
+
+InjectedStdOutFd::~InjectedStdOutFd() { std_out_fd = old_fd_; }
+
+InjectedStdErrFd::InjectedStdErrFd(int fd)
+    : old_fd_(std::exchange(std_err_fd, fd)) {}
+
+InjectedStdErrFd::~InjectedStdErrFd() { std_err_fd = old_fd_; }
 
 namespace {
 

@@ -652,6 +652,8 @@ cc_library(
         ":reader",
         ":writer",
         "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 
