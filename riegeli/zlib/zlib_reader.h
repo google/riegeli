@@ -31,6 +31,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/zlib/zlib_dictionary.h"
@@ -56,7 +57,7 @@ class ZlibReaderBase : public BufferedReader {
     kRaw = -1,
   };
 
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -140,44 +141,11 @@ class ZlibReaderBase : public BufferedReader {
     }
     bool concatenate() const { return concatenate_; }
 
-    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
-    // improve performance.
-    //
-    // If the size hint turns out to not match reality, nothing breaks.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() { return size_hint_; }
-
-    // Tunes how much data is buffered after calling the decompression engine.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "ZlibReaderBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     absl::optional<int> window_log_;
     Header header_ = kDefaultHeader;
     ZlibDictionary dictionary_;
     bool concatenate_ = false;
-    absl::optional<Position> size_hint_;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -202,16 +170,15 @@ class ZlibReaderBase : public BufferedReader {
  protected:
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit ZlibReaderBase(int window_bits, ZlibDictionary&& dictionary,
-                          bool concatenate, size_t buffer_size,
-                          absl::optional<Position> size_hint);
+  explicit ZlibReaderBase(const BufferOptions& buffer_options, int window_bits,
+                          ZlibDictionary&& dictionary, bool concatenate);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(int window_bits, ZlibDictionary&& dictionary, bool concatenate,
-             size_t buffer_size, absl::optional<Position> size_hint);
+  void Reset(const BufferOptions& buffer_options, int window_bits,
+             ZlibDictionary&& dictionary, bool concatenate);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -329,11 +296,11 @@ explicit ZlibReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline ZlibReaderBase::ZlibReaderBase(int window_bits,
+inline ZlibReaderBase::ZlibReaderBase(const BufferOptions& buffer_options,
+                                      int window_bits,
                                       ZlibDictionary&& dictionary,
-                                      bool concatenate, size_t buffer_size,
-                                      absl::optional<Position> size_hint)
-    : BufferedReader(buffer_size, size_hint),
+                                      bool concatenate)
+    : BufferedReader(buffer_options),
       window_bits_(window_bits),
       concatenate_(concatenate),
       dictionary_(std::move(dictionary)) {}
@@ -372,10 +339,10 @@ inline void ZlibReaderBase::Reset(Closed) {
   dictionary_ = ZlibDictionary();
 }
 
-inline void ZlibReaderBase::Reset(int window_bits, ZlibDictionary&& dictionary,
-                                  bool concatenate, size_t buffer_size,
-                                  absl::optional<Position> size_hint) {
-  BufferedReader::Reset(buffer_size, size_hint);
+inline void ZlibReaderBase::Reset(const BufferOptions& buffer_options,
+                                  int window_bits, ZlibDictionary&& dictionary,
+                                  bool concatenate) {
+  BufferedReader::Reset(buffer_options);
   window_bits_ = window_bits;
   concatenate_ = concatenate;
   truncated_ = false;
@@ -397,18 +364,16 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
-    : ZlibReaderBase(GetWindowBits(options), std::move(options.dictionary()),
-                     options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
+                     std::move(options.dictionary()), options.concatenate()),
       src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
-    : ZlibReaderBase(GetWindowBits(options), std::move(options.dictionary()),
-                     options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
+                     std::move(options.dictionary()), options.concatenate()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -417,9 +382,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZlibReaderBase(GetWindowBits(options), std::move(options.dictionary()),
-                     options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
+                     std::move(options.dictionary()), options.concatenate()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -444,18 +408,16 @@ inline void ZlibReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
-  ZlibReaderBase::Reset(GetWindowBits(options), std::move(options.dictionary()),
-                        options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
+                        std::move(options.dictionary()), options.concatenate());
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
-  ZlibReaderBase::Reset(GetWindowBits(options), std::move(options.dictionary()),
-                        options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
+                        std::move(options.dictionary()), options.concatenate());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -464,9 +426,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZlibReaderBase::Reset(GetWindowBits(options), std::move(options.dictionary()),
-                        options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
+                        std::move(options.dictionary()), options.concatenate());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

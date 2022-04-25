@@ -33,6 +33,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
@@ -44,7 +45,7 @@ namespace riegeli {
 // Template parameter independent part of `FdReader`.
 class FdReaderBase : public BufferedReader {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -151,28 +152,12 @@ class FdReaderBase : public BufferedReader {
     }
     bool growing_source() const { return growing_source_; }
 
-    // Tunes how much data is buffered after reading from the file.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of FdReaderBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     absl::optional<std::string> assumed_filename_;
     int mode_ = O_RDONLY;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
     bool growing_source_ = false;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
@@ -189,13 +174,14 @@ class FdReaderBase : public BufferedReader {
  protected:
   explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit FdReaderBase(bool growing_source, size_t buffer_size);
+  explicit FdReaderBase(const BufferOptions& buffer_options,
+                        bool growing_source);
 
   FdReaderBase(FdReaderBase&& that) noexcept;
   FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(bool growing_source, size_t buffer_size);
+  void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(int src, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
@@ -216,7 +202,8 @@ class FdReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  void FoundSize(Position size);
+  void StoreSize(Position size);
+  absl::optional<Position> exact_size() const;
   bool SeekInternal(int src, Position new_pos);
 
   std::string filename_;
@@ -225,7 +212,7 @@ class FdReaderBase : public BufferedReader {
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
   bool growing_source_ = false;
-  absl::optional<Position> size_;
+  bool size_hint_is_exact_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -573,8 +560,9 @@ explicit FdMMapReader(
 
 // Implementation details follow.
 
-inline FdReaderBase::FdReaderBase(bool growing_source, size_t buffer_size)
-    : BufferedReader(buffer_size), growing_source_(growing_source) {}
+inline FdReaderBase::FdReaderBase(const BufferOptions& buffer_options,
+                                  bool growing_source)
+    : BufferedReader(buffer_options), growing_source_(growing_source) {}
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
@@ -582,7 +570,7 @@ inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
       growing_source_(that.growing_source_),
-      size_(that.size_) {}
+      size_hint_is_exact_(that.size_hint_is_exact_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
@@ -590,7 +578,7 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   growing_source_ = that.growing_source_;
-  size_ = that.size_;
+  size_hint_is_exact_ = that.size_hint_is_exact_;
   return *this;
 }
 
@@ -600,16 +588,17 @@ inline void FdReaderBase::Reset(Closed) {
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = false;
-  size_ = absl::nullopt;
+  size_hint_is_exact_ = false;
 }
 
-inline void FdReaderBase::Reset(bool growing_source, size_t buffer_size) {
-  BufferedReader::Reset(buffer_size);
+inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
+                                bool growing_source) {
+  BufferedReader::Reset(buffer_options);
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = growing_source;
-  size_ = absl::nullopt;
+  size_hint_is_exact_ = false;
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
@@ -647,14 +636,15 @@ inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
 
 template <typename Src>
 inline FdReader<Src>::FdReader(const Src& src, Options options)
-    : FdReaderBase(options.growing_source(), options.buffer_size()), src_(src) {
+    : FdReaderBase(options.buffer_options(), options.growing_source()),
+      src_(src) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(Src&& src, Options options)
-    : FdReaderBase(options.growing_source(), options.buffer_size()),
+    : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -667,7 +657,7 @@ inline FdReader<Src>::FdReader(int src, Options options)
 template <typename Src>
 template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
-    : FdReaderBase(options.growing_source(), options.buffer_size()),
+    : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -699,7 +689,7 @@ inline void FdReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
-  FdReaderBase::Reset(options.growing_source(), options.buffer_size());
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -707,7 +697,7 @@ inline void FdReader<Src>::Reset(const Src& src, Options options) {
 
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
-  FdReaderBase::Reset(options.growing_source(), options.buffer_size());
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -722,7 +712,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
-  FdReaderBase::Reset(options.growing_source(), options.buffer_size());
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -738,7 +728,7 @@ template <typename Src>
 void FdReader<Src>::Initialize(absl::string_view filename, Options&& options) {
   const int src = OpenFd(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src < 0)) return;
-  FdReaderBase::Reset(options.growing_source(), options.buffer_size());
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.assumed_pos(), options.independent_pos());
 }

@@ -38,6 +38,14 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr size_t ZstdReaderBase::Options::kDefaultMinBufferSize;
+constexpr size_t ZstdReaderBase::Options::kDefaultMaxBufferSize;
+#endif
+
 void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZstdReader: null Reader pointer";
@@ -105,12 +113,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
     }
   }
   uncompressed_size_ = ZstdUncompressedSize(src);
-  if (uncompressed_size_ != absl::nullopt) {
-    // If `uncompressed_size_` is 0, set `size_hint` to 1, because the first
-    // `Pull()` call will need a non-empty destination buffer before calling the
-    // Zstd decoder.
-    set_size_hint(UnsignedMax(*uncompressed_size_, Position{1}));
-  }
+  if (uncompressed_size_ != absl::nullopt) set_size_hint(*uncompressed_size_);
   just_initialized_ = true;
 }
 
@@ -288,11 +291,11 @@ std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
   }
   std::unique_ptr<Reader> reader =
       std::make_unique<ZstdReader<std::unique_ptr<Reader>>>(
-          std::move(compressed_reader), ZstdReaderBase::Options()
-                                            .set_growing_source(growing_source_)
-                                            .set_dictionary(dictionary_)
-                                            .set_size_hint(size_hint())
-                                            .set_buffer_size(buffer_size()));
+          std::move(compressed_reader),
+          ZstdReaderBase::Options()
+              .set_growing_source(growing_source_)
+              .set_dictionary(dictionary_)
+              .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
 }

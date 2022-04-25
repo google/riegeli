@@ -133,6 +133,7 @@ void CFileReaderBase::InitializePos(FILE* src,
     // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
     supports_random_access_ = LazyBoolState::kUnknown;
   }
+  BeginRun();
 }
 
 void CFileReaderBase::Done() {
@@ -195,7 +196,7 @@ bool CFileReaderBase::supports_random_access() {
         // reliably recognize them using the `FILE` API, so `CFileReader` checks
         // the filename. Random access is assumed to be supported only if they
         // claim to have a non-zero size.
-        FoundSize(IntCast<Position>(file_size));
+        StoreSize(IntCast<Position>(file_size));
         supported = true;
       }
     }
@@ -205,9 +206,14 @@ bool CFileReaderBase::supports_random_access() {
   return supported;
 }
 
-inline void CFileReaderBase::FoundSize(Position size) {
-  if (!growing_source_) size_ = size;
+inline void CFileReaderBase::StoreSize(Position size) {
   set_size_hint(size);
+  if (!growing_source_) size_hint_is_exact_ = true;
+}
+
+inline absl::optional<Position> CFileReaderBase::exact_size() const {
+  if (size_hint_is_exact_) return size_hint();
+  return absl::nullopt;
 }
 
 bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -220,7 +226,8 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+  if (exact_size() != absl::nullopt &&
+      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
     return false;
   }
   FILE* const src = src_file();
@@ -233,11 +240,11 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
   for (;;) {
     size_t length_to_read = UnsignedMax(min_length, AvailableLength(src));
     if (length_to_read < max_length && supports_random_access() &&
-        size_ != absl::nullopt) {
+        exact_size() != absl::nullopt) {
       // Increase `length_to_read` to cover the rest of the file.
       length_to_read = UnsignedMax(
           length_to_read,
-          SaturatingIntCast<size_t>(SaturatingSub(*size_, limit_pos())));
+          SaturatingIntCast<size_t>(SaturatingSub(*exact_size(), limit_pos())));
     }
     length_to_read = UnsignedMin(length_to_read, max_length);
     const size_t length_read = fread(dest, 1, length_to_read, src);
@@ -252,7 +259,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
           << "fread() read less than requested "
              "but did not indicate failure nor end of file";
       clearerr(src);
-      FoundSize(limit_pos());
+      StoreSize(limit_pos());
       return length_read >= min_length;
     }
     if (length_read >= min_length) return true;
@@ -276,14 +283,14 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   FILE* const src = src_file();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (size_ != absl::nullopt) {
-      if (ABSL_PREDICT_FALSE(new_pos > *size_)) {
+    if (exact_size() != absl::nullopt) {
+      if (ABSL_PREDICT_FALSE(new_pos > *exact_size())) {
         // Stream ends.
         if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
-                src, IntCast<off_t>(*size_), SEEK_SET)) != 0) {
+                src, IntCast<off_t>(*exact_size()), SEEK_SET)) != 0) {
           return FailOperation(cfile_internal::kFSeekFunctionName);
         }
-        set_limit_pos(*size_);
+        set_limit_pos(*exact_size());
         return false;
       }
     } else {
@@ -294,7 +301,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
         return FailOperation(cfile_internal::kFTellFunctionName);
       }
-      FoundSize(IntCast<Position>(file_size));
+      StoreSize(IntCast<Position>(file_size));
       if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
         // Stream ends.
         set_limit_pos(IntCast<Position>(file_size));
@@ -317,7 +324,7 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
     return BufferedReader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (size_ != absl::nullopt) return *size_;
+  if (exact_size() != absl::nullopt) return *exact_size();
   FILE* const src = src_file();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END)) != 0) {
     FailOperation(cfile_internal::kFSeekFunctionName);
@@ -333,7 +340,7 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
-  FoundSize(IntCast<Position>(file_size));
+  StoreSize(IntCast<Position>(file_size));
   return IntCast<Position>(file_size);
 }
 

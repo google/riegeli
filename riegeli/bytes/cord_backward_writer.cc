@@ -61,11 +61,12 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Reset(BufferLength(
-        cursor_index + min_length,
-        UnsignedMax(SaturatingAdd(cursor_index, recommended_length),
-                    start_pos(), min_block_size_),
-        max_block_size_, size_hint_, start_pos()));
+    buffer_.Reset(UnsignedClamp(
+        UnsignedMax(
+            ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
+                               size_hint_, start_pos()),
+            SaturatingAdd(cursor_index, recommended_length)),
+        cursor_index + min_length, max_block_size_));
     const size_t length = UnsignedMin(
         buffer_.capacity(), std::numeric_limits<size_t>::max() - dest.size());
     std::memcpy(buffer_.data() + length - cursor_index, cursor(), cursor_index);
@@ -76,10 +77,12 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                            std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Reset(BufferLength(
-        min_length,
-        UnsignedMax(recommended_length, start_pos(), min_block_size_),
-        max_block_size_, size_hint_, start_pos()));
+    buffer_.Reset(UnsignedClamp(
+        UnsignedMax(
+            ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
+                               size_hint_, start_pos()),
+            recommended_length),
+        min_length, max_block_size_));
     set_buffer(buffer_.data(),
                UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()));

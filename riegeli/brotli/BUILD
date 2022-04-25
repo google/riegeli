@@ -16,6 +16,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:status",
+        "//riegeli/bytes:buffer_options",
         "//riegeli/bytes:buffered_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",

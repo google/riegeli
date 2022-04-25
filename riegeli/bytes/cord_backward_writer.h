@@ -147,7 +147,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   // If the buffer is not empty, prepends it to `dest`.
   void SyncBuffer(absl::Cord& dest);
 
-  size_t size_hint_ = 0;
+  absl::optional<Position> size_hint_;
   size_t min_block_size_ = kDefaultMinBlockSize;
   size_t max_block_size_ = kDefaultMaxBlockSize;
 
@@ -261,7 +261,7 @@ explicit CordBackwardWriter(
 // Implementation details follow.
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
-    : size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
+    : size_hint_(options.size_hint()),
       min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
@@ -294,7 +294,7 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
 
 inline void CordBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
-  size_hint_ = 0;
+  size_hint_ = absl::nullopt;
   min_block_size_ = kDefaultMinBlockSize;
   max_block_size_ = kDefaultMaxBlockSize;
   buffer_ = Buffer();
@@ -302,7 +302,7 @@ inline void CordBackwardWriterBase::Reset(Closed) {
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset();
-  size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
+  size_hint_ = options.size_hint();
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
 }
@@ -314,12 +314,13 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
     set_start_pos(dest->size());
     const size_t buffer_length = UnsignedMin(
         kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-    if (size_hint_ <= dest->size() + buffer_length) {
+    if (size_hint_ == absl::nullopt ||
+        *size_hint_ <= dest->size() + buffer_length) {
       set_buffer(short_buffer_, buffer_length);
     }
   } else {
     dest->Clear();
-    if (size_hint_ <= kShortBufferSize) {
+    if (size_hint_ == absl::nullopt || *size_hint_ <= kShortBufferSize) {
       set_buffer(short_buffer_, kShortBufferSize);
     }
   }

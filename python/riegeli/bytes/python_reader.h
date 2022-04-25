@@ -32,6 +32,7 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
@@ -58,7 +59,7 @@ namespace python {
 // buffering.
 class PythonReader : public BufferedReader {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -93,25 +94,9 @@ class PythonReader : public BufferedReader {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered after reading from the stream.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of PythonReader::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     bool owns_src_ = true;
     absl::optional<Position> assumed_pos_;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Creates a closed `PythonReader`.

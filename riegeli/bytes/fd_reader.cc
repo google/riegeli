@@ -149,6 +149,7 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     // `lseek(SEEK_CUR)` succeeded, and `lseek(SEEK_END)` will be checked later.
     supports_random_access_ = LazyBoolState::kUnknown;
   }
+  BeginRun();
 }
 
 void FdReaderBase::Done() {
@@ -203,7 +204,7 @@ bool FdReaderBase::supports_random_access() {
                    lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
       FailOperation("lseek()");
     } else {
-      FoundSize(IntCast<Position>(file_size));
+      StoreSize(IntCast<Position>(file_size));
       supported = true;
     }
   }
@@ -212,9 +213,14 @@ bool FdReaderBase::supports_random_access() {
   return supported;
 }
 
-inline void FdReaderBase::FoundSize(Position size) {
-  if (!growing_source_) size_ = size;
+inline void FdReaderBase::StoreSize(Position size) {
   set_size_hint(size);
+  if (!growing_source_) size_hint_is_exact_ = true;
+}
+
+inline absl::optional<Position> FdReaderBase::exact_size() const {
+  if (size_hint_is_exact_) return size_hint();
+  return absl::nullopt;
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -227,7 +233,8 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+  if (exact_size() != absl::nullopt &&
+      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
     return false;
   }
   const int src = src_fd();
@@ -250,7 +257,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
     if (ABSL_PREDICT_FALSE(length_read == 0)) {
-      FoundSize(limit_pos());
+      StoreSize(limit_pos());
       return false;
     }
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
@@ -295,15 +302,15 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     Position file_size;
-    if (size_ != absl::nullopt) {
-      file_size = *size_;
+    if (exact_size() != absl::nullopt) {
+      file_size = *exact_size();
     } else {
       struct stat stat_info;
       if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
         return FailOperation("fstat()");
       }
       file_size = IntCast<Position>(stat_info.st_size);
-      FoundSize(file_size);
+      StoreSize(file_size);
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
@@ -321,14 +328,14 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
     return BufferedReader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (size_ != absl::nullopt) return *size_;
+  if (exact_size() != absl::nullopt) return *exact_size();
   const int src = src_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
     return absl::nullopt;
   }
-  FoundSize(IntCast<Position>(stat_info.st_size));
+  StoreSize(IntCast<Position>(stat_info.st_size));
   return IntCast<Position>(stat_info.st_size);
 }
 
@@ -347,8 +354,8 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
                    .set_assumed_filename(filename())
                    .set_independent_pos(initial_pos)
                    .set_growing_source(growing_source_)
-                   .set_buffer_size(buffer_size()));
-  reader->size_ = size_;
+                   .set_buffer_options(buffer_options()));
+  reader->size_hint_is_exact_ = size_hint_is_exact_;
   ShareBufferTo(*reader);
   return reader;
 }

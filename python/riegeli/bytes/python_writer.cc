@@ -43,7 +43,8 @@ namespace riegeli {
 namespace python {
 
 PythonWriter::PythonWriter(PyObject* dest, Options options)
-    : BufferedWriter(options.buffer_size()), owns_dest_(options.owns_dest()) {
+    : BufferedWriter(options.buffer_options()),
+      owns_dest_(options.owns_dest()) {
   PythonLock::AssertHeld();
   Py_INCREF(dest);
   dest_.reset(dest);
@@ -79,6 +80,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
     set_start_pos(*file_pos);
     supports_random_access_ = true;
   }
+  BeginRun();
 }
 
 void PythonWriter::Done() {

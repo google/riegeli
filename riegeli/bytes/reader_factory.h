@@ -15,8 +15,6 @@
 #ifndef RIEGELI_BYTES_READER_FACTORY_H_
 #define RIEGELI_BYTES_READER_FACTORY_H_
 
-#include <stddef.h>
-
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -31,6 +29,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -38,29 +37,7 @@ namespace riegeli {
 // Template parameter independent part of `ReaderFactory`.
 class ReaderFactoryBase : public Object {
  public:
-  class Options {
-   public:
-    Options() noexcept {}
-
-    // Tunes how much data is buffered after reading from the original Reader.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "ReaderFactoryBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
-   private:
-    size_t buffer_size_ = kDefaultBufferSize;
-  };
+  class Options : public BufferOptionsBase<Options> {};
 
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
@@ -92,7 +69,7 @@ class ReaderFactoryBase : public Object {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(size_t buffer_size, Reader* src);
+  void Initialize(const BufferOptions& buffer_options, Reader* src);
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
@@ -102,10 +79,10 @@ class ReaderFactoryBase : public Object {
   class ConcurrentReader;
 
   struct Shared {
-    explicit Shared(size_t buffer_size, Reader* reader)
-        : buffer_size(buffer_size), reader(reader) {}
+    explicit Shared(const BufferOptions& buffer_options, Reader* reader)
+        : buffer_options(buffer_options), reader(reader) {}
 
-    size_t buffer_size;
+    BufferOptions buffer_options;
     absl::Mutex mutex;
     Reader* reader ABSL_GUARDED_BY(mutex);
   };
@@ -217,13 +194,13 @@ inline void ReaderFactoryBase::Reset() {
 template <typename Src>
 inline ReaderFactory<Src>::ReaderFactory(const Src& src, Options options)
     : src_(src) {
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>
 inline ReaderFactory<Src>::ReaderFactory(Src&& src, Options options)
     : src_(std::move(src)) {
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>
@@ -231,7 +208,7 @@ template <typename... SrcArgs>
 inline ReaderFactory<Src>::ReaderFactory(std::tuple<SrcArgs...> src_args,
                                          Options options)
     : src_(std::move(src_args)) {
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>
@@ -257,14 +234,14 @@ template <typename Src>
 inline void ReaderFactory<Src>::Reset(const Src& src, Options options) {
   ReaderFactoryBase::Reset();
   src_.Reset(src);
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>
 inline void ReaderFactory<Src>::Reset(Src&& src, Options options) {
   ReaderFactoryBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>
@@ -273,7 +250,7 @@ inline void ReaderFactory<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
   ReaderFactoryBase::Reset();
   src_.Reset(std::move(src_args));
-  Initialize(options.buffer_size(), src_.get());
+  Initialize(options.buffer_options(), src_.get());
 }
 
 template <typename Src>

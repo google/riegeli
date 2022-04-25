@@ -16,7 +16,6 @@
 #define RIEGELI_BYTES_FD_WRITER_H_
 
 #include <fcntl.h>
-#include <stddef.h>
 #include <sys/types.h>
 
 #include <string>
@@ -32,6 +31,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/fd_internal.h"
@@ -46,7 +46,7 @@ class Reader;
 // Template parameter independent part of `FdWriter`.
 class FdWriterBase : public BufferedWriter {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -156,28 +156,12 @@ class FdWriterBase : public BufferedWriter {
       return independent_pos_;
     }
 
-    // Tunes how much data is buffered before writing to the file.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of FdWriterBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     absl::optional<std::string> assumed_filename_;
     int mode_ = O_WRONLY | O_CREAT | O_TRUNC;
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the fd being written to. If the fd is owned then changed to -1 by
@@ -196,13 +180,13 @@ class FdWriterBase : public BufferedWriter {
  protected:
   explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit FdWriterBase(size_t buffer_size);
+  explicit FdWriterBase(const BufferOptions& buffer_options);
 
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(size_t buffer_size);
+  void Reset(const BufferOptions& buffer_options);
   void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
@@ -374,8 +358,8 @@ explicit FdWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline FdWriterBase::FdWriterBase(size_t buffer_size)
-    : BufferedWriter(buffer_size) {}
+inline FdWriterBase::FdWriterBase(const BufferOptions& buffer_options)
+    : BufferedWriter(buffer_options) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
@@ -407,8 +391,8 @@ inline void FdWriterBase::Reset(Closed) {
   read_mode_ = false;
 }
 
-inline void FdWriterBase::Reset(size_t buffer_size) {
-  BufferedWriter::Reset(buffer_size);
+inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
+  BufferedWriter::Reset(buffer_options);
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
@@ -419,14 +403,14 @@ inline void FdWriterBase::Reset(size_t buffer_size) {
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
-    : FdWriterBase(options.buffer_size()), dest_(dest) {
+    : FdWriterBase(options.buffer_options()), dest_(dest) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
-    : FdWriterBase(options.buffer_size()), dest_(std::move(dest)) {
+    : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
 }
@@ -439,7 +423,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
-    : FdWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
+    : FdWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
 }
@@ -470,7 +454,7 @@ inline void FdWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size());
+  FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -478,7 +462,7 @@ inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size());
+  FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -493,7 +477,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size());
+  FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
              options.assumed_pos(), options.independent_pos());
@@ -509,7 +493,7 @@ template <typename Dest>
 void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
   const int dest = OpenFd(filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
-  FdWriterBase::Reset(options.buffer_size());
+  FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::forward_as_tuple(dest));
   InitializePos(dest_.get(), options.mode(), options.assumed_pos(),
                 options.independent_pos());

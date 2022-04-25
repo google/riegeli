@@ -32,6 +32,7 @@
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 
 namespace riegeli {
 
@@ -564,6 +565,18 @@ constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
   return UnsignedMax(UnsignedMax(a, b), rest...);
 }
 
+// `UnsignedClamp(value, min_value, max_value)` is at least `min_value`,
+// at most `max(max_value, min_value)`, preferably `value`.
+template <typename Value, typename Min, typename Max,
+          std::enable_if_t<std::is_unsigned<Value>::value &&
+                               std::is_unsigned<Min>::value &&
+                               std::is_unsigned<Max>::value,
+                           int> = 0>
+inline std::common_type_t<IntersectionTypeT<Value, Max>, Min> UnsignedClamp(
+    Value value, Min min, Max max) {
+  return UnsignedMax(UnsignedMin(value, max), min);
+}
+
 // `SaturatingAdd()` adds unsigned values, or returns max possible value of the
 // type if addition would overflow.
 
@@ -645,8 +658,7 @@ enum class SyncType {
   kFromProcess = 1,
 };
 
-// The default size of buffers used to amortize copying data to/from a more
-// expensive destination/source.
+ABSL_DEPRECATED("This is no longer used in Riegeli")
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 
 // Typical bounds of sizes of memory blocks holding pieces of data in objects.
@@ -676,26 +688,54 @@ inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
   return dest.empty() ? kMaxInline : kCordMaxBytesToCopy;
 }
 
-// Proposes a buffer length with constraints:
+// Recommends the length of a read buffer by modifying the base recommendation
+// if a size hint is known.
 //
-//  * At least `min_length`.
-//  * At most `max(max_length, min_length)`.
-//  * If `current_size < size_hint`, prefer `size_hint - current_size`.
-//  * If `current_size >= size_hint`, prefer `recommended_length`.
-inline size_t BufferLength(size_t min_length, Position recommended_length,
-                           size_t max_length, Position size_hint,
-                           Position current_size) {
-  if (current_size < size_hint) recommended_length = size_hint - current_size;
-  return UnsignedMax(UnsignedMin(recommended_length, max_length), min_length);
+// The base recommendation is `length`. If `pos` did not pass `size_hint` yet,
+// returns the remaining length plus 1, which can be helpful to verify that
+// there are indeed no more data.
+//
+// If `multiple_runs` are predicted, it is assumed that reading might not reach
+// the size hint, and thus a size hint may decrease but not increase the
+// returned length.
+inline Position ApplyReadSizeHint(Position length,
+                                  absl::optional<Position> size_hint,
+                                  Position pos, bool multiple_runs = false) {
+  if (size_hint != absl::nullopt && pos <= *size_hint) {
+    const Position remaining_plus_1 =
+        SaturatingAdd(*size_hint - pos, Position{1});
+    if (multiple_runs) {
+      return UnsignedMin(length, remaining_plus_1);
+    } else {
+      return remaining_plus_1;
+    }
+  } else {
+    return length;
+  }
 }
 
-// A variant of `BufferLength()` where `recommended_length` is `max_length`.
-inline size_t BufferLength(size_t min_length, size_t max_length,
-                           Position size_hint, Position current_size) {
-  if (current_size < size_hint) {
-    max_length = UnsignedMin(size_hint - current_size, max_length);
+// Recommends the length of a write buffer by modifying the base recommendation
+// if a size hint is known.
+//
+// The base recommendation is `length`. If `pos` did not reach `size_hint` yet,
+// returns the remaining length.
+//
+// If `multiple_runs` are predicted, it is assumed that writing might not reach
+// the size hint, and thus a size hint may decrease but not increase the
+// returned length.
+inline Position ApplyWriteSizeHint(Position length,
+                                   absl::optional<Position> size_hint,
+                                   Position pos, bool multiple_runs = false) {
+  if (size_hint != absl::nullopt && pos < *size_hint) {
+    const Position remaining = *size_hint - pos;
+    if (multiple_runs) {
+      return UnsignedMin(length, remaining);
+    } else {
+      return remaining;
+    }
+  } else {
+    return length;
   }
-  return UnsignedMax(max_length, min_length);
 }
 
 // Heuristics for whether a partially filled buffer is wasteful.

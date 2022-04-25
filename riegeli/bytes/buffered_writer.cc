@@ -26,6 +26,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -54,19 +55,6 @@ bool BufferedWriter::SyncBuffer() {
   return WriteInternal(data);
 }
 
-inline size_t BufferedWriter::LengthToWriteDirectly() const {
-  // Write directly at least `buffer_size_` of data. Even if the buffer is
-  // partially full, this ensures that at least every other write has length at
-  // least `buffer_size_`.
-  if (pos() < size_hint_ &&
-      (start_to_cursor() == 0 || limit_pos() < size_hint_)) {
-    // Write directly also if `size_hint_` is reached, as long as the number of
-    // writes is not increased.
-    return UnsignedMin(buffer_size_, size_hint_ - pos());
-  }
-  return buffer_size_;
-}
-
 bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
@@ -77,8 +65,8 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length =
-      BufferLength(min_length, buffer_size_, size_hint_, start_pos());
+  const size_t buffer_length = buffer_sizer_.WriteBufferLength(
+      start_pos(), min_length, recommended_length);
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),
@@ -134,7 +122,8 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
+  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                        available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
@@ -156,17 +145,23 @@ bool BufferedWriter::WriteZerosSlow(Position length) {
 }
 
 bool BufferedWriter::FlushImpl(FlushType flush_type) {
+  buffer_sizer_.EndRun(pos());
   const absl::string_view src(start(), start_to_cursor());
   set_buffer();
-  return FlushBehindBuffer(src, flush_type);
+  const bool flush_ok = FlushBehindBuffer(src, flush_type);
+  buffer_sizer_.BeginRun(start_pos());
+  return flush_ok;
 }
 
 bool BufferedWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  return SeekBehindBuffer(new_pos);
+  const bool seek_ok = SeekBehindBuffer(new_pos);
+  buffer_sizer_.BeginRun(start_pos());
+  return seek_ok;
 }
 
 absl::optional<Position> BufferedWriter::SizeImpl() {
@@ -175,8 +170,11 @@ absl::optional<Position> BufferedWriter::SizeImpl() {
 }
 
 bool BufferedWriter::TruncateImpl(Position new_size) {
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  return TruncateBehindBuffer(new_size);
+  const bool truncate_ok = TruncateBehindBuffer(new_size);
+  buffer_sizer_.BeginRun(start_pos());
+  return truncate_ok;
 }
 
 Reader* BufferedWriter::ReadModeImpl(Position initial_pos) {

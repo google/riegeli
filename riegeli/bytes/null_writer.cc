@@ -23,6 +23,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/buffer_options.h"
 
 namespace riegeli {
 
@@ -32,7 +33,7 @@ bool NullWriter::PushSlow(size_t min_length, size_t recommended_length) {
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  return MakeBuffer(min_length);
+  return MakeBuffer(min_length, recommended_length);
 }
 
 bool NullWriter::WriteSlow(const Chain& src) {
@@ -94,12 +95,14 @@ inline void NullWriter::SyncBuffer() {
   set_cursor(start());
 }
 
-inline bool NullWriter::MakeBuffer(size_t min_length) {
+inline bool NullWriter::MakeBuffer(size_t min_length,
+                                   size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(min_length >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length = UnsignedMax(kDefaultBufferSize, min_length);
+  const size_t buffer_length = BufferSizer().WriteBufferLength(
+      start_pos(), min_length, recommended_length);
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),

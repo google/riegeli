@@ -144,6 +144,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
                                                       : LazyBoolState::kUnknown;
     supports_read_mode_ = (flags & O_ACCMODE) == O_RDWR;
   }
+  BeginRun();
 }
 
 void FdWriterBase::Done() {
@@ -386,7 +387,7 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                 .set_independent_pos(has_independent_pos_
                                          ? absl::make_optional(initial_pos)
                                          : absl::nullopt)
-                .set_buffer_size(buffer_size()));
+                .set_buffer_options(buffer_options()));
   read_mode_ = true;
   if (!has_independent_pos_) reader->Seek(initial_pos);
   return reader;

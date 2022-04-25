@@ -33,6 +33,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -50,12 +51,13 @@ constexpr int ZstdWriterBase::Options::kMaxCompressionLevel;
 constexpr int ZstdWriterBase::Options::kDefaultCompressionLevel;
 constexpr int ZstdWriterBase::Options::kMinWindowLog;
 constexpr int ZstdWriterBase::Options::kMaxWindowLog;
+constexpr size_t ZstdWriterBase::Options::kDefaultMinBufferSize;
+constexpr size_t ZstdWriterBase::Options::kDefaultMaxBufferSize;
 #endif
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
-                                bool store_checksum,
-                                absl::optional<Position> size_hint) {
+                                bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
@@ -116,10 +118,10 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                        ZSTD_getErrorName(result))));
       return;
     }
-  } else if (size_hint != absl::nullopt) {
+  } else if (size_hint() != absl::nullopt) {
     const size_t result =
         ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_srcSizeHint,
-                               SaturatingIntCast<int>(*size_hint));
+                               SaturatingIntCast<int>(*size_hint()));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) failed: ",
@@ -284,8 +286,8 @@ Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   ZstdReader<>* const reader = associated_reader_.ResetReader(
       compressed_reader, ZstdReaderBase::Options()
                              .set_dictionary(dictionary_)
-                             .set_size_hint(pos())
-                             .set_buffer_size(buffer_size()));
+                             .set_buffer_options(buffer_options())
+                             .set_size_hint(pos()));
   reader->Seek(initial_pos);
   return reader;
 }

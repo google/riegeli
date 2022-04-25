@@ -1384,12 +1384,15 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
   RIEGELI_ASSERT_LE(min_length, RawBlock::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
   return replaced_length +
-         BufferLength(min_length,
-                      UnsignedMax(recommended_length, size_,
-                                  SaturatingSub(options.min_block_size(),
-                                                replaced_length)),
-                      SaturatingSub(options.max_block_size(), replaced_length),
-                      options.size_hint(), size_);
+         UnsignedClamp(
+             UnsignedMax(
+                 ApplyWriteSizeHint(
+                     UnsignedMax(size_, SaturatingSub(options.min_block_size(),
+                                                      replaced_length)),
+                     options.size_hint(), size_),
+                 recommended_length),
+             min_length,
+             SaturatingSub(options.max_block_size(), replaced_length));
 }
 
 absl::Span<char> Chain::AppendBuffer(size_t min_length,
@@ -2550,12 +2553,12 @@ inline size_t ChainBlock::NewBlockCapacity(size_t space_before, size_t old_size,
       << "Failed precondition of ChainBlock::NewBlockCapacity(): "
          "ChainBlock size overflow";
   return space_before + old_size +
-         BufferLength(min_length,
-                      UnsignedMax(recommended_length,
-                                  SaturatingSub(options.min_block_size(),
-                                                space_before + old_size)),
-                      kMaxSize - old_size - space_before, options.size_hint(),
-                      old_size);
+         UnsignedClamp(UnsignedMax(ApplyWriteSizeHint(
+                                       SaturatingSub(options.min_block_size(),
+                                                     space_before + old_size),
+                                       options.size_hint(), old_size),
+                                   recommended_length),
+                       min_length, kMaxSize - old_size - space_before);
 }
 
 absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,

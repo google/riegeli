@@ -59,7 +59,7 @@ class NullWriter : public Writer {
   void SyncBuffer();
 
   // Ensures that the buffer has a sufficient size.
-  bool MakeBuffer(size_t min_length = 0);
+  bool MakeBuffer(size_t min_length = 0, size_t recommended_length = 0);
 
   Buffer buffer_;
 };

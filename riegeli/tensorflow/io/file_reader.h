@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -49,7 +50,7 @@ namespace tensorflow {
 // Template parameter independent part of `FileReader`.
 class FileReaderBase : public Reader {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -92,27 +93,10 @@ class FileReaderBase : public Reader {
     }
     bool growing_source() const { return growing_source_; }
 
-    // Tunes how much data is buffered after reading from the file.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "FileReaderBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     ::tensorflow::Env* env_ = nullptr;
     Position initial_pos_ = 0;
     bool growing_source_ = false;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the `::tensorflow::RandomAccessFile` being read from. If the
@@ -130,14 +114,15 @@ class FileReaderBase : public Reader {
  protected:
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  explicit FileReaderBase(::tensorflow::Env* env, bool growing_source,
-                          size_t buffer_size);
+  explicit FileReaderBase(const BufferOptions& buffer_options,
+                          ::tensorflow::Env* env, bool growing_source);
 
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(::tensorflow::Env* env, bool growing_source, size_t buffer_size);
+  void Reset(const BufferOptions& buffer_options, ::tensorflow::Env* env,
+             bool growing_source);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
   bool InitializeFilename(absl::string_view filename, ::tensorflow::Env* env);
@@ -153,6 +138,7 @@ class FileReaderBase : public Reader {
   bool ReadSlow(size_t length, char* dest) override;
   bool ReadSlow(size_t length, Chain& dest) override;
   bool ReadSlow(size_t length, absl::Cord& dest) override;
+  bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
@@ -161,15 +147,11 @@ class FileReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  void FoundSize(Position size);
+  void StoreSize(Position size);
+  absl::optional<Position> exact_size() const;
 
   // Discards buffer contents.
   void SyncBuffer();
-
-  // Minimum length for which it is better to append current contents of
-  // `buffer_` and read the remaining data directly than to read the data
-  // through `buffer_`.
-  size_t LengthToReadDirectly() const;
 
   // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, to `dest[]`.
@@ -199,9 +181,8 @@ class FileReaderBase : public Reader {
   //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
   bool growing_source_ = false;
-  absl::optional<Position> size_;
-  // Invariant: if `is_open()` then `buffer_size_ > 0`
-  size_t buffer_size_ = 0;
+  bool size_hint_is_exact_ = false;
+  BufferSizer buffer_sizer_;
   // If `buffer_` is not empty, it contains buffered data, read directly before
   // the physical source position which is `limit_pos()`. Otherwise buffered
   // data are in memory managed by the `::tensorflow::RandomAccessFile`. In any
@@ -309,11 +290,12 @@ explicit FileReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline FileReaderBase::FileReaderBase(::tensorflow::Env* env,
-                                      bool growing_source, size_t buffer_size)
+inline FileReaderBase::FileReaderBase(const BufferOptions& buffer_options,
+                                      ::tensorflow::Env* env,
+                                      bool growing_source)
     : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
       growing_source_(growing_source),
-      buffer_size_(buffer_size) {}
+      buffer_sizer_(buffer_options) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(static_cast<Reader&&>(that)),
@@ -321,8 +303,8 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
       env_(that.env_),
       file_system_(that.file_system_),
       growing_source_(that.growing_source_),
-      size_(that.size_),
-      buffer_size_(that.buffer_size_),
+      size_hint_is_exact_(that.size_hint_is_exact_),
+      buffer_sizer_(that.buffer_sizer_),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileReaderBase& FileReaderBase::operator=(
@@ -332,8 +314,8 @@ inline FileReaderBase& FileReaderBase::operator=(
   env_ = that.env_;
   file_system_ = that.file_system_;
   growing_source_ = that.growing_source_;
-  size_ = that.size_;
-  buffer_size_ = that.buffer_size_;
+  size_hint_is_exact_ = that.size_hint_is_exact_;
+  buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }
@@ -344,20 +326,20 @@ inline void FileReaderBase::Reset(Closed) {
   env_ = nullptr;
   file_system_ = nullptr;
   growing_source_ = false;
-  size_ = absl::nullopt;
-  buffer_size_ = 0;
+  size_hint_is_exact_ = false;
+  buffer_sizer_.Reset();
   buffer_ = ChainBlock();
 }
 
-inline void FileReaderBase::Reset(::tensorflow::Env* env, bool growing_source,
-                                  size_t buffer_size) {
+inline void FileReaderBase::Reset(const BufferOptions& buffer_options,
+                                  ::tensorflow::Env* env, bool growing_source) {
   Reader::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
   growing_source_ = growing_source;
-  size_ = absl::nullopt;
-  buffer_size_ = buffer_size;
+  size_hint_is_exact_ = false;
+  buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();
 }
 
@@ -371,16 +353,16 @@ inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(const Src& src, Options options)
-    : FileReaderBase(options.env(), options.growing_source(),
-                     options.buffer_size()),
+    : FileReaderBase(options.buffer_options(), options.env(),
+                     options.growing_source()),
       src_(src) {
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FileReader<Src>::FileReader(Src&& src, Options options)
-    : FileReaderBase(options.env(), options.growing_source(),
-                     options.buffer_size()),
+    : FileReaderBase(options.buffer_options(), options.env(),
+                     options.growing_source()),
       src_(std::move(src)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -389,8 +371,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : FileReaderBase(options.env(), options.growing_source(),
-                     options.buffer_size()),
+    : FileReaderBase(options.buffer_options(), options.env(),
+                     options.growing_source()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -409,16 +391,16 @@ inline void FileReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void FileReader<Src>::Reset(const Src& src, Options options) {
-  FileReaderBase::Reset(options.env(), options.growing_source(),
-                        options.buffer_size());
+  FileReaderBase::Reset(options.buffer_options(), options.env(),
+                        options.growing_source());
   src_.Reset(src);
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FileReader<Src>::Reset(Src&& src, Options options) {
-  FileReaderBase::Reset(options.env(), options.growing_source(),
-                        options.buffer_size());
+  FileReaderBase::Reset(options.buffer_options(), options.env(),
+                        options.growing_source());
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -427,8 +409,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  FileReaderBase::Reset(options.env(), options.growing_source(),
-                        options.buffer_size());
+  FileReaderBase::Reset(options.buffer_options(), options.env(),
+                        options.growing_source());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -450,8 +432,8 @@ inline void FileReader<Src>::Initialize(absl::string_view filename,
   }
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  FileReaderBase::Reset(options.env(), options.growing_source(),
-                        options.buffer_size());
+  FileReaderBase::Reset(options.buffer_options(), options.env(),
+                        options.growing_source());
   src_.Reset(std::forward_as_tuple(src.release()));
   InitializePos(options.initial_pos());
 }

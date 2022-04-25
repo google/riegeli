@@ -24,7 +24,7 @@
 
 namespace riegeli {
 
-extern const std::array<char, kDefaultBufferSize> kArrayOfZeros = {0};
+extern const std::array<char, (size_t{64} << 10)> kArrayOfZeros = {0};
 
 absl::Cord CordOfZeros(size_t length) {
   absl::Cord result;

@@ -235,20 +235,33 @@ static int RecordWriterClear(PyRecordWriterObject* self) {
 
 static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
                             PyObject* kwargs) {
-  static constexpr const char* keywords[] = {
-      "dest",    "owns_dest", "assumed_pos",         "buffer_size",
-      "options", "metadata",  "serialized_metadata", nullptr};
+  static constexpr const char* keywords[] = {"dest",
+                                             "owns_dest",
+                                             "assumed_pos",
+                                             "min_buffer_size",
+                                             "max_buffer_size",
+                                             "buffer_size",
+                                             "size_hint",
+                                             "options",
+                                             "metadata",
+                                             "serialized_metadata",
+                                             nullptr};
   PyObject* dest_arg;
   PyObject* owns_dest_arg = nullptr;
   PyObject* assumed_pos_arg = nullptr;
+  PyObject* min_buffer_size_arg = nullptr;
+  PyObject* max_buffer_size_arg = nullptr;
   PyObject* buffer_size_arg = nullptr;
+  PyObject* size_hint_arg = nullptr;
   PyObject* options_arg = nullptr;
   PyObject* metadata_arg = nullptr;
   PyObject* serialized_metadata_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O|$OOOOOO:RecordWriter", const_cast<char**>(keywords),
-          &dest_arg, &owns_dest_arg, &assumed_pos_arg, &buffer_size_arg,
-          &options_arg, &metadata_arg, &serialized_metadata_arg))) {
+          args, kwargs, "O|$OOOOOOOOO:RecordWriter",
+          const_cast<char**>(keywords), &dest_arg, &owns_dest_arg,
+          &assumed_pos_arg, &min_buffer_size_arg, &max_buffer_size_arg,
+          &buffer_size_arg, &size_hint_arg, &options_arg, &metadata_arg,
+          &serialized_metadata_arg))) {
     return -1;
   }
 
@@ -264,10 +277,27 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     if (ABSL_PREDICT_FALSE(assumed_pos == absl::nullopt)) return -1;
     python_writer_options.set_assumed_pos(*assumed_pos);
   }
-  if (buffer_size_arg != nullptr) {
-    const absl::optional<size_t> buffer_size = SizeFromPython(buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(buffer_size == absl::nullopt)) return -1;
-    python_writer_options.set_buffer_size(*buffer_size);
+  if (buffer_size_arg != nullptr && buffer_size_arg != Py_None) {
+    min_buffer_size_arg = buffer_size_arg;
+    max_buffer_size_arg = buffer_size_arg;
+  }
+  if (min_buffer_size_arg != nullptr) {
+    const absl::optional<size_t> min_buffer_size =
+        SizeFromPython(min_buffer_size_arg);
+    if (ABSL_PREDICT_FALSE(min_buffer_size == absl::nullopt)) return -1;
+    python_writer_options.set_min_buffer_size(*min_buffer_size);
+  }
+  if (max_buffer_size_arg != nullptr) {
+    const absl::optional<size_t> max_buffer_size =
+        SizeFromPython(max_buffer_size_arg);
+    if (ABSL_PREDICT_FALSE(max_buffer_size == absl::nullopt)) return -1;
+    python_writer_options.set_max_buffer_size(*max_buffer_size);
+  }
+  if (size_hint_arg != nullptr && size_hint_arg != Py_None) {
+    const absl::optional<Position> size_hint =
+        PositionFromPython(size_hint_arg);
+    if (ABSL_PREDICT_FALSE(size_hint == absl::nullopt)) return -1;
+    python_writer_options.set_size_hint(*size_hint);
   }
 
   RecordWriterBase::Options record_writer_options;
@@ -744,7 +774,10 @@ RecordWriter(
     *,
     owns_dest: bool = True,
     assumed_pos: Optional[int] = None,
-    buffer_size: int = 64 << 10,
+    min_buffer_size: int = 4 << 10,
+    max_buffer_size: int = 64 << 10,
+    buffer_size: Optional[int],
+    size_hint: Optional[int] = None,
     options: Union[str, bytes] = '',
     metadata: Optional[RecordsMetadata] = None,
     serialized_metadata: Union[bytes, bytearray, memoryview] = b''
@@ -760,7 +793,17 @@ Args:
   assumed_pos: If None, dest must support random access. If an int, it is enough
     that dest supports sequential access, and this position will be assumed
     initially.
-  buffer_size: Tunes how much data is buffered before writing to dest.
+  min_buffer_size: Tunes the minimal buffer size, which determines how much data
+    at a time is typically written to dest. The actual buffer size changes
+    between min_buffer_size and max_buffer_size depending on the access pattern.
+  max_buffer_size: Tunes the maximal buffer size, which determines how much data
+    at a time is typically written to dest. The actual buffer size changes
+    between min_buffer_size and max_buffer_size depending on the access pattern.
+  buffer_size: If not None, a shortcut for setting min_buffer_size and
+    max_buffer_size to the same value.
+  size_hint: Expected maximum position reached, or None if unknown. This may
+    improve performance and memory usage. If the size hint turns out to not
+    match reality, nothing breaks.
   options: Compression and other writing options. See below.
   metadata: If not None, file metadata to be written at the beginning (if
     metadata has any fields set). Metadata are written only when the file is

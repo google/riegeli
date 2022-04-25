@@ -28,6 +28,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -54,24 +55,6 @@ inline void BufferedReader::SyncBuffer() {
   buffer_.Clear();
 }
 
-inline size_t BufferedReader::LengthToReadDirectly() const {
-  // Read directly at least `buffer_size_` of data. Even if the buffer is
-  // partially full, this ensures that at least every other read has length at
-  // least `buffer_size_`.
-  if (pos() < size_hint_) {
-    // Read directly also if `size_hint_` is reached.
-    return UnsignedMin(buffer_size_, size_hint_ - pos());
-  }
-  return buffer_size_;
-}
-
-void BufferedReader::VerifyEndImpl() {
-  // No more data are expected, so allocate a minimum non-empty buffer for
-  // verifying that if no buffer was allocated yet.
-  set_size_hint(SaturatingAdd(pos(), Position{1}));
-  Reader::VerifyEndImpl();
-}
-
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
@@ -80,7 +63,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const size_t available_length = available();
   size_t cursor_index = start_to_cursor();
   const size_t buffer_length =
-      BufferLength(min_length, buffer_size_, size_hint_, pos());
+      buffer_sizer_.ReadBufferLength(pos(), min_length, recommended_length);
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(
       0, buffer_length - available_length,
       SaturatingAdd(buffer_length, buffer_length) - available_length);
@@ -134,7 +117,8 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
-  if (length >= LengthToReadDirectly()) {
+  if (length >= buffer_sizer_.LengthToReadDirectly(pos(), start_to_limit(),
+                                                   available())) {
     const size_t available_length = available();
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
@@ -168,7 +152,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
@@ -217,7 +201,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
@@ -263,7 +247,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
@@ -346,24 +330,36 @@ void BufferedReader::ReadHintSlow(size_t min_length,
 }
 
 bool BufferedReader::SyncImpl(SyncType sync_type) {
-  if (available() > 0) {
-    if (!SupportsRandomAccess()) {
-      // Seeking back is not feasible.
-      return ok();
-    }
-    const Position new_pos = pos();
-    SyncBuffer();
-    SeekBehindBuffer(new_pos);
+  buffer_sizer_.EndRun(pos());
+  if (available() > 0 && !SupportsRandomAccess()) {
+    // Seeking back is not feasible.
+    buffer_sizer_.BeginRun(start_pos());
+    return ok();
   }
-  return ok();
+  const Position new_pos = pos();
+  SyncBuffer();
+  if (new_pos == limit_pos()) {
+    buffer_sizer_.BeginRun(limit_pos());
+    return ok();
+  }
+  const bool seek_ok = SeekBehindBuffer(new_pos);
+  buffer_sizer_.BeginRun(start_pos());
+  return seek_ok;
 }
 
 bool BufferedReader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
+  if (ABSL_PREDICT_FALSE(!SupportsRandomAccess())) {
+    SyncBuffer();
+    return SeekBehindBuffer(new_pos);
+  }
+  buffer_sizer_.EndRun(pos());
   SyncBuffer();
-  return SeekBehindBuffer(new_pos);
+  const bool seek_ok = SeekBehindBuffer(new_pos);
+  buffer_sizer_.BeginRun(start_pos());
+  return seek_ok;
 }
 
 void BufferedReader::ShareBufferTo(BufferedReader& reader) const {

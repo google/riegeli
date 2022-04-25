@@ -102,9 +102,11 @@ bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
-  const size_t length =
-      UnsignedMin(BufferLength(1, snappy::kBlockSize, size_hint_, start_pos()),
-                  std::numeric_limits<Position>::max() - start_pos());
+  const size_t length = UnsignedMin(
+      UnsignedMax(
+          ApplyWriteSizeHint(snappy::kBlockSize, size_hint_, start_pos()),
+          recommended_length),
+      snappy::kBlockSize, std::numeric_limits<Position>::max() - start_pos());
   uncompressed_.Reset(length);
   set_buffer(uncompressed_.data(), length);
   return true;

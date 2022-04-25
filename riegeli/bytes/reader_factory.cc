@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -30,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -38,7 +40,7 @@ namespace riegeli {
 
 class ReaderFactoryBase::ConcurrentReader : public PullableReader {
  public:
-  explicit ConcurrentReader(Position initial_pos, Shared* shared);
+  explicit ConcurrentReader(Shared* shared, Position initial_pos);
 
   ConcurrentReader(const ConcurrentReader&) = delete;
   ConcurrentReader& operator=(const ConcurrentReader&) = delete;
@@ -59,14 +61,17 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool CopyBehindScratch(Position length, Writer& dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;
+  bool SyncBehindScratch(SyncType sync_type) override;
   bool SeekBehindScratch(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  bool ReadSome();
+  bool SyncPos() ABSL_SHARED_LOCKS_REQUIRED(shared_->mutex);
+  bool ReadSome() ABSL_SHARED_LOCKS_REQUIRED(shared_->mutex);
 
   Shared* shared_;
+  BufferSizer buffer_sizer_;
   // Buffered data, read directly before the original position which is
   // `start_pos() + (secondary_buffer_.size() - iter_.CharIndexInChain())`
   // when scratch is not used.
@@ -82,9 +87,12 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
 };
 
 inline ReaderFactoryBase::ConcurrentReader::ConcurrentReader(
-    Position initial_pos, Shared* shared)
-    : shared_(shared), iter_(secondary_buffer_.blocks().cend()) {
+    Shared* shared, Position initial_pos)
+    : shared_(shared),
+      buffer_sizer_(shared->buffer_options),
+      iter_(secondary_buffer_.blocks().cend()) {
   set_limit_pos(initial_pos);
+  buffer_sizer_.BeginRun(limit_pos());
 }
 
 void ReaderFactoryBase::ConcurrentReader::Done() {
@@ -96,31 +104,37 @@ void ReaderFactoryBase::ConcurrentReader::Done() {
 absl::Status ReaderFactoryBase::ConcurrentReader::AnnotateStatusImpl(
     absl::Status status) {
   if (is_open()) {
-    Sync(SyncType::kFromObject);
     absl::MutexLock l(&shared_->mutex);
+    shared_->reader->Seek(pos());
     return shared_->reader->AnnotateStatus(std::move(status));
   }
   return status;
 }
 
+inline bool ReaderFactoryBase::ConcurrentReader::SyncPos() {
+  if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()))) {
+    if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+      return FailWithoutAnnotation(shared_->reader->status());
+    }
+    return false;
+  }
+  return true;
+}
+
 inline bool ReaderFactoryBase::ConcurrentReader::ReadSome() {
-  size_t length;
-  {
-    absl::MutexLock l(&shared_->mutex);
-    if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()) ||
-                           !shared_->reader->Pull())) {
-      set_limit_pos(shared_->reader->pos());
-      if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
-        return FailWithoutAnnotation(shared_->reader->status());
-      }
-      return false;
+  if (ABSL_PREDICT_FALSE(!shared_->reader->Pull())) {
+    if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+      return FailWithoutAnnotation(shared_->reader->status());
     }
-    length = UnsignedMin(shared_->reader->available(), shared_->buffer_size);
-    if (!shared_->reader->Read(length, secondary_buffer_)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "Reader::Read() returned false "
-                                      "even though enough data are available: "
-                                   << shared_->reader->status();
-    }
+    return false;
+  }
+  const size_t length =
+      UnsignedMin(shared_->reader->available(),
+                  buffer_sizer_.ReadBufferLength(limit_pos()));
+  if (!shared_->reader->Read(length, secondary_buffer_)) {
+    RIEGELI_ASSERT_UNREACHABLE() << "Reader::Read() returned false "
+                                    "even though enough data are available: "
+                                 << shared_->reader->status();
   }
   iter_ = secondary_buffer_.blocks().cbegin();
   return true;
@@ -148,6 +162,8 @@ bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
   }
 }
@@ -188,19 +204,19 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
+    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    if (length >= shared_->buffer_size) {
-      {
-        absl::MutexLock l(&shared_->mutex);
-        if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()) ||
-                               !shared_->reader->Read(length, dest))) {
-          set_limit_pos(shared_->reader->pos());
-          if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
-            return FailWithoutAnnotation(shared_->reader->status());
-          }
-          return false;
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (length >=
+        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+      if (ABSL_PREDICT_FALSE(!shared_->reader->Read(length, dest))) {
+        set_limit_pos(shared_->reader->pos());
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
         }
+        return false;
       }
       move_limit_pos(length);
       return true;
@@ -246,19 +262,19 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
+    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    if (length >= shared_->buffer_size) {
-      {
-        absl::MutexLock l(&shared_->mutex);
-        if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()) ||
-                               !shared_->reader->ReadAndAppend(length, dest))) {
-          set_limit_pos(shared_->reader->pos());
-          if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
-            return FailWithoutAnnotation(shared_->reader->status());
-          }
-          return false;
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (length >=
+        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+      if (ABSL_PREDICT_FALSE(!shared_->reader->ReadAndAppend(length, dest))) {
+        set_limit_pos(shared_->reader->pos());
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
         }
+        return false;
       }
       move_limit_pos(length);
       return true;
@@ -304,19 +320,19 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
+    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    if (length >= shared_->buffer_size) {
-      {
-        absl::MutexLock l(&shared_->mutex);
-        if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()) ||
-                               !shared_->reader->ReadAndAppend(length, dest))) {
-          set_limit_pos(shared_->reader->pos());
-          if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
-            return FailWithoutAnnotation(shared_->reader->status());
-          }
-          return false;
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (length >=
+        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+      if (ABSL_PREDICT_FALSE(!shared_->reader->ReadAndAppend(length, dest))) {
+        set_limit_pos(shared_->reader->pos());
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
         }
+        return false;
       }
       move_limit_pos(length);
       return true;
@@ -377,20 +393,20 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
+    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     set_buffer();
-    if (length >= shared_->buffer_size) {
-      {
-        absl::MutexLock l(&shared_->mutex);
-        if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(limit_pos()) ||
-                               !shared_->reader->Copy(length, dest))) {
-          set_limit_pos(shared_->reader->pos());
-          if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
-            return FailWithoutAnnotation(shared_->reader->status());
-          }
-          return false;
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (length >=
+        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+      if (ABSL_PREDICT_FALSE(!shared_->reader->Copy(length, dest))) {
+        set_limit_pos(shared_->reader->pos());
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
         }
+        return false;
       }
       move_limit_pos(length);
       return true;
@@ -446,6 +462,21 @@ void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(
   }
 }
 
+bool ReaderFactoryBase::ConcurrentReader::SyncBehindScratch(
+    SyncType sync_type) {
+  buffer_sizer_.EndRun(pos());
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const Position new_pos = pos();
+  secondary_buffer_.Clear();
+  iter_ = secondary_buffer_.blocks().cend();
+  set_buffer();
+  set_limit_pos(new_pos);
+  buffer_sizer_.BeginRun(limit_pos());
+  if (sync_type == SyncType::kFromObject) return true;
+  absl::MutexLock l(&shared_->mutex);
+  return shared_->reader->Sync(sync_type);
+}
+
 bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
@@ -474,6 +505,7 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
     return true;
   }
 
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   secondary_buffer_.Clear();
   iter_ = secondary_buffer_.blocks().cend();
@@ -492,10 +524,12 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
     if (ABSL_PREDICT_FALSE(new_pos > *size)) {
       // Source ends.
       set_limit_pos(*size);
+      buffer_sizer_.BeginRun(limit_pos());
       return false;
     }
   }
   set_limit_pos(new_pos);
+  buffer_sizer_.BeginRun(limit_pos());
   return true;
 }
 
@@ -511,17 +545,18 @@ absl::optional<Position> ReaderFactoryBase::ConcurrentReader::SizeImpl() {
 
 std::unique_ptr<Reader> ReaderFactoryBase::ConcurrentReader::NewReaderImpl(
     Position initial_pos) {
-  return std::make_unique<ConcurrentReader>(initial_pos, shared_);
+  return std::make_unique<ConcurrentReader>(shared_, initial_pos);
 }
 
-void ReaderFactoryBase::Initialize(size_t buffer_size, Reader* src) {
+void ReaderFactoryBase::Initialize(const BufferOptions& buffer_options,
+                                   Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ReaderFactory: null Reader pointer";
   RIEGELI_ASSERT(src->SupportsRandomAccess())
       << "Failed precondition of ReaderFactory: "
          "the original Reader does not support random access";
   if (!src->SupportsNewReader()) {
-    shared_ = std::make_unique<Shared>(buffer_size, src);
+    shared_ = std::make_unique<Shared>(buffer_options, src);
   }
   if (ABSL_PREDICT_FALSE(!src->ok())) FailWithoutAnnotation(src->status());
 }
@@ -552,7 +587,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::NewReader(
            "returned null but Reader is ok() and SupportsNewReader()";
     return reader;
   } else {
-    return std::make_unique<ConcurrentReader>(initial_pos, shared_.get());
+    return std::make_unique<ConcurrentReader>(shared_.get(), initial_pos);
   }
 }
 

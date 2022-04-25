@@ -24,7 +24,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 

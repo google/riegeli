@@ -33,6 +33,7 @@
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/status.h"
 #include "riegeli/brotli/brotli_reader.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -62,8 +63,7 @@ struct BrotliEncoderDictionaryDeleter {
 }  // namespace
 
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
-                                  int window_log,
-                                  absl::optional<Position> size_hint) {
+                                  int window_log) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
@@ -86,11 +86,11 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   // Reduce `window_log` if `size_hint` indicates that data will be smaller.
   // TODO(eustas): Do this automatically in the Brotli engine.
-  if (size_hint != absl::nullopt) {
+  if (size_hint() != absl::nullopt) {
     // Constrain the argument of `bit_ceil()` from above, even though the result
     // is constrained again, to avoid undefined behavior on overflow.
     const int ceil_log2 = IntCast<int>(absl::bit_ceil(
-        UnsignedMin(*size_hint, Position{1} << Options::kMaxWindowLog)));
+        UnsignedMin(*size_hint(), Position{1} << Options::kMaxWindowLog)));
     window_log =
         SignedMin(window_log, SignedMax(ceil_log2, Options::kMinWindowLog));
   }
@@ -123,10 +123,10 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (size_hint != absl::nullopt) {
+  if (size_hint() != absl::nullopt) {
     // Ignore errors from tuning.
     BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-                              SaturatingIntCast<uint32_t>(*size_hint));
+                              SaturatingIntCast<uint32_t>(*size_hint()));
   }
 }
 

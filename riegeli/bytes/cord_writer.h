@@ -154,7 +154,7 @@ class CordWriterBase : public Writer {
   // If the buffer is not empty, appends it to `dest`.
   void SyncBuffer(absl::Cord& dest);
 
-  size_t size_hint_ = 0;
+  absl::optional<Position> size_hint_;
   size_t min_block_size_ = kDefaultMinBlockSize;
   size_t max_block_size_ = kDefaultMaxBlockSize;
 
@@ -268,7 +268,7 @@ explicit CordWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline CordWriterBase::CordWriterBase(const Options& options)
-    : size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
+    : size_hint_(options.size_hint()),
       min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
@@ -302,7 +302,7 @@ inline CordWriterBase& CordWriterBase::operator=(
 
 inline void CordWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
-  size_hint_ = 0;
+  size_hint_ = absl::nullopt;
   min_block_size_ = kDefaultMinBlockSize;
   max_block_size_ = kDefaultMaxBlockSize;
   buffer_ = Buffer();
@@ -311,7 +311,7 @@ inline void CordWriterBase::Reset(Closed) {
 
 inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset();
-  size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
+  size_hint_ = options.size_hint();
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
   associated_reader_.Reset();
@@ -324,12 +324,13 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
     set_start_pos(dest->size());
     const size_t buffer_length = UnsignedMin(
         kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-    if (size_hint_ <= dest->size() + buffer_length) {
+    if (size_hint_ == absl::nullopt ||
+        *size_hint_ <= dest->size() + buffer_length) {
       set_buffer(short_buffer_, buffer_length);
     }
   } else {
     dest->Clear();
-    if (size_hint_ <= kShortBufferSize) {
+    if (size_hint_ == absl::nullopt || *size_hint_ <= kShortBufferSize) {
       set_buffer(short_buffer_, kShortBufferSize);
     }
   }

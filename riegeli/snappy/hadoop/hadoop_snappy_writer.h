@@ -99,7 +99,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   // Postcondition: `start_to_cursor() == 0`
   bool PushInternal(Writer& dest);
 
-  Position size_hint_ = 0;
+  absl::optional<Position> size_hint_;
   Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
@@ -194,7 +194,7 @@ explicit HadoopSnappyWriter(
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     absl::optional<Position> size_hint)
-    : size_hint_(size_hint.value_or(0)) {}
+    : size_hint_(size_hint) {}
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     HadoopSnappyWriterBase&& that) noexcept
@@ -216,7 +216,7 @@ inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
 
 inline void HadoopSnappyWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
-  size_hint_ = 0;
+  size_hint_ = absl::nullopt;
   initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
   associated_reader_.Reset();
@@ -224,7 +224,7 @@ inline void HadoopSnappyWriterBase::Reset(Closed) {
 
 inline void HadoopSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
   PushableWriter::Reset();
-  size_hint_ = size_hint.value_or(0);
+  size_hint_ = size_hint;
   initial_compressed_pos_ = 0;
   associated_reader_.Reset();
 }

@@ -30,6 +30,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/zstd/zstd_dictionary.h"
@@ -40,9 +41,16 @@ namespace riegeli {
 // Template parameter independent part of `ZstdReader`.
 class ZstdReaderBase : public BufferedReader {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
-    Options() noexcept {}
+    Options() noexcept {
+      RIEGELI_ASSERT_EQ(ZSTD_DStreamOutSize(), size_t{ZSTD_BLOCKSIZE_MAX})
+          << "Unexpected value of ZSTD_DStreamOutSize()";
+    }
+
+    // Zstd recommends this size as `ZSTD_DStreamOutSize()`.
+    static constexpr size_t kDefaultMinBufferSize = ZSTD_BLOCKSIZE_MAX;
+    static constexpr size_t kDefaultMaxBufferSize = ZSTD_BLOCKSIZE_MAX;
 
     // If `true`, supports decompressing as much as possible from a truncated
     // source, then retrying when the source has grown. This has a small
@@ -78,43 +86,9 @@ class ZstdReaderBase : public BufferedReader {
     ZstdDictionary& dictionary() { return dictionary_; }
     const ZstdDictionary& dictionary() const { return dictionary_; }
 
-    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
-    // improve performance.
-    //
-    // If the size hint turns out to not match reality, nothing breaks.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
-    // Tunes how much data is buffered after calling the decompression engine.
-    //
-    // Default: `ZSTD_DStreamOutSize()`.
-    static size_t DefaultBufferSize() { return ZSTD_DStreamOutSize(); }
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "ZstdReaderBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     bool growing_source_ = false;
     ZstdDictionary dictionary_;
-    absl::optional<Position> size_hint_;
-    size_t buffer_size_ = DefaultBufferSize();
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -133,16 +107,15 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit ZstdReaderBase(bool growing_source, ZstdDictionary&& dictionary,
-                          size_t buffer_size,
-                          absl::optional<Position> size_hint);
+  explicit ZstdReaderBase(const BufferOptions& buffer_options,
+                          bool growing_source, ZstdDictionary&& dictionary);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(bool growing_source, ZstdDictionary&& dictionary,
-             size_t buffer_size, absl::optional<Position> size_hint);
+  void Reset(const BufferOptions& buffer_options, bool growing_source,
+             ZstdDictionary&& dictionary);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -265,11 +238,10 @@ absl::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
-inline ZstdReaderBase::ZstdReaderBase(bool growing_source,
-                                      ZstdDictionary&& dictionary,
-                                      size_t buffer_size,
-                                      absl::optional<Position> size_hint)
-    : BufferedReader(buffer_size, size_hint),
+inline ZstdReaderBase::ZstdReaderBase(const BufferOptions& buffer_options,
+                                      bool growing_source,
+                                      ZstdDictionary&& dictionary)
+    : BufferedReader(buffer_options),
       growing_source_(growing_source),
       dictionary_(std::move(dictionary)) {}
 
@@ -307,11 +279,10 @@ inline void ZstdReaderBase::Reset(Closed) {
   uncompressed_size_ = absl::nullopt;
 }
 
-inline void ZstdReaderBase::Reset(bool growing_source,
-                                  ZstdDictionary&& dictionary,
-                                  size_t buffer_size,
-                                  absl::optional<Position> size_hint) {
-  BufferedReader::Reset(buffer_size, size_hint);
+inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
+                                  bool growing_source,
+                                  ZstdDictionary&& dictionary) {
+  BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
   just_initialized_ = false;
   truncated_ = false;
@@ -323,16 +294,16 @@ inline void ZstdReaderBase::Reset(bool growing_source,
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
-    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
-                     options.buffer_size(), options.size_hint()),
+    : ZstdReaderBase(options.buffer_options(), options.growing_source(),
+                     std::move(options.dictionary())),
       src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
-    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
-                     options.buffer_size(), options.size_hint()),
+    : ZstdReaderBase(options.buffer_options(), options.growing_source(),
+                     std::move(options.dictionary())),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -341,8 +312,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
-                     options.buffer_size(), options.size_hint()),
+    : ZstdReaderBase(options.buffer_options(), options.growing_source(),
+                     std::move(options.dictionary())),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -367,18 +338,16 @@ inline void ZstdReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
-  ZstdReaderBase::Reset(options.growing_source(),
-                        std::move(options.dictionary()), options.buffer_size(),
-                        options.size_hint());
+  ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
+                        std::move(options.dictionary()));
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
-  ZstdReaderBase::Reset(options.growing_source(),
-                        std::move(options.dictionary()), options.buffer_size(),
-                        options.size_hint());
+  ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
+                        std::move(options.dictionary()));
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -387,9 +356,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZstdReaderBase::Reset(options.growing_source(),
-                        std::move(options.dictionary()), options.buffer_size(),
-                        options.size_hint());
+  ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
+                        std::move(options.dictionary()));
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

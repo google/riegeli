@@ -250,19 +250,31 @@ static int RecordReaderClear(PyRecordReaderObject* self) {
 
 static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
                             PyObject* kwargs) {
-  static constexpr const char* keywords[] = {
-      "src",      "owns_src", "assumed_pos", "buffer_size", "field_projection",
-      "recovery", nullptr};
+  static constexpr const char* keywords[] = {"src",
+                                             "owns_src",
+                                             "assumed_pos",
+                                             "min_buffer_size",
+                                             "max_buffer_size",
+                                             "buffer_size",
+                                             "size_hint",
+                                             "field_projection",
+                                             "recovery",
+                                             nullptr};
   PyObject* src_arg;
   PyObject* owns_src_arg = nullptr;
   PyObject* assumed_pos_arg = nullptr;
+  PyObject* min_buffer_size_arg = nullptr;
+  PyObject* max_buffer_size_arg = nullptr;
   PyObject* buffer_size_arg = nullptr;
+  PyObject* size_hint_arg = nullptr;
   PyObject* field_projection_arg = nullptr;
   PyObject* recovery_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O|$OOOOO:RecordReader", const_cast<char**>(keywords),
-          &src_arg, &owns_src_arg, &assumed_pos_arg, &buffer_size_arg,
-          &field_projection_arg, &recovery_arg))) {
+          args, kwargs, "O|$OOOOOOOO:RecordReader",
+          const_cast<char**>(keywords), &src_arg, &owns_src_arg,
+          &assumed_pos_arg, &min_buffer_size_arg, &max_buffer_size_arg,
+          &buffer_size_arg, &size_hint_arg, &field_projection_arg,
+          &recovery_arg))) {
     return -1;
   }
 
@@ -278,10 +290,27 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     if (ABSL_PREDICT_FALSE(assumed_pos == absl::nullopt)) return -1;
     python_reader_options.set_assumed_pos(*assumed_pos);
   }
-  if (buffer_size_arg != nullptr) {
-    const absl::optional<size_t> buffer_size = SizeFromPython(buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(buffer_size == absl::nullopt)) return -1;
-    python_reader_options.set_buffer_size(*buffer_size);
+  if (buffer_size_arg != nullptr && buffer_size_arg != Py_None) {
+    min_buffer_size_arg = buffer_size_arg;
+    max_buffer_size_arg = buffer_size_arg;
+  }
+  if (min_buffer_size_arg != nullptr) {
+    const absl::optional<size_t> min_buffer_size =
+        SizeFromPython(min_buffer_size_arg);
+    if (ABSL_PREDICT_FALSE(min_buffer_size == absl::nullopt)) return -1;
+    python_reader_options.set_min_buffer_size(*min_buffer_size);
+  }
+  if (max_buffer_size_arg != nullptr) {
+    const absl::optional<size_t> max_buffer_size =
+        SizeFromPython(max_buffer_size_arg);
+    if (ABSL_PREDICT_FALSE(max_buffer_size == absl::nullopt)) return -1;
+    python_reader_options.set_max_buffer_size(*max_buffer_size);
+  }
+  if (size_hint_arg != nullptr && size_hint_arg != Py_None) {
+    const absl::optional<Position> size_hint =
+        PositionFromPython(size_hint_arg);
+    if (ABSL_PREDICT_FALSE(size_hint == absl::nullopt)) return -1;
+    python_reader_options.set_size_hint(*size_hint);
   }
 
   RecordReaderBase::Options record_reader_options;
@@ -1178,7 +1207,10 @@ RecordReader(
     *,
     owns_src: bool = True,
     assumed_pos: Optional[int] = None,
-    buffer_size: int = 64 << 10,
+    min_buffer_size: int = 4 << 10,
+    max_buffer_size: int = 64 << 10,
+    buffer_size: Optional[int],
+    size_hint: Optional[int] = None,
     field_projection: Optional[Iterable[Iterable[int]]] = None,
     recovery: Optional[Callable[[SkippedRegion], Any]] = None) -> RecordReader
 
@@ -1191,7 +1223,17 @@ Args:
     support random access, and RecordReader will set the position of src on
     close(). If an int, it is enough that src supports sequential access, and
     this position will be assumed initially.
-  buffer_size: Tunes how much data is buffered after reading from src.
+  min_buffer_size: Tunes the minimal buffer size, which determines how much data
+    at a time is typically read from src. The actual buffer size changes between
+    min_buffer_size and max_buffer_size depending on the access pattern.
+  max_buffer_size: Tunes the maximal buffer size, which determines how much data
+    at a time is typically read from src. The actual buffer size changes between
+    min_buffer_size and max_buffer_size depending on the access pattern.
+  buffer_size: If not None, a shortcut for setting min_buffer_size and
+    max_buffer_size to the same value.
+  size_hint: Expected maximum position reached, or None if unknown. This may
+    improve performance and memory usage. If the size hint turns out to not
+    match reality, nothing breaks.
   field_projection: If not None, the set of fields to be included in returned
     records, allowing to exclude the remaining fields (but does not guarantee
     that they will be excluded). Excluding data makes reading faster. Projection

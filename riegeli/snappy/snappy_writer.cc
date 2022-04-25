@@ -90,10 +90,11 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   }
   SyncBuffer();
   const absl::Span<char> buffer = uncompressed_.AppendFixedBuffer(
-      BufferLength(min_length,
-                   RoundUp<kBlockSize>(uncompressed_.size() + min_length) -
-                       uncompressed_.size(),
-                   options_.size_hint(), uncompressed_.size()),
+      UnsignedMax(ApplyWriteSizeHint(
+                      RoundUp<kBlockSize>(uncompressed_.size() + min_length) -
+                          uncompressed_.size(),
+                      options_.size_hint(), uncompressed_.size()),
+                  min_length),
       options_);
   set_buffer(buffer.data(), buffer.size());
   return true;

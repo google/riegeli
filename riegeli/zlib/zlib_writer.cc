@@ -266,8 +266,8 @@ Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                                        : static_cast<ZlibReaderBase::Header>(
                                              window_bits_ & ~15))
           .set_dictionary(dictionary_)
-          .set_size_hint(pos())
-          .set_buffer_size(buffer_size()));
+          .set_buffer_options(buffer_options())
+          .set_size_hint(pos()));
   reader->Seek(initial_pos);
   return reader;
 }

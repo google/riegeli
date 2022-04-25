@@ -44,7 +44,7 @@ namespace riegeli {
 namespace python {
 
 PythonReader::PythonReader(PyObject* src, Options options)
-    : BufferedReader(options.buffer_size()), owns_src_(options.owns_src()) {
+    : BufferedReader(options.buffer_options()), owns_src_(options.owns_src()) {
   PythonLock::AssertHeld();
   Py_INCREF(src);
   src_.reset(src);
@@ -80,6 +80,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
     set_limit_pos(*file_pos);
     supports_random_access_ = true;
   }
+  BeginRun();
 }
 
 void PythonReader::Done() {

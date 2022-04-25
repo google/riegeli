@@ -72,24 +72,34 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           filenames_tensor->flat<::tensorflow::tstring>()(i));
     }
 
-    int64_t buffer_size;
+    int64_t min_buffer_size;
     OP_REQUIRES_OK(ctx, ::tensorflow::data::ParseScalarArgument<int64_t>(
-                            ctx, "buffer_size", &buffer_size));
+                            ctx, "min_buffer_size", &min_buffer_size));
     OP_REQUIRES(
-        ctx, buffer_size > 0,
-        ::tensorflow::errors::InvalidArgument("`buffer_size` must be > 0"));
+        ctx, min_buffer_size > 0,
+        ::tensorflow::errors::InvalidArgument("`min_buffer_size` must be > 0"));
 
-    *output = new Dataset(ctx, std::move(filenames), buffer_size);
+    int64_t max_buffer_size;
+    OP_REQUIRES_OK(ctx, ::tensorflow::data::ParseScalarArgument<int64_t>(
+                            ctx, "max_buffer_size", &max_buffer_size));
+    OP_REQUIRES(ctx, max_buffer_size >= min_buffer_size,
+                ::tensorflow::errors::InvalidArgument(
+                    "`max_buffer_size` must be >= `min_buffer_size`"));
+
+    *output = new Dataset(ctx, std::move(filenames), min_buffer_size,
+                          max_buffer_size);
   }
 
  private:
   class Dataset : public ::tensorflow::data::DatasetBase {
    public:
     explicit Dataset(::tensorflow::OpKernelContext* ctx,
-                     std::vector<std::string> filenames, int64_t buffer_size)
+                     std::vector<std::string> filenames,
+                     int64_t min_buffer_size, int64_t max_buffer_size)
         : DatasetBase(::tensorflow::data::DatasetContext(ctx)),
           filenames_(std::move(filenames)),
-          buffer_size_(buffer_size) {}
+          min_buffer_size_(min_buffer_size),
+          max_buffer_size_(max_buffer_size) {}
 
     std::unique_ptr<::tensorflow::data::IteratorBase> MakeIteratorInternal(
         const std::string& prefix) const override {
@@ -131,9 +141,12 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         DatasetGraphDefBuilder* b, ::tensorflow::Node** output) const override {
       ::tensorflow::Node* filenames = nullptr;
       TF_RETURN_IF_ERROR(b->AddVector(filenames_, &filenames));
-      ::tensorflow::Node* buffer_size = nullptr;
-      TF_RETURN_IF_ERROR(b->AddScalar(buffer_size_, &buffer_size));
-      TF_RETURN_IF_ERROR(b->AddDataset(this, {filenames, buffer_size}, output));
+      ::tensorflow::Node* min_buffer_size = nullptr;
+      TF_RETURN_IF_ERROR(b->AddScalar(min_buffer_size_, &min_buffer_size));
+      ::tensorflow::Node* max_buffer_size = nullptr;
+      TF_RETURN_IF_ERROR(b->AddScalar(max_buffer_size_, &max_buffer_size));
+      TF_RETURN_IF_ERROR(b->AddDataset(
+          this, {filenames, min_buffer_size, max_buffer_size}, output));
       return ::tensorflow::Status::OK();
     }
 
@@ -264,7 +277,10 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
             dataset()->filenames_[current_file_index_],
             tensorflow::FileReaderBase::Options()
                 .set_env(ctx->env())
-                .set_buffer_size(IntCast<size_t>(dataset()->buffer_size_))));
+                .set_min_buffer_size(
+                    IntCast<size_t>(dataset()->min_buffer_size_))
+                .set_max_buffer_size(
+                    IntCast<size_t>(dataset()->max_buffer_size_))));
       }
 
       // Invariants:
@@ -280,7 +296,8 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     };
 
     const std::vector<std::string> filenames_;
-    const int64_t buffer_size_;
+    const int64_t min_buffer_size_;
+    const int64_t max_buffer_size_;
   };
 };
 

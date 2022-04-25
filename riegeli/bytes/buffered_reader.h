@@ -19,11 +19,13 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -42,17 +44,16 @@ class BufferedReader : public Reader {
   // Creates a closed `BufferedReader`.
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
 
-  // Creates a `BufferedReader` with the given buffer size and size hint.
-  //
-  // Size hint is the expected maximum position reached, or `absl::nullopt` if
-  // unknown. This avoids allocating a larger buffer than necessary.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  //
-  // Precondition: `buffer_size > 0`
+  explicit BufferedReader(
+      const BufferOptions& buffer_options = BufferOptions()) noexcept;
+
+  ABSL_DEPRECATED("Use BufferOptions")
   explicit BufferedReader(
       size_t buffer_size,
-      absl::optional<Position> size_hint = absl::nullopt) noexcept;
+      absl::optional<Position> size_hint = absl::nullopt) noexcept
+      : BufferedReader(BufferOptions()
+                           .set_buffer_size(buffer_size)
+                           .set_size_hint(size_hint)) {}
 
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
@@ -62,17 +63,30 @@ class BufferedReader : public Reader {
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedReader::Reset()`.
   void Reset(Closed);
+  void Reset(const BufferOptions& buffer_options = BufferOptions());
+  ABSL_DEPRECATED("Use BufferOptions")
   void Reset(size_t buffer_size,
-             absl::optional<Position> size_hint = absl::nullopt);
+             absl::optional<Position> size_hint = absl::nullopt) {
+    Reset(
+        BufferOptions().set_buffer_size(buffer_size).set_size_hint(size_hint));
+  }
 
-  // Returns the buffer size option passed to the constructor.
-  size_t buffer_size() const { return buffer_size_; }
+  // Returns the options passed to the constructor.
+  const BufferOptions& buffer_options() const {
+    return buffer_sizer_.buffer_options();
+  }
 
-  // Changes the size hint after construction.
-  void set_size_hint(absl::optional<Position> size_hint);
+  // Provides access to `size_hint()` after construction.
+  void set_size_hint(absl::optional<Position> size) {
+    buffer_sizer_.set_size_hint(size);
+  }
+  absl::optional<Position> size_hint() const {
+    return buffer_sizer_.size_hint();
+  }
 
-  // Returns the current size hint, or 0 if it was unset.
-  Position size_hint() const { return size_hint_; }
+  // In derived classes this must be called during initialization if reading
+  // starts from a position greater than 0.
+  void BeginRun() { buffer_sizer_.BeginRun(start_pos()); }
 
   // `BufferedReader::{Done,SyncImpl}()` seek the source back to the current
   // position if not all buffered data were read. This is feasible only if
@@ -113,7 +127,6 @@ class BufferedReader : public Reader {
   virtual bool SeekBehindBuffer(Position new_pos);
 
   void Done() override;
-  void VerifyEndImpl() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
@@ -151,14 +164,7 @@ class BufferedReader : public Reader {
   // buffered data. `limit_pos()` remains unchanged.
   void SyncBuffer();
 
-  // Minimum length for which it is better to append current contents of
-  // `buffer_` and read the remaining data directly than to read the data
-  // through `buffer_`.
-  size_t LengthToReadDirectly() const;
-
-  // Invariant: if `is_open()` then `buffer_size_ > 0`
-  size_t buffer_size_ = 0;
-  Position size_hint_ = 0;
+  BufferSizer buffer_sizer_;
   // Buffered data, read directly before the physical source position which is
   // `limit_pos()`.
   ChainBlock buffer_;
@@ -171,47 +177,32 @@ class BufferedReader : public Reader {
 // Implementation details follow.
 
 inline BufferedReader::BufferedReader(
-    size_t buffer_size, absl::optional<Position> size_hint) noexcept
-    : buffer_size_(buffer_size), size_hint_(size_hint.value_or(0)) {
-  RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedReader::BufferedReader(size_t): "
-         "zero buffer size";
-}
+    const BufferOptions& buffer_options) noexcept
+    : buffer_sizer_(buffer_options) {}
 
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
     : Reader(static_cast<Reader&&>(that)),
-      buffer_size_(that.buffer_size_),
-      size_hint_(that.size_hint_),
+      buffer_sizer_(that.buffer_sizer_),
       buffer_(std::move(that.buffer_)) {}
 
 inline BufferedReader& BufferedReader::operator=(
     BufferedReader&& that) noexcept {
   Reader::operator=(static_cast<Reader&&>(that));
-  buffer_size_ = that.buffer_size_;
-  size_hint_ = that.size_hint_;
+  buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }
 
 inline void BufferedReader::Reset(Closed) {
   Reader::Reset(kClosed);
-  buffer_size_ = 0;
-  size_hint_ = 0;
+  buffer_sizer_.Reset();
   buffer_ = ChainBlock();
 }
 
-inline void BufferedReader::Reset(size_t buffer_size,
-                                  absl::optional<Position> size_hint) {
-  RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedReader::Reset(): zero buffer size";
+inline void BufferedReader::Reset(const BufferOptions& buffer_options) {
   Reader::Reset();
-  buffer_size_ = buffer_size;
-  size_hint_ = size_hint.value_or(0);
+  buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();
-}
-
-inline void BufferedReader::set_size_hint(absl::optional<Position> size_hint) {
-  size_hint_ = size_hint.value_or(0);
 }
 
 }  // namespace riegeli

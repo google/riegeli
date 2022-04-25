@@ -15,8 +15,6 @@
 #ifndef RIEGELI_BYTES_OSTREAM_WRITER_H_
 #define RIEGELI_BYTES_OSTREAM_WRITER_H_
 
-#include <stddef.h>
-
 #include <cerrno>
 #include <istream>
 #include <ostream>
@@ -31,6 +29,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/stream_internal.h"
 #include "riegeli/bytes/writer.h"
@@ -44,7 +43,7 @@ class Reader;
 // Template parameter independent part of `OStreamWriter`.
 class OStreamWriterBase : public BufferedWriter {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -67,25 +66,8 @@ class OStreamWriterBase : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered before writing to the stream.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "OStreamWriterBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     absl::optional<Position> assumed_pos_;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the stream being written to. Unchanged by `Close()`.
@@ -99,13 +81,13 @@ class OStreamWriterBase : public BufferedWriter {
  protected:
   explicit OStreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit OStreamWriterBase(size_t buffer_size);
+  explicit OStreamWriterBase(const BufferOptions& buffer_options);
 
   OStreamWriterBase(OStreamWriterBase&& that) noexcept;
   OStreamWriterBase& operator=(OStreamWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(size_t buffer_size);
+  void Reset(const BufferOptions& buffer_options);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos);
 
@@ -230,8 +212,8 @@ explicit OStreamWriter(
 
 // Implementation details follow.
 
-inline OStreamWriterBase::OStreamWriterBase(size_t buffer_size)
-    : BufferedWriter(buffer_size) {
+inline OStreamWriterBase::OStreamWriterBase(const BufferOptions& buffer_options)
+    : BufferedWriter(buffer_options) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -262,8 +244,8 @@ inline void OStreamWriterBase::Reset(Closed) {
   read_mode_ = false;
 }
 
-inline void OStreamWriterBase::Reset(size_t buffer_size) {
-  BufferedWriter::Reset(buffer_size);
+inline void OStreamWriterBase::Reset(const BufferOptions& buffer_options) {
+  BufferedWriter::Reset(buffer_options);
   supports_random_access_ = LazyBoolState::kFalse;
   supports_read_mode_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
@@ -275,13 +257,13 @@ inline void OStreamWriterBase::Reset(size_t buffer_size) {
 
 template <typename Dest>
 inline OStreamWriter<Dest>::OStreamWriter(const Dest& dest, Options options)
-    : OStreamWriterBase(options.buffer_size()), dest_(dest) {
+    : OStreamWriterBase(options.buffer_options()), dest_(dest) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline OStreamWriter<Dest>::OStreamWriter(Dest&& dest, Options options)
-    : OStreamWriterBase(options.buffer_size()), dest_(std::move(dest)) {
+    : OStreamWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
@@ -289,7 +271,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline OStreamWriter<Dest>::OStreamWriter(std::tuple<DestArgs...> dest_args,
                                           Options options)
-    : OStreamWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
+    : OStreamWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
@@ -314,14 +296,14 @@ inline void OStreamWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void OStreamWriter<Dest>::Reset(const Dest& dest, Options options) {
-  OStreamWriterBase::Reset(options.buffer_size());
+  OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline void OStreamWriter<Dest>::Reset(Dest&& dest, Options options) {
-  OStreamWriterBase::Reset(options.buffer_size());
+  OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.assumed_pos());
 }
@@ -330,7 +312,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void OStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                        Options options) {
-  OStreamWriterBase::Reset(options.buffer_size());
+  OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.assumed_pos());
 }

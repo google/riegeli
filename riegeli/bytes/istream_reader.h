@@ -30,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/stream_internal.h"
 
@@ -38,7 +39,7 @@ namespace riegeli {
 // Template parameter independent part of `IStreamReader`.
 class IStreamReaderBase : public BufferedReader {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -74,26 +75,9 @@ class IStreamReaderBase : public BufferedReader {
     }
     bool growing_source() const { return growing_source_; }
 
-    // Tunes how much data is buffered after reading from the stream.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of "
-             "IStreamReaderBase::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     absl::optional<Position> assumed_pos_;
     bool growing_source_ = false;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the stream being read from. Unchanged by `Close()`.
@@ -105,13 +89,14 @@ class IStreamReaderBase : public BufferedReader {
  protected:
   explicit IStreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit IStreamReaderBase(bool growing_source, size_t buffer_size);
+  explicit IStreamReaderBase(const BufferOptions& buffer_options,
+                             bool growing_source);
 
   IStreamReaderBase(IStreamReaderBase&& that) noexcept;
   IStreamReaderBase& operator=(IStreamReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(bool growing_source, size_t buffer_size);
+  void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool supports_random_access();
@@ -125,13 +110,14 @@ class IStreamReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  void FoundSize(Position size);
+  void StoreSize(Position size);
+  absl::optional<Position> exact_size() const;
 
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool growing_source_ = false;
-  absl::optional<Position> size_;
+  bool size_hint_is_exact_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -227,9 +213,9 @@ explicit IStreamReader(
 
 // Implementation details follow.
 
-inline IStreamReaderBase::IStreamReaderBase(bool growing_source,
-                                            size_t buffer_size)
-    : BufferedReader(buffer_size), growing_source_(growing_source) {
+inline IStreamReaderBase::IStreamReaderBase(const BufferOptions& buffer_options,
+                                            bool growing_source)
+    : BufferedReader(buffer_options), growing_source_(growing_source) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -239,14 +225,14 @@ inline IStreamReaderBase::IStreamReaderBase(IStreamReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       supports_random_access_(that.supports_random_access_),
       growing_source_(that.growing_source_),
-      size_(that.size_) {}
+      size_hint_is_exact_(that.size_hint_is_exact_) {}
 
 inline IStreamReaderBase& IStreamReaderBase::operator=(
     IStreamReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   supports_random_access_ = that.supports_random_access_;
   growing_source_ = that.growing_source_;
-  size_ = that.size_;
+  size_hint_is_exact_ = that.size_hint_is_exact_;
   return *this;
 }
 
@@ -254,14 +240,15 @@ inline void IStreamReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = false;
-  size_ = absl::nullopt;
+  size_hint_is_exact_ = false;
 }
 
-inline void IStreamReaderBase::Reset(bool growing_source, size_t buffer_size) {
-  BufferedReader::Reset(buffer_size);
+inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
+                                     bool growing_source) {
+  BufferedReader::Reset(buffer_options);
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = growing_source;
-  size_ = absl::nullopt;
+  size_hint_is_exact_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -269,14 +256,14 @@ inline void IStreamReaderBase::Reset(bool growing_source, size_t buffer_size) {
 
 template <typename Src>
 inline IStreamReader<Src>::IStreamReader(const Src& src, Options options)
-    : IStreamReaderBase(options.growing_source(), options.buffer_size()),
+    : IStreamReaderBase(options.buffer_options(), options.growing_source()),
       src_(src) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline IStreamReader<Src>::IStreamReader(Src&& src, Options options)
-    : IStreamReaderBase(options.growing_source(), options.buffer_size()),
+    : IStreamReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -285,7 +272,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline IStreamReader<Src>::IStreamReader(std::tuple<SrcArgs...> src_args,
                                          Options options)
-    : IStreamReaderBase(options.growing_source(), options.buffer_size()),
+    : IStreamReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -311,14 +298,14 @@ inline void IStreamReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void IStreamReader<Src>::Reset(const Src& src, Options options) {
-  IStreamReaderBase::Reset(options.growing_source(), options.buffer_size());
+  IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline void IStreamReader<Src>::Reset(Src&& src, Options options) {
-  IStreamReaderBase::Reset(options.growing_source(), options.buffer_size());
+  IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -327,7 +314,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void IStreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
-  IStreamReaderBase::Reset(options.growing_source(), options.buffer_size());
+  IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_pos());
 }

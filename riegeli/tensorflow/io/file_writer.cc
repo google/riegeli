@@ -33,6 +33,7 @@
 #include "riegeli/base/memory.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/tensorflow/io/file_reader.h"
@@ -100,6 +101,7 @@ void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
     }
   }
   set_start_pos(IntCast<Position>(file_pos));
+  buffer_sizer_.BeginRun(start_pos());
 }
 
 void FileWriterBase::Done() {
@@ -141,13 +143,6 @@ bool FileWriterBase::SyncBuffer() {
   return WriteInternal(data);
 }
 
-inline size_t FileWriterBase::LengthToWriteDirectly() const {
-  // Write directly at least `buffer_size_` of data. Even if the buffer is
-  // partially full, this ensures that at least every other write has length at
-  // least `buffer_size_`.
-  return buffer_size_;
-}
-
 bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
@@ -158,7 +153,8 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length = UnsignedMax(buffer_size_, min_length);
+  const size_t buffer_length = buffer_sizer_.WriteBufferLength(
+      start_pos(), min_length, recommended_length);
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.mutable_data(),
              UnsignedMin(buffer_.capacity(),
@@ -192,7 +188,8 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
+  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                        available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
@@ -204,7 +201,8 @@ bool FileWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
+  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                        available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(src));
@@ -216,7 +214,8 @@ bool FileWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
+  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                        available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(std::move(src)));
@@ -231,7 +230,8 @@ bool FileWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
+  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                        available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
@@ -243,7 +243,8 @@ bool FileWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (length >= LengthToWriteDirectly()) {
+  if (length >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
+                                                    available())) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     while (length > std::numeric_limits<size_t>::max()) {
@@ -280,7 +281,9 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
 }
 
 bool FileWriterBase::FlushImpl(FlushType flush_type) {
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  buffer_sizer_.BeginRun(start_pos());
   return ok();
 }
 
@@ -300,7 +303,7 @@ absl::optional<Position> FileWriterBase::SizeImpl() {
       return absl::nullopt;
     }
   }
-  return Position{file_size};
+  return UnsignedMax(Position{file_size}, pos());
 }
 
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
@@ -311,11 +314,11 @@ Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;
-  return associated_reader_.ResetReader(filename_,
-                                        FileReaderBase::Options()
-                                            .set_env(env_)
-                                            .set_initial_pos(initial_pos)
-                                            .set_buffer_size(buffer_size_));
+  return associated_reader_.ResetReader(
+      filename_, FileReaderBase::Options()
+                     .set_env(env_)
+                     .set_initial_pos(initial_pos)
+                     .set_buffer_options(buffer_sizer_.buffer_options()));
 }
 
 }  // namespace tensorflow

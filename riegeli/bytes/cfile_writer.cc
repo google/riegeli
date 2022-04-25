@@ -111,6 +111,7 @@ inline void CFileWriterBase::InitializePos(FILE* dest,
         append ? LazyBoolState::kTrue : LazyBoolState::kUnknown;
     supports_read_mode_ = LazyBoolState::kUnknown;
   }
+  BeginRun();
 }
 
 void CFileWriterBase::Done() {
@@ -349,10 +350,10 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   FILE* const dest = dest_file();
-  CFileReader<UnownedCFile>* const reader =
-      associated_reader_.ResetReader(dest, CFileReaderBase::Options()
-                                               .set_assumed_filename(filename())
-                                               .set_buffer_size(buffer_size()));
+  CFileReader<UnownedCFile>* const reader = associated_reader_.ResetReader(
+      dest, CFileReaderBase::Options()
+                .set_assumed_filename(filename())
+                .set_buffer_options(buffer_options()));
   read_mode_ = true;
   reader->Seek(initial_pos);
   return reader;

@@ -19,11 +19,13 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -44,17 +46,16 @@ class BufferedWriter : public Writer {
   // Creates a closed `BufferedWriter`.
   explicit BufferedWriter(Closed) noexcept : Writer(kClosed) {}
 
-  // Creates a `BufferedWriter` with the given buffer size and size hint.
-  //
-  // Size hint is the expected maximum position reached, or `absl::nullopt` if
-  // unknown. This avoids allocating a larger buffer than necessary.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  //
-  // Precondition: `buffer_size > 0`
+  explicit BufferedWriter(
+      const BufferOptions& buffer_options = BufferOptions()) noexcept;
+
+  ABSL_DEPRECATED("Use BufferOptions")
   explicit BufferedWriter(
       size_t buffer_size,
-      absl::optional<Position> size_hint = absl::nullopt) noexcept;
+      absl::optional<Position> size_hint = absl::nullopt) noexcept
+      : BufferedWriter(BufferOptions()
+                           .set_buffer_size(buffer_size)
+                           .set_size_hint(size_hint)) {}
 
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
@@ -64,11 +65,30 @@ class BufferedWriter : public Writer {
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedWriter::Reset()`.
   void Reset(Closed);
+  void Reset(const BufferOptions& buffer_options = BufferOptions());
+  ABSL_DEPRECATED("Use BufferOptions")
   void Reset(size_t buffer_size,
-             absl::optional<Position> size_hint = absl::nullopt);
+             absl::optional<Position> size_hint = absl::nullopt) {
+    Reset(
+        BufferOptions().set_buffer_size(buffer_size).set_size_hint(size_hint));
+  }
 
-  // Returns the buffer size option passed to the constructor.
-  size_t buffer_size() const { return buffer_size_; }
+  // Returns the options passed to the constructor.
+  const BufferOptions& buffer_options() const {
+    return buffer_sizer_.buffer_options();
+  }
+
+  // Provides access to `size_hint()` after construction.
+  void set_size_hint(absl::optional<Position> size) {
+    buffer_sizer_.set_size_hint(size);
+  }
+  absl::optional<Position> size_hint() const {
+    return buffer_sizer_.size_hint();
+  }
+
+  // In derived classes this must be called during initialization if writing
+  // starts from a position greater than 0.
+  void BeginRun() { buffer_sizer_.BeginRun(start_pos()); }
 
   // `BufferedWriter::{Done,FlushImpl}()` call `{Done,Flush}BehindBuffer()` to
   // write the last piece of data and close/flush the destination.
@@ -133,13 +153,7 @@ class BufferedWriter : public Writer {
  private:
   bool SyncBuffer();
 
-  // Minimum length for which it is better to push current contents of `buffer_`
-  // and write the data directly than to write the data through `buffer_`.
-  size_t LengthToWriteDirectly() const;
-
-  // Invariant: if `is_open()` then `buffer_size_ > 0`
-  size_t buffer_size_ = 0;
-  Position size_hint_ = 0;
+  BufferSizer buffer_sizer_;
   // Contains buffered data, to be written directly after the physical
   // destination position which is `start_pos()`.
   Buffer buffer_;
@@ -148,42 +162,31 @@ class BufferedWriter : public Writer {
 // Implementation details follow.
 
 inline BufferedWriter::BufferedWriter(
-    size_t buffer_size, absl::optional<Position> size_hint) noexcept
-    : buffer_size_(buffer_size), size_hint_(size_hint.value_or(0)) {
-  RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
-         "zero buffer size";
-}
+    const BufferOptions& buffer_options) noexcept
+    : buffer_sizer_(buffer_options) {}
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
-      buffer_size_(that.buffer_size_),
-      size_hint_(that.size_hint_),
+      buffer_sizer_(that.buffer_sizer_),
       buffer_(std::move(that.buffer_)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
-  buffer_size_ = that.buffer_size_;
-  size_hint_ = that.size_hint_;
+  buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }
 
 inline void BufferedWriter::Reset(Closed) {
   Writer::Reset(kClosed);
-  buffer_size_ = 0;
-  size_hint_ = 0;
+  buffer_sizer_.Reset();
   buffer_ = Buffer();
 }
 
-inline void BufferedWriter::Reset(size_t buffer_size,
-                                  absl::optional<Position> size_hint) {
-  RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedWriter::Reset(): zero buffer size";
+inline void BufferedWriter::Reset(const BufferOptions& buffer_options) {
   Writer::Reset();
-  buffer_size_ = buffer_size;
-  size_hint_ = size_hint.value_or(0);
+  buffer_sizer_.Reset(buffer_options);
 }
 
 }  // namespace riegeli

@@ -73,6 +73,7 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
     supports_random_access_ = LazyBoolState::kUnknown;
     supports_read_mode_ = LazyBoolState::kUnknown;
   }
+  BeginRun();
 }
 
 void OStreamWriterBase::Done() {
@@ -300,7 +301,7 @@ Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   std::istream& src = *src_stream();
   IStreamReader<>* const reader = associated_reader_.ResetReader(
-      &src, IStreamReaderBase::Options().set_buffer_size(buffer_size()));
+      &src, IStreamReaderBase::Options().set_buffer_options(buffer_options()));
   read_mode_ = true;
   reader->Seek(initial_pos);
   return reader;

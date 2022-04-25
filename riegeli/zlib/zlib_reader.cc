@@ -313,8 +313,7 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
                               : static_cast<Header>(window_bits_ & ~15))
               .set_dictionary(dictionary_)
               .set_concatenate(concatenate_)
-              .set_size_hint(size_hint())
-              .set_buffer_size(buffer_size()));
+              .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
 }

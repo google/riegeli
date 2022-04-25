@@ -131,10 +131,22 @@ cc_library(
 )
 
 cc_library(
+    name = "buffer_options",
+    srcs = ["buffer_options.cc"],
+    hdrs = ["buffer_options.h"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "buffered_writer",
     srcs = ["buffered_writer.cc"],
     hdrs = ["buffered_writer.h"],
     deps = [
+        ":buffer_options",
         ":reader",
         ":writer",
         "//riegeli/base",
@@ -152,6 +164,7 @@ cc_library(
     hdrs = ["buffered_reader.h"],
     deps = [
         ":backward_writer",
+        ":buffer_options",
         ":reader",
         ":writer",
         "//riegeli/base",
@@ -348,6 +361,7 @@ cc_library(
     srcs = ["null_writer.cc"],
     hdrs = ["null_writer.h"],
     deps = [
+        ":buffer_options",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:buffer",
@@ -363,6 +377,7 @@ cc_library(
     hdrs = ["null_backward_writer.h"],
     deps = [
         ":backward_writer",
+        ":buffer_options",
         "//riegeli/base",
         "//riegeli/base:buffer",
         "//riegeli/base:chain",
@@ -415,6 +430,7 @@ cc_library(
     srcs = ["reader_factory.cc"],
     hdrs = ["reader_factory.h"],
     deps = [
+        ":buffer_options",
         ":pullable_reader",
         ":reader",
         ":writer",
@@ -602,6 +618,7 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":buffer_options",
         ":buffered_writer",
         ":fd_internal",
         ":fd_reader",
@@ -627,6 +644,7 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":buffer_options",
         ":buffered_reader",
         ":chain_reader",
         ":fd_internal",
@@ -677,6 +695,7 @@ cc_library(
     ],
     hdrs = ["ostream_writer.h"],
     deps = [
+        ":buffer_options",
         ":buffered_writer",
         ":istream_reader",
         ":reader",
@@ -699,6 +718,7 @@ cc_library(
     ],
     hdrs = ["istream_reader.h"],
     deps = [
+        ":buffer_options",
         ":buffered_reader",
         "//riegeli/base",
         "//riegeli/base:status",
@@ -750,6 +770,7 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":buffer_options",
         ":buffered_writer",
         ":cfile_reader",
         ":reader",
@@ -776,6 +797,7 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":buffer_options",
         ":buffered_reader",
         "//riegeli/base",
         "//riegeli/base:status",

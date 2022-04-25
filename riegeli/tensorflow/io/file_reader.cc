@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
@@ -92,6 +93,7 @@ void FileReaderBase::InitializePos(Position initial_pos) {
     return;
   }
   set_limit_pos(initial_pos);
+  buffer_sizer_.BeginRun(limit_pos());
 }
 
 bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
@@ -117,20 +119,19 @@ void FileReaderBase::Done() {
   buffer_ = ChainBlock();
 }
 
-inline void FileReaderBase::FoundSize(Position size) {
-  if (!growing_source_) size_ = size;
+inline void FileReaderBase::StoreSize(Position size) {
+  buffer_sizer_.set_size_hint(size);
+  if (!growing_source_) size_hint_is_exact_ = true;
+}
+
+inline absl::optional<Position> FileReaderBase::exact_size() const {
+  if (size_hint_is_exact_) return buffer_sizer_.size_hint();
+  return absl::nullopt;
 }
 
 inline void FileReaderBase::SyncBuffer() {
   buffer_.Clear();
   set_buffer();
-}
-
-inline size_t FileReaderBase::LengthToReadDirectly() const {
-  // Read directly at least `buffer_size_` of data. Even if the buffer is
-  // partially full, this ensures that at least every other read has length at
-  // least `buffer_size_`.
-  return buffer_size_;
 }
 
 bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
@@ -139,7 +140,8 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
-  const size_t buffer_length = UnsignedMax(buffer_size_, min_length);
+  const size_t buffer_length = buffer_sizer_.ReadBufferLength(
+      limit_pos(), min_length, recommended_length);
   const size_t available_length = available();
   size_t cursor_index;
   absl::Span<char> flat_buffer;
@@ -182,7 +184,8 @@ inline bool FileReaderBase::ReadToDest(size_t length,
                                        ::tensorflow::RandomAccessFile* src,
                                        char* dest) {
   SyncBuffer();
-  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+  if (exact_size() != absl::nullopt &&
+      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(length >
@@ -200,7 +203,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
-    FoundSize(limit_pos());
+    StoreSize(limit_pos());
     return false;
   }
   return true;
@@ -213,7 +216,8 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
                  buffer_.data() + buffer_.size())
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
-  if (size_ != absl::nullopt && ABSL_PREDICT_FALSE(limit_pos() >= size_)) {
+  if (exact_size() != absl::nullopt &&
+      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
     buffer_.RemoveSuffix(flat_buffer.size());
     set_buffer(buffer_.data(), buffer_.size(), cursor_index);
     return false;
@@ -255,7 +259,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
-    FoundSize(limit_pos());
+    StoreSize(limit_pos());
     return false;
   }
   return enough_read;
@@ -265,7 +269,8 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
-  if (length >= LengthToReadDirectly()) {
+  if (length >= buffer_sizer_.LengthToReadDirectly(pos(), start_to_limit(),
+                                                   available())) {
     ::tensorflow::RandomAccessFile* const src = src_file();
     const size_t available_length = available();
     if (
@@ -301,6 +306,8 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       enough_read = false;
       break;
     }
+    const size_t buffer_length =
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -310,12 +317,12 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       dest.Append(absl::string_view(cursor(), available()));
       cursor_index = 0;
       flat_buffer =
-          buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                               SaturatingAdd(buffer_size_, buffer_size_));
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     } else {
       cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
-          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+          0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
       if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
@@ -324,8 +331,8 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
         buffer_.Clear();
         cursor_index = 0;
         flat_buffer =
-            buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                                 SaturatingAdd(buffer_size_, buffer_size_));
+            buffer_.AppendBuffer(buffer_length, buffer_length,
+                                 SaturatingAdd(buffer_length, buffer_length));
       }
     }
     // Read more data, preferably into `buffer_`.
@@ -357,6 +364,8 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       enough_read = false;
       break;
     }
+    const size_t buffer_length =
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -366,12 +375,12 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       dest.Append(absl::string_view(cursor(), available()));
       cursor_index = 0;
       flat_buffer =
-          buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                               SaturatingAdd(buffer_size_, buffer_size_));
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     } else {
       cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
-          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+          0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
       if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
@@ -380,8 +389,8 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
         buffer_.Clear();
         cursor_index = 0;
         flat_buffer =
-            buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                                 SaturatingAdd(buffer_size_, buffer_size_));
+            buffer_.AppendBuffer(buffer_length, buffer_length,
+                                 SaturatingAdd(buffer_length, buffer_length));
       }
     }
     // Read more data, preferably into `buffer_`.
@@ -410,6 +419,8 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       enough_read = false;
       break;
     }
+    const size_t buffer_length =
+        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -422,12 +433,12 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       }
       cursor_index = 0;
       flat_buffer =
-          buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                               SaturatingAdd(buffer_size_, buffer_size_));
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     } else {
       cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
-          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+          0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
       if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
@@ -451,8 +462,8 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
         buffer_.Clear();
         cursor_index = 0;
         flat_buffer =
-            buffer_.AppendBuffer(buffer_size_, buffer_size_,
-                                 SaturatingAdd(buffer_size_, buffer_size_));
+            buffer_.AppendBuffer(buffer_length, buffer_length,
+                                 SaturatingAdd(buffer_length, buffer_length));
       }
     }
     // Read more data, preferably into `buffer_`.
@@ -499,18 +510,28 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
+bool FileReaderBase::SyncImpl(SyncType sync_type) {
+  buffer_sizer_.EndRun(pos());
+  const Position new_pos = pos();
+  SyncBuffer();
+  set_limit_pos(new_pos);
+  buffer_sizer_.BeginRun(limit_pos());
+  return ok();
+}
+
 bool FileReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SeekSlow(new_pos);
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     uint64_t file_size;
-    if (size_ != absl::nullopt) {
-      file_size = IntCast<uint64_t>(*size_);
+    if (exact_size() != absl::nullopt) {
+      file_size = IntCast<uint64_t>(*exact_size());
     } else {
       {
         const ::tensorflow::Status status =
@@ -519,15 +540,17 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
           return FailOperation(status, "FileSystem::GetFileSize()");
         }
       }
-      FoundSize(Position{file_size});
+      StoreSize(Position{file_size});
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
       set_limit_pos(Position{file_size});
+      buffer_sizer_.BeginRun(limit_pos());
       return false;
     }
   }
   set_limit_pos(new_pos);
+  buffer_sizer_.BeginRun(limit_pos());
   return true;
 }
 
@@ -538,7 +561,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     return Reader::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (size_ != absl::nullopt) return *size_;
+  if (exact_size() != absl::nullopt) return *exact_size();
   uint64_t file_size;
   {
     const ::tensorflow::Status status =
@@ -548,7 +571,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
       return absl::nullopt;
     }
   }
-  FoundSize(Position{file_size});
+  StoreSize(Position{file_size});
   return Position{file_size};
 }
 
@@ -567,8 +590,8 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
                    .set_env(env_)
                    .set_initial_pos(initial_pos)
                    .set_growing_source(growing_source_)
-                   .set_buffer_size(buffer_size_));
-  reader->size_ = size_;
+                   .set_buffer_options(buffer_sizer_.buffer_options()));
+  reader->size_hint_is_exact_ = size_hint_is_exact_;
   if (initial_pos >= start_pos() && initial_pos < limit_pos()) {
     // Share `buffer_` with `*reader`.
     reader->buffer_ = buffer_;

@@ -17,7 +17,6 @@
 
 #include <utility>
 
-#include "riegeli/base/any_dependency.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/fd_internal.h"
 

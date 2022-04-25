@@ -22,8 +22,6 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
-#include <stddef.h>
-
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -32,6 +30,7 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -53,7 +52,7 @@ namespace python {
 // access (this is checked by calling `seekable()`).
 class PythonWriter : public BufferedWriter {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -90,25 +89,9 @@ class PythonWriter : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered before writing to the stream.
-    //
-    // Default: `kDefaultBufferSize` (64K).
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of PythonWriter::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-    size_t buffer_size() const { return buffer_size_; }
-
    private:
     bool owns_dest_ = true;
     absl::optional<Position> assumed_pos_;
-    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Creates a closed `PythonWriter`.
