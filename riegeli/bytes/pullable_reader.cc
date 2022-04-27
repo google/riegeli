@@ -198,17 +198,12 @@ bool PullableReader::ReadBehindScratch(size_t length, Chain& dest) {
          "scratch used";
   do {
     const absl::Span<char> buffer = dest.AppendBuffer(1, length, length);
-    const Position pos_before = pos();
-    if (ABSL_PREDICT_FALSE(!Read(buffer.size(), buffer.data()))) {
-      RIEGELI_ASSERT_GE(pos(), pos_before)
-          << "Reader::Read(char*) decreased pos()";
-      const Position length_read = pos() - pos_before;
-      RIEGELI_ASSERT_LE(length_read, buffer.size())
-          << "Reader::Read(char*) read more than requested";
-      dest.RemoveSuffix(buffer.size() - IntCast<size_t>(length_read));
+    size_t length_read;
+    if (ABSL_PREDICT_FALSE(!Read(buffer.size(), buffer.data(), &length_read))) {
+      dest.RemoveSuffix(buffer.size() - length_read);
       return false;
     }
-    length -= buffer.size();
+    length -= length_read;
   } while (length > 0);
   return true;
 }
@@ -227,20 +222,12 @@ bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
   do {
     buffer.Reset(UnsignedMin(length, kDefaultMaxBlockSize));
     const size_t length_to_read = UnsignedMin(length, buffer.capacity());
-    const Position pos_before = pos();
-    if (ABSL_PREDICT_FALSE(!Read(length_to_read, buffer.data()))) {
-      RIEGELI_ASSERT_GE(pos(), pos_before)
-          << "Reader::Read(char*) decreased pos()";
-      const Position length_read = pos() - pos_before;
-      RIEGELI_ASSERT_LE(length_read, length_to_read)
-          << "Reader::Read(char*) read more than requested";
-      const absl::string_view data(buffer.data(), IntCast<size_t>(length_read));
-      std::move(buffer).AppendSubstrTo(data, dest);
-      return false;
-    }
-    const absl::string_view data(buffer.data(), length_to_read);
+    size_t length_read;
+    const bool read_ok = Read(length_to_read, buffer.data(), &length_read);
+    const absl::string_view data(buffer.data(), length_read);
     std::move(buffer).AppendSubstrTo(data, dest);
-    length -= length_to_read;
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
   } while (length > 0);
   return true;
 }

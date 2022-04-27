@@ -70,21 +70,13 @@ inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
   }
   if (ABSL_PREDICT_FALSE(!reader_->Pull(1, length))) return 0;
   length = UnsignedMin(length, reader_->available());
-  const Position pos_before = reader_->pos();
-  if (ABSL_PREDICT_FALSE(!reader_->Read(length, dest))) {
-    RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
-        << "Reader::Read(char*) decreased pos()";
-    const Position length_read = reader_->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::Read(char*) read more than requested";
-    if (length_read > 0) return IntCast<ssize_t>(length_read);
-    if (ABSL_PREDICT_FALSE(!reader_->ok())) {
-      errno = StatusCodeToErrno(reader_->status().code());
-      return -1;
-    }
-    return 0;
+  size_t length_read;
+  if (ABSL_PREDICT_FALSE(!reader_->Read(length, dest, &length_read)) &&
+      length_read == 0 && ABSL_PREDICT_FALSE(!reader_->ok())) {
+    errno = StatusCodeToErrno(reader_->status().code());
+    return -1;
   }
-  return IntCast<ssize_t>(length);
+  return IntCast<ssize_t>(length_read);
 }
 
 inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {

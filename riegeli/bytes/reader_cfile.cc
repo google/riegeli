@@ -42,21 +42,13 @@ inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
   Reader& reader = *src_reader();
   if (ABSL_PREDICT_FALSE(!reader.Pull(1, length))) return 0;
   length = UnsignedMin(length, reader.available());
-  const Position pos_before = reader.pos();
-  if (ABSL_PREDICT_FALSE(!reader.Read(length, dest))) {
-    RIEGELI_ASSERT_GE(reader.pos(), pos_before)
-        << "Reader::Read(char*) decreased pos()";
-    const Position length_read = reader.pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::Read(char*) read more than requested";
-    if (length_read > 0) return IntCast<ssize_t>(length_read);
-    if (ABSL_PREDICT_FALSE(!reader.ok())) {
-      errno = StatusCodeToErrno(reader.status().code());
-      return -1;
-    }
-    return 0;
+  size_t length_read;
+  if (ABSL_PREDICT_FALSE(!reader.Read(length, dest, &length_read)) &&
+      length_read == 0 && ABSL_PREDICT_FALSE(!reader.ok())) {
+    errno = StatusCodeToErrno(reader.status().code());
+    return -1;
   }
-  return IntCast<ssize_t>(length);
+  return IntCast<ssize_t>(length_read);
 }
 
 inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,

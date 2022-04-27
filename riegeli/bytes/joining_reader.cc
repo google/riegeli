@@ -184,22 +184,17 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
     shard = shard_reader();
   }
   for (;;) {
-    const Position pos_before = shard->pos();
-    if (ABSL_PREDICT_TRUE(shard->Read(length, dest))) {
-      move_limit_pos(length);
+    size_t length_read;
+    if (ABSL_PREDICT_TRUE(shard->Read(length, dest, &length_read))) {
+      move_limit_pos(length_read);
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    RIEGELI_ASSERT_GE(shard->pos(), pos_before)
-        << "Reader::Read() decreased pos()";
-    const Position length_read = shard->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::Read() read more than requested";
     move_limit_pos(length_read);
-    dest += IntCast<size_t>(length_read);
-    length -= IntCast<size_t>(length_read);
+    dest += length_read;
+    length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = shard_reader();
@@ -249,21 +244,16 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
     shard = shard_reader();
   }
   for (;;) {
-    const Position pos_before = shard->pos();
-    if (ABSL_PREDICT_TRUE(shard->ReadAndAppend(length, dest))) {
-      move_limit_pos(length);
+    size_t length_read;
+    if (ABSL_PREDICT_TRUE(shard->ReadAndAppend(length, dest, &length_read))) {
+      move_limit_pos(length_read);
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    RIEGELI_ASSERT_GE(shard->pos(), pos_before)
-        << "Reader::Read() decreased pos()";
-    const Position length_read = shard->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::Read() read more than requested";
     move_limit_pos(length_read);
-    length -= IntCast<size_t>(length_read);
+    length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = shard_reader();
@@ -292,20 +282,15 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
     shard = shard_reader();
   }
   for (;;) {
-    const Position pos_before = shard->pos();
-    if (ABSL_PREDICT_TRUE(shard->Copy(length, dest))) {
-      move_limit_pos(length);
+    Position length_read;
+    if (ABSL_PREDICT_TRUE(shard->Copy(length, dest, &length_read))) {
+      move_limit_pos(length_read);
       break;
     }
     if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    RIEGELI_ASSERT_GE(shard->pos(), pos_before)
-        << "Reader::CopyTo() decreased pos()";
-    const Position length_read = shard->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::CopyTo() read more than requested";
     move_limit_pos(length_read);
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;

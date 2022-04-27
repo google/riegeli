@@ -70,17 +70,9 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
-  const Position pos_before = src.pos();
-  const bool read_ok = src.Read(length, dest);
-  if (ABSL_PREDICT_FALSE(!read_ok)) {
-    RIEGELI_ASSERT_GE(src.pos(), pos_before)
-        << "Reader::ReadSlow(char*) decreased pos()";
-    const Position length_read = src.pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::ReadSlow(char*) read more than requested";
-    length = IntCast<size_t>(length_read);
-  }
-  if (length > 0) DigesterWrite(absl::string_view(dest, length));
+  size_t length_read;
+  const bool read_ok = src.Read(length, dest, &length_read);
+  if (length_read > 0) DigesterWrite(absl::string_view(dest, length_read));
   MakeBuffer(src);
   return read_ok;
 }

@@ -220,17 +220,13 @@ std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
     return 0;
   }
   if (ABSL_PREDICT_FALSE(!ReadMode())) return 0;
-  const Position pos_before = reader_->pos();
-  if (ABSL_PREDICT_FALSE(!reader_->Read(IntCast<size_t>(length), dest))) {
-    if (ABSL_PREDICT_FALSE(!reader_->ok())) FailReader();
-    RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
-        << "Reader::Read(char*) decreased pos()";
-    const Position length_read = reader_->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, IntCast<size_t>(length))
-        << "Reader::Read(char*) read more than requested";
-    return IntCast<std::streamsize>(length_read);
+  size_t length_read;
+  if (ABSL_PREDICT_FALSE(
+          !reader_->Read(IntCast<size_t>(length), dest, &length_read)) &&
+      ABSL_PREDICT_FALSE(!reader_->ok())) {
+    FailReader();
   }
-  return length;
+  return IntCast<std::streamsize>(length_read);
 }
 
 int WriterStreambuf::overflow(int ch) {
@@ -258,9 +254,8 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
   const Position pos_before = writer_->pos();
   if (ABSL_PREDICT_FALSE(!writer_->Write(src, IntCast<size_t>(length)))) {
     FailWriter();
-    RIEGELI_ASSERT_GE(writer_->pos(), pos_before)
-        << "Writer::Write(absl::string_view) decreased pos()";
-    const Position length_written = writer_->pos() - pos_before;
+    // `Write()` could have decreased `pos()` on failure.
+    const Position length_written = SaturatingSub(writer_->pos(), pos_before);
     RIEGELI_ASSERT_LE(length_written, IntCast<size_t>(length))
         << "Writer::Write(absl::string_view) wrote more than requested";
     return IntCast<std::streamsize>(length_written);

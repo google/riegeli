@@ -84,17 +84,13 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
       << "Failed precondition of streambuf::xsgetn(): negative length";
   if (ABSL_PREDICT_FALSE(!ok())) return 0;
   BufferSync buffer_sync(this);
-  const Position pos_before = reader_->pos();
-  if (ABSL_PREDICT_FALSE(!reader_->Read(IntCast<size_t>(length), dest))) {
-    if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
-    RIEGELI_ASSERT_GE(reader_->pos(), pos_before)
-        << "Reader::Read(char*) decreased pos()";
-    const Position length_read = reader_->pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, IntCast<size_t>(length))
-        << "Reader::Read(char*) read more than requested";
-    return IntCast<std::streamsize>(length_read);
+  size_t length_read;
+  if (ABSL_PREDICT_FALSE(
+          !reader_->Read(IntCast<size_t>(length), dest, &length_read)) &&
+      ABSL_PREDICT_FALSE(!reader_->ok())) {
+    Fail();
   }
-  return length;
+  return IntCast<std::streamsize>(length_read);
 }
 
 std::streampos ReaderStreambuf::seekoff(std::streamoff off,
