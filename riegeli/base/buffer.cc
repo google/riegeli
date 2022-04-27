@@ -14,6 +14,8 @@
 
 #include "riegeli/base/buffer.h"
 
+#include <stddef.h>
+
 #include <functional>
 #include <utility>
 

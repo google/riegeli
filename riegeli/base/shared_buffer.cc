@@ -14,6 +14,8 @@
 
 #include "riegeli/base/shared_buffer.h"
 
+#include <stddef.h>
+
 #include <functional>
 
 #include "absl/strings/cord.h"

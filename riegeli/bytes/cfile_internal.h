@@ -16,10 +16,12 @@
 #define RIEGELI_BYTES_CFILE_INTERNAL_H_
 
 #include <stdio.h>
+#include <sys/types.h>
 
 #include <cerrno>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"

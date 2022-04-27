@@ -20,6 +20,7 @@
 
 #include <array>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <string>
 #include <tuple>

@@ -540,9 +540,7 @@ int main(int argc, char** argv) {
   SizeLimiter size_limiter(
       riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size)));
   for (size_t i = 1; i < args.size(); ++i) {
-    if (!Benchmarks::ReadFile(args[i], &records, &size_limiter, std_out)) {
-      break;
-    }
+    if (!Benchmarks::ReadFile(args[i], &records, &size_limiter, std_out)) break;
   }
   Benchmarks benchmarks(std::move(records), absl::GetFlag(FLAGS_output_dir),
                         absl::GetFlag(FLAGS_repetitions));

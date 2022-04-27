@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <new>
 #include <tuple>
 #include <type_traits>
 #include <utility>

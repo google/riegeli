@@ -33,7 +33,6 @@
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/status.h"
 #include "riegeli/brotli/brotli_reader.h"
-#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"

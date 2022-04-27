@@ -99,9 +99,7 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
     }
     return PullBehindScratch(recommended_length);
   }
-  if (scratch_used() && ScratchEnds() && available() >= min_length) {
-    return true;
-  }
+  if (scratch_used() && ScratchEnds() && available() >= min_length) return true;
   if (available() == 0) {
     RIEGELI_ASSERT(!scratch_used())
         << "Scratch should have ended but is still used";
