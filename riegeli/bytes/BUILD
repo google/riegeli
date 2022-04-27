@@ -667,11 +667,8 @@ cc_library(
     deps = [
         ":fd_reader",
         ":fd_writer",
-        ":reader",
-        ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

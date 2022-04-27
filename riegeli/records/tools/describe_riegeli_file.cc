@@ -357,8 +357,8 @@ const char kUsage[] =
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
-  riegeli::NewStdOut std_out;
-  riegeli::NewStdErr std_err;
+  riegeli::StdOut std_out;
+  riegeli::StdErr std_err;
   for (size_t i = 1; i < args.size(); ++i) {
     riegeli::tools::DescribeFile(args[i], std_out, std_err);
   }

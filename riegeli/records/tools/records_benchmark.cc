@@ -217,7 +217,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
                           SizeLimiter* size_limiter, riegeli::Writer& report) {
   riegeli::FdReader<> file_reader(filename);
   if (ABSL_PREDICT_FALSE(!file_reader.ok())) {
-    riegeli::NewStdErr errors;
+    riegeli::StdErr errors;
     absl::Format(&errors, "Could not open file: %s\n",
                  file_reader.status().ToString());
     errors.Close();
@@ -248,7 +248,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
                          records, size_limiter);
     }
   }
-  riegeli::NewStdErr errors;
+  riegeli::StdErr errors;
   absl::Format(&errors, "Unknown file format: %s\n", filename);
   errors.Close();
   std::exit(1);
@@ -531,12 +531,12 @@ int main(int argc, char** argv) {
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   std::vector<std::string> records;
   if (args.size() <= 1) {
-    riegeli::NewStdErr std_err;
+    riegeli::StdErr std_err;
     absl::Format(&std_err, "%s\n", kUsage);
     std_err.Close();
     return 1;
   }
-  riegeli::NewStdOut std_out;
+  riegeli::StdOut std_out;
   SizeLimiter size_limiter(
       riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size)));
   for (size_t i = 1; i < args.size(); ++i) {
