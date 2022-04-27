@@ -29,6 +29,8 @@
 namespace riegeli {
 
 // A `Writer` which discards all output.
+//
+// It tracks `pos()` normally.
 class NullWriter : public Writer {
  public:
   // Creates a closed `NullWriter`.

@@ -29,6 +29,8 @@
 namespace riegeli {
 
 // A `BackwardWriter` which discards all output.
+//
+// It tracks `pos()` normally.
 class NullBackwardWriter : public BackwardWriter {
  public:
   // Creates a closed `NullBackwardWriter`.
