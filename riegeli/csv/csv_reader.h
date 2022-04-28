@@ -232,25 +232,12 @@ class CsvReaderBase : public Object {
       recovery_ = std::move(recovery);
       return *this;
     }
-    ABSL_DEPRECATED("Add CsvReaderBase& parameter")
-    Options& set_recovery(std::function<bool(absl::Status)> recovery) & {
-      return set_recovery(
-          recovery == nullptr
-              ? std::function<bool(absl::Status, CsvReaderBase&)>(nullptr)
-              : [recovery](absl::Status status, CsvReaderBase& csv_reader) {
-                  return recovery(std::move(status));
-                });
-    }
     Options&& set_recovery(
         const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) && {
       return std::move(set_recovery(recovery));
     }
     Options&& set_recovery(
         std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) && {
-      return std::move(set_recovery(std::move(recovery)));
-    }
-    ABSL_DEPRECATED("Add CsvReaderBase& parameter")
-    Options&& set_recovery(std::function<bool(absl::Status)> recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
     std::function<bool(absl::Status, CsvReaderBase&)>& recovery() {
@@ -286,15 +273,6 @@ class CsvReaderBase : public Object {
   void set_recovery(
       std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) {
     recovery_ = std::move(recovery);
-  }
-  ABSL_DEPRECATED("Add CsvReaderBase& parameter")
-  void set_recovery(std::function<bool(absl::Status)> recovery) {
-    set_recovery(
-        recovery == nullptr
-            ? std::function<bool(absl::Status, CsvReaderBase&)>(nullptr)
-            : [recovery](absl::Status status, CsvReaderBase& csv_reader) {
-                return recovery(std::move(status));
-              });
   }
 
   // Returns `true` if reading the header was requested, i.e.
