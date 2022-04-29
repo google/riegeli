@@ -6,6 +6,26 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "brotli_reader",
+    srcs = ["brotli_reader.cc"],
+    hdrs = ["brotli_reader.h"],
+    deps = [
+        ":brotli_allocator",
+        ":brotli_dictionary",
+        "//riegeli/base",
+        "//riegeli/base:intrusive_ref_count",
+        "//riegeli/base:status",
+        "//riegeli/bytes:pullable_reader",
+        "//riegeli/bytes:reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@org_brotli//:brotlicommon",
+        "@org_brotli//:brotlidec",
+    ],
+)
+
+cc_library(
     name = "brotli_writer",
     srcs = ["brotli_writer.cc"],
     hdrs = ["brotli_writer.h"],
@@ -26,26 +46,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@org_brotli//:brotlienc",
-    ],
-)
-
-cc_library(
-    name = "brotli_reader",
-    srcs = ["brotli_reader.cc"],
-    hdrs = ["brotli_reader.h"],
-    deps = [
-        ":brotli_allocator",
-        ":brotli_dictionary",
-        "//riegeli/base",
-        "//riegeli/base:intrusive_ref_count",
-        "//riegeli/base:status",
-        "//riegeli/bytes:pullable_reader",
-        "//riegeli/bytes:reader",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@org_brotli//:brotlicommon",
-        "@org_brotli//:brotlidec",
     ],
 )
 

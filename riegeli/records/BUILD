@@ -8,6 +8,39 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "record_reader",
+    srcs = ["record_reader.cc"],
+    hdrs = ["record_reader.h"],
+    deps = [
+        ":chunk_reader",
+        ":record_position",
+        ":records_metadata_cc_proto",
+        ":skipped_region",
+        "//riegeli/base",
+        "//riegeli/base:binary_search",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "//riegeli/bytes:chain_backward_writer",
+        "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/chunk_encoding:chunk",
+        "//riegeli/chunk_encoding:chunk_decoder",
+        "//riegeli/chunk_encoding:constants",
+        "//riegeli/chunk_encoding:field_projection",
+        "//riegeli/chunk_encoding:transpose_decoder",
+        "//riegeli/messages:message_parse",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:compare",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
     name = "record_writer",
     srcs = ["record_writer.cc"],
     hdrs = ["record_writer.h"],
@@ -38,39 +71,6 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:variant",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_library(
-    name = "record_reader",
-    srcs = ["record_reader.cc"],
-    hdrs = ["record_reader.h"],
-    deps = [
-        ":chunk_reader",
-        ":record_position",
-        ":records_metadata_cc_proto",
-        ":skipped_region",
-        "//riegeli/base",
-        "//riegeli/base:binary_search",
-        "//riegeli/base:chain",
-        "//riegeli/base:status",
-        "//riegeli/bytes:chain_backward_writer",
-        "//riegeli/bytes:chain_reader",
-        "//riegeli/bytes:reader",
-        "//riegeli/chunk_encoding:chunk",
-        "//riegeli/chunk_encoding:chunk_decoder",
-        "//riegeli/chunk_encoding:constants",
-        "//riegeli/chunk_encoding:field_projection",
-        "//riegeli/chunk_encoding:transpose_decoder",
-        "//riegeli/messages:message_parse",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/functional:function_ref",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:compare",
-        "@com_google_absl//absl/types:optional",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -107,6 +107,26 @@ cc_library(
 )
 
 cc_library(
+    name = "chunk_reader",
+    srcs = ["chunk_reader.cc"],
+    hdrs = ["chunk_reader.h"],
+    deps = [
+        ":block",
+        ":skipped_region",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:reader",
+        "//riegeli/chunk_encoding:chunk",
+        "//riegeli/chunk_encoding:constants",
+        "//riegeli/chunk_encoding:hash",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "chunk_writer",
     srcs = ["chunk_writer.cc"],
     hdrs = ["chunk_writer.h"],
@@ -123,26 +143,6 @@ cc_library(
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "chunk_reader",
-    srcs = ["chunk_reader.cc"],
-    hdrs = ["chunk_reader.h"],
-    deps = [
-        ":block",
-        ":skipped_region",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "//riegeli/bytes:reader",
-        "//riegeli/chunk_encoding:chunk",
-        "//riegeli/chunk_encoding:constants",
-        "//riegeli/chunk_encoding:hash",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],
 )

@@ -6,25 +6,6 @@ package(
 licenses(["notice"])
 
 cc_library(
-    name = "message_serialize",
-    srcs = ["message_serialize.cc"],
-    hdrs = ["message_serialize.h"],
-    deps = [
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "//riegeli/bytes:chain_writer",
-        "//riegeli/bytes:cord_writer",
-        "//riegeli/bytes:string_writer",
-        "//riegeli/bytes:writer",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_protobuf//:protobuf_lite",
-    ],
-)
-
-cc_library(
     name = "message_parse",
     srcs = ["message_parse.cc"],
     hdrs = ["message_parse.h"],
@@ -44,11 +25,10 @@ cc_library(
 )
 
 cc_library(
-    name = "text_print",
-    srcs = ["text_print.cc"],
-    hdrs = ["text_print.h"],
+    name = "message_serialize",
+    srcs = ["message_serialize.cc"],
+    hdrs = ["message_serialize.h"],
     deps = [
-        ":message_serialize",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_writer",
@@ -57,8 +37,9 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_protobuf//:protobuf",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -79,6 +60,25 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "text_print",
+    srcs = ["text_print.cc"],
+    hdrs = ["text_print.h"],
+    deps = [
+        ":message_serialize",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:cord_writer",
+        "//riegeli/bytes:string_writer",
+        "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf",
     ],
 )

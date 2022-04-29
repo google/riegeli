@@ -6,6 +6,28 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "zlib_reader",
+    srcs = [
+        "zlib_dictionary.h",
+        "zlib_reader.cc",
+    ],
+    hdrs = ["zlib_reader.h"],
+    deps = [
+        "//riegeli/base",
+        "//riegeli/base:recycling_pool",
+        "//riegeli/base:status",
+        "//riegeli/bytes:buffer_options",
+        "//riegeli/bytes:buffered_reader",
+        "//riegeli/bytes:reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "@zlib",
+    ],
+)
+
+cc_library(
     name = "zlib_writer",
     srcs = [
         "zlib_dictionary.h",
@@ -24,28 +46,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@zlib",
-    ],
-)
-
-cc_library(
-    name = "zlib_reader",
-    srcs = [
-        "zlib_dictionary.h",
-        "zlib_reader.cc",
-    ],
-    hdrs = ["zlib_reader.h"],
-    deps = [
-        "//riegeli/base",
-        "//riegeli/base:recycling_pool",
-        "//riegeli/base:status",
-        "//riegeli/bytes:buffer_options",
-        "//riegeli/bytes:buffered_reader",
-        "//riegeli/bytes:reader",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "@zlib",
     ],
 )

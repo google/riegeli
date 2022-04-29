@@ -6,6 +6,21 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "reader",
+    hdrs = ["reader.h"],
+    deps = [
+        ":reader_and_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "writer",
     hdrs = ["writer.h"],
     deps = [
@@ -35,21 +50,6 @@ cc_library(
 )
 
 cc_library(
-    name = "reader",
-    hdrs = ["reader.h"],
-    deps = [
-        ":reader_and_writer",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
     name = "reader_and_writer",
     srcs = [
         "backward_writer.cc",
@@ -72,6 +72,25 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "pullable_reader",
+    srcs = ["pullable_reader.cc"],
+    hdrs = ["pullable_reader.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -112,48 +131,12 @@ cc_library(
 )
 
 cc_library(
-    name = "pullable_reader",
-    srcs = ["pullable_reader.cc"],
-    hdrs = ["pullable_reader.h"],
-    deps = [
-        ":backward_writer",
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "//riegeli/base:buffer",
-        "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "buffer_options",
     srcs = ["buffer_options.cc"],
     hdrs = ["buffer_options.h"],
     deps = [
         "//riegeli/base",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "buffered_writer",
-    srcs = ["buffered_writer.cc"],
-    hdrs = ["buffered_writer.h"],
-    deps = [
-        ":buffer_options",
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "//riegeli/base:buffer",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -175,6 +158,40 @@ cc_library(
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "buffered_writer",
+    srcs = ["buffered_writer.cc"],
+    hdrs = ["buffered_writer.h"],
+    deps = [
+        ":buffer_options",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "wrapped_reader",
+    srcs = ["wrapped_reader.cc"],
+    hdrs = ["wrapped_reader.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -211,17 +228,20 @@ cc_library(
 )
 
 cc_library(
-    name = "wrapped_reader",
-    srcs = ["wrapped_reader.cc"],
-    hdrs = ["wrapped_reader.h"],
+    name = "digesting_reader",
+    srcs = [
+        "digesting_internal.h",
+        "digesting_reader.cc",
+    ],
+    hdrs = ["digesting_reader.h"],
     deps = [
-        ":backward_writer",
         ":reader",
-        ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
     ],
@@ -248,18 +268,16 @@ cc_library(
 )
 
 cc_library(
-    name = "digesting_reader",
-    srcs = [
-        "digesting_internal.h",
-        "digesting_reader.cc",
-    ],
-    hdrs = ["digesting_reader.h"],
+    name = "limiting_reader",
+    srcs = ["limiting_reader.cc"],
+    hdrs = ["limiting_reader.h"],
     deps = [
+        ":backward_writer",
         ":reader",
+        ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
@@ -301,29 +319,11 @@ cc_library(
 )
 
 cc_library(
-    name = "limiting_reader",
-    srcs = ["limiting_reader.cc"],
-    hdrs = ["limiting_reader.h"],
+    name = "prefix_limiting_reader",
+    srcs = ["prefix_limiting_reader.cc"],
+    hdrs = ["prefix_limiting_reader.h"],
     deps = [
         ":backward_writer",
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "prefix_limiting_writer",
-    srcs = ["prefix_limiting_writer.cc"],
-    hdrs = ["prefix_limiting_writer.h"],
-    deps = [
-        ":prefix_limiting_reader",
         ":reader",
         ":writer",
         "//riegeli/base",
@@ -338,11 +338,11 @@ cc_library(
 )
 
 cc_library(
-    name = "prefix_limiting_reader",
-    srcs = ["prefix_limiting_reader.cc"],
-    hdrs = ["prefix_limiting_reader.h"],
+    name = "prefix_limiting_writer",
+    srcs = ["prefix_limiting_writer.cc"],
+    hdrs = ["prefix_limiting_writer.h"],
     deps = [
-        ":backward_writer",
+        ":prefix_limiting_reader",
         ":reader",
         ":writer",
         "//riegeli/base",
@@ -387,6 +387,24 @@ cc_library(
 )
 
 cc_library(
+    name = "joining_reader",
+    srcs = ["joining_reader.cc"],
+    hdrs = ["joining_reader.h"],
+    deps = [
+        ":pullable_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
     name = "splitting_writer",
     srcs = ["splitting_writer.cc"],
     hdrs = ["splitting_writer.h"],
@@ -404,24 +422,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "joining_reader",
-    srcs = ["joining_reader.cc"],
-    hdrs = ["joining_reader.h"],
-    deps = [
-        ":pullable_reader",
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "//riegeli/base:status",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -475,6 +475,19 @@ cc_library(
 )
 
 cc_library(
+    name = "string_reader",
+    srcs = ["string_reader.cc"],
+    hdrs = ["string_reader.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "string_writer",
     srcs = ["string_writer.cc"],
     hdrs = ["string_writer.h"],
@@ -493,14 +506,19 @@ cc_library(
 )
 
 cc_library(
-    name = "string_reader",
-    srcs = ["string_reader.cc"],
-    hdrs = ["string_reader.h"],
+    name = "chain_reader",
+    srcs = ["chain_reader.cc"],
+    hdrs = ["chain_reader.h"],
     deps = [
+        ":backward_writer",
+        ":pullable_reader",
         ":reader",
+        ":writer",
         "//riegeli/base",
+        "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -538,9 +556,9 @@ cc_library(
 )
 
 cc_library(
-    name = "chain_reader",
-    srcs = ["chain_reader.cc"],
-    hdrs = ["chain_reader.h"],
+    name = "cord_reader",
+    srcs = ["cord_reader.cc"],
+    hdrs = ["cord_reader.h"],
     deps = [
         ":backward_writer",
         ":pullable_reader",
@@ -590,19 +608,28 @@ cc_library(
 )
 
 cc_library(
-    name = "cord_reader",
-    srcs = ["cord_reader.cc"],
-    hdrs = ["cord_reader.h"],
+    name = "fd_reader",
+    srcs = [
+        "fd_dependency.h",
+        "fd_reader.cc",
+    ],
+    hdrs = ["fd_reader.h"],
+    # fd_reader.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
-        ":backward_writer",
-        ":pullable_reader",
+        ":buffer_options",
+        ":buffered_reader",
+        ":chain_reader",
+        ":fd_internal",
         ":reader",
-        ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/base:memory_estimator",
+        "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -634,27 +661,12 @@ cc_library(
 )
 
 cc_library(
-    name = "fd_reader",
-    srcs = [
-        "fd_dependency.h",
-        "fd_reader.cc",
-    ],
-    hdrs = ["fd_reader.h"],
-    # fd_reader.cc has #define before #include to influence what the included
-    # files provide.
-    features = ["-use_header_modules"],
+    name = "fd_internal",
+    srcs = ["fd_internal.cc"],
+    hdrs = ["fd_internal.h"],
+    visibility = ["//visibility:private"],
     deps = [
-        ":buffer_options",
-        ":buffered_reader",
-        ":chain_reader",
-        ":fd_internal",
-        ":reader",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "//riegeli/base:memory_estimator",
-        "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],
@@ -673,12 +685,20 @@ cc_library(
 )
 
 cc_library(
-    name = "fd_internal",
-    srcs = ["fd_internal.cc"],
-    hdrs = ["fd_internal.h"],
-    visibility = ["//visibility:private"],
+    name = "istream_reader",
+    srcs = [
+        "istream_reader.cc",
+        "stream_internal.h",
+    ],
+    hdrs = ["istream_reader.h"],
     deps = [
+        ":buffer_options",
+        ":buffered_reader",
+        "//riegeli/base",
+        "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],
@@ -708,41 +728,6 @@ cc_library(
 )
 
 cc_library(
-    name = "istream_reader",
-    srcs = [
-        "istream_reader.cc",
-        "stream_internal.h",
-    ],
-    hdrs = ["istream_reader.h"],
-    deps = [
-        ":buffer_options",
-        ":buffered_reader",
-        "//riegeli/base",
-        "//riegeli/base:status",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
-    name = "writer_ostream",
-    srcs = ["writer_ostream.cc"],
-    hdrs = ["writer_ostream.h"],
-    deps = [
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
     name = "reader_istream",
     srcs = ["reader_istream.cc"],
     hdrs = ["reader_istream.h"],
@@ -756,26 +741,14 @@ cc_library(
 )
 
 cc_library(
-    name = "cfile_writer",
-    srcs = [
-        "cfile_dependency.h",
-        "cfile_internal.h",
-        "cfile_writer.cc",
-    ],
-    hdrs = ["cfile_writer.h"],
-    # cfile_writer.cc has #define before #include to influence what the included
-    # files provide.
-    features = ["-use_header_modules"],
+    name = "writer_ostream",
+    srcs = ["writer_ostream.cc"],
+    hdrs = ["writer_ostream.h"],
     deps = [
-        ":buffer_options",
-        ":buffered_writer",
-        ":cfile_reader",
         ":reader",
         ":writer",
         "//riegeli/base",
-        "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
@@ -808,23 +781,28 @@ cc_library(
 )
 
 cc_library(
-    name = "writer_cfile",
+    name = "cfile_writer",
     srcs = [
         "cfile_dependency.h",
-        "writer_cfile.cc",
+        "cfile_internal.h",
+        "cfile_writer.cc",
     ],
-    hdrs = ["writer_cfile.h"],
-    # writer_cfile.cc has #define before #include to influence what the included
+    hdrs = ["cfile_writer.h"],
+    # cfile_writer.cc has #define before #include to influence what the included
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":buffer_options",
+        ":buffered_writer",
+        ":cfile_reader",
         ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:dynamic_annotations",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -844,6 +822,28 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "writer_cfile",
+    srcs = [
+        "cfile_dependency.h",
+        "writer_cfile.cc",
+    ],
+    hdrs = ["writer_cfile.h"],
+    # writer_cfile.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
+    deps = [
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
     ],

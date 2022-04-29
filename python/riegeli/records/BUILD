@@ -6,28 +6,6 @@ package(default_visibility = ["//python/riegeli:__subpackages__"])
 licenses(["notice"])
 
 py_extension(
-    name = "record_writer",
-    srcs = ["record_writer.cc"],
-    # record_writer.cc has #define before #include to influence what the
-    # included files provide.
-    features = ["-use_header_modules"],
-    deps = [
-        ":record_position_cc",
-        "//python/riegeli/base:utils",
-        "//python/riegeli/bytes:python_writer",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "//riegeli/records:record_position",
-        "//riegeli/records:record_writer",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-        "@local_config_python//:python_headers",
-    ],
-)
-
-py_extension(
     name = "record_reader",
     srcs = ["record_reader.cc"],
     # Python modules imported from C++.
@@ -52,6 +30,28 @@ py_extension(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:compare",
+        "@com_google_absl//absl/types:optional",
+        "@local_config_python//:python_headers",
+    ],
+)
+
+py_extension(
+    name = "record_writer",
+    srcs = ["record_writer.cc"],
+    # record_writer.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
+    deps = [
+        ":record_position_cc",
+        "//python/riegeli/base:utils",
+        "//python/riegeli/bytes:python_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/records:record_position",
+        "//riegeli/records:record_writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@local_config_python//:python_headers",
     ],
