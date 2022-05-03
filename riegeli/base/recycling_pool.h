@@ -71,7 +71,7 @@ class RecyclingPool {
   // Returns a default global pool specific to template parameters of
   // `RecyclingPool`.
   //
-  // If called multiple times with different `max_size` arguments, the last
+  // If called multiple times with different `max_size` arguments, the largest
   // `max_size` is in effect.
   static RecyclingPool& global(size_t max_size = kDefaultMaxSize);
 
@@ -148,7 +148,7 @@ class KeyedRecyclingPool {
   // Returns a default global pool specific to template parameters of
   // `KeyedRecyclingPool`.
   //
-  // If called multiple times with different `max_size` arguments, the last
+  // If called multiple times with different `max_size` arguments, the largest
   // `max_size` is in effect.
   static KeyedRecyclingPool& global(size_t max_size = kDefaultMaxSize);
 
@@ -295,6 +295,7 @@ void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
   std::unique_ptr<T, Deleter> evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry. Evict the oldest entry if the pool is full.
+  if (ABSL_PREDICT_FALSE(ring_buffer_by_freshness_.empty())) return;
   evicted = std::exchange(ring_buffer_by_freshness_[ring_buffer_end_],
                           std::move(object));
   ring_buffer_end_ =
