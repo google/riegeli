@@ -104,8 +104,8 @@ class ZlibReaderBase : public BufferedReader {
     Header header() const { return header_; }
 
     // Zlib dictionary. The same dictionary must have been used for compression,
-    // except that it is allowed to supply a dictionary even if no dictionary
-    // was used for compression.
+    // except that it is allowed to supply a dictionary for decompression even
+    // if no dictionary was used for compression.
     //
     // Default: `ZlibDictionary()`.
     Options& set_dictionary(const ZlibDictionary& dictionary) & {

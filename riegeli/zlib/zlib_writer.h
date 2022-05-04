@@ -72,7 +72,7 @@ class ZlibWriterBase : public BufferedWriter {
              "compression level out of range";
       RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
-             "ZlibWriterBase::Options::set_compression_level()"
+             "ZlibWriterBase::Options::set_compression_level(): "
              "compression level out of range";
       compression_level_ = compression_level;
       return *this;

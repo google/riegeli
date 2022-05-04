@@ -43,8 +43,9 @@ class BrotliReaderBase : public PullableReader {
    public:
     Options() noexcept {}
 
-    // Shared Brotli dictionary. The same dictionary must have been used for
-    // compression.
+    // Shared Brotli dictionary. The same dictionary must have been used
+    // for compression. If no dictionary was used for compression, then no
+    // dictionary must be supplied for decompression.
     //
     // Default: `BrotliDictionary()`.
     Options& set_dictionary(const BrotliDictionary& dictionary) & {

@@ -66,7 +66,9 @@ class ZstdReaderBase : public BufferedReader {
     }
     bool growing_source() const { return growing_source_; }
 
-    // Zstd dictionary. The same dictionary must have been used for compression.
+    // Zstd dictionary. The same dictionary must have been used for compression,
+    // except that it is allowed to supply a dictionary for decompression even
+    // if no dictionary was used for compression.
     //
     // Default: `ZstdDictionary()`.
     Options& set_dictionary(const ZstdDictionary& dictionary) & {
@@ -138,12 +140,12 @@ class ZstdReaderBase : public BufferedReader {
   // If `true`, supports decompressing as much as possible from a truncated
   // source, then retrying when the source has grown.
   bool growing_source_ = false;
-  // If `true`, calling `ZSTD_DCtx_setParameter()` is valid.
-  bool just_initialized_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
+  // If `true`, calling `ZSTD_DCtx_setParameter()` is valid.
+  bool just_initialized_ = false;
   ZstdDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
@@ -248,8 +250,8 @@ inline ZstdReaderBase::ZstdReaderBase(const BufferOptions& buffer_options,
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
-      just_initialized_(that.just_initialized_),
       truncated_(that.truncated_),
+      just_initialized_(that.just_initialized_),
       dictionary_(std::move(that.dictionary_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)),
@@ -259,8 +261,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
-  just_initialized_ = that.just_initialized_;
   truncated_ = that.truncated_;
+  just_initialized_ = that.just_initialized_;
   dictionary_ = std::move(that.dictionary_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
@@ -271,8 +273,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 inline void ZstdReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
-  just_initialized_ = false;
   truncated_ = false;
+  just_initialized_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = ZstdDictionary();
@@ -284,8 +286,8 @@ inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
                                   ZstdDictionary&& dictionary) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
-  just_initialized_ = false;
   truncated_ = false;
+  just_initialized_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = std::move(dictionary);

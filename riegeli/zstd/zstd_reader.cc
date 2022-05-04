@@ -172,6 +172,11 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *src_reader();
   truncated_ = false;
+  if (just_initialized_ && uncompressed_size_ == absl::nullopt) {
+    // Try again in case the source has grown.
+    uncompressed_size_ = ZstdUncompressedSize(src);
+    if (uncompressed_size_ != absl::nullopt) set_size_hint(*uncompressed_size_);
+  }
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos())) {
     max_length = std::numeric_limits<Position>::max() - limit_pos();
