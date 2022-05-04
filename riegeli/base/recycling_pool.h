@@ -53,6 +53,10 @@ class RecyclingPool {
   // the original `Deleter`.
   using Handle = std::unique_ptr<T, Recycler>;
 
+  // A `std::unique_ptr` which deletes the object. If a particular object is
+  // suitable for recycling, it can be put back into the pool using `RawPut()`.
+  using RawHandle = std::unique_ptr<T, Deleter>;
+
   // A refurbisher which does nothing; see `Get()`.
   struct DefaultRefurbisher {
     void operator()(T* ptr) const {}
@@ -77,8 +81,8 @@ class RecyclingPool {
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
-  // `factory` takes no arguments and returns `std::unique_ptr<T, Deleter>`.
-  // It is called to create a new object.
+  // `factory` takes no arguments and returns `RawHandle`. It is called to
+  // create a new object.
   //
   // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.
@@ -86,10 +90,18 @@ class RecyclingPool {
   Handle Get(Factory&& factory,
              Refurbisher&& refurbisher = DefaultRefurbisher());
 
+  // Like `Get()`, but the object is not returned into the pool by the
+  // destructor of its handle. If the object is suitable for recycling, it can
+  // be put back into the pool using `RawPut()`.
+  template <typename Factory, typename Refurbisher = DefaultRefurbisher>
+  RawHandle RawGet(Factory&& factory,
+                   Refurbisher&& refurbisher = DefaultRefurbisher());
+
+  // Puts an idle object into the pool for recycling.
+  void RawPut(RawHandle object);
+
  private:
   void EnsureMaxSize(size_t max_size) ABSL_LOCKS_EXCLUDED(mutex_);
-
-  void Put(std::unique_ptr<T, Deleter> object);
 
   absl::Mutex mutex_;
   // May be read without holding `mutex_`.
@@ -100,8 +112,7 @@ class RecyclingPool {
   // Invariant:
   //   `ring_buffer_by_freshness_.size() ==
   //        max_size_.load(std::memory_order_relaxed)`
-  std::vector<std::unique_ptr<T, Deleter>> ring_buffer_by_freshness_
-      ABSL_GUARDED_BY(mutex_);
+  std::vector<RawHandle> ring_buffer_by_freshness_ ABSL_GUARDED_BY(mutex_);
 };
 
 // `KeyedRecyclingPool<T, Key, Deleter>` keeps a pool of idle objects of type
@@ -130,6 +141,10 @@ class KeyedRecyclingPool {
   // the original `Deleter`.
   using Handle = std::unique_ptr<T, Recycler>;
 
+  // A `std::unique_ptr` which deletes the object. If a particular object is
+  // suitable for recycling, it can be put back into the pool using `RawPut()`.
+  using RawHandle = std::unique_ptr<T, Deleter>;
+
   // A refurbisher which does nothing; see `Get()`.
   struct DefaultRefurbisher {
     void operator()(T* ptr) const {}
@@ -154,8 +169,8 @@ class KeyedRecyclingPool {
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
-  // `factory` takes no arguments and returns `std::unique_ptr<T, Deleter>`.
-  // It is called to create a new object.
+  // `factory` takes no arguments and returns `RawHandle`. It is called to
+  // create a new object.
   //
   // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.
@@ -163,17 +178,26 @@ class KeyedRecyclingPool {
   Handle Get(Key key, Factory&& factory,
              Refurbisher&& refurbisher = DefaultRefurbisher());
 
+  // Like `Get()`, but the object is not returned into the pool by the
+  // destructor of its handle. If the object is suitable for recycling, it can
+  // be put back into the pool using `RawPut()`.
+  template <typename Factory, typename Refurbisher = DefaultRefurbisher>
+  RawHandle RawGet(const Key& key, Factory&& factory,
+                   Refurbisher&& refurbisher = DefaultRefurbisher());
+
+  // Puts an idle object into the pool for recycling.
+  void RawPut(const Key& key, RawHandle object);
+
  private:
   // Adding or removing elements in `ByFreshness` must not invalidate other
   // iterators.
   using ByFreshness = std::list<Key>;
 
   struct Entry {
-    Entry(std::unique_ptr<T, Deleter> object,
-          typename ByFreshness::iterator by_freshness_iter)
+    Entry(RawHandle object, typename ByFreshness::iterator by_freshness_iter)
         : object(std::move(object)), by_freshness_iter(by_freshness_iter) {}
 
-    std::unique_ptr<T, Deleter> object;
+    RawHandle object;
     typename ByFreshness::iterator by_freshness_iter;
   };
 
@@ -183,8 +207,6 @@ class KeyedRecyclingPool {
   using ByKey = absl::flat_hash_map<Key, Entries>;
 
   void EnsureMaxSize(size_t max_size);
-
-  void Put(const Key& key, std::unique_ptr<T, Deleter> object);
 
   std::atomic<size_t> max_size_;
   absl::Mutex mutex_;
@@ -230,7 +252,7 @@ inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
   RIEGELI_ASSERT(pool_ != nullptr)
       << "Failed precondition of RecyclingPool::Recycler: "
          "default-constructed recycler used with an object";
-  pool_->Put(std::unique_ptr<T, Deleter>(ptr, original_deleter()));
+  pool_->RawPut(RawHandle(ptr, original_deleter()));
 }
 
 template <typename T, typename Deleter>
@@ -253,7 +275,7 @@ inline void RecyclingPool<T, Deleter>::EnsureMaxSize(size_t max_size) {
   }
   const size_t old_size =
       max_size_.exchange(max_size, std::memory_order_relaxed);
-  std::vector<std::unique_ptr<T, Deleter>> new_ring_buffer(max_size);
+  std::vector<RawHandle> new_ring_buffer(max_size);
   size_t old_idx = ring_buffer_end_;
   ring_buffer_end_ = ring_buffer_size_;
   size_t new_idx = ring_buffer_end_;
@@ -269,7 +291,17 @@ template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
     Factory&& factory, Refurbisher&& refurbisher) {
-  std::unique_ptr<T, Deleter> returned;
+  RawHandle returned = RawGet(std::forward<Factory>(factory),
+                              std::forward<Refurbisher>(refurbisher));
+  return Handle(returned.release(),
+                Recycler(this, std::move(returned.get_deleter())));
+}
+
+template <typename T, typename Deleter>
+template <typename Factory, typename Refurbisher>
+typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
+    Factory&& factory, Refurbisher&& refurbisher) {
+  RawHandle returned;
   {
     absl::MutexLock lock(&mutex_);
     if (ABSL_PREDICT_TRUE(ring_buffer_size_ > 0)) {
@@ -286,13 +318,12 @@ typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
   } else {
     returned = std::forward<Factory>(factory)();
   }
-  return Handle(returned.release(),
-                Recycler(this, std::move(returned.get_deleter())));
+  return returned;
 }
 
 template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
-  std::unique_ptr<T, Deleter> evicted;
+void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
+  RawHandle evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry. Evict the oldest entry if the pool is full.
   if (ABSL_PREDICT_FALSE(ring_buffer_by_freshness_.empty())) return;
@@ -338,7 +369,7 @@ inline void KeyedRecyclingPool<T, Key, Deleter>::Recycler::operator()(
   RIEGELI_ASSERT(pool_ != nullptr)
       << "Failed precondition of KeyedRecyclingPool::Recycler: "
          "default-constructed recycler used with an object";
-  pool_->Put(key_, std::unique_ptr<T, Deleter>(ptr, original_deleter()));
+  pool_->RawPut(key_, RawHandle(ptr, original_deleter()));
 }
 
 template <typename T, typename Key, typename Deleter>
@@ -365,7 +396,19 @@ template <typename Factory, typename Refurbisher>
 typename KeyedRecyclingPool<T, Key, Deleter>::Handle
 KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
                                          Refurbisher&& refurbisher) {
-  std::unique_ptr<T, Deleter> returned;
+  RawHandle returned = RawGet(key, std::forward<Factory>(factory),
+                              std::forward<Refurbisher>(refurbisher));
+  return Handle(
+      returned.release(),
+      Recycler(this, std::move(key), std::move(returned.get_deleter())));
+}
+
+template <typename T, typename Key, typename Deleter>
+template <typename Factory, typename Refurbisher>
+typename KeyedRecyclingPool<T, Key, Deleter>::RawHandle
+KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
+                                            Refurbisher&& refurbisher) {
+  RawHandle returned;
   {
     absl::MutexLock lock(&mutex_);
     if (cache_ != by_key_.end()) {
@@ -400,15 +443,13 @@ KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
   } else {
     returned = std::forward<Factory>(factory)();
   }
-  return Handle(
-      returned.release(),
-      Recycler(this, std::move(key), std::move(returned.get_deleter())));
+  return returned;
 }
 
 template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::Put(
-    const Key& key, std::unique_ptr<T, Deleter> object) {
-  std::unique_ptr<T, Deleter> evicted;
+void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
+                                                 RawHandle object) {
+  RawHandle evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry with this key.
   if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
