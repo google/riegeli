@@ -29,6 +29,14 @@ http_archive(
 )
 
 http_archive(
+    name = "lz4",
+    build_file = "//third_party:lz4.BUILD",
+    sha256 = "4ec935d99aa4950eadfefbd49c9fad863185ac24c32001162c44a683ef61b580",
+    strip_prefix = "lz4-1.9.3/lib",
+    urls = ["https://github.com/lz4/lz4/archive/refs/tags/v1.9.3.zip"],  # 2020-11-16
+)
+
+http_archive(
     name = "snappy",
     build_file = "//third_party:snappy.BUILD",
     sha256 = "38b4aabf88eb480131ed45bfb89c19ca3e2a62daeb081bdf001cfb17ec4cd303",
