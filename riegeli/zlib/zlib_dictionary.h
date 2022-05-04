@@ -30,7 +30,7 @@ namespace riegeli {
 //
 // A `ZlibDictionary` object can own the dictionary data, or can hold a pointer
 // to unowned dictionary data which must not be changed until the last
-// `ZlibWriter` and `ZlibReader` using this dictionary is closed or no longer
+// `ZlibReader` and `ZlibWriter` using this dictionary is closed or no longer
 // used. If the same dictionary is needed for multiple compression or
 // decompression sessions, the `ZlibDictionary` object can be reused.
 //
@@ -66,7 +66,7 @@ class ZlibDictionary {
   }
 
   // Like `set_data()`, but does not take ownership of `data`, which must not be
-  // changed until the last `ZlibWriter` and `ZlibReader` using this dictionary
+  // changed until the last `ZlibReader` and `ZlibWriter` using this dictionary
   // is closed or no longer used.
   ZlibDictionary& set_data_unowned(absl::string_view data) &;
   ZlibDictionary&& set_data_unowned(absl::string_view data) && {

@@ -43,7 +43,7 @@ namespace riegeli {
 //
 // A `BrotliDictionary` object can own the dictionary data, or can hold a
 // pointer to unowned dictionary data which must not be changed until the last
-// `BrotliWriter` or `BrotliReader` using this dictionary is closed or no
+// `BrotliReader` or `BrotliWriter` using this dictionary is closed or no
 // longer used. A `BrotliDictionary` object also holds prepared structures
 // derived from dictionary data. If the same dictionary is needed for multiple
 // compression or decompression sessions, the `BrotliDictionary` object can be
@@ -102,7 +102,7 @@ class BrotliDictionary {
   }
 
   // Like `add_raw()`, but does not take ownership of `data`, which must not
-  // be changed until the last `BrotliWriter` or `BrotliReader` using this
+  // be changed until the last `BrotliReader` or `BrotliWriter` using this
   // dictionary is closed or no longer used.
   BrotliDictionary& add_raw_unowned(absl::string_view data) &;
   BrotliDictionary&& add_raw_unowned(absl::string_view data) && {

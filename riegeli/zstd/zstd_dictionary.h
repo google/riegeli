@@ -33,7 +33,7 @@ namespace riegeli {
 //
 // A `ZstdDictionary` object can own the dictionary data, or can hold a pointer
 // to unowned dictionary data which must not be changed until the last
-// `ZstdWriter` or `ZstdReader` using this dictionary is closed or no longer
+// `ZstdReader` or `ZstdWriter` using this dictionary is closed or no longer
 // used. A `ZstdDictionary` object also holds prepared structures derived from
 // dictionary data. If the same dictionary is needed for multiple compression
 // or decompression sessions, the `ZstdDictionary` object can be reused to avoid
@@ -93,7 +93,7 @@ class ZstdDictionary {
   }
 
   // Like `set_data()`, but does not take ownership of `data`, which must not
-  // be changed until the last `ZstdWriter` or `ZstdReader` using this
+  // be changed until the last `ZstdReader` or `ZstdWriter` using this
   // dictionary is closed or no longer used.
   ZstdDictionary& set_data_unowned(absl::string_view data,
                                    Type type = Type::kAuto) &;
