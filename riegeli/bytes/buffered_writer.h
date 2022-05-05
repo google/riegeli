@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -49,14 +48,6 @@ class BufferedWriter : public Writer {
   explicit BufferedWriter(
       const BufferOptions& buffer_options = BufferOptions()) noexcept;
 
-  ABSL_DEPRECATED("Use BufferOptions")
-  explicit BufferedWriter(
-      size_t buffer_size,
-      absl::optional<Position> size_hint = absl::nullopt) noexcept
-      : BufferedWriter(BufferOptions()
-                           .set_buffer_size(buffer_size)
-                           .set_size_hint(size_hint)) {}
-
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
@@ -66,12 +57,6 @@ class BufferedWriter : public Writer {
   // `BufferedWriter::Reset()`.
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options = BufferOptions());
-  ABSL_DEPRECATED("Use BufferOptions")
-  void Reset(size_t buffer_size,
-             absl::optional<Position> size_hint = absl::nullopt) {
-    Reset(
-        BufferOptions().set_buffer_size(buffer_size).set_size_hint(size_hint));
-  }
 
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const {

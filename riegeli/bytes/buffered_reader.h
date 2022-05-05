@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -47,14 +46,6 @@ class BufferedReader : public Reader {
   explicit BufferedReader(
       const BufferOptions& buffer_options = BufferOptions()) noexcept;
 
-  ABSL_DEPRECATED("Use BufferOptions")
-  explicit BufferedReader(
-      size_t buffer_size,
-      absl::optional<Position> size_hint = absl::nullopt) noexcept
-      : BufferedReader(BufferOptions()
-                           .set_buffer_size(buffer_size)
-                           .set_size_hint(size_hint)) {}
-
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
@@ -64,12 +55,6 @@ class BufferedReader : public Reader {
   // `BufferedReader::Reset()`.
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options = BufferOptions());
-  ABSL_DEPRECATED("Use BufferOptions")
-  void Reset(size_t buffer_size,
-             absl::optional<Position> size_hint = absl::nullopt) {
-    Reset(
-        BufferOptions().set_buffer_size(buffer_size).set_size_hint(size_hint));
-  }
 
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const {
