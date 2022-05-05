@@ -53,6 +53,17 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   }
   if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
+    if (dest.size() <= std::string().capacity()) {
+      // Allocate the first block directly in `dest`. It is possible that it
+      // will not need to be copied if it turns out to be the only block,
+      // although this decision might cause it to remain wasteful if less data
+      // are written than space requested.
+      dest.reserve(UnsignedMax(
+          dest.size() + UnsignedMax(min_length, recommended_length),
+          // Subtract 1 for NUL terminator because `min_block_size()` might be
+          // a good fit for an allocation size.
+          SaturatingSub(options_.min_block_size(), size_t{1})));
+    }
     if (min_length <= dest.capacity() - dest.size()) {
       MakeDestBuffer(dest);
       return true;
