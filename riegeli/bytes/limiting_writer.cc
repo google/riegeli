@@ -45,7 +45,6 @@ void LimitingWriterBase::Done() {
 }
 
 bool LimitingWriterBase::FailLimitExceeded(Writer& dest) {
-  dest.set_cursor(cursor() - IntCast<size_t>(pos() - max_pos_));
   // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the buffer
   // again.
   return FailWithoutAnnotation(dest.AnnotateStatus(

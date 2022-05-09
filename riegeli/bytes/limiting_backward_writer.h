@@ -173,8 +173,6 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.
-  //
-  // Postcondition: `pos() <= max_pos_`
   bool SyncBuffer(BackwardWriter& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
@@ -372,7 +370,10 @@ inline Position LimitingBackwardWriterBase::max_length() const {
 }
 
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded(dest);
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
+    dest.set_cursor(cursor() + IntCast<size_t>(pos() - max_pos_));
+    return FailLimitExceeded(dest);
+  }
   dest.set_cursor(cursor());
   return true;
 }

@@ -179,8 +179,6 @@ class LimitingWriterBase : public Writer {
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.
-  //
-  // Postcondition: `pos() <= max_pos_`
   bool SyncBuffer(Writer& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
@@ -375,7 +373,10 @@ inline Position LimitingWriterBase::max_length() const {
 }
 
 inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded(dest);
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
+    dest.set_cursor(cursor() - IntCast<size_t>(pos() - max_pos_));
+    return FailLimitExceeded(dest);
+  }
   dest.set_cursor(cursor());
   return true;
 }
