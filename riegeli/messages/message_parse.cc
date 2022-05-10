@@ -196,27 +196,16 @@ absl::Status ParseFromCord(const absl::Cord& src,
   return CheckInitialized(dest, options);
 }
 
-inline Position ReaderInputStream::relative_pos() const {
-  RIEGELI_ASSERT_GE(src_->pos(), initial_pos_)
-      << "Failed invariant of ReaderInputStream: "
-         "current position smaller than initial position";
-  const Position pos = src_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<int64_t>::max()})
-      << "Failed invariant of ReaderInputStream: "
-         "relative position overflow";
-  return pos;
-}
-
 bool ReaderInputStream::Next(const void** data, int* size) {
-  const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(pos ==
+  if (ABSL_PREDICT_FALSE(src_->pos() >=
                          Position{std::numeric_limits<int64_t>::max()})) {
     return false;
   }
+  const Position max_length =
+      Position{std::numeric_limits<int64_t>::max()} - src_->pos();
   if (ABSL_PREDICT_FALSE(!src_->Pull())) return false;
   *data = src_->cursor();
-  *size = SaturatingIntCast<int>(UnsignedMin(
-      src_->available(), Position{std::numeric_limits<int64_t>::max()} - pos));
+  *size = SaturatingIntCast<int>(UnsignedMin(src_->available(), max_length));
   src_->move_cursor(IntCast<size_t>(*size));
   return true;
 }
@@ -235,16 +224,15 @@ bool ReaderInputStream::Skip(int length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
   const Position max_length =
-      Position{std::numeric_limits<int64_t>::max()} - relative_pos();
-  if (ABSL_PREDICT_FALSE(IntCast<size_t>(length) > max_length)) {
-    src_->Skip(max_length);
-    return false;
-  }
-  return src_->Skip(IntCast<size_t>(length));
+      SaturatingSub(Position{std::numeric_limits<int64_t>::max()}, src_->pos());
+  const size_t length_to_skip =
+      UnsignedMin(IntCast<size_t>(length), max_length);
+  return src_->Skip(length_to_skip) &&
+         length_to_skip == IntCast<size_t>(length);
 }
 
 int64_t ReaderInputStream::ByteCount() const {
-  return IntCast<int64_t>(relative_pos());
+  return SaturatingIntCast<int64_t>(src_->pos());
 }
 
 }  // namespace riegeli

@@ -94,26 +94,16 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
       options);
 }
 
-inline Position WriterOutputStream::relative_pos() const {
-  RIEGELI_ASSERT_GE(dest_->pos(), initial_pos_)
-      << "Failed invariant of WriterOutputStream: "
-         "current position smaller than initial position";
-  const Position pos = dest_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<int64_t>::max()})
-      << "Failed invariant of WriterOutputStream: relative position overflow";
-  return pos;
-}
-
 bool WriterOutputStream::Next(void** data, int* size) {
-  const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(pos ==
+  if (ABSL_PREDICT_FALSE(dest_->pos() >=
                          Position{std::numeric_limits<int64_t>::max()})) {
     return false;
   }
+  const Position max_length =
+      Position{std::numeric_limits<int64_t>::max()} - dest_->pos();
   if (ABSL_PREDICT_FALSE(!dest_->Push())) return false;
   *data = dest_->cursor();
-  *size = SaturatingIntCast<int>(UnsignedMin(
-      dest_->available(), Position{std::numeric_limits<int64_t>::max()} - pos));
+  *size = SaturatingIntCast<int>(UnsignedMin(dest_->available(), max_length));
   dest_->move_cursor(IntCast<size_t>(*size));
   return true;
 }
@@ -129,7 +119,7 @@ void WriterOutputStream::BackUp(int length) {
 }
 
 int64_t WriterOutputStream::ByteCount() const {
-  return IntCast<int64_t>(relative_pos());
+  return SaturatingIntCast<int64_t>(dest_->pos());
 }
 
 }  // namespace riegeli

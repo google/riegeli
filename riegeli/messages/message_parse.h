@@ -121,8 +121,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
 // Adapts a `Reader` to a `google::protobuf::io::ZeroCopyInputStream`.
 class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
  public:
-  explicit ReaderInputStream(Reader* src)
-      : src_(RIEGELI_ASSERT_NOTNULL(src)), initial_pos_(src_->pos()) {}
+  explicit ReaderInputStream(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {}
 
   bool Next(const void** data, int* size) override;
   void BackUp(int length) override;
@@ -130,13 +129,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   int64_t ByteCount() const override;
 
  private:
-  Position relative_pos() const;
-
   Reader* src_;
-  // Invariants:
-  //   `src_->pos() >= initial_pos_`
-  //   `src_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
-  Position initial_pos_;
 };
 
 // Implementation details follow.

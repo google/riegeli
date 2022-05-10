@@ -155,20 +155,14 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
 class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
  public:
   explicit WriterOutputStream(Writer* dest)
-      : dest_(RIEGELI_ASSERT_NOTNULL(dest)), initial_pos_(dest_->pos()) {}
+      : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
 
   bool Next(void** data, int* size) override;
   void BackUp(int length) override;
   int64_t ByteCount() const override;
 
  private:
-  Position relative_pos() const;
-
   Writer* dest_;
-  // Invariants:
-  //   `dest_->pos() >= initial_pos_`
-  //   `dest_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
-  Position initial_pos_;
 };
 
 // Implementation details follow.
