@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BASE_STABLE_DEPENDENCY_H_
 #define RIEGELI_BASE_STABLE_DEPENDENCY_H_
 
+#include <cstddef>
 #include <memory>
 #include <new>
 #include <tuple>
