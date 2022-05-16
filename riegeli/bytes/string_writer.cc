@@ -65,7 +65,6 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -92,7 +91,6 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -121,7 +119,6 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -154,7 +151,6 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -187,7 +183,6 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -215,7 +210,6 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
       MakeDestBuffer(dest);
       return true;
     }
-    set_start_pos(dest.size());
   } else {
     SyncSecondaryBuffer();
   }
@@ -236,8 +230,6 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
     SyncSecondaryBuffer();
     std::move(secondary_buffer_).AppendTo(dest);
     secondary_buffer_.Clear();
-    set_start_pos(0);
-    set_buffer(&dest[0], dest.size(), dest.size());
   }
   return true;
 }
@@ -255,8 +247,8 @@ bool StringWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
   if (new_size < dest.size()) {
     secondary_buffer_.Clear();
-    set_start_pos(0);
     set_buffer(&dest[0], dest.size(), IntCast<size_t>(new_size));
+    set_start_pos(0);
   } else {
     secondary_buffer_.RemoveSuffix(
         dest.size() + secondary_buffer_.size() - IntCast<size_t>(new_size),
@@ -276,11 +268,6 @@ Reader* StringWriterBase::ReadModeImpl(Position initial_pos) {
   StringReader<>* const reader = associated_reader_.ResetReader(dest);
   reader->Seek(initial_pos);
   return reader;
-}
-
-inline void StringWriterBase::SyncDestBuffer(std::string& dest) {
-  dest.erase(dest.size() - available());
-  set_buffer(&dest[0], dest.size(), dest.size());
 }
 
 inline void StringWriterBase::SyncSecondaryBuffer() {

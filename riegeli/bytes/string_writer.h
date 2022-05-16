@@ -151,7 +151,7 @@ class StringWriterBase : public Writer {
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
- private:
+ protected:
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
   void SyncDestBuffer(std::string& dest);
@@ -160,6 +160,7 @@ class StringWriterBase : public Writer {
   // reallocation.
   void MakeDestBuffer(std::string& dest);
 
+ private:
   // Discards uninitialized space from the end of `secondary_buffer_`, so that
   // it contains only actual data written.
   void SyncSecondaryBuffer();
@@ -352,10 +353,23 @@ inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
              buffer_size, cursor_index);
 }
 
+inline void StringWriterBase::SyncDestBuffer(std::string& dest) {
+  RIEGELI_ASSERT(secondary_buffer_.empty())
+      << "Failed precondition in StringWriterBase::SyncDestBuffer(): "
+         "secondary buffer is used";
+  set_start_pos(pos());
+  dest.erase(dest.size() - available());
+  set_buffer();
+}
+
 inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
+  RIEGELI_ASSERT(secondary_buffer_.empty())
+      << "Failed precondition in StringWriterBase::MakeDestBuffer(): "
+         "secondary buffer is used";
   const size_t cursor_index = dest.size();
   dest.resize(dest.capacity());
   set_buffer(&dest[0], dest.size(), cursor_index);
+  set_start_pos(0);
 }
 
 template <typename Dest>
@@ -443,17 +457,19 @@ template <typename Dest>
 inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
     StringWriter&& that) {
   if (!that.UsesSecondaryBuffer()) {
+    MoveSecondaryBuffer(std::move(that));
     if (dest_.kIsStable) {
       dest_ = std::move(that.dest_);
     } else {
-      const size_t cursor_index = start_to_cursor();
+      // Buffer pointers are already moved so `SyncDestBuffer()` is called on
+      // `*this`, `dest_` is not moved yet so `dest_` is taken from `that`.
+      SyncDestBuffer(*that.dest_);
       dest_ = std::move(that.dest_);
-      set_buffer(&(*dest_)[0], dest_->size(), cursor_index);
+      MakeDestBuffer(*dest_);
     }
-    MoveSecondaryBuffer(std::move(that));
   } else {
-    dest_ = std::move(that.dest_);
     MoveSecondaryBufferAndBufferPointers(std::move(that));
+    dest_ = std::move(that.dest_);
   }
 }
 
