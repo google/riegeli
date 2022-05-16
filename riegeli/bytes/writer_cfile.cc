@@ -68,7 +68,13 @@ inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
       return -1;
     }
   }
-  if (ABSL_PREDICT_FALSE(!reader_->Pull(1, length))) return 0;
+  if (ABSL_PREDICT_FALSE(!reader_->Pull(1, length))) {
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) {
+      errno = StatusCodeToErrno(reader_->status().code());
+      return -1;
+    }
+    return 0;
+  }
   length = UnsignedMin(length, reader_->available());
   size_t length_read;
   if (ABSL_PREDICT_FALSE(!reader_->Read(length, dest, &length_read)) &&
