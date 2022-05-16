@@ -100,7 +100,7 @@ class ZstdReaderBase : public BufferedReader {
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
-  bool truncated() const { return truncated_; }
+  bool truncated() const { return truncated_ && available() == 0; }
 
   bool SupportsRewind() override;
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }

@@ -156,12 +156,12 @@ class ZlibReaderBase : public BufferedReader {
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
   //
-  // Precondition: `Options::concatenate()` was `false`.`
+  // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
     RIEGELI_ASSERT(!concatenate_)
         << "Failed precondition of ZlibReaderBase::truncated(): "
            "Options::concatenate() is true";
-    return truncated_;
+    return truncated_ && available() == 0;
   }
 
   bool SupportsRewind() override;
