@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -67,9 +68,29 @@ class ParseOptions {
   }
   bool partial() const { return partial_; }
 
+  // Maximum depth of submessages allowed.
+  //
+  // `recursion_limit` must be non-negative.
+  // Default:
+  // `google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()`
+  // (usually 100).
+  ParseOptions& set_recursion_limit(int recursion_limit) & {
+    RIEGELI_ASSERT_GE(recursion_limit, 0)
+        << "Failed precondition of ParseOptions::set_recursion_limit(): "
+           "recursion limit out of range";
+    recursion_limit_ = recursion_limit;
+    return *this;
+  }
+  ParseOptions&& set_recursion_limit(int recursion_limit) && {
+    return std::move(set_recursion_limit(recursion_limit));
+  }
+  int recursion_limit() const { return recursion_limit_; }
+
  private:
   bool merge_ = false;
   bool partial_ = false;
+  int recursion_limit_ =
+      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit();
 };
 
 // Reads a message in binary format from the given `Reader`. If successful, the
