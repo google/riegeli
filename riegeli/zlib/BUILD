@@ -19,6 +19,7 @@ cc_library(
         "//riegeli/bytes:buffer_options",
         "//riegeli/bytes:buffered_reader",
         "//riegeli/bytes:reader",
+        "//riegeli/endian:endian_reading",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

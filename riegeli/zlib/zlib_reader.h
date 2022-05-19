@@ -16,6 +16,7 @@
 #define RIEGELI_ZLIB_ZLIB_READER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <memory>
 #include <tuple>
@@ -185,6 +186,9 @@ class ZlibReaderBase : public BufferedReader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  // For `ZStreamDeleter`.
+  friend bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header);
+
   struct ZStreamDeleter {
     void operator()(z_stream* ptr) const {
       const int result = inflateEnd(ptr);
@@ -286,6 +290,28 @@ explicit ZlibReader(std::tuple<SrcArgs...> src_args,
                     ZlibReaderBase::Options options = ZlibReaderBase::Options())
     -> ZlibReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
+
+// Returns `true` if the data look like they have been Zlib-compressed.
+//
+// The current position of `src` is unchanged.
+//
+// Precondition: `header != ZlibReaderBase::Header::kRaw`
+bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header =
+                                    ZlibReaderBase::Header::kZlibOrGzip);
+
+// Returns the claimed uncompressed size of Gzip-compressed data (with
+// `ZlibWriterBase::Header::kGzip`) modulo 4G. The compressed stream must not
+// have anything appended.
+//
+// Returns `absl::nullopt` on failure. If the data are not Gzip-compressed, or
+// have something appended, then this is generally not detected and the returned
+// value will be meaningless. If the data were longer than 4G, then only the
+// lowest 32 bits are returned.
+//
+// The current position of `src` is unchanged.
+//
+// Precondition: `src.SupportsRandomAccess()`
+absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 
 // Implementation details follow.
 

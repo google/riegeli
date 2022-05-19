@@ -162,6 +162,11 @@ explicit FramedSnappyReader(
     -> FramedSnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
+// Returns `true` if the data look like they have been FramedSnappy-compressed.
+//
+// The current position of `src` is unchanged.
+bool RecognizeFramedSnappy(Reader& src);
+
 // Implementation details follow.
 
 inline FramedSnappyReaderBase::FramedSnappyReaderBase(

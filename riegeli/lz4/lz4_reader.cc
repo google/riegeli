@@ -312,7 +312,9 @@ std::unique_ptr<Reader> Lz4ReaderBase::NewReaderImpl(Position initial_pos) {
   return reader;
 }
 
-absl::optional<Position> Lz4UncompressedSize(Reader& src) {
+namespace lz4_internal {
+
+inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info) {
   using LZ4F_dctxDeleter = Lz4ReaderBase::LZ4F_dctxDeleter;
   RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor;
   {
@@ -326,20 +328,31 @@ absl::optional<Position> Lz4UncompressedSize(Reader& src) {
         [](LZ4F_dctx* decompressor) {
           LZ4F_resetDecompressionContext(decompressor);
         });
-    if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) return false;
   }
   if (ABSL_PREDICT_FALSE(!src.Pull(LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH,
                                    LZ4F_HEADER_SIZE_MAX))) {
-    return absl::nullopt;
+    return false;
   }
   const size_t header_size = LZ4F_headerSize(src.cursor(), src.available());
-  if (ABSL_PREDICT_FALSE(LZ4F_isError(header_size))) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!src.Pull(header_size))) return absl::nullopt;
-  LZ4F_frameInfo_t frame_info;
+  if (ABSL_PREDICT_FALSE(LZ4F_isError(header_size))) return false;
+  if (ABSL_PREDICT_FALSE(!src.Pull(header_size))) return false;
   size_t length;
   const size_t result =
       LZ4F_getFrameInfo(decompressor.get(), &frame_info, src.cursor(), &length);
-  if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) return absl::nullopt;
+  return !LZ4F_isError(result);
+}
+
+}  // namespace lz4_internal
+
+bool RecognizeLz4(Reader& src) {
+  LZ4F_frameInfo_t frame_info;
+  return lz4_internal::GetFrameInfo(src, frame_info);
+}
+
+absl::optional<Position> Lz4UncompressedSize(Reader& src) {
+  LZ4F_frameInfo_t frame_info;
+  if (!lz4_internal::GetFrameInfo(src, frame_info)) return absl::nullopt;
   if (frame_info.contentSize > 0) return frame_info.contentSize;
   return absl::nullopt;
 }

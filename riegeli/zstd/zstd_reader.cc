@@ -13,7 +13,13 @@
 // limitations under the License.
 
 // Enables the experimental zstd API:
+//  * `ZSTD_FRAMEHEADERSIZE_MIN()`
+//  * `ZSTD_FRAMEHEADERSIZE_MAX`
+//  * `ZSTD_f_zstd1`
 //  * `ZSTD_d_stableOutBuffer`
+//  * `ZSTD_skippableFrame`
+//  * `ZSTD_frameHeader`
+//  * `ZSTD_getFrameHeader()`
 #define ZSTD_STATIC_LINKING_ONLY
 
 #include "riegeli/zstd/zstd_reader.h"
@@ -307,15 +313,35 @@ std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
   return reader;
 }
 
-absl::optional<Position> ZstdUncompressedSize(Reader& src) {
-  src.Pull(18 /* `ZSTD_FRAMEHEADERSIZE_MAX` */);
-  unsigned long long uncompressed_size =
-      ZSTD_getFrameContentSize(src.cursor(), src.available());
-  if (uncompressed_size == ZSTD_CONTENTSIZE_UNKNOWN ||
-      uncompressed_size == ZSTD_CONTENTSIZE_ERROR) {
-    return absl::nullopt;
+namespace {
+
+inline bool GetFrameHeader(Reader& src, ZSTD_frameHeader& header) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(ZSTD_FRAMEHEADERSIZE_PREFIX(ZSTD_f_zstd1),
+                                   ZSTD_FRAMEHEADERSIZE_MAX))) {
+    return false;
   }
-  return uncompressed_size;
+  for (;;) {
+    const size_t result =
+        ZSTD_getFrameHeader(&header, src.cursor(), src.available());
+    if (ABSL_PREDICT_TRUE(result == 0)) return true;
+    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) return false;
+    if (ABSL_PREDICT_FALSE(!src.Pull(result))) return false;
+  }
+}
+
+}  // namespace
+
+bool RecognizeZstd(Reader& src) {
+  ZSTD_frameHeader header;
+  return GetFrameHeader(src, header);
+}
+
+absl::optional<Position> ZstdUncompressedSize(Reader& src) {
+  ZSTD_frameHeader header;
+  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return absl::nullopt;
+  if (header.frameType == ZSTD_skippableFrame) return 0;
+  if (header.frameContentSize == ZSTD_CONTENTSIZE_UNKNOWN) return absl::nullopt;
+  return IntCast<Position>(header.frameContentSize);
 }
 
 }  // namespace riegeli

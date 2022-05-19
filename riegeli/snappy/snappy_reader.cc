@@ -31,6 +31,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/snappy/snappy_streams.h"
+#include "riegeli/varint/varint_reading.h"
 #include "snappy.h"
 
 namespace riegeli {
@@ -105,13 +106,23 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
 }  // namespace snappy_internal
 
 absl::optional<size_t> SnappyUncompressedSize(Reader& src) {
-  // Uncompressed size is stored in up to 5 initial bytes.
-  src.Pull(5);
-  size_t size;
-  if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
-          src.cursor(), src.available(), &size))) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) {
     return absl::nullopt;
   }
+  if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
+    size_t length = 1;
+    while (length < kMaxLengthVarint32 &&
+           static_cast<uint8_t>(src.cursor()[length - 1]) >= 0x80) {
+      ++length;
+      if (ABSL_PREDICT_FALSE(!src.Pull(length, kMaxLengthVarint32))) {
+        return absl::nullopt;
+      }
+    }
+  }
+  uint32_t size;
+  const absl::optional<const char*> cursor =
+      ReadVarint32(src.cursor(), src.limit(), size);
+  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
   return size;
 }
 

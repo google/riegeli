@@ -18,6 +18,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "riegeli/base/any_dependency.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
@@ -39,25 +40,19 @@ bool TFRecordRecognizer::CheckFileFormat(
     return false;
   }
 
-  const Position pos_before = byte_reader_->pos();
-  ZlibReader<> decompressor(byte_reader_);
-  Reader* reader;
-  if (!decompressor.Pull()) {
-    if (decompressor.Close()) return false;
-    if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_before))) {
-      return Fail(byte_reader_->StatusOrAnnotate(
-          absl::InternalError("Seeking failed")));
-    }
-    record_reader_options.compression_type =
-        tensorflow::io::RecordReaderOptions::NONE;
-    reader = byte_reader_;
-  } else {
+  AnyDependency<Reader*, ZlibReader<>> reader;
+  if (RecognizeZlib(*byte_reader_)) {
     record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::ZLIB_COMPRESSION;
     record_reader_options.zlib_options =
         tensorflow::io::ZlibCompressionOptions::DEFAULT();
     record_reader_options.zlib_options.window_bits = 32;
-    reader = &decompressor;
+    reader.Reset(absl::in_place_type<ZlibReader<>>,
+                 std::forward_as_tuple(byte_reader_));
+  } else {
+    record_reader_options.compression_type =
+        tensorflow::io::RecordReaderOptions::NONE;
+    reader = byte_reader_;
   }
 
   if (ABSL_PREDICT_FALSE(!reader->Pull(sizeof(uint64_t) + sizeof(uint32_t)))) {

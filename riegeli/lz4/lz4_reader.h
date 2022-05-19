@@ -38,6 +38,12 @@
 
 namespace riegeli {
 
+namespace lz4_internal {
+
+bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info);
+
+}  // namespace lz4_internal
+
 // Template parameter independent part of `Lz4Reader`.
 class Lz4ReaderBase : public BufferedReader {
  public:
@@ -126,7 +132,8 @@ class Lz4ReaderBase : public BufferedReader {
 
  private:
   // For `LZ4F_dctxDeleter`.
-  friend absl::optional<Position> Lz4UncompressedSize(Reader& src);
+  friend bool lz4_internal::GetFrameInfo(Reader& src,
+                                         LZ4F_frameInfo_t& frame_info);
 
   struct LZ4F_dctxDeleter {
     void operator()(LZ4F_dctx* ptr) const {
@@ -232,6 +239,11 @@ explicit Lz4Reader(std::tuple<SrcArgs...> src_args,
                    Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
     -> Lz4Reader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
+
+// Returns `true` if the data look like they have been Lz4-compressed.
+//
+// The current position of `src` is unchanged.
+bool RecognizeLz4(Reader& src);
 
 // Returns the claimed uncompressed size of Lz4-compressed data.
 //

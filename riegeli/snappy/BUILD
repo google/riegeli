@@ -18,6 +18,7 @@ cc_library(
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
+        "//riegeli/varint:varint_reading",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

@@ -15,6 +15,7 @@
 #include "riegeli/zlib/zlib_reader.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 #include <memory>
@@ -32,6 +33,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/endian/endian_reading.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -319,6 +321,81 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
               .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
+}
+
+bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header) {
+  RIEGELI_ASSERT(header != ZlibReaderBase::Header::kRaw)
+      << "Failed precondition of RecognizeZlib(): "
+         "Header::kRaw cannot be reliably detected";
+  using ZStreamDeleter = ZlibReaderBase::ZStreamDeleter;
+  // If `header == Header::kRaw` then `window_bits == -1`, which causes
+  // `inflateInit2()` or `inflateReset2()` to fail.
+  const int window_bits = static_cast<int>(header);
+  int zlib_code;
+  const RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor =
+      RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
+          [&] {
+            std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+            zlib_code = inflateInit2(ptr.get(), window_bits);
+            return ptr;
+          },
+          [&](z_stream* ptr) { zlib_code = inflateReset2(ptr, window_bits); });
+  if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) return false;
+
+  char dest[1];
+  size_t cursor_index = 0;
+  decompressor->next_out = reinterpret_cast<Bytef*>(dest);
+  decompressor->avail_out = 1;
+  for (;;) {
+    decompressor->next_in = const_cast<z_const Bytef*>(
+        reinterpret_cast<const Bytef*>(src.cursor() + cursor_index));
+    decompressor->avail_in =
+        SaturatingIntCast<uInt>(src.available() - cursor_index);
+    // `Z_BLOCK` stops after decoding the header.
+    switch (inflate(decompressor.get(), Z_BLOCK)) {
+      case Z_OK:
+        if (
+            // Decoded the header.
+            (decompressor->data_type & 128) != 0 ||
+            // Output a byte. This is impossible if `header != Header::kRaw`;
+            // kept for robustness.
+            decompressor->avail_out < 1) {
+          return true;
+        }
+        ABSL_FALLTHROUGH_INTENDED;
+      case Z_BUF_ERROR:
+        RIEGELI_ASSERT_EQ(decompressor->avail_in, 0u)
+            << "inflate() returned but there are still input data";
+        cursor_index = src.available();
+        if (ABSL_PREDICT_FALSE(!src.Pull(cursor_index + 1))) return false;
+        continue;
+      case Z_STREAM_END:  // This is impossible if `header != Header::kRaw`;
+                          // kept for robustness.
+      case Z_NEED_DICT:
+        return true;
+      default:
+        return false;
+    }
+  }
+}
+
+absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src) {
+  RIEGELI_ASSERT(src.SupportsRandomAccess())
+      << "Failed precondition of GzipUncompressedSizeModulo4G(): "
+         "Reader does not support random access";
+  const absl::optional<Position> compressed_size = src.Size();
+  if (ABSL_PREDICT_FALSE(compressed_size == absl::nullopt ||
+                         *compressed_size < 20)) {
+    return absl::nullopt;
+  }
+  const Position pos_before = src.pos();
+  uint32_t uncompressed_size;
+  if (ABSL_PREDICT_FALSE(!src.Seek(*compressed_size - sizeof(uint32_t)) ||
+                         !ReadLittleEndian32(src, uncompressed_size) ||
+                         !src.Seek(pos_before))) {
+    return absl::nullopt;
+  }
+  return uncompressed_size;
 }
 
 }  // namespace riegeli

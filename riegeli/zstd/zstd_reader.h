@@ -231,6 +231,11 @@ explicit ZstdReader(std::tuple<SrcArgs...> src_args,
     -> ZstdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
+// Returns `true` if the data look like they have been Zstd-compressed.
+//
+// The current position of `src` is unchanged.
+bool RecognizeZstd(Reader& src);
+
 // Returns the claimed uncompressed size of Zstd-compressed data.
 //
 // Returns `absl::nullopt` if the size was not stored or on failure. The size is

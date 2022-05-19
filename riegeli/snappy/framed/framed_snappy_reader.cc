@@ -286,4 +286,13 @@ std::unique_ptr<Reader> FramedSnappyReaderBase::NewReaderImpl(
   return reader;
 }
 
+bool RecognizeFramedSnappy(Reader& src) {
+  const absl::string_view kSignature(
+      "\xff\x06\x00\x00"
+      "sNaPpY",
+      10);
+  return src.Pull(kSignature.size()) &&
+         absl::string_view(src.cursor(), kSignature.size()) == kSignature;
+}
+
 }  // namespace riegeli
