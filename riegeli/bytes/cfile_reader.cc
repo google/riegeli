@@ -227,18 +227,16 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (exact_size() != absl::nullopt &&
-      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
-    return false;
-  }
   FILE* const src = src_file();
-  if (ABSL_PREDICT_FALSE(max_length >
-                         Position{std::numeric_limits<off_t>::max()} -
-                             limit_pos())) {
-    max_length = Position{std::numeric_limits<off_t>::max()} - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   for (;;) {
+    Position max_pos;
+    if (exact_size() != absl::nullopt) {
+      max_pos = *exact_size();
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
+    } else {
+      max_pos = Position{std::numeric_limits<off_t>::max()};
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
+    }
     size_t length_to_read = UnsignedMax(min_length, AvailableLength(src));
     if (length_to_read < max_length && supports_random_access() &&
         exact_size() != absl::nullopt) {
@@ -247,7 +245,8 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
           length_to_read,
           SaturatingIntCast<size_t>(SaturatingSub(*exact_size(), limit_pos())));
     }
-    length_to_read = UnsignedMin(length_to_read, max_length);
+    length_to_read =
+        UnsignedMin(length_to_read, max_length, max_pos - limit_pos());
     const size_t length_read = fread(dest, 1, length_to_read, src);
     RIEGELI_ASSERT_LE(length_read, length_to_read)
         << "fread() read more than requested";
@@ -257,8 +256,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
           << "fread() read less than was available";
       if (ABSL_PREDICT_FALSE(ferror(src))) return FailOperation("fread()");
       RIEGELI_ASSERT(feof(src))
-          << "fread() read less than requested "
-             "but did not indicate failure nor end of file";
+          << "fread() succeeded but read less than requested";
       clearerr(src);
       StoreSize(limit_pos());
       return length_read >= min_length;

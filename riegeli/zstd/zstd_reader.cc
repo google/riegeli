@@ -177,11 +177,6 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     uncompressed_size_ = ZstdUncompressedSize(src);
     if (uncompressed_size_ != absl::nullopt) set_size_hint(*uncompressed_size_);
   }
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
-    max_length = std::numeric_limits<Position>::max() - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   size_t effective_min_length = min_length;
   if (just_initialized_ && !growing_source_ &&
       uncompressed_size_ != absl::nullopt &&
@@ -198,8 +193,14 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     effective_min_length = std::numeric_limits<size_t>::max();
   }
   just_initialized_ = false;
+  max_length = UnsignedMin(max_length,
+                           std::numeric_limits<Position>::max() - limit_pos());
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
+    if (ABSL_PREDICT_FALSE(output.pos == output.size)) {
+      move_limit_pos(output.pos);
+      return FailOverflow();
+    }
     ZSTD_inBuffer input = {src.cursor(), src.available(), 0};
     const size_t result =
         ZSTD_decompressStream(decompressor_.get(), &output, &input);

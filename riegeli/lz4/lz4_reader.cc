@@ -187,21 +187,19 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   if (ABSL_PREDICT_FALSE(!header_read_)) {
     if (ABSL_PREDICT_FALSE(!ReadHeader(src))) return false;
   }
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
-    max_length = std::numeric_limits<Position>::max() - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   LZ4F_decompressOptions_t decompress_options{};
   size_t effective_min_length = min_length;
   if (!growing_source_ && uncompressed_size_ != absl::nullopt &&
-      limit_pos() + max_length >= *uncompressed_size_) {
+      max_length >= SaturatingSub(*uncompressed_size_, limit_pos())) {
     // Avoid a memory copy from an internal buffer of the Lz4 engine to `dest`
     // by promising to decompress all remaining data to `dest`.
     decompress_options.stableDst = 1;
     effective_min_length = std::numeric_limits<size_t>::max();
   }
+  max_length = UnsignedMin(max_length,
+                           std::numeric_limits<Position>::max() - limit_pos());
   for (;;) {
+    if (ABSL_PREDICT_FALSE(max_length == 0)) return FailOverflow();
     size_t src_length = src.available();
     size_t dest_length = max_length;
     const size_t result = LZ4F_decompress_usingDict(

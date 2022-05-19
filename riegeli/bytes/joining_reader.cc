@@ -142,9 +142,6 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(pos() == std::numeric_limits<Position>::max())) {
-    return FailOverflow();
-  }
   Reader* shard = shard_reader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
@@ -160,6 +157,9 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = shard_reader();
   }
+  if (ABSL_PREDICT_FALSE(pos() == std::numeric_limits<Position>::max())) {
+    return FailOverflow();
+  }
   MakeBuffer(*shard);
   return true;
 }
@@ -172,10 +172,6 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    return FailOverflow();
-  }
   Reader* shard = shard_reader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
@@ -184,9 +180,12 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
     shard = shard_reader();
   }
   for (;;) {
+    const size_t length_to_read =
+        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     size_t length_read;
-    if (ABSL_PREDICT_TRUE(shard->Read(length, dest, &length_read))) {
+    if (ABSL_PREDICT_TRUE(shard->Read(length_to_read, dest, &length_read))) {
       move_limit_pos(length_read);
+      if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
@@ -232,10 +231,6 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
 template <typename Dest>
 inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    return FailOverflow();
-  }
   Reader* shard = shard_reader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
@@ -244,9 +239,13 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
     shard = shard_reader();
   }
   for (;;) {
+    const size_t length_to_read =
+        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     size_t length_read;
-    if (ABSL_PREDICT_TRUE(shard->ReadAndAppend(length, dest, &length_read))) {
+    if (ABSL_PREDICT_TRUE(
+            shard->ReadAndAppend(length_to_read, dest, &length_read))) {
       move_limit_pos(length_read);
+      if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
@@ -270,10 +269,6 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    return FailOverflow();
-  }
   Reader* shard = shard_reader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
@@ -282,9 +277,12 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
     shard = shard_reader();
   }
   for (;;) {
+    const size_t length_to_read =
+        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     Position length_read;
-    if (ABSL_PREDICT_TRUE(shard->Copy(length, dest, &length_read))) {
+    if (ABSL_PREDICT_TRUE(shard->Copy(length_to_read, dest, &length_read))) {
       move_limit_pos(length_read);
+      if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
     if (ABSL_PREDICT_FALSE(!dest.ok())) return false;

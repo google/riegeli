@@ -233,21 +233,20 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (exact_size() != absl::nullopt &&
-      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
-    return false;
-  }
   const int src = src_fd();
-  if (ABSL_PREDICT_FALSE(max_length >
-                         Position{std::numeric_limits<off_t>::max()} -
-                             limit_pos())) {
-    max_length = Position{std::numeric_limits<off_t>::max()} - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   for (;;) {
-  again:
+    Position max_pos;
+    if (exact_size() != absl::nullopt) {
+      max_pos = *exact_size();
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
+    } else {
+      max_pos = Position{std::numeric_limits<off_t>::max()};
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
+    }
     const size_t length_to_read =
-        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()});
+        UnsignedMin(max_length, max_pos - limit_pos(),
+                    size_t{std::numeric_limits<ssize_t>::max()});
+  again:
     const ssize_t length_read =
         has_independent_pos_
             ? pread(src, dest, length_to_read, IntCast<off_t>(limit_pos()))

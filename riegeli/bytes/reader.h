@@ -742,7 +742,7 @@ inline bool Reader::Read(size_t length, char* dest, size_t* length_read) {
       return false;
     }
     RIEGELI_ASSERT_EQ(pos() - pos_before, length)
-        << "Reader::ReadSlow(char*) read less than requested but returned true";
+        << "Reader::ReadSlow(char*) succeeded but read less than requested";
     *length_read = length;
     return true;
   }
@@ -806,8 +806,7 @@ inline bool Reader::ReadAndAppend(size_t length, std::string& dest,
       return false;
     }
     RIEGELI_ASSERT_EQ(dest.size() - dest_size_before, length)
-        << "Reader::ReadSlow(string&) read less than requested "
-           "but returned true";
+        << "Reader::ReadSlow(string&) succeeded but read less than requested";
     *length_read = length;
     return true;
   }
@@ -838,8 +837,7 @@ inline bool Reader::ReadAndAppend(size_t length, Chain& dest,
       return false;
     }
     RIEGELI_ASSERT_EQ(dest.size() - dest_size_before, length)
-        << "Reader::ReadSlow(Chain&) read less than requested "
-           "but returned true";
+        << "Reader::ReadSlow(Chain&) succeeded but read less than requested";
     *length_read = length;
     return true;
   }
@@ -870,7 +868,7 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest,
       return false;
     }
     RIEGELI_ASSERT_EQ(dest.size() - dest_size_before, length)
-        << "Reader::ReadSlow(Cord&) read less than requested but returned true";
+        << "Reader::ReadSlow(Cord&) succeeded but read less than requested";
     *length_read = length;
     return true;
   }
@@ -939,7 +937,7 @@ inline bool Reader::Skip(Position length, Position* length_skipped) {
       return false;
     }
     RIEGELI_ASSERT_EQ(pos(), pos_before + length)
-        << "Reader::SeekSlow() skipped less than requested but returned true";
+        << "Reader::SeekSlow() succeeded but skipped less than requested";
     *length_skipped = length;
     return true;
   }

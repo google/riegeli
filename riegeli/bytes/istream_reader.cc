@@ -152,25 +152,23 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (exact_size() != absl::nullopt &&
-      ABSL_PREDICT_FALSE(limit_pos() >= exact_size())) {
-    return false;
-  }
   std::istream& src = *src_stream();
-  if (ABSL_PREDICT_FALSE(max_length >
-                         Position{std::numeric_limits<std::streamoff>::max()} -
-                             limit_pos())) {
-    max_length =
-        Position{std::numeric_limits<std::streamoff>::max()} - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   errno = 0;
   for (;;) {
-    std::streamsize length_to_read = IntCast<std::streamsize>(UnsignedMin(
-        min_length, size_t{std::numeric_limits<std::streamsize>::max()}));
-    const std::streamsize max_length_to_read =
-        IntCast<std::streamsize>(UnsignedMin(
-            max_length, size_t{std::numeric_limits<std::streamsize>::max()}));
+    Position max_pos;
+    if (exact_size() != absl::nullopt) {
+      max_pos = *exact_size();
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
+    } else {
+      max_pos = Position{std::numeric_limits<std::streamoff>::max()};
+      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
+    }
+    std::streamsize length_to_read = IntCast<std::streamsize>(
+        UnsignedMin(min_length, max_pos - limit_pos(),
+                    size_t{std::numeric_limits<std::streamsize>::max()}));
+    const std::streamsize max_length_to_read = IntCast<std::streamsize>(
+        UnsignedMin(max_length, max_pos - limit_pos(),
+                    size_t{std::numeric_limits<std::streamsize>::max()}));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
       if (supports_random_access() && exact_size() != absl::nullopt) {

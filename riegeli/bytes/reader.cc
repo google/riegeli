@@ -87,8 +87,7 @@ bool Reader::Copy(Position length, Writer& dest, Position* length_read) {
       return false;
     }
     RIEGELI_ASSERT_EQ(pos() - pos_before, length)
-        << "Reader::CopySlow(Writer&) read less than requested "
-           "but returned true";
+        << "Reader::CopySlow(Writer&) succeeded but read less than requested";
     *length_read = length;
     return true;
   }
@@ -144,7 +143,7 @@ bool Reader::ReadSlow(size_t length, std::string& dest) {
     return false;
   }
   RIEGELI_ASSERT_EQ(pos() - pos_before, length)
-      << "Reader::ReadSlow(char*) read less than requested but returned true";
+      << "Reader::ReadSlow(char*) succeeded but read less than requested";
   return true;
 }
 

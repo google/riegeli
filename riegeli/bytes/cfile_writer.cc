@@ -256,8 +256,8 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
       << "fwrite() wrote more than requested";
   move_start_pos(length_written);
   if (ABSL_PREDICT_FALSE(length_written < src.size())) {
-    RIEGELI_ASSERT(ferror(dest)) << "fwrite() wrote less than requested "
-                                    "but did not indicate failure";
+    RIEGELI_ASSERT(ferror(dest))
+        << "fwrite() succeeded but wrote less than requested";
     return FailOperation("fwrite()");
   }
   return true;

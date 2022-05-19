@@ -176,15 +176,15 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *src_reader();
   truncated_ = false;
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
-    max_length = std::numeric_limits<Position>::max() - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
+  max_length = UnsignedMin(max_length,
+                           std::numeric_limits<Position>::max() - limit_pos());
   decompressor_->next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
     decompressor_->avail_out = SaturatingIntCast<uInt>(PtrDistance(
         reinterpret_cast<char*>(decompressor_->next_out), dest + max_length));
+    if (ABSL_PREDICT_FALSE(decompressor_->avail_out == 0)) {
+      return FailOverflow();
+    }
     decompressor_->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src.cursor()));
     decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());

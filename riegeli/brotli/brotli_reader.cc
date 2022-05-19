@@ -152,9 +152,11 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
         const char* const data = reinterpret_cast<const char*>(
             BrotliDecoderTakeOutput(decompressor_.get(), &length));
         if (length > 0) {
-          if (ABSL_PREDICT_FALSE(length > std::numeric_limits<Position>::max() -
-                                              limit_pos())) {
-            set_buffer();
+          const Position max_length =
+              std::numeric_limits<Position>::max() - limit_pos();
+          if (ABSL_PREDICT_FALSE(length > max_length)) {
+            set_buffer(data, IntCast<size_t>(max_length));
+            move_limit_pos(available());
             return FailOverflow();
           }
           set_buffer(data, length);

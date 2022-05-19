@@ -156,10 +156,11 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
         }
         src.move_cursor(sizeof(uint32_t) + chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
-        if (ABSL_PREDICT_FALSE(uncompressed_length >
-                               std::numeric_limits<Position>::max() -
-                                   limit_pos())) {
-          set_buffer(uncompressed_.data());
+        const Position max_length =
+            std::numeric_limits<Position>::max() - limit_pos();
+        if (ABSL_PREDICT_FALSE(uncompressed_length > max_length)) {
+          set_buffer(uncompressed_.data(), IntCast<size_t>(max_length));
+          move_limit_pos(available());
           return FailOverflow();
         }
         set_buffer(uncompressed_.data(), uncompressed_length);
@@ -188,10 +189,11 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
         }
         src.move_cursor(sizeof(uint32_t) + chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
-        if (ABSL_PREDICT_FALSE(uncompressed_length >
-                               std::numeric_limits<Position>::max() -
-                                   limit_pos())) {
-          set_buffer();
+        const Position max_length =
+            std::numeric_limits<Position>::max() - limit_pos();
+        if (ABSL_PREDICT_FALSE(uncompressed_length > max_length)) {
+          set_buffer(uncompressed_data, IntCast<size_t>(max_length));
+          move_limit_pos(available());
           return FailOverflow();
         }
         set_buffer(uncompressed_data, uncompressed_length);

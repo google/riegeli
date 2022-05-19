@@ -119,11 +119,6 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
-    max_length = std::numeric_limits<Position>::max() - limit_pos();
-    if (ABSL_PREDICT_FALSE(max_length < min_length)) return FailOverflow();
-  }
   PythonLock lock;
   // Find a read function to use, preferring in order: `readinto1()`,
   // `readinto()`, `read1()`, `read()`.
@@ -165,8 +160,13 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
     }
   }
   for (;;) {
-    const size_t length_to_read =
-        UnsignedMin(max_length, size_t{std::numeric_limits<Py_ssize_t>::max()});
+    if (ABSL_PREDICT_FALSE(limit_pos() ==
+                           std::numeric_limits<Position>::max())) {
+      return FailOverflow();
+    }
+    const size_t length_to_read = UnsignedMin(
+        max_length, std::numeric_limits<Position>::max() - limit_pos(),
+        size_t{std::numeric_limits<Py_ssize_t>::max()});
     size_t length_read;
     if (!use_bytes_) {
       PythonPtr read_result;
