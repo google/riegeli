@@ -15,6 +15,7 @@
 #include "riegeli/snappy/snappy_writer.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -83,11 +84,11 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
                                           uncompressed_.size())) {
     return FailOverflow();
   }
-  SyncBuffer();
   const absl::Span<char> buffer = uncompressed_.AppendFixedBuffer(
       UnsignedMax(ApplyWriteSizeHint(
                       RoundUp<kBlockSize>(uncompressed_.size() + min_length) -
@@ -105,11 +106,11 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
          "enough space available, use Write(Chain) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
+                                          uncompressed_.size())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(src, options_);
   return true;
@@ -120,12 +121,15 @@ bool SnappyWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
+  if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) >
+                             std::numeric_limits<uint32_t>::max() ||
+                         length > std::numeric_limits<uint32_t>::max() -
                                       IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  const size_t first_length =
-      UnsignedMin(RoundUp<kBlockSize>(pos()) - pos(), IntCast<size_t>(length));
+  const size_t first_length = UnsignedMin(
+      RoundUp<kBlockSize>(IntCast<size_t>(pos())) - IntCast<size_t>(pos()),
+      IntCast<size_t>(length));
   if (first_length > 0) {
     if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
     std::memset(cursor(), '\0', first_length);
@@ -157,11 +161,11 @@ bool SnappyWriterBase::WriteSlow(Chain&& src) {
     return Writer::WriteSlow(src);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
+                                          uncompressed_.size())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(std::move(src), options_);
   return true;
@@ -173,11 +177,11 @@ bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
          "enough space available, use Write(Cord) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
+                                          uncompressed_.size())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(src, options_);
   return true;
@@ -194,11 +198,11 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
     return Writer::WriteSlow(src);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
+                                          uncompressed_.size())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(std::move(src), options_);
   return true;
@@ -206,26 +210,32 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
 
 Reader* SnappyWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return nullptr;
   ChainReader<>* const reader = associated_reader_.ResetReader(&uncompressed_);
   reader->Seek(initial_pos);
   return reader;
 }
 
 inline size_t SnappyWriterBase::MinBytesToShare() const {
-  const Position next_block_begin = RoundUp<kBlockSize>(pos());
-  Position length_in_next_block = kBlockSize;
-  if (next_block_begin < options_.size_hint() && next_block_begin == pos()) {
-    length_in_next_block = UnsignedMin(options_.size_hint() - next_block_begin,
-                                       length_in_next_block);
+  const size_t next_block_begin = RoundUp<kBlockSize>(IntCast<size_t>(pos()));
+  size_t length_in_next_block = kBlockSize;
+  if (next_block_begin < options_.size_hint() &&
+      next_block_begin == IntCast<size_t>(pos())) {
+    length_in_next_block = UnsignedMin(length_in_next_block,
+                                       options_.size_hint() - next_block_begin);
   }
-  return IntCast<size_t>(next_block_begin + length_in_next_block - pos());
+  return next_block_begin - IntCast<size_t>(pos()) + length_in_next_block;
 }
 
-inline void SnappyWriterBase::SyncBuffer() {
+inline bool SnappyWriterBase::SyncBuffer() {
   set_start_pos(pos());
   uncompressed_.RemoveSuffix(available());
   set_buffer();
+  if (ABSL_PREDICT_FALSE(uncompressed_.size() >
+                         std::numeric_limits<uint32_t>::max())) {
+    return FailOverflow();
+  }
+  return true;
 }
 
 namespace snappy_internal {

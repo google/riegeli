@@ -106,7 +106,7 @@ class SnappyWriterBase : public Writer {
 
   // Discards uninitialized space from the end of `uncompressed_`, so that it
   // contains only actual data written.
-  void SyncBuffer();
+  bool SyncBuffer();
 
   Chain::Options options_;
 
@@ -120,6 +120,8 @@ class SnappyWriterBase : public Writer {
   Chain uncompressed_;
 
   AssociatedReader<ChainReader<const Chain*>> associated_reader_;
+
+  // Invariant: `limit_pos() <= std::numeric_limits<size_t>::max()`
 };
 
 // A `Writer` which compresses data with Snappy before passing it to another
