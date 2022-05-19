@@ -227,6 +227,11 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
   return false;
 }
 
+bool FramedSnappyReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool FramedSnappyReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();

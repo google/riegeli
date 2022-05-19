@@ -322,12 +322,11 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
          "Chain size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
+    if (ABSL_PREDICT_FALSE(!ok())) {
       // Read as much as is available.
-      length = available();
       enough_read = false;
+      length = available();
       break;
     }
     const size_t buffer_length =
@@ -360,7 +359,12 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       }
     }
     // Read more data, preferably into `buffer_`.
-    read_ok = ReadToBuffer(cursor_index, src, flat_buffer);
+    if (ABSL_PREDICT_FALSE(!ReadToBuffer(cursor_index, src, flat_buffer))) {
+      // Read as much as is available.
+      enough_read = available() >= length;
+      if (ABSL_PREDICT_FALSE(!enough_read)) length = available();
+      break;
+    }
   }
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
@@ -380,12 +384,11 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
+    if (ABSL_PREDICT_FALSE(!ok())) {
       // Read as much as is available.
-      length = available();
       enough_read = false;
+      length = available();
       break;
     }
     const size_t buffer_length =
@@ -418,7 +421,12 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       }
     }
     // Read more data, preferably into `buffer_`.
-    read_ok = ReadToBuffer(cursor_index, src, flat_buffer);
+    if (ABSL_PREDICT_FALSE(!ReadToBuffer(cursor_index, src, flat_buffer))) {
+      // Read as much as is available.
+      enough_read = available() >= length;
+      if (ABSL_PREDICT_FALSE(!enough_read)) length = available();
+      break;
+    }
   }
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
@@ -435,9 +443,8 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
          "enough data available, use Copy(Writer&) instead";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok || !ok())) {
+    if (ABSL_PREDICT_FALSE(!ok())) {
       // Copy as much as is available.
       length = available();
       enough_read = false;
@@ -491,7 +498,12 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       }
     }
     // Read more data, preferably into `buffer_`.
-    read_ok = ReadToBuffer(cursor_index, src, flat_buffer);
+    if (ABSL_PREDICT_FALSE(!ReadToBuffer(cursor_index, src, flat_buffer))) {
+      // Copy as much as is available.
+      enough_read = available() >= length;
+      if (ABSL_PREDICT_FALSE(!enough_read)) length = available();
+      break;
+    }
   }
   bool write_ok = true;
   if (length > 0) {

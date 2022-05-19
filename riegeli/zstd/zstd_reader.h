@@ -102,6 +102,7 @@ class ZstdReaderBase : public BufferedReader {
   // does not grow, `Close()` will fail.
   bool truncated() const { return truncated_ && available() == 0; }
 
+  bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
   bool SupportsNewReader() override;

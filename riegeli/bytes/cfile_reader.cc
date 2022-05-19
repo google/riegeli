@@ -237,16 +237,8 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       max_pos = Position{std::numeric_limits<off_t>::max()};
       if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
     }
-    size_t length_to_read = UnsignedMax(min_length, AvailableLength(src));
-    if (length_to_read < max_length && supports_random_access() &&
-        exact_size() != absl::nullopt) {
-      // Increase `length_to_read` to cover the rest of the file.
-      length_to_read = UnsignedMax(
-          length_to_read,
-          SaturatingIntCast<size_t>(SaturatingSub(*exact_size(), limit_pos())));
-    }
-    length_to_read =
-        UnsignedMin(length_to_read, max_length, max_pos - limit_pos());
+    const size_t length_to_read =
+        UnsignedMin(UnsignedMax(min_length, AvailableLength(src)), max_length);
     const size_t length_read = fread(dest, 1, length_to_read, src);
     RIEGELI_ASSERT_LE(length_read, length_to_read)
         << "fread() read more than requested";

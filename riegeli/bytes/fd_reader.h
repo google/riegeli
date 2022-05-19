@@ -168,6 +168,7 @@ class FdReaderBase : public BufferedReader {
   // `Close()`.
   absl::string_view filename() const { return filename_; }
 
+  bool ToleratesReadingAhead() override { return supports_random_access(); }
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsNewReader() override { return supports_random_access(); }
 

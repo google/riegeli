@@ -252,6 +252,11 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
+bool ZlibReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool ZlibReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();

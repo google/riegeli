@@ -43,6 +43,7 @@ class CordReaderBase : public PullableReader {
   // Returns the `absl::Cord` being read from. Unchanged by `Close()`.
   virtual const absl::Cord* src_cord() const = 0;
 
+  bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
   bool SupportsNewReader() override { return true; }
 

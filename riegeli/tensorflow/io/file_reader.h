@@ -108,6 +108,7 @@ class FileReaderBase : public Reader {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
+  bool ToleratesReadingAhead() override { return !filename_.empty(); }
   bool SupportsRandomAccess() override { return !filename_.empty(); }
   bool SupportsNewReader() override { return !filename_.empty(); }
 

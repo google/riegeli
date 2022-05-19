@@ -238,6 +238,11 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
+bool ZstdReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool ZstdReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();

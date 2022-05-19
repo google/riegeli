@@ -113,6 +113,7 @@ class PythonReader : public BufferedReader {
 
   const Exception& exception() const { return exception_; }
 
+  bool ToleratesReadingAhead() override { return supports_random_access_; }
   bool SupportsRandomAccess() override { return supports_random_access_; }
 
   // For implementing `tp_traverse` of objects containing `PythonReader`.

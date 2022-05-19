@@ -93,8 +93,8 @@ class ReadLineOptions {
 //
 // Warning: if `options.newline()` is `Newline::kAny`, for lines terminated with
 // CR, `ReadLine()` reads ahead one character after the CR. If reading ahead
-// only as much as needed is required, e.g. when communicating with another
-// process, another implementation would be required (which would keep state
+// only as much as needed is required, e.g. when reading from an interactive
+// stream, another implementation would be required (which would keep state
 // between calls).
 //
 // Return values:

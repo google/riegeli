@@ -164,6 +164,11 @@ bool HadoopSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
   return true;
 }
 
+bool HadoopSnappyReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool HadoopSnappyReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();

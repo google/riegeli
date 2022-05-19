@@ -171,40 +171,31 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                     size_t{std::numeric_limits<std::streamsize>::max()}));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
-      if (supports_random_access() && exact_size() != absl::nullopt) {
-        // Increase `length_to_read` to cover the rest of the stream.
-        length_to_read =
-            SignedMin(SignedMax(length_to_read,
-                                SaturatingIntCast<std::streamsize>(
-                                    SaturatingSub(*exact_size(), limit_pos()))),
-                      max_length_to_read);
-      } else {
-        // Use `std::istream::readsome()` to read as much data as is available,
-        // up to `max_length_to_read`.
-        //
-        // `std::istream::peek()` asks to read some characters into the buffer,
-        // otherwise `std::istream::readsome()` may return 0.
-        if (ABSL_PREDICT_FALSE(src.peek() == std::char_traits<char>::eof())) {
-          if (ABSL_PREDICT_FALSE(src.fail())) {
-            return FailOperation("istream::peek()");
-          }
-          // A sticky `std::ios_base::eofbit` breaks future operations like
-          // `std::istream::peek()` and `std::istream::tellg()`.
-          src.clear(src.rdstate() & ~std::ios_base::eofbit);
-          StoreSize(limit_pos());
-          return false;
+      // Use `std::istream::readsome()` to read as much data as is available,
+      // up to `max_length_to_read`.
+      //
+      // `std::istream::peek()` asks to read some characters into the buffer,
+      // otherwise `std::istream::readsome()` may return 0.
+      if (ABSL_PREDICT_FALSE(src.peek() == std::char_traits<char>::eof())) {
+        if (ABSL_PREDICT_FALSE(src.fail())) {
+          return FailOperation("istream::peek()");
         }
-        length_read = src.readsome(dest, max_length_to_read);
-        RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::readsome()";
-        RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
-            << "istream::readsome() read more than requested";
-        if (ABSL_PREDICT_TRUE(length_read > 0)) goto fragment_read;
-        // `std::istream::peek()` returned non-`eof()` but
-        // `std::istream::readsome()` returned 0. This might happen if
-        // `src.rdbuf()->sgetc()` does not use the get area but leaves the next
-        // character buffered elsewhere, e.g. for `std::cin` synchronized to
-        // stdio. Fall back to `std::istream::read()`.
+        // A sticky `std::ios_base::eofbit` breaks future operations like
+        // `std::istream::peek()` and `std::istream::tellg()`.
+        src.clear(src.rdstate() & ~std::ios_base::eofbit);
+        StoreSize(limit_pos());
+        return false;
       }
+      length_read = src.readsome(dest, max_length_to_read);
+      RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::readsome()";
+      RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
+          << "istream::readsome() read more than requested";
+      if (ABSL_PREDICT_TRUE(length_read > 0)) goto fragment_read;
+      // `std::istream::peek()` returned non-`eof()` but
+      // `std::istream::readsome()` returned 0. This might happen if
+      // `src.rdbuf()->sgetc()` does not use the get area but leaves the next
+      // character buffered elsewhere, e.g. for `std::cin` synchronized to
+      // stdio. Fall back to `std::istream::read()`.
     }
     // Use `std::istream::read()` to read a fixed length of `length_to_read`.
     src.read(dest, length_to_read);

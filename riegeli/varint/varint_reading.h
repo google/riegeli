@@ -32,8 +32,8 @@ namespace riegeli {
 // possible values.
 //
 // Warning: unless stated otherwise, reading a varint may read ahead more than
-// eventually needed. If reading ahead only as much as needed is required, e.g.
-// when communicating with another process, use `StreamingReadVarint{32,64}()`
+// needed. If reading ahead only as much as needed is required, e.g. when
+// reading from an interactive stream, use `StreamingReadVarint{32,64}()`
 // instead. It is slower.
 
 // Reads a varint.
@@ -72,9 +72,8 @@ bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 
 // Reads a varint.
 //
-// Reads ahead only as much as needed, which can be required e.g. when
-// communicating with another process. This is slower than
-// `ReadVarint{32,64}()`.
+// Reads ahead only as much as needed, which is required e.g. when reading from
+// an interactive stream. This is slower than `ReadVarint{32,64}()`.
 //
 // Return values:
 //  * `true`                     - success (`dest` is set)

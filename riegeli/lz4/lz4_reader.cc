@@ -239,6 +239,11 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
+bool Lz4ReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool Lz4ReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();

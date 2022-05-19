@@ -156,6 +156,7 @@ class ZlibReaderBase : public BufferedReader {
     return truncated_ && available() == 0;
   }
 
+  bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
   bool SupportsNewReader() override;
 

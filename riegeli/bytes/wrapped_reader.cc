@@ -141,6 +141,11 @@ void WrappedReaderBase::ReadHintSlow(size_t min_length,
   MakeBuffer(src);
 }
 
+bool WrappedReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool WrappedReaderBase::SupportsRandomAccess() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();

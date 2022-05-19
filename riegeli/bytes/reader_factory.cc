@@ -45,6 +45,7 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   ConcurrentReader(const ConcurrentReader&) = delete;
   ConcurrentReader& operator=(const ConcurrentReader&) = delete;
 
+  bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override { return true; }
   bool SupportsNewReader() override { return true; }
 
@@ -475,6 +476,12 @@ bool ReaderFactoryBase::ConcurrentReader::SyncBehindScratch(
   if (sync_type == SyncType::kFromObject) return true;
   absl::MutexLock l(&shared_->mutex);
   return shared_->reader->Sync(sync_type);
+}
+
+bool ReaderFactoryBase::ConcurrentReader::ToleratesReadingAhead() {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::MutexLock l(&shared_->mutex);
+  return shared_->reader->ToleratesReadingAhead();
 }
 
 bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {

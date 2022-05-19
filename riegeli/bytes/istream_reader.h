@@ -84,6 +84,7 @@ class IStreamReaderBase : public BufferedReader {
   virtual std::istream* src_stream() = 0;
   virtual const std::istream* src_stream() const = 0;
 
+  bool ToleratesReadingAhead() override { return supports_random_access(); }
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:

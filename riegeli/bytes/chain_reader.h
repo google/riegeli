@@ -42,6 +42,7 @@ class ChainReaderBase : public PullableReader {
   // Returns the `Chain` being read from. Unchanged by `Close()`.
   virtual const Chain* src_chain() const = 0;
 
+  bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
   bool SupportsNewReader() override { return true; }
 

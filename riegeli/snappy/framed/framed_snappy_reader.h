@@ -44,6 +44,7 @@ class FramedSnappyReaderBase : public PullableReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
   bool SupportsNewReader() override;
 

@@ -40,14 +40,16 @@ ReaderCFileCookieBase::~ReaderCFileCookieBase() {}
 
 inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
   Reader& reader = *src_reader();
-  if (ABSL_PREDICT_FALSE(!reader.Pull(1, length))) {
-    if (ABSL_PREDICT_FALSE(!reader.ok())) {
-      errno = StatusCodeToErrno(reader.status().code());
-      return -1;
+  if (!reader.ToleratesReadingAhead()) {
+    if (ABSL_PREDICT_FALSE(!reader.Pull(1, length))) {
+      if (ABSL_PREDICT_FALSE(!reader.ok())) {
+        errno = StatusCodeToErrno(reader.status().code());
+        return -1;
+      }
+      return 0;
     }
-    return 0;
+    length = UnsignedMin(length, reader.available());
   }
-  length = UnsignedMin(length, reader.available());
   size_t length_read;
   if (ABSL_PREDICT_FALSE(!reader.Read(length, dest, &length_read)) &&
       length_read == 0 && ABSL_PREDICT_FALSE(!reader.ok())) {

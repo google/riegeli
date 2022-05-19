@@ -304,6 +304,14 @@ class Reader : public Object {
   //  * `false` - failure (`!ok()`)
   bool Sync(SyncType sync_type = SyncType::kFromProcess);
 
+  // Returns `true` if reading ahead more than needed is known to be tolerable.
+  // This is not the case e.g. when reading from an interactive stream.
+  //
+  // This can be used for optimizations, e.g. to fill a whole allocated buffer
+  // instead of a partial buffer, and thus avoid returning a `Chain` or `Cord`
+  // pointing to a partially empty block.
+  virtual bool ToleratesReadingAhead() { return false; }
+
   // Returns the current position.
   //
   // This is often 0 after creating the `Reader`, but not necessarily if the

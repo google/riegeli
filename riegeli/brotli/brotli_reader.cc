@@ -183,6 +183,11 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
   }
 }
 
+bool BrotliReaderBase::ToleratesReadingAhead() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->ToleratesReadingAhead();
+}
+
 bool BrotliReaderBase::SupportsRewind() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRewind();
