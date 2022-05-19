@@ -195,8 +195,8 @@ class LimitingWriterBase : public Writer {
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
   // This template is defined and used only in limiting_writer.cc.
-  template <typename Src>
-  bool WriteInternal(Src&& src);
+  template <typename Src, typename RemoveSuffix>
+  bool WriteInternal(Src&& src, RemoveSuffix&& remove_suffix);
 
   // Invariants if `ok()`:
   //   `start() == dest_writer()->start()`
@@ -205,7 +205,8 @@ class LimitingWriterBase : public Writer {
 };
 
 // A `Writer` which writes to another `Writer` up to the specified size limit.
-// An attempt to write more fails, leaving destination contents unspecified.
+// An attempt to write more fails, after writing to the destination everything
+// up to the limit.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the original `Writer`. `Dest` must support

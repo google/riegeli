@@ -189,8 +189,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
   // This template is defined and used only in limiting_backward_writer.cc.
-  template <typename Src>
-  bool WriteInternal(Src&& src);
+  template <typename Src, typename RemovePrefix>
+  bool WriteInternal(Src&& src, RemovePrefix&& remove_prefix);
 
   // Invariants if `ok()`:
   //   `start() == dest_writer()->start()`
@@ -199,8 +199,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 };
 
 // A `BackwardWriter` which writes to another `BackwardWriter` up to the
-// specified size limit. An attempt to write more fails, leaving destination
-// contents unspecified.
+// specified size limit. An attempt to write more fails, after writing to the
+// destination everything up to the limit.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the original `BackwardWriter`. `Dest` must support

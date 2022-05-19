@@ -45,6 +45,8 @@ void LimitingWriterBase::Done() {
 }
 
 bool LimitingWriterBase::FailLimitExceeded(Writer& dest) {
+  set_start_pos(max_pos_);
+  set_buffer();
   // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the buffer
   // again.
   return FailWithoutAnnotation(dest.AnnotateStatus(
@@ -88,51 +90,77 @@ bool LimitingWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
-  return WriteInternal(src);
+  return WriteInternal(src, [](absl::string_view src, size_t length) {
+    src.remove_suffix(length);
+    return src;
+  });
 }
 
 bool LimitingWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
-  return WriteInternal(src);
+  return WriteInternal(src, [](const Chain& src, size_t length) {
+    Chain result = src;
+    result.RemoveSuffix(length);
+    return result;
+  });
 }
 
 bool LimitingWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  return WriteInternal(std::move(src));
+  return WriteInternal(std::move(src),
+                       [](Chain&& src, size_t length) -> Chain&& {
+                         src.RemoveSuffix(length);
+                         return std::move(src);
+                       });
 }
 
 bool LimitingWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  return WriteInternal(src);
+  return WriteInternal(src, [](const absl::Cord& src, size_t length) {
+    absl::Cord result = src;
+    result.RemoveSuffix(length);
+    return result;
+  });
 }
 
 bool LimitingWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  return WriteInternal(std::move(src));
+  return WriteInternal(std::move(src),
+                       [](absl::Cord&& src, size_t length) -> absl::Cord&& {
+                         src.RemoveSuffix(length);
+                         return std::move(src);
+                       });
 }
 
-template <typename Src>
-inline bool LimitingWriterBase::WriteInternal(Src&& src) {
+template <typename Src, typename RemoveSuffix>
+inline bool LimitingWriterBase::WriteInternal(Src&& src,
+                                              RemoveSuffix&& remove_suffix) {
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
-    return FailLimitExceeded(dest);
+  const Position max_length = max_pos_ - pos();
+  if (ABSL_PREDICT_TRUE(src.size() <= max_length)) {
+    const bool write_ok = dest.Write(std::forward<Src>(src));
+    MakeBuffer(dest);
+    return write_ok;
   }
-  const bool write_ok = dest.Write(std::forward<Src>(src));
-  MakeBuffer(dest);
-  return write_ok;
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::forward<RemoveSuffix>(remove_suffix)(
+          std::forward<Src>(src), src.size() - max_length)))) {
+    MakeBuffer(dest);
+    return false;
+  }
+  return FailLimitExceeded(dest);
 }
 
 bool LimitingWriterBase::WriteZerosSlow(Position length) {
@@ -142,12 +170,17 @@ bool LimitingWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
-    return FailLimitExceeded(dest);
+  const Position max_length = max_pos_ - pos();
+  if (ABSL_PREDICT_FALSE(length <= max_pos_ - pos())) {
+    const bool write_ok = dest.WriteZeros(length);
+    MakeBuffer(dest);
+    return write_ok;
   }
-  const bool write_ok = dest.WriteZeros(length);
-  MakeBuffer(dest);
-  return write_ok;
+  if (ABSL_PREDICT_FALSE(!dest.WriteZeros(max_length))) {
+    MakeBuffer(dest);
+    return false;
+  }
+  return FailLimitExceeded(dest);
 }
 
 bool LimitingWriterBase::SupportsRandomAccess() {
@@ -184,8 +217,7 @@ absl::optional<Position> LimitingWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
   const absl::optional<Position> size = dest.Size();
   MakeBuffer(dest);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
-  return UnsignedMin(*size, max_pos_);
+  return size;
 }
 
 bool LimitingWriterBase::SupportsTruncate() {
@@ -196,6 +228,9 @@ bool LimitingWriterBase::SupportsTruncate() {
 bool LimitingWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_) && new_size <= max_pos_) {
+    set_cursor(cursor() - IntCast<size_t>(pos() - max_pos_));
+  }
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
