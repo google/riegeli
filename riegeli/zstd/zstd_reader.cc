@@ -197,10 +197,6 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                            std::numeric_limits<Position>::max() - limit_pos());
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
-    if (ABSL_PREDICT_FALSE(output.pos == output.size)) {
-      move_limit_pos(output.pos);
-      return FailOverflow();
-    }
     ZSTD_inBuffer input = {src.cursor(), src.available(), 0};
     const size_t result =
         ZSTD_decompressStream(decompressor_.get(), &output, &input);
