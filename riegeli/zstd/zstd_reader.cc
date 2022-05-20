@@ -35,6 +35,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
+#include "base/logging.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -222,9 +223,19 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       move_limit_pos(output.pos);
       return true;
     }
-    RIEGELI_ASSERT_EQ(input.pos, input.size)
-        << "ZSTD_decompressStream() returned but there are still input data "
-           "and output space";
+    if (ABSL_PREDICT_FALSE(input.pos < input.size)) {
+      RIEGELI_ASSERT_EQ(output.pos, output.size)
+          << "ZSTD_decompressStream() returned but there are still "
+             "input data and output space";
+      RIEGELI_ASSERT_EQ(output.pos,
+                        std::numeric_limits<Position>::max() - limit_pos())
+          << "The position does not overflow but the output buffer is full, "
+             "while less than min_length was output, which implies that "
+             "ZSTD_decompressStream() wants to output more than the "
+             "expected decompressed size to a flat buffer";
+      move_limit_pos(output.pos);
+      return FailOverflow();
+    }
     if (ABSL_PREDICT_FALSE(!src.Pull(1, result))) {
       move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src.ok())) {

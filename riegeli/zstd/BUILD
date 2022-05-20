@@ -14,6 +14,7 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":zstd_dictionary",
+        "//base:logging",
         "//riegeli/base",
         "//riegeli/base:recycling_pool",
         "//riegeli/base:status",

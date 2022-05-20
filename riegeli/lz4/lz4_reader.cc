@@ -199,7 +199,6 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   max_length = UnsignedMin(max_length,
                            std::numeric_limits<Position>::max() - limit_pos());
   for (;;) {
-    if (ABSL_PREDICT_FALSE(max_length == 0)) return FailOverflow();
     size_t src_length = src.available();
     size_t dest_length = max_length;
     const size_t result = LZ4F_decompress_usingDict(
@@ -218,9 +217,18 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return dest_length >= min_length;
     }
     if (dest_length >= effective_min_length) return true;
-    RIEGELI_ASSERT_EQ(src.available(), 0u)
-        << "LZ4F_decompress_usingDict() returned but there are still "
-           "input data and output space";
+    if (ABSL_PREDICT_FALSE(src.available() > 0)) {
+      RIEGELI_ASSERT_EQ(dest_length, max_length)
+          << "LZ4F_decompress_usingDict() returned but there are still "
+             "input data and output space";
+      RIEGELI_ASSERT_EQ(dest_length,
+                        std::numeric_limits<Position>::max() - limit_pos())
+          << "The position does not overflow but the output buffer is full, "
+             "while less than min_length was output, which implies that "
+             "LZ4F_decompress_usingDict() wants to output more than the "
+             "expected decompressed size to a flat buffer";
+      return FailOverflow();
+    }
     if (ABSL_PREDICT_FALSE(!src.Pull(1, result))) {
       if (ABSL_PREDICT_FALSE(!src.ok())) {
         FailWithoutAnnotation(AnnotateOverSrc(src.status()));
