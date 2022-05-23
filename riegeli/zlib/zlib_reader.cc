@@ -184,9 +184,6 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
   for (;;) {
     decompressor_->avail_out = SaturatingIntCast<uInt>(PtrDistance(
         reinterpret_cast<char*>(decompressor_->next_out), dest + max_length));
-    if (ABSL_PREDICT_FALSE(decompressor_->avail_out == 0)) {
-      return FailOverflow();
-    }
     decompressor_->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src.cursor()));
     decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());
@@ -200,8 +197,19 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         if (length_read >= min_length) break;
         ABSL_FALLTHROUGH_INTENDED;
       case Z_BUF_ERROR:
-        RIEGELI_ASSERT_EQ(decompressor_->avail_in, 0u)
-            << "inflate() returned but there are still input data";
+        if (ABSL_PREDICT_FALSE(decompressor_->avail_in > 0)) {
+          RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)
+              << "inflate() returned but there are still "
+                 "input data and output space";
+          RIEGELI_ASSERT_EQ(length_read,
+                            std::numeric_limits<Position>::max() - limit_pos())
+              << "The position does not overflow but the output buffer is "
+                 "full, while less than min_length was output, which is "
+                 "impossible because the buffer has size max_length which is "
+                 "at least min_length if the position does not overflow";
+          move_limit_pos(length_read);
+          return FailOverflow();
+        }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           move_limit_pos(length_read);
           if (ABSL_PREDICT_FALSE(!src.ok())) {
