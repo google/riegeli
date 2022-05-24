@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/any_dependency.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -223,16 +224,15 @@ absl::Status DescribeTransposedChunk(
     // Based on `ChunkDecoder::Parse()`.
     src.Seek(0);
     TransposeDecoder transpose_decoder;
-    ChainBackwardWriter<Chain> chain_dest_writer(kClosed);
-    NullBackwardWriter null_dest_writer(kClosed);
-    BackwardWriter* dest_writer;
+    Chain dest;
+    AnyDependency<BackwardWriter*, ChainBackwardWriter<>, NullBackwardWriter>
+        dest_writer;
     if (show_records) {
-      chain_dest_writer.Reset(ChainBackwardWriterBase::Options().set_size_hint(
-          chunk.header.decoded_data_size()));
-      dest_writer = &chain_dest_writer;
+      dest_writer.Emplace<ChainBackwardWriter<>>(
+          &dest, ChainBackwardWriterBase::Options().set_size_hint(
+                     chunk.header.decoded_data_size()));
     } else {
-      null_dest_writer.Reset();
-      dest_writer = &null_dest_writer;
+      dest_writer.Emplace<NullBackwardWriter>();
     }
     std::vector<size_t> limits;
     const bool decode_ok = transpose_decoder.Decode(
@@ -258,7 +258,7 @@ absl::Status DescribeTransposedChunk(
     }
 
     if (show_records) {
-      ChainReader<> records_reader(&chain_dest_writer.dest());
+      ChainReader<> records_reader(&dest);
       {
         absl::Status status = ReadRecords(records_reader, limits,
                                           *transposed_chunk.mutable_records());
