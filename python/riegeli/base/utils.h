@@ -256,6 +256,8 @@ class ImportedCapsuleBase {
   explicit constexpr ImportedCapsuleBase(const char* capsule_name)
       : capsule_name_(capsule_name) {}
 
+  ~ImportedCapsuleBase() = default;
+
   bool ImportValue() const;
 
   mutable void* value_ = nullptr;

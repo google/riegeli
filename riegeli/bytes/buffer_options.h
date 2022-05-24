@@ -188,6 +188,9 @@ class BufferOptionsBase {
   BufferOptions& buffer_options() { return buffer_options_; }
   const BufferOptions& buffer_options() const { return buffer_options_; }
 
+ protected:
+  ~BufferOptionsBase() = default;
+
  private:
   BufferOptions buffer_options_;
 };

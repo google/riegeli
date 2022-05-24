@@ -245,6 +245,9 @@ class DependencyBase {
   Manager& manager() { return manager_; }
   const Manager& manager() const { return manager_; }
 
+ protected:
+  ~DependencyBase() = default;
+
  private:
   template <typename... ManagerArgs, size_t... indices>
   explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
@@ -339,6 +342,9 @@ class DependencyBase<Manager&> {
 
   Manager& manager() const { return manager_; }
 
+ protected:
+  ~DependencyBase() = default;
+
  private:
   Manager& manager_;
 };
@@ -357,6 +363,9 @@ class DependencyBase<Manager&&> {
   DependencyBase& operator=(DependencyBase&&) = delete;
 
   Manager& manager() const { return manager_; }
+
+ protected:
+  ~DependencyBase() = default;
 
  private:
   Manager& manager_;

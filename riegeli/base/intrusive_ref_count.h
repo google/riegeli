@@ -173,6 +173,9 @@ class RefCountedBase {
   // Returns `true` if there is only one owner of the object.
   bool has_unique_owner() const;
 
+ protected:
+  ~RefCountedBase() = default;
+
  private:
   mutable std::atomic<size_t> ref_count_{1};
 };
