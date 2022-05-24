@@ -47,8 +47,7 @@ bool TFRecordRecognizer::CheckFileFormat(
     record_reader_options.zlib_options =
         tensorflow::io::ZlibCompressionOptions::DEFAULT();
     record_reader_options.zlib_options.window_bits = 32;
-    reader.Reset(absl::in_place_type<ZlibReader<>>,
-                 std::forward_as_tuple(byte_reader_));
+    reader.Emplace<ZlibReader<>>(byte_reader_);
   } else {
     record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::NONE;

@@ -251,6 +251,15 @@ class AnyDependencyImpl {
   template <typename Manager, typename ManagerArg>
   void Reset(absl::in_place_type_t<Manager>, ManagerArg&& manager_arg);
 
+  // Holds a `Dependency<Ptr, Manager>`.
+  //
+  // The `Manager` is constructed from the given constructor arguments.
+  //
+  // Same as `Reset(absl::in_place_type<Manager>,
+  //                std::forward_as_tuple(manager_args...))`.
+  template <typename Manager, typename... ManagerArgs>
+  void Emplace(ManagerArgs&&... manager_args);
+
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
   // `AnyDependencyImpl`.
   //
@@ -706,6 +715,15 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
     absl::in_place_type_t<Manager>, ManagerArg&& manager_arg) {
   methods_->destroy(repr_.storage);
   Initialize<Manager>(std::forward<ManagerArg>(manager_arg));
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Manager, typename... ManagerArgs>
+inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
+    ManagerArgs&&... manager_args) {
+  methods_->destroy(repr_.storage);
+  Initialize<Manager>(
+      std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>

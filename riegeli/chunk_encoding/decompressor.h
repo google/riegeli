@@ -199,21 +199,17 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      decompressed_.Reset(
-          absl::in_place_type<BrotliReader<Src>>,
-          std::forward_as_tuple(std::move(compressed_reader.manager())));
+      decompressed_.template Emplace<BrotliReader<Src>>(
+          std::move(compressed_reader.manager()));
       return;
     case CompressionType::kZstd:
-      decompressed_.Reset(
-          absl::in_place_type<ZstdReader<Src>>,
-          std::forward_as_tuple(
-              std::move(compressed_reader.manager()),
-              ZstdReaderBase::Options().set_size_hint(uncompressed_size)));
+      decompressed_.template Emplace<ZstdReader<Src>>(
+          std::move(compressed_reader.manager()),
+          ZstdReaderBase::Options().set_size_hint(uncompressed_size));
       return;
     case CompressionType::kSnappy:
-      decompressed_.Reset(
-          absl::in_place_type<SnappyReader<Src>>,
-          std::forward_as_tuple(std::move(compressed_reader.manager())));
+      decompressed_.template Emplace<SnappyReader<Src>>(
+          std::move(compressed_reader.manager()));
       return;
   }
   Fail(absl::UnimplementedError(absl::StrCat(
