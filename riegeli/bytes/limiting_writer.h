@@ -138,7 +138,7 @@ class LimitingWriterBase : public Writer {
   //
   // If no limit is set, returns `std::numeric_limits<Position>::max() - pos()`.
   void set_max_length(Position max_length);
-  Position max_length() const;
+  Position max_length() const { return SaturatingSub(max_pos_, pos()); }
 
   // Clears the limit.
   void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
@@ -367,13 +367,6 @@ inline void LimitingWriterBase::set_max_length(Position max_length) {
     return;
   }
   max_pos_ = pos() + max_length;
-}
-
-inline Position LimitingWriterBase::max_length() const {
-  RIEGELI_ASSERT_GE(max_pos_, pos())
-      << "Failed invariant of LimitingWriterBase: "
-         "position already exceeds its limit";
-  return max_pos_ - pos();
 }
 
 inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
