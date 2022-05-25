@@ -84,6 +84,11 @@ inline bool SplittingWriterBase::OpenShardInternal() {
       << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
          "shard not opened";
   shard_pos_limit_ = SaturatingAdd(start_pos(), *size_limit);
+  if (size_hint_ != absl::nullopt) {
+    Writer* shard = shard_writer();
+    shard->SetWriteSizeHint(
+        SaturatingSub(UnsignedMin(*size_hint_, shard_pos_limit_), start_pos()));
+  }
   return true;
 }
 
@@ -149,6 +154,25 @@ absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
     return Annotate(status, absl::StrCat("across shards at byte ", pos()));
   }
   return status;
+}
+
+void SplittingWriterBase::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  size_hint_ =
+      write_size_hint == absl::nullopt
+          ? absl::nullopt
+          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  Writer* shard = shard_writer();
+  if (!shard_is_open(shard)) return;
+  BehindScratch behind_scratch(this);
+  SyncBuffer(*shard);
+  shard->SetWriteSizeHint(
+      size_hint_ == absl::nullopt
+          ? absl::nullopt
+          : absl::make_optional(SaturatingSub(
+                UnsignedMin(*size_hint_, shard_pos_limit_), start_pos())));
+  MakeBuffer(*shard);
 }
 
 bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {

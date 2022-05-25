@@ -63,7 +63,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const size_t available_length = available();
   size_t cursor_index = start_to_cursor();
   const size_t buffer_length =
-      buffer_sizer_.ReadBufferLength(pos(), min_length, recommended_length);
+      buffer_sizer_.BufferLength(pos(), min_length, recommended_length);
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(
       0, buffer_length - available_length,
       SaturatingAdd(buffer_length, buffer_length) - available_length);
@@ -162,7 +162,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
@@ -227,7 +227,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
@@ -289,7 +289,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {

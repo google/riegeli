@@ -39,6 +39,26 @@ void StringWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+void StringWriterBase::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
+  std::string& dest = *dest_string();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
+      << "StringWriter destination changed unexpectedly";
+  const size_t size_hint =
+      UnsignedMin(SaturatingAdd(pos(), *write_size_hint), dest.max_size());
+  if (secondary_buffer_.empty()) {
+    SyncDestBuffer(dest);
+    if (dest.capacity() < size_hint) dest.reserve(size_hint);
+  } else {
+    if (dest.capacity() < size_hint) dest.reserve(size_hint);
+    SyncSecondaryBuffer();
+    std::move(secondary_buffer_).AppendTo(dest);
+    secondary_buffer_.Clear();
+  }
+  MakeDestBuffer(dest);
+}
+
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "

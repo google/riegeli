@@ -65,12 +65,12 @@ class PrefixLimitingWriterBase : public Writer {
     absl::optional<Position> base_pos_;
   };
 
-  // Returns the base position of the origial `Writer`.
-  Position base_pos() const { return base_pos_; }
-
   // Returns the original `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
+
+  // Returns the base position of the origial `Writer`.
+  Position base_pos() const { return base_pos_; }
 
   bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
@@ -178,6 +178,8 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
 
  protected:
   void Done() override;
@@ -355,6 +357,17 @@ void PrefixLimitingWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
+  }
+}
+
+template <typename Dest>
+void PrefixLimitingWriter<Dest>::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  if (dest_.is_owning()) {
+    dest_->SetWriteSizeHint(
+        write_size_hint == absl::nullopt
+            ? absl::nullopt
+            : absl::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
   }
 }
 

@@ -36,6 +36,9 @@ namespace riegeli {
 
 // Template parameter independent part of `SplittingWriter`.
 class SplittingWriterBase : public PushableWriter {
+ public:
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
+
  protected:
   using PushableWriter::PushableWriter;
 
@@ -152,6 +155,8 @@ class SplittingWriterBase : public PushableWriter {
   template <typename SrcReader, typename Src>
   bool WriteInternal(Src&& src);
 
+  absl::optional<Position> size_hint_;
+
   // The limit of `pos()` for data written to the current shard.
   Position shard_pos_limit_ = 0;
 
@@ -203,22 +208,26 @@ class SplittingWriter : public SplittingWriterBase {
 inline SplittingWriterBase::SplittingWriterBase(
     SplittingWriterBase&& that) noexcept
     : PushableWriter(static_cast<PushableWriter&&>(that)),
+      size_hint_(that.size_hint_),
       shard_pos_limit_(that.shard_pos_limit_) {}
 
 inline SplittingWriterBase& SplittingWriterBase::operator=(
     SplittingWriterBase&& that) noexcept {
   PushableWriter::operator=(static_cast<PushableWriter&&>(that));
+  size_hint_ = that.size_hint_;
   shard_pos_limit_ = that.shard_pos_limit_;
   return *this;
 }
 
 inline void SplittingWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
+  size_hint_ = absl::nullopt;
   shard_pos_limit_ = 0;
 }
 
 inline void SplittingWriterBase::Reset() {
   PushableWriter::Reset();
+  size_hint_ = absl::nullopt;
   shard_pos_limit_ = 0;
 }
 

@@ -108,7 +108,12 @@ class FileReaderBase : public Reader {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  bool ToleratesReadingAhead() override { return !filename_.empty(); }
+  void SetReadAllHint(bool read_all_hint) override {
+    buffer_sizer_.set_read_all_hint(read_all_hint);
+  }
+  bool ToleratesReadingAhead() override {
+    return buffer_sizer_.read_all_hint() || !filename_.empty();
+  }
   bool SupportsRandomAccess() override { return !filename_.empty(); }
   bool SupportsNewReader() override { return !filename_.empty(); }
 
@@ -148,8 +153,12 @@ class FileReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  void StoreSize(Position size);
-  absl::optional<Position> exact_size() const;
+  void set_exact_size(absl::optional<Position> exact_size) {
+    buffer_sizer_.set_exact_size(exact_size);
+  }
+  absl::optional<Position> exact_size() const {
+    return buffer_sizer_.exact_size();
+  }
 
   // Discards buffer contents.
   void SyncBuffer();
@@ -182,8 +191,7 @@ class FileReaderBase : public Reader {
   //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
   bool growing_source_ = false;
-  bool size_hint_is_exact_ = false;
-  BufferSizer buffer_sizer_;
+  ReadBufferSizer buffer_sizer_;
   // If `buffer_` is not empty, it contains buffered data, read directly before
   // the physical source position which is `limit_pos()`. Otherwise buffered
   // data are in memory managed by the `::tensorflow::RandomAccessFile`. In any
@@ -304,7 +312,6 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
       env_(that.env_),
       file_system_(that.file_system_),
       growing_source_(that.growing_source_),
-      size_hint_is_exact_(that.size_hint_is_exact_),
       buffer_sizer_(that.buffer_sizer_),
       buffer_(std::move(that.buffer_)) {}
 
@@ -315,7 +322,6 @@ inline FileReaderBase& FileReaderBase::operator=(
   env_ = that.env_;
   file_system_ = that.file_system_;
   growing_source_ = that.growing_source_;
-  size_hint_is_exact_ = that.size_hint_is_exact_;
   buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
@@ -327,7 +333,6 @@ inline void FileReaderBase::Reset(Closed) {
   env_ = nullptr;
   file_system_ = nullptr;
   growing_source_ = false;
-  size_hint_is_exact_ = false;
   buffer_sizer_.Reset();
   buffer_ = ChainBlock();
 }
@@ -339,7 +344,6 @@ inline void FileReaderBase::Reset(const BufferOptions& buffer_options,
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
   growing_source_ = growing_source;
-  size_hint_is_exact_ = false;
   buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();
 }

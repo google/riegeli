@@ -45,16 +45,12 @@ class HadoopSnappyWriterBase : public PushableWriter {
    public:
     Options() noexcept {}
 
-    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
-    // improve performance and memory usage.
-    //
-    // If the size hint turns out to not match reality, nothing breaks.
-    //
-    // Default: `absl::nullopt`.
+    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
+    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
     Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
@@ -68,6 +64,12 @@ class HadoopSnappyWriterBase : public PushableWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    size_hint_ =
+        write_size_hint == absl::nullopt
+            ? absl::nullopt
+            : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  }
   bool SupportsReadMode() override;
 
  protected:

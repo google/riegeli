@@ -197,6 +197,8 @@ class BrotliReader : public BrotliReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
+  void SetReadAllHint(bool read_all_hint) override;
+
  protected:
   void Done() override;
   void VerifyEndImpl() override;
@@ -347,6 +349,11 @@ void BrotliReader<Src>::Done() {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
   }
+}
+
+template <typename Src>
+void BrotliReader<Src>::SetReadAllHint(bool read_all_hint) {
+  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>

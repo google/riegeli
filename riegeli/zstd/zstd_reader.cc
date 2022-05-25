@@ -119,8 +119,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
       return;
     }
   }
-  uncompressed_size_ = ZstdUncompressedSize(src);
-  if (uncompressed_size_ != absl::nullopt) set_size_hint(*uncompressed_size_);
+  set_exact_size(ZstdUncompressedSize(src));
   just_initialized_ = true;
 }
 
@@ -179,15 +178,13 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *src_reader();
   truncated_ = false;
-  if (just_initialized_ && uncompressed_size_ == absl::nullopt) {
+  if (just_initialized_ && exact_size() == absl::nullopt) {
     // Try again in case the source has grown.
-    uncompressed_size_ = ZstdUncompressedSize(src);
-    if (uncompressed_size_ != absl::nullopt) set_size_hint(*uncompressed_size_);
+    set_exact_size(ZstdUncompressedSize(src));
   }
   size_t effective_min_length = min_length;
-  if (just_initialized_ && !growing_source_ &&
-      uncompressed_size_ != absl::nullopt &&
-      max_length >= *uncompressed_size_) {
+  if (just_initialized_ && !growing_source_ && exact_size() != absl::nullopt &&
+      max_length >= *exact_size()) {
     // Avoid a memory copy from an internal buffer of the Zstd engine to `dest`
     // by promising to decompress all remaining data to `dest`.
     const size_t result =
@@ -289,12 +286,12 @@ bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
 
 absl::optional<Position> ZstdReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(uncompressed_size_ == absl::nullopt)) {
+  if (ABSL_PREDICT_FALSE(exact_size() == absl::nullopt)) {
     Fail(absl::UnimplementedError(
         "Uncompressed size was not stored in the Zstd-compressed stream"));
     return absl::nullopt;
   }
-  return *uncompressed_size_;
+  return *exact_size();
 }
 
 bool ZstdReaderBase::SupportsNewReader() {

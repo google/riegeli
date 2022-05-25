@@ -105,6 +105,7 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
   preferences_.frameInfo.blockChecksumFlag =
       store_block_checksum ? LZ4F_blockChecksumEnabled : LZ4F_noBlockChecksum;
 
+  BufferedWriter::SetWriteSizeHint(pledged_size_);
   if (ABSL_PREDICT_FALSE(!dest->Push(LZ4F_HEADER_SIZE_MAX))) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
@@ -277,8 +278,7 @@ Reader* Lz4WriterBase::ReadModeBehindBuffer(Position initial_pos) {
   Lz4Reader<>* const reader = associated_reader_.ResetReader(
       compressed_reader, Lz4ReaderBase::Options()
                              .set_dictionary(dictionary_)
-                             .set_buffer_options(buffer_options())
-                             .set_size_hint(pos()));
+                             .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
 }

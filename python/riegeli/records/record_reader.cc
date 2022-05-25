@@ -256,7 +256,6 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
                                              "min_buffer_size",
                                              "max_buffer_size",
                                              "buffer_size",
-                                             "size_hint",
                                              "field_projection",
                                              "recovery",
                                              nullptr};
@@ -266,14 +265,12 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
   PyObject* min_buffer_size_arg = nullptr;
   PyObject* max_buffer_size_arg = nullptr;
   PyObject* buffer_size_arg = nullptr;
-  PyObject* size_hint_arg = nullptr;
   PyObject* field_projection_arg = nullptr;
   PyObject* recovery_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O|$OOOOOOOO:RecordReader",
-          const_cast<char**>(keywords), &src_arg, &owns_src_arg,
-          &assumed_pos_arg, &min_buffer_size_arg, &max_buffer_size_arg,
-          &buffer_size_arg, &size_hint_arg, &field_projection_arg,
+          args, kwargs, "O|$OOOOOOO:RecordReader", const_cast<char**>(keywords),
+          &src_arg, &owns_src_arg, &assumed_pos_arg, &min_buffer_size_arg,
+          &max_buffer_size_arg, &buffer_size_arg, &field_projection_arg,
           &recovery_arg))) {
     return -1;
   }
@@ -305,12 +302,6 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
         SizeFromPython(max_buffer_size_arg);
     if (ABSL_PREDICT_FALSE(max_buffer_size == absl::nullopt)) return -1;
     python_reader_options.set_max_buffer_size(*max_buffer_size);
-  }
-  if (size_hint_arg != nullptr && size_hint_arg != Py_None) {
-    const absl::optional<Position> size_hint =
-        PositionFromPython(size_hint_arg);
-    if (ABSL_PREDICT_FALSE(size_hint == absl::nullopt)) return -1;
-    python_reader_options.set_size_hint(*size_hint);
   }
 
   RecordReaderBase::Options record_reader_options;
@@ -1210,7 +1201,6 @@ RecordReader(
     min_buffer_size: int = 4 << 10,
     max_buffer_size: int = 64 << 10,
     buffer_size: Optional[int],
-    size_hint: Optional[int] = None,
     field_projection: Optional[Iterable[Iterable[int]]] = None,
     recovery: Optional[Callable[[SkippedRegion], Any]] = None) -> RecordReader
 
@@ -1231,9 +1221,6 @@ Args:
     min_buffer_size and max_buffer_size depending on the access pattern.
   buffer_size: If not None, a shortcut for setting min_buffer_size and
     max_buffer_size to the same value.
-  size_hint: Expected maximum position reached, or None if unknown. This may
-    improve performance and memory usage. If the size hint turns out to not
-    match reality, nothing breaks.
   field_projection: If not None, the set of fields to be included in returned
     records, allowing to exclude the remaining fields (but does not guarantee
     that they will be excluded). Excluding data makes reading faster. Projection

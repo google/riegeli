@@ -38,7 +38,8 @@ namespace riegeli {
 namespace messages_internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer& dest, SerializeOptions options) {
+                                   Writer& dest, SerializeOptions options,
+                                   bool set_write_hint) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -49,6 +50,7 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
         "Failed to serialize message of type ", src.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size)));
   }
+  if (set_write_hint) dest.SetWriteSizeHint(size);
   WriterOutputStream output_stream(&dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
   coded_stream.SetSerializationDeterministic(options.deterministic());
@@ -71,27 +73,17 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest, SerializeOptions options) {
-  const size_t size = options.GetByteSize(src);
-  return SerializeToWriter(
-      src,
-      StringWriter<>(&dest, StringWriterBase::Options().set_size_hint(size)),
-      options);
+  return SerializeToWriter(src, StringWriter<>(&dest), options);
 }
 
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
                               Chain& dest, SerializeOptions options) {
-  const size_t size = options.GetByteSize(src);
-  return SerializeToWriter(
-      src, ChainWriter<>(&dest, ChainWriterBase::Options().set_size_hint(size)),
-      options);
+  return SerializeToWriter(src, ChainWriter<>(&dest), options);
 }
 
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
                              absl::Cord& dest, SerializeOptions options) {
-  const size_t size = options.GetByteSize(src);
-  return SerializeToWriter(
-      src, CordWriter<>(&dest, CordWriterBase::Options().set_size_hint(size)),
-      options);
+  return SerializeToWriter(src, CordWriter<>(&dest), options);
 }
 
 bool WriterOutputStream::Next(void** data, int* size) {

@@ -84,7 +84,9 @@ class IStreamReaderBase : public BufferedReader {
   virtual std::istream* src_stream() = 0;
   virtual const std::istream* src_stream() const = 0;
 
-  bool ToleratesReadingAhead() override { return supports_random_access(); }
+  bool ToleratesReadingAhead() override {
+    return read_all_hint() || supports_random_access();
+  }
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:
@@ -111,14 +113,10 @@ class IStreamReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  void StoreSize(Position size);
-  absl::optional<Position> exact_size() const;
-
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool growing_source_ = false;
-  bool size_hint_is_exact_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -225,15 +223,13 @@ inline IStreamReaderBase::IStreamReaderBase(const BufferOptions& buffer_options,
 inline IStreamReaderBase::IStreamReaderBase(IStreamReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       supports_random_access_(that.supports_random_access_),
-      growing_source_(that.growing_source_),
-      size_hint_is_exact_(that.size_hint_is_exact_) {}
+      growing_source_(that.growing_source_) {}
 
 inline IStreamReaderBase& IStreamReaderBase::operator=(
     IStreamReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   supports_random_access_ = that.supports_random_access_;
   growing_source_ = that.growing_source_;
-  size_hint_is_exact_ = that.size_hint_is_exact_;
   return *this;
 }
 
@@ -241,7 +237,6 @@ inline void IStreamReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = false;
-  size_hint_is_exact_ = false;
 }
 
 inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
@@ -249,7 +244,6 @@ inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
   BufferedReader::Reset(buffer_options);
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = growing_source;
-  size_hint_is_exact_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;

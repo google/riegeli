@@ -45,6 +45,9 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   ConcurrentReader(const ConcurrentReader&) = delete;
   ConcurrentReader& operator=(const ConcurrentReader&) = delete;
 
+  void SetReadAllHint(bool read_all_hint) override {
+    buffer_sizer_.set_read_all_hint(read_all_hint);
+  }
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override { return true; }
   bool SupportsNewReader() override { return true; }
@@ -72,7 +75,7 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool ReadSome() ABSL_SHARED_LOCKS_REQUIRED(shared_->mutex);
 
   Shared* shared_;
-  BufferSizer buffer_sizer_;
+  ReadBufferSizer buffer_sizer_;
   // Buffered data, read directly before the original position which is
   // `start_pos() + (secondary_buffer_.size() - iter_.CharIndexInChain())`
   // when scratch is not used.
@@ -129,9 +132,8 @@ inline bool ReaderFactoryBase::ConcurrentReader::ReadSome() {
     }
     return false;
   }
-  const size_t length =
-      UnsignedMin(shared_->reader->available(),
-                  buffer_sizer_.ReadBufferLength(limit_pos()));
+  const size_t length = UnsignedMin(shared_->reader->available(),
+                                    buffer_sizer_.BufferLength(limit_pos()));
   if (!shared_->reader->Read(length, secondary_buffer_)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Reader::Read() returned false "
                                     "even though enough data are available: "
@@ -479,6 +481,7 @@ bool ReaderFactoryBase::ConcurrentReader::SyncBehindScratch(
 }
 
 bool ReaderFactoryBase::ConcurrentReader::ToleratesReadingAhead() {
+  if (buffer_sizer_.read_all_hint()) return true;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::MutexLock l(&shared_->mutex);
   return shared_->reader->ToleratesReadingAhead();

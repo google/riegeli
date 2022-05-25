@@ -130,7 +130,9 @@ class CFileReaderBase : public BufferedReader {
   // `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  bool ToleratesReadingAhead() override { return supports_random_access(); }
+  bool ToleratesReadingAhead() override {
+    return read_all_hint() || supports_random_access();
+  }
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:
@@ -161,15 +163,11 @@ class CFileReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  void StoreSize(Position size);
-  absl::optional<Position> exact_size() const;
-
   std::string filename_;
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool growing_source_ = false;
-  bool size_hint_is_exact_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -291,8 +289,7 @@ inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
-      growing_source_(that.growing_source_),
-      size_hint_is_exact_(that.size_hint_is_exact_) {}
+      growing_source_(that.growing_source_) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
@@ -300,7 +297,6 @@ inline CFileReaderBase& CFileReaderBase::operator=(
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   growing_source_ = that.growing_source_;
-  size_hint_is_exact_ = that.size_hint_is_exact_;
   return *this;
 }
 
@@ -309,7 +305,6 @@ inline void CFileReaderBase::Reset(Closed) {
   filename_ = std::string();
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = false;
-  size_hint_is_exact_ = false;
 }
 
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
@@ -318,7 +313,6 @@ inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
   // `filename_` was set by `OpenFile()` or will be set by `Initialize()`.
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = growing_source;
-  size_hint_is_exact_ = false;
 }
 
 template <typename Src>

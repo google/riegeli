@@ -20,11 +20,13 @@
 #include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/buffer_options.h"
 
 namespace riegeli {
 
@@ -42,13 +44,19 @@ class NullBackwardWriter : public BackwardWriter {
   NullBackwardWriter(NullBackwardWriter&& that) noexcept;
   NullBackwardWriter& operator=(NullBackwardWriter&& that) noexcept;
 
-  using BackwardWriter::Reset;
+  // Makes `*this` equivalent to a newly constructed `NullBackwardWriter`. This
+  // avoids constructing a temporary `NullBackwardWriter` and moving from it.
+  void Reset(Closed);
+  void Reset();
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+  }
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
-  using BackwardWriter::Done;
+  void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;
@@ -63,6 +71,7 @@ class NullBackwardWriter : public BackwardWriter {
   // Ensures that the buffer has a sufficient size.
   bool MakeBuffer(size_t min_length = 0, size_t recommended_length = 0);
 
+  WriteBufferSizer buffer_sizer_;
   Buffer buffer_;
 };
 
@@ -71,13 +80,26 @@ class NullBackwardWriter : public BackwardWriter {
 inline NullBackwardWriter::NullBackwardWriter(
     NullBackwardWriter&& that) noexcept
     : BackwardWriter(static_cast<BackwardWriter&&>(that)),
+      buffer_sizer_(that.buffer_sizer_),
       buffer_(std::move(that.buffer_)) {}
 
 inline NullBackwardWriter& NullBackwardWriter::operator=(
     NullBackwardWriter&& that) noexcept {
   BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
+  buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
+}
+
+inline void NullBackwardWriter::Reset(Closed) {
+  BackwardWriter::Reset(kClosed);
+  buffer_sizer_.Reset();
+  buffer_ = Buffer();
+}
+
+inline void NullBackwardWriter::Reset() {
+  BackwardWriter::Reset();
+  buffer_sizer_.Reset();
 }
 
 }  // namespace riegeli

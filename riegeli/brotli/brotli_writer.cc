@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -83,16 +82,6 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
         "BrotliEncoderSetParameter(BROTLI_PARAM_QUALITY) failed"));
     return;
   }
-  // Reduce `window_log` if `size_hint` indicates that data will be smaller.
-  // TODO(eustas): Do this automatically in the Brotli engine.
-  if (size_hint() != absl::nullopt) {
-    // Constrain the argument of `bit_ceil()` from above, even though the result
-    // is constrained again, to avoid undefined behavior on overflow.
-    const int ceil_log2 = IntCast<int>(absl::bit_ceil(
-        UnsignedMin(*size_hint(), Position{1} << Options::kMaxWindowLog)));
-    window_log =
-        SignedMin(window_log, SignedMax(ceil_log2, Options::kMinWindowLog));
-  }
   if (ABSL_PREDICT_FALSE(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,
           uint32_t{window_log > BROTLI_MAX_WINDOW_BITS}))) {
@@ -122,10 +111,11 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (size_hint() != absl::nullopt) {
+  if (buffer_options().size_hint() != absl::nullopt) {
     // Ignore errors from tuning.
-    BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-                              SaturatingIntCast<uint32_t>(*size_hint()));
+    BrotliEncoderSetParameter(
+        compressor_.get(), BROTLI_PARAM_SIZE_HINT,
+        SaturatingIntCast<uint32_t>(*buffer_options().size_hint()));
   }
 }
 
@@ -162,6 +152,18 @@ absl::Status BrotliWriterBase::AnnotateOverDest(absl::Status status) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
+}
+
+void BrotliWriterBase::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  BufferedWriter::SetWriteSizeHint(write_size_hint);
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  // Ignore failure if compression already started.
+  BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
+                            write_size_hint == absl::nullopt
+                                ? 0
+                                : SaturatingIntCast<uint32_t>(
+                                      SaturatingAdd(pos(), *write_size_hint)));
 }
 
 bool BrotliWriterBase::WriteInternal(absl::string_view src) {

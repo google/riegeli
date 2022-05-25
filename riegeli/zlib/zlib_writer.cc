@@ -58,10 +58,6 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  // Do not reduce `window_log` based on `size_hint`. An unexpected reduction
-  // of `window_log` would break concatenation of compressed streams, because
-  // Zlib decompressor rejects `window_log` in a subsequent header greater than
-  // in the first header.
   compressor_ =
       KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global().Get(
           ZStreamKey{compression_level, window_bits_},
@@ -266,8 +262,7 @@ Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                                        : static_cast<ZlibReaderBase::Header>(
                                              window_bits_ & ~15))
           .set_dictionary(dictionary_)
-          .set_buffer_options(buffer_options())
-          .set_size_hint(pos()));
+          .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
 }

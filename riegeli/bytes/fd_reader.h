@@ -168,7 +168,9 @@ class FdReaderBase : public BufferedReader {
   // `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  bool ToleratesReadingAhead() override { return supports_random_access(); }
+  bool ToleratesReadingAhead() override {
+    return read_all_hint() || supports_random_access();
+  }
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsNewReader() override { return supports_random_access(); }
 
@@ -203,8 +205,6 @@ class FdReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  void StoreSize(Position size);
-  absl::optional<Position> exact_size() const;
   bool SeekInternal(int src, Position new_pos);
 
   std::string filename_;
@@ -213,7 +213,6 @@ class FdReaderBase : public BufferedReader {
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
   bool growing_source_ = false;
-  bool size_hint_is_exact_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -570,8 +569,7 @@ inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
-      growing_source_(that.growing_source_),
-      size_hint_is_exact_(that.size_hint_is_exact_) {}
+      growing_source_(that.growing_source_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
@@ -579,7 +577,6 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   growing_source_ = that.growing_source_;
-  size_hint_is_exact_ = that.size_hint_is_exact_;
   return *this;
 }
 
@@ -589,7 +586,6 @@ inline void FdReaderBase::Reset(Closed) {
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = false;
-  size_hint_is_exact_ = false;
 }
 
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
@@ -599,7 +595,6 @@ inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = growing_source;
-  size_hint_is_exact_ = false;
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)

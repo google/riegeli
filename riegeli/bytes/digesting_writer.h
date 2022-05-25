@@ -186,6 +186,8 @@ class DigestingWriter : public DigestingWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
+
  protected:
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
@@ -363,6 +365,12 @@ DigestingWriter<Digester, Dest>::Digest() {
     set_buffer(cursor(), available());
   }
   return digesting_internal::Digest(digester_);
+}
+
+template <typename Digester, typename Dest>
+void DigestingWriter<Digester, Dest>::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  if (dest_.is_owning()) dest_->SetWriteSizeHint(write_size_hint);
 }
 
 template <typename Digester, typename Dest>

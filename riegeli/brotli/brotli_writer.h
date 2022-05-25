@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -154,6 +155,7 @@ class BrotliWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
   bool SupportsReadMode() override;
 
  protected:

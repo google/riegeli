@@ -69,6 +69,10 @@ inline bool JoiningReaderBase::OpenShardInternal() {
   RIEGELI_ASSERT(shard_is_open())
       << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
          "shard not opened";
+  if (read_all_hint_) {
+    Reader* shard = shard_reader();
+    shard->SetReadAllHint(true);
+  }
   return true;
 }
 
@@ -132,6 +136,17 @@ absl::Status JoiningReaderBase::AnnotateOverShard(absl::Status status) {
     return Annotate(status, absl::StrCat("across shards at byte ", pos()));
   }
   return status;
+}
+
+void JoiningReaderBase::SetReadAllHint(bool read_all_hint) {
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  read_all_hint_ = read_all_hint;
+  Reader* shard = shard_reader();
+  if (!shard_is_open(shard)) return;
+  BehindScratch behind_scratch(this);
+  SyncBuffer(*shard);
+  shard->SetReadAllHint(read_all_hint_);
+  MakeBuffer(*shard);
 }
 
 bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {

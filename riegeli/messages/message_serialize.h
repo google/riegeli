@@ -180,7 +180,8 @@ inline size_t SerializeOptions::GetByteSize(
 namespace messages_internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer& dest, SerializeOptions options);
+                                   Writer& dest, SerializeOptions options,
+                                   bool set_write_hint);
 
 }  // namespace messages_internal
 
@@ -189,8 +190,8 @@ template <typename Dest,
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
-  absl::Status status =
-      messages_internal::SerializeToWriterImpl(src, *dest_ref, options);
+  absl::Status status = messages_internal::SerializeToWriterImpl(
+      src, *dest_ref, options, dest_ref.is_owning());
   if (dest_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
       status.Update(dest_ref->status());

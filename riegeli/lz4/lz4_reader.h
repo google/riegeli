@@ -103,7 +103,7 @@ class Lz4ReaderBase : public BufferedReader {
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
-  bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
+  bool SupportsSize() override { return exact_size() != absl::nullopt; }
   bool SupportsNewReader() override;
 
  protected:
@@ -162,8 +162,6 @@ class Lz4ReaderBase : public BufferedReader {
   // decompressed. In this case `LZ4F_decompress_usingDict()` must not be called
   // again.
   RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
-  // Uncompressed size, if known.
-  absl::optional<Position> uncompressed_size_;
 };
 
 // A `Reader` which decompresses data with Lz4 after getting it from another
@@ -213,6 +211,8 @@ class Lz4Reader : public Lz4ReaderBase {
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
+
+  void SetReadAllHint(bool read_all_hint) override;
 
  protected:
   void Done() override;
@@ -269,8 +269,7 @@ inline Lz4ReaderBase::Lz4ReaderBase(Lz4ReaderBase&& that) noexcept
       header_read_(that.header_read_),
       dictionary_(std::move(that.dictionary_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
-      decompressor_(std::move(that.decompressor_)),
-      uncompressed_size_(that.uncompressed_size_) {}
+      decompressor_(std::move(that.decompressor_)) {}
 
 inline Lz4ReaderBase& Lz4ReaderBase::operator=(Lz4ReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
@@ -280,7 +279,6 @@ inline Lz4ReaderBase& Lz4ReaderBase::operator=(Lz4ReaderBase&& that) noexcept {
   dictionary_ = std::move(that.dictionary_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
-  uncompressed_size_ = that.uncompressed_size_;
   return *this;
 }
 
@@ -292,7 +290,6 @@ inline void Lz4ReaderBase::Reset(Closed) {
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = Lz4Dictionary();
-  uncompressed_size_ = absl::nullopt;
 }
 
 inline void Lz4ReaderBase::Reset(const BufferOptions& buffer_options,
@@ -305,7 +302,6 @@ inline void Lz4ReaderBase::Reset(const BufferOptions& buffer_options,
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = std::move(dictionary);
-  uncompressed_size_ = absl::nullopt;
 }
 
 template <typename Src>
@@ -386,6 +382,12 @@ void Lz4Reader<Src>::Done() {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
   }
+}
+
+template <typename Src>
+void Lz4Reader<Src>::SetReadAllHint(bool read_all_hint) {
+  Lz4ReaderBase::SetReadAllHint(read_all_hint);
+  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>

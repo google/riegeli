@@ -104,7 +104,7 @@ class ZstdReaderBase : public BufferedReader {
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
-  bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
+  bool SupportsSize() override { return exact_size() != absl::nullopt; }
   bool SupportsNewReader() override;
 
  protected:
@@ -153,8 +153,6 @@ class ZstdReaderBase : public BufferedReader {
   // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
   RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
-  // Uncompressed size, if known.
-  absl::optional<Position> uncompressed_size_;
 };
 
 // A `Reader` which decompresses data with Zstd after getting it from another
@@ -204,6 +202,8 @@ class ZstdReader : public ZstdReaderBase {
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
+
+  void SetReadAllHint(bool read_all_hint) override;
 
  protected:
   void Done() override;
@@ -260,8 +260,7 @@ inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
       just_initialized_(that.just_initialized_),
       dictionary_(std::move(that.dictionary_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
-      decompressor_(std::move(that.decompressor_)),
-      uncompressed_size_(that.uncompressed_size_) {}
+      decompressor_(std::move(that.decompressor_)) {}
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
@@ -272,7 +271,6 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   dictionary_ = std::move(that.dictionary_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
-  uncompressed_size_ = that.uncompressed_size_;
   return *this;
 }
 
@@ -284,7 +282,6 @@ inline void ZstdReaderBase::Reset(Closed) {
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = ZstdDictionary();
-  uncompressed_size_ = absl::nullopt;
 }
 
 inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
@@ -297,7 +294,6 @@ inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = std::move(dictionary);
-  uncompressed_size_ = absl::nullopt;
 }
 
 template <typename Src>
@@ -378,6 +374,12 @@ void ZstdReader<Src>::Done() {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
   }
+}
+
+template <typename Src>
+void ZstdReader<Src>::SetReadAllHint(bool read_all_hint) {
+  ZstdReaderBase::SetReadAllHint(read_all_hint);
+  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>

@@ -39,6 +39,15 @@ class Writer;
 // `BufferedReader` accumulates data which has been pulled in a flat buffer.
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
+ public:
+  void SetReadAllHint(bool read_all_hint) override {
+    buffer_sizer_.set_read_all_hint(read_all_hint);
+  }
+  // Derived classes which override `ToleratesReadingAhead()` further should
+  // return `true` when `read_all_hint()` is `true`, and possibly also in some
+  // other cases.
+  bool ToleratesReadingAhead() override { return read_all_hint(); }
+
  protected:
   // Creates a closed `BufferedReader`.
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
@@ -61,12 +70,22 @@ class BufferedReader : public Reader {
     return buffer_sizer_.buffer_options();
   }
 
-  // Provides access to `size_hint()` after construction.
-  void set_size_hint(absl::optional<Position> size) {
-    buffer_sizer_.set_size_hint(size);
+  // Storage for the hint set by `Reader::SetReadAllHint()`.
+  //
+  // If `true`, larger buffer sizes are used, except when `exact_size()` is
+  // known and approaching.
+  bool read_all_hint() const { return buffer_sizer_.read_all_hint(); }
+
+  // Storage for an exact size of the source, as discovered by the `Reader`
+  // itself.
+  //
+  // If not `absl::nullptr` and `read_all_hint()` is `true`, smaller buffer
+  // sizes are used when `*exact_size()` is approaching.
+  void set_exact_size(absl::optional<Position> exact_size) {
+    buffer_sizer_.set_exact_size(exact_size);
   }
-  absl::optional<Position> size_hint() const {
-    return buffer_sizer_.size_hint();
+  absl::optional<Position> exact_size() const {
+    return buffer_sizer_.exact_size();
   }
 
   // In derived classes this must be called during initialization if reading
@@ -149,7 +168,7 @@ class BufferedReader : public Reader {
   // buffered data. `limit_pos()` remains unchanged.
   void SyncBuffer();
 
-  BufferSizer buffer_sizer_;
+  ReadBufferSizer buffer_sizer_;
   // Buffered data, read directly before the physical source position which is
   // `limit_pos()`.
   ChainBlock buffer_;

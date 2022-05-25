@@ -56,6 +56,26 @@ class Writer;
 // source.
 class Reader : public Object {
  public:
+  // If `read_all_hint` is `true`, hints that all remaining bytes will be read
+  // sequentially, then `VerifyEndAndClose()` will be called. This also
+  // indicates that reading ahead more than immediately needed is acceptable,
+  // as if `ToleratesReadingAhead()` was `true`.
+  //
+  // This may improve performance and memory usage:
+  //  * More data than immediately needed may be read ahead, with
+  //    `ToleratesReadingAhead()` possibly becoming `true` even for reading from
+  //    an interactive stream.
+  //  * Larger buffer sizes may be used.
+  //  * This hint may be propagated to owned sources.
+  //  * Other consequences are possible.
+  //
+  // If the hint turns out to not match reality, nothing breaks, assuming that
+  // reading ahead more than immediately needed is acceptable.
+  //
+  // `SetReadAllHint()` is usually be called from the same abstraction layer
+  // which later calls `VerifyEndAndClose()`.
+  virtual void SetReadAllHint(bool read_all_hint) {}
+
   // Verifies that the source ends at the current position, failing the `Reader`
   // with an `absl::InvalidArgumentError()` if not. Closes the `Reader`.
   //
@@ -277,13 +297,21 @@ class Reader : public Object {
   // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
   // would be read.
   //
+  // If `set_write_size_hint` is `true`, calls `dest.SetWriteSizeHint()` if the
+  // length to copy is known, which is useful only when `CopyAll()` will be
+  // followed by `dest.Close()`.
+  //
   // Return values:
   //  * `true` (`dest.ok() && ok()`)    - success
   //  * `false` (`!dest.ok() || !ok()`) - failure
   bool CopyAll(Writer& dest,
-               Position max_length = std::numeric_limits<Position>::max());
+               Position max_length = std::numeric_limits<Position>::max(),
+               bool set_write_size_hint = false);
   bool CopyAll(BackwardWriter& dest,
-               size_t max_length = std::numeric_limits<size_t>::max());
+               size_t max_length = std::numeric_limits<size_t>::max(),
+               bool set_write_size_hint = false);
+  bool CopyAll(Writer& dest, bool set_write_size_hint);
+  bool CopyAll(BackwardWriter& dest, bool set_write_size_hint);
 
   // Synchronizes the current position to the source and discards buffered data
   // read from the source (if applicable).
@@ -305,7 +333,9 @@ class Reader : public Object {
   bool Sync(SyncType sync_type = SyncType::kFromProcess);
 
   // Returns `true` if reading ahead more than needed is known to be tolerable.
-  // This is not the case e.g. when reading from an interactive stream.
+  // This might not be the case e.g. for reading from an interactive stream,
+  // when it might be important to ensure returning with available data before
+  // waiting for more data.
   //
   // This can be used for optimizations, e.g. to fill a whole allocated buffer
   // instead of a partial buffer, and thus avoid returning a `Chain` or `Cord`
@@ -912,6 +942,15 @@ inline void Reader::set_limit_pos(Position limit_pos) {
   limit_pos_ = limit_pos;
 }
 
+inline bool Reader::CopyAll(Writer& dest, bool set_write_size_hint) {
+  return CopyAll(dest, std::numeric_limits<Position>::max(),
+                 set_write_size_hint);
+}
+
+inline bool Reader::CopyAll(BackwardWriter& dest, bool set_write_size_hint) {
+  return CopyAll(dest, std::numeric_limits<size_t>::max(), set_write_size_hint);
+}
+
 inline bool Reader::Seek(Position new_pos) {
   if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= limit_pos())) {
     set_cursor(limit() - (limit_pos() - new_pos));
@@ -958,6 +997,7 @@ namespace reader_internal {
 template <typename Src, typename Dest>
 inline absl::Status ReadAllImpl(Src&& src, Dest& dest, size_t max_length) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   absl::Status status;
   if (ABSL_PREDICT_FALSE(!src_ref->ReadAll(dest, max_length))) {
     status = src_ref->status();
@@ -974,6 +1014,7 @@ template <typename Src, typename Dest>
 inline absl::Status ReadAndAppendAllImpl(Src&& src, Dest& dest,
                                          size_t max_length) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   absl::Status status;
   if (ABSL_PREDICT_FALSE(!src_ref->ReadAndAppendAll(dest, max_length))) {
     status = src_ref->status();
@@ -990,8 +1031,10 @@ template <typename WriterType, typename LengthType, typename Src, typename Dest>
 inline absl::Status CopyAllImpl(Src&& src, Dest&& dest, LengthType max_length) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
   Dependency<WriterType*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!src_ref->CopyAll(*dest_ref, max_length))) {
+  if (ABSL_PREDICT_FALSE(
+          !src_ref->CopyAll(*dest_ref, max_length, dest_ref.is_owning()))) {
     status = !dest_ref->ok() ? dest_ref->status() : src_ref->status();
   }
   if (dest_ref.is_owning()) {

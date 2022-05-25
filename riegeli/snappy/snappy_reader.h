@@ -342,6 +342,10 @@ inline absl::Status SnappyDecompress(Src&& src, Dest&& dest,
                                      SnappyDecompressOptions options) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
+  if (dest_ref.is_owning()) {
+    dest_ref->SetWriteSizeHint(SnappyUncompressedSize(*src_ref));
+  }
   absl::Status status = snappy_internal::SnappyDecompressImpl(
       *src_ref, *dest_ref, std::move(options));
   if (dest_ref.is_owning()) {

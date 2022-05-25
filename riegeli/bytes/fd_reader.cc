@@ -204,23 +204,13 @@ bool FdReaderBase::supports_random_access() {
                    lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
       FailOperation("lseek()");
     } else {
-      StoreSize(IntCast<Position>(file_size));
+      if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
       supported = true;
     }
   }
   supports_random_access_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
-}
-
-inline void FdReaderBase::StoreSize(Position size) {
-  set_size_hint(size);
-  if (!growing_source_) size_hint_is_exact_ = true;
-}
-
-inline absl::optional<Position> FdReaderBase::exact_size() const {
-  if (size_hint_is_exact_) return size_hint();
-  return absl::nullopt;
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -256,7 +246,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
     if (ABSL_PREDICT_FALSE(length_read == 0)) {
-      StoreSize(limit_pos());
+      if (!growing_source_) set_exact_size(limit_pos());
       return false;
     }
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
@@ -309,7 +299,7 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
         return FailOperation("fstat()");
       }
       file_size = IntCast<Position>(stat_info.st_size);
-      StoreSize(file_size);
+      if (!growing_source_) set_exact_size(file_size);
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
@@ -334,7 +324,7 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
     FailOperation("fstat()");
     return absl::nullopt;
   }
-  StoreSize(IntCast<Position>(stat_info.st_size));
+  if (!growing_source_) set_exact_size(IntCast<Position>(stat_info.st_size));
   return IntCast<Position>(stat_info.st_size);
 }
 
@@ -354,7 +344,7 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
                    .set_independent_pos(initial_pos)
                    .set_growing_source(growing_source_)
                    .set_buffer_options(buffer_options()));
-  reader->size_hint_is_exact_ = size_hint_is_exact_;
+  reader->set_exact_size(exact_size());
   ShareBufferTo(*reader);
   return reader;
 }

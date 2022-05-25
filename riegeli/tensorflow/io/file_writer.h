@@ -100,6 +100,9 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+  }
   bool SupportsSize() override { return !filename_.empty(); }
   bool SupportsReadMode() override { return !filename_.empty(); }
 
@@ -156,7 +159,7 @@ class FileWriterBase : public Writer {
   // Invariant:
   //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
-  BufferSizer buffer_sizer_;
+  WriteBufferSizer buffer_sizer_;
   // Buffered data to be written.
   SharedBuffer buffer_;
 

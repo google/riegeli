@@ -113,6 +113,7 @@ class Compressor : public Object {
 
  private:
   void Initialize();
+  void SetWriteSizeHint();
 
   CompressorOptions compressor_options_;
   TuningOptions tuning_options_;

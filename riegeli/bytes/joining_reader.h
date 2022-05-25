@@ -37,8 +37,18 @@ class Writer;
 
 // Template parameter independent part of `JoiningReader`.
 class JoiningReaderBase : public PullableReader {
+ public:
+  void SetReadAllHint(bool read_all_hint) override;
+  bool ToleratesReadingAhead() override { return read_all_hint_; }
+
  protected:
   using PullableReader::PullableReader;
+
+  JoiningReaderBase(JoiningReaderBase&& that) noexcept;
+  JoiningReaderBase& operator=(JoiningReaderBase&& that) noexcept;
+
+  void Reset(Closed);
+  void Reset();
 
   void Done() override;
 
@@ -141,6 +151,8 @@ class JoiningReaderBase : public PullableReader {
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
 
+  bool read_all_hint_ = false;
+
   // Invariants if `is_open()` and scratch is not used:
   //   `start() == (shard_is_open() ? shard_reader()->cursor() : nullptr)`
   //   `limit() <= (shard_is_open() ? shard_reader()->limit() : nullptr)`
@@ -183,6 +195,27 @@ class JoiningReader : public JoiningReaderBase {
 };
 
 // Implementation details follow.
+
+inline JoiningReaderBase::JoiningReaderBase(JoiningReaderBase&& that) noexcept
+    : PullableReader(static_cast<PullableReader&&>(that)),
+      read_all_hint_(that.read_all_hint_) {}
+
+inline JoiningReaderBase& JoiningReaderBase::operator=(
+    JoiningReaderBase&& that) noexcept {
+  PullableReader::operator=(static_cast<PullableReader&&>(that));
+  read_all_hint_ = that.read_all_hint_;
+  return *this;
+}
+
+inline void JoiningReaderBase::Reset(Closed) {
+  PullableReader::Reset(kClosed);
+  read_all_hint_ = false;
+}
+
+inline void JoiningReaderBase::Reset() {
+  PullableReader::Reset();
+  read_all_hint_ = false;
+}
 
 inline bool JoiningReaderBase::shard_is_open() const {
   return shard_is_open(shard_reader());

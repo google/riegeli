@@ -78,9 +78,8 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
   }
   ChainReader<> data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
-  ChainBackwardWriter<Chain> serialized_metadata_writer(
-      ChainBackwardWriterBase::Options().set_size_hint(
-          chunk.header.decoded_data_size()));
+  ChainBackwardWriter<Chain> serialized_metadata_writer;
+  serialized_metadata_writer.SetWriteSizeHint(chunk.header.decoded_data_size());
   std::vector<size_t> limits;
   const bool decode_ok = transpose_decoder.Decode(
       1, chunk.header.decoded_data_size(), FieldProjection::All(), data_reader,
@@ -228,12 +227,11 @@ absl::Status DescribeTransposedChunk(
     AnyDependency<BackwardWriter*, ChainBackwardWriter<>, NullBackwardWriter>
         dest_writer;
     if (show_records) {
-      dest_writer.Emplace<ChainBackwardWriter<>>(
-          &dest, ChainBackwardWriterBase::Options().set_size_hint(
-                     chunk.header.decoded_data_size()));
+      dest_writer.Emplace<ChainBackwardWriter<>>(&dest);
     } else {
       dest_writer.Emplace<NullBackwardWriter>();
     }
+    dest_writer->SetWriteSizeHint(chunk.header.decoded_data_size());
     std::vector<size_t> limits;
     const bool decode_ok = transpose_decoder.Decode(
         chunk.header.num_records(), chunk.header.decoded_data_size(),

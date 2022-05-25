@@ -692,8 +692,8 @@ inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
 // if a size hint is known.
 //
 // The base recommendation is `length`. If `pos` did not pass `size_hint` yet,
-// returns the remaining length plus 1, which can be helpful to verify that
-// there are indeed no more data.
+// returns the remaining length instead, increased by 1 which can be helpful to
+// verify that there are indeed no more data.
 //
 // If `multiple_runs` are predicted, it is assumed that reading might not reach
 // the size hint, and thus a size hint may decrease but not increase the
@@ -718,7 +718,7 @@ inline Position ApplyReadSizeHint(Position length,
 // if a size hint is known.
 //
 // The base recommendation is `length`. If `pos` did not reach `size_hint` yet,
-// returns the remaining length.
+// returns the remaining length instead.
 //
 // If `multiple_runs` are predicted, it is assumed that writing might not reach
 // the size hint, and thus a size hint may decrease but not increase the

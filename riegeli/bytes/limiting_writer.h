@@ -115,6 +115,10 @@ class LimitingWriterBase : public Writer {
     bool exact_ = false;
   };
 
+  // Returns the original `Writer`. Unchanged by `Close()`.
+  virtual Writer* dest_writer() = 0;
+  virtual const Writer* dest_writer() const = 0;
+
   // Accesses the limit expressed as an absolute position.
   //
   // If `set_max_length()` was used, `max_pos()` returns the same limit
@@ -139,10 +143,6 @@ class LimitingWriterBase : public Writer {
   // Clears the limit.
   void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
 
-  // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
-
   bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
   bool SupportsSize() override;
@@ -160,6 +160,7 @@ class LimitingWriterBase : public Writer {
   void Reset(Closed);
   void Reset(bool exact);
   void Initialize(Writer* dest, Options&& options);
+  bool exact() const { return exact_; }
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
@@ -185,11 +186,6 @@ class LimitingWriterBase : public Writer {
   // if `dest` failed.
   void MakeBuffer(Writer& dest);
 
-  // Invariant: `start_pos() <= max_pos_`
-  Position max_pos_ = std::numeric_limits<Position>::max();
-
-  bool exact_ = false;
-
  private:
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(Writer& dest);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
@@ -197,6 +193,11 @@ class LimitingWriterBase : public Writer {
   // This template is defined and used only in limiting_writer.cc.
   template <typename Src, typename RemoveSuffix>
   bool WriteInternal(Src&& src, RemoveSuffix&& remove_suffix);
+
+  // Invariant: `start_pos() <= max_pos_`
+  Position max_pos_ = std::numeric_limits<Position>::max();
+
+  bool exact_ = false;
 
   // Invariants if `ok()`:
   //   `start() == dest_writer()->start()`
@@ -253,6 +254,8 @@ class LimitingWriter : public LimitingWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
 
  protected:
   void Done() override;
@@ -392,12 +395,14 @@ template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Options options)
     : LimitingWriterBase(options.exact()), dest_(dest) {
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Options options)
     : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
@@ -406,6 +411,7 @@ inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
                                             Options options)
     : LimitingWriterBase(options.exact()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
@@ -433,6 +439,7 @@ inline void LimitingWriter<Dest>::Reset(const Dest& dest, Options options) {
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
@@ -440,6 +447,7 @@ inline void LimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
@@ -449,6 +457,7 @@ inline void LimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options));
+  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
 }
 
 template <typename Dest>
@@ -471,6 +480,17 @@ void LimitingWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(dest_->status());
     }
+  }
+}
+
+template <typename Dest>
+void LimitingWriter<Dest>::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  if (dest_.is_owning() && !exact()) {
+    dest_->SetWriteSizeHint(
+        write_size_hint == absl::nullopt
+            ? absl::nullopt
+            : absl::make_optional(UnsignedMin(*write_size_hint, max_length())));
   }
 }
 

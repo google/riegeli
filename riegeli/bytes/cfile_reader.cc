@@ -197,7 +197,7 @@ bool CFileReaderBase::supports_random_access() {
         // reliably recognize them using the `FILE` API, so `CFileReader` checks
         // the filename. Random access is assumed to be supported only if they
         // claim to have a non-zero size.
-        StoreSize(IntCast<Position>(file_size));
+        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
         supported = true;
       }
     }
@@ -205,16 +205,6 @@ bool CFileReaderBase::supports_random_access() {
   supports_random_access_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
-}
-
-inline void CFileReaderBase::StoreSize(Position size) {
-  set_size_hint(size);
-  if (!growing_source_) size_hint_is_exact_ = true;
-}
-
-inline absl::optional<Position> CFileReaderBase::exact_size() const {
-  if (size_hint_is_exact_) return size_hint();
-  return absl::nullopt;
 }
 
 bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -250,7 +240,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       RIEGELI_ASSERT(feof(src))
           << "fread() succeeded but read less than requested";
       clearerr(src);
-      StoreSize(limit_pos());
+      if (!growing_source_) set_exact_size(limit_pos());
       return length_read >= min_length;
     }
     if (length_read >= min_length) return true;
@@ -292,7 +282,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
         return FailOperation(cfile_internal::kFTellFunctionName);
       }
-      StoreSize(IntCast<Position>(file_size));
+      if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
       if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
         // Stream ends.
         set_limit_pos(IntCast<Position>(file_size));
@@ -331,7 +321,7 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
-  StoreSize(IntCast<Position>(file_size));
+  if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
   return IntCast<Position>(file_size);
 }
 

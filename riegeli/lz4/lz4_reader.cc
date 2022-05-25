@@ -108,10 +108,7 @@ inline bool Lz4ReaderBase::ReadHeader(Reader& src) {
   src.move_cursor(length);
   header_read_ = true;
 
-  if (frame_info.contentSize > 0) {
-    uncompressed_size_ = frame_info.contentSize;
-    set_size_hint(*uncompressed_size_);
-  }
+  if (frame_info.contentSize > 0) set_exact_size(frame_info.contentSize);
   if (frame_info.dictID > 0 &&
       ABSL_PREDICT_FALSE(frame_info.dictID != dictionary_.dict_id())) {
     if (dictionary_.empty()) {
@@ -189,8 +186,8 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
   LZ4F_decompressOptions_t decompress_options{};
   size_t effective_min_length = min_length;
-  if (!growing_source_ && uncompressed_size_ != absl::nullopt &&
-      max_length >= SaturatingSub(*uncompressed_size_, limit_pos())) {
+  if (!growing_source_ && exact_size() != absl::nullopt &&
+      max_length >= SaturatingSub(*exact_size(), limit_pos())) {
     // Avoid a memory copy from an internal buffer of the Lz4 engine to `dest`
     // by promising to decompress all remaining data to `dest`.
     decompress_options.stableDst = 1;
@@ -285,12 +282,12 @@ bool Lz4ReaderBase::SeekBehindBuffer(Position new_pos) {
 
 absl::optional<Position> Lz4ReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(uncompressed_size_ == absl::nullopt)) {
+  if (ABSL_PREDICT_FALSE(exact_size() == absl::nullopt)) {
     Fail(absl::UnimplementedError(
         "Uncompressed size was not stored in the Lz4-compressed stream"));
     return absl::nullopt;
   }
-  return *uncompressed_size_;
+  return *exact_size();
 }
 
 bool Lz4ReaderBase::SupportsNewReader() {

@@ -153,8 +153,8 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length = buffer_sizer_.WriteBufferLength(
-      start_pos(), min_length, recommended_length);
+  const size_t buffer_length =
+      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.mutable_data(),
              UnsignedMin(buffer_.capacity(),

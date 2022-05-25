@@ -64,12 +64,12 @@ class PrefixLimitingReaderBase : public Reader {
     absl::optional<Position> base_pos_;
   };
 
-  // Returns the base position of the origial `Reader`.
-  Position base_pos() const { return base_pos_; }
-
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
+
+  // Returns the base position of the origial `Reader`.
+  Position base_pos() const { return base_pos_; }
 
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override;
@@ -174,6 +174,8 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
+
+  void SetReadAllHint(bool read_all_hint) override;
 
  protected:
   void Done() override;
@@ -347,6 +349,11 @@ void PrefixLimitingReader<Src>::Done() {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
   }
+}
+
+template <typename Src>
+void PrefixLimitingReader<Src>::SetReadAllHint(bool read_all_hint) {
+  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>

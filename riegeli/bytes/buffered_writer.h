@@ -39,6 +39,9 @@ class Reader;
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
  public:
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+  }
   bool PrefersCopying() const override { return true; }
 
  protected:
@@ -61,14 +64,6 @@ class BufferedWriter : public Writer {
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const {
     return buffer_sizer_.buffer_options();
-  }
-
-  // Provides access to `size_hint()` after construction.
-  void set_size_hint(absl::optional<Position> size) {
-    buffer_sizer_.set_size_hint(size);
-  }
-  absl::optional<Position> size_hint() const {
-    return buffer_sizer_.size_hint();
   }
 
   // In derived classes this must be called during initialization if writing
@@ -138,7 +133,7 @@ class BufferedWriter : public Writer {
  private:
   bool SyncBuffer();
 
-  BufferSizer buffer_sizer_;
+  WriteBufferSizer buffer_sizer_;
   // Contains buffered data, to be written directly after the physical
   // destination position which is `start_pos()`.
   Buffer buffer_;

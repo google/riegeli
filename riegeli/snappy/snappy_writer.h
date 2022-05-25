@@ -45,16 +45,12 @@ class SnappyWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
-    // improve performance and memory usage.
-    //
-    // If the size hint turns out to not match reality, nothing breaks.
-    //
-    // Default: `absl::nullopt`.
+    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
+    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
     Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
@@ -68,6 +64,12 @@ class SnappyWriterBase : public Writer {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    options_.set_size_hint(write_size_hint == absl::nullopt
+                               ? 0
+                               : SaturatingIntCast<size_t>(
+                                     SaturatingAdd(pos(), *write_size_hint)));
+  }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -407,6 +409,7 @@ inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
                                    SnappyCompressOptions options) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   absl::Status status = snappy_internal::SnappyCompressImpl(*src_ref, *dest_ref,
                                                             std::move(options));
   if (dest_ref.is_owning()) {

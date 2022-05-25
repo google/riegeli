@@ -60,6 +60,23 @@ class Reader;
 // for its output to be guaranteed to be available in the destination.
 class Writer : public Object {
  public:
+  // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
+  // will be written sequentially from the current position, then `Close()` will
+  // be called.
+  //
+  // This may improve performance and memory usage:
+  //  * Larger buffer sizes may be used initially, while smaller buffer sizes
+  //    may be used when the size hint is approaching.
+  //  * This hint may be propagated to owned destinations.
+  //  * Other consequences are possible.
+  //
+  // If the hint turns out to not match reality, nothing breaks. It is better if
+  // `write_size_hint` is slightly too large than slightly too small.
+  //
+  // `SetWriteSizeHint()` is usually be called from the same abstraction layer
+  // which later calls `Close()`.
+  virtual void SetWriteSizeHint(absl::optional<Position> write_size_hint) {}
+
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
   // destination, and points `cursor()` and `limit()` to space following the
@@ -735,6 +752,7 @@ namespace writer_internal {
 template <typename Src, typename Dest>
 inline absl::Status WriteImpl(Src&& src, Dest&& dest) {
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  if (dest_ref.is_owning()) dest_ref->SetWriteSizeHint(src.size());
   absl::Status status;
   if (ABSL_PREDICT_FALSE(!dest_ref->Write(std::forward<Src>(src)))) {
     status = dest_ref->status();

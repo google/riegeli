@@ -119,16 +119,6 @@ void FileReaderBase::Done() {
   buffer_ = ChainBlock();
 }
 
-inline void FileReaderBase::StoreSize(Position size) {
-  buffer_sizer_.set_size_hint(size);
-  if (!growing_source_) size_hint_is_exact_ = true;
-}
-
-inline absl::optional<Position> FileReaderBase::exact_size() const {
-  if (size_hint_is_exact_) return buffer_sizer_.size_hint();
-  return absl::nullopt;
-}
-
 inline void FileReaderBase::SyncBuffer() {
   buffer_.Clear();
   set_buffer();
@@ -140,8 +130,8 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
-  const size_t buffer_length = buffer_sizer_.ReadBufferLength(
-      limit_pos(), min_length, recommended_length);
+  const size_t buffer_length =
+      buffer_sizer_.BufferLength(limit_pos(), min_length, recommended_length);
   const size_t available_length = available();
   size_t cursor_index;
   absl::Span<char> flat_buffer;
@@ -204,7 +194,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
-    StoreSize(limit_pos());
+    if (!growing_source_) set_exact_size(limit_pos());
     return false;
   }
   RIEGELI_ASSERT_EQ(result.size(), length_to_read)
@@ -271,7 +261,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
     if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
-    StoreSize(limit_pos());
+    if (!growing_source_) set_exact_size(limit_pos());
     return false;
   }
   RIEGELI_ASSERT_EQ(result.size(), length_to_read)
@@ -330,7 +320,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       break;
     }
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
+        buffer_sizer_.BufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -392,7 +382,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       break;
     }
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
+        buffer_sizer_.BufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -451,7 +441,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       break;
     }
     const size_t buffer_length =
-        buffer_sizer_.ReadBufferLength(limit_pos(), 1, length);
+        buffer_sizer_.BufferLength(limit_pos(), 1, length);
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -576,7 +566,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
           return FailOperation(status, "FileSystem::GetFileSize()");
         }
       }
-      StoreSize(Position{file_size});
+      if (!growing_source_) set_exact_size(Position{file_size});
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
@@ -607,7 +597,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
       return absl::nullopt;
     }
   }
-  StoreSize(Position{file_size});
+  if (!growing_source_) set_exact_size(Position{file_size});
   return Position{file_size};
 }
 
@@ -627,7 +617,7 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
                    .set_initial_pos(initial_pos)
                    .set_growing_source(growing_source_)
                    .set_buffer_options(buffer_sizer_.buffer_options()));
-  reader->size_hint_is_exact_ = size_hint_is_exact_;
+  reader->set_exact_size(exact_size());
   if (initial_pos >= start_pos() && initial_pos < limit_pos()) {
     // Share `buffer_` with `*reader`.
     reader->buffer_ = buffer_;

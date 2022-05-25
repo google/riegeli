@@ -187,17 +187,13 @@ class ZstdWriterBase : public BufferedWriter {
     bool reserve_max_size() const { return reserve_max_size_; }
 
     // Returns effective `BufferOptions` as overridden by other options:
-    //  * If `reserve_max_size()` is `true`, then `pledged_size()`, if not
-    //    `absl::nullopt`, overrides `buffer_size()`.
-    //  * `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
+    // If `reserve_max_size()` is `true` and `pledged_size()` is not
+    // `absl::nullopt`, then `pledged_size()` overrides `buffer_size()`.
     BufferOptions effective_buffer_options() const {
       BufferOptions options = buffer_options();
-      if (pledged_size() != absl::nullopt) {
-        if (reserve_max_size()) {
-          options.set_buffer_size(UnsignedMax(
-              SaturatingIntCast<size_t>(*pledged_size()), size_t{1}));
-        }
-        options.set_size_hint(*pledged_size());
+      if (reserve_max_size() && pledged_size() != absl::nullopt) {
+        options.set_buffer_size(
+            UnsignedMax(SaturatingIntCast<size_t>(*pledged_size()), size_t{1}));
       }
       return options;
     }
@@ -215,6 +211,7 @@ class ZstdWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
   bool SupportsReadMode() override;
 
  protected:

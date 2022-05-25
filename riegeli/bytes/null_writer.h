@@ -20,10 +20,12 @@
 #include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -42,13 +44,19 @@ class NullWriter : public Writer {
   NullWriter(NullWriter&& that) noexcept;
   NullWriter& operator=(NullWriter&& that) noexcept;
 
-  using Writer::Reset;
+  // Makes `*this` equivalent to a newly constructed `NullWriter`. This avoids
+  // constructing a temporary `NullWriter` and moving from it.
+  void Reset(Closed);
+  void Reset();
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+  }
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
-  using Writer::Done;
+  void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;
@@ -63,18 +71,33 @@ class NullWriter : public Writer {
   // Ensures that the buffer has a sufficient size.
   bool MakeBuffer(size_t min_length = 0, size_t recommended_length = 0);
 
+  WriteBufferSizer buffer_sizer_;
   Buffer buffer_;
 };
 
 // Implementation details follow.
 
 inline NullWriter::NullWriter(NullWriter&& that) noexcept
-    : Writer(static_cast<Writer&&>(that)), buffer_(std::move(that.buffer_)) {}
+    : Writer(static_cast<Writer&&>(that)),
+      buffer_sizer_(that.buffer_sizer_),
+      buffer_(std::move(that.buffer_)) {}
 
 inline NullWriter& NullWriter::operator=(NullWriter&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
+  buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
   return *this;
+}
+
+inline void NullWriter::Reset(Closed) {
+  Writer::Reset(kClosed);
+  buffer_sizer_.Reset();
+  buffer_ = Buffer();
+}
+
+inline void NullWriter::Reset() {
+  Writer::Reset();
+  buffer_sizer_.Reset();
 }
 
 }  // namespace riegeli

@@ -27,6 +27,11 @@
 
 namespace riegeli {
 
+void NullWriter::Done() {
+  Writer::Done();
+  buffer_ = Buffer();
+}
+
 bool NullWriter::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
@@ -85,8 +90,10 @@ bool NullWriter::TruncateImpl(Position new_size) {
     set_cursor(start() + (new_size - start_pos()));
     return true;
   }
+  buffer_sizer_.EndRun(pos());
   set_start_pos(new_size);
   set_cursor(start());
+  buffer_sizer_.BeginRun(start_pos());
   return true;
 }
 
@@ -101,8 +108,8 @@ inline bool NullWriter::MakeBuffer(size_t min_length,
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length = BufferSizer().WriteBufferLength(
-      start_pos(), min_length, recommended_length);
+  const size_t buffer_length =
+      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),

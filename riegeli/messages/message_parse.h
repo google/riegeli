@@ -169,6 +169,7 @@ inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
+  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   absl::Status status =
       messages_internal::ParseFromReaderImpl(*src_ref, dest, options);
   if (src_ref.is_owning()) {

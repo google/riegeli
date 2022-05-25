@@ -42,6 +42,7 @@ Compressor::Compressor(CompressorOptions compressor_options,
     : compressor_options_(std::move(compressor_options)),
       tuning_options_(std::move(tuning_options)) {
   Initialize();
+  SetWriteSizeHint();
 }
 
 void Compressor::Clear(TuningOptions tuning_options) {
@@ -52,26 +53,20 @@ void Compressor::Clear(TuningOptions tuning_options) {
 void Compressor::Clear() {
   Object::Reset();
   Initialize();
+  SetWriteSizeHint();
 }
 
-void Compressor::Initialize() {
+inline void Compressor::Initialize() {
   switch (compressor_options_.compression_type()) {
     case CompressionType::kNone:
-      writer_ = std::make_unique<ChainWriter<>>(
-          &compressed_, ChainWriterBase::Options().set_size_hint(
-                            tuning_options_.pledged_size() != absl::nullopt
-                                ? tuning_options_.pledged_size()
-                                : tuning_options_.size_hint()));
+      writer_ = std::make_unique<ChainWriter<>>(&compressed_);
       return;
     case CompressionType::kBrotli:
       writer_ = std::make_unique<BrotliWriter<ChainWriter<>>>(
           std::forward_as_tuple(&compressed_),
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
-              .set_window_log(compressor_options_.brotli_window_log())
-              .set_size_hint(tuning_options_.pledged_size() != absl::nullopt
-                                 ? tuning_options_.pledged_size()
-                                 : tuning_options_.size_hint()));
+              .set_window_log(compressor_options_.brotli_window_log()));
       return;
     case CompressionType::kZstd:
       writer_ = std::make_unique<ZstdWriter<ChainWriter<>>>(
@@ -79,19 +74,22 @@ void Compressor::Initialize() {
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.zstd_window_log())
-              .set_pledged_size(tuning_options_.pledged_size())
-              .set_size_hint(tuning_options_.size_hint()));
+              .set_pledged_size(tuning_options_.pledged_size()));
       return;
     case CompressionType::kSnappy:
       writer_ = std::make_unique<SnappyWriter<ChainWriter<>>>(
-          std::forward_as_tuple(&compressed_),
-          SnappyWriterBase::Options().set_size_hint(
-              tuning_options_.size_hint()));
+          std::forward_as_tuple(&compressed_));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown compression type: "
       << static_cast<unsigned>(compressor_options_.compression_type());
+}
+
+inline void Compressor::SetWriteSizeHint() {
+  writer_->SetWriteSizeHint(tuning_options_.pledged_size() != absl::nullopt
+                                ? tuning_options_.pledged_size()
+                                : tuning_options_.size_hint());
 }
 
 bool Compressor::EncodeAndClose(Writer& dest) {

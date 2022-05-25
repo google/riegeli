@@ -122,7 +122,7 @@ bool IStreamReaderBase::supports_random_access() {
       if (ABSL_PREDICT_FALSE(src.fail())) {
         FailOperation("istream::seekg()");
       } else {
-        StoreSize(IntCast<Position>(stream_size));
+        if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
         supported = true;
       }
     }
@@ -130,16 +130,6 @@ bool IStreamReaderBase::supports_random_access() {
   supports_random_access_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
-}
-
-inline void IStreamReaderBase::StoreSize(Position size) {
-  set_size_hint(size);
-  if (!growing_source_) size_hint_is_exact_ = true;
-}
-
-inline absl::optional<Position> IStreamReaderBase::exact_size() const {
-  if (size_hint_is_exact_) return size_hint();
-  return absl::nullopt;
 }
 
 bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -183,7 +173,7 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
         // A sticky `std::ios_base::eofbit` breaks future operations like
         // `std::istream::peek()` and `std::istream::tellg()`.
         src.clear(src.rdstate() & ~std::ios_base::eofbit);
-        StoreSize(limit_pos());
+        if (!growing_source_) set_exact_size(limit_pos());
         return false;
       }
       length_read = src.readsome(dest, max_length_to_read);
@@ -215,7 +205,7 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
         // `std::istream::peek()` and `std::istream::tellg()`.
         src.clear(src.rdstate() &
                   ~(std::ios_base::eofbit | std::ios_base::failbit));
-        StoreSize(limit_pos());
+        if (!growing_source_) set_exact_size(limit_pos());
       }
       return IntCast<size_t>(length_read) >= min_length;
     }
@@ -260,7 +250,7 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
       if (ABSL_PREDICT_FALSE(stream_size < 0)) {
         return FailOperation("istream::tellg()");
       }
-      StoreSize(IntCast<Position>(stream_size));
+      if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
       if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stream_size))) {
         // Stream ends.
         set_limit_pos(IntCast<Position>(stream_size));
@@ -299,7 +289,7 @@ absl::optional<Position> IStreamReaderBase::SizeImpl() {
     FailOperation("istream::seekg()");
     return absl::nullopt;
   }
-  StoreSize(IntCast<Position>(stream_size));
+  if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
   return IntCast<Position>(stream_size);
 }
 

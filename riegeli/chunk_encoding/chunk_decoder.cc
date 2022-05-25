@@ -132,11 +132,10 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
     }
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
-      ChainBackwardWriter<> dest_writer(
-          &dest, ChainBackwardWriterBase::Options().set_size_hint(
-                     field_projection_.includes_all()
-                         ? absl::make_optional(header.decoded_data_size())
-                         : absl::nullopt));
+      ChainBackwardWriter<> dest_writer(&dest);
+      if (field_projection_.includes_all()) {
+        dest_writer.SetWriteSizeHint(header.decoded_data_size());
+      }
       const bool decode_ok = transpose_decoder.Decode(
           header.num_records(), header.decoded_data_size(), field_projection_,
           src, dest_writer, limits_);

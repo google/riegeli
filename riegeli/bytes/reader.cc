@@ -390,15 +390,18 @@ bool Reader::ReadAndAppendAll(absl::Cord& dest, size_t max_length) {
   }
 }
 
-bool Reader::CopyAll(Writer& dest, Position max_length) {
+bool Reader::CopyAll(Writer& dest, Position max_length,
+                     bool set_write_size_hint) {
   if (SupportsSize()) {
     const absl::optional<Position> size = Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (set_write_size_hint) dest.SetWriteSizeHint(max_length);
       if (ABSL_PREDICT_FALSE(!Copy(max_length, dest))) return dest.ok() && ok();
       return FailMaxLengthExceeded(max_length);
     }
+    if (set_write_size_hint) dest.SetWriteSizeHint(remaining);
     if (ABSL_PREDICT_FALSE(!Copy(remaining, dest))) return dest.ok() && ok();
     return true;
   } else {
@@ -419,7 +422,8 @@ bool Reader::CopyAll(Writer& dest, Position max_length) {
   }
 }
 
-bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
+bool Reader::CopyAll(BackwardWriter& dest, size_t max_length,
+                     bool set_write_size_hint) {
   if (SupportsSize()) {
     const absl::optional<Position> size = Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
@@ -430,6 +434,7 @@ bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
       }
       return FailMaxLengthExceeded(max_length);
     }
+    if (set_write_size_hint) dest.SetWriteSizeHint(remaining);
     if (ABSL_PREDICT_FALSE(!Copy(IntCast<size_t>(remaining), dest))) {
       return dest.ok() && ok();
     }

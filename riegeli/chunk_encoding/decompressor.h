@@ -204,8 +204,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
       return;
     case CompressionType::kZstd:
       decompressed_.template Emplace<ZstdReader<Src>>(
-          std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(uncompressed_size));
+          std::move(compressed_reader.manager()));
       return;
     case CompressionType::kSnappy:
       decompressed_.template Emplace<SnappyReader<Src>>(

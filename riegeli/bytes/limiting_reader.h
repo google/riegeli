@@ -118,6 +118,10 @@ class LimitingReaderBase : public Reader {
     bool exact_ = false;
   };
 
+  // Returns the original `Reader`. Unchanged by `Close()`.
+  virtual Reader* src_reader() = 0;
+  virtual const Reader* src_reader() const = 0;
+
   // Accesses the limit expressed as an absolute position.
   //
   // If `set_max_length()` was used, `max_pos()` returns the same limit
@@ -163,10 +167,6 @@ class LimitingReaderBase : public Reader {
   void set_exact(bool exact) { exact_ = exact; }
   bool exact() const { return exact_; }
 
-  // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
-
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override;
   bool SupportsRewind() override;
@@ -208,11 +208,6 @@ class LimitingReaderBase : public Reader {
   // them for `max_pos_`. Fails `*this` if `src` failed.
   void MakeBuffer(Reader& src);
 
-  // Invariant: `pos() <= max_pos_`
-  Position max_pos_ = std::numeric_limits<Position>::max();
-
-  bool exact_ = false;
-
  private:
   // For `FailLengthOverflow()` and `FailNotEnoughEarly()`.
   friend class ScopedLimiter;
@@ -224,6 +219,11 @@ class LimitingReaderBase : public Reader {
   // This template is defined and used only in limiting_reader.cc.
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
+
+  // Invariant: `pos() <= max_pos_`
+  Position max_pos_ = std::numeric_limits<Position>::max();
+
+  bool exact_ = false;
 
   // Invariants if `is_open()`:
   //   `start() == src_reader()->start()`

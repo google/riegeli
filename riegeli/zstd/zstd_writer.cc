@@ -109,6 +109,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     }
   }
   if (pledged_size_ != absl::nullopt) {
+    BufferedWriter::SetWriteSizeHint(*pledged_size_);
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
         compressor_.get(), IntCast<unsigned long long>(*pledged_size_));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
@@ -117,10 +118,10 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                        ZSTD_getErrorName(result))));
       return;
     }
-  } else if (size_hint() != absl::nullopt) {
-    const size_t result =
-        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_srcSizeHint,
-                               SaturatingIntCast<int>(*size_hint()));
+  } else if (buffer_options().size_hint() != absl::nullopt) {
+    const size_t result = ZSTD_CCtx_setParameter(
+        compressor_.get(), ZSTD_c_srcSizeHint,
+        SaturatingIntCast<int>(*buffer_options().size_hint()));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) failed: ",
@@ -176,6 +177,18 @@ absl::Status ZstdWriterBase::AnnotateOverDest(absl::Status status) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
+}
+
+void ZstdWriterBase::SetWriteSizeHint(
+    absl::optional<Position> write_size_hint) {
+  BufferedWriter::SetWriteSizeHint(write_size_hint);
+  if (ABSL_PREDICT_FALSE(!ok()) || compressor_ == nullptr) return;
+  // Ignore failure if compression already started.
+  ZSTD_CCtx_setParameter(
+      compressor_.get(), ZSTD_c_srcSizeHint,
+      write_size_hint == absl::nullopt
+          ? 0
+          : SaturatingIntCast<int>(SaturatingAdd(pos(), *write_size_hint)));
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {
@@ -285,8 +298,7 @@ Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   ZstdReader<>* const reader = associated_reader_.ResetReader(
       compressed_reader, ZstdReaderBase::Options()
                              .set_dictionary(dictionary_)
-                             .set_buffer_options(buffer_options())
-                             .set_size_hint(pos()));
+                             .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   return reader;
 }

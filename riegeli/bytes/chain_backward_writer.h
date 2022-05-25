@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -54,16 +55,12 @@ class ChainBackwardWriterBase : public BackwardWriter {
     }
     bool prepend() const { return prepend_; }
 
-    // Expected final size, or `absl::nullopt` if unknown. This may improve
-    // performance and memory usage.
-    //
-    // If the size hint turns out to not match reality, nothing breaks.
-    //
-    // Default: `absl::nullopt`.
+    ABSL_DEPRECATED("Use BackwardWriter::SetWriteSizeHint() instead")
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
+    ABSL_DEPRECATED("Use BackwardWriter::SetWriteSizeHint() instead")
     Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
@@ -114,6 +111,12 @@ class ChainBackwardWriterBase : public BackwardWriter {
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
+    options_.set_size_hint(write_size_hint == absl::nullopt
+                               ? 0
+                               : SaturatingIntCast<size_t>(
+                                     SaturatingAdd(pos(), *write_size_hint)));
+  }
   bool SupportsTruncate() override { return true; }
 
  protected:
