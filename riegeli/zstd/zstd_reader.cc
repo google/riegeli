@@ -35,7 +35,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
-#include "base/logging.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
