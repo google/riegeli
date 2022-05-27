@@ -53,7 +53,6 @@ class ZstdWriterBase : public BufferedWriter {
     }
 
     // Zstd recommends this size as `ZSTD_CStreamInSize()`.
-    static constexpr size_t kDefaultMinBufferSize = ZSTD_BLOCKSIZE_MAX;
     static constexpr size_t kDefaultMaxBufferSize = ZSTD_BLOCKSIZE_MAX;
 
     // Tunes the tradeoff between compression density and compression speed

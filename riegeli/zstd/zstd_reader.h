@@ -49,7 +49,6 @@ class ZstdReaderBase : public BufferedReader {
     }
 
     // Zstd recommends this size as `ZSTD_DStreamOutSize()`.
-    static constexpr size_t kDefaultMinBufferSize = ZSTD_BLOCKSIZE_MAX;
     static constexpr size_t kDefaultMaxBufferSize = ZSTD_BLOCKSIZE_MAX;
 
     // If `true`, supports decompressing as much as possible from a truncated
