@@ -155,7 +155,7 @@ class ChainWriterBase : public Writer {
   void SyncBuffer(Chain& dest);
 
   // Appends uninitialized space to `dest`.
-  void MakeBuffer(Chain& dest, size_t min_length = 0,
+  void MakeBuffer(Chain& dest, size_t min_length = 1,
                   size_t recommended_length = 0);
 
   Chain::Options options_;

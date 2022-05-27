@@ -40,16 +40,9 @@ class BufferOptions {
   // The actual buffer size changes between `min_buffer_size()` and
   // `max_buffer_size()` depending on the access pattern.
   //
-  // Preconditions:
-  //   `min_buffer_size() > 0`
-  //   `min_buffer_size() <= max_buffer_size()`
-  //
   // Default: `kDefaultMinBufferSize` (4K).
   static constexpr size_t kDefaultMinBufferSize = size_t{4} << 10;
   BufferOptions& set_min_buffer_size(size_t min_buffer_size) & {
-    RIEGELI_ASSERT_GT(min_buffer_size, 0u)
-        << "Failed precondition of BufferOptions::set_min_buffer_size(): "
-           "zero buffer size";
     min_buffer_size_ = min_buffer_size;
     return *this;
   }
@@ -64,14 +57,9 @@ class BufferOptions {
   // The actual buffer size changes between `min_buffer_size()` and
   // `max_buffer_size()` depending on the access pattern.
   //
-  // Precondition: `min_buffer_size() <= max_buffer_size()`
-  //
   // Default: `kDefaultMaxBufferSize` (64K).
   static constexpr size_t kDefaultMaxBufferSize = size_t{64} << 10;
   BufferOptions& set_max_buffer_size(size_t max_buffer_size) & {
-    RIEGELI_ASSERT_GT(max_buffer_size, 0u)
-        << "Failed precondition of BufferOptions::set_max_buffer_size(): "
-           "zero buffer size";
     max_buffer_size_ = max_buffer_size;
     return *this;
   }
@@ -83,9 +71,6 @@ class BufferOptions {
   // A shortcut for `set_min_buffer_size(buffer_size)` with
   // `set_max_buffer_size(buffer_size)`.
   BufferOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u)
-        << "Failed precondition of BufferOptions::set_buffer_size(): "
-           "zero buffer size";
     return set_min_buffer_size(buffer_size).set_max_buffer_size(buffer_size);
   }
   BufferOptions&& set_buffer_size(size_t buffer_size) && {
@@ -254,7 +239,8 @@ class ReadBufferSizer {
   //
   // The length will be at least `min_length`, preferably `recommended_length`.
   //
-  // Precondition:
+  // Preconditions:
+  //   `min_length > 0`
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
   //       `BeginRun()`, if `BeginRun()` has been called
   size_t BufferLength(Position pos, size_t min_length = 1,
@@ -353,7 +339,8 @@ class WriteBufferSizer {
   //
   // The length will be at least `min_length`, preferably `recommended_length`.
   //
-  // Precondition:
+  // Preconditions:
+  //   `min_length > 0`
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
   //       `BeginRun()`, if `BeginRun()` has been called
   size_t BufferLength(Position pos, size_t min_length = 1,
@@ -399,12 +386,7 @@ constexpr size_t BufferOptionsBase<Options>::kDefaultMaxBufferSize;
 #endif
 
 inline ReadBufferSizer::ReadBufferSizer(const BufferOptions& buffer_options)
-    : buffer_options_(buffer_options) {
-  RIEGELI_ASSERT_LE(buffer_options.min_buffer_size(),
-                    buffer_options.max_buffer_size())
-      << "Failed precondition of ReadBufferSizer: "
-         "BufferOptions::min_buffer_size() > BufferOptions::max_buffer_size()";
-}
+    : buffer_options_(buffer_options) {}
 
 inline ReadBufferSizer::ReadBufferSizer(const ReadBufferSizer& that) noexcept
     : buffer_options_(that.buffer_options_),
@@ -432,10 +414,6 @@ inline void ReadBufferSizer::Reset() {
 }
 
 inline void ReadBufferSizer::Reset(const BufferOptions& buffer_options) {
-  RIEGELI_ASSERT_LE(buffer_options.min_buffer_size(),
-                    buffer_options.max_buffer_size())
-      << "Failed precondition of ReadBufferSizer: "
-         "BufferOptions::min_buffer_size() > BufferOptions::max_buffer_size()";
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
@@ -453,12 +431,7 @@ inline void ReadBufferSizer::EndRun(Position pos) {
 }
 
 inline WriteBufferSizer::WriteBufferSizer(const BufferOptions& buffer_options)
-    : buffer_options_(buffer_options) {
-  RIEGELI_ASSERT_LE(buffer_options.min_buffer_size(),
-                    buffer_options.max_buffer_size())
-      << "Failed precondition of WriteBufferSizer: "
-         "BufferOptions::min_buffer_size() > BufferOptions::max_buffer_size()";
-}
+    : buffer_options_(buffer_options) {}
 
 inline WriteBufferSizer::WriteBufferSizer(const WriteBufferSizer& that) noexcept
     : buffer_options_(that.buffer_options_),
@@ -480,10 +453,6 @@ inline void WriteBufferSizer::Reset() {
 }
 
 inline void WriteBufferSizer::Reset(const BufferOptions& buffer_options) {
-  RIEGELI_ASSERT_LE(buffer_options.min_buffer_size(),
-                    buffer_options.max_buffer_size())
-      << "Failed precondition of WriteBufferSizer: "
-         "BufferOptions::min_buffer_size() > BufferOptions::max_buffer_size()";
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;

@@ -164,7 +164,7 @@ class StringWriterBase : public Writer {
   void SyncSecondaryBuffer();
 
   // Appends uninitialized space to `secondary_buffer_`.
-  void MakeSecondaryBuffer(size_t min_length = 0,
+  void MakeSecondaryBuffer(size_t min_length = 1,
                            size_t recommended_length = 0);
 
   Chain::Options options_;

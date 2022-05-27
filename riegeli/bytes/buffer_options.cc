@@ -45,6 +45,9 @@ constexpr size_t BufferOptions::kDefaultMaxBufferSize;
 
 size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
                                      size_t recommended_length) const {
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of WriteBufferSizer::BufferLength(): "
+         "zero min_length";
   RIEGELI_ASSERT_GE(pos, base_pos_)
       << "Failed precondition of ReadBufferSizer::ReadBufferLength(): "
       << "position earlier than base position of the run";
@@ -94,6 +97,9 @@ inline size_t ReadBufferSizer::BufferLengthImpl(
 
 size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
                                       size_t recommended_length) const {
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of WriteBufferSizer::BufferLength(): "
+         "zero min_length";
   RIEGELI_ASSERT_GE(pos, base_pos_)
       << "Failed precondition of WriteBufferSizer::WriteBufferLength(): "
       << "position earlier than base position of the run";

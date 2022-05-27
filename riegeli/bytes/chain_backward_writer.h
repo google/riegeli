@@ -148,7 +148,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   void SyncBuffer(Chain& dest);
 
   // Prepends uninitialized space to `dest`.
-  void MakeBuffer(Chain& dest, size_t min_length = 0,
+  void MakeBuffer(Chain& dest, size_t min_length = 1,
                   size_t recommended_length = 0);
 
   Chain::Options options_;
