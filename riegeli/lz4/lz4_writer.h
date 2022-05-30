@@ -371,7 +371,7 @@ inline Lz4WriterBase::Lz4WriterBase(Lz4WriterBase&& that) noexcept
 inline Lz4WriterBase& Lz4WriterBase::operator=(Lz4WriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dictionary_ = std::move(that.dictionary_);
-  pledged_size_ = std::move(that.pledged_size_);
+  pledged_size_ = that.pledged_size_;
   reserve_max_size_ = that.reserve_max_size_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   preferences_ = that.preferences_;
