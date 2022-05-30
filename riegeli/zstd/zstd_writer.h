@@ -47,13 +47,7 @@ class ZstdWriterBase : public BufferedWriter {
  public:
   class Options : public BufferOptionsBase<Options> {
    public:
-    Options() noexcept {
-      RIEGELI_ASSERT_EQ(ZSTD_CStreamInSize(), size_t{ZSTD_BLOCKSIZE_MAX})
-          << "Unexpected value of ZSTD_CStreamInSize()";
-    }
-
-    // Zstd recommends this size as `ZSTD_CStreamInSize()`.
-    static constexpr size_t kDefaultMaxBufferSize = ZSTD_BLOCKSIZE_MAX;
+    Options() noexcept {}
 
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).

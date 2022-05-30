@@ -43,13 +43,7 @@ class ZstdReaderBase : public BufferedReader {
  public:
   class Options : public BufferOptionsBase<Options> {
    public:
-    Options() noexcept {
-      RIEGELI_ASSERT_EQ(ZSTD_DStreamOutSize(), size_t{ZSTD_BLOCKSIZE_MAX})
-          << "Unexpected value of ZSTD_DStreamOutSize()";
-    }
-
-    // Zstd recommends this size as `ZSTD_DStreamOutSize()`.
-    static constexpr size_t kDefaultMaxBufferSize = ZSTD_BLOCKSIZE_MAX;
+    Options() noexcept {}
 
     // If `true`, supports decompressing as much as possible from a truncated
     // source, then retrying when the source has grown. This has a small
