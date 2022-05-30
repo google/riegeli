@@ -65,15 +65,6 @@ bool ReadVarint64(Reader& src, uint64_t& dest);
 bool ReadCanonicalVarint32(Reader& src, uint32_t& dest);
 bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 
-ABSL_DEPRECATED("Use ReadVarint32() instead")
-inline bool StreamingReadVarint32(Reader& src, uint32_t& dest) {
-  return ReadVarint32(src, dest);
-}
-ABSL_DEPRECATED("Use ReadVarint64() instead")
-inline bool StreamingReadVarint64(Reader& src, uint64_t& dest) {
-  return ReadVarint64(src, dest);
-}
-
 // Reads a varint from an array.
 //
 // Return values:
