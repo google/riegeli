@@ -203,16 +203,19 @@ class ReadBufferSizer {
 
   // Intended storage for the hint set by `Reader::SetReadAllHint()`.
   //
-  // If `true`, larger buffer sizes are used, except when `exact_size()` is
-  // known and approaching.
+  // If `true` and `exact_size()` is not `absl::nullptr`, this causes larger
+  // buffer sizes to be used before reaching `*exact_size()`.
   void set_read_all_hint(bool read_all_hint) { read_all_hint_ = read_all_hint; }
   bool read_all_hint() const { return read_all_hint_; }
 
   // Intended storage for an exact size of the source, as discovered by the
   // `Reader` itself.
   //
-  // If not `absl::nullptr`, smaller buffer sizes are used when `*exact_size()`
-  // is approaching.
+  // If not `absl::nullptr` and `read_all_hint()` is `true`, this causes larger
+  // buffer sizes to be used before reaching `*exact_size()`.
+  //
+  // Also, if not `absl::nullptr`, this causes a smaller buffer size to be used
+  // when reaching `*exact_size()`.
   void set_exact_size(absl::optional<Position> exact_size) {
     buffer_options_.set_size_hint(exact_size);
     size_hint_is_exact_ = exact_size != absl::nullopt;
@@ -309,8 +312,9 @@ class WriteBufferSizer {
   // Intended storage for the hint set by
   // `{,Backward}Writer::SetWriteSizeHint()`.
   //
-  // If not `absl::nullopt`, larger buffer sizes are used initially, while
-  // smaller buffer sizes are used when `*size_hint()` is approaching.
+  // If not `absl::nullptr`, this causes larger buffer sizes to be used before
+  // reaching `*size_hint()`, and a smaller buffer size to be used when reaching
+  // `*exact_size()`.
   void set_write_size_hint(Position pos,
                            absl::optional<Position> write_size_hint) {
     buffer_options_.set_size_hint(

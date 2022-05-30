@@ -49,8 +49,8 @@ class BackwardWriter : public Object {
   // be called.
   //
   // This may improve performance and memory usage:
-  //  * Larger buffer sizes may be used initially, while smaller buffer sizes
-  //    may be used when the size hint is approaching.
+  //  * Larger buffer sizes may be used before reaching the size hint, and
+  //    a smaller buffer size may be used when reaching the size hint.
   //  * This hint may be propagated to owned destinations.
   //  * Other consequences are possible.
   //

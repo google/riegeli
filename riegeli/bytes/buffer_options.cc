@@ -87,10 +87,7 @@ inline size_t ReadBufferSizer::BufferLengthImpl(
       UnsignedMax(ApplySizeHint(
                       UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
                                   buffer_options_.min_buffer_size()),
-                      exact_size() == absl::nullopt && read_all_hint_
-                          ? std::numeric_limits<Position>::max()
-                          : exact_size(),
-                      pos, !read_all_hint_),
+                      exact_size(), pos, !read_all_hint_),
                   recommended_length),
       min_length, buffer_options_.max_buffer_size());
 }
