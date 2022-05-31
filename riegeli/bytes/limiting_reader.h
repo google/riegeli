@@ -112,10 +112,29 @@ class LimitingReaderBase : public Reader {
     Options&& set_exact(bool exact) && { return std::move(set_exact(exact)); }
     bool exact() const { return exact_; }
 
+    // If `false`, `LimitingReader` will allow the original source to exceed the
+    // limit.
+    //
+    // If `true`, `LimitingReader` will require the original source to end
+    // before or at the limit (depending on `exact()`), but will fail if the
+    // original source exceeds the limit. This is checked when `LimitingReader`
+    // is closed while positioned at its end.
+    //
+    // Default: `false`.
+    Options& set_fail_if_longer(bool fail_if_longer) & {
+      fail_if_longer_ = fail_if_longer;
+      return *this;
+    }
+    Options&& set_fail_if_longer(bool fail_if_longer) && {
+      return std::move(set_fail_if_longer(fail_if_longer));
+    }
+    bool fail_if_longer() const { return fail_if_longer_; }
+
    private:
     absl::optional<Position> max_pos_;
     absl::optional<Position> max_length_;
     bool exact_ = false;
+    bool fail_if_longer_ = false;
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
@@ -167,6 +186,23 @@ class LimitingReaderBase : public Reader {
   void set_exact(bool exact) { exact_ = exact; }
   bool exact() const { return exact_; }
 
+  // Accesses the failure if larger setting.
+  //
+  // If `false`, `LimitingReader` will allow the original source to exceed the
+  // limit.
+  //
+  // If `true`, `LimitingReader` will require the original source to end before
+  // or at the limit (depending on `exact()`), but will fail if the original
+  // source exceeds the limit. This is checked when `LimitingReader` is closed
+  // while positioned at its end.
+  //
+  // If possible, `ScopedLimiter` is recommended over using
+  // `set_fail_if_longer()` directly.
+  void set_fail_if_longer(bool fail_if_longer) {
+    fail_if_longer_ = fail_if_longer;
+  }
+  bool fail_if_longer() const { return fail_if_longer_; }
+
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override;
   bool SupportsRewind() override;
@@ -176,13 +212,13 @@ class LimitingReaderBase : public Reader {
  protected:
   explicit LimitingReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  explicit LimitingReaderBase(bool exact);
+  explicit LimitingReaderBase(bool exact, bool fail_if_longer);
 
   LimitingReaderBase(LimitingReaderBase&& that) noexcept;
   LimitingReaderBase& operator=(LimitingReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(bool exact);
+  void Reset(bool exact, bool fail_if_longer);
   void Initialize(Reader* src, Options&& options);
 
   void Done() override;
@@ -209,12 +245,14 @@ class LimitingReaderBase : public Reader {
   void MakeBuffer(Reader& src);
 
  private:
-  // For `FailLengthOverflow()` and `FailNotEnoughEarly()`.
+  // For `FailLengthOverflow()`, `FailNotEnoughEarly()`, and
+  // `FailPositionLimitExceeded()`.
   friend class ScopedLimiter;
 
   bool CheckEnough(Reader& src);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
   ABSL_ATTRIBUTE_COLD void FailNotEnoughEarly(Position expected);
+  ABSL_ATTRIBUTE_COLD void FailPositionLimitExceeded();
 
   // This template is defined and used only in limiting_reader.cc.
   template <typename Dest>
@@ -224,6 +262,7 @@ class LimitingReaderBase : public Reader {
   Position max_pos_ = std::numeric_limits<Position>::max();
 
   bool exact_ = false;
+  bool fail_if_longer_ = false;
 
   // Invariants if `is_open()`:
   //   `start() == src_reader()->start()`
@@ -233,7 +272,8 @@ class LimitingReaderBase : public Reader {
 };
 
 // A `Reader` which reads from another `Reader` up to the specified limit, then
-// pretends that the source ends.
+// pretends that the source ends, or fails if configured to fail and the source
+// is longer.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
@@ -360,23 +400,27 @@ class ScopedLimiter {
   LimitingReaderBase* reader_;
   Position old_max_pos_;
   bool old_exact_;
+  bool fail_if_longer_;
 };
 
 // Implementation details follow.
 
-inline LimitingReaderBase::LimitingReaderBase(bool exact) : exact_(exact) {}
+inline LimitingReaderBase::LimitingReaderBase(bool exact, bool fail_if_longer)
+    : exact_(exact), fail_if_longer_(fail_if_longer) {}
 
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
     : Reader(static_cast<Reader&&>(that)),
       max_pos_(that.max_pos_),
-      exact_(that.exact_) {}
+      exact_(that.exact_),
+      fail_if_longer_(that.fail_if_longer_) {}
 
 inline LimitingReaderBase& LimitingReaderBase::operator=(
     LimitingReaderBase&& that) noexcept {
   Reader::operator=(static_cast<Reader&&>(that));
   max_pos_ = that.max_pos_;
   exact_ = that.exact_;
+  fail_if_longer_ = that.fail_if_longer_;
   return *this;
 }
 
@@ -384,12 +428,14 @@ inline void LimitingReaderBase::Reset(Closed) {
   Reader::Reset(kClosed);
   max_pos_ = std::numeric_limits<Position>::max();
   exact_ = false;
+  fail_if_longer_ = false;
 }
 
-inline void LimitingReaderBase::Reset(bool exact) {
+inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
   Reader::Reset();
   // `max_pos_` will be set by `Initialize()`.
   exact_ = exact;
+  fail_if_longer_ = fail_if_longer;
 }
 
 inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
@@ -466,13 +512,14 @@ inline void LimitingReaderBase::MakeBuffer(Reader& src) {
 
 template <typename Src>
 inline LimitingReader<Src>::LimitingReader(const Src& src, Options options)
-    : LimitingReaderBase(options.exact()), src_(src) {
+    : LimitingReaderBase(options.exact(), options.fail_if_longer()), src_(src) {
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline LimitingReader<Src>::LimitingReader(Src&& src, Options options)
-    : LimitingReaderBase(options.exact()), src_(std::move(src)) {
+    : LimitingReaderBase(options.exact(), options.fail_if_longer()),
+      src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -480,7 +527,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
                                            Options options)
-    : LimitingReaderBase(options.exact()), src_(std::move(src_args)) {
+    : LimitingReaderBase(options.exact(), options.fail_if_longer()),
+      src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -506,14 +554,14 @@ inline void LimitingReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void LimitingReader<Src>::Reset(const Src& src, Options options) {
-  LimitingReaderBase::Reset(options.exact());
+  LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(src);
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline void LimitingReader<Src>::Reset(Src&& src, Options options) {
-  LimitingReaderBase::Reset(options.exact());
+  LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options));
 }
@@ -522,7 +570,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void LimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                        Options options) {
-  LimitingReaderBase::Reset(options.exact());
+  LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }
@@ -565,7 +613,8 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
 inline ScopedLimiter::ScopedLimiter(LimitingReaderBase* reader, Options options)
     : reader_(RIEGELI_ASSERT_NOTNULL(reader)),
       old_max_pos_(reader_->max_pos()),
-      old_exact_(reader_->exact()) {
+      old_exact_(reader_->exact()),
+      fail_if_longer_(options.fail_if_longer()) {
   RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
                  options.max_length() == absl::nullopt)
       << "Failed precondition of ScopedLimiter: "
@@ -595,7 +644,7 @@ inline ScopedLimiter::ScopedLimiter(LimitingReaderBase* reader, Options options)
            "Options::exact() requires Options::max_pos() or "
            "Options::max_length()";
   }
-  reader_->set_exact(options.exact() || reader_->exact());
+  reader_->set_exact(reader_->exact() || options.exact());
 }
 
 inline ScopedLimiter::~ScopedLimiter() {
@@ -603,8 +652,13 @@ inline ScopedLimiter::~ScopedLimiter() {
       << "Failed precondtion of ~ScopedLimiter: "
          "The underlying LimitingReader increased its limit "
          "while the ScopedLimiter was active";
+  const Position inner_max_pos = reader_->max_pos();
   reader_->set_max_pos(old_max_pos_);
   reader_->set_exact(old_exact_);
+  if (fail_if_longer_ && reader_->pos() == inner_max_pos &&
+      ABSL_PREDICT_FALSE(!reader_->Pull())) {
+    reader_->FailPositionLimitExceeded();
+  }
 }
 
 }  // namespace riegeli

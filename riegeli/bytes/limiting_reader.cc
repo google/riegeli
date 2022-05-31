@@ -38,6 +38,13 @@ void LimitingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
     Reader& src = *src_reader();
     SyncBuffer(src);
+    if (fail_if_longer_ && pos() == max_pos_ &&
+        ABSL_PREDICT_FALSE(src.Pull())) {
+      // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
+      // buffer again.
+      FailWithoutAnnotation(src.AnnotateStatus(
+          absl::ResourceExhaustedError("Position limit exceeded")));
+    }
   }
   Reader::Done();
 }
@@ -60,6 +67,10 @@ void LimitingReaderBase::FailNotEnoughEarly(Position expected) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", expected,
                    ", will have at most ", max_pos_)));
+}
+
+void LimitingReaderBase::FailPositionLimitExceeded() {
+  Fail(absl::ResourceExhaustedError("Position limit exceeded"));
 }
 
 absl::Status LimitingReaderBase::AnnotateStatusImpl(absl::Status status) {

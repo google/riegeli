@@ -33,7 +33,7 @@ namespace riegeli {
 void LimitingBackwardWriterBase::Done() {
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_TRUE(ok())) SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
+  if (exact_ && ABSL_PREDICT_FALSE(pos() < max_pos_)) {
     // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
     // buffer again.
     FailWithoutAnnotation(dest.AnnotateStatus(absl::InvalidArgumentError(
@@ -48,7 +48,7 @@ bool LimitingBackwardWriterBase::FailLimitExceeded(BackwardWriter& dest) {
   // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the buffer
   // again.
   return FailWithoutAnnotation(dest.AnnotateStatus(
-      absl::ResourceExhaustedError(absl::StrCat("Position limit exceeded"))));
+      absl::ResourceExhaustedError("Position limit exceeded")));
 }
 
 void LimitingBackwardWriterBase::FailLengthOverflow(Position max_length) {
