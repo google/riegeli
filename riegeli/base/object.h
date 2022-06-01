@@ -117,18 +117,25 @@ class ObjectState {
 // other.
 class TypeId {
  public:
-  TypeId() noexcept {}
+  constexpr TypeId() noexcept {}
 
   template <typename T>
-  static TypeId For();
+  static constexpr TypeId For();
 
-  friend bool operator==(TypeId a, TypeId b) { return a.ptr_ == b.ptr_; }
-  friend bool operator!=(TypeId a, TypeId b) { return a.ptr_ != b.ptr_; }
+  friend constexpr bool operator==(TypeId a, TypeId b) {
+    return a.ptr_ == b.ptr_;
+  }
+  friend constexpr bool operator!=(TypeId a, TypeId b) {
+    return a.ptr_ != b.ptr_;
+  }
 
  private:
-  explicit TypeId(void* ptr) : ptr_(ptr) {}
+  template <typename T>
+  struct TypeIdToken;
 
-  void* ptr_ = nullptr;
+  explicit constexpr TypeId(const void* ptr) : ptr_(ptr) {}
+
+  const void* ptr_ = nullptr;
 };
 
 // `Object` is an abstract base class for data readers and writers, managing
@@ -379,9 +386,16 @@ inline absl::Status Object::AnnotateStatus(absl::Status status) {
 }
 
 template <typename T>
-inline TypeId TypeId::For() {
-  static char token;
-  return TypeId(&token);
+struct TypeId::TypeIdToken {
+  static const char token;
+};
+
+template <typename T>
+const char TypeId::TypeIdToken<T>::token = '\0';
+
+template <typename T>
+constexpr TypeId TypeId::For() {
+  return TypeId(&TypeIdToken<T>::token);
 }
 
 }  // namespace riegeli
