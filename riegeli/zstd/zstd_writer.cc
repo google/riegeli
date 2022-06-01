@@ -50,8 +50,6 @@ constexpr int ZstdWriterBase::Options::kMaxCompressionLevel;
 constexpr int ZstdWriterBase::Options::kDefaultCompressionLevel;
 constexpr int ZstdWriterBase::Options::kMinWindowLog;
 constexpr int ZstdWriterBase::Options::kMaxWindowLog;
-constexpr size_t ZstdWriterBase::Options::kDefaultMinBufferSize;
-constexpr size_t ZstdWriterBase::Options::kDefaultMaxBufferSize;
 #endif
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,

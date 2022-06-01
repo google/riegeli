@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Enables the experimental zstd API:
-//  * `ZSTD_FRAMEHEADERSIZE_MIN()`
+//  * `ZSTD_FRAMEHEADERSIZE_PREFIX()`
 //  * `ZSTD_FRAMEHEADERSIZE_MAX`
 //  * `ZSTD_f_zstd1`
 //  * `ZSTD_d_stableOutBuffer`
@@ -43,14 +43,6 @@
 #include "zstd.h"
 
 namespace riegeli {
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if __cplusplus < 201703
-constexpr size_t ZstdReaderBase::Options::kDefaultMinBufferSize;
-constexpr size_t ZstdReaderBase::Options::kDefaultMaxBufferSize;
-#endif
 
 void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
