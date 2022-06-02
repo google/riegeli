@@ -75,16 +75,9 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     int64_t min_buffer_size;
     OP_REQUIRES_OK(ctx, ::tensorflow::data::ParseScalarArgument<int64_t>(
                             ctx, "min_buffer_size", &min_buffer_size));
-    OP_REQUIRES(
-        ctx, min_buffer_size > 0,
-        ::tensorflow::errors::InvalidArgument("`min_buffer_size` must be > 0"));
-
     int64_t max_buffer_size;
     OP_REQUIRES_OK(ctx, ::tensorflow::data::ParseScalarArgument<int64_t>(
                             ctx, "max_buffer_size", &max_buffer_size));
-    OP_REQUIRES(ctx, max_buffer_size >= min_buffer_size,
-                ::tensorflow::errors::InvalidArgument(
-                    "`max_buffer_size` must be >= `min_buffer_size`"));
 
     *output = new Dataset(ctx, std::move(filenames), min_buffer_size,
                           max_buffer_size);
