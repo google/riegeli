@@ -181,9 +181,9 @@ class ZlibWriterBase : public BufferedWriter {
  private:
   struct ZStreamDeleter {
     void operator()(z_stream* ptr) const {
-      const int result = deflateEnd(ptr);
-      RIEGELI_ASSERT(result == Z_OK || result == Z_DATA_ERROR)
-          << "deflateEnd() failed: " << result;
+      const int zlib_code = deflateEnd(ptr);
+      RIEGELI_ASSERT(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
+          << "deflateEnd() failed: " << zlib_code;
       delete ptr;
     }
   };

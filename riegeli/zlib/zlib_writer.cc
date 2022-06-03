@@ -198,14 +198,17 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
     compressor_->avail_in = IntCast<uInt>(avail_in);
     compressor_->next_out = reinterpret_cast<Bytef*>(dest.cursor());
     compressor_->avail_out = SaturatingIntCast<uInt>(dest.available());
-    const int result = deflate(compressor_.get(), op);
+    const int zlib_code = deflate(compressor_.get(), op);
     dest.set_cursor(reinterpret_cast<char*>(compressor_->next_out));
     const size_t length_written = PtrDistance(
         src.data(), reinterpret_cast<const char*>(compressor_->next_in));
-    switch (result) {
+    switch (zlib_code) {
       case Z_OK:
-        if (compressor_->avail_out == 0 ||
-            ABSL_PREDICT_FALSE(length_written < src.size())) {
+        if (compressor_->avail_out == 0) continue;
+        RIEGELI_ASSERT_EQ(compressor_->avail_in, 0u)
+            << "deflate() returned but there are still input data "
+               "and output space";
+        if (ABSL_PREDICT_FALSE(length_written < src.size())) {
           continue;
         }
         break;
@@ -216,7 +219,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
             << "deflate() returned an unexpected Z_BUF_ERROR";
         break;
       default:
-        return FailOperation("deflate()", result);
+        return FailOperation("deflate()", zlib_code);
     }
     RIEGELI_ASSERT_EQ(length_written, src.size())
         << "deflate() returned but there are still input data";

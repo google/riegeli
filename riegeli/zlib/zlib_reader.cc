@@ -188,19 +188,19 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         reinterpret_cast<const Bytef*>(src.cursor()));
     decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());
     if (decompressor_->avail_in > 0) stream_had_data_ = true;
-    const int result = inflate(decompressor_.get(), Z_NO_FLUSH);
+    int zlib_code = inflate(decompressor_.get(), Z_NO_FLUSH);
     src.set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
     const size_t length_read =
         PtrDistance(dest, reinterpret_cast<char*>(decompressor_->next_out));
-    switch (result) {
+    switch (zlib_code) {
       case Z_OK:
         if (length_read >= min_length) break;
         ABSL_FALLTHROUGH_INTENDED;
       case Z_BUF_ERROR:
         if (ABSL_PREDICT_FALSE(decompressor_->avail_in > 0)) {
           RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)
-              << "inflate() returned but there are still "
-                 "input data and output space";
+              << "inflate() returned but there are still input data "
+                 "and output space";
           RIEGELI_ASSERT_EQ(length_read,
                             std::numeric_limits<Position>::max() - limit_pos())
               << "The position does not overflow but the output buffer is "
@@ -237,7 +237,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         break;
       case Z_NEED_DICT:
         if (ABSL_PREDICT_TRUE(!dictionary_.empty())) {
-          const int zlib_code = inflateSetDictionary(
+          zlib_code = inflateSetDictionary(
               decompressor_.get(),
               const_cast<z_const Bytef*>(
                   reinterpret_cast<const Bytef*>(dictionary_.data().data())),
@@ -251,10 +251,11 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         }
         ABSL_FALLTHROUGH_INTENDED;
       case Z_DATA_ERROR:
-        FailOperation(absl::StatusCode::kInvalidArgument, "inflate()", result);
+        FailOperation(absl::StatusCode::kInvalidArgument, "inflate()",
+                      zlib_code);
         break;
       default:
-        FailOperation(absl::StatusCode::kInternal, "inflate()", result);
+        FailOperation(absl::StatusCode::kInternal, "inflate()", zlib_code);
         break;
     }
     move_limit_pos(length_read);

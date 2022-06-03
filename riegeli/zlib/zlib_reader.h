@@ -191,8 +191,8 @@ class ZlibReaderBase : public BufferedReader {
 
   struct ZStreamDeleter {
     void operator()(z_stream* ptr) const {
-      const int result = inflateEnd(ptr);
-      RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
+      const int zlib_code = inflateEnd(ptr);
+      RIEGELI_ASSERT_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
       delete ptr;
     }
   };
