@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -62,7 +63,9 @@ class SerializeOptions {
   // does not change in inappropriate ways and there are no unknown fields)
   // but serialization can be slower.
   //
-  // Default: `false`.
+  // Default:
+  // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`
+  // (usually `false`).
   SerializeOptions& set_deterministic(bool deterministic) & {
     deterministic_ = deterministic;
     return *this;
@@ -99,7 +102,8 @@ class SerializeOptions {
 
  private:
   bool partial_ = false;
-  bool deterministic_ = false;
+  bool deterministic_ = google::protobuf::io::CodedOutputStream::
+      IsDefaultSerializationDeterministic();
   bool has_cached_size_ = false;
 };
 
