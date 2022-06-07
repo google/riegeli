@@ -168,7 +168,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   {
     absl::Status status = ParseFromReader(
         LimitingReader<>(&values_reader_,
-                         LimitingReaderBase::Options().set_max_pos(limit)),
+                         LimitingReaderBase::Options().set_exact_pos(limit)),
         record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!values_reader_.Seek(limit)) {

@@ -217,7 +217,9 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  LimitingReader<ChainReader<>> record_reader(std::forward_as_tuple(&records));
+  LimitingReader<ChainReader<>> record_reader(
+      std::forward_as_tuple(&records),
+      LimitingReaderBase::Options().set_exact_pos(0));
   for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
