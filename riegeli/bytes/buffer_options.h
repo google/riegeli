@@ -20,12 +20,9 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-
-ABSL_DECLARE_FLAG(bool, riegeli_use_adaptive_buffer_sizes);
 
 namespace riegeli {
 
@@ -107,9 +104,7 @@ class BufferOptionsBase {
     static_assert(std::is_base_of<BufferOptionsBase<Options>, Options>::value,
                   "The template argument Options in BufferOptionsBase<Options> "
                   "must be the class derived from BufferOptionsBase<Options>");
-    set_min_buffer_size(absl::GetFlag(FLAGS_riegeli_use_adaptive_buffer_sizes)
-                            ? Options::kDefaultMinBufferSize
-                            : Options::kDefaultMaxBufferSize);
+    set_min_buffer_size(Options::kDefaultMinBufferSize);
     set_max_buffer_size(Options::kDefaultMaxBufferSize);
   }
 

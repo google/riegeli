@@ -18,20 +18,8 @@
 
 #include <limits>
 
-#include "absl/flags/flag.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-
-ABSL_FLAG(
-    bool, riegeli_use_adaptive_buffer_sizes, true,
-    "If true, the buffer length in Riegeli classes depending on buffer_options "
-    "will vary between min_buffer_size and max_buffer_size, depending on the "
-    "access pattern, with {min,max}_buffer_size depending on the concrete "
-    "class. If false, the default min_buffer_size will be forced to be the "
-    "same as the default max_buffer_size, which effectively disables varying "
-    "the buffer size when options are left as default. This flag defaults to "
-    "true and serves as an emergency brake, later it will be removed. Details: "
-    "cl/437768440.");
 
 namespace riegeli {
 
