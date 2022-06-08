@@ -112,6 +112,25 @@ template <typename Src,
 absl::Status ParseFromReader(Src&& src, google::protobuf::MessageLite& dest,
                              ParseOptions options = ParseOptions());
 
+// Reads a message in binary format with the given `length` from the given
+// `Reader`. If successful, exactly `length` bytes will be consumed.
+//
+// Returns status:
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
+//
+// This is a more efficient equivalent of:
+//
+// ```
+// ParseFromReader(
+//     LimitingReader<>(&src,
+//                      LimitingReaderBase::Options().set_exact_length(length)),
+//     dest, options)
+// ```
+absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
+                                       google::protobuf::MessageLite& dest,
+                                       ParseOptions options = ParseOptions());
+
 // Reads a message in binary format from the given `absl::string_view`.
 //
 // Returns status:

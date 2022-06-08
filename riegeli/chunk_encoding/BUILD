@@ -37,7 +37,6 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
-        "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/messages:message_parse",
         "@com_google_absl//absl/base:core_headers",

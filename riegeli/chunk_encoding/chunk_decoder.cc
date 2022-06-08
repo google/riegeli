@@ -30,7 +30,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -166,10 +165,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   {
-    absl::Status status = ParseFromReader(
-        LimitingReader<>(&values_reader_,
-                         LimitingReaderBase::Options().set_exact_pos(limit)),
-        record);
+    absl::Status status =
+        ParseFromReaderWithLength(values_reader_, limit - start, record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!values_reader_.Seek(limit)) {
         RIEGELI_ASSERT_UNREACHABLE()

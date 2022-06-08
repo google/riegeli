@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/cord_reader.h"
+#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -123,6 +124,52 @@ absl::Status ParseFromReaderImpl(Reader& src,
 }
 
 }  // namespace messages_internal
+
+absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
+                                       google::protobuf::MessageLite& dest,
+                                       ParseOptions options) {
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
+      length <= kMaxBytesToCopy) {
+    src.Pull();
+    if (src.available() >= length) {
+      // The data are flat. `ParsePartialFromArray()` is faster than
+      // `ParsePartialFromZeroCopyStream()`.
+      const bool parse_ok =
+          dest.ParsePartialFromArray(src.cursor(), IntCast<int>(length));
+      src.move_cursor(length);
+      if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src, dest);
+      return CheckInitialized(src, dest, options);
+    }
+  }
+  LimitingReader<> reader(
+      &src, LimitingReaderBase::Options().set_exact_length(length));
+  ReaderInputStream input_stream(&reader);
+  bool parse_ok;
+  if (options.recursion_limit() ==
+      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok =
+        options.merge()
+            ? dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1)
+            : dest.ParsePartialFromZeroCopyStream(&input_stream);
+  } else {
+    if (!options.merge()) dest.Clear();
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    coded_stream.SetRecursionLimit(options.recursion_limit());
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  }
+  if (ABSL_PREDICT_FALSE(!reader.ok())) return reader.status();
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(reader, dest);
+  const absl::Status status = CheckInitialized(reader, dest, options);
+  if (!reader.Close()) {
+    RIEGELI_ASSERT_UNREACHABLE() << "A LimitingReader with !fail_if_longer() "
+                                    "has no reason to fail only in Close(): "
+                                 << reader.status();
+  }
+  return status;
+}
 
 absl::Status ParseFromString(absl::string_view src,
                              google::protobuf::MessageLite& dest,

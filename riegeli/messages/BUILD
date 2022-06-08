@@ -14,6 +14,7 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:cord_reader",
+        "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
