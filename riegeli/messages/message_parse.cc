@@ -83,21 +83,18 @@ namespace messages_internal {
 absl::Status ParseFromReaderImpl(Reader& src,
                                  google::protobuf::MessageLite& dest,
                                  ParseOptions options) {
-  src.Pull();
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
-      src.available() <= kMaxBytesToCopy && src.SupportsSize()) {
+      src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
-    if (src.limit_pos() == *size) {
+    src.Pull();
+    if (src.limit_pos() == *size && src.available() <= kMaxBytesToCopy) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      const bool parse_ok =
-          ABSL_PREDICT_TRUE(src.available() <=
-                            size_t{std::numeric_limits<int>::max()}) &&
-          dest.ParsePartialFromArray(src.cursor(),
-                                     IntCast<int>(src.available()));
+      const bool parse_ok = dest.ParsePartialFromArray(
+          src.cursor(), IntCast<int>(src.available()));
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src, dest);
       return CheckInitialized(src, dest, options);
