@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -60,17 +59,6 @@ class StringWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
     // Minimal size of a block of buffered data after the initial capacity of
     // the destination.
     //
@@ -106,7 +94,6 @@ class StringWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    absl::optional<Position> size_hint_;
     size_t min_buffer_size_ = kDefaultMinBlockSize;
     size_t max_buffer_size_ = kDefaultMaxBlockSize;
   };
@@ -130,8 +117,7 @@ class StringWriterBase : public Writer {
 
   void Reset(Closed);
   void Reset(size_t min_buffer_size, size_t max_buffer_size);
-  void Initialize(std::string* dest, bool append,
-                  absl::optional<Position> size_hint);
+  void Initialize(std::string* dest, bool append);
   bool UsesSecondaryBuffer() const { return !secondary_buffer_.empty(); }
   void MoveSecondaryBuffer(StringWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
@@ -322,17 +308,10 @@ inline void StringWriterBase::Reset(size_t min_buffer_size,
   associated_reader_.Reset();
 }
 
-inline void StringWriterBase::Initialize(std::string* dest, bool append,
-                                         absl::optional<Position> size_hint) {
+inline void StringWriterBase::Initialize(std::string* dest, bool append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
   if (!append) dest->clear();
-  if (size_hint != absl::nullopt) {
-    const size_t adjusted_size_hint = UnsignedMin(*size_hint, dest->max_size());
-    if (dest->capacity() < adjusted_size_hint) {
-      dest->reserve(adjusted_size_hint);
-    }
-  }
   MakeDestBuffer(*dest);
 }
 
@@ -381,14 +360,14 @@ template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
     : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
       dest_(dest) {
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
     : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
@@ -397,7 +376,7 @@ inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
     : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
@@ -432,14 +411,14 @@ template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
   StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
   StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
@@ -448,7 +427,7 @@ inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
   StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.append(), options.size_hint());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>

@@ -41,24 +41,7 @@ class Reader;
 // Template parameter independent part of `HadoopSnappyWriter`.
 class HadoopSnappyWriterBase : public PushableWriter {
  public:
-  class Options {
-   public:
-    Options() noexcept {}
-
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
-   private:
-    absl::optional<Position> size_hint_;
-  };
+  class Options {};
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
@@ -75,13 +58,13 @@ class HadoopSnappyWriterBase : public PushableWriter {
  protected:
   explicit HadoopSnappyWriterBase(Closed) noexcept : PushableWriter(kClosed) {}
 
-  explicit HadoopSnappyWriterBase(absl::optional<Position> size_hint);
+  explicit HadoopSnappyWriterBase() {}
 
   HadoopSnappyWriterBase(HadoopSnappyWriterBase&& that) noexcept;
   HadoopSnappyWriterBase& operator=(HadoopSnappyWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(absl::optional<Position> size_hint);
+  void Reset();
   void Initialize(Writer* dest);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -195,10 +178,6 @@ explicit HadoopSnappyWriter(
 // Implementation details follow.
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
-    absl::optional<Position> size_hint)
-    : size_hint_(size_hint) {}
-
-inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     HadoopSnappyWriterBase&& that) noexcept
     : PushableWriter(static_cast<PushableWriter&&>(that)),
       size_hint_(that.size_hint_),
@@ -224,9 +203,9 @@ inline void HadoopSnappyWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void HadoopSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
+inline void HadoopSnappyWriterBase::Reset() {
   PushableWriter::Reset();
-  size_hint_ = size_hint;
+  size_hint_ = absl::nullopt;
   initial_compressed_pos_ = 0;
   associated_reader_.Reset();
 }
@@ -234,14 +213,14 @@ inline void HadoopSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
 template <typename Dest>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(const Dest& dest,
                                                     Options options)
-    : HadoopSnappyWriterBase(options.size_hint()), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(Dest&& dest,
                                                     Options options)
-    : HadoopSnappyWriterBase(options.size_hint()), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -249,7 +228,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : HadoopSnappyWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -276,14 +255,14 @@ inline void HadoopSnappyWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void HadoopSnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
-  HadoopSnappyWriterBase::Reset(options.size_hint());
+  HadoopSnappyWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void HadoopSnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
-  HadoopSnappyWriterBase::Reset(options.size_hint());
+  HadoopSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -292,7 +271,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void HadoopSnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
-  HadoopSnappyWriterBase::Reset(options.size_hint());
+  HadoopSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

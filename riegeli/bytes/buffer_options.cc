@@ -92,8 +92,7 @@ size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
       UnsignedMax(ApplyWriteSizeHint(
                       UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
                                   buffer_options_.min_buffer_size()),
-                      buffer_options_.size_hint(), pos,
-                      buffer_length_from_last_run_ > 0),
+                      size_hint(), pos, buffer_length_from_last_run_ > 0),
                   recommended_length),
       min_length, buffer_options_.max_buffer_size());
 }

@@ -41,24 +41,7 @@ class Reader;
 // Template parameter independent part of `SnappyWriter`.
 class SnappyWriterBase : public Writer {
  public:
-  class Options {
-   public:
-    Options() noexcept {}
-
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
-   private:
-    absl::optional<Position> size_hint_;
-  };
+  class Options {};
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
@@ -75,13 +58,13 @@ class SnappyWriterBase : public Writer {
  protected:
   explicit SnappyWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit SnappyWriterBase(absl::optional<Position> size_hint);
+  explicit SnappyWriterBase();
 
   SnappyWriterBase(SnappyWriterBase&& that) noexcept;
   SnappyWriterBase& operator=(SnappyWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(absl::optional<Position> size_hint);
+  void Reset();
   void Initialize(Writer* dest);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -260,12 +243,10 @@ size_t SnappyMaxCompressedSize(size_t uncompressed_size);
 
 // Implementation details follow.
 
-inline SnappyWriterBase::SnappyWriterBase(absl::optional<Position> size_hint)
-    : options_(
-          Chain::Options()
-              .set_size_hint(SaturatingIntCast<size_t>(size_hint.value_or(0)))
-              .set_min_block_size(kBlockSize)
-              .set_max_block_size(kBlockSize)) {}
+inline SnappyWriterBase::SnappyWriterBase()
+    : options_(Chain::Options()
+                   .set_min_block_size(kBlockSize)
+                   .set_max_block_size(kBlockSize)) {}
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
@@ -290,13 +271,11 @@ inline void SnappyWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
+inline void SnappyWriterBase::Reset() {
   Writer::Reset();
-  options_ =
-      Chain::Options()
-          .set_size_hint(SaturatingIntCast<size_t>(size_hint.value_or(0)))
-          .set_min_block_size(kBlockSize)
-          .set_max_block_size(kBlockSize);
+  options_ = Chain::Options()
+                 .set_min_block_size(kBlockSize)
+                 .set_max_block_size(kBlockSize);
   uncompressed_.Clear();
   associated_reader_.Reset();
 }
@@ -324,13 +303,13 @@ inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
 
 template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(const Dest& dest, Options options)
-    : SnappyWriterBase(options.size_hint()), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(Dest&& dest, Options options)
-    : SnappyWriterBase(options.size_hint()), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -338,7 +317,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline SnappyWriter<Dest>::SnappyWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : SnappyWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -363,14 +342,14 @@ inline void SnappyWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void SnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
-  SnappyWriterBase::Reset(options.size_hint());
+  SnappyWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void SnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
-  SnappyWriterBase::Reset(options.size_hint());
+  SnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -379,7 +358,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void SnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  SnappyWriterBase::Reset(options.size_hint());
+  SnappyWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

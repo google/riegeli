@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -59,17 +58,6 @@ class ChainWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
     // Minimal size of a block of allocated data.
     //
     // This is used initially, while the destination is small.
@@ -105,7 +93,6 @@ class ChainWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    absl::optional<Position> size_hint_;
     size_t min_block_size_ = kDefaultMinBlockSize;
     size_t max_block_size_ = kDefaultMaxBlockSize;
   };
@@ -274,8 +261,6 @@ explicit ChainWriter(
 
 inline ChainWriterBase::ChainWriterBase(const Options& options)
     : options_(Chain::Options()
-                   .set_size_hint(SaturatingIntCast<size_t>(
-                       options.size_hint().value_or(0)))
                    .set_min_block_size(options.min_block_size())
                    .set_max_block_size(options.max_block_size())) {}
 
@@ -301,8 +286,6 @@ inline void ChainWriterBase::Reset(Closed) {
 inline void ChainWriterBase::Reset(const Options& options) {
   Writer::Reset();
   options_ = Chain::Options()
-                 .set_size_hint(
-                     SaturatingIntCast<size_t>(options.size_hint().value_or(0)))
                  .set_min_block_size(options.min_block_size())
                  .set_max_block_size(options.max_block_size());
   associated_reader_.Reset();

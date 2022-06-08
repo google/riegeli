@@ -23,7 +23,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -61,17 +60,6 @@ class CordWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
     // Minimal size of a block of allocated data.
     //
     // This is used initially, while the destination is small.
@@ -107,7 +95,6 @@ class CordWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    absl::optional<Position> size_hint_;
     size_t min_block_size_ = kDefaultMinBlockSize;
     size_t max_block_size_ = kDefaultMaxBlockSize;
   };
@@ -271,8 +258,7 @@ explicit CordWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline CordWriterBase::CordWriterBase(const Options& options)
-    : size_hint_(options.size_hint()),
-      min_block_size_(options.min_block_size()),
+    : min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
 inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
@@ -314,7 +300,7 @@ inline void CordWriterBase::Reset(Closed) {
 
 inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset();
-  size_hint_ = options.size_hint();
+  size_hint_ = absl::nullopt;
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
   associated_reader_.Reset();

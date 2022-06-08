@@ -57,17 +57,6 @@ class CordBackwardWriterBase : public BackwardWriter {
     }
     bool prepend() const { return prepend_; }
 
-    ABSL_DEPRECATED("Use BackwardWriter::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use BackwardWriter::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
     // Minimal size of a block of allocated data.
     //
     // This is used initially, while the destination is small.
@@ -104,7 +93,6 @@ class CordBackwardWriterBase : public BackwardWriter {
 
    private:
     bool prepend_ = false;
-    absl::optional<Position> size_hint_;
     size_t min_block_size_ = kDefaultMinBlockSize;
     size_t max_block_size_ = kDefaultMaxBlockSize;
   };
@@ -264,8 +252,7 @@ explicit CordBackwardWriter(
 // Implementation details follow.
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
-    : size_hint_(options.size_hint()),
-      min_block_size_(options.min_block_size()),
+    : min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(
@@ -305,7 +292,7 @@ inline void CordBackwardWriterBase::Reset(Closed) {
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset();
-  size_hint_ = options.size_hint();
+  size_hint_ = absl::nullopt;
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
 }
@@ -317,15 +304,10 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
     set_start_pos(dest->size());
     const size_t buffer_length = UnsignedMin(
         kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-    if (size_hint_ == absl::nullopt ||
-        *size_hint_ <= dest->size() + buffer_length) {
-      set_buffer(short_buffer_, buffer_length);
-    }
+    set_buffer(short_buffer_, buffer_length);
   } else {
     dest->Clear();
-    if (size_hint_ == absl::nullopt || *size_hint_ <= kShortBufferSize) {
-      set_buffer(short_buffer_, kShortBufferSize);
-    }
+    set_buffer(short_buffer_, kShortBufferSize);
   }
 }
 

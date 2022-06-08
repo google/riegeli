@@ -116,16 +116,6 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                        ZSTD_getErrorName(result))));
       return;
     }
-  } else if (buffer_options().size_hint() != absl::nullopt) {
-    const size_t result = ZSTD_CCtx_setParameter(
-        compressor_.get(), ZSTD_c_srcSizeHint,
-        SaturatingIntCast<int>(*buffer_options().size_hint()));
-    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(absl::InternalError(
-          absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) failed: ",
-                       ZSTD_getErrorName(result))));
-      return;
-    }
   }
   if (!dictionary_.empty()) {
     const std::shared_ptr<const ZSTD_CDict> prepared =

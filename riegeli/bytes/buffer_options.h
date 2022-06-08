@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -74,21 +73,9 @@ class BufferOptions {
     return std::move(set_buffer_size(buffer_size));
   }
 
-  ABSL_DEPRECATED("Use Writer::SetWriteSizeHint(), or remove for a Reader")
-  BufferOptions& set_size_hint(absl::optional<Position> size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  ABSL_DEPRECATED("Use Writer::SetWriteSizeHint(), or remove for a Reader")
-  BufferOptions&& set_size_hint(absl::optional<Position> size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-  absl::optional<Position> size_hint() const { return size_hint_; }
-
  private:
   size_t min_buffer_size_ = kDefaultMinBufferSize;
   size_t max_buffer_size_ = kDefaultMaxBufferSize;
-  absl::optional<Position> size_hint_;
 };
 
 // Deriving `Options` from `BufferOptionsBase<Options>` makes it easier to
@@ -139,19 +126,6 @@ class BufferOptionsBase {
   }
   Options&& set_buffer_size(size_t buffer_size) && {
     return std::move(set_buffer_size(buffer_size));
-  }
-
-  ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() or remove for a Reader")
-  Options& set_size_hint(absl::optional<Position> size_hint) & {
-    buffer_options_.set_size_hint(size_hint);
-    return static_cast<Options&>(*this);
-  }
-  ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() or remove for a Reader")
-  Options&& set_size_hint(absl::optional<Position> size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-  absl::optional<Position> size_hint() const {
-    return buffer_options_.size_hint();
   }
 
   // Grouped options related to buffering.
@@ -212,13 +186,9 @@ class ReadBufferSizer {
   // Also, if not `absl::nullptr`, this causes a smaller buffer size to be used
   // when reaching `*exact_size()`.
   void set_exact_size(absl::optional<Position> exact_size) {
-    buffer_options_.set_size_hint(exact_size);
-    size_hint_is_exact_ = exact_size != absl::nullopt;
+    exact_size_ = exact_size;
   }
-  absl::optional<Position> exact_size() const {
-    if (size_hint_is_exact_) return buffer_options_.size_hint();
-    return absl::nullopt;
-  }
+  absl::optional<Position> exact_size() const { return exact_size_; }
 
   // Called at the beginning of a run.
   //
@@ -276,7 +246,7 @@ class ReadBufferSizer {
   // Buffer size recommended by the previous run.
   size_t buffer_length_from_last_run_ = 0;
   bool read_all_hint_ = false;
-  bool size_hint_is_exact_ = false;
+  absl::optional<Position> exact_size_;
 };
 
 // Recommends an adaptive buffer length based on the access pattern of a
@@ -312,14 +282,12 @@ class WriteBufferSizer {
   // `*exact_size()`.
   void set_write_size_hint(Position pos,
                            absl::optional<Position> write_size_hint) {
-    buffer_options_.set_size_hint(
+    size_hint_ =
         write_size_hint == absl::nullopt
             ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(pos, *write_size_hint)));
+            : absl::make_optional(SaturatingAdd(pos, *write_size_hint));
   }
-  absl::optional<Position> size_hint() const {
-    return buffer_options_.size_hint();
-  }
+  absl::optional<Position> size_hint() const { return size_hint_; }
 
   // Called at the beginning of a run.
   //
@@ -370,6 +338,7 @@ class WriteBufferSizer {
   Position base_pos_ = 0;
   // Buffer size recommended by the previous run.
   size_t buffer_length_from_last_run_ = 0;
+  absl::optional<Position> size_hint_;
 };
 
 // Implementation details follow.
@@ -392,7 +361,7 @@ inline ReadBufferSizer::ReadBufferSizer(const ReadBufferSizer& that) noexcept
       base_pos_(that.base_pos_),
       buffer_length_from_last_run_(that.buffer_length_from_last_run_),
       read_all_hint_(that.read_all_hint_),
-      size_hint_is_exact_(that.size_hint_is_exact_) {}
+      exact_size_(that.exact_size_) {}
 
 inline ReadBufferSizer& ReadBufferSizer::operator=(
     const ReadBufferSizer& that) noexcept {
@@ -400,7 +369,7 @@ inline ReadBufferSizer& ReadBufferSizer::operator=(
   base_pos_ = that.base_pos_;
   buffer_length_from_last_run_ = that.buffer_length_from_last_run_;
   read_all_hint_ = that.read_all_hint_;
-  size_hint_is_exact_ = that.size_hint_is_exact_;
+  exact_size_ = that.exact_size_;
   return *this;
 }
 
@@ -409,7 +378,7 @@ inline void ReadBufferSizer::Reset() {
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
   read_all_hint_ = false;
-  size_hint_is_exact_ = false;
+  exact_size_ = absl::nullopt;
 }
 
 inline void ReadBufferSizer::Reset(const BufferOptions& buffer_options) {
@@ -417,7 +386,7 @@ inline void ReadBufferSizer::Reset(const BufferOptions& buffer_options) {
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
   read_all_hint_ = false;
-  size_hint_is_exact_ = false;
+  exact_size_ = absl::nullopt;
 }
 
 inline void ReadBufferSizer::EndRun(Position pos) {
@@ -435,13 +404,15 @@ inline WriteBufferSizer::WriteBufferSizer(const BufferOptions& buffer_options)
 inline WriteBufferSizer::WriteBufferSizer(const WriteBufferSizer& that) noexcept
     : buffer_options_(that.buffer_options_),
       base_pos_(that.base_pos_),
-      buffer_length_from_last_run_(that.buffer_length_from_last_run_) {}
+      buffer_length_from_last_run_(that.buffer_length_from_last_run_),
+      size_hint_(that.size_hint_) {}
 
 inline WriteBufferSizer& WriteBufferSizer::operator=(
     const WriteBufferSizer& that) noexcept {
   buffer_options_ = that.buffer_options_;
   base_pos_ = that.base_pos_;
   buffer_length_from_last_run_ = that.buffer_length_from_last_run_;
+  size_hint_ = that.size_hint_;
   return *this;
 }
 
@@ -449,12 +420,14 @@ inline void WriteBufferSizer::Reset() {
   buffer_options_ = BufferOptions();
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
+  size_hint_ = absl::nullopt;
 }
 
 inline void WriteBufferSizer::Reset(const BufferOptions& buffer_options) {
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
+  size_hint_ = absl::nullopt;
 }
 
 inline void WriteBufferSizer::EndRun(Position pos) {

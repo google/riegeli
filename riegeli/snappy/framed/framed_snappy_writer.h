@@ -41,24 +41,7 @@ class Reader;
 // Template parameter independent part of `FramedSnappyWriter`.
 class FramedSnappyWriterBase : public PushableWriter {
  public:
-  class Options {
-   public:
-    Options() noexcept {}
-
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options& set_size_hint(absl::optional<Position> size_hint) & {
-      size_hint_ = size_hint;
-      return *this;
-    }
-    ABSL_DEPRECATED("Use Writer::SetWriteSizeHint() instead")
-    Options&& set_size_hint(absl::optional<Position> size_hint) && {
-      return std::move(set_size_hint(size_hint));
-    }
-    absl::optional<Position> size_hint() const { return size_hint_; }
-
-   private:
-    absl::optional<Position> size_hint_;
-  };
+  class Options {};
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
@@ -75,13 +58,13 @@ class FramedSnappyWriterBase : public PushableWriter {
  protected:
   explicit FramedSnappyWriterBase(Closed) noexcept : PushableWriter(kClosed) {}
 
-  explicit FramedSnappyWriterBase(absl::optional<Position> size_hint);
+  explicit FramedSnappyWriterBase() {}
 
   FramedSnappyWriterBase(FramedSnappyWriterBase&& that) noexcept;
   FramedSnappyWriterBase& operator=(FramedSnappyWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(absl::optional<Position> size_hint);
+  void Reset();
   void Initialize(Writer* dest);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -195,10 +178,6 @@ explicit FramedSnappyWriter(
 // Implementation details follow.
 
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
-    absl::optional<Position> size_hint)
-    : size_hint_(size_hint) {}
-
-inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     FramedSnappyWriterBase&& that) noexcept
     : PushableWriter(static_cast<PushableWriter&&>(that)),
       size_hint_(that.size_hint_),
@@ -224,9 +203,9 @@ inline void FramedSnappyWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void FramedSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
+inline void FramedSnappyWriterBase::Reset() {
   PushableWriter::Reset();
-  size_hint_ = size_hint;
+  size_hint_ = absl::nullopt;
   initial_compressed_pos_ = 0;
   associated_reader_.Reset();
 }
@@ -234,14 +213,14 @@ inline void FramedSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(const Dest& dest,
                                                     Options options)
-    : FramedSnappyWriterBase(options.size_hint()), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(Dest&& dest,
                                                     Options options)
-    : FramedSnappyWriterBase(options.size_hint()), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -249,7 +228,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : FramedSnappyWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -276,14 +255,14 @@ inline void FramedSnappyWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void FramedSnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint());
+  FramedSnappyWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void FramedSnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint());
+  FramedSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -292,7 +271,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void FramedSnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint());
+  FramedSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

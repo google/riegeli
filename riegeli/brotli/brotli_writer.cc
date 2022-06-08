@@ -111,12 +111,6 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (buffer_options().size_hint() != absl::nullopt) {
-    // Ignore errors from tuning.
-    BrotliEncoderSetParameter(
-        compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-        SaturatingIntCast<uint32_t>(*buffer_options().size_hint()));
-  }
 }
 
 void BrotliWriterBase::DoneBehindBuffer(absl::string_view src) {
