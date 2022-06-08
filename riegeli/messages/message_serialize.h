@@ -63,6 +63,9 @@ class SerializeOptions {
   // does not change in inappropriate ways and there are no unknown fields)
   // but serialization can be slower.
   //
+  // This matches
+  // `google::protobuf::io::CodedOutputStream::SetSerializationDeterministic()`.
+  //
   // Default:
   // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`
   // (usually `false`).
