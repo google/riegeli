@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/base.h"
@@ -154,6 +155,9 @@ struct Methods {
   Ptr (*get)(const Storage self);
   Ptr (*release)(Storage self);
   bool (*is_owning)(const Storage self);
+  // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
+  // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
+  const void* (*get_if)(const Storage self, TypeId type_id);
 };
 
 template <typename Ptr>
@@ -332,6 +336,13 @@ class AnyDependencyImpl {
 
   // If `true`, `get()` stays unchanged when an `AnyDependencyImpl` is moved.
   static constexpr bool kIsStable = inline_size == 0;
+
+  // If the contained `Manager` has exactly this type or a reference to it,
+  // returns a pointer to the contained `Manager`. Otherwise returns `nullptr`.
+  template <typename Manager>
+  Manager* GetIf();
+  template <typename Manager>
+  const Manager* GetIf() const;
 
  private:
   // For adopting `methods_` and `repr_` from an instantiation with a different
@@ -518,11 +529,14 @@ struct NullMethods {
     return AnyDependencyTraits<Ptr>::DefaultPtr();
   }
   static bool IsOwning(const Storage self) { return false; }
+  static const void* GetIf(const Storage self, TypeId type_id) {
+    return nullptr;
+  }
 };
 
 template <typename Ptr>
-const Methods<Ptr> NullMethods<Ptr>::methods = {Move, Destroy, Get, Release,
-                                                IsOwning};
+const Methods<Ptr> NullMethods<Ptr>::methods = {Move,    Destroy,  Get,
+                                                Release, IsOwning, GetIf};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
@@ -562,13 +576,20 @@ struct MethodsFor {
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(*ptr(self));
   }
+  static const void* GetIf(const Storage self, TypeId type_id) {
+    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
+      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
+          &ptr(self)->manager());
+    }
+    return nullptr;
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
-        Move, Destroy, Get, Release, IsOwning};
+        Move, Destroy, Get, Release, IsOwning, GetIf};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
@@ -616,6 +637,13 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(dep(self));
   }
+  static const void* GetIf(const Storage self, TypeId type_id) {
+    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
+      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
+          &dep(self).manager());
+    }
+    return nullptr;
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
@@ -624,7 +652,7 @@ const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager,
                std::enable_if_t<IsInline<Ptr, inline_size, inline_align,
                                          Manager>::value>>::methods = {
-        Move, Destroy, Get, Release, IsOwning};
+        Move, Destroy, Get, Release, IsOwning, GetIf};
 
 }  // namespace any_dependency_internal
 
@@ -787,6 +815,21 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
   // Adopt `manager` instead of wrapping it.
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
   methods_->move(repr_.storage, manager.repr_.storage);
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Manager>
+Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf() {
+  return const_cast<Manager*>(static_cast<const Manager*>(
+      methods_->get_if(repr_.storage, TypeId::For<Manager>())));
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Manager>
+const Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf()
+    const {
+  return static_cast<const Manager*>(
+      methods_->get_if(repr_.storage, TypeId::For<Manager>()));
 }
 
 }  // namespace riegeli
