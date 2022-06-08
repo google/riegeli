@@ -212,8 +212,6 @@ absl::Status ParseFromChain(const Chain& src,
     }
   }
   ChainReader<> reader(&src);
-  // Do not bother with `reader.ok()` or `reader.Close()`. A `ChainReader` can
-  // never fail.
   ReaderInputStream input_stream(&reader);
   if (!options.merge()) dest.Clear();
   bool parse_ok;
@@ -226,6 +224,8 @@ absl::Status ParseFromChain(const Chain& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
+  RIEGELI_ASSERT(reader.ok())
+      << "A ChainReader has no reason to fail: " << reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
@@ -248,8 +248,6 @@ absl::Status ParseFromCord(const absl::Cord& src,
     }
   }
   CordReader<> reader(&src);
-  // Do not bother with `reader.ok()` or `reader.Close()`. A `CordReader` can
-  // never fail.
   ReaderInputStream input_stream(&reader);
   if (!options.merge()) dest.Clear();
   bool parse_ok;
@@ -262,6 +260,8 @@ absl::Status ParseFromCord(const absl::Cord& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
+  RIEGELI_ASSERT(reader.ok())
+      << "A CordReader has no reason to fail: " << reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
