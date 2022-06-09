@@ -61,6 +61,14 @@ http_archive(
 )
 
 http_archive(
+    name = "bzip2",
+    build_file = "//third_party:bzip2.BUILD",
+    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    strip_prefix = "bzip2-1.0.8",
+    urls = ["https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"],  # 2019-07-13
+)
+
+http_archive(
     name = "highwayhash",
     build_file = "//third_party:highwayhash.BUILD",
     sha256 = "cf891e024699c82aabce528a024adbe16e529f2b4e57f954455e0bf53efae585",
