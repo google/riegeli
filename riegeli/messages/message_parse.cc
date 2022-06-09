@@ -101,12 +101,13 @@ absl::Status ParseFromReaderImpl(Reader& src,
     }
   }
   ReaderInputStream input_stream(&src);
-  if (!options.merge()) dest.Clear();
   bool parse_ok;
-  if (options.recursion_limit() ==
-      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
-    parse_ok = dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1);
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   } else {
+    if (!options.merge()) dest.Clear();
     google::protobuf::io::CodedInputStream coded_stream(&input_stream);
     coded_stream.SetRecursionLimit(options.recursion_limit());
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
@@ -140,12 +141,13 @@ absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
   LimitingReader<> reader(
       &src, LimitingReaderBase::Options().set_exact_length(length));
   ReaderInputStream input_stream(&reader);
-  if (!options.merge()) dest.Clear();
   bool parse_ok;
-  if (options.recursion_limit() ==
-      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
-    parse_ok = dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1);
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   } else {
+    if (!options.merge()) dest.Clear();
     google::protobuf::io::CodedInputStream coded_stream(&input_stream);
     coded_stream.SetRecursionLimit(options.recursion_limit());
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
@@ -177,15 +179,10 @@ absl::Status ParseFromString(absl::string_view src,
     if (!options.merge()) dest.Clear();
     google::protobuf::io::ArrayInputStream input_stream(
         src.data(), IntCast<int>(src.size()));
-    if (options.recursion_limit() ==
-        google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
-      parse_ok = dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1);
-    } else {
-      google::protobuf::io::CodedInputStream coded_stream(&input_stream);
-      coded_stream.SetRecursionLimit(options.recursion_limit());
-      parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
-                 coded_stream.ConsumedEntireMessage();
-    }
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    coded_stream.SetRecursionLimit(options.recursion_limit());
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
   }
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
@@ -210,12 +207,13 @@ absl::Status ParseFromChain(const Chain& src,
   }
   ChainReader<> reader(&src);
   ReaderInputStream input_stream(&reader);
-  if (!options.merge()) dest.Clear();
   bool parse_ok;
-  if (options.recursion_limit() ==
-      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
-    parse_ok = dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1);
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   } else {
+    if (!options.merge()) dest.Clear();
     google::protobuf::io::CodedInputStream coded_stream(&input_stream);
     coded_stream.SetRecursionLimit(options.recursion_limit());
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
@@ -246,12 +244,13 @@ absl::Status ParseFromCord(const absl::Cord& src,
   }
   CordReader<> reader(&src);
   ReaderInputStream input_stream(&reader);
-  if (!options.merge()) dest.Clear();
   bool parse_ok;
-  if (options.recursion_limit() ==
-      google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
-    parse_ok = dest.MergePartialFromBoundedZeroCopyStream(&input_stream, -1);
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   } else {
+    if (!options.merge()) dest.Clear();
     google::protobuf::io::CodedInputStream coded_stream(&input_stream);
     coded_stream.SetRecursionLimit(options.recursion_limit());
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
