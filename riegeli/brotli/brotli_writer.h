@@ -179,7 +179,7 @@ class BrotliWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
-  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
+  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:

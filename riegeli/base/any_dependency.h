@@ -137,12 +137,11 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
 struct IsInline<
     Ptr, inline_size, inline_align, Manager,
-    std::enable_if_t<
-        sizeof(Dependency<Ptr, Manager>) <=
-            sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
-        alignof(Dependency<Ptr, Manager>) <=
-            alignof(Repr<Ptr, inline_size, inline_align>::storage) &&
-        (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
+    std::enable_if_t<sizeof(Dependency<Ptr, Manager>) <=
+                         sizeof(Repr<Ptr, inline_size, inline_align>) &&
+                     alignof(Dependency<Ptr, Manager>) <=
+                         alignof(Repr<Ptr, inline_size, inline_align>) &&
+                     (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
     : std::true_type {};
 
 // Method pointers.
@@ -180,11 +179,10 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
 struct IsCompatibleAnyDependency<
     Ptr, inline_size, inline_align,
     AnyDependencyImpl<Ptr, that_inline_size, that_inline_align>,
-    std::enable_if_t<
-        sizeof(Repr<Ptr, that_inline_size, that_inline_align>::storage) <=
-            sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
-        alignof(Repr<Ptr, that_inline_size, that_inline_align>::storage) <=
-            alignof(Repr<Ptr, inline_size, inline_align>::storage)>>
+    std::enable_if_t<sizeof(Repr<Ptr, that_inline_size, that_inline_align>) <=
+                         sizeof(Repr<Ptr, inline_size, inline_align>) &&
+                     alignof(Repr<Ptr, that_inline_size, that_inline_align>) <=
+                         alignof(Repr<Ptr, inline_size, inline_align>)>>
     : std::true_type {};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
@@ -192,11 +190,10 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
 struct IsCompatibleAnyDependency<
     Ptr, inline_size, inline_align,
     AnyDependencyRefImpl<Ptr, that_inline_size, that_inline_align>,
-    std::enable_if_t<
-        sizeof(Repr<Ptr, that_inline_size, that_inline_align>::storage) <=
-            sizeof(Repr<Ptr, inline_size, inline_align>::storage) &&
-        alignof(Repr<Ptr, that_inline_size, that_inline_align>::storage) <=
-            alignof(Repr<Ptr, inline_size, inline_align>::storage)>>
+    std::enable_if_t<sizeof(Repr<Ptr, that_inline_size, that_inline_align>) <=
+                         sizeof(Repr<Ptr, inline_size, inline_align>) &&
+                     alignof(Repr<Ptr, that_inline_size, that_inline_align>) <=
+                         alignof(Repr<Ptr, inline_size, inline_align>)>>
     : std::true_type {};
 
 }  // namespace any_dependency_internal
