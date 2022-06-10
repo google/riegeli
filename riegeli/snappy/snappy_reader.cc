@@ -36,8 +36,7 @@
 
 namespace riegeli {
 
-void SnappyReaderBase::Initialize(Reader* src,
-                                  absl::optional<Position> assumed_size) {
+void SnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of SnappyReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
@@ -46,9 +45,7 @@ void SnappyReaderBase::Initialize(Reader* src,
   }
   Chain decompressed;
   {
-    absl::Status status = SnappyDecompress(
-        *src, ChainWriter<>(&decompressed),
-        SnappyDecompressOptions().set_assumed_size(assumed_size));
+    absl::Status status = SnappyDecompress(*src, ChainWriter<>(&decompressed));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailWithoutAnnotation(std::move(status));
       return;
@@ -85,9 +82,8 @@ absl::Status SnappyReaderBase::AnnotateOverSrc(absl::Status status) {
 
 namespace snappy_internal {
 
-absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
-                                  SnappyDecompressOptions options) {
-  ReaderSnappySource source(&src, options.assumed_size());
+absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
+  ReaderSnappySource source(&src);
   WriterSnappySink sink(&dest);
   const bool uncompress_ok = snappy::Uncompress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();

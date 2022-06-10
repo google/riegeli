@@ -39,27 +39,7 @@ class Writer;
 // Template parameter independent part of `SnappyReader`.
 class SnappyReaderBase : public ChainReader<Chain> {
  public:
-  class Options {
-   public:
-    Options() noexcept {}
-
-    // If `absl::nullopt`, the compressed `Reader` must support `Size()`.
-    //
-    // If not `absl::nullopt`, overrides that size.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_size(absl::optional<Position> assumed_size) & {
-      assumed_size_ = assumed_size;
-      return *this;
-    }
-    Options&& set_assumed_size(absl::optional<Position> assumed_size) && {
-      return std::move(set_assumed_size(assumed_size));
-    }
-    absl::optional<Position> assumed_size() const { return assumed_size_; }
-
-   private:
-    absl::optional<Position> assumed_size_;
-  };
+  class Options {};
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
@@ -75,7 +55,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Reader* src, absl::optional<Position> assumed_size);
+  void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   void Done() override;
@@ -94,8 +74,9 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The compressed `Reader` must support `Size()` if
-// `Options::assumed_size() == absl::nullopt`.
+// The compressed `Reader` must support `Size()`. To supply or override this
+// size, the `Reader` can be wrapped in a `LimitingReader` with
+// `LimitingReaderBase::Options().set_exact_length(size)`.
 //
 // The compressed `Reader` must not be accessed until the `SnappyReader` is
 // closed or no longer used.
@@ -167,31 +148,6 @@ explicit SnappyReader(
     -> SnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
-// Options for `SnappyDecompress()`.
-class SnappyDecompressOptions {
- public:
-  SnappyDecompressOptions() noexcept {}
-
-  // If `absl::nullopt`, the compressed `Reader` must support `Size()`.
-  //
-  // If not `absl::nullopt`, overrides that size.
-  //
-  // Default: `absl::nullopt`.
-  SnappyDecompressOptions& set_assumed_size(
-      absl::optional<Position> assumed_size) & {
-    assumed_size_ = assumed_size;
-    return *this;
-  }
-  SnappyDecompressOptions&& set_assumed_size(
-      absl::optional<Position> assumed_size) && {
-    return std::move(set_assumed_size(assumed_size));
-  }
-  absl::optional<Position> assumed_size() const { return assumed_size_; }
-
- private:
-  absl::optional<Position> assumed_size_;
-};
-
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyDecompress()` is equivalent to copying all data from a
 // `SnappyReader<Src>` to `dest`.
@@ -208,15 +164,14 @@ class SnappyDecompressOptions {
 // `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
 // `ChainWriter<>` (owned).
 //
-// The compressed `Reader` must support `Size()` if
-// `SnappyDecompressOptions::assumed_size() == absl::nullopt`.
+// The compressed `Reader` must support `Size()`. To supply or override this
+// size, the `Reader` can be wrapped in a `LimitingReader` with
+// `LimitingReaderBase::Options().set_exact_length(size)`.
 template <typename Src, typename Dest,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
                                IsValidDependency<Writer*, Dest&&>::value,
                            int> = 0>
-absl::Status SnappyDecompress(
-    Src&& src, Dest&& dest,
-    SnappyDecompressOptions options = SnappyDecompressOptions());
+absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 
 // Returns the claimed uncompressed size of Snappy-compressed data.
 //
@@ -252,13 +207,13 @@ inline void SnappyReaderBase::Reset() {
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(const Src& src, Options options)
     : src_(src) {
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(Src&& src, Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -266,7 +221,7 @@ template <typename... SrcArgs>
 inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
     : src_(std::move(src_args)) {
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -292,14 +247,14 @@ template <typename Src>
 inline void SnappyReader<Src>::Reset(const Src& src, Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(src);
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
 inline void SnappyReader<Src>::Reset(Src&& src, Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -308,7 +263,7 @@ inline void SnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.assumed_size());
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -329,8 +284,7 @@ void SnappyReader<Src>::VerifyEndImpl() {
 
 namespace snappy_internal {
 
-absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
-                                  SnappyDecompressOptions options);
+absl::Status SnappyDecompressImpl(Reader& src, Writer& dest);
 
 }  // namespace snappy_internal
 
@@ -338,16 +292,15 @@ template <typename Src, typename Dest,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
                                IsValidDependency<Writer*, Dest&&>::value,
                            int>>
-inline absl::Status SnappyDecompress(Src&& src, Dest&& dest,
-                                     SnappyDecompressOptions options) {
+inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
   if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
   if (dest_ref.is_owning()) {
     dest_ref->SetWriteSizeHint(SnappyUncompressedSize(*src_ref));
   }
-  absl::Status status = snappy_internal::SnappyDecompressImpl(
-      *src_ref, *dest_ref, std::move(options));
+  absl::Status status =
+      snappy_internal::SnappyDecompressImpl(*src_ref, *dest_ref);
   if (dest_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
       status.Update(dest_ref->status());

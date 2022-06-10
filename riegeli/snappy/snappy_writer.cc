@@ -240,9 +240,8 @@ inline bool SnappyWriterBase::SyncBuffer() {
 
 namespace snappy_internal {
 
-absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
-                                SnappyCompressOptions options) {
-  ReaderSnappySource source(&src, options.assumed_size());
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest) {
+  ReaderSnappySource source(&src);
   WriterSnappySink sink(&dest);
   snappy::Compress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();

@@ -51,19 +51,13 @@ class WriterSnappySink : public snappy::Sink {
 // Adapts a `Reader` to a `snappy::Source`.
 class ReaderSnappySource : public snappy::Source {
  public:
-  explicit ReaderSnappySource(Reader* src,
-                              absl::optional<Position> assumed_size)
-      : src_(RIEGELI_ASSERT_NOTNULL(src)) {
-    if (assumed_size == absl::nullopt) {
-      RIEGELI_ASSERT(src_->SupportsSize())
-          << "Failed precondition of ReaderSnappySource: "
-             "Reader does not support Size()";
-      // There is no way to signal failure here. If `Size()` failed, pretend
-      // that the source is empty.
-      size_ = src_->Size().value_or(0);
-    } else {
-      size_ = *assumed_size;
-    }
+  explicit ReaderSnappySource(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {
+    RIEGELI_ASSERT(src_->SupportsSize())
+        << "Failed precondition of ReaderSnappySource: "
+           "Reader does not support Size()";
+    // There is no way to signal failure here. If `Size()` failed, pretend
+    // that the source is empty.
+    size_ = src_->Size().value_or(0);
   }
 
   ReaderSnappySource(const ReaderSnappySource&) = delete;

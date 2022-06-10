@@ -188,31 +188,6 @@ explicit SnappyWriter(
     -> SnappyWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
-// Options for `SnappyCompress()`.
-class SnappyCompressOptions {
- public:
-  SnappyCompressOptions() noexcept {}
-
-  // If `absl::nullopt`, the uncompressed `Reader` must support `Size()`.
-  //
-  // If not `absl::nullopt`, overrides that size.
-  //
-  // Default: `absl::nullopt`.
-  SnappyCompressOptions& set_assumed_size(
-      absl::optional<Position> assumed_size) & {
-    assumed_size_ = assumed_size;
-    return *this;
-  }
-  SnappyCompressOptions&& set_assumed_size(
-      absl::optional<Position> assumed_size) && {
-    return std::move(set_assumed_size(assumed_size));
-  }
-  absl::optional<Position> assumed_size() const { return assumed_size_; }
-
- private:
-  absl::optional<Position> assumed_size_;
-};
-
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyCompress()` is equivalent to copying all data from `src` to a
 // `SnappyWriter<Dest>`.
@@ -227,15 +202,14 @@ class SnappyCompressOptions {
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned).
 //
-// The uncompressed `Reader` must support `Size()` if
-// `SnappyCompressOptions::assumed_size() == absl::nullopt`.
+// The uncompressed `Reader` must support `Size()`. To supply or override this
+// size, the `Reader` can be wrapped in a `LimitingReader` with
+// `LimitingReaderBase::Options().set_exact_length(size)`.
 template <typename Src, typename Dest,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
                                IsValidDependency<Writer*, Dest&&>::value,
                            int> = 0>
-absl::Status SnappyCompress(
-    Src&& src, Dest&& dest,
-    SnappyCompressOptions options = SnappyCompressOptions());
+absl::Status SnappyCompress(Src&& src, Dest&& dest);
 
 // Returns the maximum compressed size produced by the Snappy compressor for
 // data of the given uncompressed size.
@@ -375,8 +349,7 @@ void SnappyWriter<Dest>::Done() {
 
 namespace snappy_internal {
 
-absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
-                                SnappyCompressOptions options);
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest);
 
 }  // namespace snappy_internal
 
@@ -384,13 +357,12 @@ template <typename Src, typename Dest,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
                                IsValidDependency<Writer*, Dest&&>::value,
                            int>>
-inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
-                                   SnappyCompressOptions options) {
+inline absl::Status SnappyCompress(Src&& src, Dest&& dest) {
   Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
   if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
-  absl::Status status = snappy_internal::SnappyCompressImpl(*src_ref, *dest_ref,
-                                                            std::move(options));
+  absl::Status status =
+      snappy_internal::SnappyCompressImpl(*src_ref, *dest_ref);
   if (dest_ref.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
       status.Update(dest_ref->status());
