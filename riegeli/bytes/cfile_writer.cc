@@ -174,12 +174,13 @@ bool CFileWriterBase::supports_random_access() {
                      cfile_internal::FSeek(dest, IntCast<off_t>(limit_pos()),
                                            SEEK_SET) != 0)) {
         FailOperation(cfile_internal::kFSeekFunctionName);
-      } else if (file_size > 0 ||
-                 ABSL_PREDICT_TRUE(!absl::StartsWith(filename(), "/proc/"))) {
+      } else if (file_size == 0 &&
+                 ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
         // Some "/proc" files do not support random access. It is hard to
         // reliably recognize them using the `FILE` API, so `CFileWriter` checks
-        // the filename. Random access is assumed to be supported only if they
-        // claim to have a non-zero size.
+        // the filename. Random access is assumed to be unsupported if they
+        // claim to have a zero size.
+      } else {
         supported = true;
       }
     }
