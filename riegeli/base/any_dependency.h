@@ -147,11 +147,11 @@ struct IsInline<
 // Method pointers.
 template <typename Ptr>
 struct Methods {
-  // Constructs `self` by moving from `that`, and destroys `that`.
-  void (*move)(Storage self, Storage that);
+  // Constructs `self` and `*self_ptr` by moving from `that`, and destroys
+  // `that`.
+  void (*move)(Storage self, Ptr* self_ptr, Storage that);
   // Destroys `self`.
   void (*destroy)(Storage self);
-  Ptr (*get)(const Storage self);
   Ptr (*release)(Storage self);
   bool (*is_owning)(const Storage self);
   // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
@@ -278,25 +278,23 @@ class AnyDependencyImpl {
   // To avoid having two variants of `AnyDependencyImpl<P*>` based on this
   // subtle distinction, its only variant is more permissive regarding the
   // `Dependency` while also more permissive regarding its usage.
-  Ptr get() const { return methods_->get(repr_.storage); }
+  Ptr get() const { return ptr_; }
 
   // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be used as a smart pointer to
   // `P`, for convenience.
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<Ptr>& operator*() const {
-    const Ptr ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of AnyDependency::operator*: null pointer";
-    return *ptr;
+    return *ptr_;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   Ptr operator->() const {
-    const Ptr ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of AnyDependency::operator->: null pointer";
-    return ptr;
+    return ptr_;
   }
 
   // If the `Dependency` owns the dependent object and can release it,
@@ -360,9 +358,9 @@ class AnyDependencyImpl {
                              std::index_sequence<indices...>)
       : AnyDependencyImpl(std::forward<Args>(std::get<indices>(args))...) {}
 
-  // Initializes `methods_` and `repr_`, avoiding a redundant indirection and
-  // adopting them from `manager` instead if `Manager` is already a compatible
-  // `AnyDependencyImpl` or `AnyDependencyRefImpl`.
+  // Initializes `methods_`, `repr_`, and `ptr_`, avoiding a redundant
+  // indirection and adopting them from `manager` instead if `Manager` is
+  // already a compatible `AnyDependencyImpl` or `AnyDependencyRefImpl`.
   template <
       typename Manager,
       std::enable_if_t<!std::is_reference<Manager>::value &&
@@ -397,6 +395,11 @@ class AnyDependencyImpl {
   void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
+  // The union disables implicit construction and destruction which is done
+  // manually here.
+  union {
+    Ptr ptr_;
+  };
   Repr repr_;
 };
 
@@ -517,11 +520,10 @@ struct NullMethods {
   static const Methods<Ptr> methods;
 
  private:
-  static void Move(Storage self, Storage that) {}
-  static void Destroy(Storage self) {}
-  static Ptr Get(const Storage self) {
-    return AnyDependencyTraits<Ptr>::DefaultPtr();
+  static void Move(Storage self, Ptr* self_ptr, Storage that) {
+    new (self_ptr) Ptr(AnyDependencyTraits<Ptr>::DefaultPtr());
   }
+  static void Destroy(Storage self) {}
   static Ptr Release(Storage self) {
     return AnyDependencyTraits<Ptr>::DefaultPtr();
   }
@@ -532,8 +534,8 @@ struct NullMethods {
 };
 
 template <typename Ptr>
-const Methods<Ptr> NullMethods<Ptr>::methods = {Move,    Destroy,  Get,
-                                                Release, IsOwning, GetIf};
+const Methods<Ptr> NullMethods<Ptr>::methods = {Move, Destroy, Release,
+                                                IsOwning, GetIf};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
@@ -543,40 +545,47 @@ struct MethodsFor {
   template <
       typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, const Manager& manager) {
-    ptr(self) = new Dependency<Ptr, Manager>(manager);
+  static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
+    dep_ptr(self) = new Dependency<Ptr, Manager>(manager);
+    new (self_ptr) Ptr(dep_ptr(self)->get());
   }
-  static void Construct(Storage self, Manager&& manager) {
-    ptr(self) = new Dependency<Ptr, Manager>(std::forward<Manager>(manager));
+  static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
+    dep_ptr(self) =
+        new Dependency<Ptr, Manager>(std::forward<Manager>(manager));
+    new (self_ptr) Ptr(dep_ptr(self)->get());
   }
   template <
       typename... ManagerArgs, typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, std::tuple<ManagerArgs...> manager_args) {
-    ptr(self) = new Dependency<Ptr, Manager>(std::move(manager_args));
+  static void Construct(Storage self, Ptr* self_ptr,
+                        std::tuple<ManagerArgs...> manager_args) {
+    dep_ptr(self) = new Dependency<Ptr, Manager>(std::move(manager_args));
+    new (self_ptr) Ptr(dep_ptr(self)->get());
   }
 
  private:
-  static Dependency<Ptr, Manager>*& ptr(Storage self) {
+  static Dependency<Ptr, Manager>*& dep_ptr(Storage self) {
     return *reinterpret_cast<Dependency<Ptr, Manager>**>(self);
   }
-  static Dependency<Ptr, Manager>* const& ptr(const Storage self) {
+  static Dependency<Ptr, Manager>* const& dep_ptr(const Storage self) {
     return *reinterpret_cast<Dependency<Ptr, Manager>* const*>(self);
   }
 
-  static void Move(Storage self, Storage that) { ptr(self) = ptr(that); }
-  static void Destroy(Storage self) { delete ptr(self); }
-  static Ptr Get(const Storage self) { return ptr(self)->get(); }
+  static void Move(Storage self, Ptr* self_ptr, Storage that) {
+    dep_ptr(self) = dep_ptr(that);
+    new (self_ptr) Ptr(dep_ptr(self)->get());
+  }
+  static void Destroy(Storage self) { delete dep_ptr(self); }
   static Ptr Release(Storage self) {
-    return any_dependency_internal::Release(*ptr(self));
+    return any_dependency_internal::Release(*dep_ptr(self));
   }
   static bool IsOwning(const Storage self) {
-    return any_dependency_internal::IsOwning(*ptr(self));
+    return any_dependency_internal::IsOwning(*dep_ptr(self));
   }
   static const void* GetIf(const Storage self, TypeId type_id) {
     if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
       return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
-          &ptr(self)->manager());
+          &dep_ptr(self)->manager());
     }
     return nullptr;
   }
@@ -586,7 +595,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
-        Move, Destroy, Get, Release, IsOwning, GetIf};
+        Move, Destroy, Release, IsOwning, GetIf};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
@@ -598,17 +607,21 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
   template <
       typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, const Manager& manager) {
+  static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
     new (self) Dependency<Ptr, Manager>(manager);
+    new (self_ptr) Ptr(dep(self).get());
   }
-  static void Construct(Storage self, Manager&& manager) {
+  static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
     new (self) Dependency<Ptr, Manager>(std::forward<Manager>(manager));
+    new (self_ptr) Ptr(dep(self).get());
   }
   template <
       typename... ManagerArgs, typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, std::tuple<ManagerArgs...> manager_args) {
+  static void Construct(Storage self, Ptr* self_ptr,
+                        std::tuple<ManagerArgs...> manager_args) {
     new (self) Dependency<Ptr, Manager>(std::move(manager_args));
+    new (self_ptr) Ptr(dep(self).get());
   }
 
  private:
@@ -619,15 +632,12 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
     return *reinterpret_cast<const Dependency<Ptr, Manager>*>(self);
   }
 
-  static void Move(Storage self, Storage that) {
+  static void Move(Storage self, Ptr* self_ptr, Storage that) {
     new (self) Dependency<Ptr, Manager>(std::move(dep(that)));
     dep(that).~Dependency<Ptr, Manager>();
+    new (self_ptr) Ptr(dep(self).get());
   }
   static void Destroy(Storage self) { dep(self).~Dependency<Ptr, Manager>(); }
-  static Ptr Get(const Storage self) {
-    // See the caveat regarding const at `AnyDependency::get()`.
-    return const_cast<Dependency<Ptr, Manager>&>(dep(self)).get();
-  }
   static Ptr Release(Storage self) {
     return any_dependency_internal::Release(dep(self));
   }
@@ -649,14 +659,15 @@ const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager,
                std::enable_if_t<IsInline<Ptr, inline_size, inline_align,
                                          Manager>::value>>::methods = {
-        Move, Destroy, Get, Release, IsOwning, GetIf};
+        Move, Destroy, Release, IsOwning, GetIf};
 
 }  // namespace any_dependency_internal
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Ptr, inline_size,
                          inline_align>::AnyDependencyImpl() noexcept
-    : methods_(&NullMethods::methods) {}
+    : methods_(&NullMethods::methods),
+      ptr_(AnyDependencyTraits<Ptr>::DefaultPtr()) {}
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager,
@@ -684,6 +695,7 @@ template <typename Manager,
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
 AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
     Manager&& manager) {
+  ptr_.~Ptr();
   methods_->destroy(repr_.storage);
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
   return *this;
@@ -698,9 +710,10 @@ inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
-    AnyDependencyImpl&& that) noexcept
-    : methods_(std::exchange(that.methods_, &NullMethods::methods)) {
-  methods_->move(repr_.storage, that.repr_.storage);
+    AnyDependencyImpl&& that) noexcept {
+  that.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+  methods_ = std::exchange(that.methods_, &NullMethods::methods);
+  methods_->move(repr_.storage, &ptr_, that.repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -708,20 +721,24 @@ inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
 AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
     AnyDependencyImpl&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
+    ptr_.~Ptr();
     methods_->destroy(repr_.storage);
+    that.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
     methods_ = std::exchange(that.methods_, &NullMethods::methods);
-    methods_->move(repr_.storage, that.repr_.storage);
+    methods_->move(repr_.storage, &ptr_, that.repr_.storage);
   }
   return *this;
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::~AnyDependencyImpl() {
+  ptr_.~Ptr();
   methods_->destroy(repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset() {
+  ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
   methods_->destroy(repr_.storage);
   methods_ = &NullMethods::methods;
 }
@@ -730,6 +747,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
     Manager&& manager) {
+  ptr_.~Ptr();
   methods_->destroy(repr_.storage);
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
@@ -738,6 +756,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager, typename ManagerArg>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
     absl::in_place_type_t<Manager>, ManagerArg&& manager_arg) {
+  ptr_.~Ptr();
   methods_->destroy(repr_.storage);
   Initialize<Manager>(std::forward<ManagerArg>(manager_arg));
 }
@@ -746,6 +765,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
+  ptr_.~Ptr();
   methods_->destroy(repr_.storage);
   Initialize<Manager>(
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
@@ -761,7 +781,7 @@ template <
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     const Manager& manager) {
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, manager);
+  MethodsFor<Manager>::Construct(repr_.storage, &ptr_, manager);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -772,7 +792,8 @@ template <typename Manager,
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, std::forward<Manager>(manager));
+  MethodsFor<Manager>::Construct(repr_.storage, &ptr_,
+                                 std::forward<Manager>(manager));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -783,8 +804,9 @@ template <typename Manager,
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   // Adopt `manager` instead of wrapping it.
+  manager.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
-  methods_->move(repr_.storage, manager.repr_.storage);
+  methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -797,7 +819,7 @@ template <
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, std::move(manager_args));
+  MethodsFor<Manager>::Construct(repr_.storage, &ptr_, std::move(manager_args));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -810,8 +832,9 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
   AnyDependencyImpl<Ptr, inline_size, inline_align> manager(
       std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
   // Adopt `manager` instead of wrapping it.
+  manager.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
-  methods_->move(repr_.storage, manager.repr_.storage);
+  methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
