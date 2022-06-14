@@ -629,6 +629,7 @@ namespace backward_writer_internal {
 template <typename Src, typename Dest>
 inline absl::Status WriteImpl(Src&& src, Dest&& dest) {
   Dependency<BackwardWriter*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  if (dest_ref.is_owning()) dest_ref->SetWriteSizeHint(src.size());
   absl::Status status;
   if (ABSL_PREDICT_FALSE(!dest_ref->Write(std::forward<Src>(src)))) {
     status = dest_ref->status();
