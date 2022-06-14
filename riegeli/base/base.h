@@ -269,7 +269,7 @@ inline T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
-// Returns `true`` if the value of the expression is known at compile time.
+// Returns `true` if the value of the expression is known at compile time.
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_constant_p) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(3, 1)
 #define RIEGELI_IS_CONSTANT(expr) __builtin_constant_p(expr)

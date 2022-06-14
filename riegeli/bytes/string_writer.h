@@ -135,7 +135,6 @@ class StringWriterBase : public Writer {
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
- protected:
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
   void SyncDestBuffer(std::string& dest);
