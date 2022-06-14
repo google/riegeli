@@ -293,22 +293,22 @@ template <typename Src, typename Dest,
                                IsValidDependency<Writer*, Dest&&>::value,
                            int>>
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
-  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
-  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
-  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
-  if (dest_ref.is_owning()) {
-    dest_ref->SetWriteSizeHint(SnappyUncompressedSize(*src_ref));
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (dest_dep.is_owning()) {
+    dest_dep->SetWriteSizeHint(SnappyUncompressedSize(*src_dep));
   }
   absl::Status status =
-      snappy_internal::SnappyDecompressImpl(*src_ref, *dest_ref);
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      status.Update(dest_ref->status());
+      snappy_internal::SnappyDecompressImpl(*src_dep, *dest_dep);
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
     }
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status.Update(src_ref->status());
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
     }
   }
   return status;

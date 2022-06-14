@@ -124,12 +124,12 @@ template <typename Dest,
 inline absl::Status TextPrintToWriter(const google::protobuf::Message& src,
                                       Dest&& dest,
                                       const TextPrintOptions& options) {
-  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   absl::Status status =
-      messages_internal::TextPrintToWriterImpl(src, *dest_ref, options);
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      status.Update(dest_ref->status());
+      messages_internal::TextPrintToWriterImpl(src, *dest_dep, options);
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
     }
   }
   return status;

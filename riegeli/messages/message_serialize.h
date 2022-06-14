@@ -196,12 +196,12 @@ template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
-  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   absl::Status status = messages_internal::SerializeToWriterImpl(
-      src, *dest_ref, options, dest_ref.is_owning());
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      status.Update(dest_ref->status());
+      src, *dest_dep, options, dest_dep.is_owning());
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
     }
   }
   return status;

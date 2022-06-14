@@ -751,15 +751,15 @@ namespace writer_internal {
 
 template <typename Src, typename Dest>
 inline absl::Status WriteImpl(Src&& src, Dest&& dest) {
-  Dependency<Writer*, Dest&&> dest_ref(std::forward<Dest>(dest));
-  if (dest_ref.is_owning()) dest_ref->SetWriteSizeHint(src.size());
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(src.size());
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!dest_ref->Write(std::forward<Src>(src)))) {
-    status = dest_ref->status();
+  if (ABSL_PREDICT_FALSE(!dest_dep->Write(std::forward<Src>(src)))) {
+    status = dest_dep->status();
   }
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      status.Update(dest_ref->status());
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
     }
   }
   return status;

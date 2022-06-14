@@ -187,13 +187,13 @@ template <typename Src,
 inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
-  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status =
-      messages_internal::ParseFromReaderImpl(*src_ref, dest, options);
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status.Update(src_ref->status());
+      messages_internal::ParseFromReaderImpl(*src_dep, dest, options);
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
     }
   }
   return status;

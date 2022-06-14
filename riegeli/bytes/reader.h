@@ -996,15 +996,15 @@ namespace reader_internal {
 
 template <typename Src, typename Dest>
 inline absl::Status ReadAllImpl(Src&& src, Dest& dest, size_t max_length) {
-  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
-  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!src_ref->ReadAll(dest, max_length))) {
-    status = src_ref->status();
+  if (ABSL_PREDICT_FALSE(!src_dep->ReadAll(dest, max_length))) {
+    status = src_dep->status();
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status.Update(src_ref->status());
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
     }
   }
   return status;
@@ -1013,15 +1013,15 @@ inline absl::Status ReadAllImpl(Src&& src, Dest& dest, size_t max_length) {
 template <typename Src, typename Dest>
 inline absl::Status ReadAndAppendAllImpl(Src&& src, Dest& dest,
                                          size_t max_length) {
-  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
-  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!src_ref->ReadAndAppendAll(dest, max_length))) {
-    status = src_ref->status();
+  if (ABSL_PREDICT_FALSE(!src_dep->ReadAndAppendAll(dest, max_length))) {
+    status = src_dep->status();
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status.Update(src_ref->status());
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
     }
   }
   return status;
@@ -1029,22 +1029,22 @@ inline absl::Status ReadAndAppendAllImpl(Src&& src, Dest& dest,
 
 template <typename WriterType, typename LengthType, typename Src, typename Dest>
 inline absl::Status CopyAllImpl(Src&& src, Dest&& dest, LengthType max_length) {
-  Dependency<Reader*, Src&&> src_ref(std::forward<Src>(src));
-  Dependency<WriterType*, Dest&&> dest_ref(std::forward<Dest>(dest));
-  if (src_ref.is_owning()) src_ref->SetReadAllHint(true);
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  Dependency<WriterType*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status;
   if (ABSL_PREDICT_FALSE(
-          !src_ref->CopyAll(*dest_ref, max_length, dest_ref.is_owning()))) {
-    status = !dest_ref->ok() ? dest_ref->status() : src_ref->status();
+          !src_dep->CopyAll(*dest_dep, max_length, dest_dep.is_owning()))) {
+    status = !dest_dep->ok() ? dest_dep->status() : src_dep->status();
   }
-  if (dest_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_ref->Close())) {
-      status.Update(dest_ref->status());
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
     }
   }
-  if (src_ref.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_ref->VerifyEndAndClose())) {
-      status.Update(src_ref->status());
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
     }
   }
   return status;
