@@ -117,7 +117,7 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
   } else {
     new_scratch = std::move(scratch_);
     if (!new_scratch->buffer.empty()) {
-      // Scratch is used but it does have enough data after the cursor.
+      // Scratch is used but it does not have enough data after the cursor.
       new_scratch->buffer.RemovePrefix(start_to_cursor());
       remaining_min_length -= new_scratch->buffer.size();
       recommended_length -= new_scratch->buffer.size();
