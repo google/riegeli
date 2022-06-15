@@ -990,7 +990,11 @@ template <size_t num_fields>
 inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const {
   absl::call_once(once_,
                   [&] { new (header_) CsvHeader(normalizer_, fields_); });
-  return reinterpret_cast<const CsvHeader*>(header_);
+  return
+#if __cpp_lib_launder >= 201606
+      std::launder
+#endif
+      (reinterpret_cast<const CsvHeader*>(header_));
 }
 
 template <typename FieldIterator>

@@ -546,12 +546,12 @@ struct MethodsFor {
       typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
-    dep_ptr(self) = new Dependency<Ptr, Manager>(manager);
+    new (self) Dependency<Ptr, Manager>*(new Dependency<Ptr, Manager>(manager));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
   static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
-    dep_ptr(self) =
-        new Dependency<Ptr, Manager>(std::forward<Manager>(manager));
+    new (self) Dependency<Ptr, Manager>*(
+        new Dependency<Ptr, Manager>(std::forward<Manager>(manager)));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
   template <
@@ -559,20 +559,22 @@ struct MethodsFor {
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
   static void Construct(Storage self, Ptr* self_ptr,
                         std::tuple<ManagerArgs...> manager_args) {
-    dep_ptr(self) = new Dependency<Ptr, Manager>(std::move(manager_args));
+    new (self) Dependency<Ptr, Manager>*(
+        new Dependency<Ptr, Manager>(std::move(manager_args)));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
 
  private:
-  static Dependency<Ptr, Manager>*& dep_ptr(Storage self) {
-    return *reinterpret_cast<Dependency<Ptr, Manager>**>(self);
-  }
-  static Dependency<Ptr, Manager>* const& dep_ptr(const Storage self) {
-    return *reinterpret_cast<Dependency<Ptr, Manager>* const*>(self);
+  static Dependency<Ptr, Manager>* dep_ptr(const Storage self) {
+    return *
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<Dependency<Ptr, Manager>* const*>(self));
   }
 
   static void Move(Storage self, Ptr* self_ptr, Storage that) {
-    dep_ptr(self) = dep_ptr(that);
+    new (self) Dependency<Ptr, Manager>*(dep_ptr(that));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
   static void Destroy(Storage self) { delete dep_ptr(self); }
@@ -626,10 +628,18 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
 
  private:
   static Dependency<Ptr, Manager>& dep(Storage self) {
-    return *reinterpret_cast<Dependency<Ptr, Manager>*>(self);
+    return *
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<Dependency<Ptr, Manager>*>(self));
   }
   static const Dependency<Ptr, Manager>& dep(const Storage self) {
-    return *reinterpret_cast<const Dependency<Ptr, Manager>*>(self);
+    return *
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<const Dependency<Ptr, Manager>*>(self));
   }
 
   static void Move(Storage self, Ptr* self_ptr, Storage that) {

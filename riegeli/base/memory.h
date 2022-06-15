@@ -50,8 +50,20 @@ class NoDestructor {
   NoDestructor& operator=(const NoDestructor&) = delete;
 
   // Smart pointer interface with deep constness.
-  T* get() { return reinterpret_cast<T*>(storage_); }
-  const T* get() const { return reinterpret_cast<const T*>(storage_); }
+  T* get() {
+    return
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<T*>(storage_));
+  }
+  const T* get() const {
+    return
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<const T*>(storage_));
+  }
   T& operator*() { return *get(); }
   const T& operator*() const { return *get(); }
   T* operator->() { return get(); }

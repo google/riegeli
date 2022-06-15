@@ -139,7 +139,7 @@ class PythonWrapped {
   template <typename... Args>
   void emplace(Args&&... args) {
     if (has_value_) {
-      reinterpret_cast<T*>(storage_)->~T();
+      get()->~T();
     } else {
       has_value_ = true;
     }
@@ -148,8 +148,8 @@ class PythonWrapped {
 
   void reset() {
     if (has_value_) {
+      get()->~T();
       has_value_ = false;
-      reinterpret_cast<T*>(storage_)->~T();
     }
   }
 
@@ -157,11 +157,19 @@ class PythonWrapped {
 
   T* get() {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return reinterpret_cast<T*>(storage_);
+    return
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<T*>(storage_));
   }
   const T* get() const {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return reinterpret_cast<const T*>(storage_);
+    return
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<const T*>(storage_));
   }
   T& operator*() { return *get(); }
   const T& operator*() const { return *get(); }

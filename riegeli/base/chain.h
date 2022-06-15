@@ -1398,8 +1398,12 @@ inline T& Chain::RawBlock::unchecked_external_object() {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return *reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
-                               kExternalObjectOffset<T>());
+  return *
+#if __cpp_lib_launder >= 201606
+      std::launder
+#endif
+      (reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
+                            kExternalObjectOffset<T>()));
 }
 
 template <typename T>
@@ -1407,8 +1411,12 @@ inline const T& Chain::RawBlock::unchecked_external_object() const {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return *reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
-                                     kExternalObjectOffset<T>());
+  return *
+#if __cpp_lib_launder >= 201606
+      std::launder
+#endif
+      (reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
+                                  kExternalObjectOffset<T>()));
 }
 
 template <typename T>
