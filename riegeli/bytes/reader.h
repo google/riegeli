@@ -965,16 +965,23 @@ inline bool Reader::Skip(Position length, Position* length_skipped) {
     if (length_skipped != nullptr) *length_skipped = length;
     return true;
   }
-  if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    if (length_skipped != nullptr) *length_skipped = 0;
-    return FailOverflow();
-  }
   if (length_skipped == nullptr) {
+    if (ABSL_PREDICT_FALSE(length >
+                           std::numeric_limits<Position>::max() - pos())) {
+      SeekSlow(std::numeric_limits<Position>::max());
+      return false;
+    }
     return SeekSlow(pos() + length);
   } else {
     const Position pos_before = pos();
-    const bool seek_ok = SeekSlow(pos_before + length);
+    bool seek_ok;
+    if (ABSL_PREDICT_FALSE(length >
+                           std::numeric_limits<Position>::max() - pos_before)) {
+      SeekSlow(std::numeric_limits<Position>::max());
+      seek_ok = false;
+    } else {
+      seek_ok = SeekSlow(pos_before + length);
+    }
     // `SeekSlow()` could have decreased `pos()` if the source decreased its
     // size.
     RIEGELI_ASSERT_LE(pos(), pos_before + length)
