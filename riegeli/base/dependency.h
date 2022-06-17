@@ -173,6 +173,67 @@ namespace riegeli {
 template <typename Ptr, typename Manager, typename Enable = void>
 class DependencyImpl;
 
+namespace dependency_internal {
+
+// `IsValidDependencyImpl<Ptr, Manager>::value` is `true` when
+// `DependencyImpl<Ptr, Manager>` is defined.
+
+template <typename Ptr, typename Manager, typename Enable = void>
+struct IsValidDependencyImpl : std::false_type {};
+
+template <typename Ptr, typename Manager>
+struct IsValidDependencyImpl<
+    Ptr, Manager,
+    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>>
+    : std::true_type {};
+
+// `DependencyMaybeRef<Ptr, Manager>` extends `DependencyImpl<Ptr, Manager>`
+// with specializations when `Manager` is `M&` or `M&&` if they were not already
+// defined.
+
+// This template is specialized but does not have a primary definition.
+template <typename Ptr, typename Manager, typename Enable = void>
+class DependencyMaybeRef;
+
+// Specialization of `DependencyMaybeRef<Ptr, Manager>` when
+// `DependencyImpl<Ptr, Manager>` is defined.
+template <typename Ptr, typename Manager>
+class DependencyMaybeRef<
+    Ptr, Manager, std::enable_if_t<IsValidDependencyImpl<Ptr, Manager>::value>>
+    : public DependencyImpl<Ptr, Manager> {
+  using DependencyImpl<Ptr, Manager>::DependencyImpl;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, M&>` when
+// `DependencyImpl<Ptr, M&>` is not defined: decay to
+// `DependencyImpl<Ptr, std::decay_t<M>>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, M&,
+    std::enable_if_t<
+        absl::conjunction<std::negation<IsValidDependencyImpl<Ptr, M&>>,
+                          IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
+    : public DependencyImpl<Ptr, std::decay_t<M>> {
+ public:
+  using DependencyImpl<Ptr, std::decay_t<M>>::DependencyImpl;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, M&&>` when
+// `DependencyImpl<Ptr, M&&>` is not defined: decay to
+// `DependencyImpl<Ptr, std::decay_t<M>>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, M&&,
+    std::enable_if_t<
+        absl::conjunction<std::negation<IsValidDependencyImpl<Ptr, M&&>>,
+                          IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
+    : public DependencyImpl<Ptr, std::decay_t<M>> {
+ public:
+  using DependencyImpl<Ptr, std::decay_t<M>>::DependencyImpl;
+};
+
+}  // namespace dependency_internal
+
 // `IsValidDependency<Ptr, Manager>::value` is `true` when
 // `Dependency<Ptr, Manager>` is defined.
 
@@ -182,8 +243,9 @@ struct IsValidDependency : std::false_type {};
 template <typename Ptr, typename Manager>
 struct IsValidDependency<
     Ptr, Manager,
-    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>>
-    : std::true_type {};
+    absl::void_t<decltype(std::declval<dependency_internal::DependencyMaybeRef<
+                              Ptr, Manager>>()
+                              .get())>> : std::true_type {};
 
 // Implementation shared between most specializations of `DependencyImpl`.
 template <typename Manager>
@@ -271,9 +333,10 @@ class Dependency;
 template <typename Ptr, typename Manager>
 class Dependency<Ptr, Manager,
                  std::enable_if_t<IsValidDependency<Ptr, Manager>::value>>
-    : public DependencyImpl<Ptr, Manager> {
+    : public dependency_internal::DependencyMaybeRef<Ptr, Manager> {
  public:
-  using DependencyImpl<Ptr, Manager>::DependencyImpl;
+  using dependency_internal::DependencyMaybeRef<Ptr,
+                                                Manager>::DependencyMaybeRef;
 
   // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart pointer
   // to `P`, for convenience: it provides `operator*`, `operator->`, and can be
@@ -282,25 +345,33 @@ class Dependency<Ptr, Manager,
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<
-      decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>&
+      decltype(std::declval<
+                   dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+                   .get())>&
   operator*() {
     return *this->get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<
-      decltype(std::declval<const DependencyImpl<Ptr, Manager>>().get())>&
+      decltype(std::declval<const dependency_internal::DependencyMaybeRef<
+                   Ptr, Manager>>()
+                   .get())>&
   operator*() const {
     return *this->get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<DependencyImpl<Ptr, Manager>>().get()) operator->() {
+  decltype(std::declval<dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+               .get())
+  operator->() {
     return this->get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<const DependencyImpl<Ptr, Manager>>().get())
+  decltype(std::declval<
+               const dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+               .get())
   operator->() const {
     return this->get();
   }
@@ -452,18 +523,6 @@ class DependencyImpl<P*, M&,
   static constexpr bool kIsStable = true;
 };
 
-// Specialization of `DependencyImpl<P*, M&>` when `M*` is not convertible to
-// `P*`: decay to `Dependency<P*, std::decay_t<M>>`.
-template <typename P, typename M>
-class DependencyImpl<P*, M&,
-                     std::enable_if_t<absl::conjunction<
-                         absl::negation<std::is_convertible<M*, P*>>,
-                         IsValidDependency<P*, std::decay_t<M>>>::value>>
-    : public DependencyImpl<P*, std::decay_t<M>> {
- public:
-  using DependencyImpl<P*, std::decay_t<M>>::DependencyImpl;
-};
-
 // Specialization of `DependencyImpl<P*, M&&>` when `M*` is convertible to `P*`:
 // an owned dependency passed by rvalue reference.
 template <typename P, typename M>
@@ -478,18 +537,6 @@ class DependencyImpl<P*, M&&,
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable = true;
-};
-
-// Specialization of `DependencyImpl<P*, M&&>` when `M*` is not convertible to
-// `P*`: decay to `Dependency<P*, std::decay_t<M>>`.
-template <typename P, typename M>
-class DependencyImpl<P*, M&&,
-                     std::enable_if_t<absl::conjunction<
-                         absl::negation<std::is_convertible<M*, P*>>,
-                         IsValidDependency<P*, std::decay_t<M>>>::value>>
-    : public DependencyImpl<P*, std::decay_t<M>> {
- public:
-  using DependencyImpl<P*, std::decay_t<M>>::DependencyImpl;
 };
 
 namespace dependency_internal {

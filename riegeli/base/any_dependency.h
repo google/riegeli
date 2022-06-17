@@ -419,6 +419,25 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
       AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
 };
 
+// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>&&>`.
+//
+// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
+// better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
+    : public DependencyBase<
+          AnyDependencyImpl<Ptr, inline_size, inline_align>&&> {
+ public:
+  using DependencyBase<
+      AnyDependencyImpl<Ptr, inline_size, inline_align>&&>::DependencyBase;
+
+  Ptr get() const { return this->manager().get(); }
+  Ptr Release() { return this->manager().Release(); }
+
+  bool is_owning() const { return this->manager().is_owning(); }
+  static constexpr bool kIsStable = true;
+};
+
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
 // have been reduced to their maximum size and alignment.
 template <typename Ptr, size_t inline_size, size_t inline_align = 0>
@@ -464,6 +483,26 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
   bool is_owning() const { return this->manager().is_owning(); }
   static constexpr bool kIsStable =
       AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
+};
+
+// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>&&>`.
+//
+// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
+// is better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr,
+                     AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>
+    : public DependencyBase<
+          AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&> {
+ public:
+  using DependencyBase<
+      AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>::DependencyBase;
+
+  Ptr get() const { return this->manager().get(); }
+  Ptr Release() { return this->manager().Release(); }
+
+  bool is_owning() const { return this->manager().is_owning(); }
+  static constexpr bool kIsStable = true;
 };
 
 // Implementation details follow.
