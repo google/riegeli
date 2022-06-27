@@ -211,7 +211,7 @@ template <typename Ptr, typename M>
 class DependencyMaybeRef<
     Ptr, M&,
     std::enable_if_t<
-        absl::conjunction<std::negation<IsValidDependencyImpl<Ptr, M&>>,
+        absl::conjunction<absl::negation<IsValidDependencyImpl<Ptr, M&>>,
                           IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
@@ -225,7 +225,7 @@ template <typename Ptr, typename M>
 class DependencyMaybeRef<
     Ptr, M&&,
     std::enable_if_t<
-        absl::conjunction<std::negation<IsValidDependencyImpl<Ptr, M&&>>,
+        absl::conjunction<absl::negation<IsValidDependencyImpl<Ptr, M&&>>,
                           IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
