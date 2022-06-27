@@ -68,8 +68,8 @@ class JoiningReaderBase : public PullableReader {
   //  * `false` (when `!ok()`) - failure
   //
   // `OpenShardImpl()` must be overridden but should not be called directly
-  // because it does not synchronize buffer pointers of `*this` with
-  // `*shard_reader()`. See `OpenShard()` for that.
+  // because it does not synchronize buffer pointers of `*shard_reader()` with
+  // `*this`. See `OpenShard()` for that.
   virtual bool OpenShardImpl() = 0;
 
   // Closes `shard()`.
@@ -90,8 +90,8 @@ class JoiningReaderBase : public PullableReader {
   // `*shard_reader()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
-  // Calls `OpenShardImpl()` and synchronizes buffer pointers of `*this` with
-  // `*shard_reader()`.
+  // Calls `OpenShardImpl()` and synchronizes buffer pointers of
+  // `*shard_reader()` with `*this`.
   //
   // Preconditions:
   //   `ok()`

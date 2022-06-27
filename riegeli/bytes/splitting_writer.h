@@ -69,8 +69,8 @@ class SplittingWriterBase : public PushableWriter {
   // is opened.
   //
   // `OpenShardImpl()` must be overridden but should not be called directly
-  // because it does not synchronize buffer pointers of `*this` with
-  // `*shard_writer()`. See `OpenShard()` for that.
+  // because it does not synchronize buffer pointers of `*shard_writer()` with
+  // `*this`. See `OpenShard()` for that.
   virtual absl::optional<Position> OpenShardImpl() = 0;
 
   // Closes `shard()`. If `shard()` is a temporary destination for shard data,
@@ -92,8 +92,8 @@ class SplittingWriterBase : public PushableWriter {
   // `*shard_writer()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
-  // Calls `OpenShardImpl()` and synchronizes buffer pointers of `*this` with
-  // `*shard_writer()`.
+  // Calls `OpenShardImpl()` and synchronizes buffer pointers of
+  // `*shard_writer()` with `*this`.
   //
   // Preconditions:
   //   `ok()`
