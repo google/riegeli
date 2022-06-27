@@ -54,40 +54,41 @@ constexpr uint32_t MakeTag(int field_number, WireType wire_type);
 WireType GetTagWireType(uint32_t tag);
 int GetTagFieldNumber(uint32_t tag);
 
-// Encodes/decodes the value of a `float` field.
-// Used together with `{Write,Read}LittleEndian32()`.
-uint32_t EncodeFloat(float value);
-float DecodeFloat(uint32_t repr);
-// Encodes/decodes the value of a `double` field.
-// Used together with `{Write,Read}LittleEndian64()`.
+ABSL_DEPRECATED("Use WriteLittleEndianDouble() or WriteDoubleWithTag() instead")
 uint64_t EncodeDouble(double value);
-double DecodeDouble(uint64_t repr);
 
-// Encodes/decodes the value of a `sint32` field.
-// Used together with `{Write,Read}Varint32()`.
-uint32_t EncodeSint32(int32_t value);
-int32_t DecodeSint32(uint32_t repr);
-// Encodes/decodes the value of a `sint64` field.
-// Used together with `{Write,Read}Varint64()`.
-uint64_t EncodeSint64(int64_t value);
-int64_t DecodeSint64(uint64_t repr);
-
-// Write a field, prefixed with its tag.
+// Write a scalar field, prefixed with its tag.
 bool WriteVarint32WithTag(int field_number, uint32_t data, Writer& dest);
 bool WriteVarint64WithTag(int field_number, uint64_t data, Writer& dest);
+bool WriteVarintSigned32WithTag(int field_number, int32_t data, Writer& dest);
+bool WriteVarintSigned64WithTag(int field_number, int64_t data, Writer& dest);
 bool WriteFixed32WithTag(int field_number, uint32_t data, Writer& dest);
 bool WriteFixed64WithTag(int field_number, uint64_t data, Writer& dest);
+bool WriteFixedSigned32WithTag(int field_number, int32_t data, Writer& dest);
+bool WriteFixedSigned64WithTag(int field_number, int64_t data, Writer& dest);
+bool WriteFloatWithTag(int field_number, float data, Writer& dest);
+bool WriteDoubleWithTag(int field_number, double data, Writer& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
 bool WriteLengthWithTag(int field_number, size_t length, Writer& dest);
 
-// Write a field, prefixed with its tag.
+// Write a scalar field, prefixed with its tag.
 bool WriteVarint32WithTag(int field_number, uint32_t data,
                           BackwardWriter& dest);
 bool WriteVarint64WithTag(int field_number, uint64_t data,
                           BackwardWriter& dest);
+bool WriteVarintSigned32WithTag(int field_number, int32_t data,
+                                BackwardWriter& dest);
+bool WriteVarintSigned64WithTag(int field_number, int64_t data,
+                                BackwardWriter& dest);
 bool WriteFixed32WithTag(int field_number, uint32_t data, BackwardWriter& dest);
 bool WriteFixed64WithTag(int field_number, uint64_t data, BackwardWriter& dest);
+bool WriteFixedSigned32WithTag(int field_number, int32_t data,
+                               BackwardWriter& dest);
+bool WriteFixedSigned64WithTag(int field_number, int64_t data,
+                               BackwardWriter& dest);
+bool WriteFloatWithTag(int field_number, float data, BackwardWriter& dest);
+bool WriteDoubleWithTag(int field_number, double data, BackwardWriter& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
 bool WriteLengthWithTag(int field_number, size_t length, BackwardWriter& dest);
@@ -107,36 +108,8 @@ inline int GetTagFieldNumber(uint32_t tag) {
   return static_cast<int>(tag >> 3);
 }
 
-inline uint32_t EncodeFloat(float value) {
-  return absl::bit_cast<uint32_t>(value);
-}
-
-inline float DecodeFloat(uint32_t repr) { return absl::bit_cast<float>(repr); }
-
 inline uint64_t EncodeDouble(double value) {
   return absl::bit_cast<uint64_t>(value);
-}
-
-inline double DecodeDouble(uint64_t repr) {
-  return absl::bit_cast<double>(repr);
-}
-
-inline uint32_t EncodeSint32(int32_t value) {
-  return (static_cast<uint32_t>(value) << 1) ^
-         static_cast<uint32_t>(value >> 31);
-}
-
-inline int32_t DecodeSint32(uint32_t repr) {
-  return static_cast<int32_t>((repr >> 1) ^ (~(repr & 1) + 1));
-}
-
-inline uint64_t EncodeSint64(int64_t value) {
-  return (static_cast<uint64_t>(value) << 1) ^
-         static_cast<uint64_t>(value >> 63);
-}
-
-inline int64_t DecodeSint64(uint64_t repr) {
-  return static_cast<int64_t>((repr >> 1) ^ (~(repr & 1) + 1));
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint32WithTag(int field_number,
@@ -173,6 +146,18 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint64WithTag(int field_number,
   return true;
 }
 
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned32WithTag(
+    int field_number, int32_t data, Writer& dest) {
+  return WriteVarint32WithTag(field_number, varint_internal::EncodeSint32(data),
+                              dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned64WithTag(
+    int field_number, int64_t data, Writer& dest) {
+  return WriteVarint64WithTag(field_number, varint_internal::EncodeSint64(data),
+                              dest);
+}
+
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed32WithTag(int field_number,
                                                              uint32_t data,
                                                              Writer& dest) {
@@ -199,6 +184,30 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed64WithTag(int field_number,
   ptr += sizeof(uint64_t);
   dest.set_cursor(ptr);
   return true;
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixedSigned32WithTag(
+    int field_number, int32_t data, Writer& dest) {
+  return WriteFixed32WithTag(field_number, static_cast<uint32_t>(data), dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixedSigned64WithTag(
+    int field_number, int64_t data, Writer& dest) {
+  return WriteFixed64WithTag(field_number, static_cast<uint64_t>(data), dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFloatWithTag(int field_number,
+                                                           float data,
+                                                           Writer& dest) {
+  return WriteFixed32WithTag(field_number, absl::bit_cast<uint32_t>(data),
+                             dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteDoubleWithTag(int field_number,
+                                                            double data,
+                                                            Writer& dest) {
+  return WriteFixed64WithTag(field_number, absl::bit_cast<uint64_t>(data),
+                             dest);
 }
 
 namespace messages_internal {
@@ -250,6 +259,18 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint64WithTag(
   return true;
 }
 
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned32WithTag(
+    int field_number, int32_t data, BackwardWriter& dest) {
+  return WriteVarint32WithTag(field_number, varint_internal::EncodeSint32(data),
+                              dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned64WithTag(
+    int field_number, int64_t data, BackwardWriter& dest) {
+  return WriteVarint64WithTag(field_number, varint_internal::EncodeSint64(data),
+                              dest);
+}
+
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed32WithTag(
     int field_number, uint32_t data, BackwardWriter& dest) {
   const uint32_t tag = MakeTag(field_number, WireType::kFixed32);
@@ -270,6 +291,28 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed64WithTag(
   char* const ptr = WriteVarint32(tag, dest.cursor());
   WriteLittleEndian64(data, ptr);
   return true;
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixedSigned32WithTag(
+    int field_number, int32_t data, BackwardWriter& dest) {
+  return WriteFixed32WithTag(field_number, static_cast<uint32_t>(data), dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixedSigned64WithTag(
+    int field_number, int64_t data, BackwardWriter& dest) {
+  return WriteFixed64WithTag(field_number, static_cast<uint64_t>(data), dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFloatWithTag(
+    int field_number, float data, BackwardWriter& dest) {
+  return WriteFixed32WithTag(field_number, absl::bit_cast<uint32_t>(data),
+                             dest);
+}
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteDoubleWithTag(
+    int field_number, double data, BackwardWriter& dest) {
+  return WriteFixed64WithTag(field_number, absl::bit_cast<uint64_t>(data),
+                             dest);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(

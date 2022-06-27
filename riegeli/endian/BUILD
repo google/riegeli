@@ -12,6 +12,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/bytes:reader",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:span",
     ],
@@ -25,6 +26,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:span",
     ],

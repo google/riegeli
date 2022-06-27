@@ -49,6 +49,19 @@ namespace riegeli {
 bool ReadVarint32(Reader& src, uint32_t& dest);
 bool ReadVarint64(Reader& src, uint64_t& dest);
 
+// Reads a signed varint (zigzag-encoded).
+//
+// Return values:
+//  * `true`                     - success (`dest` is set)
+//  * `false` (when `src.ok()`)  - source ends too early
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged,
+//                                 `dest` is undefined)
+bool ReadVarintSigned32(Reader& src, uint32_t& dest);
+bool ReadVarintSigned64(Reader& src, uint64_t& dest);
+
 // Reads a varint.
 //
 // Accepts only the canonical representation, i.e. the shortest: rejecting a
@@ -74,6 +87,18 @@ absl::optional<const char*> ReadVarint32(const char* src, const char* limit,
                                          uint32_t& dest);
 absl::optional<const char*> ReadVarint64(const char* src, const char* limit,
                                          uint64_t& dest);
+
+// Reads a signed varint (zigzag-encoded) from an array.
+//
+// Return values:
+//  * updated `src`   - success (`dest` is set)
+//  * `absl::nullopt` - source ends (dest` is undefined)
+absl::optional<const char*> ReadVarintSigned32(const char* src,
+                                               const char* limit,
+                                               int32_t& dest);
+absl::optional<const char*> ReadVarintSigned64(const char* src,
+                                               const char* limit,
+                                               int64_t& dest);
 
 // Copies a varint to an array.
 //
@@ -102,7 +127,17 @@ absl::optional<size_t> CopyVarint32(const char* src, const char* limit,
 absl::optional<size_t> CopyVarint64(const char* src, const char* limit,
                                     char* dest);
 
+// Implementation details follow.
+
 namespace varint_internal {
+
+inline int32_t DecodeSint32(uint32_t repr) {
+  return static_cast<int32_t>((repr >> 1) ^ (~(repr & 1) + 1));
+}
+
+inline int64_t DecodeSint64(uint64_t repr) {
+  return static_cast<int64_t>((repr >> 1) ^ (~(repr & 1) + 1));
+}
 
 template <bool canonical>
 bool ReadVarint32Slow(Reader& src, uint32_t& dest);
@@ -115,8 +150,6 @@ extern template bool ReadVarint64Slow<false>(Reader& src, uint64_t& dest);
 extern template bool ReadVarint64Slow<true>(Reader& src, uint64_t& dest);
 
 }  // namespace varint_internal
-
-// Implementation details follow.
 
 inline bool ReadVarint32(Reader& src, uint32_t& dest) {
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
@@ -137,6 +170,20 @@ inline bool ReadVarint64(Reader& src, uint64_t& dest) {
       ReadVarint64(src.cursor(), src.limit(), dest);
   if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return false;
   src.set_cursor(*cursor);
+  return true;
+}
+
+inline bool ReadVarintSigned32(Reader& src, int32_t& dest) {
+  uint32_t unsigned_dest;
+  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, unsigned_dest))) return false;
+  dest = varint_internal::DecodeSint32(unsigned_dest);
+  return true;
+}
+
+inline bool ReadVarintSigned64(Reader& src, int64_t& dest) {
+  uint64_t unsigned_dest;
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, unsigned_dest))) return false;
+  dest = varint_internal::DecodeSint64(unsigned_dest);
   return true;
 }
 
@@ -231,6 +278,28 @@ inline absl::optional<const char*> ReadVarint64(const char* src,
   }
   dest = acc;
   return src;
+}
+
+inline absl::optional<const char*> ReadVarintSigned32(const char* src,
+                                                      const char* limit,
+                                                      int32_t& dest) {
+  uint32_t unsigned_dest;
+  const absl::optional<const char*> cursor =
+      ReadVarint32(src, limit, unsigned_dest);
+  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
+  dest = varint_internal::DecodeSint32(unsigned_dest);
+  return *cursor;
+}
+
+inline absl::optional<const char*> ReadVarintSigned64(const char* src,
+                                                      const char* limit,
+                                                      int64_t& dest) {
+  uint64_t unsigned_dest;
+  const absl::optional<const char*> cursor =
+      ReadVarint64(src, limit, unsigned_dest);
+  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
+  dest = varint_internal::DecodeSint64(unsigned_dest);
+  return *cursor;
 }
 
 inline absl::optional<size_t> CopyVarint32(Reader& src, char* dest) {
