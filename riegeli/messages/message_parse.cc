@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -36,6 +37,7 @@
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/varint/varint_reading.h"
 
 namespace riegeli {
 
@@ -162,6 +164,20 @@ absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
                                  << reader.status();
   }
   return status;
+}
+
+absl::Status ParseLengthPrefixedFromReader(Reader& src,
+                                           google::protobuf::MessageLite& dest,
+                                           ParseOptions options) {
+  uint32_t length;
+  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length)) ||
+      ABSL_PREDICT_FALSE(length >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return src.StatusOrAnnotate(
+        absl::InvalidArgumentError("Failed to parse message length"));
+  }
+  return ParseFromReaderWithLength(src, IntCast<size_t>(length), dest,
+                                   std::move(options));
 }
 
 absl::Status ParseFromString(absl::string_view src,

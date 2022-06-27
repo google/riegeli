@@ -20,6 +20,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -32,28 +33,25 @@
 #include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
-namespace messages_internal {
+namespace {
 
-absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer& dest, SerializeOptions options,
-                                   bool set_write_hint) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
-      << "Failed to serialize message of type " << src.GetTypeName()
-      << " because it is missing required fields: "
-      << src.InitializationErrorString();
-  const size_t size = options.GetByteSize(src);
-  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return dest.AnnotateStatus(absl::ResourceExhaustedError(absl::StrCat(
-        "Failed to serialize message of type ", src.GetTypeName(),
-        " because it exceeds maximum protobuf size of 2GB: ", size)));
-  }
-  if (set_write_hint) dest.SetWriteSizeHint(size);
+ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
+    const google::protobuf::MessageLite& src, Writer& dest, size_t size) {
+  return dest.AnnotateStatus(absl::ResourceExhaustedError(
+      absl::StrCat("Failed to serialize message of type ", src.GetTypeName(),
+                   " because its size must be smaller than 2GiB: ", size)));
+}
+
+inline absl::Status SerializeToWriterHavingSize(
+    const google::protobuf::MessageLite& src, Writer& dest, bool deterministic,
+    size_t size) {
   WriterOutputStream output_stream(&dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
-  coded_stream.SetSerializationDeterministic(options.deterministic());
+  coded_stream.SetSerializationDeterministic(deterministic);
   src.SerializeWithCachedSizes(&coded_stream);
   // Flush `coded_stream` before checking `dest.ok()`.
   coded_stream.Trim();
@@ -71,7 +69,45 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
   return absl::OkStatus();
 }
 
+}  // namespace
+
+namespace messages_internal {
+
+absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                                   Writer& dest, SerializeOptions options,
+                                   bool set_write_hint) {
+  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << " because it is missing required fields: "
+      << src.InitializationErrorString();
+  const size_t size = options.GetByteSize(src);
+  if (ABSL_PREDICT_FALSE(size >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return FailSizeOverflow(src, dest, size);
+  }
+  if (set_write_hint) dest.SetWriteSizeHint(size);
+  return SerializeToWriterHavingSize(src, dest, options.deterministic(), size);
+}
+
 }  // namespace messages_internal
+
+absl::Status SerializeLengthPrefixedToWriter(
+    const google::protobuf::MessageLite& src, Writer& dest,
+    SerializeOptions options) {
+  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << " because it is missing required fields: "
+      << src.InitializationErrorString();
+  const size_t size = options.GetByteSize(src);
+  if (ABSL_PREDICT_FALSE(size >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return FailSizeOverflow(src, dest, size);
+  }
+  if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(size), dest))) {
+    return dest.status();
+  }
+  return SerializeToWriterHavingSize(src, dest, options.deterministic(), size);
+}
 
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest, SerializeOptions options) {

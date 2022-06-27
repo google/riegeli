@@ -15,6 +15,7 @@
 #ifndef RIEGELI_MESSAGES_MESSAGE_PARSE_H_
 #define RIEGELI_MESSAGES_MESSAGE_PARSE_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <type_traits>
@@ -131,6 +132,16 @@ absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
                                        google::protobuf::MessageLite& dest,
                                        ParseOptions options = ParseOptions());
 
+// Reads a message length as varint32 (at most 2G), then a message in binary
+// format with that length from the given `Reader`.
+//
+// Returns status:
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
+absl::Status ParseLengthPrefixedFromReader(
+    Reader& src, google::protobuf::MessageLite& dest,
+    ParseOptions options = ParseOptions());
+
 // Reads a message in binary format from the given `absl::string_view`.
 //
 // Returns status:
@@ -189,8 +200,8 @@ inline absl::Status ParseFromReader(Src&& src,
                                     ParseOptions options) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status =
-      messages_internal::ParseFromReaderImpl(*src_dep, dest, options);
+  absl::Status status = messages_internal::ParseFromReaderImpl(
+      *src_dep, dest, std::move(options));
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
       status.Update(src_dep->status());

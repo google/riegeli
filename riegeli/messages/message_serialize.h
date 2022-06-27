@@ -80,7 +80,7 @@ class SerializeOptions {
 
   // If `true`, promises that `ByteSizeLong()` has been called on the message
   // being serialized after its last modification, and that its result does not
-  // exceed `std::numeric_limits<int>::max()`.
+  // exceed `std::numeric_limits<int32_t>::max()`.
   //
   // This makes serialization faster by allowing to use `GetCachedSize()`
   // instead of `ByteSizeLong()`.
@@ -128,6 +128,16 @@ template <typename Dest,
 absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                Dest&& dest,
                                SerializeOptions options = SerializeOptions());
+
+// Writes the message length as varint32, then the message in binary format to
+// the given `Writer`.
+//
+// Returns status:
+//  * `status.ok()`  - success (`dest` is written to)
+//  * `!status.ok()` - failure (`dest` is unspecified)
+absl::Status SerializeLengthPrefixedToWriter(
+    const google::protobuf::MessageLite& src, Writer& dest,
+    SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `std::string`, clearing it
 // first.
@@ -178,7 +188,8 @@ inline size_t SerializeOptions::GetByteSize(
     const google::protobuf::MessageLite& message) {
   if (has_cached_size()) return IntCast<size_t>(message.GetCachedSize());
   const size_t size = message.ByteSizeLong();
-  if (ABSL_PREDICT_TRUE(size <= size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_TRUE(size <=
+                        uint32_t{std::numeric_limits<int32_t>::max()})) {
     set_has_cached_size(true);
   }
   return size;
@@ -198,7 +209,7 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   absl::Status status = messages_internal::SerializeToWriterImpl(
-      src, *dest_dep, options, dest_dep.is_owning());
+      src, *dest_dep, std::move(options), dest_dep.is_owning());
   if (dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
