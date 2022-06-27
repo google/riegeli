@@ -121,12 +121,9 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
     default:
       RIEGELI_ASSERT_UNREACHABLE() << "Unknown seek origin: " << whence;
   }
-  if (new_pos == reader.pos()) {
-    // Seeking to the current position is supported even if random access is
-    // not.
-    return IntCast<int64_t>(new_pos);
-  }
-  if (ABSL_PREDICT_FALSE(!reader.SupportsRewind())) {
+  if (new_pos >= reader.pos()) {
+    // Seeking forwards is supported even if random access is not.
+  } else if (ABSL_PREDICT_FALSE(!reader.SupportsRewind())) {
     // Indicate that `fseek()` is not supported.
     errno = ESPIPE;
     return absl::nullopt;

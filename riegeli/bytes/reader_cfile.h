@@ -42,7 +42,8 @@ class ReaderCFileOptions {
 //
 // This requires `fopencookie()` to be supported by the C library.
 //
-// The `FILE` supports `fseek()` if `Reader::SupportsRewind()`.
+// The `FILE` supports `fseek()` forwards in any case, and backwards if
+// `Reader::SupportsRewind()`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,

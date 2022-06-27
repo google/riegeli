@@ -74,6 +74,7 @@ class WriterCFileOptions {
 //
 // The `FILE` supports `fseek()` if `Writer::SupportsRandomAccess()` or
 // `Writer::SupportsReadMode()`, which implies `Reader::SupportsRewind()`.
+// Seeking to the current position is always supported.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support

@@ -153,18 +153,15 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
-  if (new_pos == reader_->pos()) {
-    // Seeking to the current position is supported even if random access is
-    // not.
-  } else {
-    if (ABSL_PREDICT_FALSE(!reader_->SupportsRewind())) {
-      // Indicate that `seekoff()` is not supported.
-      return std::streampos(std::streamoff{-1});
-    }
-    if (ABSL_PREDICT_FALSE(!reader_->Seek(new_pos))) {
-      if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
-      return std::streampos(std::streamoff{-1});
-    }
+  if (new_pos >= reader_->pos()) {
+    // Seeking forwards is supported even if random access is not.
+  } else if (ABSL_PREDICT_FALSE(!reader_->SupportsRewind())) {
+    // Indicate that `seekoff()` is not supported.
+    return std::streampos(std::streamoff{-1});
+  }
+  if (ABSL_PREDICT_FALSE(!reader_->Seek(new_pos))) {
+    if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
+    return std::streampos(std::streamoff{-1});
   }
   return std::streampos(IntCast<std::streamoff>(new_pos));
 }
