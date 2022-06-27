@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <cstddef>
-#include <memory>
 #include <new>
 #include <tuple>
 #include <type_traits>
@@ -27,8 +25,10 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 
 namespace riegeli {
 

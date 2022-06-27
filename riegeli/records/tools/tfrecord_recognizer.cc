@@ -19,7 +19,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/any_dependency.h"
-#include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/zlib/zlib_reader.h"

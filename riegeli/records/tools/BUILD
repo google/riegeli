@@ -29,7 +29,6 @@ cc_binary(
         "//riegeli/chunk_encoding:field_projection",
         "//riegeli/chunk_encoding:transpose_decoder",
         "//riegeli/messages:message_parse",
-        "//riegeli/messages:message_serialize",
         "//riegeli/messages:text_print",
         "//riegeli/records:chunk_reader",
         "//riegeli/records:records_metadata_cc_proto",
