@@ -18,10 +18,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
+
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
@@ -198,9 +201,19 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed64WithTag(int field_number,
   return true;
 }
 
+namespace messages_internal {
+
+ABSL_ATTRIBUTE_COLD bool FailLengthOverflow(Object& dest, size_t length);
+
+}  // namespace messages_internal
+
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(int field_number,
                                                             size_t length,
                                                             Writer& dest) {
+  if (ABSL_PREDICT_FALSE(length >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return messages_internal::FailLengthOverflow(dest, length);
+  }
   const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
   if (ABSL_PREDICT_FALSE(!dest.Push(
           LengthVarint32(tag) +
@@ -261,6 +274,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed64WithTag(
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(
     int field_number, size_t length, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(length >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return messages_internal::FailLengthOverflow(dest, length);
+  }
   const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
   const size_t header_length =
       LengthVarint32(tag) + LengthVarint32(IntCast<uint32_t>(length));
