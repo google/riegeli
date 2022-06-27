@@ -444,9 +444,8 @@ class RecordWriterBase : public Object {
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  bool WriteRecord(const google::protobuf::MessageLite& record);
   bool WriteRecord(const google::protobuf::MessageLite& record,
-                   SerializeOptions serialize_options);
+                   SerializeOptions serialize_options = SerializeOptions());
   bool WriteRecord(absl::string_view record);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
@@ -679,11 +678,6 @@ explicit RecordWriter(
 // Implementation details follow.
 
 extern template bool RecordWriterBase::WriteRecord(std::string&& record);
-
-inline bool RecordWriterBase::WriteRecord(
-    const google::protobuf::MessageLite& record) {
-  return WriteRecord(record, SerializeOptions());
-}
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(const Dest& dest, Options options)
