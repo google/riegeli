@@ -39,6 +39,11 @@
 namespace riegeli {
 
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
+  if (options.required_header() != absl::nullopt) {
+    // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
+    // uses this as a precondition.
+    has_header_ = true;
+  }
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CsvReader: null Reader pointer";
   RIEGELI_ASSERT(options.field_separator() != options.comment())
@@ -87,7 +92,6 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   // Recovery is not applicable to reading the header. Hence `recovery_` is set
   // after reading the header.
   if (options.required_header() != absl::nullopt) {
-    has_header_ = true;
     std::vector<std::string> header;
     if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
       Fail(absl::InvalidArgumentError("Empty CSV file"));
