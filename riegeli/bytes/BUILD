@@ -231,42 +231,14 @@ cc_library(
 
 cc_library(
     name = "digesting_reader",
-    srcs = [
-        "digesting_internal.h",
-        "digesting_reader.cc",
-    ],
     hdrs = ["digesting_reader.h"],
-    deps = [
-        ":reader",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
-    ],
+    deps = ["//riegeli/digests:digesting_reader"],
 )
 
 cc_library(
     name = "digesting_writer",
-    srcs = [
-        "digesting_internal.h",
-        "digesting_writer.cc",
-    ],
     hdrs = ["digesting_writer.h"],
-    deps = [
-        ":reader",
-        ":writer",
-        "//riegeli/base",
-        "//riegeli/base:chain",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-    ],
+    deps = ["//riegeli/digests:digesting_writer"],
 )
 
 cc_library(

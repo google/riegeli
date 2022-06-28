@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_DIGESTING_INTERNAL_H_
-#define RIEGELI_BYTES_DIGESTING_INTERNAL_H_
+#ifndef RIEGELI_DIGESTS_DIGESTING_INTERNAL_H_
+#define RIEGELI_DIGESTS_DIGESTING_INTERNAL_H_
 
 #include <stddef.h>
 
@@ -119,4 +119,4 @@ inline DigestType<Digester> Digest(Digester& digester) {}
 }  // namespace digesting_internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_DIGESTING_INTERNAL_H_
+#endif  // RIEGELI_DIGESTS_DIGESTING_INTERNAL_H_
