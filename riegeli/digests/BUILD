@@ -45,3 +45,12 @@ cc_library(
         "@com_google_absl//absl/types:optional",
     ],
 )
+
+cc_library(
+    name = "crc32c_digester",
+    hdrs = ["crc32c_digester.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@crc32c",
+    ],
+)
