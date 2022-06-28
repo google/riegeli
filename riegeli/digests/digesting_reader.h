@@ -115,6 +115,10 @@ class DigestingReaderBase : public Reader {
 //   DigestType Digest();
 // ```
 //
+// Alternatively, `Digester` can be a pointer or smart pointer to a type
+// supporting the above operations. This allows to extract the digest after
+// the `DigestingReader` is destroyed.
+//
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
@@ -337,7 +341,7 @@ DigestingReader<Digester, Src>::Digest() {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
   }
-  return digesting_internal::Digest(digester_);
+  return digesting_internal::Digest(digesting_internal::Dereference(digester_));
 }
 
 template <typename Digester, typename Src>
@@ -348,7 +352,7 @@ void DigestingReader<Digester, Src>::Done() {
       FailWithoutAnnotation(src_->status());
     }
   }
-  digesting_internal::Close(digester_);
+  digesting_internal::Close(digesting_internal::Dereference(digester_));
 }
 
 template <typename Digester, typename Src>
@@ -381,7 +385,7 @@ bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
 
 template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
-  digester_.Write(src);
+  digesting_internal::Dereference(digester_).Write(src);
 }
 
 }  // namespace riegeli

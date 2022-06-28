@@ -29,6 +29,43 @@
 namespace riegeli {
 namespace digesting_internal {
 
+// `digester_internal::Dereference()` dereferences a digester if it supports
+// `operator*`, otherwise returns a reference to the digester itself.
+
+template <typename Digester, typename Enable = void>
+struct HasDereference : std::false_type {};
+
+template <typename Digester>
+struct HasDereference<Digester,
+                      absl::void_t<decltype(*std::declval<Digester>())>>
+    : std::true_type {};
+
+template <typename Digester, typename Enable = void>
+struct DereferenceTypeImpl {
+  using type = Digester&;
+};
+
+template <typename Digester>
+struct DereferenceTypeImpl<Digester,
+                           std::enable_if_t<HasDereference<Digester>::value>> {
+  using type = decltype(*std::declval<Digester>());
+};
+
+template <typename Digester>
+using DereferenceType = typename DereferenceTypeImpl<Digester>::type;
+
+template <typename Digester,
+          absl::enable_if_t<HasDereference<Digester>::value, int> = 0>
+inline DereferenceType<Digester> Dereference(Digester& digester) {
+  return *digester;
+}
+
+template <typename Digester,
+          absl::enable_if_t<!HasDereference<Digester>::value, int> = 0>
+inline DereferenceType<Digester> Dereference(Digester& digester) {
+  return digester;
+}
+
 // `digester_internal::WriteZeros()` calls `Digester::WriteZeros()`, or uses
 // `Digester::Write()` if that is not defined.
 

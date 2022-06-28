@@ -128,6 +128,10 @@ class DigestingWriterBase : public Writer {
 //   DigestType Digest();
 // ```
 //
+// Alternatively, `Digester` can be a pointer or smart pointer to a type
+// supporting the above operations. This allows to extract the digest after
+// the `DigestingWriter` is destroyed.
+//
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the original `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
@@ -353,7 +357,7 @@ void DigestingWriter<Digester, Dest>::Done() {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  digesting_internal::Close(digester_);
+  digesting_internal::Close(digesting_internal::Dereference(digester_));
 }
 
 template <typename Digester, typename Dest>
@@ -364,7 +368,7 @@ DigestingWriter<Digester, Dest>::Digest() {
     set_start_pos(pos());
     set_buffer(cursor(), available());
   }
-  return digesting_internal::Digest(digester_);
+  return digesting_internal::Digest(digesting_internal::Dereference(digester_));
 }
 
 template <typename Digester, typename Dest>
@@ -387,12 +391,13 @@ bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::DigesterWrite(absl::string_view src) {
-  digester_.Write(src);
+  digesting_internal::Dereference(digester_).Write(src);
 }
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::DigesterWriteZeros(Position length) {
-  digesting_internal::WriteZeros(digester_, length);
+  digesting_internal::WriteZeros(digesting_internal::Dereference(digester_),
+                                 length);
 }
 
 }  // namespace riegeli
