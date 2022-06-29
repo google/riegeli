@@ -26,12 +26,12 @@ namespace riegeli {
 
 // A Digester computing CRC32C checksums, for `DigestingReader` and
 // `DigestingWriter`.
-class Crc32CDigester {
+class Crc32cDigester {
  public:
-  Crc32CDigester() noexcept = default;
+  Crc32cDigester() noexcept = default;
 
-  Crc32CDigester(const Crc32CDigester& that) noexcept = default;
-  Crc32CDigester& operator=(const Crc32CDigester& that) noexcept = default;
+  Crc32cDigester(const Crc32cDigester& that) noexcept = default;
+  Crc32cDigester& operator=(const Crc32cDigester& that) noexcept = default;
 
   void Write(absl::string_view src);
 
@@ -43,7 +43,7 @@ class Crc32CDigester {
 
 // Implementation details follow.
 
-inline void Crc32CDigester::Write(absl::string_view src) {
+inline void Crc32cDigester::Write(absl::string_view src) {
   crc_ = crc32c::Extend(crc_, reinterpret_cast<const uint8_t*>(src.data()),
                         src.size());
 }
