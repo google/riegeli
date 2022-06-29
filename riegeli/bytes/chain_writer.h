@@ -299,9 +299,6 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
   } else {
     dest->Clear();
   }
-  const absl::Span<char> buffer =
-      dest->AppendBuffer(0, 0, Chain::kAnyLength, options_);
-  set_buffer(buffer.data(), buffer.size());
 }
 
 template <typename Dest>

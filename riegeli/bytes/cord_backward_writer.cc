@@ -50,17 +50,27 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (pos() == 0) {
+    Position needed_length = UnsignedMax(min_length, recommended_length);
+    if (size_hint_ != absl::nullopt) {
+      needed_length = UnsignedMax(needed_length, *size_hint_);
+    }
+    if (needed_length <= kShortBufferSize) {
+      // Use `short_buffer_`, even if it is smaller than `min_block_size_`,
+      // because this avoids allocation.
+      set_buffer(short_buffer_, kShortBufferSize);
+      return true;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (limit() == short_buffer_) {
     const size_t cursor_index = start_to_cursor();
-    if (ABSL_PREDICT_FALSE(
-            min_length > std::numeric_limits<size_t>::max() - cursor_index ||
-            cursor_index + min_length >
-                std::numeric_limits<size_t>::max() - dest.size())) {
-      return FailOverflow();
-    }
     buffer_.Reset(UnsignedClamp(
         UnsignedMax(
             ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
@@ -73,10 +83,6 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     set_buffer(buffer_.data(), length, cursor_index);
   } else {
     SyncBuffer(dest);
-    if (ABSL_PREDICT_FALSE(min_length >
-                           std::numeric_limits<size_t>::max() - dest.size())) {
-      return FailOverflow();
-    }
     buffer_.Reset(UnsignedClamp(
         UnsignedMax(
             ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),

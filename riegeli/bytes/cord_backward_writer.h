@@ -302,12 +302,8 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
       << "Failed precondition of CordBackwardWriter: null Cord pointer";
   if (prepend) {
     set_start_pos(dest->size());
-    const size_t buffer_length = UnsignedMin(
-        kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-    set_buffer(short_buffer_, buffer_length);
   } else {
     dest->Clear();
-    set_buffer(short_buffer_, kShortBufferSize);
   }
 }
 

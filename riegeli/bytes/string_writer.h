@@ -310,8 +310,11 @@ inline void StringWriterBase::Reset(size_t min_buffer_size,
 inline void StringWriterBase::Initialize(std::string* dest, bool append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
-  if (!append) dest->clear();
-  MakeDestBuffer(*dest);
+  if (append) {
+    set_start_pos(dest->size());
+  } else {
+    dest->clear();
+  }
 }
 
 inline void StringWriterBase::MoveSecondaryBuffer(StringWriterBase&& that) {

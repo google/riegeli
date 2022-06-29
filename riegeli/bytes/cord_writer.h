@@ -311,17 +311,8 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
       << "Failed precondition of CordWriter: null Cord pointer";
   if (append) {
     set_start_pos(dest->size());
-    const size_t buffer_length = UnsignedMin(
-        kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-    if (size_hint_ == absl::nullopt ||
-        *size_hint_ <= dest->size() + buffer_length) {
-      set_buffer(short_buffer_, buffer_length);
-    }
   } else {
     dest->Clear();
-    if (size_hint_ == absl::nullopt || *size_hint_ <= kShortBufferSize) {
-      set_buffer(short_buffer_, kShortBufferSize);
-    }
   }
 }
 

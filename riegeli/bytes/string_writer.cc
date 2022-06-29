@@ -56,7 +56,6 @@ void StringWriterBase::SetWriteSizeHint(
     std::move(secondary_buffer_).AppendTo(dest);
     secondary_buffer_.Clear();
   }
-  MakeDestBuffer(dest);
 }
 
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
@@ -73,7 +72,7 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   }
   if (secondary_buffer_.empty()) {
     SyncDestBuffer(dest);
-    if (dest.size() <= std::string().capacity()) {
+    if (dest.empty()) {
       // Allocate the first block directly in `dest`. It is possible that it
       // will not need to be copied if it turns out to be the only block,
       // although this decision might cause it to remain wasteful if less data
