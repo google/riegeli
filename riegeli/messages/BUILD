@@ -32,6 +32,7 @@ cc_library(
     hdrs = ["message_serialize.h"],
     deps = [
         "//riegeli/base",
+        "//riegeli/base:buffer",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:cord_writer",
@@ -42,6 +43,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
