@@ -77,8 +77,8 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       // will not need to be copied if it turns out to be the only block,
       // although this decision might cause it to remain wasteful if less data
       // are written than space requested.
-      dest.reserve(dest.size() + UnsignedMax(min_length, recommended_length,
-                                             dest.size() / 2));
+      const size_t size_hint = UnsignedMax(min_length, recommended_length);
+      if (dest.capacity() < size_hint) dest.reserve(size_hint);
     }
     if (min_length <= dest.capacity() - dest.size()) {
       MakeDestBuffer(dest);
