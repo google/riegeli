@@ -158,13 +158,22 @@ class StringWriterBase : public Writer {
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
+  // If `secondary_buffer_.empty()`, then `*dest_string()` contains the data
+  // followed by `available()` free space.
+  //
+  // If `!secondary_buffer_.empty()`, then `*dest_string()` contains some prefix
+  // of the data, and `secondary_buffer_` contains the rest of the data followed
+  // by `available()` free space.
+  //
   // Invariants if `ok()`:
   //   `(secondary_buffer_.empty() &&
+  //     start_pos() == 0 &&
   //     start() == &(*dest_string())[0] &&
   //     start_to_limit() == dest_string()->size()) ||
-  //    limit() == nullptr ||
-  //    limit() == secondary_buffer_.blocks().back().data() +
-  //               secondary_buffer_.blocks().back().size()`
+  //    (!secondary_buffer_.empty() &&
+  //     limit() == secondary_buffer_.blocks().back().data() +
+  //                secondary_buffer_.blocks().back().size()) ||
+  //    start() == nullptr`
   //   `limit_pos() == dest_string()->size() + secondary_buffer_.size()`
 };
 
@@ -440,11 +449,12 @@ inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
     if (dest_.kIsStable) {
       dest_ = std::move(that.dest_);
     } else {
-      // Buffer pointers are already moved so `SyncDestBuffer()` is called on
-      // `*this`, `dest_` is not moved yet so `dest_` is taken from `that`.
-      SyncDestBuffer(*that.dest_);
+      const size_t cursor_index = start_to_cursor();
       dest_ = std::move(that.dest_);
-      MakeDestBuffer(*dest_);
+      if (start() != nullptr) {
+        std::string& dest = *dest_;
+        set_buffer(&dest[0], dest.size(), cursor_index);
+      }
     }
   } else {
     MoveSecondaryBufferAndBufferPointers(std::move(that));

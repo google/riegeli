@@ -270,8 +270,7 @@ bool StringWriterBase::TruncateImpl(Position new_size) {
     set_start_pos(0);
   } else {
     secondary_buffer_.RemoveSuffix(
-        dest.size() + secondary_buffer_.size() - IntCast<size_t>(new_size),
-        options_);
+        IntCast<size_t>(limit_pos()) - IntCast<size_t>(new_size), options_);
     set_start_pos(new_size);
     set_buffer();
   }
