@@ -640,9 +640,7 @@ inline bool WriteBigEndianFloats(absl::Span<const float> data, Writer& dest) {
                       data.size() * sizeof(float));
   } else {
     for (const float value : data) {
-      if (ABSL_PREDICT_FALSE(!WriteBigEndianFloat(value, dest))) {
-        return false;
-      }
+      if (ABSL_PREDICT_FALSE(!WriteBigEndianFloat(value, dest))) return false;
     }
     return true;
   }
@@ -654,9 +652,7 @@ inline bool WriteBigEndianDoubles(absl::Span<const double> data, Writer& dest) {
                       data.size() * sizeof(double));
   } else {
     for (const double value : data) {
-      if (ABSL_PREDICT_FALSE(!WriteBigEndianDouble(value, dest))) {
-        return false;
-      }
+      if (ABSL_PREDICT_FALSE(!WriteBigEndianDouble(value, dest))) return false;
     }
     return true;
   }

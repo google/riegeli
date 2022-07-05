@@ -208,9 +208,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
         RIEGELI_ASSERT_EQ(compressor_->avail_in, 0u)
             << "deflate() returned but there are still input data "
                "and output space";
-        if (ABSL_PREDICT_FALSE(length_written < src.size())) {
-          continue;
-        }
+        if (ABSL_PREDICT_FALSE(length_written < src.size())) continue;
         break;
       case Z_STREAM_END:
         break;
