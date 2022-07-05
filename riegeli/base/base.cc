@@ -46,9 +46,9 @@ CheckFailed::~CheckFailed() {
 
 void ResizeStringAmortized(std::string& dest, size_t new_size) {
   if (new_size > dest.capacity()) {
-    dest.reserve(UnsignedMin(
-        UnsignedMax(new_size, dest.capacity() + dest.capacity() / 2),
-        dest.max_size()));
+    dest.reserve(UnsignedMax(
+        new_size,
+        UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
   }
   dest.resize(new_size);
 }
