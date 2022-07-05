@@ -230,18 +230,6 @@ cc_library(
 )
 
 cc_library(
-    name = "digesting_reader",
-    hdrs = ["digesting_reader.h"],
-    deps = ["//riegeli/digests:digesting_reader"],
-)
-
-cc_library(
-    name = "digesting_writer",
-    hdrs = ["digesting_writer.h"],
-    deps = ["//riegeli/digests:digesting_writer"],
-)
-
-cc_library(
     name = "limiting_reader",
     srcs = ["limiting_reader.cc"],
     hdrs = ["limiting_reader.h"],
