@@ -1141,23 +1141,22 @@ struct HasCallOperatorWithoutData<T,
     : std::true_type {};
 
 template <typename T,
-          absl::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
+          std::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
 inline void CallOperator(T& object, absl::string_view data) {
   object(data);
 }
 
-template <typename T,
-          absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                                HasCallOperatorWithoutData<T>::value,
-                            int> = 0>
+template <typename T, std::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                                           HasCallOperatorWithoutData<T>::value,
+                                       int> = 0>
 inline void CallOperator(T& object, absl::string_view data) {
   object();
 }
 
 template <typename T,
-          absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                                !HasCallOperatorWithoutData<T>::value,
-                            int> = 0>
+          std::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                               !HasCallOperatorWithoutData<T>::value,
+                           int> = 0>
 inline void CallOperator(T& object, absl::string_view data) {}
 
 template <typename T, typename Enable = void>
@@ -1179,25 +1178,25 @@ struct HasRegisterSubobjectsWithoutData<
            std::declval<MemoryEstimator&>()))>> : std::true_type {};
 
 template <typename T,
-          absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
+          std::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
 inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   object.RegisterSubobjects(data, memory_estimator);
 }
 
 template <typename T,
-          absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                                HasRegisterSubobjectsWithoutData<T>::value,
-                            int> = 0>
+          std::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                               HasRegisterSubobjectsWithoutData<T>::value,
+                           int> = 0>
 inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   object.RegisterSubobjects(memory_estimator);
 }
 
 template <typename T,
-          absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                                !HasRegisterSubobjectsWithoutData<T>::value,
-                            int> = 0>
+          std::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                               !HasRegisterSubobjectsWithoutData<T>::value,
+                           int> = 0>
 inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(data.data())) {

@@ -55,13 +55,13 @@ template <typename Digester>
 using DereferenceType = typename DereferenceTypeImpl<Digester>::type;
 
 template <typename Digester,
-          absl::enable_if_t<HasDereference<Digester>::value, int> = 0>
+          std::enable_if_t<HasDereference<Digester>::value, int> = 0>
 inline DereferenceType<Digester> Dereference(Digester& digester) {
   return *digester;
 }
 
 template <typename Digester,
-          absl::enable_if_t<!HasDereference<Digester>::value, int> = 0>
+          std::enable_if_t<!HasDereference<Digester>::value, int> = 0>
 inline DereferenceType<Digester> Dereference(Digester& digester) {
   return digester;
 }
@@ -78,13 +78,13 @@ struct HasWriteZeros<Digester,
                          std::declval<Position>()))>> : std::true_type {};
 
 template <typename Digester,
-          absl::enable_if_t<HasWriteZeros<Digester>::value, int> = 0>
+          std::enable_if_t<HasWriteZeros<Digester>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
   digester.WriteZeros(length);
 }
 
 template <typename Digester,
-          absl::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
+          std::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
   while (length > kArrayOfZeros.size()) {
     digester.Write(
@@ -107,13 +107,13 @@ struct HasClose<Digester,
     : std::true_type {};
 
 template <typename Digester,
-          absl::enable_if_t<HasClose<Digester>::value, int> = 0>
+          std::enable_if_t<HasClose<Digester>::value, int> = 0>
 inline void Close(Digester& digester) {
   digester.Close();
 }
 
 template <typename Digester,
-          absl::enable_if_t<!HasClose<Digester>::value, int> = 0>
+          std::enable_if_t<!HasClose<Digester>::value, int> = 0>
 inline void Close(Digester& digester) {}
 
 // `digester_internal::DigesterType` is the result of `Digester::Digest()`, or
@@ -144,13 +144,13 @@ template <typename Digester>
 using DigestType = typename DigestTypeImpl<Digester>::type;
 
 template <typename Digester,
-          absl::enable_if_t<HasDigest<Digester>::value, int> = 0>
+          std::enable_if_t<HasDigest<Digester>::value, int> = 0>
 inline DigestType<Digester> Digest(Digester& digester) {
   return digester.Digest();
 }
 
 template <typename Digester,
-          absl::enable_if_t<!HasDigest<Digester>::value, int> = 0>
+          std::enable_if_t<!HasDigest<Digester>::value, int> = 0>
 inline DigestType<Digester> Digest(Digester& digester) {}
 
 }  // namespace digesting_internal
