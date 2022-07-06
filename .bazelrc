@@ -1,9 +1,6 @@
 # Use C++14.
 build --cxxopt=-std=c++14
 
-# Use old C++ ABI, required by TensorFlow dependency.
-build --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0
-
 # Make Python protos faster by backing them with C++ protos.
 build --define=use_fast_cpp_protos=true
 
