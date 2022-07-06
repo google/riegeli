@@ -54,9 +54,6 @@ constexpr uint32_t MakeTag(int field_number, WireType wire_type);
 WireType GetTagWireType(uint32_t tag);
 int GetTagFieldNumber(uint32_t tag);
 
-ABSL_DEPRECATED("Use WriteLittleEndianDouble() or WriteDoubleWithTag() instead")
-uint64_t EncodeDouble(double value);
-
 // Write a scalar field, prefixed with its tag.
 bool WriteVarint32WithTag(int field_number, uint32_t data, Writer& dest);
 bool WriteVarint64WithTag(int field_number, uint64_t data, Writer& dest);
@@ -108,23 +105,23 @@ inline int GetTagFieldNumber(uint32_t tag) {
   return static_cast<int>(tag >> 3);
 }
 
-inline uint64_t EncodeDouble(double value) {
-  return absl::bit_cast<uint64_t>(value);
-}
-
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint32WithTag(int field_number,
                                                               uint32_t data,
                                                               Writer& dest) {
   const uint32_t tag = MakeTag(field_number, WireType::kVarint);
-  if (ABSL_PREDICT_FALSE(!dest.Push(
-          LengthVarint32(tag) +
-          (RIEGELI_IS_CONSTANT(data) || RIEGELI_IS_CONSTANT(data < 0x80)
-               ? LengthVarint32(data)
-               : kMaxLengthVarint32)))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest.Push((RIEGELI_IS_CONSTANT(tag) ||
+                              (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+                          ? LengthVarint32(tag)
+                          : kMaxLengthVarint32) +
+                     (RIEGELI_IS_CONSTANT(data) ||
+                              (RIEGELI_IS_CONSTANT(data < 0x80) && data < 0x80)
+                          ? LengthVarint32(data)
+                          : kMaxLengthVarint32)))) {
     return false;
   }
   char* ptr = WriteVarint32(tag, dest.cursor());
-  ptr = WriteVarint64(data, ptr);
+  ptr = WriteVarint32(data, ptr);
   dest.set_cursor(ptr);
   return true;
 }
@@ -133,11 +130,15 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint64WithTag(int field_number,
                                                               uint64_t data,
                                                               Writer& dest) {
   const uint32_t tag = MakeTag(field_number, WireType::kVarint);
-  if (ABSL_PREDICT_FALSE(!dest.Push(
-          LengthVarint32(tag) +
-          (RIEGELI_IS_CONSTANT(data) || RIEGELI_IS_CONSTANT(data < 0x80)
-               ? LengthVarint64(data)
-               : kMaxLengthVarint64)))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest.Push((RIEGELI_IS_CONSTANT(tag) ||
+                              (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+                          ? LengthVarint32(tag)
+                          : kMaxLengthVarint32) +
+                     (RIEGELI_IS_CONSTANT(data) ||
+                              (RIEGELI_IS_CONSTANT(data < 0x80) && data < 0x80)
+                          ? LengthVarint64(data)
+                          : kMaxLengthVarint64)))) {
     return false;
   }
   char* ptr = WriteVarint32(tag, dest.cursor());
@@ -225,8 +226,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(int field_number,
   }
   const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
   if (ABSL_PREDICT_FALSE(!dest.Push(
-          LengthVarint32(tag) +
-          (RIEGELI_IS_CONSTANT(length) || RIEGELI_IS_CONSTANT(length < 0x80)
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          (RIEGELI_IS_CONSTANT(length) ||
+                   (RIEGELI_IS_CONSTANT(length < 0x80) && length < 0x80)
                ? LengthVarint32(length)
                : kMaxLengthVarint32)))) {
     return false;
