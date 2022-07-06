@@ -95,9 +95,9 @@ http_archive(
 
 http_archive(
     name = "absl_py",
-    sha256 = "3d0f39e0920379ff1393de04b573bca3484d82a5f8b939e9e83b20b6106c9bbe",
-    strip_prefix = "abseil-py-pypi-v0.7.1",
-    urls = ["https://github.com/abseil/abseil-py/archive/pypi-v0.7.1.tar.gz"],  # 2019-03-12
+    sha256 = "39baf348f9358346dde9b021b54f7d2b02a416246f147f2329f59515b6b10c70",
+    strip_prefix = "abseil-py-pypi-v0.15.0",
+    urls = ["https://github.com/abseil/abseil-py/archive/refs/tags/pypi-v0.15.0.zip"],  # 2021-10-19
 )
 
 # Needed by @com_google_absl and soon other packages:
