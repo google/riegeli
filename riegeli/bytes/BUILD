@@ -470,6 +470,24 @@ cc_library(
 )
 
 cc_library(
+    name = "resizable_writer",
+    srcs = ["resizable_writer.cc"],
+    hdrs = ["resizable_writer.h"],
+    deps = [
+        ":reader",
+        ":string_reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "chain_reader",
     srcs = ["chain_reader.cc"],
     hdrs = ["chain_reader.h"],
