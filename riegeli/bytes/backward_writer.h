@@ -44,6 +44,11 @@ namespace riegeli {
 // is optionally supported.
 class BackwardWriter : public Object {
  public:
+  // The same as `Object::Close()`.
+  //
+  // The implementation in this class adds an assertion.
+  bool Close();
+
   // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
   // will be written sequentially from the current position, then `Close()` will
   // be called.
@@ -427,12 +432,18 @@ inline void BackwardWriter::Reset() {
   start_pos_ = 0;
 }
 
+inline bool BackwardWriter::Close() {
+  AssertInitialized(cursor(), start_to_cursor());
+  return Object::Close();
+}
+
 inline void BackwardWriter::Done() {
   start_pos_ = pos();
   set_buffer();
 }
 
 inline bool BackwardWriter::Push(size_t min_length, size_t recommended_length) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
   if (ABSL_PREDICT_FALSE(!PushSlow(min_length, recommended_length))) {
     return false;
@@ -482,6 +493,7 @@ inline bool BackwardWriter::WriteByte(uint8_t src) {
 }
 
 inline bool BackwardWriter::Write(absl::string_view src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
@@ -501,6 +513,7 @@ inline bool BackwardWriter::Write(Src&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
   } else {
+    AssertInitialized(cursor(), start_to_cursor());
     // `std::move(src)` is correct and `std::forward<Src>(src)` is not
     // necessary: `Src` is always `std::string`, never an lvalue reference.
     return WriteSlow(Chain(std::move(src)));
@@ -512,6 +525,7 @@ inline bool BackwardWriter::Write(const char* src, size_t length) {
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -522,6 +536,7 @@ inline bool BackwardWriter::Write(const Chain& src) {
 }
 
 inline bool BackwardWriter::Write(Chain&& src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -532,6 +547,7 @@ inline bool BackwardWriter::Write(Chain&& src) {
 }
 
 inline bool BackwardWriter::Write(const absl::Cord& src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -546,6 +562,7 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
 }
 
 inline bool BackwardWriter::Write(absl::Cord&& src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -560,6 +577,7 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
 }
 
 inline bool BackwardWriter::WriteZeros(Position length) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -573,6 +591,7 @@ inline bool BackwardWriter::WriteZeros(Position length) {
 }
 
 inline bool BackwardWriter::WriteChars(Position length, char src) {
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -590,6 +609,7 @@ inline bool BackwardWriter::WriteBytes(Position length, uint8_t src) {
 }
 
 inline bool BackwardWriter::Flush(FlushType flush_type) {
+  AssertInitialized(cursor(), start_to_cursor());
   return FlushImpl(flush_type);
 }
 
@@ -621,6 +641,7 @@ inline void BackwardWriter::set_start_pos(Position start_pos) {
 }
 
 inline bool BackwardWriter::Truncate(Position new_size) {
+  AssertInitialized(cursor(), start_to_cursor());
   return TruncateImpl(new_size);
 }
 

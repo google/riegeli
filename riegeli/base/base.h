@@ -760,6 +760,14 @@ absl::Cord MakeBlockyCord(absl::string_view src);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 
+// Assert that a region of memory is initialized, which is checked when running
+// under memory sanitizer.
+inline void AssertInitialized(const char* data, size_t size) {
+#ifdef MEMORY_SANITIZER
+  __msan_check_mem_is_initialized(data, size);
+#endif
+}
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_BASE_H_

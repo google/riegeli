@@ -60,6 +60,11 @@ class Reader;
 // for its output to be guaranteed to be available in the destination.
 class Writer : public Object {
  public:
+  // The same as `Object::Close()`.
+  //
+  // The implementation in this class adds an assertion.
+  bool Close();
+
   // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
   // will be written sequentially from the current position, then `Close()` will
   // be called.
@@ -541,12 +546,18 @@ inline void Writer::Reset() {
   start_pos_ = 0;
 }
 
+inline bool Writer::Close() {
+  AssertInitialized(start(), start_to_cursor());
+  return Object::Close();
+}
+
 inline void Writer::Done() {
   start_pos_ = pos();
   set_buffer();
 }
 
 inline bool Writer::Push(size_t min_length, size_t recommended_length) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
   if (ABSL_PREDICT_FALSE(!PushSlow(min_length, recommended_length))) {
     return false;
@@ -592,6 +603,7 @@ inline bool Writer::WriteByte(uint8_t src) {
 }
 
 inline bool Writer::Write(absl::string_view src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
@@ -611,6 +623,7 @@ inline bool Writer::Write(Src&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
   } else {
+    AssertInitialized(start(), start_to_cursor());
     // `std::move(src)` is correct and `std::forward<Src>(src)` is not
     // necessary: `Src` is always `std::string`, never an lvalue reference.
     return WriteSlow(Chain(std::move(src)));
@@ -622,6 +635,7 @@ inline bool Writer::Write(const char* src, size_t length) {
 }
 
 inline bool Writer::Write(const Chain& src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor());
@@ -632,6 +646,7 @@ inline bool Writer::Write(const Chain& src) {
 }
 
 inline bool Writer::Write(Chain&& src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor());
@@ -642,6 +657,7 @@ inline bool Writer::Write(Chain&& src) {
 }
 
 inline bool Writer::Write(const absl::Cord& src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     char* dest = cursor();
@@ -656,6 +672,7 @@ inline bool Writer::Write(const absl::Cord& src) {
 }
 
 inline bool Writer::Write(absl::Cord&& src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     char* dest = cursor();
@@ -670,6 +687,7 @@ inline bool Writer::Write(absl::Cord&& src) {
 }
 
 inline bool Writer::WriteZeros(Position length) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -683,6 +701,7 @@ inline bool Writer::WriteZeros(Position length) {
 }
 
 inline bool Writer::WriteChars(Position length, char src) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -700,6 +719,7 @@ inline bool Writer::WriteBytes(Position length, uint8_t src) {
 }
 
 inline bool Writer::Flush(FlushType flush_type) {
+  AssertInitialized(start(), start_to_cursor());
   return FlushImpl(flush_type);
 }
 
@@ -729,17 +749,23 @@ inline void Writer::set_start_pos(Position start_pos) {
 }
 
 inline bool Writer::Seek(Position new_pos) {
+  AssertInitialized(start(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(new_pos == pos())) return true;
   return SeekSlow(new_pos);
 }
 
-inline absl::optional<Position> Writer::Size() { return SizeImpl(); }
+inline absl::optional<Position> Writer::Size() {
+  AssertInitialized(start(), start_to_cursor());
+  return SizeImpl();
+}
 
 inline bool Writer::Truncate(Position new_size) {
+  AssertInitialized(start(), start_to_cursor());
   return TruncateImpl(new_size);
 }
 
 inline Reader* Writer::ReadMode(Position initial_pos) {
+  AssertInitialized(start(), start_to_cursor());
   return ReadModeImpl(initial_pos);
 }
 
