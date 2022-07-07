@@ -35,11 +35,10 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-class BackwardWriter;
-class Writer;
 
 // Abstract class `Reader` reads sequences of bytes from a source. The nature of
 // the source depends on the particular class derived from `Reader`.
@@ -910,6 +909,42 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest,
     *length_read = length;
     return true;
   }
+}
+
+inline bool Reader::Copy(Position length, Writer& dest, Position* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), IntCast<size_t>(length));
+    move_cursor(IntCast<size_t>(length));
+    if (length_read != nullptr) *length_read = length;
+    return dest.Write(data);
+  }
+  if (length_read == nullptr) {
+    return CopySlow(length, dest);
+  } else {
+    const Position pos_before = pos();
+    const bool copy_ok = CopySlow(length, dest);
+    RIEGELI_ASSERT_GE(pos(), pos_before)
+        << "Reader::CopySlow(Writer&) decreased pos()";
+    RIEGELI_ASSERT_LE(pos() - pos_before, length)
+        << "Reader::CopySlow(Writer&) read more than requested";
+    if (ABSL_PREDICT_FALSE(!copy_ok)) {
+      *length_read = pos() - pos_before;
+      return false;
+    }
+    RIEGELI_ASSERT_EQ(pos() - pos_before, length)
+        << "Reader::CopySlow(Writer&) succeeded but read less than requested";
+    *length_read = length;
+    return true;
+  }
+}
+
+inline bool Reader::Copy(size_t length, BackwardWriter& dest) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
+    return dest.Write(data);
+  }
+  return CopySlow(length, dest);
 }
 
 inline void Reader::ReadHint(size_t min_length, size_t recommended_length) {
