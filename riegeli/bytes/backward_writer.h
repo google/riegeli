@@ -443,8 +443,8 @@ inline void BackwardWriter::Done() {
 }
 
 inline bool BackwardWriter::Push(size_t min_length, size_t recommended_length) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
+  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_FALSE(!PushSlow(min_length, recommended_length))) {
     return false;
   }
@@ -493,7 +493,6 @@ inline bool BackwardWriter::WriteByte(uint8_t src) {
 }
 
 inline bool BackwardWriter::Write(absl::string_view src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
@@ -504,6 +503,7 @@ inline bool BackwardWriter::Write(absl::string_view src) {
     }
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(src);
 }
 
@@ -512,12 +512,11 @@ template <typename Src,
 inline bool BackwardWriter::Write(Src&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
-  } else {
-    AssertInitialized(cursor(), start_to_cursor());
-    // `std::move(src)` is correct and `std::forward<Src>(src)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
-    return WriteSlow(Chain(std::move(src)));
   }
+  AssertInitialized(cursor(), start_to_cursor());
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not
+  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  return WriteSlow(Chain(std::move(src)));
 }
 
 inline bool BackwardWriter::Write(const char* src, size_t length) {
@@ -525,29 +524,28 @@ inline bool BackwardWriter::Write(const char* src, size_t length) {
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     src.CopyTo(cursor());
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(src);
 }
 
 inline bool BackwardWriter::Write(Chain&& src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     src.CopyTo(cursor());
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(std::move(src));
 }
 
 inline bool BackwardWriter::Write(const absl::Cord& src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -558,11 +556,11 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
     }
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(src);
 }
 
 inline bool BackwardWriter::Write(absl::Cord&& src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
@@ -573,11 +571,11 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
     }
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(std::move(src));
 }
 
 inline bool BackwardWriter::WriteZeros(Position length) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -587,11 +585,11 @@ inline bool BackwardWriter::WriteZeros(Position length) {
     }
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteZerosSlow(length);
 }
 
 inline bool BackwardWriter::WriteChars(Position length, char src) {
-  AssertInitialized(cursor(), start_to_cursor());
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -601,6 +599,7 @@ inline bool BackwardWriter::WriteChars(Position length, char src) {
     }
     return true;
   }
+  AssertInitialized(cursor(), start_to_cursor());
   return WriteCharsSlow(length, src);
 }
 
