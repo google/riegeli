@@ -611,6 +611,7 @@ inline bool Writer::WriteByte(uint8_t src) {
 }
 
 inline bool Writer::Write(absl::string_view src) {
+  AssertInitialized(src.data(), src.size());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
@@ -631,6 +632,7 @@ inline bool Writer::Write(Src&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
   }
+  AssertInitialized(src.data(), src.size());
   AssertInitialized(start(), start_to_cursor());
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
@@ -642,6 +644,11 @@ inline bool Writer::Write(const char* src, size_t length) {
 }
 
 inline bool Writer::Write(const Chain& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor());
@@ -653,6 +660,11 @@ inline bool Writer::Write(const Chain& src) {
 }
 
 inline bool Writer::Write(Chain&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor());
@@ -664,6 +676,11 @@ inline bool Writer::Write(Chain&& src) {
 }
 
 inline bool Writer::Write(const absl::Cord& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     char* dest = cursor();
@@ -679,6 +696,11 @@ inline bool Writer::Write(const absl::Cord& src) {
 }
 
 inline bool Writer::Write(absl::Cord&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     char* dest = cursor();
