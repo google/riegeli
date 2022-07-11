@@ -160,17 +160,20 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       length = available();
       break;
     }
+    size_t available_length = available();
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available_length);
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
-      length -= available();
-      buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+      buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
+                             dest);
+      length -= available_length;
       buffer_.Clear();
+      available_length = 0;
       cursor_index = 0;
       flat_buffer =
           buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -178,8 +181,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     // Read more data into `buffer_`.
     const size_t min_length_to_read =
-        ToleratesReadingAhead() ? flat_buffer.size()
-                                : UnsignedMin(length, flat_buffer.size());
+        ToleratesReadingAhead()
+            ? flat_buffer.size()
+            : UnsignedMin(length - available_length, flat_buffer.size());
     const Position pos_before = limit_pos();
     const bool read_ok = ReadInternal(min_length_to_read, flat_buffer.size(),
                                       flat_buffer.data());
@@ -225,17 +229,20 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       length = available();
       break;
     }
+    size_t available_length = available();
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available_length);
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
-      length -= available();
-      buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+      buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
+                             dest);
+      length -= available_length;
       buffer_.Clear();
+      available_length = 0;
       cursor_index = 0;
       flat_buffer =
           buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -243,8 +250,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     // Read more data into `buffer_`.
     const size_t min_length_to_read =
-        ToleratesReadingAhead() ? flat_buffer.size()
-                                : UnsignedMin(length, flat_buffer.size());
+        ToleratesReadingAhead()
+            ? flat_buffer.size()
+            : UnsignedMin(length - available_length, flat_buffer.size());
     const Position pos_before = limit_pos();
     const bool read_ok = ReadInternal(min_length_to_read, flat_buffer.size(),
                                       flat_buffer.data());
@@ -287,31 +295,34 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       length = available();
       break;
     }
+    size_t available_length = available();
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
-        buffer_sizer_.BufferLength(limit_pos(), 1, length - available());
+        buffer_sizer_.BufferLength(limit_pos(), 1, length - available_length);
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
-      if (available() > 0) {
-        length -= available();
+      if (available_length > 0) {
         bool write_ok;
         if (dest.PrefersCopying()) {
-          write_ok = dest.Write(cursor(), available());
+          write_ok = dest.Write(cursor(), available_length);
         } else {
           Chain data;
-          buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), data,
-                                 Chain::Options().set_size_hint(available()));
+          buffer_.AppendSubstrTo(
+              absl::string_view(cursor(), available_length), data,
+              Chain::Options().set_size_hint(available_length));
           write_ok = dest.Write(std::move(data));
         }
         if (ABSL_PREDICT_FALSE(!write_ok)) {
-          move_cursor(available());
+          move_cursor(available_length);
           return false;
         }
+        length -= available_length;
       }
       buffer_.Clear();
+      available_length = 0;
       cursor_index = 0;
       flat_buffer =
           buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -319,8 +330,9 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     }
     // Read more data into `buffer_`.
     const size_t min_length_to_read =
-        ToleratesReadingAhead() ? flat_buffer.size()
-                                : UnsignedMin(length, flat_buffer.size());
+        ToleratesReadingAhead()
+            ? flat_buffer.size()
+            : UnsignedMin(length - available_length, flat_buffer.size());
     const Position pos_before = limit_pos();
     const bool read_ok = ReadInternal(min_length_to_read, flat_buffer.size(),
                                       flat_buffer.data());
