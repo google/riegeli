@@ -470,7 +470,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
         // a new buffer.
         if (available_length > 0) {
           bool write_ok;
-          if (dest.PrefersCopying()) {
+          if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
             write_ok = dest.Write(cursor(), available_length);
           } else {
             Chain data;
@@ -502,7 +502,8 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   }
   bool write_ok = true;
   if (length > 0) {
-    if (buffer_.empty() || dest.PrefersCopying()) {
+    if (buffer_.empty() || IntCast<size_t>(length) <= kMaxBytesToCopy ||
+        dest.PrefersCopying()) {
       write_ok = dest.Write(cursor(), IntCast<size_t>(length));
     } else {
       Chain data;
