@@ -204,7 +204,6 @@ class ZstdWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
   bool SupportsReadMode() override;
 
  protected:
@@ -229,6 +228,7 @@ class ZstdWriterBase : public BufferedWriter {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;

@@ -44,6 +44,14 @@ void CordBackwardWriterBase::Done() {
   buffer_ = Buffer();
 }
 
+void CordBackwardWriterBase::SetWriteSizeHintImpl(
+    absl::optional<Position> write_size_hint) {
+  size_hint_ =
+      write_size_hint == absl::nullopt
+          ? absl::nullopt
+          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+}
+
 bool CordBackwardWriterBase::PushSlow(size_t min_length,
                                       size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)

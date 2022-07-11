@@ -105,7 +105,7 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
   preferences_.frameInfo.blockChecksumFlag =
       store_block_checksum ? LZ4F_blockChecksumEnabled : LZ4F_noBlockChecksum;
 
-  BufferedWriter::SetWriteSizeHint(pledged_size_);
+  BufferedWriter::SetWriteSizeHintImpl(pledged_size_);
   if (ABSL_PREDICT_FALSE(!dest->Push(LZ4F_HEADER_SIZE_MAX))) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;

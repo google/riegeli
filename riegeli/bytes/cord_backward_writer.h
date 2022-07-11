@@ -101,12 +101,6 @@ class CordBackwardWriterBase : public BackwardWriter {
   virtual absl::Cord* dest_cord() = 0;
   virtual const absl::Cord* dest_cord() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    size_hint_ =
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
-  }
   bool SupportsTruncate() override { return true; }
 
  protected:
@@ -122,6 +116,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   void Initialize(absl::Cord* dest, bool prepend);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;

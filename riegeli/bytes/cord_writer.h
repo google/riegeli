@@ -103,12 +103,6 @@ class CordWriterBase : public Writer {
   virtual absl::Cord* dest_cord() = 0;
   virtual const absl::Cord* dest_cord() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    size_hint_ =
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
-  }
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -126,6 +120,7 @@ class CordWriterBase : public Writer {
   void Initialize(absl::Cord* dest, bool append);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

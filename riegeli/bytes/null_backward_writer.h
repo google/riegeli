@@ -49,14 +49,12 @@ class NullBackwardWriter : public BackwardWriter {
   void Reset(Closed);
   void Reset();
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
-  }
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;

@@ -254,10 +254,9 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   BackwardWriter* dest_writer() override { return dest_.get(); }
   const BackwardWriter* dest_writer() const override { return dest_.get(); }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
-
  protected:
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -480,7 +479,7 @@ void LimitingBackwardWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void LimitingBackwardWriter<Dest>::SetWriteSizeHint(
+void LimitingBackwardWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning() && !exact()) {
     dest_->SetWriteSizeHint(

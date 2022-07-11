@@ -40,9 +40,6 @@ class Writer;
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
  public:
-  void SetReadAllHint(bool read_all_hint) override {
-    buffer_sizer_.set_read_all_hint(read_all_hint);
-  }
   // Derived classes which override `ToleratesReadingAhead()` further should
   // return `true` when `read_all_hint()` is `true`, and possibly also in some
   // other cases.
@@ -134,6 +131,7 @@ class BufferedReader : public Reader {
   virtual bool SeekBehindBuffer(Position new_pos);
 
   void Done() override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;

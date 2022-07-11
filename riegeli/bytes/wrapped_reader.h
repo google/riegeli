@@ -139,10 +139,9 @@ class WrappedReader : public WrappedReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void SetReadAllHint(bool read_all_hint) override;
-
  protected:
   void Done() override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
 
@@ -275,8 +274,8 @@ void WrappedReader<Src>::Done() {
 }
 
 template <typename Src>
-void WrappedReader<Src>::SetReadAllHint(bool read_all_hint) {
-  WrappedReaderBase::SetReadAllHint(read_all_hint);
+void WrappedReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
+  WrappedReaderBase::SetReadAllHintImpl(read_all_hint);
   if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 

@@ -32,6 +32,11 @@ void NullWriter::Done() {
   buffer_ = Buffer();
 }
 
+void NullWriter::SetWriteSizeHintImpl(
+    absl::optional<Position> write_size_hint) {
+  buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+}
+
 bool NullWriter::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "

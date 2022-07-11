@@ -179,10 +179,9 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
-
  protected:
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -361,7 +360,7 @@ void PrefixLimitingWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void PrefixLimitingWriter<Dest>::SetWriteSizeHint(
+void PrefixLimitingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) {
     dest_->SetWriteSizeHint(

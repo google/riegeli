@@ -139,10 +139,9 @@ class WrappedWriter : public WrappedWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
-
  protected:
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -275,7 +274,7 @@ void WrappedWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void WrappedWriter<Dest>::SetWriteSizeHint(
+void WrappedWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) dest_->SetWriteSizeHint(write_size_hint);
 }

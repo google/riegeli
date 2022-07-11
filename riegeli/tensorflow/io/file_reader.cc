@@ -124,6 +124,10 @@ inline void FileReaderBase::SyncBuffer() {
   set_buffer();
 }
 
+void FileReaderBase::SetReadAllHintImpl(bool read_all_hint) {
+  buffer_sizer_.set_read_all_hint(read_all_hint);
+}
+
 bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "

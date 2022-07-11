@@ -45,9 +45,6 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   ConcurrentReader(const ConcurrentReader&) = delete;
   ConcurrentReader& operator=(const ConcurrentReader&) = delete;
 
-  void SetReadAllHint(bool read_all_hint) override {
-    buffer_sizer_.set_read_all_hint(read_all_hint);
-  }
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override { return true; }
   bool SupportsNewReader() override { return true; }
@@ -56,6 +53,7 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   bool PullBehindScratch(size_t recommended_length) override;
   using PullableReader::ReadBehindScratch;
   bool ReadBehindScratch(size_t length, char* dest) override;
@@ -141,6 +139,11 @@ inline bool ReaderFactoryBase::ConcurrentReader::ReadSome() {
   }
   iter_ = secondary_buffer_.blocks().cbegin();
   return true;
+}
+
+void ReaderFactoryBase::ConcurrentReader::SetReadAllHintImpl(
+    bool read_all_hint) {
+  buffer_sizer_.set_read_all_hint(read_all_hint);
 }
 
 bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(

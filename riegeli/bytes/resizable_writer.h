@@ -99,7 +99,6 @@ class ResizableWriterBase : public Writer {
     size_t max_buffer_size_ = kDefaultMaxBlockSize;
   };
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -120,6 +119,7 @@ class ResizableWriterBase : public Writer {
   void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

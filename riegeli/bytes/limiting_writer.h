@@ -255,10 +255,9 @@ class LimitingWriter : public LimitingWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
-
  protected:
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -477,7 +476,7 @@ void LimitingWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void LimitingWriter<Dest>::SetWriteSizeHint(
+void LimitingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning() && !exact()) {
     dest_->SetWriteSizeHint(

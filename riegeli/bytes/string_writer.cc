@@ -39,7 +39,7 @@ void StringWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-void StringWriterBase::SetWriteSizeHint(
+void StringWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
   std::string& dest = *dest_string();

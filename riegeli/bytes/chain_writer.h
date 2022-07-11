@@ -101,12 +101,6 @@ class ChainWriterBase : public Writer {
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    options_.set_size_hint(write_size_hint == absl::nullopt
-                               ? 0
-                               : SaturatingIntCast<size_t>(
-                                     SaturatingAdd(pos(), *write_size_hint)));
-  }
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -124,6 +118,7 @@ class ChainWriterBase : public Writer {
   void Initialize(Chain* dest, bool append);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

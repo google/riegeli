@@ -73,7 +73,7 @@ class Reader : public Object {
   //
   // `SetReadAllHint()` is usually be called from the same abstraction layer
   // which later calls `VerifyEndAndClose()`.
-  virtual void SetReadAllHint(bool read_all_hint) {}
+  void SetReadAllHint(bool read_all_hint);
 
   // Verifies that the source ends at the current position, failing the `Reader`
   // with an `absl::InvalidArgumentError()` if not. Closes the `Reader`.
@@ -487,6 +487,9 @@ class Reader : public Object {
   // By default is implemented in terms of `Pull()`.
   virtual void VerifyEndImpl();
 
+  // Implementation of `SetReadAllHint()`.
+  virtual void SetReadAllHintImpl(bool read_all_hint) {}
+
   // Implementation of the slow part of `Pull()`.
   //
   // Precondition: `available() < min_length`
@@ -697,6 +700,10 @@ inline bool Reader::VerifyEndAndClose() {
 }
 
 inline void Reader::VerifyEnd() { VerifyEndImpl(); }
+
+inline void Reader::SetReadAllHint(bool read_all_hint) {
+  SetReadAllHintImpl(read_all_hint);
+}
 
 inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;

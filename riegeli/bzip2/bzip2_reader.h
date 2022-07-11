@@ -181,10 +181,9 @@ class Bzip2Reader : public Bzip2ReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void SetReadAllHint(bool read_all_hint) override;
-
  protected:
   void Done() override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
 
  private:
@@ -335,8 +334,8 @@ void Bzip2Reader<Src>::Done() {
 }
 
 template <typename Src>
-void Bzip2Reader<Src>::SetReadAllHint(bool read_all_hint) {
-  Bzip2ReaderBase::SetReadAllHint(read_all_hint);
+void Bzip2Reader<Src>::SetReadAllHintImpl(bool read_all_hint) {
+  Bzip2ReaderBase::SetReadAllHintImpl(read_all_hint);
   if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 

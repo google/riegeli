@@ -80,7 +80,7 @@ class Writer : public Object {
   //
   // `SetWriteSizeHint()` is usually be called from the same abstraction layer
   // which later calls `Close()`.
-  virtual void SetWriteSizeHint(absl::optional<Position> write_size_hint) {}
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint);
 
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
@@ -349,6 +349,9 @@ class Writer : public Object {
   // size or if `start_pos()` would overflow.
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
+  // Implementation of `SetWriteSizeHint()`.
+  virtual void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) {}
+
   // Implementation of the slow part of `Push()`.
   //
   // Precondition: `available() < min_length`
@@ -554,6 +557,11 @@ inline bool Writer::Close() {
 inline void Writer::Done() {
   start_pos_ = pos();
   set_buffer();
+}
+
+inline void Writer::SetWriteSizeHint(absl::optional<Position> write_size_hint) {
+  AssertInitialized(start(), start_to_cursor());
+  SetWriteSizeHintImpl(write_size_hint);
 }
 
 inline bool Writer::Push(size_t min_length, size_t recommended_length) {

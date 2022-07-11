@@ -40,7 +40,7 @@ void ResizableWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-void ResizableWriterBase::SetWriteSizeHint(
+void ResizableWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
   const size_t size_hint = SaturatingAdd(

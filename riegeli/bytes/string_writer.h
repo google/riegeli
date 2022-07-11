@@ -102,7 +102,6 @@ class StringWriterBase : public Writer {
   virtual std::string* dest_string() = 0;
   virtual const std::string* dest_string() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -123,6 +122,7 @@ class StringWriterBase : public Writer {
   void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

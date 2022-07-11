@@ -32,6 +32,11 @@ void NullBackwardWriter::Done() {
   buffer_ = Buffer();
 }
 
+void NullBackwardWriter::SetWriteSizeHintImpl(
+    absl::optional<Position> write_size_hint) {
+  buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
+}
+
 bool NullBackwardWriter::PushSlow(size_t min_length,
                                   size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)

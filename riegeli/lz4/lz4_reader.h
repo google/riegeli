@@ -212,10 +212,9 @@ class Lz4Reader : public Lz4ReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
-  void SetReadAllHint(bool read_all_hint) override;
-
  protected:
   void Done() override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
 
  private:
@@ -385,8 +384,8 @@ void Lz4Reader<Src>::Done() {
 }
 
 template <typename Src>
-void Lz4Reader<Src>::SetReadAllHint(bool read_all_hint) {
-  Lz4ReaderBase::SetReadAllHint(read_all_hint);
+void Lz4Reader<Src>::SetReadAllHintImpl(bool read_all_hint) {
+  Lz4ReaderBase::SetReadAllHintImpl(read_all_hint);
   if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 

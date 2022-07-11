@@ -48,6 +48,14 @@ void CordWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+void CordWriterBase::SetWriteSizeHintImpl(
+    absl::optional<Position> write_size_hint) {
+  size_hint_ =
+      write_size_hint == absl::nullopt
+          ? absl::nullopt
+          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+}
+
 bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "

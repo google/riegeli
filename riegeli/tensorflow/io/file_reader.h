@@ -108,9 +108,6 @@ class FileReaderBase : public Reader {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  void SetReadAllHint(bool read_all_hint) override {
-    buffer_sizer_.set_read_all_hint(read_all_hint);
-  }
   bool ToleratesReadingAhead() override {
     return buffer_sizer_.read_all_hint() || !filename_.empty();
   }
@@ -139,6 +136,7 @@ class FileReaderBase : public Reader {
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;

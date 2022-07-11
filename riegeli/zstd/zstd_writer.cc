@@ -107,7 +107,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     }
   }
   if (pledged_size_ != absl::nullopt) {
-    BufferedWriter::SetWriteSizeHint(*pledged_size_);
+    BufferedWriter::SetWriteSizeHintImpl(*pledged_size_);
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
         compressor_.get(), IntCast<unsigned long long>(*pledged_size_));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
@@ -167,9 +167,9 @@ absl::Status ZstdWriterBase::AnnotateOverDest(absl::Status status) {
   return status;
 }
 
-void ZstdWriterBase::SetWriteSizeHint(
+void ZstdWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  BufferedWriter::SetWriteSizeHint(write_size_hint);
+  BufferedWriter::SetWriteSizeHintImpl(write_size_hint);
   if (ABSL_PREDICT_FALSE(!ok()) || compressor_ == nullptr) return;
   // Ignore failure if compression already started.
   ZSTD_CCtx_setParameter(

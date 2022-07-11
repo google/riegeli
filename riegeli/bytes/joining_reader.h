@@ -38,7 +38,6 @@ class Writer;
 // Template parameter independent part of `JoiningReader`.
 class JoiningReaderBase : public PullableReader {
  public:
-  void SetReadAllHint(bool read_all_hint) override;
   bool ToleratesReadingAhead() override { return read_all_hint_; }
 
  protected:
@@ -51,6 +50,7 @@ class JoiningReaderBase : public PullableReader {
   void Reset();
 
   void Done() override;
+  void SetReadAllHintImpl(bool read_all_hint) override;
 
   // Returns the shard `Reader`.
   virtual Reader* shard_reader() = 0;

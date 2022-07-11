@@ -98,12 +98,6 @@ class ChainBackwardWriterBase : public BackwardWriter {
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    options_.set_size_hint(write_size_hint == absl::nullopt
-                               ? 0
-                               : SaturatingIntCast<size_t>(
-                                     SaturatingAdd(pos(), *write_size_hint)));
-  }
   bool SupportsTruncate() override { return true; }
 
  protected:
@@ -119,6 +113,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   void Initialize(Chain* dest, bool prepend);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;

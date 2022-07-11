@@ -68,6 +68,14 @@ absl::Status HadoopSnappyWriterBase::AnnotateOverDest(absl::Status status) {
   return status;
 }
 
+void HadoopSnappyWriterBase::SetWriteSizeHintImpl(
+    absl::optional<Position> write_size_hint) {
+  size_hint_ =
+      write_size_hint == absl::nullopt
+          ? absl::nullopt
+          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+}
+
 bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "

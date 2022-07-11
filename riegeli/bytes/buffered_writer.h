@@ -39,9 +39,6 @@ class Reader;
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
  public:
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
-  }
   bool PrefersCopying() const override { return true; }
 
  protected:
@@ -120,6 +117,7 @@ class BufferedWriter : public Writer {
   virtual Reader* ReadModeBehindBuffer(Position initial_pos);
 
   void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;

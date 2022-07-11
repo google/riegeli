@@ -47,12 +47,6 @@ class SnappyWriterBase : public Writer {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    options_.set_size_hint(write_size_hint == absl::nullopt
-                               ? 0
-                               : SaturatingIntCast<size_t>(
-                                     SaturatingAdd(pos(), *write_size_hint)));
-  }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -71,6 +65,7 @@ class SnappyWriterBase : public Writer {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

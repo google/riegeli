@@ -47,12 +47,6 @@ class FramedSnappyWriterBase : public PushableWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    size_hint_ =
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
-  }
   bool SupportsReadMode() override;
 
  protected:
@@ -71,6 +65,7 @@ class FramedSnappyWriterBase : public PushableWriter {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushBehindScratch(size_t recommended_length) override;
   bool FlushBehindScratch(FlushType flush_type);
   Reader* ReadModeBehindScratch(Position initial_pos) override;

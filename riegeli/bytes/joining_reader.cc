@@ -138,7 +138,7 @@ absl::Status JoiningReaderBase::AnnotateOverShard(absl::Status status) {
   return status;
 }
 
-void JoiningReaderBase::SetReadAllHint(bool read_all_hint) {
+void JoiningReaderBase::SetReadAllHintImpl(bool read_all_hint) {
   if (ABSL_PREDICT_FALSE(!ok())) return;
   read_all_hint_ = read_all_hint;
   Reader* shard = shard_reader();

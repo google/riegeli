@@ -156,7 +156,7 @@ absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
   return status;
 }
 
-void SplittingWriterBase::SetWriteSizeHint(
+void SplittingWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (ABSL_PREDICT_FALSE(!ok())) return;
   size_hint_ =

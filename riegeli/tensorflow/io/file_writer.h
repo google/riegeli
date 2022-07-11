@@ -100,9 +100,6 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override {
-    buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
-  }
   bool SupportsSize() override { return !filename_.empty(); }
   bool SupportsReadMode() override { return !filename_.empty(); }
 
@@ -127,6 +124,7 @@ class FileWriterBase : public Writer {
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;

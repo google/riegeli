@@ -148,9 +148,9 @@ absl::Status BrotliWriterBase::AnnotateOverDest(absl::Status status) {
   return status;
 }
 
-void BrotliWriterBase::SetWriteSizeHint(
+void BrotliWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  BufferedWriter::SetWriteSizeHint(write_size_hint);
+  BufferedWriter::SetWriteSizeHintImpl(write_size_hint);
   if (ABSL_PREDICT_FALSE(!ok())) return;
   // Ignore failure if compression already started.
   BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,

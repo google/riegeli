@@ -36,9 +36,6 @@ namespace riegeli {
 
 // Template parameter independent part of `SplittingWriter`.
 class SplittingWriterBase : public PushableWriter {
- public:
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) override;
-
  protected:
   using PushableWriter::PushableWriter;
 
@@ -49,6 +46,7 @@ class SplittingWriterBase : public PushableWriter {
   void Reset();
 
   void DoneBehindScratch() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
 
   // Returns the shard `Writer`.
   virtual Writer* shard_writer() = 0;
