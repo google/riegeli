@@ -59,6 +59,13 @@ class WrappedReaderBase : public Reader {
 
   void Initialize(Reader* src);
 
+  // Sets cursor of `src` to cursor of `*this`.
+  void SyncBuffer(Reader& src);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `src`. Fails `*this`
+  // if `src` failed.
+  void MakeBuffer(Reader& src);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -74,13 +81,6 @@ class WrappedReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
-
-  // Sets cursor of `src` to cursor of `*this`.
-  void SyncBuffer(Reader& src);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `src`. Fails `*this`
-  // if `src` failed.
-  void MakeBuffer(Reader& src);
 
  private:
   // This template is defined and used only in wrapped_reader.cc.

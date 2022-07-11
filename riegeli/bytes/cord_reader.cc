@@ -38,6 +38,15 @@ void CordReaderBase::Done() {
   iter_ = absl::nullopt;
 }
 
+inline void CordReaderBase::SyncBuffer() {
+  RIEGELI_ASSERT(iter_ != absl::nullopt)
+      << "Failed precondition of CordReaderBase::SyncBuffer(): "
+         "no Cord iterator";
+  set_limit_pos(pos());
+  absl::Cord::Advance(&*iter_, start_to_cursor());
+  set_buffer();
+}
+
 bool CordReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
@@ -237,15 +246,6 @@ absl::optional<Position> CordReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   const absl::Cord& src = *src_cord();
   return src.size();
-}
-
-inline void CordReaderBase::SyncBuffer() {
-  RIEGELI_ASSERT(iter_ != absl::nullopt)
-      << "Failed precondition of CordReaderBase::SyncBuffer(): "
-         "no Cord iterator";
-  set_limit_pos(pos());
-  absl::Cord::Advance(&*iter_, start_to_cursor());
-  set_buffer();
 }
 
 std::unique_ptr<Reader> CordReaderBase::NewReaderImpl(Position initial_pos) {

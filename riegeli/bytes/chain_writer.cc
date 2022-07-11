@@ -37,6 +37,19 @@ void ChainWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+inline void ChainWriterBase::SyncBuffer(Chain& dest) {
+  set_start_pos(pos());
+  dest.RemoveSuffix(available());
+  set_buffer();
+}
+
+inline void ChainWriterBase::MakeBuffer(Chain& dest, size_t min_length,
+                                        size_t recommended_length) {
+  const absl::Span<char> buffer = dest.AppendBuffer(
+      min_length, recommended_length, Chain::kAnyLength, options_);
+  set_buffer(buffer.data(), buffer.size());
+}
+
 void ChainWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   options_.set_size_hint(
@@ -194,19 +207,6 @@ Reader* ChainWriterBase::ReadModeImpl(Position initial_pos) {
   ChainReader<>* const reader = associated_reader_.ResetReader(&dest);
   reader->Seek(initial_pos);
   return reader;
-}
-
-inline void ChainWriterBase::SyncBuffer(Chain& dest) {
-  set_start_pos(pos());
-  dest.RemoveSuffix(available());
-  set_buffer();
-}
-
-inline void ChainWriterBase::MakeBuffer(Chain& dest, size_t min_length,
-                                        size_t recommended_length) {
-  const absl::Span<char> buffer = dest.AppendBuffer(
-      min_length, recommended_length, Chain::kAnyLength, options_);
-  set_buffer(buffer.data(), buffer.size());
 }
 
 }  // namespace riegeli

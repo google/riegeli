@@ -137,6 +137,7 @@ class FileWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  // Writes `buffer_` to the file. Sets buffer pointers to `nullptr`.
   bool SyncBuffer();
 
   // Writes `src` to the destination.

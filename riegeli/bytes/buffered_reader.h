@@ -62,6 +62,8 @@ class BufferedReader : public Reader {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options = BufferOptions());
 
+  void Done() override;
+
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const {
     return buffer_sizer_.buffer_options();
@@ -130,7 +132,6 @@ class BufferedReader : public Reader {
   //   `start_to_limit() == 0`
   virtual bool SeekBehindBuffer(Position new_pos);
 
-  void Done() override;
   void SetReadAllHintImpl(bool read_all_hint) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;

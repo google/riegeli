@@ -53,6 +53,9 @@ class PushableWriter : public Writer {
   void Reset(Closed);
   void Reset();
 
+  void Done() override;
+  void OnFail() override;
+
   // Returns `true` if scratch is used, which means that buffer pointers are
   // temporarily unrelated to the destination. This is exposed for assertions.
   bool scratch_used() const;
@@ -124,8 +127,6 @@ class PushableWriter : public Writer {
   virtual bool TruncateBehindScratch(Position new_size);
   virtual Reader* ReadModeBehindScratch(Position initial_pos);
 
-  void Done() override;
-  void OnFail() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;

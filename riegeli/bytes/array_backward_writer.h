@@ -53,11 +53,13 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   void Reset(Closed);
   void Reset();
   void Initialize(absl::Span<char> dest);
+  void set_written(absl::Span<char> written) { written_ = written; }
 
   bool PushBehindScratch(size_t recommended_length) override;
   bool FlushBehindScratch(FlushType flush_type) override;
   bool TruncateBehindScratch(Position new_size) override;
 
+ private:
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
@@ -276,14 +278,15 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   } else {
     BehindScratch behind_scratch(this);
     const size_t cursor_index = start_to_cursor();
-    const size_t written_size = written_.size();
+    const size_t written_size = written().size();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {
       set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
     }
-    if (written_.data() != nullptr) {
-      written_ = absl::Span<char>(
-          dest_.get().data() + dest_.get().size() - written_size, written_size);
+    if (written().data() != nullptr) {
+      set_written(
+          absl::MakeSpan(dest_.get().data() + dest_.get().size() - written_size,
+                         written_size));
     }
   }
 }

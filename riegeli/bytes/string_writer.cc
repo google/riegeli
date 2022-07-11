@@ -39,6 +39,19 @@ void StringWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+inline void StringWriterBase::SyncSecondaryBuffer() {
+  set_start_pos(pos());
+  secondary_buffer_.RemoveSuffix(available(), options_);
+  set_buffer();
+}
+
+inline void StringWriterBase::MakeSecondaryBuffer(size_t min_length,
+                                                  size_t recommended_length) {
+  const absl::Span<char> buffer = secondary_buffer_.AppendBuffer(
+      min_length, recommended_length, Chain::kAnyLength, options_);
+  set_buffer(buffer.data(), buffer.size());
+}
+
 void StringWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
@@ -286,19 +299,6 @@ Reader* StringWriterBase::ReadModeImpl(Position initial_pos) {
   StringReader<>* const reader = associated_reader_.ResetReader(dest);
   reader->Seek(initial_pos);
   return reader;
-}
-
-inline void StringWriterBase::SyncSecondaryBuffer() {
-  set_start_pos(pos());
-  secondary_buffer_.RemoveSuffix(available(), options_);
-  set_buffer();
-}
-
-inline void StringWriterBase::MakeSecondaryBuffer(size_t min_length,
-                                                  size_t recommended_length) {
-  const absl::Span<char> buffer = secondary_buffer_.AppendBuffer(
-      min_length, recommended_length, Chain::kAnyLength, options_);
-  set_buffer(buffer.data(), buffer.size());
 }
 
 }  // namespace riegeli

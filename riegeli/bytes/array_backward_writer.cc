@@ -37,7 +37,7 @@ bool ArrayBackwardWriterBase::FlushBehindScratch(FlushType flush_type) {
       << "Failed precondition of PushableBackwardWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  written_ = absl::Span<char>(cursor(), start_to_cursor());
+  written_ = absl::MakeSpan(cursor(), start_to_cursor());
   return true;
 }
 

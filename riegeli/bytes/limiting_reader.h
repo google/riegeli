@@ -221,6 +221,13 @@ class LimitingReaderBase : public Reader {
   void Reset(bool exact, bool fail_if_longer);
   void Initialize(Reader* src, Options&& options);
 
+  // Sets cursor of `src` to cursor of `*this`.
+  void SyncBuffer(Reader& src);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
+  // them for `max_pos_`. Fails `*this` if `src` failed.
+  void MakeBuffer(Reader& src);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -236,13 +243,6 @@ class LimitingReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
-
-  // Sets cursor of `src` to cursor of `*this`.
-  void SyncBuffer(Reader& src);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
-  // them for `max_pos_`. Fails `*this` if `src` failed.
-  void MakeBuffer(Reader& src);
 
  private:
   // For `FailLengthOverflow()`, `FailNotEnoughEarly()`, and

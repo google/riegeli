@@ -88,6 +88,13 @@ class PrefixLimitingReaderBase : public Reader {
   void Initialize(Reader* src, absl::optional<Position> base_pos);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
+  // Sets cursor of `src` to cursor of `*this`.
+  void SyncBuffer(Reader& src);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
+  // `start()` to hide data already read. Fails `*this` if `src` failed.
+  void MakeBuffer(Reader& src);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -103,13 +110,6 @@ class PrefixLimitingReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
-
-  // Sets cursor of `src` to cursor of `*this`.
-  void SyncBuffer(Reader& src);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
-  // `start()` to hide data already read. Fails `*this` if `src` failed.
-  void MakeBuffer(Reader& src);
 
  private:
   // This template is defined and used only in prefix_limiting_reader.cc.

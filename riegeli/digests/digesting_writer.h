@@ -61,16 +61,6 @@ class DigestingWriterBase : public Writer {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PushSlow(size_t min_length, size_t recommended_length) override;
-  using Writer::WriteSlow;
-  bool WriteSlow(absl::string_view src) override;
-  bool WriteSlow(const Chain& src) override;
-  bool WriteSlow(Chain&& src) override;
-  bool WriteSlow(const absl::Cord& src) override;
-  bool WriteSlow(absl::Cord&& src) override;
-  bool WriteZerosSlow(Position length) override;
-  absl::optional<Position> SizeImpl();
-  Reader* ReadModeImpl(Position initial_pos) override;
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).
@@ -84,6 +74,17 @@ class DigestingWriterBase : public Writer {
   void DigesterWrite(const Chain& src);
   void DigesterWrite(const absl::Cord& src);
   virtual void DigesterWriteZeros(Position length) = 0;
+
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
+  using Writer::WriteSlow;
+  bool WriteSlow(absl::string_view src) override;
+  bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
+  absl::optional<Position> SizeImpl();
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // This template is defined and used only in digesting_writer.cc.
@@ -192,12 +193,13 @@ class DigestingWriter : public DigestingWriterBase {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
-  bool FlushImpl(FlushType flush_type) override;
 
   using DigestingWriterBase::DigesterWrite;
   void DigesterWrite(absl::string_view src) override;
   void DigesterWriteZeros(Position length) override;
+
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   void MoveDest(DigestingWriter&& that);
@@ -360,6 +362,17 @@ void DigestingWriter<Digester, Dest>::Done() {
 }
 
 template <typename Digester, typename Dest>
+void DigestingWriter<Digester, Dest>::DigesterWrite(absl::string_view src) {
+  digesting_internal::Dereference(digester_).Write(src);
+}
+
+template <typename Digester, typename Dest>
+void DigestingWriter<Digester, Dest>::DigesterWriteZeros(Position length) {
+  digesting_internal::WriteZeros(digesting_internal::Dereference(digester_),
+                                 length);
+}
+
+template <typename Digester, typename Dest>
 inline typename DigestingWriter<Digester, Dest>::DigestType
 DigestingWriter<Digester, Dest>::Digest() {
   if (start_to_cursor() > 0) {
@@ -386,17 +399,6 @@ bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
   }
   MakeBuffer(*dest_);
   return flush_ok;
-}
-
-template <typename Digester, typename Dest>
-void DigestingWriter<Digester, Dest>::DigesterWrite(absl::string_view src) {
-  digesting_internal::Dereference(digester_).Write(src);
-}
-
-template <typename Digester, typename Dest>
-void DigestingWriter<Digester, Dest>::DigesterWriteZeros(Position length) {
-  digesting_internal::WriteZeros(digesting_internal::Dereference(digester_),
-                                 length);
 }
 
 }  // namespace riegeli

@@ -32,13 +32,6 @@
 
 namespace riegeli {
 
-void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
-         "buffer not empty";
-  FlushBehindBuffer(src, FlushType::kFromObject);
-}
-
 void BufferedWriter::Done() {
   const absl::string_view src(start(), start_to_cursor());
   set_buffer();
@@ -47,7 +40,14 @@ void BufferedWriter::Done() {
   buffer_ = Buffer();
 }
 
-bool BufferedWriter::SyncBuffer() {
+void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
+         "buffer not empty";
+  FlushBehindBuffer(src, FlushType::kFromObject);
+}
+
+inline bool BufferedWriter::SyncBuffer() {
   const absl::string_view data(start(), start_to_cursor());
   set_buffer();
   if (data.empty()) return true;

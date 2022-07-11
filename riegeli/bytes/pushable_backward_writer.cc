@@ -33,13 +33,6 @@
 
 namespace riegeli {
 
-void PushableBackwardWriter::DoneBehindScratch() {
-  RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableBackwardWriter::DoneBehindScratch(): "
-         "scratch used";
-  FlushBehindScratch(FlushType::kFromObject);
-}
-
 void PushableBackwardWriter::Done() {
   if (ABSL_PREDICT_TRUE(!scratch_used()) || ABSL_PREDICT_TRUE(SyncScratch())) {
     DoneBehindScratch();
@@ -53,7 +46,14 @@ void PushableBackwardWriter::OnFail() {
   scratch_.reset();
 }
 
-bool PushableBackwardWriter::SyncScratch() {
+void PushableBackwardWriter::DoneBehindScratch() {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableBackwardWriter::DoneBehindScratch(): "
+         "scratch used";
+  FlushBehindScratch(FlushType::kFromObject);
+}
+
+inline bool PushableBackwardWriter::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PushableBackwardWriter::SyncScratch(): "
          "scratch not used";

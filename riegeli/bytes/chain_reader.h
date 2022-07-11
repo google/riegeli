@@ -55,6 +55,8 @@ class ChainReaderBase : public PullableReader {
   void Reset(Closed);
   void Reset();
   void Initialize(const Chain* src);
+  Chain::BlockIterator iter() const { return iter_; }
+  void set_iter(Chain::BlockIterator iter) { iter_ = iter; }
 
   void Done() override;
   bool PullBehindScratch(size_t recommended_length) override;
@@ -68,6 +70,7 @@ class ChainReaderBase : public PullableReader {
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
+ private:
   // Invariant: `iter_.chain() == (is_open() ? src_chain() : nullptr)`
   Chain::BlockIterator iter_;
 
@@ -242,13 +245,13 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
     src_ = std::move(that.src_);
   } else {
     BehindScratch behind_scratch(this);
-    const size_t block_index = iter_.block_index();
+    const size_t block_index = iter().block_index();
     const size_t cursor_index = start_to_cursor();
     src_ = std::move(that.src_);
-    if (iter_.chain() != nullptr) {
-      iter_ = Chain::BlockIterator(src_.get(), block_index);
+    if (iter().chain() != nullptr) {
+      set_iter(Chain::BlockIterator(src_.get(), block_index));
       if (start() != nullptr) {
-        set_buffer(iter_->data(), iter_->size(), cursor_index);
+        set_buffer(iter()->data(), iter()->size(), cursor_index);
       }
     }
   }

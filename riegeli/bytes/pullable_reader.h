@@ -52,6 +52,8 @@ class PullableReader : public Reader {
   void Reset(Closed);
   void Reset();
 
+  void Done() override;
+
   // Returns `true` if scratch is used, which means that buffer pointers are
   // temporarily unrelated to the source. This is exposed for assertions.
   bool scratch_used() const;
@@ -111,7 +113,6 @@ class PullableReader : public Reader {
   virtual bool SyncBehindScratch(SyncType sync_type);
   virtual bool SeekBehindScratch(Position new_pos);
 
-  void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadSlow(size_t length, char* dest) override;
   bool ReadSlow(size_t length, Chain& dest) override;

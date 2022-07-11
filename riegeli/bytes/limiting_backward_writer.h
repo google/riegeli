@@ -159,6 +159,14 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   void Initialize(BackwardWriter* dest, Options&& options);
   bool exact() const { return exact_; }
 
+  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
+  // exceeded.
+  bool SyncBuffer(BackwardWriter& dest);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
+  // if `dest` failed.
+  void MakeBuffer(BackwardWriter& dest);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -171,14 +179,6 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool TruncateImpl(Position new_size) override;
-
-  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
-  // exceeded.
-  bool SyncBuffer(BackwardWriter& dest);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
-  // if `dest` failed.
-  void MakeBuffer(BackwardWriter& dest);
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(BackwardWriter& dest);

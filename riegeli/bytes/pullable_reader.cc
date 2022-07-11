@@ -35,13 +35,6 @@
 
 namespace riegeli {
 
-void PullableReader::DoneBehindScratch() {
-  RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PullableReader::DoneBehindScratch(): "
-         "scratch used";
-  SyncBehindScratch(SyncType::kFromObject);
-}
-
 void PullableReader::Done() {
   if (ABSL_PREDICT_FALSE(scratch_used()) && !ScratchEnds()) {
     if (!SupportsRandomAccess()) {
@@ -59,7 +52,14 @@ void PullableReader::Done() {
   scratch_.reset();
 }
 
-void PullableReader::SyncScratch() {
+void PullableReader::DoneBehindScratch() {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::DoneBehindScratch(): "
+         "scratch used";
+  SyncBehindScratch(SyncType::kFromObject);
+}
+
+inline void PullableReader::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::SyncScratch(): "
          "scratch not used";

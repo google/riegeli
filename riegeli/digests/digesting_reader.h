@@ -56,21 +56,9 @@ class DigestingReaderBase : public Reader {
 
   void Initialize(Reader* src);
 
-  virtual void DigesterWrite(absl::string_view src) = 0;
-  void DigesterWrite(const Chain& src);
-  void DigesterWrite(const absl::Cord& src);
-
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
-  using Reader::ReadSlow;
-  bool ReadSlow(size_t length, char* dest) override;
-  bool ReadSlow(size_t length, Chain& dest) override;
-  bool ReadSlow(size_t length, absl::Cord& dest) override;
-  void ReadHintSlow(size_t min_length, size_t recommended_length) override;
-  absl::optional<Position> SizeImpl() override;
-  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Sets cursor of `src` to cursor of `*this`, digesting what has been read
   // from the buffer (until `cursor()`).
@@ -79,6 +67,19 @@ class DigestingReaderBase : public Reader {
   // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
   // `start()` to hide data already digested. Fails `*this` if `src` failed.
   void MakeBuffer(Reader& src);
+
+  virtual void DigesterWrite(absl::string_view src) = 0;
+  void DigesterWrite(const Chain& src);
+  void DigesterWrite(const absl::Cord& src);
+
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  using Reader::ReadSlow;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
+  void ReadHintSlow(size_t min_length, size_t recommended_length) override;
+  absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Invariants if `is_open()`:
   //   `start() == src_reader()->cursor()`
@@ -177,12 +178,13 @@ class DigestingReader : public DigestingReaderBase {
 
  protected:
   void Done() override;
-  void SetReadAllHintImpl(bool read_all_hint) override;
-  void VerifyEndImpl() override;
-  bool SyncImpl(SyncType sync_type) override;
 
   using DigestingReaderBase::DigesterWrite;
   void DigesterWrite(absl::string_view src) override;
+
+  void SetReadAllHintImpl(bool read_all_hint) override;
+  void VerifyEndImpl() override;
+  bool SyncImpl(SyncType sync_type) override;
 
  private:
   void MoveSrc(DigestingReader&& that);
@@ -355,6 +357,11 @@ void DigestingReader<Digester, Src>::Done() {
 }
 
 template <typename Digester, typename Src>
+void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
+  digesting_internal::Dereference(digester_).Write(src);
+}
+
+template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::SetReadAllHintImpl(bool read_all_hint) {
   if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
@@ -380,11 +387,6 @@ bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
   }
   MakeBuffer(*src_);
   return sync_ok;
-}
-
-template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
-  digesting_internal::Dereference(digester_).Write(src);
 }
 
 }  // namespace riegeli

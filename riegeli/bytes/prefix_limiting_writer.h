@@ -89,6 +89,13 @@ class PrefixLimitingWriterBase : public Writer {
   void Initialize(Writer* dest, absl::optional<Position> base_pos);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
+  // Sets cursor of `dest` to cursor of `*this`.
+  void SyncBuffer(Writer& dest);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `dest`, adjusting
+  // `start()` to hide data already written. Fails `*this` if `dest` failed.
+  void MakeBuffer(Writer& dest);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -104,13 +111,6 @@ class PrefixLimitingWriterBase : public Writer {
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
-
-  // Sets cursor of `dest` to cursor of `*this`.
-  void SyncBuffer(Writer& dest);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `dest`, adjusting
-  // `start()` to hide data already written. Fails `*this` if `dest` failed.
-  void MakeBuffer(Writer& dest);
 
  private:
   // This template is defined and used only in prefix_limiting_writer.cc.

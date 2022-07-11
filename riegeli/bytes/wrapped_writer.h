@@ -58,6 +58,13 @@ class WrappedWriterBase : public Writer {
 
   void Initialize(Writer* dest);
 
+  // Sets cursor of `dest` to cursor of `*this`.
+  void SyncBuffer(Writer& dest);
+
+  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
+  // if `dest` failed.
+  void MakeBuffer(Writer& dest);
+
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
@@ -73,13 +80,6 @@ class WrappedWriterBase : public Writer {
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
-
-  // Sets cursor of `dest` to cursor of `*this`.
-  void SyncBuffer(Writer& dest);
-
-  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
-  // if `dest` failed.
-  void MakeBuffer(Writer& dest);
 
  private:
   // This template is defined and used only in wrapped_writer.cc.

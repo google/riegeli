@@ -32,6 +32,27 @@ void NullWriter::Done() {
   buffer_ = Buffer();
 }
 
+inline void NullWriter::SyncBuffer() {
+  set_start_pos(pos());
+  set_cursor(start());
+}
+
+inline bool NullWriter::MakeBuffer(size_t min_length,
+                                   size_t recommended_length) {
+  if (ABSL_PREDICT_FALSE(min_length >
+                         std::numeric_limits<Position>::max() - start_pos())) {
+    return FailOverflow();
+  }
+  const size_t buffer_length =
+      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
+  buffer_.Reset(buffer_length);
+  set_buffer(buffer_.data(),
+             UnsignedMin(buffer_.capacity(),
+                         SaturatingAdd(buffer_length, buffer_length),
+                         std::numeric_limits<Position>::max() - start_pos()));
+  return true;
+}
+
 void NullWriter::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
@@ -99,27 +120,6 @@ bool NullWriter::TruncateImpl(Position new_size) {
   set_start_pos(new_size);
   set_cursor(start());
   buffer_sizer_.BeginRun(start_pos());
-  return true;
-}
-
-inline void NullWriter::SyncBuffer() {
-  set_start_pos(pos());
-  set_cursor(start());
-}
-
-inline bool NullWriter::MakeBuffer(size_t min_length,
-                                   size_t recommended_length) {
-  if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - start_pos())) {
-    return FailOverflow();
-  }
-  const size_t buffer_length =
-      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
-  buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(),
-             UnsignedMin(buffer_.capacity(),
-                         SaturatingAdd(buffer_length, buffer_length),
-                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 

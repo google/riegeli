@@ -49,6 +49,22 @@ absl::Status DigestingWriterBase::AnnotateStatusImpl(absl::Status status) {
   return status;
 }
 
+inline void DigestingWriterBase::DigesterWrite(const Chain& src) {
+  for (const absl::string_view fragment : src.blocks()) {
+    DigesterWrite(fragment);
+  }
+}
+
+inline void DigestingWriterBase::DigesterWrite(const absl::Cord& src) {
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    DigesterWrite(*flat);
+    return;
+  }
+  for (const absl::string_view fragment : src.Chunks()) {
+    DigesterWrite(fragment);
+  }
+}
+
 bool DigestingWriterBase::PushSlow(size_t min_length,
                                    size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
@@ -152,22 +168,6 @@ Reader* DigestingWriterBase::ReadModeImpl(Position initial_pos) {
   Reader* const reader = dest.ReadMode(initial_pos);
   MakeBuffer(dest);
   return reader;
-}
-
-inline void DigestingWriterBase::DigesterWrite(const Chain& src) {
-  for (const absl::string_view fragment : src.blocks()) {
-    DigesterWrite(fragment);
-  }
-}
-
-inline void DigestingWriterBase::DigesterWrite(const absl::Cord& src) {
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    DigesterWrite(*flat);
-    return;
-  }
-  for (const absl::string_view fragment : src.Chunks()) {
-    DigesterWrite(fragment);
-  }
 }
 
 }  // namespace riegeli

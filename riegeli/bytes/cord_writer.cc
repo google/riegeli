@@ -48,6 +48,18 @@ void CordWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
+  if (start() == nullptr) return;
+  set_start_pos(pos());
+  const absl::string_view data(start(), start_to_cursor());
+  if (start() == short_buffer_) {
+    dest.Append(data);
+  } else {
+    std::move(buffer_).AppendSubstrTo(data, dest);
+  }
+  set_buffer();
+}
+
 void CordWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   size_hint_ =
@@ -253,18 +265,6 @@ Reader* CordWriterBase::ReadModeImpl(Position initial_pos) {
   CordReader<>* const reader = associated_reader_.ResetReader(&dest);
   reader->Seek(initial_pos);
   return reader;
-}
-
-inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
-  if (start() == nullptr) return;
-  set_start_pos(pos());
-  const absl::string_view data(start(), start_to_cursor());
-  if (start() == short_buffer_) {
-    dest.Append(data);
-  } else {
-    std::move(buffer_).AppendSubstrTo(data, dest);
-  }
-  set_buffer();
 }
 
 }  // namespace riegeli

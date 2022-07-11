@@ -58,6 +58,8 @@ class BufferedWriter : public Writer {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options = BufferOptions());
 
+  void Done() override;
+
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const {
     return buffer_sizer_.buffer_options();
@@ -116,7 +118,6 @@ class BufferedWriter : public Writer {
   virtual bool TruncateBehindBuffer(Position new_size);
   virtual Reader* ReadModeBehindBuffer(Position initial_pos);
 
-  void Done() override;
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
@@ -129,6 +130,7 @@ class BufferedWriter : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  // Writes `buffer_` to the destination. Sets buffer pointers to `nullptr`.
   bool SyncBuffer();
 
   WriteBufferSizer buffer_sizer_;

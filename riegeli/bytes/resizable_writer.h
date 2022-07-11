@@ -118,20 +118,6 @@ class ResizableWriterBase : public Writer {
   void MoveSecondaryBuffer(ResizableWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
 
-  void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
-  bool PushSlow(size_t min_length, size_t recommended_length) override;
-  using Writer::WriteSlow;
-  bool WriteSlow(const Chain& src) override;
-  bool WriteSlow(Chain&& src) override;
-  bool WriteSlow(const absl::Cord& src) override;
-  bool WriteSlow(absl::Cord&& src) override;
-  bool WriteZerosSlow(Position length) override;
-  bool FlushImpl(FlushType flush_type) override;
-  absl::optional<Position> SizeImpl() override;
-  bool TruncateImpl(Position new_size) override;
-  Reader* ReadModeImpl(Position initial_pos) override;
-
   // Sets the size of the destination to `pos()`. Sets buffer pointers to the
   // destination.
   //
@@ -154,6 +140,20 @@ class ResizableWriterBase : public Writer {
   //
   // Precondition: if `UsesSecondaryBuffer()` then `available() == 0`
   virtual bool GrowDestAndMakeBuffer(size_t new_size) = 0;
+
+  void Done() override;
+  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
+  using Writer::WriteSlow;
+  bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
+  bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
+  bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // Discards uninitialized space from the end of `secondary_buffer_`, so that

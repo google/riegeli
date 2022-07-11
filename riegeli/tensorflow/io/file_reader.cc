@@ -96,6 +96,11 @@ void FileReaderBase::InitializePos(Position initial_pos) {
   buffer_sizer_.BeginRun(limit_pos());
 }
 
+void FileReaderBase::Done() {
+  Reader::Done();
+  buffer_ = ChainBlock();
+}
+
 bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
                                    absl::string_view operation) {
   RIEGELI_ASSERT(!status.ok())
@@ -112,11 +117,6 @@ absl::Status FileReaderBase::AnnotateStatusImpl(absl::Status status) {
     status = Annotate(status, absl::StrCat("reading ", filename_));
   }
   return Reader::AnnotateStatusImpl(std::move(status));
-}
-
-void FileReaderBase::Done() {
-  Reader::Done();
-  buffer_ = ChainBlock();
 }
 
 inline void FileReaderBase::SyncBuffer() {

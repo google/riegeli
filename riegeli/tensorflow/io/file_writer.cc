@@ -128,13 +128,13 @@ absl::Status FileWriterBase::AnnotateStatusImpl(absl::Status status) {
   return Writer::AnnotateStatusImpl(std::move(status));
 }
 
-bool FileWriterBase::SyncBuffer() {
+inline bool FileWriterBase::SyncBuffer() {
   if (start_to_cursor() > kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     const absl::Cord data =
         buffer_.ToCord(absl::string_view(start(), start_to_cursor()));
     set_buffer();
-    return data.empty() || WriteInternal(data);
+    return WriteInternal(data);
   }
   const absl::string_view data(start(), start_to_cursor());
   set_buffer();

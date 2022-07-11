@@ -44,6 +44,18 @@ void CordBackwardWriterBase::Done() {
   buffer_ = Buffer();
 }
 
+inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
+  if (limit() == nullptr) return;
+  set_start_pos(pos());
+  const absl::string_view data(cursor(), start_to_cursor());
+  if (limit() == short_buffer_) {
+    dest.Prepend(data);
+  } else {
+    std::move(buffer_).PrependSubstrTo(data, dest);
+  }
+  set_buffer();
+}
+
 void CordBackwardWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   size_hint_ =
@@ -234,18 +246,6 @@ bool CordBackwardWriterBase::TruncateImpl(Position new_size) {
   dest.RemovePrefix(dest.size() - IntCast<size_t>(new_size));
   set_cursor(start());
   return true;
-}
-
-inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
-  if (limit() == nullptr) return;
-  set_start_pos(pos());
-  const absl::string_view data(cursor(), start_to_cursor());
-  if (limit() == short_buffer_) {
-    dest.Prepend(data);
-  } else {
-    std::move(buffer_).PrependSubstrTo(data, dest);
-  }
-  set_buffer();
 }
 
 }  // namespace riegeli

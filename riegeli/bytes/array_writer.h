@@ -62,6 +62,7 @@ class ArrayWriterBase : public PushableWriter {
   void Reset(Closed);
   void Reset();
   void Initialize(absl::Span<char> dest);
+  void set_written(absl::Span<char> written) { written_ = written; }
 
   void Done() override;
   bool PushBehindScratch(size_t recommended_length) override;
@@ -70,6 +71,7 @@ class ArrayWriterBase : public PushableWriter {
   bool TruncateBehindScratch(Position new_size) override;
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 
+ private:
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
@@ -283,13 +285,13 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   } else {
     BehindScratch behind_scratch(this);
     const size_t cursor_index = start_to_cursor();
-    const size_t written_size = written_.size();
+    const size_t written_size = written().size();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {
       set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
     }
-    if (written_.data() != nullptr) {
-      written_ = absl::Span<char>(dest_.get().data(), written_size);
+    if (written().data() != nullptr) {
+      set_written(absl::MakeSpan(dest_.get().data(), written_size));
     }
   }
 }
