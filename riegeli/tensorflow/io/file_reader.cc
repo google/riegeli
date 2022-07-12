@@ -449,6 +449,24 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       break;
     }
     const size_t available_length = available();
+    const bool read_directly =
+        length >= buffer_sizer_.LengthToReadDirectly(pos(), start_to_limit(),
+                                                     available_length);
+    if (read_directly) {
+      if (buffer_.empty() || available_length <= kMaxBytesToCopy ||
+          dest.PrefersCopying()) {
+        if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available_length))) {
+          move_cursor(available_length);
+          return false;
+        }
+        length -= available_length;
+        SyncBuffer();
+        return CopyUsingPush(length, src, dest);
+      }
+      // It is better to write available data from `buffer_` as a `Chain` before
+      // reading directly to `dest`. Before that, `buffer_` might need to be
+      // filled more to avoid attaching a wasteful `Chain`.
+    }
     size_t cursor_index;
     const size_t buffer_length =
         buffer_sizer_.BufferLength(limit_pos(), 1, length - available_length);
@@ -490,6 +508,10 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
           length -= available_length;
         }
         buffer_.Clear();
+        if (read_directly) {
+          set_buffer();
+          return CopyUsingPush(length, src, dest);
+        }
         cursor_index = 0;
         flat_buffer =
             buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -519,6 +541,27 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
     move_cursor(IntCast<size_t>(length));
   }
   return write_ok && enough_read;
+}
+
+inline bool FileReaderBase::CopyUsingPush(Position length,
+                                          ::tensorflow::RandomAccessFile* src,
+                                          Writer& dest) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of FileReaderBase::CopyUsingPush(): "
+         "nothing to copy";
+  do {
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
+    const size_t length_to_copy = UnsignedMin(length, dest.available());
+    const Position pos_before = limit_pos();
+    const bool read_ok = ReadToDest(length_to_copy, src, dest.cursor());
+    const Position length_read = limit_pos() - pos_before;
+    dest.move_cursor(IntCast<size_t>(length_read));
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
+  } while (length > 0);
+  return true;
 }
 
 bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {

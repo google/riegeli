@@ -181,6 +181,13 @@ class FileReaderBase : public Reader {
   bool ReadToBuffer(size_t cursor_index, ::tensorflow::RandomAccessFile* src,
                     absl::Span<char> flat_buffer);
 
+  // Implementation of `CopySlow(Writer&)` in terms of `Writer::Push()` and
+  // `ReadToDest()`. Does not use buffer pointers.
+  //
+  // Precondition: `length > 0`
+  bool CopyUsingPush(Position length, ::tensorflow::RandomAccessFile* src,
+                     Writer& dest);
+
   std::string filename_;
   // Invariant:
   //   if `is_open() && !filename_.empty()` then `env_ != nullptr`

@@ -300,6 +300,23 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       break;
     }
     size_t available_length = available();
+    const bool read_directly =
+        length >= buffer_sizer_.LengthToReadDirectly(pos(), start_to_limit(),
+                                                     available_length);
+    if (read_directly) {
+      if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
+        if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available_length))) {
+          move_cursor(available_length);
+          return false;
+        }
+        length -= available_length;
+        SyncBuffer();
+        return CopyUsingPush(length, dest);
+      }
+      // It is better to write available data from `buffer_` as a `Chain` before
+      // reading directly to `dest`. Before that, `buffer_` might need to be
+      // filled more to avoid attaching a wasteful `Chain`.
+    }
     size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
         buffer_sizer_.BufferLength(limit_pos(), 1, length - available_length);
@@ -326,6 +343,10 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
         length -= available_length;
       }
       buffer_.Clear();
+      if (read_directly) {
+        set_buffer();
+        return CopyUsingPush(length, dest);
+      }
       available_length = 0;
       cursor_index = 0;
       flat_buffer =
@@ -376,6 +397,38 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     move_cursor(IntCast<size_t>(length));
   }
   return write_ok && enough_read;
+}
+
+inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of BufferedReader::CopyUsingPush(): "
+         "nothing to copy";
+  do {
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
+    const size_t length_to_copy = UnsignedMin(length, dest.available());
+    const Position pos_before = limit_pos();
+    const bool read_ok =
+        ReadInternal(length_to_copy, length_to_copy, dest.cursor());
+    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+        << "BufferedReader::ReadInternal() decreased limit_pos()";
+    const Position length_read = limit_pos() - pos_before;
+    RIEGELI_ASSERT_LE(length_read, length_to_copy)
+        << "BufferedReader::ReadInternal() read more than requested";
+    if (read_ok) {
+      RIEGELI_ASSERT_GE(length_read, length_to_copy)
+          << "BufferedReader::ReadInternal() succeeded but "
+             "read less than requested";
+    } else {
+      RIEGELI_ASSERT_LT(length_read, length_to_copy)
+          << "BufferedReader::ReadInternal() failed but read enough";
+    }
+    dest.move_cursor(IntCast<size_t>(length_read));
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
+  } while (length > 0);
+  return true;
 }
 
 bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {

@@ -170,6 +170,12 @@ class BufferedReader : public Reader {
   // buffered data. `limit_pos()` remains unchanged.
   void SyncBuffer();
 
+  // Implementation of `CopySlow(Writer&)` in terms of `Writer::Push()` and
+  // `ReadInternal()`. Does not use buffer pointers.
+  //
+  // Precondition: `length > 0`
+  bool CopyUsingPush(Position length, Writer& dest);
+
   ReadBufferSizer buffer_sizer_;
   // Buffered data, read directly before the physical source position which is
   // `limit_pos()`.
