@@ -28,25 +28,19 @@
 
 namespace riegeli {
 
-namespace {
-
-struct LZ4F_CDictDeleter {
-  void operator()(LZ4F_CDict* ptr) const { LZ4F_freeCDict(ptr); }
-};
-
-}  // namespace
-
-inline std::shared_ptr<const LZ4F_CDict>
-Lz4Dictionary::Repr::PrepareCompressionDictionary() const {
-  absl::call_once(compression_once_, [&] {
-    compression_dictionary_ = std::unique_ptr<LZ4F_CDict, LZ4F_CDictDeleter>(
-        LZ4F_createCDict(data_.data(), data_.size()));
-  });
-  return compression_dictionary_;
+void Lz4Dictionary::Repr::LZ4F_CDictDeleter::operator()(LZ4F_CDict* ptr) const {
+  LZ4F_freeCDict(ptr);
 }
 
-std::shared_ptr<const LZ4F_CDict> Lz4Dictionary::PrepareCompressionDictionary()
+inline const LZ4F_CDict* Lz4Dictionary::Repr::PrepareCompressionDictionary()
     const {
+  absl::call_once(compression_once_, [&] {
+    compression_dictionary_.reset(LZ4F_createCDict(data_.data(), data_.size()));
+  });
+  return compression_dictionary_.get();
+}
+
+const LZ4F_CDict* Lz4Dictionary::PrepareCompressionDictionary() const {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareCompressionDictionary();
 }

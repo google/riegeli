@@ -36,17 +36,7 @@ namespace riegeli {
 constexpr size_t BrotliDictionary::kMaxRawChunks;
 #endif
 
-namespace {
-
-struct BrotliEncoderDictionaryDeleter {
-  void operator()(BrotliEncoderPreparedDictionary* ptr) const {
-    BrotliEncoderDestroyPreparedDictionary(ptr);
-  }
-};
-
-}  // namespace
-
-std::shared_ptr<const BrotliEncoderPreparedDictionary>
+const BrotliEncoderPreparedDictionary*
 BrotliDictionary::Chunk::PrepareCompressionDictionary() const {
   absl::call_once(compression_once_, [&] {
     if (type_ == Type::kNative) {
@@ -55,14 +45,13 @@ BrotliDictionary::Chunk::PrepareCompressionDictionary() const {
              "unprepared native chunk";
       return;
     }
-    compression_dictionary_ = std::unique_ptr<BrotliEncoderPreparedDictionary,
-                                              BrotliEncoderDictionaryDeleter>(
-        BrotliEncoderPrepareDictionary(
-            static_cast<BrotliSharedDictionaryType>(type_), data_.size(),
-            reinterpret_cast<const uint8_t*>(data_.data()), BROTLI_MAX_QUALITY,
-            // `BrotliAllocator` is not supported here because the prepared
-            // dictionary may easily outlive the allocator.
-            nullptr, nullptr, nullptr));
+    owned_compression_dictionary_.reset(BrotliEncoderPrepareDictionary(
+        static_cast<BrotliSharedDictionaryType>(type_), data_.size(),
+        reinterpret_cast<const uint8_t*>(data_.data()), BROTLI_MAX_QUALITY,
+        // `BrotliAllocator` is not supported here because the prepared
+        // dictionary may easily outlive the allocator.
+        nullptr, nullptr, nullptr));
+    compression_dictionary_ = owned_compression_dictionary_.get();
   });
   return compression_dictionary_;
 }

@@ -64,10 +64,10 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
   }
   initial_compressed_pos_ = dest->pos();
 
-  std::shared_ptr<const LZ4F_CDict> prepared;
+  const LZ4F_CDict* compression_dictionary = nullptr;
   if (!dictionary_.empty()) {
-    prepared = dictionary_.PrepareCompressionDictionary();
-    if (ABSL_PREDICT_FALSE(prepared == nullptr)) {
+    compression_dictionary = dictionary_.PrepareCompressionDictionary();
+    if (ABSL_PREDICT_FALSE(compression_dictionary == nullptr)) {
       Fail(absl::InternalError("LZ4F_createCDict() failed"));
       return;
     }
@@ -111,8 +111,8 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
     return;
   }
   const size_t result = LZ4F_compressBegin_usingCDict(
-      compressor_.get(), dest->cursor(), dest->available(), prepared.get(),
-      &preferences_);
+      compressor_.get(), dest->cursor(), dest->available(),
+      compression_dictionary, &preferences_);
   if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) {
     Fail(absl::InternalError(
         absl::StrCat("LZ4F_compressBegin_usingCDict() failed: ",

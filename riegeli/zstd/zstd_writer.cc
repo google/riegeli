@@ -118,13 +118,14 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     }
   }
   if (!dictionary_.empty()) {
-    const std::shared_ptr<const ZSTD_CDict> prepared =
+    compression_dictionary_ =
         dictionary_.PrepareCompressionDictionary(compression_level);
-    if (ABSL_PREDICT_FALSE(prepared == nullptr)) {
+    if (ABSL_PREDICT_FALSE(compression_dictionary_ == nullptr)) {
       Fail(absl::InternalError("ZSTD_createCDict_advanced() failed"));
       return;
     }
-    const size_t result = ZSTD_CCtx_refCDict(compressor_.get(), prepared.get());
+    const size_t result =
+        ZSTD_CCtx_refCDict(compressor_.get(), compression_dictionary_.get());
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(absl::StrCat("ZSTD_CCtx_refCDict() failed: ",
                                             ZSTD_getErrorName(result))));

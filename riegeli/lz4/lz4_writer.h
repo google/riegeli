@@ -405,7 +405,7 @@ inline void Lz4WriterBase::Reset(const BufferOptions& buffer_options,
   initial_compressed_pos_ = 0;
   preferences_ = {};
   compressor_.reset();
-  dictionary_ = Lz4Dictionary();
+  dictionary_ = std::move(dictionary);
   stable_src_ = false;
   buffered_length_ = 0;
   associated_reader_.Reset();

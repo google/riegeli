@@ -23,6 +23,7 @@
 
 #include <atomic>
 #include <memory>
+#include <utility>
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
@@ -43,60 +44,45 @@ static_assert(
     "Enum values of ZstdDictionary::Type disagree with ZSTD_dct "
     "constants");
 
-namespace {
-
-struct ZSTD_CDictDeleter {
-  void operator()(ZSTD_CDict* ptr) const { ZSTD_freeCDict(ptr); }
-};
-
-struct ZSTD_DDictDeleter {
-  void operator()(ZSTD_DDict* ptr) const { ZSTD_freeDDict(ptr); }
-};
-
-}  // namespace
-
-inline std::shared_ptr<const ZSTD_CDict>
+inline ZstdDictionary::ZSTD_CDictHandle
 ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
-  RefCountedPtr<const CompressionCache> compression_cache =
+  RefCountedPtr<const ZSTD_CDictCache> compression_cache =
       compression_cache_.load(std::memory_order_acquire);
   if (compression_cache == nullptr ||
       compression_cache->compression_level != compression_level) {
     compression_cache =
-        MakeRefCounted<const CompressionCache>(compression_level);
+        MakeRefCounted<const ZSTD_CDictCache>(compression_level);
     compression_cache_.store(compression_cache, std::memory_order_release);
   }
   absl::call_once(compression_cache->compression_once, [&] {
-    compression_cache->compression_dictionary =
-        std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter>(
-            ZSTD_createCDict_advanced(
-                data_.data(), data_.size(), ZSTD_dlm_byRef,
-                static_cast<ZSTD_dictContentType_e>(type_),
-                ZSTD_getCParams(compression_level, 0, data_.size()),
-                ZSTD_defaultCMem));
+    compression_cache->compression_dictionary.reset(ZSTD_createCDict_advanced(
+        data_.data(), data_.size(), ZSTD_dlm_byRef,
+        static_cast<ZSTD_dictContentType_e>(type_),
+        ZSTD_getCParams(compression_level, 0, data_.size()), ZSTD_defaultCMem));
   });
-  return compression_cache->compression_dictionary;
+  ZSTD_CDict* const ptr = compression_cache->compression_dictionary.get();
+  return ZSTD_CDictHandle(ptr,
+                          ZSTD_CDictReleaser{std::move(compression_cache)});
 }
 
-inline std::shared_ptr<const ZSTD_DDict>
-ZstdDictionary::Repr::PrepareDecompressionDictionary() const {
+inline const ZSTD_DDict* ZstdDictionary::Repr::PrepareDecompressionDictionary()
+    const {
   absl::call_once(decompression_once_, [&] {
-    decompression_dictionary_ = std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter>(
-        ZSTD_createDDict_advanced(data_.data(), data_.size(), ZSTD_dlm_byRef,
-                                  static_cast<ZSTD_dictContentType_e>(type_),
-                                  ZSTD_defaultCMem));
+    decompression_dictionary_.reset(ZSTD_createDDict_advanced(
+        data_.data(), data_.size(), ZSTD_dlm_byRef,
+        static_cast<ZSTD_dictContentType_e>(type_), ZSTD_defaultCMem));
   });
-  return decompression_dictionary_;
+  return decompression_dictionary_.get();
 }
 
-std::shared_ptr<const ZSTD_CDict> ZstdDictionary::PrepareCompressionDictionary(
+ZstdDictionary::ZSTD_CDictHandle ZstdDictionary::PrepareCompressionDictionary(
     int compression_level) const {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareCompressionDictionary(compression_level);
 }
 
-std::shared_ptr<const ZSTD_DDict>
-ZstdDictionary::PrepareDecompressionDictionary() const {
+const ZSTD_DDict* ZstdDictionary::PrepareDecompressionDictionary() const {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareDecompressionDictionary();
 }

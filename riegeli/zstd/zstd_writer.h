@@ -242,6 +242,7 @@ class ZstdWriterBase : public BufferedWriter {
                      ZSTD_EndDirective end_op);
 
   ZstdDictionary dictionary_;
+  ZstdDictionary::ZSTD_CDictHandle compression_dictionary_;
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
   Position initial_compressed_pos_ = 0;
@@ -341,6 +342,7 @@ inline ZstdWriterBase::ZstdWriterBase(const BufferOptions& buffer_options,
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dictionary_(std::move(that.dictionary_)),
+      compression_dictionary_(std::move(that.compression_dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
       initial_compressed_pos_(that.initial_compressed_pos_),
@@ -351,6 +353,7 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
     ZstdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dictionary_ = std::move(that.dictionary_);
+  compression_dictionary_ = std::move(that.compression_dictionary_);
   pledged_size_ = that.pledged_size_;
   reserve_max_size_ = that.reserve_max_size_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
@@ -366,6 +369,7 @@ inline void ZstdWriterBase::Reset(Closed) {
   initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = ZstdDictionary();
+  compression_dictionary_.reset();
   associated_reader_.Reset();
 }
 
@@ -378,7 +382,8 @@ inline void ZstdWriterBase::Reset(const BufferOptions& buffer_options,
   reserve_max_size_ = reserve_max_size;
   initial_compressed_pos_ = 0;
   compressor_.reset();
-  dictionary_ = ZstdDictionary();
+  dictionary_ = std::move(dictionary);
+  compression_dictionary_.reset();
   associated_reader_.Reset();
 }
 

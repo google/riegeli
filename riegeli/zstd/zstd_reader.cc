@@ -96,14 +96,14 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
     }
   }
   if (!dictionary_.empty()) {
-    const std::shared_ptr<const ZSTD_DDict> prepared =
+    const ZSTD_DDict* const decompression_dictionary =
         dictionary_.PrepareDecompressionDictionary();
-    if (ABSL_PREDICT_FALSE(prepared == nullptr)) {
+    if (ABSL_PREDICT_FALSE(decompression_dictionary == nullptr)) {
       Fail(absl::InternalError("ZSTD_createDDict_advanced() failed"));
       return;
     }
     const size_t result =
-        ZSTD_DCtx_refDDict(decompressor_.get(), prepared.get());
+        ZSTD_DCtx_refDDict(decompressor_.get(), decompression_dictionary);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(absl::StrCat("ZSTD_DCtx_refDDict() failed: ",
                                             ZSTD_getErrorName(result))));

@@ -108,7 +108,9 @@ class Lz4Dictionary {
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `LZ4F_createCDict()` failed.
-  std::shared_ptr<const LZ4F_CDict> PrepareCompressionDictionary() const;
+  //
+  // The dictionary is owned by `*this`.
+  const LZ4F_CDict* PrepareCompressionDictionary() const;
 
  private:
   enum class Ownership { kCopied, kUnowned };
@@ -142,18 +144,25 @@ class Lz4Dictionary::Repr : public RefCountedBase<Repr> {
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `LZ4F_createCDict()` failed.
-  std::shared_ptr<const LZ4F_CDict> PrepareCompressionDictionary() const;
+  //
+  // The dictionary is owned by `*this`.
+  const LZ4F_CDict* PrepareCompressionDictionary() const;
 
   absl::string_view data() const { return data_; }
   uint32_t dict_id() const { return dict_id_; }
 
  private:
+  struct LZ4F_CDictDeleter {
+    void operator()(LZ4F_CDict* ptr) const;
+  };
+
   std::string owned_data_;
   absl::string_view data_;
   uint32_t dict_id_;
 
   mutable absl::once_flag compression_once_;
-  mutable std::shared_ptr<const LZ4F_CDict> compression_dictionary_;
+  mutable std::unique_ptr<LZ4F_CDict, LZ4F_CDictDeleter>
+      compression_dictionary_;
 };
 
 inline Lz4Dictionary::Lz4Dictionary(const Lz4Dictionary& that)

@@ -98,14 +98,14 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
        dictionary_.chunks()) {
-    const std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared =
+    const BrotliEncoderPreparedDictionary* const compression_dictionary =
         chunk->PrepareCompressionDictionary();
-    if (ABSL_PREDICT_FALSE(prepared == nullptr)) {
+    if (ABSL_PREDICT_FALSE(compression_dictionary == nullptr)) {
       Fail(absl::InternalError("BrotliEncoderPrepareDictionary() failed"));
       return;
     }
     if (ABSL_PREDICT_FALSE(!BrotliEncoderAttachPreparedDictionary(
-            compressor_.get(), prepared.get()))) {
+            compressor_.get(), compression_dictionary))) {
       Fail(absl::InternalError(
           "BrotliEncoderAttachPreparedDictionary() failed"));
       return;

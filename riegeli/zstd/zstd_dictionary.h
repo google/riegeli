@@ -45,6 +45,9 @@ namespace riegeli {
 //
 // Copying a `ZstdDictionary` object is cheap, sharing the actual dictionary.
 class ZstdDictionary {
+ private:
+  struct ZSTD_CDictReleaser;
+
  public:
   // Interpretation of dictionary data.
   enum class Type {
@@ -57,6 +60,9 @@ class ZstdDictionary {
     // Shared with the dictBuilder library.
     kSerialized = 2,
   };
+
+  // Owning handle to a compression dictionary in the prepared form.
+  using ZSTD_CDictHandle = std::unique_ptr<ZSTD_CDict, ZSTD_CDictReleaser>;
 
   // Creates an empty `ZstdDictionary`.
   ZstdDictionary() noexcept {}
@@ -110,15 +116,30 @@ class ZstdDictionary {
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
-      int compression_level) const;
+  ZSTD_CDictHandle PrepareCompressionDictionary(int compression_level) const;
 
   // Returns the decompression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `ZSTD_createDDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
+  //
+  // The dictionary is owned by `*this`.
+  const ZSTD_DDict* PrepareDecompressionDictionary() const;
 
  private:
   enum class Ownership { kCopied, kUnowned };
+
+  struct ZSTD_CDictDeleter {
+    void operator()(ZSTD_CDict* ptr) const { ZSTD_freeCDict(ptr); }
+  };
+
+  struct ZSTD_CDictCache;
+
+  struct ZSTD_CDictReleaser {
+    void operator()(ZSTD_CDict* ptr) {
+      // `*ptr` is owned by `*compression_cache`.
+      compression_cache.reset();
+    }
+    RefCountedPtr<const ZSTD_CDictCache> compression_cache;
+  };
 
   class Repr;
 
@@ -147,26 +168,30 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_CDict> PrepareCompressionDictionary(
-      int compression_level) const;
+  ZSTD_CDictHandle PrepareCompressionDictionary(int compression_level) const;
 
   // Returns the decompression dictionary in the prepared form, or `nullptr`
   // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
-  std::shared_ptr<const ZSTD_DDict> PrepareDecompressionDictionary() const;
+  //
+  // The dictionary is owned by `*this`.
+  const ZSTD_DDict* PrepareDecompressionDictionary() const;
 
   absl::string_view data() const { return data_; }
 
  private:
-  struct CompressionCache;
+  struct ZSTD_DDictDeleter {
+    void operator()(ZSTD_DDict* ptr) const { ZSTD_freeDDict(ptr); }
+  };
 
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
 
-  mutable AtomicRefCountedPtr<const CompressionCache> compression_cache_;
+  mutable AtomicRefCountedPtr<const ZSTD_CDictCache> compression_cache_;
 
   mutable absl::once_flag decompression_once_;
-  mutable std::shared_ptr<const ZSTD_DDict> decompression_dictionary_;
+  mutable std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter>
+      decompression_dictionary_;
 };
 
 // Holds a compression dictionary prepared for a particular compression level.
@@ -178,14 +203,13 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
 // If the callers need it with different compression levels, they do not wait.
 // The dictionary will be prepared again if varying compression levels later
 // repeat, because the cache holds at most one entry.
-struct ZstdDictionary::Repr::CompressionCache
-    : RefCountedBase<CompressionCache> {
-  explicit CompressionCache(int compression_level)
+struct ZstdDictionary::ZSTD_CDictCache : RefCountedBase<ZSTD_CDictCache> {
+  explicit ZSTD_CDictCache(int compression_level)
       : compression_level(compression_level) {}
 
   int compression_level;
   mutable absl::once_flag compression_once;
-  mutable std::shared_ptr<const ZSTD_CDict> compression_dictionary;
+  mutable std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> compression_dictionary;
 };
 
 inline ZstdDictionary::ZstdDictionary(const ZstdDictionary& that)

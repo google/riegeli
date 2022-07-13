@@ -140,11 +140,15 @@ class BrotliDictionary {
   // Interoperability with the native Brotli engine: adds a chunk represented by
   // `BrotliEncoderPreparedDictionary` pointer. It can be used for compression
   // but not for decompression.
-  BrotliDictionary& add_native(
-      std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared) &;
-  BrotliDictionary&& add_native(
-      std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared) && {
-    return std::move(add_native(std::move(prepared)));
+  //
+  // Does not take ownedship of `prepared, which must be valid until the last
+  // `BrotliReader` or `BrotliWriter` using this dictionary is closed or no
+  // longer used.
+  BrotliDictionary& add_native_unowned(
+      const BrotliEncoderPreparedDictionary* prepared) &;
+  BrotliDictionary&& add_native_unowned(
+      const BrotliEncoderPreparedDictionary* prepared) && {
+    return std::move(add_native_unowned(prepared));
   }
 
   // Returns `true` if no dictionary is present.
@@ -181,9 +185,8 @@ class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
 
   // Does not know the data. The chunk is represented by
   // `BrotliEncoderPreparedDictionary` pointer.
-  explicit Chunk(
-      std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared)
-      : type_(Type::kNative), compression_dictionary_(std::move(prepared)) {}
+  explicit Chunk(const BrotliEncoderPreparedDictionary* prepared)
+      : type_(Type::kNative), compression_dictionary_(prepared) {}
 
   Chunk(const Chunk&) = delete;
   Chunk& operator=(const Chunk&) = delete;
@@ -198,17 +201,27 @@ class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // `BrotliEncoderPrepareDictionary()` failed.
-  std::shared_ptr<const BrotliEncoderPreparedDictionary>
-  PrepareCompressionDictionary() const;
+  //
+  // The dictionary is owned by `*this`.
+  const BrotliEncoderPreparedDictionary* PrepareCompressionDictionary() const;
 
  private:
+  struct BrotliEncoderDictionaryDeleter {
+    void operator()(BrotliEncoderPreparedDictionary* ptr) const {
+      BrotliEncoderDestroyPreparedDictionary(ptr);
+    }
+  };
+
   Type type_;
   std::string owned_data_;
   absl::string_view data_;
 
   mutable absl::once_flag compression_once_;
-  mutable std::shared_ptr<const BrotliEncoderPreparedDictionary>
-      compression_dictionary_;
+  mutable std::unique_ptr<BrotliEncoderPreparedDictionary,
+                          BrotliEncoderDictionaryDeleter>
+      owned_compression_dictionary_;
+  mutable const BrotliEncoderPreparedDictionary* compression_dictionary_ =
+      nullptr;
 };
 
 // Implementation details follow.
@@ -289,9 +302,9 @@ inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
   return *this;
 }
 
-inline BrotliDictionary& BrotliDictionary::add_native(
-    std::shared_ptr<const BrotliEncoderPreparedDictionary> prepared) & {
-  chunks_.push_back(MakeRefCounted<const Chunk>(std::move(prepared)));
+inline BrotliDictionary& BrotliDictionary::add_native_unowned(
+    const BrotliEncoderPreparedDictionary* prepared) & {
+  chunks_.push_back(MakeRefCounted<const Chunk>(prepared));
   return *this;
 }
 
