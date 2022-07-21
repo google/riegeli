@@ -254,11 +254,15 @@ class Lz4WriterBase : public BufferedWriter {
     }
   };
 
+  bool DoneCompression(Writer& dest);
+
   Lz4Dictionary dictionary_;
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
   Position initial_compressed_pos_ = 0;
   LZ4F_preferences_t preferences_{};
+  // If `ok()` but `compressor_ == nullptr` then `LZ4F_compressEnd()` was
+  // already called.
   RecyclingPool<LZ4F_cctx, LZ4F_cctxDeleter>::Handle compressor_;
   // `stable_src_` becomes `true` when all data remaining to compress are known
   // to stay under their current addresses.

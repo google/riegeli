@@ -131,23 +131,26 @@ void Lz4WriterBase::Done() {
       Fail(absl::FailedPreconditionError(
           absl::StrCat("Actual size does not match pledged size: ", start_pos(),
                        " < ", *pledged_size_)));
-    } else {
+    } else if (compressor_ != nullptr) {
       Writer& dest = *dest_writer();
-      if (ABSL_PREDICT_FALSE(
-              !dest.Push(LZ4F_compressBound(0, &preferences_)))) {
-        FailWithoutAnnotation(AnnotateOverDest(dest.status()));
-      } else {
-        const size_t result = LZ4F_compressEnd(compressor_.get(), dest.cursor(),
-                                               dest.available(), nullptr);
-        RIEGELI_ASSERT(!LZ4F_isError(result))
-            << "LZ4F_compressEnd() failed: " << LZ4F_getErrorName(result);
-        dest.move_cursor(result);
-      }
+      DoneCompression(dest);
     }
   }
   compressor_.reset();
   dictionary_ = Lz4Dictionary();
   associated_reader_.Reset();
+}
+
+inline bool Lz4WriterBase::DoneCompression(Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(LZ4F_compressBound(0, &preferences_)))) {
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
+  const size_t result = LZ4F_compressEnd(compressor_.get(), dest.cursor(),
+                                         dest.available(), nullptr);
+  RIEGELI_ASSERT(!LZ4F_isError(result))
+      << "LZ4F_compressEnd() failed: " << LZ4F_getErrorName(result);
+  dest.move_cursor(result);
+  return true;
 }
 
 absl::Status Lz4WriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -239,6 +242,11 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
     src.remove_prefix(src_length);
     buffered_length_ = (buffered_length_ + src_length) & (block_size - 1);
   } while (!src.empty());
+  if (stable_src_) {
+    // `LZ4F_compressEnd()` must be called while `src` is still valid.
+    if (ABSL_PREDICT_FALSE(!DoneCompression(dest))) return false;
+    compressor_.reset();
+  }
   return true;
 }
 
