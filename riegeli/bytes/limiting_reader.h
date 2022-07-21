@@ -47,8 +47,7 @@ class LimitingReaderBase : public Reader {
    public:
     Options() noexcept {}
 
-    // The limit expressed as an absolute position. It must be at least as large
-    // as the current position.
+    // The limit expressed as an absolute position.
     //
     // `absl::nullopt` means no limit, unless `max_length()` is set.
     //
@@ -145,8 +144,6 @@ class LimitingReaderBase : public Reader {
   //
   // If `set_max_length()` was used, `max_pos()` returns the same limit
   // translated to an absolute position.
-  //
-  // Precondition of `set_max_pos()`: `max_pos >= pos()`
   //
   // If no limit is set, returns `std::numeric_limits<Position>::max()`.
   //
@@ -245,13 +242,14 @@ class LimitingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  // For `FailLengthOverflow()`, `FailNotEnoughEarly()`, and
+  // For `FailNotEnoughEarly()`, `FailLengthOverflow()`, and
   // `FailPositionLimitExceeded()`.
   friend class ScopedLimiter;
 
-  bool CheckEnough(Reader& src);
-  ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
+  bool CheckEnough();
+  ABSL_ATTRIBUTE_COLD bool FailNotEnough();
   ABSL_ATTRIBUTE_COLD void FailNotEnoughEarly(Position expected);
+  ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
   ABSL_ATTRIBUTE_COLD void FailPositionLimitExceeded();
 
   // This template is defined and used only in limiting_reader.cc.
@@ -265,9 +263,9 @@ class LimitingReaderBase : public Reader {
   bool fail_if_longer_ = false;
 
   // Invariants if `is_open()`:
-  //   `start() == src_reader()->start()`
-  //   `limit() <= src_reader()->limit()`
-  //   `start_pos() == src_reader()->start_pos()`
+  //   `start() == src_reader()->start() || start() == nullptr`
+  //   `limit() <= src_reader()->limit() || limit() == nullptr`
+  //   `start_pos() == src_reader()->start_pos() || start() == nullptr`
   //   `limit_pos() <= max_pos_`
 };
 
@@ -445,31 +443,27 @@ inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
                  options.max_length() == absl::nullopt)
       << "Failed precondition of LimitingReader: "
          "Options::max_pos() and Options::max_length() are both set";
+  set_buffer(src->start(), src->start_to_limit(), src->start_to_cursor());
+  set_limit_pos(src->limit_pos());
+  if (ABSL_PREDICT_FALSE(!src->ok())) FailWithoutAnnotation(src->status());
   if (options.max_pos() != absl::nullopt) {
-    RIEGELI_ASSERT_GE(*options.max_pos(), src->pos())
-        << "Failed precondition of LimitingReader: "
-           "position already exceeds its limit";
-    max_pos_ = *options.max_pos();
+    set_max_pos(*options.max_pos());
   } else if (options.max_length() != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_length() >
-                           std::numeric_limits<Position>::max() - src->pos())) {
-      max_pos_ = std::numeric_limits<Position>::max();
-      if (exact_) FailLengthOverflow(*options.max_length());
-    } else {
-      max_pos_ = src->pos() + *options.max_length();
-    }
+    set_max_length(*options.max_length());
   } else {
-    max_pos_ = std::numeric_limits<Position>::max();
+    clear_limit();
   }
-  MakeBuffer(*src);
 }
 
 inline void LimitingReaderBase::set_max_pos(Position max_pos) {
-  RIEGELI_ASSERT_GE(max_pos, pos())
-      << "Failed precondition of LimitingReaderBase::set_max_pos(): "
-         "position already exceeds its limit";
   max_pos_ = max_pos;
   if (limit_pos() > max_pos_) {
+    if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
+      set_buffer();
+      set_limit_pos(max_pos_);
+      CheckEnough();
+      return;
+    }
     set_buffer(start(),
                start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
                start_to_cursor());
@@ -484,7 +478,13 @@ inline void LimitingReaderBase::set_max_length(Position max_length) {
     if (exact_) FailLengthOverflow(max_length);
     return;
   }
-  set_max_pos(pos() + max_length);
+  max_pos_ = pos() + max_length;
+  if (limit_pos() > max_pos_) {
+    set_buffer(start(),
+               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
+               start_to_cursor());
+    set_limit_pos(max_pos_);
+  }
 }
 
 inline Position LimitingReaderBase::max_length() const {
@@ -495,19 +495,28 @@ inline Position LimitingReaderBase::max_length() const {
 }
 
 inline void LimitingReaderBase::SyncBuffer(Reader& src) {
-  src.set_cursor(cursor());
+  if (ABSL_PREDICT_TRUE(cursor() != nullptr)) src.set_cursor(cursor());
 }
 
 inline void LimitingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.limit_pos());
   if (limit_pos() > max_pos_) {
-    set_buffer(start(),
-               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
-               start_to_cursor());
+    if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
+      set_buffer();
+    } else {
+      set_buffer(start(),
+                 start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
+                 start_to_cursor());
+    }
     set_limit_pos(max_pos_);
   }
   if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
+}
+
+inline bool LimitingReaderBase::CheckEnough() {
+  if (ABSL_PREDICT_FALSE(exact_)) return FailNotEnough();
+  return false;
 }
 
 template <typename Src>

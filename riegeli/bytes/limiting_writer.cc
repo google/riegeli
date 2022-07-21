@@ -44,6 +44,11 @@ void LimitingWriterBase::Done() {
   Writer::Done();
 }
 
+bool LimitingWriterBase::FailLimitExceeded() {
+  Writer& dest = *dest_writer();
+  return FailLimitExceeded(dest);
+}
+
 bool LimitingWriterBase::FailLimitExceeded(Writer& dest) {
   set_start_pos(max_pos_);
   set_buffer();
@@ -167,6 +172,9 @@ bool LimitingWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -192,6 +200,9 @@ bool LimitingWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -212,6 +223,9 @@ bool LimitingWriterBase::SupportsSize() {
 }
 
 absl::optional<Position> LimitingWriterBase::SizeImpl() {
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
@@ -226,6 +240,9 @@ bool LimitingWriterBase::SupportsTruncate() {
 }
 
 bool LimitingWriterBase::TruncateImpl(Position new_size) {
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(pos() > max_pos_) && new_size <= max_pos_) {
@@ -243,6 +260,9 @@ bool LimitingWriterBase::SupportsReadMode() {
 }
 
 Reader* LimitingWriterBase::ReadModeImpl(Position initial_pos) {
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return nullptr;

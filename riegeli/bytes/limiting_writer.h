@@ -45,8 +45,7 @@ class LimitingWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // The limit expressed as an absolute position. It must be at least as large
-    // as the current position.
+    // The limit expressed as an absolute position.
     //
     // `absl::nullopt` means no limit, unless `max_length()` is set.
     //
@@ -124,8 +123,6 @@ class LimitingWriterBase : public Writer {
   // If `set_max_length()` was used, `max_pos()` returns the same limit
   // translated to an absolute position.
   //
-  // Precondition of `set_max_pos()`: `max_pos >= pos()`
-  //
   // If no limit is set, returns `std::numeric_limits<Position>::max()`.
   void set_max_pos(Position max_pos);
   Position max_pos() const { return max_pos_; }
@@ -187,6 +184,7 @@ class LimitingWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(Writer& dest);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
@@ -331,31 +329,19 @@ inline void LimitingWriterBase::Initialize(Writer* dest, Options&& options) {
                  options.max_length() == absl::nullopt)
       << "Failed precondition of LimitingWriter: "
          "Options::max_pos() and Options::max_length() are both set";
-  if (options.max_pos() != absl::nullopt) {
-    RIEGELI_ASSERT_GE(*options.max_pos(), dest->pos())
-        << "Failed precondition of LimitingWriter: "
-           "position already exceeds its limit";
-    max_pos_ = *options.max_pos();
-  } else if (options.max_length() != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_length() >
-                           std::numeric_limits<Position>::max() -
-                               dest->pos())) {
-      max_pos_ = std::numeric_limits<Position>::max();
-      if (exact_) FailLengthOverflow(*options.max_length());
-    } else {
-      max_pos_ = dest->pos() + *options.max_length();
-    }
-  } else {
-    max_pos_ = std::numeric_limits<Position>::max();
-  }
   MakeBuffer(*dest);
+  if (options.max_pos() != absl::nullopt) {
+    set_max_pos(*options.max_pos());
+  } else if (options.max_length() != absl::nullopt) {
+    set_max_length(*options.max_length());
+  } else {
+    clear_limit();
+  }
 }
 
 inline void LimitingWriterBase::set_max_pos(Position max_pos) {
-  RIEGELI_ASSERT_GE(max_pos, pos())
-      << "Failed precondition of LimitingWriterBase::set_max_pos(): "
-         "position already exceeds its limit";
   max_pos_ = max_pos;
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) FailLimitExceeded();
 }
 
 inline void LimitingWriterBase::set_max_length(Position max_length) {
