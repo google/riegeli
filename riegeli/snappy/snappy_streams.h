@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -51,14 +50,8 @@ class WriterSnappySink : public snappy::Sink {
 // Adapts a `Reader` to a `snappy::Source`.
 class ReaderSnappySource : public snappy::Source {
  public:
-  explicit ReaderSnappySource(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {
-    RIEGELI_ASSERT(src_->SupportsSize())
-        << "Failed precondition of ReaderSnappySource: "
-           "Reader does not support Size()";
-    // There is no way to signal failure here. If `Size()` failed, pretend
-    // that the source is empty.
-    size_ = src_->Size().value_or(0);
-  }
+  explicit ReaderSnappySource(Reader* src, Position size)
+      : src_(RIEGELI_ASSERT_NOTNULL(src)), size_(size) {}
 
   ReaderSnappySource(const ReaderSnappySource&) = delete;
   ReaderSnappySource& operator=(const ReaderSnappySource&) = delete;

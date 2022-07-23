@@ -15,6 +15,7 @@
 #include "riegeli/snappy/snappy_reader.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <string>
 #include <utility>
@@ -83,7 +84,9 @@ absl::Status SnappyReaderBase::AnnotateOverSrc(absl::Status status) {
 namespace snappy_internal {
 
 absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
-  ReaderSnappySource source(&src);
+  const absl::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+  ReaderSnappySource source(&src, *size);
   WriterSnappySink sink(&dest);
   const bool uncompress_ok = snappy::Uncompress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();

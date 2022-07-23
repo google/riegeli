@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -249,7 +250,14 @@ inline bool SnappyWriterBase::SyncBuffer() {
 namespace snappy_internal {
 
 absl::Status SnappyCompressImpl(Reader& src, Writer& dest) {
-  ReaderSnappySource source(&src);
+  const absl::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+  if (ABSL_PREDICT_FALSE(*size > std::numeric_limits<uint32_t>::max())) {
+    return absl::ResourceExhaustedError(absl::StrCat(
+        "Uncompressed data too large for snappy compression: ", *size, " > ",
+        std::numeric_limits<uint32_t>::max()));
+  }
+  ReaderSnappySource source(&src, *size);
   WriterSnappySink sink(&dest);
   snappy::Compress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
