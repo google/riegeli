@@ -288,7 +288,7 @@ bool FramedSnappyWriter<Dest>::FlushImpl(FlushType flush_type) {
   }
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
-      FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
+      return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
   }
   return true;
