@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_MEMORY_STATS_H_
-#define RIEGELI_BASE_MEMORY_STATS_H_
+#ifndef RIEGELI_BASE_MEMORY_ESTIMATOR_H_
+#define RIEGELI_BASE_MEMORY_ESTIMATOR_H_
 
 #include <stddef.h>
 
@@ -122,4 +122,4 @@ inline bool MemoryEstimator::RegisterNode(const void* ptr) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_MEMORY_STATS_H_
+#endif  // RIEGELI_BASE_MEMORY_ESTIMATOR_H_

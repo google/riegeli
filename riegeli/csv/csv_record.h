@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_CSV_RECORD_H_
-#define RIEGELI_CSV_RECORD_H_
+#ifndef RIEGELI_CSV_CSV_RECORD_H_
+#define RIEGELI_CSV_CSV_RECORD_H_
 
 #include <stddef.h>
 
@@ -1215,4 +1215,4 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_CSV_RECORD_H_
+#endif  // RIEGELI_CSV_CSV_RECORD_H_
