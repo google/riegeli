@@ -94,19 +94,6 @@ using AnyDependencyRef = AnyDependencyRefImpl<
     Ptr, UnsignedMax(size_t{0}, sizeof(Dependency<Ptr, InlineManagers>)...),
     UnsignedMax(size_t{0}, alignof(Dependency<Ptr, InlineManagers>)...)>;
 
-// `AnyDependencyTraits<Ptr>` can be specialized to override the default value
-// of `Ptr` used by `AnyDependency<Ptr>`.
-template <typename Ptr>
-struct AnyDependencyTraits {
-  static Ptr DefaultPtr() { return Ptr(); }
-};
-
-// Specialization of `AnyDependencyTraits<int>`, used for file descriptors.
-template <>
-struct AnyDependencyTraits<int> {
-  static int DefaultPtr() { return -1; }
-};
-
 namespace any_dependency_internal {
 
 // Variants of `Repr`:
@@ -298,8 +285,8 @@ class AnyDependencyImpl {
   }
 
   // If the `Dependency` owns the dependent object and can release it,
-  // `Release()` returns the released pointer, otherwise returns `nullptr`
-  // or another sentinel `Ptr` value specified with `AnyDependencyTraits<Ptr>`.
+  // `Release()` returns the released pointer, otherwise returns a sentinel
+  // `Ptr` constructed from `DependencySentinel(static_cast<Ptr*>(nullptr))`.
   Ptr Release() { return methods_->release(repr_.storage); }
 
   // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be compared against
@@ -511,8 +498,48 @@ class DependencyImpl<Ptr,
 
 namespace any_dependency_internal {
 
+// `any_dependency_internal::SentinelPtr<Ptr>()` returns a sentinel `Ptr`
+// constructed from `DependencySentinel(static_cast<Ptr*>(nullptr))`.
+
+template <typename Ptr>
+inline Ptr SentinelPtrInternal(const Ptr& ptr) {
+  return ptr;
+}
+
+template <typename Ptr>
+inline Ptr SentinelPtrInternal(Ptr&& ptr) {
+  // `std::move(ptr)` is correct and `std::forward<Ptr>(ptr)` is not necessary:
+  // `Ptr` is always specified explicitly and is never an lvalue reference.
+  return std::move(ptr);
+}
+
+#if !__cpp_lib_make_from_tuple
+template <typename Ptr, typename... PtrArgs, size_t... indices>
+inline Ptr SentinelPtrInternal(std::tuple<PtrArgs...>&& ptr_args,
+                               std::index_sequence<indices...>) {
+  return Ptr(std::forward<PtrArgs>(std::get<indices>(ptr_args))...);
+}
+#endif
+
+template <typename Ptr, typename... PtrArgs>
+inline Ptr SentinelPtrInternal(std::tuple<PtrArgs...> ptr_args) {
+#if __cpp_lib_make_from_tuple
+  return std::make_from_tuple<Ptr>(std::move(ptr_args));
+#else
+  return SentinelPtrInternal<Ptr>(std::move(ptr_args),
+                                  std::index_sequence_for<PtrArgs...>());
+#endif
+}
+
+template <typename Ptr>
+inline Ptr SentinelPtr() {
+  return SentinelPtrInternal<Ptr>(
+      DependencySentinel(static_cast<Ptr*>(nullptr)));
+}
+
 // `any_dependency_internal::Release(dep)` calls `dep.Release()` if that is
-// defined, otherwise returns `AnyDependencyTraits<Ptr>::DefaultPtr()`.
+// defined, otherwise returns a sentinel `Ptr` constructed from
+// `DependencySentinel(static_cast<Ptr*>(nullptr))`.
 
 template <typename T, typename Enable = void>
 struct HasRelease : std::false_type {};
@@ -530,7 +557,7 @@ template <
     typename Ptr, typename Manager,
     std::enable_if_t<!HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
 Ptr Release(Dependency<Ptr, Manager>& dep) {
-  return AnyDependencyTraits<Ptr>::DefaultPtr();
+  return SentinelPtr<Ptr>();
 }
 
 // `any_dependency_internal::IsOwning(dep)` calls `dep.is_owning()` if that is
@@ -562,12 +589,10 @@ struct NullMethods {
 
  private:
   static void Move(Storage self, Ptr* self_ptr, Storage that) {
-    new (self_ptr) Ptr(AnyDependencyTraits<Ptr>::DefaultPtr());
+    new (self_ptr) Ptr(SentinelPtr<Ptr>());
   }
   static void Destroy(Storage self) {}
-  static Ptr Release(Storage self) {
-    return AnyDependencyTraits<Ptr>::DefaultPtr();
-  }
+  static Ptr Release(Storage self) { return SentinelPtr<Ptr>(); }
   static bool IsOwning(const Storage self) { return false; }
   static const void* GetIf(const Storage self, TypeId type_id) {
     return nullptr;
@@ -718,7 +743,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Ptr, inline_size,
                          inline_align>::AnyDependencyImpl() noexcept
     : methods_(&NullMethods::methods),
-      ptr_(AnyDependencyTraits<Ptr>::DefaultPtr()) {}
+      ptr_(any_dependency_internal::SentinelPtr<Ptr>()) {}
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager,
@@ -762,7 +787,7 @@ inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
     AnyDependencyImpl&& that) noexcept {
-  that.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+  that.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
   methods_ = std::exchange(that.methods_, &NullMethods::methods);
   methods_->move(repr_.storage, &ptr_, that.repr_.storage);
 }
@@ -774,7 +799,7 @@ AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
   if (ABSL_PREDICT_TRUE(&that != this)) {
     ptr_.~Ptr();
     methods_->destroy(repr_.storage);
-    that.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+    that.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
     methods_ = std::exchange(that.methods_, &NullMethods::methods);
     methods_->move(repr_.storage, &ptr_, that.repr_.storage);
   }
@@ -789,7 +814,7 @@ inline AnyDependencyImpl<Ptr, inline_size, inline_align>::~AnyDependencyImpl() {
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset() {
-  ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+  ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
   methods_->destroy(repr_.storage);
   methods_ = &NullMethods::methods;
 }
@@ -855,7 +880,7 @@ template <typename Manager,
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   // Adopt `manager` instead of wrapping it.
-  manager.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+  manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
   methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
 }
@@ -889,7 +914,7 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
       std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
 #endif
   // Adopt `manager` instead of wrapping it.
-  manager.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
+  manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
   methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
 }

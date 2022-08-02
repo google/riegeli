@@ -128,6 +128,11 @@ class WriterOStreamBase : public std::iostream {
   // is closed, or `absl::OkStatus()` if the `WriterOStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
+  // Support `Dependency`.
+  friend std::tuple<Closed> DependencySentinel(WriterOStreamBase*) {
+    return {kClosed};
+  }
+
  protected:
   explicit WriterOStreamBase(Closed) noexcept
       : std::iostream(&streambuf_), streambuf_(kClosed) {}

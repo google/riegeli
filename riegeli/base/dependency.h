@@ -25,7 +25,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -61,6 +60,26 @@ namespace riegeli {
 // argument should be `std::move()` applied to a longer lived dependent object,
 // not a temporary.
 
+// `DependencySentinel(T*)` specifies how to initialize a default `Manager`
+// (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
+//
+// To customize that for a class `T`, define a free function
+// `DependencySentinel(T*)` in the same namespace as `T`, so that it is found
+// via ADL.
+//
+// `DependencySentinel(T*)` returns a value of type `T`, or a tuple of its
+// constructor arguments to avoid constructing a temporary `T` and moving from
+// it.
+//
+// The argument of `DependencySentinel(T*)` is always a null pointer, used to
+// choose the right overload based on the type.
+
+inline std::tuple<> DependencySentinel(void*) { return {}; }
+
+// Specialization of `DependencySentinel(int*)`, used for file descriptors.
+
+inline int DependencySentinel(int*) { return -1; }
+
 // `Dependency<Ptr, Manager>` derives from `DependencyImpl<Ptr, Manager>` which
 // has specializations for various combinations of `Ptr` and `Manager` types.
 // Most operations of `Dependency` are provided by `DependencyImpl`.
@@ -68,9 +87,9 @@ namespace riegeli {
 // Operations of `Dependency<Ptr, Manager>`:
 //
 // ```
-//   // Constructs a dummy `Manager`: constructed with `kClosed` if it supports
-//   // that, otherwise value-initialized (`nullptr` for pointers). Used when
-//   // the host object is closed and does not need a dependent object.
+//   // Constructs a dummy `Manager` from
+//   // `DependencySentinel(static_cast<Manager*>(nullptr))`. Used
+//   // when the host object is closed and does not need a dependent object.
 //   //
 //   // This constructor is optional.
 //   Dependency();
@@ -250,17 +269,8 @@ struct IsValidDependency<
 template <typename Manager>
 class DependencyBase {
  public:
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<std::is_constructible<DependentManager, Closed>::value,
-                       int> = 0>
-  DependencyBase() noexcept : manager_(kClosed) {}
-
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<!std::is_constructible<DependentManager, Closed>::value,
-                       int> = 0>
-  DependencyBase() noexcept : manager_() {}
+  DependencyBase() noexcept
+      : DependencyBase(DependencySentinel(static_cast<Manager*>(nullptr))) {}
 
   explicit DependencyBase(const Manager& manager) : manager_(manager) {}
   explicit DependencyBase(Manager&& manager) noexcept
@@ -285,21 +295,7 @@ class DependencyBase {
     return *this;
   }
 
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<std::is_constructible<DependentManager, Closed>::value,
-                       int> = 0>
-  void Reset() {
-    riegeli::Reset(manager_, kClosed);
-  }
-
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<!std::is_constructible<DependentManager, Closed>::value,
-                       int> = 0>
-  void Reset() {
-    riegeli::Reset(manager_);
-  }
+  void Reset() { Reset(DependencySentinel(static_cast<Manager*>(nullptr))); }
 
   void Reset(const Manager& manager) { manager_ = manager; }
   void Reset(Manager&& manager) { manager_ = std::move(manager); }

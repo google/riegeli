@@ -45,7 +45,7 @@ namespace riegeli {
 //
 // Hence to customize `riegeli::Reset()` for a class `T`, either define member
 // functions `T::Reset()`, or define free functions `ResetInternal()` in the
-// same namespace as `T`, so that it is found with ADL.
+// same namespace as `T`, so that they are found via ADL.
 //
 // `ResetInternal()` is predefined for `std::string` and `absl::Cord`.
 

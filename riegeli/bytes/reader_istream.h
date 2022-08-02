@@ -114,6 +114,11 @@ class ReaderIStreamBase : public std::istream {
   // is closed, or `absl::OkStatus()` if the `ReaderIStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
+  // Support `Dependency`.
+  friend std::tuple<Closed> DependencySentinel(ReaderIStreamBase*) {
+    return {kClosed};
+  }
+
  protected:
   explicit ReaderIStreamBase(Closed) noexcept
       : std::istream(&streambuf_), streambuf_(kClosed) {}
@@ -150,7 +155,7 @@ template <typename Src = Reader*>
 class ReaderIStream : public ReaderIStreamBase {
  public:
   // Creates a closed `ReaderIStream`.
-  explicit ReaderIStream() noexcept : ReaderIStreamBase(kClosed) {}
+  explicit ReaderIStream(Closed) noexcept : ReaderIStreamBase(kClosed) {}
 
   // Will read from the `Reader` provided by `src`.
   explicit ReaderIStream(const Src& src, Options options = Options());

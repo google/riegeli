@@ -311,6 +311,9 @@ class Object {
   // `AnnotateStatus()` would be irrelevant or duplicated in a particular case.
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
 
+  // Support `Dependency`.
+  friend std::tuple<Closed> DependencySentinel(Object*) { return {kClosed}; }
+
  private:
   ObjectState state_;
 };
