@@ -43,9 +43,12 @@ class ReaderFactoryBase : public Object {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  // Returns the original position of the original `Reader`.
+  Position pos() const { return initial_pos_; }
+
   // Returns a `Reader` which reads from the same source as the original
   // `Reader`, but has an independent current position, starting from
-  // `initial_pos`.
+  // `initial_pos`, defaulting to `pos()`.
   //
   // If the source ends before `initial_pos`, the position of the new `Reader`
   // is set to the end. The resulting `Reader` supports `Seek()` and
@@ -60,6 +63,7 @@ class ReaderFactoryBase : public Object {
   //
   // `NewReader()` is const and thus may be called concurrently.
   std::unique_ptr<Reader> NewReader(Position initial_pos) const;
+  std::unique_ptr<Reader> NewReader() const { return NewReader(pos()); }
 
  protected:
   using Object::Object;
@@ -87,6 +91,7 @@ class ReaderFactoryBase : public Object {
     Reader* reader ABSL_GUARDED_BY(mutex);
   };
 
+  Position initial_pos_ = 0;
   // If `shared_ == nullptr`, then `!is_open()` or `Reader::NewReader()` is
   // used. If `shared_ != nullptr`, then `ConcurrentReader` emulation is used.
   std::unique_ptr<Shared> shared_;
@@ -172,22 +177,27 @@ explicit ReaderFactory(
 // Implementation details follow.
 
 inline ReaderFactoryBase::ReaderFactoryBase(ReaderFactoryBase&& that) noexcept
-    : Object(static_cast<Object&&>(that)), shared_(std::move(that.shared_)) {}
+    : Object(static_cast<Object&&>(that)),
+      initial_pos_(that.initial_pos_),
+      shared_(std::move(that.shared_)) {}
 
 inline ReaderFactoryBase& ReaderFactoryBase::operator=(
     ReaderFactoryBase&& that) noexcept {
   Object::operator=(static_cast<Object&&>(that));
+  initial_pos_ = that.initial_pos_;
   shared_ = std::move(that.shared_);
   return *this;
 }
 
 inline void ReaderFactoryBase::Reset(Closed) {
   Object::Reset(kClosed);
+  initial_pos_ = 0;
   shared_.reset();
 }
 
 inline void ReaderFactoryBase::Reset() {
   Object::Reset();
+  // `initial_pos_` will be set by `Initialize()`.
   shared_.reset();
 }
 

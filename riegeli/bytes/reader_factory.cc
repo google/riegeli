@@ -568,6 +568,7 @@ void ReaderFactoryBase::Initialize(const BufferOptions& buffer_options,
   RIEGELI_ASSERT(src->SupportsRandomAccess())
       << "Failed precondition of ReaderFactory: "
          "the original Reader does not support random access";
+  initial_pos_ = src->pos();
   if (!src->SupportsNewReader()) {
     shared_ = std::make_unique<Shared>(buffer_options, src);
   }
