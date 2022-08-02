@@ -353,10 +353,12 @@ class AnyDependencyImpl {
   using MethodsFor = any_dependency_internal::MethodsFor<Ptr, inline_size,
                                                          inline_align, Manager>;
 
+#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename... Args, size_t... indices>
   explicit AnyDependencyImpl(std::tuple<Args...>&& args,
                              std::index_sequence<indices...>)
       : AnyDependencyImpl(std::forward<Args>(std::get<indices>(args))...) {}
+#endif
 
   // Initializes `methods_`, `repr_`, and `ptr_`, avoiding a redundant
   // indirection and adopting them from `manager` instead if `Manager` is
@@ -878,8 +880,14 @@ template <typename Manager, typename... ManagerArgs,
                            int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
+#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+  AnyDependencyImpl<Ptr, inline_size, inline_align> manager =
+      std::make_from_tuple<AnyDependencyImpl<Ptr, inline_size, inline_align>>(
+          std::move(manager_args));
+#else
   AnyDependencyImpl<Ptr, inline_size, inline_align> manager(
       std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
+#endif
   // Adopt `manager` instead of wrapping it.
   manager.ptr_ = AnyDependencyTraits<Ptr>::DefaultPtr();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);

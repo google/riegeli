@@ -268,8 +268,15 @@ class DependencyBase {
 
   template <typename... ManagerArgs>
   explicit DependencyBase(std::tuple<ManagerArgs...> manager_args)
-      : DependencyBase(std::move(manager_args),
-                       std::index_sequence_for<ManagerArgs...>()) {}
+      :
+#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+        manager_(std::make_from_tuple<Manager>(std::move(manager_args)))
+#else
+        DependencyBase(std::move(manager_args),
+                       std::index_sequence_for<ManagerArgs...>())
+#endif
+  {
+  }
 
   DependencyBase(DependencyBase&& that) noexcept
       : manager_(std::move(that.manager_)) {}
@@ -299,8 +306,16 @@ class DependencyBase {
 
   template <typename... ManagerArgs>
   void Reset(std::tuple<ManagerArgs...> manager_args) {
+#if __cpp_lib_apply
+    std::apply(
+        [&](ManagerArgs&&... args) {
+          riegeli::Reset(manager_, std::forward<ManagerArgs>(args)...);
+        },
+        std::move(manager_args));
+#else
     ResetInternal(std::move(manager_args),
                   std::index_sequence_for<ManagerArgs...>());
+#endif
   }
 
   Manager& manager() { return manager_; }
@@ -310,18 +325,22 @@ class DependencyBase {
   ~DependencyBase() = default;
 
  private:
+#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename... ManagerArgs, size_t... indices>
   explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
                           std::index_sequence<indices...>)
       : manager_(
             std::forward<ManagerArgs>(std::get<indices>(manager_args))...) {}
+#endif
 
+#if !__cpp_lib_apply
   template <typename... ManagerArgs, size_t... indices>
   void ResetInternal(std::tuple<ManagerArgs...>&& manager_args,
                      std::index_sequence<indices...>) {
     riegeli::Reset(manager_, std::forward<ManagerArgs>(
                                  std::get<indices>(manager_args))...);
   }
+#endif
 
   Manager manager_;
 };

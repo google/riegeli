@@ -1085,9 +1085,11 @@ class Chain::RawBlock {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
+#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename T, typename... Args, size_t... indices>
   void ConstructExternal(std::tuple<Args...>&& args,
                          std::index_sequence<indices...>);
+#endif
 
   bool is_mutable() const { return is_internal() && has_unique_owner(); }
 
@@ -1324,7 +1326,13 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
 
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
+#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+  external_.methods = &ExternalMethodsFor<T>::methods;
+  new (&unchecked_external_object<T>())
+      T(std::make_from_tuple<T>(std::move(args)));
+#else
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
+#endif
   data_ = absl::string_view(unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
@@ -1334,7 +1342,13 @@ template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
                                  absl::string_view data)
     : data_(data) {
+#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+  external_.methods = &ExternalMethodsFor<T>::methods;
+  new (&unchecked_external_object<T>())
+      T(std::make_from_tuple<T>(std::move(args)));
+#else
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
+#endif
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1372,6 +1386,7 @@ void Chain::RawBlock::Unref() {
   }
 }
 
+#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
 template <typename T, typename... Args, size_t... indices>
 inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
@@ -1380,6 +1395,7 @@ inline void Chain::RawBlock::ConstructExternal(
   new (&unchecked_external_object<T>())
       T(std::forward<Args>(std::get<indices>(args))...);
 }
+#endif
 
 inline bool Chain::RawBlock::has_unique_owner() const {
   return ref_count_.load(std::memory_order_acquire) == 1;
