@@ -205,6 +205,7 @@ class WriterOStream : public WriterOStreamBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
+ protected:
   void Done() override;
 
  private:

@@ -183,6 +183,7 @@ class ReaderIStream : public ReaderIStreamBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
+ protected:
   void Done() override;
 
  private:
