@@ -175,13 +175,6 @@ class ChainWriter : public ChainWriterBase {
   // Creates a closed `ChainWriter`.
   explicit ChainWriter(Closed) noexcept : ChainWriterBase(kClosed) {}
 
-  // Will append to an owned `Chain` which can be accessed by `dest()`.
-  // This constructor is present only if `Dest` is `Chain`.
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
-  explicit ChainWriter(Options options = Options());
-
   // Will append to the `Chain` provided by `dest`.
   explicit ChainWriter(const Dest& dest, Options options = Options());
   explicit ChainWriter(Dest&& dest, Options options = Options());
@@ -193,20 +186,27 @@ class ChainWriter : public ChainWriterBase {
   explicit ChainWriter(std::tuple<DestArgs...> dest_args,
                        Options options = Options());
 
+  // Will append to an owned `Chain` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `Chain`.
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  explicit ChainWriter(Options options = Options());
+
   ChainWriter(ChainWriter&& that) noexcept;
   ChainWriter& operator=(ChainWriter&& that) noexcept;
 
   // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
   // constructing a temporary `ChainWriter` and moving from it.
   void Reset(Closed);
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
-  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `Chain` being written
   // to. Unchanged by `Close()`.
@@ -228,9 +228,6 @@ class ChainWriter : public ChainWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ChainWriter(Closed)->ChainWriter<DeleteCtad<Closed>>;
-explicit ChainWriter(
-    ChainWriterBase::Options options = ChainWriterBase::Options())
-    ->ChainWriter<Chain>;
 template <typename Dest>
 explicit ChainWriter(const Dest& dest, ChainWriterBase::Options options =
                                            ChainWriterBase::Options())
@@ -250,6 +247,9 @@ explicit ChainWriter(
     std::tuple<DestArgs...> dest_args,
     ChainWriterBase::Options options = ChainWriterBase::Options())
     -> ChainWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit ChainWriter(
+    ChainWriterBase::Options options = ChainWriterBase::Options())
+    ->ChainWriter<Chain>;
 #endif
 
 // Implementation details follow.
@@ -297,12 +297,6 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
 }
 
 template <typename Dest>
-template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
-inline ChainWriter<Dest>::ChainWriter(Options options)
-    : ChainWriter(std::forward_as_tuple(), std::move(options)) {}
-
-template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
     : ChainWriterBase(options), dest_(dest) {
   Initialize(dest_.get(), options.append());
@@ -323,6 +317,12 @@ inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+inline ChainWriter<Dest>::ChainWriter(Options options)
+    : ChainWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
     : ChainWriterBase(static_cast<ChainWriterBase&&>(that)) {
   MoveDest(std::move(that));
@@ -340,13 +340,6 @@ template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Closed) {
   ChainWriterBase::Reset(kClosed);
   dest_.Reset();
-}
-
-template <typename Dest>
-template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
-inline void ChainWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>
@@ -370,6 +363,13 @@ inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   ChainWriterBase::Reset(options);
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
+}
+
+template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+inline void ChainWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

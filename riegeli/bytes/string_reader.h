@@ -66,11 +66,12 @@ class StringReaderBase : public Reader {
 // `absl::string_view` (not owned, default), `const std::string*` (not owned),
 // `std::string` (owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `absl::string_view` if the first constructor argument is a `std::string&` or
-// `const std::string&` (to avoid unintended string copying), or `const char*`
-// (to compute `std::strlen()` early), otherwise as the value type of the first
-// constructor argument. This requires C++17.
+// By relying on  the template argument can be deduced as
+// `absl::string_view` if there are no constructor arguments or if the first
+// constructor argument is a `std::string&` or `const std::string&` (to avoid
+// unintended string copying), or `const char*` (to compute `std::strlen()`
+// early), otherwise as the value type of the first constructor argument. This
+// requires C++17.
 //
 // It might be better to use `ChainReader<Chain>` instead of
 // `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
@@ -94,6 +95,13 @@ class StringReader : public StringReaderBase {
   template <typename... SrcArgs>
   explicit StringReader(std::tuple<SrcArgs...> src_args);
 
+  // Will read from an empty `absl::string_view`. This constructor is present
+  // only if `Src` is `absl::string_view`.
+  template <typename DependentSrc = Src,
+            std::enable_if_t<
+                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+  StringReader();
+
   // Will read from `absl::string_view(src, size)`. This constructor is present
   // only if `Src` is `absl::string_view`.
   template <typename DependentSrc = Src,
@@ -111,6 +119,10 @@ class StringReader : public StringReaderBase {
   void Reset(Src&& src);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args);
+  template <typename DependentSrc = Src,
+            std::enable_if_t<
+                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+  void Reset();
   template <typename DependentSrc = Src,
             std::enable_if_t<
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
@@ -148,8 +160,8 @@ explicit StringReader(Src&& src) -> StringReader<
 template <typename... SrcArgs>
 explicit StringReader(std::tuple<SrcArgs...> src_args)
     -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-explicit StringReader(const char* src, size_t size)
-    ->StringReader<absl::string_view>;
+StringReader()->StringReader<>;
+explicit StringReader(const char* src, size_t size)->StringReader<>;
 #endif
 
 // Implementation details follow.
@@ -184,6 +196,12 @@ inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
+
+template <typename Src>
+template <
+    typename DependentSrc,
+    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+inline StringReader<Src>::StringReader() : StringReader(absl::string_view()) {}
 
 template <typename Src>
 template <
@@ -232,6 +250,14 @@ inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
   StringReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
+}
+
+template <typename Src>
+template <
+    typename DependentSrc,
+    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+inline void StringReader<Src>::Reset() {
+  Reset(absl::string_view());
 }
 
 template <typename Src>

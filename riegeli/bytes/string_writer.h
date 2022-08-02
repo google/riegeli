@@ -202,13 +202,6 @@ class StringWriter : public StringWriterBase {
   // Creates a closed `StringWriter`.
   explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
 
-  // Will append to an owned `std::string` which can be accessed by `dest()`.
-  // This constructor is present only if `Dest` is `std::string`.
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
-                             int> = 0>
-  explicit StringWriter(Options options = Options());
-
   // Will append to the `std::string` provided by `dest`.
   explicit StringWriter(const Dest& dest, Options options = Options());
   explicit StringWriter(Dest&& dest, Options options = Options());
@@ -220,20 +213,27 @@ class StringWriter : public StringWriterBase {
   explicit StringWriter(std::tuple<DestArgs...> dest_args,
                         Options options = Options());
 
+  // Will append to an owned `std::string` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `std::string`.
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
+                             int> = 0>
+  explicit StringWriter(Options options = Options());
+
   StringWriter(StringWriter&& that) noexcept;
   StringWriter& operator=(StringWriter&& that) noexcept;
 
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
   void Reset(Closed);
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
-                             int> = 0>
-  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
+                             int> = 0>
+  void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `std::string` being
   // written to. Unchanged by `Close()`.
@@ -254,9 +254,6 @@ class StringWriter : public StringWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit StringWriter(Closed)->StringWriter<DeleteCtad<Closed>>;
-explicit StringWriter(
-    StringWriterBase::Options options = StringWriterBase::Options())
-    ->StringWriter<std::string>;
 template <typename Dest>
 explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
                                             StringWriterBase::Options())
@@ -276,6 +273,9 @@ explicit StringWriter(
     std::tuple<DestArgs...> dest_args,
     StringWriterBase::Options options = StringWriterBase::Options())
     -> StringWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit StringWriter(
+    StringWriterBase::Options options = StringWriterBase::Options())
+    ->StringWriter<std::string>;
 #endif
 
 // Implementation details follow.
@@ -361,13 +361,6 @@ inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
-inline StringWriter<Dest>::StringWriter(Options options)
-    : StringWriter(std::forward_as_tuple(), std::move(options)) {}
-
-template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
     : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
       dest_(dest) {
@@ -391,6 +384,13 @@ inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
+inline StringWriter<Dest>::StringWriter(Options options)
+    : StringWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
     : StringWriterBase(static_cast<StringWriterBase&&>(that)) {
   MoveDestAndSecondaryBuffer(std::move(that));
@@ -408,14 +408,6 @@ template <typename Dest>
 inline void StringWriter<Dest>::Reset(Closed) {
   StringWriterBase::Reset(kClosed);
   dest_.Reset();
-}
-
-template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
-inline void StringWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>
@@ -439,6 +431,14 @@ inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
+}
+
+template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
+inline void StringWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

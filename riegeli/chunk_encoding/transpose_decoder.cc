@@ -54,7 +54,7 @@ namespace riegeli {
 namespace {
 
 Reader* kEmptyReader() {
-  static NoDestructor<StringReader<>> kStaticEmptyReader((absl::string_view()));
+  static NoDestructor<StringReader<>> kStaticEmptyReader;
   RIEGELI_ASSERT(kStaticEmptyReader->ok()) << "kEmptyReader() has been closed";
   return kStaticEmptyReader.get();
 }
