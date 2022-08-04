@@ -398,6 +398,11 @@ class FdReader : public FdReaderBase {
   // Opens a file for reading.
   //
   // If opening the file fails, `FdReader` will be failed and closed.
+  //
+  // This constructor is present only if `Src` is `OwnedFd`.
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
   explicit FdReader(absl::string_view filename, Options options = Options());
 
   FdReader(FdReader&& that) noexcept;
@@ -411,6 +416,9 @@ class FdReader : public FdReaderBase {
   void Reset(int src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
   void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
@@ -496,6 +504,11 @@ class FdMMapReader : public FdMMapReaderBase {
   // Opens a file for reading.
   //
   // If opening the file fails, `FdMMapReader` will be failed and closed.
+  //
+  // This constructor is present only if `Src` is `OwnedFd`.
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
   explicit FdMMapReader(absl::string_view filename,
                         Options options = Options());
 
@@ -510,6 +523,9 @@ class FdMMapReader : public FdMMapReaderBase {
   void Reset(int src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
   void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
@@ -660,6 +676,8 @@ inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline FdReader<Src>::FdReader(absl::string_view filename, Options options)
     : FdReaderBase(kClosed) {
   Initialize(filename, std::move(options));
@@ -715,6 +733,8 @@ inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));
@@ -776,6 +796,8 @@ inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
                                        Options options)
     : FdMMapReaderBase(kClosed) {
@@ -833,6 +855,8 @@ inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename,
                                      Options options) {
   Reset(kClosed);

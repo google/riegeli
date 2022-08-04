@@ -228,6 +228,11 @@ class CFileWriter : public CFileWriterBase {
   // Opens a file for writing.
   //
   // If opening the file fails, `CFileWriter` will be failed and closed.
+  //
+  // This constructor is present only if `Dest` is `OwnedCFile`.
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int> = 0>
   explicit CFileWriter(absl::string_view filename, Options options = Options());
 
   CFileWriter(CFileWriter&& that) noexcept;
@@ -241,6 +246,9 @@ class CFileWriter : public CFileWriterBase {
   void Reset(FILE* dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int> = 0>
   void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
@@ -356,6 +364,8 @@ inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
                                       Options options)
     : CFileWriterBase(kClosed) {
@@ -413,6 +423,8 @@ inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
 inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      Options options) {
   Reset(kClosed);

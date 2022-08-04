@@ -301,6 +301,11 @@ class FdWriter : public FdWriterBase {
   // Opens a file for writing.
   //
   // If opening the file fails, `FdWriter` will be failed and closed.
+  //
+  // This constructor is present only if `Dest` is `OwnedFd`.
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int> = 0>
   explicit FdWriter(absl::string_view filename, Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
@@ -314,6 +319,9 @@ class FdWriter : public FdWriterBase {
   void Reset(int dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int> = 0>
   void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
@@ -429,6 +437,8 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
     : FdWriterBase(kClosed) {
   Initialize(filename, std::move(options));
@@ -484,6 +494,8 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   Reset(kClosed);
   Initialize(filename, std::move(options));

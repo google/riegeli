@@ -222,6 +222,11 @@ class CFileReader : public CFileReaderBase {
   // Opens a file for reading.
   //
   // If opening the file fails, `CFileReader` will be failed and closed.
+  //
+  // This constructor is present only if `Src` is `OwnedCFile`.
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int> = 0>
   explicit CFileReader(absl::string_view filename, Options options = Options());
 
   CFileReader(CFileReader&& that) noexcept;
@@ -235,6 +240,9 @@ class CFileReader : public CFileReaderBase {
   void Reset(FILE* src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int> = 0>
   void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
@@ -346,6 +354,8 @@ inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int>>
 inline CFileReader<Src>::CFileReader(absl::string_view filename,
                                      Options options)
     : CFileReaderBase(kClosed) {
@@ -403,6 +413,8 @@ inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int>>
 inline void CFileReader<Src>::Reset(absl::string_view filename,
                                     Options options) {
   Reset(kClosed);
