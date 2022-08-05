@@ -173,9 +173,9 @@ std::streampos ReaderStreambuf::seekpos(std::streampos pos,
 
 }  // namespace stream_internal
 
-ReaderIStreamBase& ReaderIStreamBase::close() {
+bool ReaderIStreamBase::close() {
   Done();
-  return *this;
+  return not_failed();
 }
 
 }  // namespace riegeli

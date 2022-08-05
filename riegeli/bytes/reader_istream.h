@@ -49,6 +49,7 @@ class ReaderStreambuf : public std::streambuf {
 
   bool ok() const { return state_.ok(); }
   bool is_open() const { return state_.is_open(); }
+  bool not_failed() const { return state_.not_failed(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
   ABSL_ATTRIBUTE_COLD void Fail();
@@ -92,22 +93,25 @@ class ReaderIStreamBase : public std::istream {
   //  * Synchronizes the current `ReaderIStream` position to the `Reader`.
   //  * Closes the `Reader` if it is owned.
   //
-  // Also, propagates `Reader` failures so that converting the `ReaderIStream`
-  // to `bool` indicates whether `Reader` was OK before closing (doing this
-  // during reading is not feasible without throwing exceptions).
+  // Also, propagates `Reader` failures to `rdstate() & std::ios_base::badbit`
+  // (doing this during reading is not feasible without throwing exceptions).
   //
-  // Returns `*this` for convenience of checking for failures.
+  // Returns `true` if the `Reader` did not fail, i.e. if it was OK just before
+  // becoming closed.
   //
   // Destroying or assigning to a `ReaderIStream` closes it implicitly, but an
   // explicit `close()` call allows to detect failures (use `status()` for
   // failure details).
-  ReaderIStreamBase& close();
+  bool close();
 
   // Returns `true` if the `ReaderIStream` is OK, i.e. open and not failed.
   bool ok() const { return streambuf_.ok(); }
 
   // Returns `true` if the `ReaderIStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
+
+  // Returns `true` if the `ReaderIStream` is not failed.
+  bool not_failed() const { return streambuf_.not_failed(); }
 
   // Returns an `absl::Status` describing the failure if the `ReaderIStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIStream`

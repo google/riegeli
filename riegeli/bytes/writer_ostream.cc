@@ -387,9 +387,9 @@ std::streampos WriterStreambuf::seekpos(std::streampos pos,
 
 }  // namespace stream_internal
 
-WriterOStreamBase& WriterOStreamBase::close() {
+bool WriterOStreamBase::close() {
   Done();
-  return *this;
+  return not_failed();
 }
 
 }  // namespace riegeli

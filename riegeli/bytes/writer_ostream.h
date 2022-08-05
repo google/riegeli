@@ -52,6 +52,7 @@ class WriterStreambuf : public std::streambuf {
 
   bool ok() const { return state_.ok(); }
   bool is_open() const { return state_.is_open(); }
+  bool not_failed() const { return state_.not_failed(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
   ABSL_ATTRIBUTE_COLD void FailReader();
@@ -110,18 +111,22 @@ class WriterOStreamBase : public std::iostream {
   //  * Synchronizes the current `WriterOStream` position to the `Writer`.
   //  * Closes the `Writer` if it is owned.
   //
-  // Returns `*this` for convenience of checking for failures.
+  // Returns `true` if the `Writer` did not fail, i.e. if it was OK just before
+  // becoming closed.
   //
   // Destroying or assigning to a `WriterOStream` closes it implicitly, but an
   // explicit `close()` call allows to detect failures (use `status()` for
   // failure details).
-  WriterOStreamBase& close();
+  bool close();
 
   // Returns `true` if the `WriterOStream` is OK, i.e. open and not failed.
   bool ok() const { return streambuf_.ok(); }
 
   // Returns `true` if the `WriterOStream` is open, i.e. not closed.
   bool is_open() const { return streambuf_.is_open(); }
+
+  // Returns `true` if the `WriterOStream` is not failed.
+  bool not_failed() const { return streambuf_.not_failed(); }
 
   // Returns an `absl::Status` describing the failure if the `WriterOStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `WriterOStream`
