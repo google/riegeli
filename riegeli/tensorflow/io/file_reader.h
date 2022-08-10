@@ -313,7 +313,7 @@ inline FileReaderBase::FileReaderBase(const BufferOptions& buffer_options,
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(static_cast<Reader&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       env_(that.env_),
       file_system_(that.file_system_),
       growing_source_(that.growing_source_),
@@ -323,7 +323,7 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
 inline FileReaderBase& FileReaderBase::operator=(
     FileReaderBase&& that) noexcept {
   Reader::operator=(static_cast<Reader&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   env_ = that.env_;
   file_system_ = that.file_system_;
   growing_source_ = that.growing_source_;

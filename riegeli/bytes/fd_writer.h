@@ -371,7 +371,7 @@ inline FdWriterBase::FdWriterBase(const BufferOptions& buffer_options)
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
       supports_read_mode_(that.supports_read_mode_),
@@ -380,7 +380,7 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   supports_read_mode_ = that.supports_read_mode_;

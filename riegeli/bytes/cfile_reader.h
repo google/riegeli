@@ -295,14 +295,14 @@ inline CFileReaderBase::CFileReaderBase(const BufferOptions& buffer_options,
 
 inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       supports_random_access_(that.supports_random_access_),
       growing_source_(that.growing_source_) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   supports_random_access_ = that.supports_random_access_;
   growing_source_ = that.growing_source_;
   return *this;

@@ -268,7 +268,7 @@ inline FileWriterBase::FileWriterBase(const BufferOptions& buffer_options,
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       env_(that.env_),
       file_system_(that.file_system_),
       buffer_sizer_(that.buffer_sizer_),
@@ -278,7 +278,7 @@ inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   env_ = that.env_;
   file_system_ = that.file_system_;
   buffer_sizer_ = that.buffer_sizer_;

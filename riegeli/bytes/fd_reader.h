@@ -582,14 +582,14 @@ inline FdReaderBase::FdReaderBase(const BufferOptions& buffer_options,
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
       growing_source_(that.growing_source_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   growing_source_ = that.growing_source_;
@@ -621,13 +621,13 @@ inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(static_cast<ChainReader&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
   ChainReader::operator=(static_cast<ChainReader&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   has_independent_pos_ = that.has_independent_pos_;
   return *this;
 }

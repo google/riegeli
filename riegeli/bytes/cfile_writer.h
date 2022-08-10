@@ -301,7 +301,7 @@ inline CFileWriterBase::CFileWriterBase(const BufferOptions& buffer_options)
 
 inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      filename_(std::move(that.filename_)),
+      filename_(std::exchange(that.filename_, std::string())),
       supports_random_access_(that.supports_random_access_),
       supports_read_mode_(that.supports_read_mode_),
       associated_reader_(std::move(that.associated_reader_)),
@@ -310,7 +310,7 @@ inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
 inline CFileWriterBase& CFileWriterBase::operator=(
     CFileWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  filename_ = std::move(that.filename_);
+  filename_ = std::exchange(that.filename_, std::string());
   supports_random_access_ = that.supports_random_access_;
   supports_read_mode_ = that.supports_read_mode_;
   associated_reader_ = std::move(that.associated_reader_);

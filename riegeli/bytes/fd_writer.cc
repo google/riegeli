@@ -168,7 +168,9 @@ bool FdWriterBase::FailOperation(absl::string_view operation) {
 }
 
 absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
-  status = Annotate(status, absl::StrCat("writing ", filename_));
+  if (!filename_.empty()) {
+    status = Annotate(status, absl::StrCat("writing ", filename_));
+  }
   return BufferedWriter::AnnotateStatusImpl(std::move(status));
 }
 

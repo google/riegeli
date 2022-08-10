@@ -172,7 +172,9 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
 }
 
 absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
-  status = Annotate(status, absl::StrCat("reading ", filename_));
+  if (!filename_.empty()) {
+    status = Annotate(status, absl::StrCat("reading ", filename_));
+  }
   return BufferedReader::AnnotateStatusImpl(std::move(status));
 }
 
@@ -441,7 +443,9 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
 }
 
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
-  status = Annotate(status, absl::StrCat("reading ", filename_));
+  if (!filename_.empty()) {
+    status = Annotate(status, absl::StrCat("reading ", filename_));
+  }
   return ChainReader::AnnotateStatusImpl(std::move(status));
 }
 
