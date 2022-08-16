@@ -44,6 +44,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_internal.h"
@@ -75,6 +76,7 @@ again:
   const int dest = open(filename_.c_str(), mode, permissions);
   if (ABSL_PREDICT_FALSE(dest < 0)) {
     if (errno == EINTR) goto again;
+    BufferedWriter::Reset(kClosed);
     FailOperation("open()");
     return -1;
   }

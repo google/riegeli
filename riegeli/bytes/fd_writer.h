@@ -401,7 +401,7 @@ inline void FdWriterBase::Reset(Closed) {
 
 inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
+  // `filename_` will be set by `Initialize()` or `OpenFd()`.
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   supports_read_mode_ = false;
@@ -440,7 +440,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
-    : FdWriterBase(kClosed) {
+    : FdWriterBase(options.buffer_options()) {
   Initialize(filename, std::move(options));
 }
 
@@ -497,7 +497,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
-  Reset(kClosed);
+  FdWriterBase::Reset(options.buffer_options());
   Initialize(filename, std::move(options));
 }
 
@@ -505,7 +505,6 @@ template <typename Dest>
 void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
   const int dest = OpenFd(filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
-  FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::forward_as_tuple(dest));
   InitializePos(dest_.get(), options.mode(), options.assumed_pos(),
                 options.independent_pos());

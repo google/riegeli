@@ -318,7 +318,7 @@ inline void CFileReaderBase::Reset(Closed) {
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` was set by `OpenFile()` or will be set by `Initialize()`.
+  // `filename_` will be set by `Initialize()` or `OpenFile()`.
   supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = growing_source;
 }
@@ -358,7 +358,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int>>
 inline CFileReader<Src>::CFileReader(absl::string_view filename,
                                      Options options)
-    : CFileReaderBase(kClosed) {
+    : CFileReaderBase(options.buffer_options(), options.growing_source()) {
   Initialize(filename, std::move(options));
 }
 
@@ -417,7 +417,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int>>
 inline void CFileReader<Src>::Reset(absl::string_view filename,
                                     Options options) {
-  Reset(kClosed);
+  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   Initialize(filename, std::move(options));
 }
 
@@ -426,7 +426,6 @@ void CFileReader<Src>::Initialize(absl::string_view filename,
                                   Options&& options) {
   FILE* const src = OpenFile(filename, options.mode().c_str());
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.assumed_pos());
 }

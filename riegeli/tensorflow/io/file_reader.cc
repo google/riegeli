@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -56,17 +57,16 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
       return true;
     }
   }
-  return InitializeFilename(filename, env_);
+  return InitializeFilename(filename);
 }
 
-bool FileReaderBase::InitializeFilename(absl::string_view filename,
-                                        ::tensorflow::Env* env) {
+bool FileReaderBase::InitializeFilename(absl::string_view filename) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
   {
     const ::tensorflow::Status status =
-        env->GetFileSystemForFile(filename_, &file_system_);
+        env_->GetFileSystemForFile(filename_, &file_system_);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "Env::GetFileSystemForFile()");
     }
@@ -80,6 +80,7 @@ std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
     const ::tensorflow::Status status =
         file_system_->NewRandomAccessFile(filename_, &src);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
+      Reader::Reset(kClosed);
       FailOperation(status, "FileSystem::NewRandomAccessFile()");
       return nullptr;
     }

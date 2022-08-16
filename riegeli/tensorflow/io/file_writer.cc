@@ -31,6 +31,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -56,17 +57,16 @@ bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
       return true;
     }
   }
-  return InitializeFilename(filename, env_);
+  return InitializeFilename(filename);
 }
 
-bool FileWriterBase::InitializeFilename(absl::string_view filename,
-                                        ::tensorflow::Env* env) {
+bool FileWriterBase::InitializeFilename(absl::string_view filename) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
   {
     const ::tensorflow::Status status =
-        env->GetFileSystemForFile(filename_, &file_system_);
+        env_->GetFileSystemForFile(filename_, &file_system_);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "Env::GetFileSystemForFile()");
     }
@@ -82,6 +82,7 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
         append ? file_system_->NewAppendableFile(filename_, &dest)
                : file_system_->NewWritableFile(filename_, &dest);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
+      Writer::Reset(kClosed);
       FailOperation(
           status, append ? absl::string_view("FileSystem::NewAppendableFile()")
                          : absl::string_view("FileSystem::NewWritableFile()"));

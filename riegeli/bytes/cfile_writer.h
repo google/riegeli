@@ -329,7 +329,7 @@ inline void CFileWriterBase::Reset(Closed) {
 
 inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` was set by `OpenFile()` or will be set by `Initialize()`.
+  // `filename_` will be set by `Initialize()` or `OpenFile()`.
   supports_random_access_ = LazyBoolState::kFalse;
   supports_read_mode_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
@@ -368,7 +368,7 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
                                       Options options)
-    : CFileWriterBase(kClosed) {
+    : CFileWriterBase(options.buffer_options()) {
   Initialize(filename, std::move(options));
 }
 
@@ -427,7 +427,7 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
 inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      Options options) {
-  Reset(kClosed);
+  CFileWriterBase::Reset(options.buffer_options());
   Initialize(filename, std::move(options));
 }
 
@@ -436,7 +436,6 @@ void CFileWriter<Dest>::Initialize(absl::string_view filename,
                                    Options&& options) {
   FILE* const dest = OpenFile(filename, options.mode().c_str());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
-  CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::forward_as_tuple(dest));
   InitializePos(dest_.get(), options.assumed_pos(), options.mode()[0] == 'a');
 }

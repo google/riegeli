@@ -607,7 +607,7 @@ inline void FdReaderBase::Reset(Closed) {
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
                                 bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
+  // `filename_` will be set by `Initialize()` or `OpenFd()`.
   supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = growing_source;
@@ -642,7 +642,7 @@ inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
   // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
   // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
-  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
+  // `filename_` will be set by `Initialize()` or `OpenFd()`.
   has_independent_pos_ = has_independent_pos;
 }
 
@@ -679,7 +679,7 @@ template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline FdReader<Src>::FdReader(absl::string_view filename, Options options)
-    : FdReaderBase(kClosed) {
+    : FdReaderBase(options.buffer_options(), options.growing_source()) {
   Initialize(filename, std::move(options));
 }
 
@@ -736,7 +736,7 @@ template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
-  Reset(kClosed);
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   Initialize(filename, std::move(options));
 }
 
@@ -744,7 +744,6 @@ template <typename Src>
 void FdReader<Src>::Initialize(absl::string_view filename, Options&& options) {
   const int src = OpenFd(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src < 0)) return;
-  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.assumed_pos(), options.independent_pos());
 }
@@ -800,7 +799,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
                                        Options options)
-    : FdMMapReaderBase(kClosed) {
+    : FdMMapReaderBase(options.independent_pos() != absl::nullopt) {
   Initialize(filename, std::move(options));
 }
 
@@ -859,7 +858,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename,
                                      Options options) {
-  Reset(kClosed);
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   Initialize(filename, std::move(options));
 }
 
@@ -868,7 +867,6 @@ void FdMMapReader<Src>::Initialize(absl::string_view filename,
                                    Options&& options) {
   const int src = OpenFd(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src < 0)) return;
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.independent_pos());
 }

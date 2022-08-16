@@ -105,6 +105,7 @@ again:
   const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
     if (errno == EINTR) goto again;
+    BufferedReader::Reset(kClosed);
     FailOperation("open()");
     return -1;
   }
@@ -371,6 +372,7 @@ again:
   const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
     if (errno == EINTR) goto again;
+    ChainReader::Reset(kClosed);
     FailOperation("open()");
     return -1;
   }

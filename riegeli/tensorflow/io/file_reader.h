@@ -128,7 +128,7 @@ class FileReaderBase : public Reader {
              bool growing_source);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
-  bool InitializeFilename(absl::string_view filename, ::tensorflow::Env* env);
+  bool InitializeFilename(absl::string_view filename);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
@@ -346,8 +346,7 @@ inline void FileReaderBase::Reset(const BufferOptions& buffer_options,
                                   ::tensorflow::Env* env, bool growing_source) {
   Reader::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
-  // `filename_` and `file_system_` will be or were set by
-  // `InitializeFilename()`.
+  // `filename_` and `file_system_` will be set by `InitializeFilename()`.
   growing_source_ = growing_source;
   buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();
@@ -389,7 +388,8 @@ inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
-    : FileReaderBase(kClosed) {
+    : FileReaderBase(options.buffer_options(), options.env(),
+                     options.growing_source()) {
   Initialize(filename, std::move(options));
 }
 
@@ -428,22 +428,17 @@ inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FileReader<Src>::Reset(absl::string_view filename,
                                    Options options) {
-  Reset(kClosed);
+  FileReaderBase::Reset(options.buffer_options(), options.env(),
+                        options.growing_source());
   Initialize(filename, std::move(options));
 }
 
 template <typename Src>
 inline void FileReader<Src>::Initialize(absl::string_view filename,
                                         Options&& options) {
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(
-          filename, options.env() != nullptr ? options.env()
-                                             : ::tensorflow::Env::Default()))) {
-    return;
-  }
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(filename))) return;
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  FileReaderBase::Reset(options.buffer_options(), options.env(),
-                        options.growing_source());
   src_.Reset(std::forward_as_tuple(src.release()));
   InitializePos(options.initial_pos());
 }

@@ -41,6 +41,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_internal.h"
@@ -65,6 +66,7 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename, const char* mode) {
   filename_.assign(filename.data(), filename.size());
   FILE* const dest = fopen(filename_.c_str(), mode);
   if (ABSL_PREDICT_FALSE(dest == nullptr)) {
+    BufferedWriter::Reset(kClosed);
     FailOperation("fopen()");
     return nullptr;
   }
