@@ -767,6 +767,9 @@ class CsvRecord {
       std::initializer_list<std::pair<absl::string_view, absl::string_view>>
           src);
 
+  friend bool operator==(const CsvRecord& a, const CsvRecord& b);
+  friend bool operator!=(const CsvRecord& a, const CsvRecord& b);
+
   // Renders contents in a human-readable way.
   std::string DebugString() const;
 
@@ -1211,6 +1214,14 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     return FailMerge(missing_names);
   }
   return absl::OkStatus();
+}
+
+inline bool operator==(const CsvRecord& a, const CsvRecord& b) {
+  return a.header() == b.header() && a.fields() == b.fields();
+}
+
+inline bool operator!=(const CsvRecord& a, const CsvRecord& b) {
+  return !(a == b);
 }
 
 }  // namespace riegeli
