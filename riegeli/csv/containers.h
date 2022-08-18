@@ -33,10 +33,17 @@ using std::begin;
 template <typename T>
 using DereferenceIterableT = decltype(*begin(std::declval<T&>()));
 
+template <typename T>
+using DereferenceIterableFirstT = decltype(begin(std::declval<T&>())->first);
+
+template <typename T>
+using DereferenceIterableSecondT = decltype(begin(std::declval<T&>())->second);
+
 }  // namespace adl_begin_sandbox
 
 // `IsIterableOf<Iterable, Element>::value` is `true` if iterating over
 // `Iterable` yields elements convertible to `Element`.
+
 template <typename Iterable, typename Element, typename Enable = void>
 struct IsIterableOf : std::false_type {};
 
@@ -46,6 +53,25 @@ struct IsIterableOf<
     std::enable_if_t<std::is_convertible<
         adl_begin_sandbox::DereferenceIterableT<Iterable>, Element>::value>>
     : std::true_type {};
+
+// `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value` is
+// `true` if iterating over `Iterable` yields pair proxies with keys convertible
+// to `Key` and values assignable from `Value`.
+
+template <typename Iterable, typename Key, typename Value,
+          typename Enable = void>
+struct IsIterableOfPairsWithAssignableValues : std::false_type {};
+
+template <typename Iterable, typename Key, typename Value>
+struct IsIterableOfPairsWithAssignableValues<
+    Iterable, Key, Value,
+    std::enable_if_t<
+        std::is_convertible<
+            adl_begin_sandbox::DereferenceIterableFirstT<Iterable>,
+            Key>::value &&
+        std::is_assignable<
+            adl_begin_sandbox::DereferenceIterableSecondT<Iterable>,
+            Value>::value>> : std::true_type {};
 
 // `HasMovableElements<Iterable>::value` is `true` if moving (rather than
 // copying) out of elements of `Iterable` is safe.

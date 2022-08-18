@@ -767,6 +767,42 @@ class CsvRecord {
       std::initializer_list<std::pair<absl::string_view, absl::string_view>>
           src);
 
+  // Assigns corresponding field values to all field values resulting from
+  // iteration over another iterable of pairs of field names and field values,
+  // which can be an associative container or another `CsvRecord`.
+  //
+  // This can be used to project a `CsvRecord` to a subset of fields, as long
+  // as fields to be preserved have the same names.
+  //
+  // Preconditions:
+  //  * all fields from `dest` are present in `*this`
+  template <
+      typename Dest,
+      std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+                           Dest, absl::string_view, std::string>::value,
+                       int> = 0>
+  void Split(Dest& dest) const;
+
+  // Assigns corresponding field values to all field values resulting from
+  // iteration over another iterable of pairs of field names and field values,
+  // which can be an associative container or another `CsvRecord`. Reports
+  // whether that was successful.
+  //
+  // This can be used to project a `CsvRecord` to a subset of fields, as long
+  // as fields to be preserved have the same names.
+  //
+  // Return values:
+  //  * `absl::OkStatus()`                 - all fields in `dest` have been set
+  //  * `absl::FailedPreconditionError(_)` - some fields were absent in `*this`,
+  //                                         only the intersection of fields
+  //                                         has been set
+  template <
+      typename Dest,
+      std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+                           Dest, absl::string_view, std::string>::value,
+                       int> = 0>
+  absl::Status TrySplit(Dest& dest) const;
+
   friend bool operator==(const CsvRecord& a, const CsvRecord& b);
   friend bool operator!=(const CsvRecord& a, const CsvRecord& b);
 
@@ -779,7 +815,8 @@ class CsvRecord {
  private:
   friend class CsvReaderBase;
 
-  absl::Status FailMerge(absl::Span<const std::string> missing_names) const;
+  absl::Status FailMissingNames(
+      absl::Span<const std::string> missing_names) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;
@@ -1211,7 +1248,58 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     ++src_iter;
   } while (src_iter != src_end_iter);
   if (ABSL_PREDICT_FALSE(!missing_names.empty())) {
-    return FailMerge(missing_names);
+    return FailMissingNames(missing_names);
+  }
+  return absl::OkStatus();
+}
+
+template <typename Dest,
+          std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+                               Dest, absl::string_view, std::string>::value,
+                           int>>
+void CsvRecord::Split(Dest& dest) const {
+  const absl::Status status = TrySplit(dest);
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::Split(): " << status.message();
+}
+
+template <typename Dest,
+          std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+                               Dest, absl::string_view, std::string>::value,
+                           int>>
+absl::Status CsvRecord::TrySplit(Dest& dest) const {
+  using std::begin;
+  auto dest_iter = begin(dest);
+  using std::end;
+  auto dest_end_iter = end(dest);
+  const_iterator this_iter = this->begin();
+  // If fields of `dest` match a prefix of fields of `*this` (like when
+  // projecting a `CsvRecord` to its prefix), avoid string lookups and just
+  // verify the assumption.
+  for (;;) {
+    if (dest_iter == dest_end_iter) return absl::OkStatus();
+    if (this_iter == this->end() || this_iter->first != dest_iter->first) break;
+    dest_iter->second = this_iter->second;
+    ++this_iter;
+    ++dest_iter;
+  }
+  RIEGELI_ASSERT(dest_iter != dest_end_iter)
+      << "The code below assumes that the code above "
+         "did not leave the destination iterator at the end";
+  // The assumption about matching fields no longer holds. Switch to string
+  // lookups for the remaining fields.
+  std::vector<std::string> missing_names;
+  do {
+    this_iter = find(dest_iter->first);
+    if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
+      missing_names.emplace_back(dest_iter->first);
+    } else {
+      dest_iter->second = this_iter->second;
+    }
+    ++dest_iter;
+  } while (dest_iter != dest_end_iter);
+  if (ABSL_PREDICT_FALSE(!missing_names.empty())) {
+    return FailMissingNames(missing_names);
   }
   return absl::OkStatus();
 }

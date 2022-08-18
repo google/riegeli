@@ -422,7 +422,7 @@ absl::Status CsvRecord::TryMerge(
       src);
 }
 
-absl::Status CsvRecord::FailMerge(
+absl::Status CsvRecord::FailMissingNames(
     absl::Span<const std::string> missing_names) const {
   StringWriter<std::string> message;
   message.Write("Missing field names: ");
