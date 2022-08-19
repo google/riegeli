@@ -29,7 +29,8 @@ namespace chunk_encoding_internal {
 
 namespace {
 
-const highwayhash::HHKey kHashKey HH_ALIGNAS(32) = {
+HH_ALIGNAS(32)
+const highwayhash::HHKey kHashKey = {
     0x2f696c6567656952,  // 'Riegeli/'
     0x0a7364726f636572,  // 'records\n'
     0x2f696c6567656952,  // 'Riegeli/'
