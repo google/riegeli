@@ -186,7 +186,7 @@ template <typename Other,
           std::enable_if_t<std::is_convertible<Other*, T*>::value, int>>
 inline RefCountedPtr<T>::RefCountedPtr(
     const RefCountedPtr<Other>& that) noexcept
-    : ptr_(that.ptr_) {
+    : ptr_(that.get()) {
   if (ptr_ != nullptr) ptr_->Ref();
 }
 
@@ -216,7 +216,7 @@ inline RefCountedPtr<T>& RefCountedPtr<T>::operator=(
 
 template <typename T>
 inline RefCountedPtr<T>::RefCountedPtr(const RefCountedPtr& that) noexcept
-    : ptr_(that.ptr_) {
+    : ptr_(that.get()) {
   if (ptr_ != nullptr) ptr_->Ref();
 }
 
