@@ -92,6 +92,12 @@ class RefCountedPtr {
   }
   T* release() { return std::exchange(ptr_, nullptr); }
 
+  template <typename Other,
+            std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
+  RefCountedPtr exchange(RefCountedPtr<Other> that) {
+    return RefCountedPtr(std::exchange(ptr_, that.release()));
+  }
+
   friend bool operator==(const RefCountedPtr& a, const RefCountedPtr& b) {
     return a.get() == b.get();
   }
