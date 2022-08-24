@@ -21,12 +21,12 @@
 
 #include "riegeli/zstd/zstd_dictionary.h"
 
-#include <atomic>
 #include <memory>
 #include <utility>
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 
@@ -47,13 +47,15 @@ static_assert(
 inline ZstdDictionary::ZSTD_CDictHandle
 ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
-  RefCountedPtr<const ZSTD_CDictCache> compression_cache =
-      compression_cache_.load(std::memory_order_acquire);
-  if (compression_cache == nullptr ||
-      compression_cache->compression_level != compression_level) {
-    compression_cache =
-        MakeRefCounted<const ZSTD_CDictCache>(compression_level);
-    compression_cache_.store(compression_cache, std::memory_order_release);
+  RefCountedPtr<const ZSTD_CDictCache> compression_cache;
+  {
+    absl::MutexLock lock(&compression_cache_mutex_);
+    if (compression_cache_ == nullptr ||
+        compression_cache_->compression_level != compression_level) {
+      compression_cache_ =
+          MakeRefCounted<const ZSTD_CDictCache>(compression_level);
+    }
+    compression_cache = compression_cache_;
   }
   absl::call_once(compression_cache->compression_once, [&] {
     compression_cache->compression_dictionary.reset(ZSTD_createCDict_advanced(

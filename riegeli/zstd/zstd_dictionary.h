@@ -21,7 +21,9 @@
 #include <utility>
 
 #include "absl/base/call_once.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 
@@ -187,7 +189,9 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
   std::string owned_data_;
   absl::string_view data_;
 
-  mutable AtomicRefCountedPtr<const ZSTD_CDictCache> compression_cache_;
+  mutable absl::Mutex compression_cache_mutex_;
+  mutable RefCountedPtr<const ZSTD_CDictCache> compression_cache_
+      ABSL_GUARDED_BY(compression_cache_mutex_);
 
   mutable absl::once_flag decompression_once_;
   mutable std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter>

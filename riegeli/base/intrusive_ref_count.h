@@ -124,37 +124,13 @@ inline RefCountedPtr<T> MakeRefCounted(Args&&... args) {
   return RefCountedPtr<T>(new T(std::forward<Args>(args)...));
 }
 
-// A subset of what `std::atomic<RefCountedPtr<T>>` would provide.
-template <typename T>
-class AtomicRefCountedPtr {
- public:
-  constexpr AtomicRefCountedPtr() noexcept {}
-
-  explicit AtomicRefCountedPtr(RefCountedPtr<T> that) noexcept
-      : ptr_(that.release()) {}
-
-  AtomicRefCountedPtr(const AtomicRefCountedPtr&) = delete;
-  AtomicRefCountedPtr& operator=(const AtomicRefCountedPtr&) = delete;
-
-  ~AtomicRefCountedPtr();
-
-  RefCountedPtr<T> load(
-      std::memory_order order = std::memory_order_seq_cst) const;
-
-  void store(RefCountedPtr<T> desired,
-             std::memory_order order = std::memory_order_seq_cst);
-
- private:
-  std::atomic<T*> ptr_{nullptr};
-};
-
 // Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
 // needed by `RefCountedPtr<T>`.
 //
 // The destructor of `RefCountedBase<T>` is not virtual. The object will be
 // deleted by `delete static_cast<T*>(ptr)`. This means that `T` must be the
 // actual object type or `T` must define a virtual destructor, and that multiple
-// inheritance is not suported.
+// inheritance is not supported.
 //
 // `RefCountedBase<T>` also provides `has_unique_owner()`.
 template <typename T>
@@ -255,40 +231,6 @@ template <typename T>
 inline void RefCountedPtr<T>::reset(T* ptr) {
   if (ptr_ != nullptr) ptr_->Unref();
   ptr_ = ptr;
-}
-
-template <typename T>
-inline AtomicRefCountedPtr<T>::~AtomicRefCountedPtr() {
-  T* const ptr = ptr_.load(std::memory_order_acquire);
-  if (ptr != nullptr) ptr->Unref();
-}
-
-template <typename T>
-inline RefCountedPtr<T> AtomicRefCountedPtr<T>::load(
-    std::memory_order order) const {
-  T* const ptr = ptr_.load(order);
-  if (ptr != nullptr) ptr->Ref();
-  return RefCountedPtr<T>(ptr);
-}
-
-template <typename T>
-inline void AtomicRefCountedPtr<T>::store(RefCountedPtr<T> desired,
-                                          std::memory_order order) {
-  switch (order) {
-    case std::memory_order_relaxed:
-      order = std::memory_order_acquire;
-      break;
-    case std::memory_order_release:
-      order = std::memory_order_acq_rel;
-      break;
-    case std::memory_order_seq_cst:
-      break;
-    default:
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Unexpected memory order for store(): " << static_cast<int>(order);
-  }
-  T* const ptr = ptr_.exchange(desired.release(), order);
-  if (ptr != nullptr) ptr->Unref();
 }
 
 template <typename T>
