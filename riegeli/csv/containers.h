@@ -31,6 +31,9 @@ namespace adl_begin_sandbox {
 using std::begin;
 
 template <typename T>
+using IteratorT = decltype(begin(std::declval<T&>()));
+
+template <typename T>
 using DereferenceIterableT = decltype(*begin(std::declval<T&>()));
 
 template <typename T>
@@ -53,6 +56,19 @@ struct IsIterableOf<
     std::enable_if_t<std::is_convertible<
         adl_begin_sandbox::DereferenceIterableT<Iterable>, Element>::value>>
     : std::true_type {};
+
+// `IsRandomAccessIterable<Iterable>::value` is `true` if the iterator over
+// `Iterable` is a random access iterator.
+
+template <typename Iterable, typename Enable = void>
+struct IsRandomAccessIterable : std::false_type {};
+
+template <typename Iterable>
+struct IsRandomAccessIterable<
+    Iterable, std::enable_if_t<std::is_convertible<
+                  typename std::iterator_traits<adl_begin_sandbox::IteratorT<
+                      Iterable>>::iterator_category,
+                  std::random_access_iterator_tag>::value>> : std::true_type {};
 
 // `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value` is
 // `true` if iterating over `Iterable` yields pair proxies with keys convertible
