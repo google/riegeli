@@ -224,7 +224,7 @@ class CsvHeader {
                 csv_internal::IsIterableOf<Names, absl::string_view>::value &&
                     !std::is_same<std::decay_t<Names>, CsvHeader>::value,
                 int> = 0>
-  /*implicit*/ CsvHeader(Names&& names);
+  explicit CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
 
   // Creates a set consisting of the given sequence of field names.
