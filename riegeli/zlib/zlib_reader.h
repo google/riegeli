@@ -35,8 +35,8 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/zlib/zlib_dictionary.h"
-#include "zconf.h"
-#include "zlib.h"
+
+struct z_stream_s;  // `zlib.h` has `typedef struct z_stream_s z_stream`.
 
 namespace riegeli {
 
@@ -64,8 +64,8 @@ class ZlibReaderBase : public BufferedReader {
     // `window_log` must be between `kMinWindowLog` (9) and
     // `kMaxWindowLog` (15). Default: `kDefaultWindowLog` (15).
     static constexpr int kMinWindowLog = 9;
-    static constexpr int kMaxWindowLog = MAX_WBITS;
-    static constexpr int kDefaultWindowLog = MAX_WBITS;
+    static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
+    static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
     Options& set_window_log(int window_log) & {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
@@ -190,11 +190,7 @@ class ZlibReaderBase : public BufferedReader {
   friend bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header);
 
   struct ZStreamDeleter {
-    void operator()(z_stream* ptr) const {
-      const int zlib_code = inflateEnd(ptr);
-      RIEGELI_ASSERT_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
-      delete ptr;
-    }
+    void operator()(z_stream_s* ptr) const;
   };
 
   void InitializeDecompressor();
@@ -214,7 +210,7 @@ class ZlibReaderBase : public BufferedReader {
   bool stream_had_data_ = false;
   ZlibDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
-  RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor_;
+  RecyclingPool<z_stream_s, ZStreamDeleter>::Handle decompressor_;
 };
 
 // A `Reader` which decompresses data with Zlib after getting it from another

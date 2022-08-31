@@ -49,6 +49,17 @@ constexpr int ZlibReaderBase::Options::kDefaultWindowLog;
 constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 #endif
 
+static_assert(ZlibReaderBase::Options::kMaxWindowLog == MAX_WBITS,
+              "Mismatched constant");
+static_assert(ZlibReaderBase::Options::kDefaultWindowLog == MAX_WBITS,
+              "Mismatched constant");
+
+void ZlibReaderBase::ZStreamDeleter::operator()(z_stream* ptr) const {
+  const int zlib_code = inflateEnd(ptr);
+  RIEGELI_ASSERT_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
+  delete ptr;
+}
+
 void ZlibReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";

@@ -31,8 +31,8 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zlib/zlib_dictionary.h"
-#include "zconf.h"
-#include "zlib.h"
+
+struct z_stream_s;  // `zlib.h` has `typedef struct z_stream_s z_stream`.
 
 namespace riegeli {
 
@@ -62,8 +62,8 @@ class ZlibWriterBase : public BufferedWriter {
     //
     // `compression_level` must be between `kMinCompressionLevel` (0) and
     // `kMaxCompressionLevel` (9). Default: `kDefaultCompressionLevel` (6).
-    static constexpr int kMinCompressionLevel = Z_NO_COMPRESSION;
-    static constexpr int kMaxCompressionLevel = Z_BEST_COMPRESSION;
+    static constexpr int kMinCompressionLevel = 0;  // `Z_NO_COMPRESSION`
+    static constexpr int kMaxCompressionLevel = 9;  // `Z_BEST_COMPRESSION`
     static constexpr int kDefaultCompressionLevel = 6;
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
@@ -89,8 +89,8 @@ class ZlibWriterBase : public BufferedWriter {
     // `window_log` must be between `kMinWindowLog` (9) and
     // `kMaxWindowLog` (15). Default: `kDefaultWindowLog` (15).
     static constexpr int kMinWindowLog = 9;
-    static constexpr int kMaxWindowLog = MAX_WBITS;
-    static constexpr int kDefaultWindowLog = MAX_WBITS;
+    static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
+    static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
     Options& set_window_log(int window_log) & {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
@@ -180,13 +180,9 @@ class ZlibWriterBase : public BufferedWriter {
 
  private:
   struct ZStreamDeleter {
-    void operator()(z_stream* ptr) const {
-      const int zlib_code = deflateEnd(ptr);
-      RIEGELI_ASSERT(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
-          << "deflateEnd() failed: " << zlib_code;
-      delete ptr;
-    }
+    void operator()(z_stream_s* ptr) const;
   };
+
   struct ZStreamKey {
     friend bool operator==(ZStreamKey a, ZStreamKey b) {
       return a.compression_level == b.compression_level &&
@@ -213,7 +209,8 @@ class ZlibWriterBase : public BufferedWriter {
   int window_bits_ = 0;
   ZlibDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
-  KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::Handle compressor_;
+  KeyedRecyclingPool<z_stream_s, ZStreamKey, ZStreamDeleter>::Handle
+      compressor_;
 
   AssociatedReader<ZlibReader<Reader*>> associated_reader_;
 };

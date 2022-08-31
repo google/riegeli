@@ -50,6 +50,23 @@ constexpr int ZlibWriterBase::Options::kDefaultWindowLog;
 constexpr ZlibWriterBase::Header ZlibWriterBase::Options::kDefaultHeader;
 #endif
 
+static_assert(ZlibWriterBase::Options::kMinCompressionLevel == Z_NO_COMPRESSION,
+              "Mismatched constant");
+static_assert(ZlibWriterBase::Options::kMaxCompressionLevel ==
+                  Z_BEST_COMPRESSION,
+              "Mismatched constant");
+static_assert(ZlibWriterBase::Options::kMaxWindowLog == MAX_WBITS,
+              "Mismatched constant");
+static_assert(ZlibWriterBase::Options::kDefaultWindowLog == MAX_WBITS,
+              "Mismatched constant");
+
+void ZlibWriterBase::ZStreamDeleter::operator()(z_stream* ptr) const {
+  const int zlib_code = deflateEnd(ptr);
+  RIEGELI_ASSERT(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
+      << "deflateEnd() failed: " << zlib_code;
+  delete ptr;
+}
+
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZlibWriter: null Writer pointer";
