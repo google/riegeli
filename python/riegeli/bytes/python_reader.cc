@@ -245,6 +245,8 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   PythonLock lock;
@@ -319,8 +321,9 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
 absl::optional<Position> PythonReader::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
-    return absl::nullopt;
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedReader::SizeImpl();
   }
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();

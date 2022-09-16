@@ -219,7 +219,9 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::SeekBehindBuffer(new_pos);
   }
   PythonLock lock;
   if (new_pos > start_pos()) {
@@ -299,8 +301,9 @@ absl::optional<Position> PythonWriter::SizeBehindBuffer() {
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
-    return absl::nullopt;
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::SizeBehindBuffer();
   }
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
@@ -326,8 +329,9 @@ bool PythonWriter::TruncateBehindBuffer(Position new_size) {
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    return Fail(
-        absl::UnimplementedError("PythonWriter::Truncate() not supported"));
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::TruncateBehindBuffer(new_size);
   }
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
