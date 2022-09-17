@@ -103,18 +103,15 @@ class IStreamReaderBase : public BufferedReader {
   void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access();
+  bool supports_random_access() const { return supports_random_access_; }
 
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
-
   bool growing_source_ = false;
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+  bool supports_random_access_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -234,14 +231,14 @@ inline IStreamReaderBase& IStreamReaderBase::operator=(
 inline void IStreamReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
 }
 
 inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
                                      bool growing_source) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;

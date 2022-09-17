@@ -37,7 +37,7 @@ void IStreamReaderBase::Initialize(std::istream* src,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of IStreamReader: null stream pointer";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+  RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of IStreamReaderBase::Initialize(): "
          "supports_random_access_ not reset";
   if (ABSL_PREDICT_FALSE(src->fail())) {
@@ -64,9 +64,27 @@ void IStreamReaderBase::Initialize(std::istream* src,
       return;
     }
     set_limit_pos(IntCast<Position>(stream_pos));
-    // `std::istream::tellg()` succeeded, and `std::istream::seekg()` will be
-    // checked later.
-    supports_random_access_ = LazyBoolState::kUnknown;
+
+    // Check if random access is supported.
+    src->seekg(0, std::ios_base::end);
+    if (src->fail()) {
+      // Not supported.
+      src->clear(src->rdstate() & ~std::ios_base::failbit);
+    } else {
+      errno = 0;
+      const std::streamoff stream_size = src->tellg();
+      if (ABSL_PREDICT_FALSE(stream_size < 0)) {
+        FailOperation("istream::tellg()");
+        return;
+      }
+      src->seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
+      if (ABSL_PREDICT_FALSE(src->fail())) {
+        FailOperation("istream::seekg()");
+        return;
+      }
+      if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
+      supports_random_access_ = true;
+    }
   }
   BeginRun();
 }
@@ -83,42 +101,6 @@ bool IStreamReaderBase::FailOperation(absl::string_view operation) {
   return Fail(error_number == 0
                   ? absl::UnknownError(message)
                   : ErrnoToCanonicalStatus(error_number, message));
-}
-
-bool IStreamReaderBase::supports_random_access() {
-  switch (supports_random_access_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
-  }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    std::istream& src = *src_stream();
-    src.seekg(0, std::ios_base::end);
-    if (src.fail()) {
-      src.clear(src.rdstate() & ~std::ios_base::failbit);
-    } else {
-      errno = 0;
-      const std::streamoff stream_size = src.tellg();
-      if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-        FailOperation("istream::tellg()");
-      } else {
-        src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
-        if (ABSL_PREDICT_FALSE(src.fail())) {
-          FailOperation("istream::seekg()");
-        } else {
-          if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
-          supported = true;
-        }
-      }
-    }
-  }
-  supports_random_access_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
 }
 
 bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,

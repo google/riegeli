@@ -117,7 +117,7 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "has_independent_pos_ not reset";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+  RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
   if (assumed_pos != absl::nullopt) {
@@ -135,7 +135,7 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     set_limit_pos(*assumed_pos);
   } else if (independent_pos != absl::nullopt) {
     has_independent_pos_ = true;
-    supports_random_access_ = LazyBoolState::kTrue;
+    supports_random_access_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -149,8 +149,28 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
-    // `lseek(SEEK_CUR)` succeeded, and `lseek(SEEK_END)` will be checked later.
-    supports_random_access_ = LazyBoolState::kUnknown;
+
+    // Check if random access is supported.
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `FdReader` checks the filename.
+      //
+      // Some "/proc" files also do not support random access, but they are
+      // recognized by a failing `lseek(SEEK_END)`.
+    } else {
+      const off_t file_size = lseek(src, 0, SEEK_END);
+      if (file_size < 0) {
+        // Not supported.
+      } else {
+        if (ABSL_PREDICT_FALSE(
+                lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
+          FailOperation("lseek()");
+          return;
+        }
+        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
+        supports_random_access_ = true;
+      }
+    }
   }
   BeginRun();
 }
@@ -169,42 +189,6 @@ absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
     status = Annotate(status, absl::StrCat("reading ", filename_));
   }
   return BufferedReader::AnnotateStatusImpl(std::move(status));
-}
-
-bool FdReaderBase::supports_random_access() {
-  switch (supports_random_access_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
-  }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-      // "/sys" files do not support random access. It is hard to reliably
-      // recognize them, so `FdReader` checks the filename.
-      //
-      // Some "/proc" files also do not support random access, but they are
-      // recognized by a failing `lseek(SEEK_END)`.
-    } else {
-      const int src = src_fd();
-      const off_t file_size = lseek(src, 0, SEEK_END);
-      if (file_size < 0) {
-        // Not supported.
-      } else if (ABSL_PREDICT_FALSE(
-                     lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
-        FailOperation("lseek()");
-      } else {
-        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-        supported = true;
-      }
-    }
-  }
-  supports_random_access_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,

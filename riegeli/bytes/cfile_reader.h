@@ -152,7 +152,7 @@ class CFileReaderBase : public BufferedReader {
   FILE* OpenFile(absl::string_view filename, const char* mode);
   void InitializePos(FILE* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access();
+  bool supports_random_access() const { return supports_random_access_; }
 
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
@@ -160,12 +160,9 @@ class CFileReaderBase : public BufferedReader {
   absl::optional<Position> SizeImpl() override;
 
  private:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
-
   std::string filename_;
   bool growing_source_ = false;
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+  bool supports_random_access_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -310,7 +307,7 @@ inline void CFileReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   filename_ = std::string();
   growing_source_ = false;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
 }
 
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
@@ -318,7 +315,7 @@ inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
   BufferedReader::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFile()`.
   growing_source_ = growing_source;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
 }
 
 template <typename Src>

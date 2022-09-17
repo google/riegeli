@@ -111,7 +111,7 @@ FILE* CFileReaderBase::OpenFile(absl::string_view filename, const char* mode) {
 
 void CFileReaderBase::InitializePos(FILE* src,
                                     absl::optional<Position> assumed_pos) {
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+  RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
   if (ABSL_PREDICT_FALSE(ferror(src))) {
@@ -133,8 +133,40 @@ void CFileReaderBase::InitializePos(FILE* src,
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
-    // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
-    supports_random_access_ = LazyBoolState::kUnknown;
+
+    // Check if random access is supported.
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `CFileReader` checks the filename.
+    } else {
+      FILE* const src = src_file();
+      if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
+        // Not supported.
+        clearerr(src);
+      } else {
+        const off_t file_size = cfile_internal::FTell(src);
+        if (ABSL_PREDICT_FALSE(file_size < 0)) {
+          FailOperation(cfile_internal::kFTellFunctionName);
+          return;
+        }
+        if (ABSL_PREDICT_FALSE(
+                cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
+                                      SEEK_SET) != 0)) {
+          FailOperation(cfile_internal::kFSeekFunctionName);
+          return;
+        }
+        if (file_size == 0 &&
+            ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
+          // Some "/proc" files do not support random access. It is hard to
+          // reliably recognize them using the `FILE` API, so `CFileReader`
+          // checks the filename. Random access is assumed to be unsupported if
+          // they claim to have a zero size.
+        } else {
+          if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
+          supports_random_access_ = true;
+        }
+      }
+    }
   }
   BeginRun();
 }
@@ -153,50 +185,6 @@ absl::Status CFileReaderBase::AnnotateStatusImpl(absl::Status status) {
     status = Annotate(status, absl::StrCat("reading ", filename_));
   }
   return BufferedReader::AnnotateStatusImpl(std::move(status));
-}
-
-bool CFileReaderBase::supports_random_access() {
-  switch (supports_random_access_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
-  }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-      // "/sys" files do not support random access. It is hard to reliably
-      // recognize them, so `CFileReader` checks the filename.
-    } else {
-      FILE* const src = src_file();
-      if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
-        clearerr(src);
-      } else {
-        const off_t file_size = cfile_internal::FTell(src);
-        if (ABSL_PREDICT_FALSE(file_size < 0)) {
-          FailOperation(cfile_internal::kFTellFunctionName);
-        } else if (ABSL_PREDICT_FALSE(
-                       cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
-                                             SEEK_SET) != 0)) {
-          FailOperation(cfile_internal::kFSeekFunctionName);
-        } else if (file_size == 0 &&
-                   ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-          // Some "/proc" files do not support random access. It is hard to
-          // reliably recognize them using the `FILE` API, so `CFileReader`
-          // checks the filename. Random access is assumed to be unsupported if
-          // they claim to have a zero size.
-        } else {
-          if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-          supported = true;
-        }
-      }
-    }
-  }
-  supports_random_access_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
 }
 
 bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
