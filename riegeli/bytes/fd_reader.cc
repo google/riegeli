@@ -118,12 +118,12 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
                  independent_pos == absl::nullopt)
       << "Failed precondition of FdReaderBase: "
          "Options::assumed_pos() and Options::independent_pos() are both set";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
-      << "Failed precondition of FdReaderBase::InitializePos(): "
-         "supports_random_access_ not reset";
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "has_independent_pos_ not reset";
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+      << "Failed precondition of FdReaderBase::InitializePos(): "
+         "supports_random_access_ not reset";
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(*assumed_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -132,8 +132,8 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     }
     set_limit_pos(*assumed_pos);
   } else if (independent_pos != absl::nullopt) {
-    supports_random_access_ = LazyBoolState::kTrue;
     has_independent_pos_ = true;
+    supports_random_access_ = LazyBoolState::kTrue;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -151,16 +151,6 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     supports_random_access_ = LazyBoolState::kUnknown;
   }
   BeginRun();
-}
-
-void FdReaderBase::Done() {
-  BufferedReader::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
 }
 
 bool FdReaderBase::FailOperation(absl::string_view operation) {
@@ -188,27 +178,26 @@ bool FdReaderBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of FdReaderBase: "
-         "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `FdReader` checks the filename.
-    //
-    // Some "/proc" files also do not support random access, but they are
-    // recognized by a failing `lseek(SEEK_END)`.
-  } else {
-    const int src = src_fd();
-    const off_t file_size = lseek(src, 0, SEEK_END);
-    if (file_size < 0) {
-      // Not supported.
-    } else if (ABSL_PREDICT_FALSE(
-                   lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()");
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `FdReader` checks the filename.
+      //
+      // Some "/proc" files also do not support random access, but they are
+      // recognized by a failing `lseek(SEEK_END)`.
     } else {
-      if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-      supported = true;
+      const int src = src_fd();
+      const off_t file_size = lseek(src, 0, SEEK_END);
+      if (file_size < 0) {
+        // Not supported.
+      } else if (ABSL_PREDICT_FALSE(
+                     lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
+        FailOperation("lseek()");
+      } else {
+        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
+        supported = true;
+      }
     }
   }
   supports_random_access_ =

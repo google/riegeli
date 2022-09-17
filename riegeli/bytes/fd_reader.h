@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <memory>
 #include <string>
@@ -194,7 +195,6 @@ class FdReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool supports_random_access();
 
-  void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
@@ -203,16 +203,14 @@ class FdReaderBase : public BufferedReader {
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
 
   bool SeekInternal(int src, Position new_pos);
 
   std::string filename_;
-  // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
   bool growing_source_ = false;
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -583,34 +581,34 @@ inline FdReaderBase::FdReaderBase(const BufferOptions& buffer_options,
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
-      supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
-      growing_source_(that.growing_source_) {}
+      growing_source_(that.growing_source_),
+      supports_random_access_(that.supports_random_access_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
-  supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   growing_source_ = that.growing_source_;
+  supports_random_access_ = that.supports_random_access_;
   return *this;
 }
 
 inline void FdReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
 }
 
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
                                 bool growing_source) {
   BufferedReader::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFd()`.
-  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
   growing_source_ = growing_source;
+  supports_random_access_ = LazyBoolState::kFalse;
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)

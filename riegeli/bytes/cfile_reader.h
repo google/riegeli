@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CFILE_READER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <string>
@@ -153,7 +154,6 @@ class CFileReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool supports_random_access();
 
-  void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
@@ -161,13 +161,11 @@ class CFileReaderBase : public BufferedReader {
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
 
   std::string filename_;
-  // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool growing_source_ = false;
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -296,31 +294,31 @@ inline CFileReaderBase::CFileReaderBase(const BufferOptions& buffer_options,
 inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
-      supports_random_access_(that.supports_random_access_),
-      growing_source_(that.growing_source_) {}
+      growing_source_(that.growing_source_),
+      supports_random_access_(that.supports_random_access_) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
-  supports_random_access_ = that.supports_random_access_;
   growing_source_ = that.growing_source_;
+  supports_random_access_ = that.supports_random_access_;
   return *this;
 }
 
 inline void CFileReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
 }
 
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFile()`.
-  supports_random_access_ = LazyBoolState::kFalse;
   growing_source_ = growing_source;
+  supports_random_access_ = LazyBoolState::kFalse;
 }
 
 template <typename Src>

@@ -106,12 +106,12 @@ void FdWriterBase::InitializePos(int dest, int flags,
                  independent_pos == absl::nullopt)
       << "Failed precondition of FdWriterBase: "
          "Options::assumed_pos() and Options::independent_pos() are both set";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
-      << "Failed precondition of FdWriterBase::InitializePos(): "
-         "supports_random_access_ not reset";
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "has_independent_pos_ not reset";
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "supports_random_access_ not reset";
   RIEGELI_ASSERT(!supports_read_mode_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
@@ -123,8 +123,8 @@ void FdWriterBase::InitializePos(int dest, int flags,
     }
     set_start_pos(*assumed_pos);
   } else if (independent_pos != absl::nullopt) {
-    supports_random_access_ = LazyBoolState::kTrue;
     has_independent_pos_ = true;
+    supports_random_access_ = LazyBoolState::kTrue;
     supports_read_mode_ = (flags & O_ACCMODE) == O_RDWR;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -151,12 +151,6 @@ void FdWriterBase::InitializePos(int dest, int flags,
 
 void FdWriterBase::Done() {
   BufferedWriter::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
   associated_reader_.Reset();
 }
 
@@ -185,25 +179,24 @@ bool FdWriterBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of FdWriterBase: "
-         "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `FdWriter` checks the filename.
-    //
-    // Some "/proc" files also do not support random access, but they are
-    // recognized by a failing `lseek(SEEK_END)`.
-  } else {
-    const int dest = dest_fd();
-    if (lseek(dest, 0, SEEK_END) < 0) {
-      // Not supported.
-    } else if (ABSL_PREDICT_FALSE(
-                   lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()");
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `FdWriter` checks the filename.
+      //
+      // Some "/proc" files also do not support random access, but they are
+      // recognized by a failing `lseek(SEEK_END)`.
     } else {
-      supported = true;
+      const int dest = dest_fd();
+      if (lseek(dest, 0, SEEK_END) < 0) {
+        // Not supported.
+      } else if (ABSL_PREDICT_FALSE(
+                     lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) < 0)) {
+        FailOperation("lseek()");
+      } else {
+        supported = true;
+      }
     }
   }
   supports_random_access_ =

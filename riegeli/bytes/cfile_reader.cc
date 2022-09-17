@@ -139,16 +139,6 @@ void CFileReaderBase::InitializePos(FILE* src,
   BeginRun();
 }
 
-void CFileReaderBase::Done() {
-  BufferedReader::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
-}
-
 bool CFileReaderBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
@@ -174,34 +164,33 @@ bool CFileReaderBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of CFileReaderBase: "
-         "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `CFileReader` checks the filename.
-  } else {
-    FILE* const src = src_file();
-    if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
-      clearerr(src);
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `CFileReader` checks the filename.
     } else {
-      const off_t file_size = cfile_internal::FTell(src);
-      if (ABSL_PREDICT_FALSE(file_size < 0)) {
-        FailOperation(cfile_internal::kFTellFunctionName);
-      } else if (ABSL_PREDICT_FALSE(
-                     cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
-                                           SEEK_SET) != 0)) {
-        FailOperation(cfile_internal::kFSeekFunctionName);
-      } else if (file_size == 0 &&
-                 ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-        // Some "/proc" files do not support random access. It is hard to
-        // reliably recognize them using the `FILE` API, so `CFileReader` checks
-        // the filename. Random access is assumed to be unsupported if they
-        // claim to have a zero size.
+      FILE* const src = src_file();
+      if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
+        clearerr(src);
       } else {
-        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-        supported = true;
+        const off_t file_size = cfile_internal::FTell(src);
+        if (ABSL_PREDICT_FALSE(file_size < 0)) {
+          FailOperation(cfile_internal::kFTellFunctionName);
+        } else if (ABSL_PREDICT_FALSE(
+                       cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
+                                             SEEK_SET) != 0)) {
+          FailOperation(cfile_internal::kFSeekFunctionName);
+        } else if (file_size == 0 &&
+                   ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
+          // Some "/proc" files do not support random access. It is hard to
+          // reliably recognize them using the `FILE` API, so `CFileReader`
+          // checks the filename. Random access is assumed to be unsupported if
+          // they claim to have a zero size.
+        } else {
+          if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
+          supported = true;
+        }
       }
     }
   }

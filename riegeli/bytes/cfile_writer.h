@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_CFILE_WRITER_H_
 #define RIEGELI_BYTES_CFILE_WRITER_H_
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include <string>
@@ -157,16 +158,12 @@ class CFileWriterBase : public BufferedWriter {
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
 
   bool WriteMode();
 
   std::string filename_;
-  // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
-  // Invariant:
-  //   if `is_open()` then `supports_read_mode_ != LazyBoolState::kUnknown`
   LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
 
   AssociatedReader<CFileReader<UnownedCFile>> associated_reader_;

@@ -78,16 +78,6 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
 
 void OStreamWriterBase::Done() {
   BufferedWriter::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
-  // Same for `supports_read_mode_`.
-  if (supports_read_mode_ == LazyBoolState::kUnknown) {
-    supports_read_mode_ = LazyBoolState::kFalse;
-  }
   associated_reader_.Reset();
 }
 
@@ -114,21 +104,20 @@ bool OStreamWriterBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of OStreamWriterBase: "
-         "unresolved supports_random_access_ but object closed";
-  std::ostream& dest = *dest_stream();
   bool supported = false;
-  dest.seekp(0, std::ios_base::end);
-  if (dest.fail()) {
-    dest.clear(dest.rdstate() & ~std::ios_base::failbit);
-  } else {
-    errno = 0;
-    dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-    if (ABSL_PREDICT_FALSE(dest.fail())) {
-      FailOperation("ostream::seekp()");
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    std::ostream& dest = *dest_stream();
+    dest.seekp(0, std::ios_base::end);
+    if (dest.fail()) {
+      dest.clear(dest.rdstate() & ~std::ios_base::failbit);
     } else {
-      supported = true;
+      errno = 0;
+      dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+      if (ABSL_PREDICT_FALSE(dest.fail())) {
+        FailOperation("ostream::seekp()");
+      } else {
+        supported = true;
+      }
     }
   }
   supports_random_access_ =
@@ -145,25 +134,24 @@ bool OStreamWriterBase::supports_read_mode() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of OStreamWriterBase: "
-         "unresolved supports_read_mode_ but object closed";
-  std::istream* const src = src_stream();
   bool supported = false;
-  if (src != nullptr) {
-    const std::streamoff stream_pos = src->tellg();
-    if (stream_pos >= 0) {
-      src->seekg(0, std::ios_base::end);
-      if (src->fail()) {
-        src->clear(src->rdstate() & ~std::ios_base::failbit);
-      } else {
-        std::ostream& dest = *dest_stream();
-        errno = 0;
-        dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-        if (ABSL_PREDICT_FALSE(dest.fail())) {
-          FailOperation("ostream::seekp()");
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    std::istream* const src = src_stream();
+    if (src != nullptr) {
+      const std::streamoff stream_pos = src->tellg();
+      if (stream_pos >= 0) {
+        src->seekg(0, std::ios_base::end);
+        if (src->fail()) {
+          src->clear(src->rdstate() & ~std::ios_base::failbit);
         } else {
-          supported = true;
+          std::ostream& dest = *dest_stream();
+          errno = 0;
+          dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+          if (ABSL_PREDICT_FALSE(dest.fail())) {
+            FailOperation("ostream::seekp()");
+          } else {
+            supported = true;
+          }
         }
       }
     }

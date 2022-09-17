@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_OSTREAM_WRITER_H_
 #define RIEGELI_BYTES_OSTREAM_WRITER_H_
 
+#include <stdint.h>
+
 #include <cerrno>
 #include <istream>
 #include <ostream>
@@ -104,17 +106,13 @@ class OStreamWriterBase : public BufferedWriter {
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
 
   bool supports_random_access();
   bool supports_read_mode();
   bool WriteMode();
 
-  // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
-  // Invariant:
-  //   if `is_open()` then `supports_read_mode_ != LazyBoolState::kUnknown`
   LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
 
   AssociatedReader<IStreamReader<std::istream*>> associated_reader_;

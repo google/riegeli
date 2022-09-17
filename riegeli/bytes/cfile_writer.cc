@@ -119,16 +119,6 @@ inline void CFileWriterBase::InitializePos(FILE* dest,
 
 void CFileWriterBase::Done() {
   BufferedWriter::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
-  // Same for `supports_read_mode_`.
-  if (supports_read_mode_ == LazyBoolState::kUnknown) {
-    supports_read_mode_ = LazyBoolState::kFalse;
-  }
   associated_reader_.Reset();
 }
 
@@ -157,33 +147,32 @@ bool CFileWriterBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of CFileWriterBase: "
-         "unresolved supports_random_access_ but object closed";
   bool supported = false;
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `CFileWriter` checks the filename.
-  } else {
-    FILE* const dest = dest_file();
-    if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
-      clearerr(dest);
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+      // "/sys" files do not support random access. It is hard to reliably
+      // recognize them, so `CFileWriter` checks the filename.
     } else {
-      const off_t file_size = cfile_internal::FTell(dest);
-      if (ABSL_PREDICT_FALSE(file_size < 0)) {
-        FailOperation(cfile_internal::kFTellFunctionName);
-      } else if (ABSL_PREDICT_FALSE(
-                     cfile_internal::FSeek(dest, IntCast<off_t>(limit_pos()),
-                                           SEEK_SET) != 0)) {
-        FailOperation(cfile_internal::kFSeekFunctionName);
-      } else if (file_size == 0 &&
-                 ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-        // Some "/proc" files do not support random access. It is hard to
-        // reliably recognize them using the `FILE` API, so `CFileWriter` checks
-        // the filename. Random access is assumed to be unsupported if they
-        // claim to have a zero size.
+      FILE* const dest = dest_file();
+      if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
+        clearerr(dest);
       } else {
-        supported = true;
+        const off_t file_size = cfile_internal::FTell(dest);
+        if (ABSL_PREDICT_FALSE(file_size < 0)) {
+          FailOperation(cfile_internal::kFTellFunctionName);
+        } else if (ABSL_PREDICT_FALSE(
+                       cfile_internal::FSeek(dest, IntCast<off_t>(limit_pos()),
+                                             SEEK_SET) != 0)) {
+          FailOperation(cfile_internal::kFSeekFunctionName);
+        } else if (file_size == 0 &&
+                   ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
+          // Some "/proc" files do not support random access. It is hard to
+          // reliably recognize them using the `FILE` API, so `CFileWriter`
+          // checks the filename. Random access is assumed to be unsupported if
+          // they claim to have a zero size.
+        } else {
+          supported = true;
+        }
       }
     }
   }
@@ -201,26 +190,21 @@ bool CFileWriterBase::supports_read_mode() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of CFileWriterBase: "
-         "unresolved supports_read_mode_ but object closed";
-  if (!supports_random_access()) {
-    supports_read_mode_ = LazyBoolState::kFalse;
-    return false;
-  }
-  FILE* const dest = dest_file();
   bool supported = false;
-  if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
-    clearerr(dest);
-  } else {
-    char buf[1];
-    fread(buf, 1, 1, dest);
-    supported = !ferror(dest);
-    clearerr(dest);
-    if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
-                                                 IntCast<off_t>(start_pos()),
-                                                 SEEK_SET) != 0)) {
-      return FailOperation(cfile_internal::kFSeekFunctionName);
+  if (supports_random_access() && ABSL_PREDICT_TRUE(is_open())) {
+    FILE* const dest = dest_file();
+    if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
+      clearerr(dest);
+    } else {
+      char buf[1];
+      fread(buf, 1, 1, dest);
+      if (!ferror(dest)) supported = true;
+      clearerr(dest);
+      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
+                                                   IntCast<off_t>(start_pos()),
+                                                   SEEK_SET) != 0)) {
+        return FailOperation(cfile_internal::kFSeekFunctionName);
+      }
     }
   }
   supports_read_mode_ =

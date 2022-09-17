@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_FD_WRITER_H_
 
 #include <fcntl.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 #include <string>
@@ -210,16 +211,14 @@ class FdWriterBase : public BufferedWriter {
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
 
   bool WriteMode();
   bool SeekInternal(int dest, Position new_pos);
 
   std::string filename_;
-  // Invariant:
-  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool has_independent_pos_ = false;
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
   bool supports_read_mode_ = false;
 
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
@@ -372,8 +371,8 @@ inline FdWriterBase::FdWriterBase(const BufferOptions& buffer_options)
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
-      supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
+      supports_random_access_(that.supports_random_access_),
       supports_read_mode_(that.supports_read_mode_),
       associated_reader_(std::move(that.associated_reader_)),
       read_mode_(that.read_mode_) {}
@@ -381,8 +380,8 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
-  supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
+  supports_random_access_ = that.supports_random_access_;
   supports_read_mode_ = that.supports_read_mode_;
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
@@ -392,8 +391,8 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
 inline void FdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   supports_read_mode_ = false;
   associated_reader_.Reset();
   read_mode_ = false;
@@ -402,8 +401,8 @@ inline void FdWriterBase::Reset(Closed) {
 inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFd()`.
-  supports_random_access_ = LazyBoolState::kFalse;
   has_independent_pos_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
   supports_read_mode_ = false;
   associated_reader_.Reset();
   read_mode_ = false;

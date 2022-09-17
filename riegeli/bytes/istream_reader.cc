@@ -71,16 +71,6 @@ void IStreamReaderBase::Initialize(std::istream* src,
   BeginRun();
 }
 
-void IStreamReaderBase::Done() {
-  BufferedReader::Done();
-  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
-  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
-  // a closed stream. The resolution is no longer interesting anyway.
-  if (supports_random_access_ == LazyBoolState::kUnknown) {
-    supports_random_access_ = LazyBoolState::kFalse;
-  }
-}
-
 bool IStreamReaderBase::FailOperation(absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
@@ -104,26 +94,25 @@ bool IStreamReaderBase::supports_random_access() {
     case LazyBoolState::kUnknown:
       break;
   }
-  RIEGELI_ASSERT(is_open())
-      << "Failed invariant of IStreamReaderBase: "
-         "unresolved supports_random_access_ but object closed";
-  std::istream& src = *src_stream();
   bool supported = false;
-  src.seekg(0, std::ios_base::end);
-  if (src.fail()) {
-    src.clear(src.rdstate() & ~std::ios_base::failbit);
-  } else {
-    errno = 0;
-    const std::streamoff stream_size = src.tellg();
-    if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-      FailOperation("istream::tellg()");
+  if (ABSL_PREDICT_TRUE(is_open())) {
+    std::istream& src = *src_stream();
+    src.seekg(0, std::ios_base::end);
+    if (src.fail()) {
+      src.clear(src.rdstate() & ~std::ios_base::failbit);
     } else {
-      src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
-      if (ABSL_PREDICT_FALSE(src.fail())) {
-        FailOperation("istream::seekg()");
+      errno = 0;
+      const std::streamoff stream_size = src.tellg();
+      if (ABSL_PREDICT_FALSE(stream_size < 0)) {
+        FailOperation("istream::tellg()");
       } else {
-        if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
-        supported = true;
+        src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
+        if (ABSL_PREDICT_FALSE(src.fail())) {
+          FailOperation("istream::seekg()");
+        } else {
+          if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
+          supported = true;
+        }
       }
     }
   }
