@@ -250,11 +250,6 @@ bool ResizableWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-absl::optional<Position> ResizableWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  return pos();
-}
-
 bool ResizableWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(new_size > pos())) return false;

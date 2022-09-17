@@ -313,7 +313,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
           return std::streampos(std::streamoff{-1});
         }
       } else {
-        if (ABSL_PREDICT_FALSE(!writer_->SupportsSize())) {
+        if (ABSL_PREDICT_FALSE(!writer_->SupportsRandomAccess())) {
           // Indicate that `seekoff(std::ios_base::end)` is not supported.
           return std::streampos(std::streamoff{-1});
         }
@@ -350,7 +350,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
     } else {
       RIEGELI_ASSERT(reader_->SupportsRewind())
           << "Failed postcondition of Writer::ReadMode(): "
-             "SupportsRewind() is false";
+             "!Reader::SupportsRewind()";
       seek_ok = reader_->Seek(new_pos);
     }
     if (ABSL_PREDICT_FALSE(!seek_ok)) {

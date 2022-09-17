@@ -47,7 +47,9 @@ void WriterCFileCookieBase::Initialize(Writer* writer) {
 }
 
 inline const char* WriterCFileCookieBase::OpenMode() {
-  return dest_writer()->SupportsReadMode() ? "w+" : "w";
+  Writer& writer = *dest_writer();
+  return writer.SupportsReadMode() && writer.SupportsRandomAccess() ? "w+"
+                                                                    : "w";
 }
 
 inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
@@ -154,24 +156,23 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
       break;
     case SEEK_END: {
+      if (ABSL_PREDICT_FALSE(!writer.SupportsRandomAccess())) {
+        // Indicate that `fseek(SEEK_END)` is not supported.
+        errno = ESPIPE;
+        return absl::nullopt;
+      }
       absl::optional<Position> size;
       if (reader_ != nullptr) {
-        if (ABSL_PREDICT_FALSE(!reader_->SupportsSize())) {
-          // Indicate that `fseek(SEEK_END)` is not supported.
-          errno = ESPIPE;
-          return absl::nullopt;
-        }
+        RIEGELI_ASSERT(reader_->SupportsSize())
+            << "Failed postcondition of Writer::ReadMode(): "
+               "!Reader::SupportsSize() even though "
+               "Writer::SupportsRandomAccess()";
         size = reader_->Size();
         if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
           errno = StatusCodeToErrno(reader_->status().code());
           return absl::nullopt;
         }
       } else {
-        if (ABSL_PREDICT_FALSE(!writer.SupportsSize())) {
-          // Indicate that `fseek(SEEK_END)` is not supported.
-          errno = ESPIPE;
-          return absl::nullopt;
-        }
         size = writer.Size();
         if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
           errno = StatusCodeToErrno(writer.status().code());
@@ -201,7 +202,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
   if (reader_ != nullptr) {
     RIEGELI_ASSERT(reader_->SupportsRewind())
         << "Failed postcondition of Writer::ReadMode(): "
-           "SupportsRewind() is false";
+           "!Reader::SupportsRewind()";
     if (ABSL_PREDICT_FALSE(!reader_->Seek(IntCast<Position>(new_pos)))) {
       if (ABSL_PREDICT_FALSE(!reader_->ok())) {
         errno = StatusCodeToErrno(reader_->status().code());
@@ -210,9 +211,12 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
       return -1;
     }
-    return IntCast<int64_t>(new_pos);
-  }
-  if (ABSL_PREDICT_TRUE(writer.SupportsRandomAccess())) {
+  } else {
+    if (ABSL_PREDICT_FALSE(!writer.SupportsRandomAccess())) {
+      // Indicate that `fseek()` is not supported.
+      errno = ESPIPE;
+      return -1;
+    }
     if (ABSL_PREDICT_FALSE(!writer.Seek(IntCast<Position>(new_pos)))) {
       if (ABSL_PREDICT_FALSE(!writer.ok())) {
         errno = StatusCodeToErrno(writer.status().code());
@@ -221,30 +225,6 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
       return -1;
     }
-    return IntCast<int64_t>(new_pos);
-  }
-  if (ABSL_PREDICT_FALSE(!writer.SupportsReadMode())) {
-    // Indicate that `fseek()` is not supported.
-    errno = ESPIPE;
-    return -1;
-  }
-  // `Writer::SupportsRandomAccess()` is `false` but `Reader::SupportsRewind()`
-  // is `true`. Enter read mode to support seeking before reading.
-  reader_ = writer.ReadMode(IntCast<Position>(new_pos));
-  if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
-    errno = StatusCodeToErrno(writer.status().code());
-    return -1;
-  }
-  RIEGELI_ASSERT(reader_->SupportsRewind())
-      << "Failed postcondition of Writer::ReadMode(): "
-         "SupportsRewind() is false";
-  if (ABSL_PREDICT_FALSE(reader_->pos() != IntCast<Position>(new_pos))) {
-    if (ABSL_PREDICT_FALSE(!reader_->ok())) {
-      errno = StatusCodeToErrno(reader_->status().code());
-    } else {
-      errno = EINVAL;
-    }
-    return -1;
   }
   return IntCast<int64_t>(new_pos);
 }
