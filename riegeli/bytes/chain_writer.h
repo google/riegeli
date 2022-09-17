@@ -101,6 +101,7 @@ class ChainWriterBase : public Writer {
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
+  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
 
@@ -126,6 +127,7 @@ class ChainWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 

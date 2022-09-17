@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -48,6 +49,7 @@ class ArrayWriterBase : public PushableWriter {
   absl::Span<const char> written() const { return written_; }
 
   bool PrefersCopying() const override { return true; }
+  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
 
@@ -65,6 +67,7 @@ class ArrayWriterBase : public PushableWriter {
   void Done() override;
   bool PushBehindScratch(size_t recommended_length) override;
   bool FlushBehindScratch(FlushType flush_type) override;
+  absl::optional<Position> SizeBehindScratch() override;
   bool TruncateBehindScratch(Position new_size) override;
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 

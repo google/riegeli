@@ -266,6 +266,11 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
+absl::optional<Position> StringWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return pos();
+}
+
 bool StringWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   std::string& dest = *dest_string();

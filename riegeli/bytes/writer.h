@@ -237,6 +237,8 @@ class Writer : public Object {
 
   // Returns `true` if this Writer supports `Seek()` to other positions
   // (`Seek()` to the current position is always supported) and `Size()`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`.
   virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
@@ -252,6 +254,11 @@ class Writer : public Object {
   // `Seek()` to other positions is supported if `SupportsRandomAccess()` is
   // `true`.
   bool Seek(Position new_pos);
+
+  // Returns `true` if this `Reader` supports `Size()`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`.
+  virtual bool SupportsSize() { return SupportsRandomAccess(); }
 
   // Returns the size of the destination, i.e. the position corresponding to its
   // end.
@@ -285,9 +292,7 @@ class Writer : public Object {
   // of this `Writer`, starting from `initial_pos`.
   //
   // If the source ends before `initial_pos`, the position of the new `Reader`
-  // is set to the end. The resulting `Reader` `SupportsRewind()`. If this
-  // `Writer` `SupportsRandomAccess()`, the resulting `Reader` also
-  // `SupportsRandomAccess()`.
+  // is set to the end. The resulting `Reader` supports `Seek()`.
   //
   // When this `Writer` is used again, its position is the same as before
   // `ReadMode()` was called, and the `Reader` becomes invalid.

@@ -18,6 +18,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -49,6 +50,14 @@ bool ArrayWriterBase::FlushBehindScratch(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   written_ = absl::MakeSpan(start(), start_to_cursor());
   return true;
+}
+
+absl::optional<Position> ArrayWriterBase::SizeBehindScratch() {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::SizeBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return pos();
 }
 
 bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {

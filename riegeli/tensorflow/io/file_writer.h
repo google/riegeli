@@ -100,6 +100,7 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   absl::string_view filename() const { return filename_; }
 
+  bool SupportsSize() override { return !filename_.empty(); }
   bool SupportsReadMode() override { return !filename_.empty(); }
 
  protected:
@@ -132,6 +133,7 @@ class FileWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:

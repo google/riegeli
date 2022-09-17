@@ -217,6 +217,11 @@ bool LimitingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
+bool LimitingWriterBase::SupportsSize() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsSize();
+}
+
 absl::optional<Position> LimitingWriterBase::SizeImpl() {
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "

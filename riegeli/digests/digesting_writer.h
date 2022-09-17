@@ -47,6 +47,7 @@ class DigestingWriterBase : public Writer {
   virtual const Writer* dest_writer() const = 0;
 
   bool PrefersCopying() const override;
+  bool SupportsSize() override;
   bool SupportsReadMode() override;
 
  protected:
@@ -82,6 +83,7 @@ class DigestingWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
+  absl::optional<Position> SizeImpl();
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:

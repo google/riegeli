@@ -99,6 +99,7 @@ class ResizableWriterBase : public Writer {
     size_t max_buffer_size_ = kDefaultMaxBlockSize;
   };
 
+  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
 
@@ -150,6 +151,7 @@ class ResizableWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 

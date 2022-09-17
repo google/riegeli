@@ -179,6 +179,11 @@ bool ChainWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
+absl::optional<Position> ChainWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return pos();
+}
+
 bool ChainWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *dest_chain();
