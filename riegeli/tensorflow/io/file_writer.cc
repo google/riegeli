@@ -293,25 +293,6 @@ bool FileWriterBase::FlushImpl(FlushType flush_type) {
   return ok();
 }
 
-absl::optional<Position> FileWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return Writer::SizeImpl();
-  }
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  uint64_t file_size;
-  {
-    const ::tensorflow::Status status =
-        file_system_->GetFileSize(filename_, &file_size);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailOperation(status, "FileSystem::GetFileSize()");
-      return absl::nullopt;
-    }
-  }
-  return UnsignedMax(Position{file_size}, pos());
-}
-
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(filename_.empty())) {
     // Delegate to base class version which fails, to avoid duplicating the

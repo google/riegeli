@@ -237,11 +237,6 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-absl::optional<Position> CordWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  return pos();
-}
-
 bool CordWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *dest_cord();

@@ -142,20 +142,6 @@ bool DigestingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool DigestingWriterBase::SupportsSize() {
-  Writer* const dest = dest_writer();
-  return dest != nullptr && dest->SupportsSize();
-}
-
-absl::optional<Position> DigestingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Writer& dest = *dest_writer();
-  SyncBuffer(dest);
-  const absl::optional<Position> size = dest.Size();
-  MakeBuffer(dest);
-  return size;
-}
-
 bool DigestingWriterBase::SupportsReadMode() {
   Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsReadMode();

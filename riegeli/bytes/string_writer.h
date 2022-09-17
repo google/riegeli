@@ -102,7 +102,6 @@ class StringWriterBase : public Writer {
   virtual std::string* dest_string() = 0;
   virtual const std::string* dest_string() const = 0;
 
-  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
 
@@ -131,7 +130,6 @@ class StringWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
-  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
