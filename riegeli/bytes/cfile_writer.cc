@@ -108,10 +108,14 @@ inline void CFileWriterBase::InitializePos(FILE* dest,
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
-    // If `!append` then `fseek(SEEK_CUR)` succeeded, and `fseek(SEEK_END)` will
-    // be checked later.
-    supports_random_access_ =
-        append ? LazyBoolState::kTrue : LazyBoolState::kUnknown;
+    if (append) {
+      // Random access is not supported because writing in append mode always
+      // happens at the end. `supports_random_access_` is left as
+      // `LazyBoolState::kFalse`.
+    } else {
+      // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
+      supports_random_access_ = LazyBoolState::kUnknown;
+    }
     supports_read_mode_ = LazyBoolState::kUnknown;
   }
   BeginRun();
@@ -155,6 +159,7 @@ bool CFileWriterBase::supports_random_access() {
     } else {
       FILE* const dest = dest_file();
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
+        // Not supported.
         clearerr(dest);
       } else {
         const off_t file_size = cfile_internal::FTell(dest);

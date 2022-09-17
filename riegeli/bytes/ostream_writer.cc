@@ -38,7 +38,8 @@
 namespace riegeli {
 
 void OStreamWriterBase::Initialize(std::ostream* dest,
-                                   absl::optional<Position> assumed_pos) {
+                                   absl::optional<Position> assumed_pos,
+                                   bool assumed_append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
@@ -68,9 +69,15 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
       return;
     }
     set_start_pos(IntCast<Position>(stream_pos));
-    // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
-    // checked later.
-    supports_random_access_ = LazyBoolState::kUnknown;
+    if (assumed_append) {
+      // Random access is not supported because writing in append mode always
+      // happens at the end. `supports_random_access_` is left as
+      // `LazyBoolState::kFalse`.
+    } else {
+      // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
+      // checked later.
+      supports_random_access_ = LazyBoolState::kUnknown;
+    }
     supports_read_mode_ = LazyBoolState::kUnknown;
   }
   BeginRun();
@@ -109,6 +116,7 @@ bool OStreamWriterBase::supports_random_access() {
     std::ostream& dest = *dest_stream();
     dest.seekp(0, std::ios_base::end);
     if (dest.fail()) {
+      // Not supported.
       dest.clear(dest.rdstate() & ~std::ios_base::failbit);
     } else {
       errno = 0;

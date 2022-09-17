@@ -68,8 +68,24 @@ class OStreamWriterBase : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
+    // If `assumed_pos()` is not set, `assumed_append()` should be set to `true`
+    // if the `std::ostream` refers a file open in append mode, i.e. if all
+    // writes happen at the end. This lets `SupportsRandomAccess()` correctly
+    // return `false`.
+    //
+    // Default: `false`.
+    Options& set_assumed_append(bool assumed_append) & {
+      assumed_append_ = assumed_append;
+      return *this;
+    }
+    Options&& set_assumed_append(bool assumed_append) && {
+      return std::move(set_assumed_append(assumed_append));
+    }
+    bool assumed_append() const { return assumed_append_; }
+
    private:
     absl::optional<Position> assumed_pos_;
+    bool assumed_append_ = false;
   };
 
   // Returns the stream being written to. Unchanged by `Close()`.
@@ -91,7 +107,8 @@ class OStreamWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos);
+  void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos,
+                  bool assumed_append);
 
   // Returns the stream pointer as `std::istream*` if the static type of the
   // destination derives from `std::istream`, otherwise returns `nullptr`.
@@ -256,13 +273,13 @@ inline void OStreamWriterBase::Reset(const BufferOptions& buffer_options) {
 template <typename Dest>
 inline OStreamWriter<Dest>::OStreamWriter(const Dest& dest, Options options)
     : OStreamWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>
 inline OStreamWriter<Dest>::OStreamWriter(Dest&& dest, Options options)
     : OStreamWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>
@@ -270,7 +287,7 @@ template <typename... DestArgs>
 inline OStreamWriter<Dest>::OStreamWriter(std::tuple<DestArgs...> dest_args,
                                           Options options)
     : OStreamWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>
@@ -296,14 +313,14 @@ template <typename Dest>
 inline void OStreamWriter<Dest>::Reset(const Dest& dest, Options options) {
   OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>
 inline void OStreamWriter<Dest>::Reset(Dest&& dest, Options options) {
   OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>
@@ -312,7 +329,7 @@ inline void OStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                        Options options) {
   OStreamWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
 }
 
 template <typename Dest>

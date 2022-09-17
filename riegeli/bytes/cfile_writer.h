@@ -73,12 +73,10 @@ class CFileWriterBase : public BufferedWriter {
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "w" or "a".
     //
-    // If `CFileWriter` writes to an already open `FILE`, `assumed_pos()` is
-    // not set, and `mode()` starts with "a", writing will start at the end of
-    // file instead of at the current `FILE` position. Specifying `mode()` for
-    // this effect is necessary only if the actual open mode was "a+" rather
-    // than "a", because in that case `ftell()` reports 0 until the first write,
-    // so the actual write position cannot be determined automatically.
+    // If `CFileWriter` writes to an already open `FILE` and `assumed_pos()` is
+    // not set, `mode()` should start with "a" if the `FILE` was originally open
+    // in append mode. This allows to determine the effective initial position
+    // and lets `SupportsRandomAccess()` correctly return `false`.
     //
     // Default: "w".
     Options& set_mode(absl::string_view mode) & {

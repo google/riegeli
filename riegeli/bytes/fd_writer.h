@@ -92,7 +92,7 @@ class FdWriterBase : public BufferedWriter {
     //
     // It must include either `O_WRONLY` or `O_RDWR`.
     //
-    // If `FdWriter` reads from an already open fd, `mode()` has no effect.
+    // If `FdWriter` writes to an already open fd, `mode()` has no effect.
     //
     // Default: `O_WRONLY | O_CREAT | O_TRUNC`.
     Options& set_mode(int mode) & {
@@ -145,6 +145,9 @@ class FdWriterBase : public BufferedWriter {
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
+    // If the original open mode of the fd includes `O_APPEND` then
+    // `independent_pos()` must not be set.
+    //
     // Default: `absl::nullopt`.
     Options& set_independent_pos(absl::optional<Position> independent_pos) & {
       independent_pos_ = independent_pos;
@@ -174,9 +177,7 @@ class FdWriterBase : public BufferedWriter {
   absl::string_view filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
-  bool SupportsReadMode() override {
-    return supports_read_mode_ && supports_random_access();
-  }
+  bool SupportsReadMode() override { return supports_read_mode(); }
 
  protected:
   explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -197,7 +198,13 @@ class FdWriterBase : public BufferedWriter {
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access();
+  // Lazily computed condition shared by `supports_random_access()` and
+  // `supports_read_mode()`.
+  bool supports_size();
+  bool supports_random_access() {
+    return supports_random_access_ && supports_size();
+  }
+  bool supports_read_mode() { return supports_read_mode_ && supports_size(); }
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -218,7 +225,8 @@ class FdWriterBase : public BufferedWriter {
 
   std::string filename_;
   bool has_independent_pos_ = false;
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+  LazyBoolState supports_size_ = LazyBoolState::kFalse;
+  bool supports_random_access_ = false;
   bool supports_read_mode_ = false;
 
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
@@ -372,6 +380,7 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
       has_independent_pos_(that.has_independent_pos_),
+      supports_size_(that.supports_size_),
       supports_random_access_(that.supports_random_access_),
       supports_read_mode_(that.supports_read_mode_),
       associated_reader_(std::move(that.associated_reader_)),
@@ -381,6 +390,7 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
   has_independent_pos_ = that.has_independent_pos_;
+  supports_size_ = that.supports_size_;
   supports_random_access_ = that.supports_random_access_;
   supports_read_mode_ = that.supports_read_mode_;
   associated_reader_ = std::move(that.associated_reader_);
@@ -392,7 +402,8 @@ inline void FdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   filename_ = std::string();
   has_independent_pos_ = false;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_size_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();
   read_mode_ = false;
@@ -402,7 +413,8 @@ inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFd()`.
   has_independent_pos_ = false;
-  supports_random_access_ = LazyBoolState::kFalse;
+  supports_size_ = LazyBoolState::kFalse;
+  supports_random_access_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();
   read_mode_ = false;

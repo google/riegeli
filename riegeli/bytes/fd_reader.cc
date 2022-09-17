@@ -114,10 +114,6 @@ again:
 
 void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
                                  absl::optional<Position> independent_pos) {
-  RIEGELI_ASSERT(assumed_pos == absl::nullopt ||
-                 independent_pos == absl::nullopt)
-      << "Failed precondition of FdReaderBase: "
-         "Options::assumed_pos() and Options::independent_pos() are both set";
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "has_independent_pos_ not reset";
@@ -125,6 +121,12 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
   if (assumed_pos != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(independent_pos != absl::nullopt)) {
+      Fail(absl::InvalidArgumentError(
+          "FdReaderBase::Options::assumed_pos() and independent_pos() "
+          "must not be both set"));
+      return;
+    }
     if (ABSL_PREDICT_FALSE(*assumed_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
