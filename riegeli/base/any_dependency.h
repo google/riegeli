@@ -248,6 +248,16 @@ class AnyDependencyImpl {
   template <typename Manager, typename... ManagerArgs>
   void Emplace(ManagerArgs&&... manager_args);
 
+#if __cpp_deduction_guides
+  // Like above, but the exact `Manager` type is deduced using CTAD from
+  // `ManagerTemplate(std::forward<ManagerArgs>(manager_args)...)`.
+  //
+  // Only templates with solely type template parameters are supported.
+  template <template <typename...> class ManagerTemplate,
+            typename... ManagerArgs>
+  void Emplace(ManagerArgs&&... manager_args);
+#endif
+
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
   // `AnyDependencyImpl`.
   //
@@ -846,6 +856,19 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
   Initialize<Manager>(
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
 }
+
+#if __cpp_deduction_guides
+template <typename Ptr, size_t inline_size, size_t inline_align>
+template <template <typename...> class ManagerTemplate, typename... ManagerArgs>
+inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
+    ManagerArgs&&... manager_args) {
+  ptr_.~Ptr();
+  methods_->destroy(repr_.storage);
+  Initialize<decltype(ManagerTemplate(
+      std::forward<ManagerArgs>(manager_args)...))>(
+      std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
+}
+#endif
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 template <
