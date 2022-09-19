@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BASE_STABLE_DEPENDENCY_H_
 #define RIEGELI_BASE_STABLE_DEPENDENCY_H_
 
+#include <stddef.h>
+
 #include <memory>
 #include <new>
 #include <tuple>
@@ -179,16 +181,16 @@ class StableDependency<P*, M,
     return dep_->Release();
   }
 
-  friend bool operator==(const StableDependency& a, std::nullptr_t) {
+  friend bool operator==(const StableDependency& a, nullptr_t) {
     return a.get() == nullptr;
   }
-  friend bool operator!=(const StableDependency& a, std::nullptr_t) {
+  friend bool operator!=(const StableDependency& a, nullptr_t) {
     return a.get() != nullptr;
   }
-  friend bool operator==(std::nullptr_t, const StableDependency& a) {
+  friend bool operator==(nullptr_t, const StableDependency& a) {
     return nullptr == a.get();
   }
-  friend bool operator!=(std::nullptr_t, const StableDependency& a) {
+  friend bool operator!=(nullptr_t, const StableDependency& a) {
     return nullptr != a.get();
   }
 

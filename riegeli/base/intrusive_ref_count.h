@@ -47,7 +47,7 @@ template <typename T>
 class RefCountedPtr {
  public:
   constexpr RefCountedPtr() noexcept {}
-  /*implicit*/ constexpr RefCountedPtr(std::nullptr_t) noexcept {}
+  /*implicit*/ constexpr RefCountedPtr(nullptr_t) noexcept {}
 
   explicit RefCountedPtr(T* ptr) noexcept : ptr_(ptr) {}
 
@@ -76,7 +76,7 @@ class RefCountedPtr {
   ~RefCountedPtr();
 
   void reset();
-  void reset(std::nullptr_t) { reset(); }
+  void reset(nullptr_t) { reset(); }
   void reset(T* ptr);
 
   T* get() const { return ptr_; }
@@ -104,16 +104,16 @@ class RefCountedPtr {
   friend bool operator!=(const RefCountedPtr& a, const RefCountedPtr& b) {
     return a.get() != b.get();
   }
-  friend bool operator==(const RefCountedPtr& a, std::nullptr_t) {
+  friend bool operator==(const RefCountedPtr& a, nullptr_t) {
     return a.get() == nullptr;
   }
-  friend bool operator!=(const RefCountedPtr& a, std::nullptr_t) {
+  friend bool operator!=(const RefCountedPtr& a, nullptr_t) {
     return a.get() != nullptr;
   }
-  friend bool operator==(std::nullptr_t, const RefCountedPtr& b) {
+  friend bool operator==(nullptr_t, const RefCountedPtr& b) {
     return nullptr == b.get();
   }
-  friend bool operator!=(std::nullptr_t, const RefCountedPtr& b) {
+  friend bool operator!=(nullptr_t, const RefCountedPtr& b) {
     return nullptr != b.get();
   }
 
