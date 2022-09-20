@@ -233,7 +233,13 @@ class DependencyMaybeRef<
                           IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
-  using DependencyImpl<Ptr, std::decay_t<M>>::DependencyImpl;
+  explicit DependencyMaybeRef(M& manager) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(manager) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(
+            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&&>` when
@@ -247,7 +253,13 @@ class DependencyMaybeRef<
                           IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
-  using DependencyImpl<Ptr, std::decay_t<M>>::DependencyImpl;
+  explicit DependencyMaybeRef(M&& manager) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager)) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(
+            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
 };
 
 }  // namespace dependency_internal
