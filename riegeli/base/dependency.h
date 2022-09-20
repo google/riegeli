@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -29,8 +30,13 @@
 
 namespace riegeli {
 
-// `Dependency<Ptr, Manager>` refers to an optionally owned object which is
-// stored as `Manager` and accessed as `Ptr`.
+// `Dependency<Ptr, Manager>` contains or refers to an optionally owned object
+// which is stored as type `Manager` and accessed through type `Ptr`.
+//
+// When a dependent object is said to be owned by a host object or function, the
+// host is responsible for closing it when done, and certain other operations
+// are propagated to it. The host is usually also responsible for destroying the
+// owned object.
 //
 // Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
 // `M*` (not owned), `M` (owned), or `std::unique_ptr<M>` (owned), with `M`
@@ -38,27 +44,40 @@ namespace riegeli {
 //
 // Often `Dependency<Ptr, Manager>` is a member of a host class template
 // parameterized by `Manager`, with `Ptr` fixed by the host class. The member
-// is often initialized from a constructor argument. A user of the host class
-// specifies ownership of the dependent object and possibly narrows its type by
-// choosing the `Manager` template argument of the host class. The `Manager`
-// type can be deduced from a constructor argument using CTAD (since C++17).
+// is initialized from an argument of a constructor or a resetting function.
+// A user of the host class specifies ownership of the dependent object and
+// possibly narrows its type by choosing the `Manager` template argument of the
+// host class. The `Manager` type can be deduced from a constructor argument
+// using CTAD (since C++17), which is usually done by removing any toplevel
+// references and `const` qualifiers using `std::decay`.
 //
-// `Manager` can also be `M&` (not owned) or `M&&` (owned). This is primarily
-// meant to be used when the dependency is constructed locally in a function
-// rather than stored in a host object, because such a dependency stores only a
-// reference to the dependent object, and by convention a reference argument is
-// expected to be valid only for the duration of the function call. Typically
-// the `Manager` type is deduced from a function argument.
+// `Manager` can also be `M&` (not owned) or `M&&` (owned). They are primarily
+// meant to be used with a host function rather than a host object, because such
+// a dependency stores only a reference to the dependent object. By convention a
+// reference argument is expected to be valid for the duration of the function
+// call but not necessarily after the function returns. The `Manager` type is
+// usually deduced from a function argument as a reference type rather than
+// using `std::decay`.
 //
 // `Manager` being `M&` is functionally equivalent to `M*`, but offers a more
 // idiomatic API for passing an object which does not need to be valid after the
 // function returns.
 //
-// `Manager` being `M&&` owns an object without moving it. This can be useful
-// also as a template argument of a host class, as long as the user ensures that
-// the dependent object lives longer than the host object, i.e. the constructor
-// argument should be `std::move()` applied to a longer lived dependent object,
-// not a temporary.
+// `Manager` being `M&&` is similar to `M`, but the dependent object does not
+// need to be moved from its temporary location, which is expected to be valid
+// for the duration of the function call. The host function owns the dependent
+// object but does not destroy it.
+//
+// `Manager` being `std::reference_wrapper<M>` is equivalent to `M&&`, but such
+// a type survives `std::decay`, and thus can be deduced from `std::ref(m)`
+// passed as a constructor argument of the host object. Passing `std::ref(m)`
+// instead of `std::move(m)` avoids moving `m`, but the caller must ensure that
+// the dependent object is valid while the host object needs it. The host object
+// owns the dependent object (in contrast to passing `&m`) but does not destroy
+// it.
+//
+// `Manager` being `std::reference_wrapper<M>&&` is equivalent to
+// `std::reference_wrapper<M>`.
 
 // `DependencySentinel(T*)` specifies how to initialize a default `Manager`
 // (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
@@ -124,6 +143,10 @@ inline int DependencySentinel(int*) { return -1; }
 //   void Reset(std::tuple<ManagerArgs...> manager_args);
 //
 //   // Exposes the contained `Manager`.
+//   //
+//   // If `Manager` is `M&`, `M&&`, `std::reference_wrapper<M>`, or
+//   // `std::reference_wrapper<M>&&`, this method has signature
+//   // `M& manager() const`.
 //   Manager& manager();
 //   const Manager& manager() const;
 //
@@ -206,8 +229,16 @@ struct IsValidDependencyImpl<
     : std::true_type {};
 
 // `DependencyMaybeRef<Ptr, Manager>` extends `DependencyImpl<Ptr, Manager>`
-// with specializations when `Manager` is `M&` or `M&&` if they were not already
-// defined.
+// with specializations when `Manager` is `M&`, `M&&`,
+// `std::reference_wrapper<M>`, or `std::reference_wrapper<M>&&`.
+//
+// If `DependencyImpl<Ptr, Manager>` is not specialized, `Manager` is delegated
+// to `std::decay_t<M>`. This handles cases where the `Manager` type is deduced
+// from a function parameter as a reference type to avoid moving the dependent
+// object, but the function argument is not `P&` or `P&&` but e.g. `P*&` or
+// `std::unique_ptr<P>&&`, intended to be treated as the pointer value.
+//
+// This also handles delegating `std::reference_wrapper<M>` to `M&&`.
 
 // This template is specialized but does not have a primary definition.
 template <typename Ptr, typename Manager, typename Enable = void>
@@ -223,7 +254,7 @@ class DependencyMaybeRef<
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&>` when
-// `DependencyImpl<Ptr, M&>` is not defined: decay to
+// `DependencyImpl<Ptr, M&>` is not defined: delegate to
 // `DependencyImpl<Ptr, std::decay_t<M>>`.
 template <typename Ptr, typename M>
 class DependencyMaybeRef<
@@ -243,7 +274,7 @@ class DependencyMaybeRef<
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&&>` when
-// `DependencyImpl<Ptr, M&&>` is not defined: decay to
+// `DependencyImpl<Ptr, M&&>` is not defined: delegate to
 // `DependencyImpl<Ptr, std::decay_t<M>>`.
 template <typename Ptr, typename M>
 class DependencyMaybeRef<
@@ -255,6 +286,92 @@ class DependencyMaybeRef<
  public:
   explicit DependencyMaybeRef(M&& manager) noexcept
       : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager)) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(
+            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, std::reference_wrapper<M>>` when
+// `DependencyImpl<Ptr, std::reference_wrapper<M>>` is not defined but
+// `DependencyImpl<Ptr, M&&>` is defined: delegate to
+// `DependencyImpl<Ptr, M&&>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, std::reference_wrapper<M>,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<IsValidDependencyImpl<Ptr, std::reference_wrapper<M>>>,
+        IsValidDependencyImpl<Ptr, M&&>>::value>>
+    : public DependencyImpl<Ptr, M&&> {
+ public:
+  explicit DependencyMaybeRef(std::reference_wrapper<M> manager) noexcept
+      : DependencyImpl<Ptr, M&&>(std::move(manager.get())) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, M&&>(
+            static_cast<DependencyImpl<Ptr, M&&>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, std::reference_wrapper<M>>` when
+// `DependencyMaybeRef<Ptr, std::reference_wrapper<M>>` and
+// `DependencyImpl<Ptr, M&&>` are not defined: delegate to
+// `DependencyImpl<Ptr, std::decay_t<M>>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, std::reference_wrapper<M>,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<IsValidDependencyImpl<Ptr, std::reference_wrapper<M>>>,
+        absl::negation<IsValidDependencyImpl<Ptr, M&&>>,
+        IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
+    : public DependencyImpl<Ptr, std::decay_t<M>> {
+ public:
+  explicit DependencyMaybeRef(std::reference_wrapper<M> manager) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager.get())) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(
+            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, std::reference_wrapper<M>&&>` when
+// `DependencyImpl<Ptr, std::reference_wrapper<M>>` is not defined but
+// `DependencyImpl<Ptr, M&&>` is defined: delegate to
+// `DependencyImpl<Ptr, M&&>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, std::reference_wrapper<M>&&,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<IsValidDependencyImpl<Ptr, std::reference_wrapper<M>>>,
+        IsValidDependencyImpl<Ptr, M&&>>::value>>
+    : public DependencyImpl<Ptr, M&&> {
+ public:
+  explicit DependencyMaybeRef(std::reference_wrapper<M> manager) noexcept
+      : DependencyImpl<Ptr, M&&>(std::move(manager.get())) {}
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
+      : DependencyImpl<Ptr, M&&>(
+            static_cast<DependencyImpl<Ptr, M&&>&&>(that)) {}
+  DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+};
+
+// Specialization of `DependencyMaybeRef<Ptr, std::reference_wrapper<M>&&>` when
+// `DependencyMaybeRef<Ptr, std::reference_wrapper<M>>` and
+// `DependencyImpl<Ptr, M&&>` are not defined: delegate to
+// `DependencyImpl<Ptr, std::decay_t<M>>`.
+template <typename Ptr, typename M>
+class DependencyMaybeRef<
+    Ptr, std::reference_wrapper<M>&&,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<IsValidDependencyImpl<Ptr, std::reference_wrapper<M>>>,
+        absl::negation<IsValidDependencyImpl<Ptr, M&&>>,
+        IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
+    : public DependencyImpl<Ptr, std::decay_t<M>> {
+ public:
+  explicit DependencyMaybeRef(std::reference_wrapper<M> manager) noexcept
+      : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager.get())) {}
 
   DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
       : DependencyImpl<Ptr, std::decay_t<M>>(

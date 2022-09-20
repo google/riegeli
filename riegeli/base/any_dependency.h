@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <new>
 #include <tuple>
 #include <type_traits>
@@ -131,6 +132,15 @@ struct IsInline<
                      (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
     : std::true_type {};
 
+// `DecayManager<T>::type` decays a manager type to its value type, also
+// removing `std::reference_wrapper`.
+template <typename T>
+struct DecayManager : std::decay<T> {};
+template <typename T>
+struct DecayManager<std::reference_wrapper<T>> : std::decay<T> {};
+template <typename T>
+struct DecayManager<std::reference_wrapper<T>&&> : std::decay<T> {};
+
 // Method pointers.
 template <typename Ptr>
 struct Methods {
@@ -141,8 +151,9 @@ struct Methods {
   void (*destroy)(Storage self);
   Ptr (*release)(Storage self);
   bool (*is_owning)(const Storage self);
-  // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
-  // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
+  // Returns the `const DecayManager<Manager>::type*`
+  // if `type_id` matches `DecayManager<Manager>::type`,
+  // otherwise returns `nullptr`.
   const void* (*get_if)(const Storage self, TypeId type_id);
 };
 
@@ -661,8 +672,9 @@ struct MethodsFor {
     return any_dependency_internal::IsOwning(*dep_ptr(self));
   }
   static const void* GetIf(const Storage self, TypeId type_id) {
-    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
-      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
+    using DecayedManager = typename DecayManager<Manager>::type;
+    if (type_id == TypeId::For<DecayedManager>()) {
+      return absl::implicit_cast<const DecayedManager*>(
           &dep_ptr(self)->manager());
     }
     return nullptr;
@@ -731,9 +743,9 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
     return any_dependency_internal::IsOwning(dep(self));
   }
   static const void* GetIf(const Storage self, TypeId type_id) {
-    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
-      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
-          &dep(self).manager());
+    using DecayedManager = typename DecayManager<Manager>::type;
+    if (type_id == TypeId::For<DecayedManager>()) {
+      return absl::implicit_cast<const DecayedManager*>(&dep(self).manager());
     }
     return nullptr;
   }
