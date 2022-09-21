@@ -155,6 +155,8 @@ struct Methods {
   // if `type_id` matches `DecayManager<Manager>::type`,
   // otherwise returns `nullptr`.
   const void* (*get_if)(const Storage self, TypeId type_id);
+  size_t inline_size_used;   // Or 0 if inline storage is not used.
+  size_t inline_align_used;  // Or 0 if inline storage is not used.
 };
 
 template <typename Ptr>
@@ -164,34 +166,16 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
 struct MethodsFor;
 
-// `IsCompatibleAnyDependency` detects `AnyDependencyImpl` or
-// `AnyDependencyRefImpl` type with the given `Ptr` and the given or smaller
-// `inline_size` and `inline_align`.
-
-template <typename Ptr, size_t inline_size, size_t inline_align, typename T,
-          typename Enable = void>
-struct IsCompatibleAnyDependency : std::false_type {};
-
-template <typename Ptr, size_t inline_size, size_t inline_align,
-          size_t that_inline_size, size_t that_inline_align>
-struct IsCompatibleAnyDependency<
-    Ptr, inline_size, inline_align,
-    AnyDependencyImpl<Ptr, that_inline_size, that_inline_align>,
-    std::enable_if_t<sizeof(Repr<Ptr, that_inline_size, that_inline_align>) <=
-                         sizeof(Repr<Ptr, inline_size, inline_align>) &&
-                     alignof(Repr<Ptr, that_inline_size, that_inline_align>) <=
-                         alignof(Repr<Ptr, inline_size, inline_align>)>>
+// `IsAnyDependency` detects `AnyDependencyImpl` or `AnyDependencyRefImpl` type
+// with the given `Ptr`.
+template <typename Ptr, typename T>
+struct IsAnyDependency : std::false_type {};
+template <typename Ptr, size_t inline_size, size_t inline_align>
+struct IsAnyDependency<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
     : std::true_type {};
-
-template <typename Ptr, size_t inline_size, size_t inline_align,
-          size_t that_inline_size, size_t that_inline_align>
-struct IsCompatibleAnyDependency<
-    Ptr, inline_size, inline_align,
-    AnyDependencyRefImpl<Ptr, that_inline_size, that_inline_align>,
-    std::enable_if_t<sizeof(Repr<Ptr, that_inline_size, that_inline_align>) <=
-                         sizeof(Repr<Ptr, inline_size, inline_align>) &&
-                     alignof(Repr<Ptr, that_inline_size, that_inline_align>) <=
-                         alignof(Repr<Ptr, inline_size, inline_align>)>>
+template <typename Ptr, size_t inline_size, size_t inline_align>
+struct IsAnyDependency<Ptr,
+                       AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
     : std::true_type {};
 
 }  // namespace any_dependency_internal
@@ -342,6 +326,10 @@ class AnyDependencyImpl {
 
   // If the contained `Manager` has exactly this type or a reference to it,
   // returns a pointer to the contained `Manager`. Otherwise returns `nullptr`.
+  //
+  // If an `AnyDependencyImpl` gets moved to an `AnyDependencyImpl` with
+  // different template arguments, it is unspecified whether `GetIf()`
+  // responds to the original type or to the source `AnyDependencyImpl`.
   template <typename Manager>
   Manager* GetIf();
   template <typename Manager>
@@ -371,37 +359,32 @@ class AnyDependencyImpl {
   // Initializes `methods_`, `repr_`, and `ptr_`, avoiding a redundant
   // indirection and adopting them from `manager` instead if `Manager` is
   // already a compatible `AnyDependencyImpl` or `AnyDependencyRefImpl`.
-  template <
-      typename Manager,
-      std::enable_if_t<!std::is_reference<Manager>::value &&
-                           !any_dependency_internal::IsCompatibleAnyDependency<
-                               Ptr, inline_size, inline_align, Manager>::value,
-                       int> = 0>
+  template <typename Manager,
+            std::enable_if_t<!std::is_reference<Manager>::value &&
+                                 !any_dependency_internal::IsAnyDependency<
+                                     Ptr, Manager>::value,
+                             int> = 0>
   void Initialize(const Manager& manager);
-  template <
-      typename Manager,
-      std::enable_if_t<!any_dependency_internal::IsCompatibleAnyDependency<
-                           Ptr, inline_size, inline_align, Manager>::value,
-                       int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                !any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
+                int> = 0>
   void Initialize(Manager&& manager);
-  template <
-      typename Manager,
-      std::enable_if_t<any_dependency_internal::IsCompatibleAnyDependency<
-                           Ptr, inline_size, inline_align, Manager>::value,
-                       int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
+                int> = 0>
   void Initialize(Manager&& manager);
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<!std::is_reference<Manager>::value &&
-                           !any_dependency_internal::IsCompatibleAnyDependency<
-                               Ptr, inline_size, inline_align, Manager>::value,
-                       int> = 0>
+  template <typename Manager, typename... ManagerArgs,
+            std::enable_if_t<!std::is_reference<Manager>::value &&
+                                 !any_dependency_internal::IsAnyDependency<
+                                     Ptr, Manager>::value,
+                             int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<any_dependency_internal::IsCompatibleAnyDependency<
-                           Ptr, inline_size, inline_align, Manager>::value,
-                       int> = 0>
+  template <typename Manager, typename... ManagerArgs,
+            std::enable_if_t<
+                any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
+                int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
@@ -621,8 +604,8 @@ struct NullMethods {
 };
 
 template <typename Ptr>
-const Methods<Ptr> NullMethods<Ptr>::methods = {Move, Destroy, Release,
-                                                IsOwning, GetIf};
+const Methods<Ptr> NullMethods<Ptr>::methods = {
+    Move, Destroy, Release, IsOwning, GetIf, 0, 0};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
@@ -685,7 +668,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
-        Move, Destroy, Release, IsOwning, GetIf};
+        Move, Destroy, Release, IsOwning, GetIf, 0, 0};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
@@ -757,7 +740,13 @@ const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager,
                std::enable_if_t<IsInline<Ptr, inline_size, inline_align,
                                          Manager>::value>>::methods = {
-        Move, Destroy, Release, IsOwning, GetIf};
+        Move,
+        Destroy,
+        Release,
+        IsOwning,
+        GetIf,
+        sizeof(Dependency<Ptr, Manager>),
+        alignof(Dependency<Ptr, Manager>)};
 
 }  // namespace any_dependency_internal
 
@@ -883,12 +872,11 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
 #endif
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager,
-    std::enable_if_t<!std::is_reference<Manager>::value &&
-                         !any_dependency_internal::IsCompatibleAnyDependency<
-                             Ptr, inline_size, inline_align, Manager>::value,
-                     int>>
+template <typename Manager,
+          std::enable_if_t<!std::is_reference<Manager>::value &&
+                               !any_dependency_internal::IsAnyDependency<
+                                   Ptr, Manager>::value,
+                           int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     const Manager& manager) {
   methods_ = &MethodsFor<Manager>::methods;
@@ -896,10 +884,10 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <typename Manager,
-          std::enable_if_t<!any_dependency_internal::IsCompatibleAnyDependency<
-                               Ptr, inline_size, inline_align, Manager>::value,
-                           int>>
+template <
+    typename Manager,
+    std::enable_if_t<
+        !any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   methods_ = &MethodsFor<Manager>::methods;
@@ -908,25 +896,33 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <typename Manager,
-          std::enable_if_t<any_dependency_internal::IsCompatibleAnyDependency<
-                               Ptr, inline_size, inline_align, Manager>::value,
-                           int>>
+template <
+    typename Manager,
+    std::enable_if_t<
+        any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
-  // Adopt `manager` instead of wrapping it.
-  manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
-  methods_ = std::exchange(manager.methods_, &NullMethods::methods);
-  methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
+  if ((sizeof(typename Manager::Repr) <= sizeof(Repr) ||
+       manager.methods_->inline_size_used <= sizeof(Repr)) &&
+      (alignof(typename Manager::Repr) <= alignof(Repr) ||
+       manager.methods_->inline_align_used <= alignof(Repr))) {
+    // Adopt `manager` instead of wrapping it.
+    manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
+    methods_ = std::exchange(manager.methods_, &NullMethods::methods);
+    methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
+    return;
+  }
+  methods_ = &MethodsFor<Manager>::methods;
+  MethodsFor<Manager>::Construct(repr_.storage, &ptr_,
+                                 std::forward<Manager>(manager));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager, typename... ManagerArgs,
-    std::enable_if_t<!std::is_reference<Manager>::value &&
-                         !any_dependency_internal::IsCompatibleAnyDependency<
-                             Ptr, inline_size, inline_align, Manager>::value,
-                     int>>
+template <typename Manager, typename... ManagerArgs,
+          std::enable_if_t<!std::is_reference<Manager>::value &&
+                               !any_dependency_internal::IsAnyDependency<
+                                   Ptr, Manager>::value,
+                           int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
@@ -934,10 +930,10 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<any_dependency_internal::IsCompatibleAnyDependency<
-                               Ptr, inline_size, inline_align, Manager>::value,
-                           int>>
+template <
+    typename Manager, typename... ManagerArgs,
+    std::enable_if_t<
+        any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
 #if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
