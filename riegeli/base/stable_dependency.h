@@ -48,8 +48,7 @@ class StableDependency;
 
 // Specialization when `Dependency<P*, M>` is already stable.
 template <typename P, typename M>
-class StableDependency<P*, M,
-                       std::enable_if_t<DependencyImpl<P*, M>::kIsStable>>
+class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable>>
     : public Dependency<P*, M> {
   using Dependency<P*, M>::Dependency;
 };
@@ -57,8 +56,7 @@ class StableDependency<P*, M,
 // Specialization when `Dependency<P*, M>` is not stable: allocates the
 // dependency dynamically.
 template <typename P, typename M>
-class StableDependency<P*, M,
-                       std::enable_if_t<!DependencyImpl<P*, M>::kIsStable>> {
+class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
  private:
   using DerivedP =
       std::remove_pointer_t<decltype(std::declval<Dependency<P*, M>>().get())>;
