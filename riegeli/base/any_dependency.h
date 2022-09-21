@@ -132,15 +132,6 @@ struct IsInline<
                      (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
     : std::true_type {};
 
-// `DecayManager<T>::type` decays a manager type to its value type, also
-// removing `std::reference_wrapper`.
-template <typename T>
-struct DecayManager : std::decay<T> {};
-template <typename T>
-struct DecayManager<std::reference_wrapper<T>> : std::decay<T> {};
-template <typename T>
-struct DecayManager<std::reference_wrapper<T>&&> : std::decay<T> {};
-
 // Method pointers.
 template <typename Ptr>
 struct Methods {
@@ -151,9 +142,8 @@ struct Methods {
   void (*destroy)(Storage self);
   Ptr (*release)(Storage self);
   bool (*is_owning)(const Storage self);
-  // Returns the `const DecayManager<Manager>::type*`
-  // if `type_id` matches `DecayManager<Manager>::type`,
-  // otherwise returns `nullptr`.
+  // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
+  // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
   const void* (*get_if)(const Storage self, TypeId type_id);
   size_t inline_size_used;   // Or 0 if inline storage is not used.
   size_t inline_align_used;  // Or 0 if inline storage is not used.
@@ -196,6 +186,9 @@ class AnyDependencyImpl {
                 absl::conjunction<
                     absl::negation<
                         std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
+                    absl::negation<std::is_same<
+                        std::decay_t<Manager>,
+                        std::reference_wrapper<AnyDependencyImpl>>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
   /*implicit*/ AnyDependencyImpl(Manager&& manager);
@@ -204,6 +197,9 @@ class AnyDependencyImpl {
                 absl::conjunction<
                     absl::negation<
                         std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
+                    absl::negation<std::is_same<
+                        std::decay_t<Manager>,
+                        std::reference_wrapper<AnyDependencyImpl>>>,
                     IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
                 int> = 0>
   AnyDependencyImpl& operator=(Manager&& manager);
@@ -431,6 +427,28 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
   static constexpr bool kIsStable = true;
 };
 
+// Specialization of
+// `DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyImpl<Ptr>>>`.
+//
+// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
+// better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<
+    Ptr,
+    std::reference_wrapper<AnyDependencyImpl<Ptr, inline_size, inline_align>>>
+    : public DependencyBase<std::reference_wrapper<
+          AnyDependencyImpl<Ptr, inline_size, inline_align>>> {
+ public:
+  using DependencyBase<std::reference_wrapper<
+      AnyDependencyImpl<Ptr, inline_size, inline_align>>>::DependencyBase;
+
+  Ptr get() const { return this->manager().get().get(); }
+  Ptr Release() { return this->manager().get().Release(); }
+
+  bool is_owning() const { return this->manager().get().is_owning(); }
+  static constexpr bool kIsStable = true;
+};
+
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
 // have been reduced to their maximum size and alignment.
 template <typename Ptr, size_t inline_size, size_t inline_align = 0>
@@ -446,6 +464,9 @@ class AnyDependencyRefImpl
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
                                                         AnyDependencyRefImpl>>,
+                            absl::negation<std::is_same<
+                                std::decay_t<Manager>,
+                                std::reference_wrapper<AnyDependencyRefImpl>>>,
                             IsValidDependency<Ptr, Manager&&>>::value,
           int> = 0>
   /*implicit*/ AnyDependencyRefImpl(Manager&& manager)
@@ -495,6 +516,27 @@ class DependencyImpl<Ptr,
   Ptr Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
+  static constexpr bool kIsStable = true;
+};
+
+// Specialization of
+// `DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<Ptr>>>`.
+//
+// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
+// is better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<
+                              Ptr, inline_size, inline_align>>>
+    : public DependencyBase<std::reference_wrapper<
+          AnyDependencyRefImpl<Ptr, inline_size, inline_align>>> {
+ public:
+  using DependencyBase<std::reference_wrapper<
+      AnyDependencyRefImpl<Ptr, inline_size, inline_align>>>::DependencyBase;
+
+  Ptr get() const { return this->manager().get().get(); }
+  Ptr Release() { return this->manager().get().Release(); }
+
+  bool is_owning() const { return this->manager().get().is_owning(); }
   static constexpr bool kIsStable = true;
 };
 
@@ -655,9 +697,8 @@ struct MethodsFor {
     return any_dependency_internal::IsOwning(*dep_ptr(self));
   }
   static const void* GetIf(const Storage self, TypeId type_id) {
-    using DecayedManager = typename DecayManager<Manager>::type;
-    if (type_id == TypeId::For<DecayedManager>()) {
-      return absl::implicit_cast<const DecayedManager*>(
+    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
+      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
           &dep_ptr(self)->manager());
     }
     return nullptr;
@@ -726,9 +767,9 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
     return any_dependency_internal::IsOwning(dep(self));
   }
   static const void* GetIf(const Storage self, TypeId type_id) {
-    using DecayedManager = typename DecayManager<Manager>::type;
-    if (type_id == TypeId::For<DecayedManager>()) {
-      return absl::implicit_cast<const DecayedManager*>(&dep(self).manager());
+    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
+      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
+          &dep(self).manager());
     }
     return nullptr;
   }
@@ -757,28 +798,36 @@ inline AnyDependencyImpl<Ptr, inline_size,
       ptr_(any_dependency_internal::SentinelPtr<Ptr>()) {}
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <typename Manager,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_same<
-                      std::decay_t<Manager>,
-                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-                  IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
-              int>>
+template <
+    typename Manager,
+    std::enable_if_t<
+        absl::conjunction<
+            absl::negation<std::is_same<
+                std::decay_t<Manager>,
+                AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
+            absl::negation<std::is_same<
+                std::decay_t<Manager>, std::reference_wrapper<AnyDependencyImpl<
+                                           Ptr, inline_size, inline_align>>>>,
+            IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+        int>>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
     Manager&& manager) {
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <typename Manager,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_same<
-                      std::decay_t<Manager>,
-                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-                  IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
-              int>>
+template <
+    typename Manager,
+    std::enable_if_t<
+        absl::conjunction<
+            absl::negation<std::is_same<
+                std::decay_t<Manager>,
+                AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
+            absl::negation<std::is_same<
+                std::decay_t<Manager>, std::reference_wrapper<AnyDependencyImpl<
+                                           Ptr, inline_size, inline_align>>>>,
+            IsValidDependency<Ptr, std::decay_t<Manager>>>::value,
+        int>>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
 AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
     Manager&& manager) {
