@@ -65,7 +65,7 @@ class PythonReader : public BufferedReader {
 
     // If `true`, `PythonReader::Close()` closes the stream.
     //
-    // Default: `true`.
+    // Default: `false`.
     Options& set_owns_src(bool owns_src) & {
       owns_src_ = owns_src;
       return *this;
@@ -95,7 +95,7 @@ class PythonReader : public BufferedReader {
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    bool owns_src_ = true;
+    bool owns_src_ = false;
     absl::optional<Position> assumed_pos_;
   };
 

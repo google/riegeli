@@ -264,6 +264,7 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   }
 
   PythonWriter::Options python_writer_options;
+  python_writer_options.set_owns_dest(true);
   if (owns_dest_arg != nullptr) {
     const int owns_dest_is_true = PyObject_IsTrue(owns_dest_arg);
     if (ABSL_PREDICT_FALSE(owns_dest_is_true < 0)) return -1;

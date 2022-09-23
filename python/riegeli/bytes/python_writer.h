@@ -60,7 +60,7 @@ class PythonWriter : public BufferedWriter {
     // `PythonWriter::Flush(flush_type)` flushes the stream even if `flush_type`
     // is `FlushType::kFromObject`.
     //
-    // Default: `true`.
+    // Default: `false`.
     Options& set_owns_dest(bool owns_dest) & {
       owns_dest_ = owns_dest;
       return *this;
@@ -90,7 +90,7 @@ class PythonWriter : public BufferedWriter {
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    bool owns_dest_ = true;
+    bool owns_dest_ = false;
     absl::optional<Position> assumed_pos_;
   };
 

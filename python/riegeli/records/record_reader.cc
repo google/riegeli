@@ -276,6 +276,7 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
   }
 
   PythonReader::Options python_reader_options;
+  python_reader_options.set_owns_src(true);
   if (owns_src_arg != nullptr) {
     const int owns_src_is_true = PyObject_IsTrue(owns_src_arg);
     if (ABSL_PREDICT_FALSE(owns_src_is_true < 0)) return -1;
