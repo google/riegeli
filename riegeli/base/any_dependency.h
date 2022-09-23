@@ -82,10 +82,6 @@ using AnyDependency = AnyDependencyImpl<
 // an owned dependency by rvalue reference instead of by value, which avoids
 // moving it.
 //
-// Only a subset of operations are provided: the dependency must be initialized,
-// assignment is not supported, and initialization from a tuple of constructor
-// arguments is not supported.
-//
 // In contrast to `AnyDependency`, for `AnyDependencyRef` it is rare that
 // specifying `InlineManagers` is useful, because a typical
 // `Dependency<Ptr, Manager&&>` deduced by `AnyDependencyRef` fits in the
@@ -455,6 +451,9 @@ template <typename Ptr, size_t inline_size, size_t inline_align = 0>
 class AnyDependencyRefImpl
     : public AnyDependencyImpl<Ptr, inline_size, inline_align> {
  public:
+  // Creates an empty `AnyDependencyRefImpl`.
+  AnyDependencyRefImpl() noexcept {}
+
   // Holds a `Dependency<Ptr, Manager&&>` (which collapses to
   // `Dependency<Ptr, Manager&>` if `Manager` is itself an lvalue reference).
   //
@@ -472,14 +471,62 @@ class AnyDependencyRefImpl
   /*implicit*/ AnyDependencyRefImpl(Manager&& manager)
       : AnyDependencyImpl<Ptr, inline_size, inline_align>(
             absl::in_place_type<Manager&&>, std::forward<Manager>(manager)) {}
+  template <
+      typename Manager,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
+                                                        AnyDependencyRefImpl>>,
+                            absl::negation<std::is_same<
+                                std::decay_t<Manager>,
+                                std::reference_wrapper<AnyDependencyRefImpl>>>,
+                            IsValidDependency<Ptr, Manager&&>>::value,
+          int> = 0>
+  AnyDependencyRefImpl& operator=(Manager&& manager) {
+    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+        absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
+    return *this;
+  }
+
+  // Holds a `Dependency<Ptr, Manager>`.
+  //
+  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
+  // because constructor templates do not support specifying template arguments
+  // explicitly.
+  //
+  // The dependency is constructed with `std::forward<ManagerArg>(manager_arg)`,
+  // which can be a `Manager` to copy or move, or a tuple of its constructor
+  // arguments.
+  template <typename Manager, typename ManagerArg>
+  explicit AnyDependencyRefImpl(absl::in_place_type_t<Manager>,
+                                ManagerArg&& manager_arg)
+      : AnyDependencyImpl<Ptr, inline_size, inline_align>(
+            absl::in_place_type<Manager>,
+            std::forward<ManagerArg>(manager_arg)) {}
 
   AnyDependencyRefImpl(AnyDependencyRefImpl&& that) noexcept
       : AnyDependencyImpl<Ptr, inline_size, inline_align>(
             static_cast<AnyDependencyImpl<Ptr, inline_size, inline_align>&&>(
                 that)) {}
-  AnyDependencyRefImpl& operator=(AnyDependencyRefImpl&&) = delete;
+  AnyDependencyRefImpl& operator=(AnyDependencyRefImpl&& that) noexcept {
+    AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
+        static_cast<AnyDependencyImpl<Ptr, inline_size, inline_align>&&>(that));
+    return *this;
+  }
 
-  void Reset() = delete;
+  // Makes `*this` equivalent to a newly constructed `AnyDependencyRefImpl`.
+  // This avoids constructing a temporary `AnyDependencyRefImpl` and moving from
+  // it.
+  void Reset() { AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(); }
+  template <typename Manager>
+  void Reset(Manager&& manager) {
+    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+        absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
+  }
+  template <typename Manager, typename ManagerArg>
+  void Reset(absl::in_place_type_t<Manager>, ManagerArg&& manager_arg) {
+    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+        absl::in_place_type<Manager>, std::forward<ManagerArg>(manager_arg));
+  }
 };
 
 // Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>>`.
