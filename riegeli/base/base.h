@@ -602,8 +602,11 @@ constexpr T SaturatingAdd(T a, T b, Rest... rest) {
 
 // `SaturatingSub()` subtracts unsigned values, or returns 0 if subtraction
 // would underflow.
-template <typename T, std::enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr T SaturatingSub(T a, T b) {
+template <
+    typename T, typename U,
+    std::enable_if_t<std::is_unsigned<T>::value && std::is_unsigned<U>::value,
+                     int> = 0>
+constexpr T SaturatingSub(T a, U b) {
   return a - UnsignedMin(b, a);
 }
 

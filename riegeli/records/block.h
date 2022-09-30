@@ -104,7 +104,7 @@ inline Position RoundUpToPossibleChunkBoundary(Position pos) {
 // If `pos` is immediately before or inside a block header, how many bytes
 // remain until the end of the block header, otherwise 0.
 inline size_t RemainingInBlockHeader(Position pos) {
-  return SaturatingSub(BlockHeader::size(), IntCast<size_t>(pos % kBlockSize));
+  return SaturatingSub(BlockHeader::size(), pos % kBlockSize);
 }
 
 // For a chunk beginning at `chunk_begin`, the position after `length`, adding
