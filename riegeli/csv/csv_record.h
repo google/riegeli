@@ -1020,7 +1020,7 @@ inline absl::Status CsvHeader::TryResetInternal(
 }
 
 template <typename Names>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool CsvHeader::MaybeResetToCachedPayload(
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CsvHeader::MaybeResetToCachedPayload(
     Names&& names) {
   using std::begin;
   auto names_iter = begin(names);
