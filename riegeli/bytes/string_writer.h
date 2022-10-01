@@ -116,7 +116,7 @@ class StringWriterBase : public Writer {
   void Reset(Closed);
   void Reset(size_t min_buffer_size, size_t max_buffer_size);
   void Initialize(std::string* dest, bool append);
-  bool UsesSecondaryBuffer() const { return !secondary_buffer_.empty(); }
+  bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
   void MoveSecondaryBuffer(StringWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
 
@@ -133,6 +133,7 @@ class StringWriterBase : public Writer {
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
+ private:
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
   void SyncDestBuffer(std::string& dest);
@@ -141,7 +142,6 @@ class StringWriterBase : public Writer {
   // reallocation.
   void MakeDestBuffer(std::string& dest);
 
- private:
   // Discards uninitialized space from the end of `secondary_buffer_`, so that
   // it contains only actual data written.
   void SyncSecondaryBuffer();
@@ -156,19 +156,19 @@ class StringWriterBase : public Writer {
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
-  // If `secondary_buffer_.empty()`, then `*dest_string()` contains the data
+  // If `!uses_secondary_buffer()`, then `*dest_string()` contains the data
   // followed by `available()` free space.
   //
-  // If `!secondary_buffer_.empty()`, then `*dest_string()` contains some prefix
-  // of the data, and `secondary_buffer_` contains the rest of the data followed
-  // by `available()` free space.
+  // If `uses_secondary_buffer()`, then `*dest_string()` contains some prefix of
+  // the data, and `secondary_buffer_` contains the rest of the data followed by
+  // `available()` free space.
   //
   // Invariants if `ok()`:
-  //   `(secondary_buffer_.empty() &&
+  //   `(!uses_secondary_buffer() &&
   //     start_pos() == 0 &&
   //     start() == &(*dest_string())[0] &&
   //     start_to_limit() == dest_string()->size()) ||
-  //    (!secondary_buffer_.empty() &&
+  //    (uses_secondary_buffer() &&
   //     limit() == secondary_buffer_.blocks().back().data() +
   //                secondary_buffer_.blocks().back().size()) ||
   //    start() == nullptr`
@@ -287,12 +287,14 @@ inline StringWriterBase::StringWriterBase(size_t min_buffer_size,
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
+      // `secondary_buffer_` will be moved by `StringWriter::StringWriter()`.
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
     StringWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
+  // `secondary_buffer_` will be moved by `StringWriter::operator=`.
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
@@ -337,25 +339,6 @@ inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
                                secondary_buffer_.blocks().back().size()) -
                  buffer_size,
              buffer_size, cursor_index);
-}
-
-inline void StringWriterBase::SyncDestBuffer(std::string& dest) {
-  RIEGELI_ASSERT(secondary_buffer_.empty())
-      << "Failed precondition in StringWriterBase::SyncDestBuffer(): "
-         "secondary buffer is used";
-  set_start_pos(pos());
-  dest.erase(dest.size() - available());
-  set_buffer();
-}
-
-inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
-  RIEGELI_ASSERT(secondary_buffer_.empty())
-      << "Failed precondition in StringWriterBase::MakeDestBuffer(): "
-         "secondary buffer is used";
-  const size_t cursor_index = dest.size();
-  dest.resize(dest.capacity());
-  set_buffer(&dest[0], dest.size(), cursor_index);
-  set_start_pos(0);
 }
 
 template <typename Dest>
@@ -442,7 +425,7 @@ inline void StringWriter<Dest>::Reset(Options options) {
 template <typename Dest>
 inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
     StringWriter&& that) {
-  if (!that.UsesSecondaryBuffer()) {
+  if (!that.uses_secondary_buffer()) {
     MoveSecondaryBuffer(std::move(that));
     if (dest_.kIsStable) {
       dest_ = std::move(that.dest_);

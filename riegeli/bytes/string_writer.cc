@@ -39,6 +39,25 @@ void StringWriterBase::Done() {
   associated_reader_.Reset();
 }
 
+inline void StringWriterBase::SyncDestBuffer(std::string& dest) {
+  RIEGELI_ASSERT(!uses_secondary_buffer())
+      << "Failed precondition in StringWriterBase::SyncDestBuffer(): "
+         "secondary buffer is used";
+  set_start_pos(pos());
+  dest.erase(dest.size() - available());
+  set_buffer();
+}
+
+inline void StringWriterBase::MakeDestBuffer(std::string& dest) {
+  RIEGELI_ASSERT(!uses_secondary_buffer())
+      << "Failed precondition in StringWriterBase::MakeDestBuffer(): "
+         "secondary buffer is used";
+  const size_t cursor_index = dest.size();
+  dest.resize(dest.capacity());
+  set_buffer(&dest[0], dest.size(), cursor_index);
+  set_start_pos(0);
+}
+
 inline void StringWriterBase::SyncSecondaryBuffer() {
   set_start_pos(pos());
   secondary_buffer_.RemoveSuffix(available(), options_);
@@ -60,7 +79,7 @@ void StringWriterBase::SetWriteSizeHintImpl(
       << "StringWriter destination changed unexpectedly";
   const size_t size_hint =
       UnsignedMin(SaturatingAdd(pos(), *write_size_hint), dest.max_size());
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (dest.capacity() < size_hint) dest.reserve(size_hint);
   } else {
@@ -83,7 +102,7 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (dest.empty()) {
       // Allocate the first block directly in `dest`. It is possible that it
@@ -116,7 +135,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       src.AppendTo(dest);
@@ -144,7 +163,7 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       std::move(src).AppendTo(dest);
@@ -172,7 +191,7 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       for (const absl::string_view fragment : src.Chunks()) {
@@ -204,7 +223,7 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
                          dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (src.size() <= dest.capacity() - dest.size()) {
       for (const absl::string_view fragment : src.Chunks()) {
@@ -235,7 +254,7 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(length > dest.max_size() - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     if (length <= dest.capacity() - dest.size()) {
       dest.append(length, '\0');
@@ -256,7 +275,7 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
   } else {
     SyncSecondaryBuffer();

@@ -112,7 +112,7 @@ class ResizableWriterBase : public Writer {
 
   void Reset(Closed);
   void Reset(size_t min_buffer_size, size_t max_buffer_size);
-  bool UsesSecondaryBuffer() const { return !secondary_buffer_.empty(); }
+  bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
   size_t SecondaryBufferSize() const { return secondary_buffer_.size(); }
   void MoveSecondaryBuffer(ResizableWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
@@ -120,24 +120,24 @@ class ResizableWriterBase : public Writer {
   // Sets the size of the destination to `pos()`. Sets buffer pointers to the
   // destination.
   //
-  // Precondition: if `UsesSecondaryBuffer()` then `available() == 0`
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   virtual bool ResizeDest() = 0;
 
   // Sets buffer pointers to the destination.
   //
-  // Precondition: `!UsesSecondaryBuffer()`
+  // Precondition: `!uses_secondary_buffer()`
   virtual void MakeDestBuffer() = 0;
 
   // Appends some uninitialized space to the destination if this can be done
   // without reallocation. Sets buffer pointers to the destination.
   //
-  // Precondition: `!UsesSecondaryBuffer()`
+  // Precondition: `!uses_secondary_buffer()`
   virtual void GrowDestToCapacityAndMakeBuffer() = 0;
 
   // Appends some uninitialized space to the destination to guarantee at least
   // `new_size` of size. Sets buffer pointers to the destination.
   //
-  // Precondition: if `UsesSecondaryBuffer()` then `available() == 0`
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   virtual bool GrowDestAndMakeBuffer(size_t new_size) = 0;
 
   void Done() override;
@@ -168,25 +168,25 @@ class ResizableWriterBase : public Writer {
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
-  // If `secondary_buffer_.empty()`, then the destination contains the data
+  // If `!uses_secondary_buffer()`, then the destination contains the data
   // followed by `available()` free space.
   //
-  // If `!secondary_buffer_.empty()`, then the destination contains some prefix
-  // of the data followed by some free space, and `secondary_buffer_` contains
-  // the rest of the data followed by `available()` free space.
+  // If `uses_secondary_buffer()`, then the destination contains some prefix of
+  // the data followed by some free space, and `secondary_buffer_` contains the
+  // rest of the data followed by `available()` free space.
   //
   // Invariants if `ok()` (`dest_` is defined in `ResizableWriter`):
-  //   `(secondary_buffer_.empty() &&
+  //   `(!uses_secondary_buffer() &&
   //     start_pos() == 0 &&
   //     start() == ResizableTraits::Data(*dest_) &&
   //     start_to_limit() == ResizableTraits::Size(*dest_)) ||
-  //    (!secondary_buffer_.empty() &&
+  //    (uses_secondary_buffer() &&
   //     limit() == secondary_buffer_.blocks().back().data() +
   //                secondary_buffer_.blocks().back().size()) ||
   //    start() == nullptr`
   //   `limit_pos() >= secondary_buffer_.size()`
   //   `limit_pos() <= ResizableTraits::Size(*dest_) + secondary_buffer_.size()`
-  //   if `secondary_buffer_.empty()` then
+  //   if `!uses_secondary_buffer()` then
   //       `limit_pos() == ResizableTraits::Size(*dest_)`
 };
 
@@ -378,12 +378,15 @@ inline ResizableWriterBase::ResizableWriterBase(
     ResizableWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
+      // `secondary_buffer_` will be moved by
+      // `ResizableWriter::ResizableWriter()`.
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ResizableWriterBase& ResizableWriterBase::operator=(
     ResizableWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
+  // `secondary_buffer_` will be moved by `ResizableWriter::operator=`.
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
@@ -546,7 +549,7 @@ struct DestIsStable<false, ResizableTraits,
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::MoveDestAndSecondaryBuffer(
     ResizableWriter&& that) {
-  if (!that.UsesSecondaryBuffer()) {
+  if (!that.uses_secondary_buffer()) {
     MoveSecondaryBuffer(std::move(that));
     if (resizable_writer_internal::DestIsStable<
             Dependency<Resizable*, Dest>::kIsStable, ResizableTraits>()) {
@@ -567,7 +570,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::MoveDestAndSecondaryBuffer(
 
 template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
-  if (UsesSecondaryBuffer()) {
+  if (uses_secondary_buffer()) {
     RIEGELI_ASSERT_EQ(available(), 0u)
         << "Failed precondition of ResizableWriter::ResizeDest(): "
         << "secondary buffer has free space";
@@ -590,7 +593,7 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
 
 template <typename ResizableTraits, typename Dest>
 void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer() {
-  RIEGELI_ASSERT(!UsesSecondaryBuffer())
+  RIEGELI_ASSERT(!uses_secondary_buffer())
       << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
          "secondary buffer is used";
   const size_t cursor_index = IntCast<size_t>(pos());
@@ -601,7 +604,7 @@ void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer() {
 
 template <typename ResizableTraits, typename Dest>
 void ResizableWriter<ResizableTraits, Dest>::GrowDestToCapacityAndMakeBuffer() {
-  RIEGELI_ASSERT(!UsesSecondaryBuffer())
+  RIEGELI_ASSERT(!uses_secondary_buffer())
       << "Failed precondition in "
          "ResizableWriter::GrowDestToCapacityAndMakeBuffer(): "
          "secondary buffer is used";
@@ -615,7 +618,7 @@ void ResizableWriter<ResizableTraits, Dest>::GrowDestToCapacityAndMakeBuffer() {
 template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
     size_t new_size) {
-  if (UsesSecondaryBuffer()) {
+  if (uses_secondary_buffer()) {
     RIEGELI_ASSERT_EQ(available(), 0u)
         << "Failed precondition of ResizableWriter::GrowDestAndMakeBuffer(): "
         << "secondary buffer has free space";

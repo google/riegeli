@@ -58,7 +58,7 @@ void ResizableWriterBase::SetWriteSizeHintImpl(
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
   const size_t size_hint = SaturatingAdd(
       IntCast<size_t>(pos()), SaturatingIntCast<size_t>(*write_size_hint));
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestAndMakeBuffer(size_hint);
     return;
   }
@@ -78,7 +78,7 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     if (pos() == 0) {
       // Allocate the first block directly in the destination. It is possible
       // that it will not need to be copied if it turns out to be the only
@@ -106,7 +106,7 @@ bool ResizableWriterBase::WriteSlow(const Chain& src) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
       src.CopyTo(cursor());
@@ -133,7 +133,7 @@ bool ResizableWriterBase::WriteSlow(Chain&& src) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
       src.CopyTo(cursor());
@@ -160,7 +160,7 @@ bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
       char* dest = cursor();
@@ -191,7 +191,7 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
       char* dest = cursor();
@@ -222,7 +222,7 @@ bool ResizableWriterBase::WriteZerosSlow(Position length) {
                                       IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (length <= available()) {
       std::memset(cursor(), 0, IntCast<size_t>(length));
@@ -242,7 +242,7 @@ bool ResizableWriterBase::WriteZerosSlow(Position length) {
 
 bool ResizableWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (secondary_buffer_.empty()) return ResizeDest();
+  if (!uses_secondary_buffer()) return ResizeDest();
   SyncSecondaryBuffer();
   if (ABSL_PREDICT_FALSE(!ResizeDest())) return false;
   secondary_buffer_.CopyTo(cursor() - secondary_buffer_.size());
@@ -253,7 +253,7 @@ bool ResizableWriterBase::FlushImpl(FlushType flush_type) {
 bool ResizableWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     if (start() == nullptr) {
       set_start_pos(new_size);
     } else {
@@ -274,7 +274,7 @@ bool ResizableWriterBase::TruncateImpl(Position new_size) {
 
 Reader* ResizableWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  if (secondary_buffer_.empty()) {
+  if (!uses_secondary_buffer()) {
     MakeDestBuffer();
   } else {
     SyncSecondaryBuffer();
