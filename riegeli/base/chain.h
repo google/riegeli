@@ -579,6 +579,10 @@ class Chain {
   template <typename RefBlock>
   void AppendRawBlock(RawBlock* block, const Options& options,
                       RefBlock ref_block);
+  void PrependRawBlock(RawBlock* block, const Options& options);
+  template <typename RefBlock>
+  void PrependRawBlock(RawBlock* block, const Options& options,
+                       RefBlock ref_block);
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
@@ -727,7 +731,17 @@ class Chain::BlockIterator {
   // Prepends `**this` to `dest`.
   //
   // Precondition: this is not past the end iterator.
+  void PrependTo(Chain& dest, const Options& options = kDefaultOptions) const;
   void PrependTo(absl::Cord& dest) const;
+
+  // Prepends `substr` to `dest`. `substr` must be empty or contained in
+  // `**this`.
+  //
+  // Precondition:
+  //   if `substr` is not empty then this is not past the end iterator.
+  void PrependSubstrTo(absl::string_view substr, Chain& dest,
+                       const Options& options = kDefaultOptions) const;
+  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest) const;
 
  private:
   friend class Chain;
@@ -1066,9 +1080,14 @@ class Chain::RawBlock {
                       const Options& options);
   void AppendSubstrTo(absl::string_view substr, absl::Cord& dest);
 
+  void PrependTo(Chain& dest, const Options& options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void PrependTo(absl::Cord& dest);
+
+  void PrependSubstrTo(absl::string_view substr, Chain& dest,
+                       const Options& options);
+  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest);
 
  private:
   template <typename T>
