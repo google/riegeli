@@ -661,9 +661,6 @@ enum class SyncType {
   kFromProcess = 1,
 };
 
-ABSL_DEPRECATED("This is no longer used in Riegeli")
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
-
 // Typical bounds of sizes of memory blocks holding pieces of data in objects.
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultMinBlockSize, 256);
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultMaxBlockSize,
