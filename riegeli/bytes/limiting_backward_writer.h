@@ -113,8 +113,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   };
 
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
-  virtual BackwardWriter* dest_writer() = 0;
-  virtual const BackwardWriter* dest_writer() const = 0;
+  virtual BackwardWriter* DestWriter() = 0;
+  virtual const BackwardWriter* DestWriter() const = 0;
 
   // Accesses the limit expressed as an absolute position.
   //
@@ -192,9 +192,9 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool exact_ = false;
 
   // Invariants if `ok()`:
-  //   `start() == dest_writer()->start()`
-  //   `limit() == dest_writer()->limit()`
-  //   `start_pos() == dest_writer()->start_pos()`
+  //   `start() == DestWriter()->start()`
+  //   `limit() == DestWriter()->limit()`
+  //   `start_pos() == DestWriter()->start_pos()`
 };
 
 // A `BackwardWriter` which writes to another `BackwardWriter` up to the
@@ -249,8 +249,8 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // `BackwardWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  BackwardWriter* dest_writer() override { return dest_.get(); }
-  const BackwardWriter* dest_writer() const override { return dest_.get(); }
+  BackwardWriter* DestWriter() override { return dest_.get(); }
+  const BackwardWriter* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

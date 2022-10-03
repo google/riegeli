@@ -51,7 +51,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
 
 absl::Status DefaultChunkWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     return dest.AnnotateStatus(std::move(status));
   }
   return status;
@@ -64,7 +64,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   StringReader<> header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader<> data_reader(&chunk.data);
   const Position chunk_begin = pos_;

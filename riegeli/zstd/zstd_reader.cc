@@ -116,7 +116,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
 
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_) && growing_source_) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
         absl::InvalidArgumentError("Truncated Zstd-compressed stream"))));
   }
@@ -130,7 +130,7 @@ absl::Status ZstdReaderBase::AnnotateStatusImpl(absl::Status status) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
       status = Annotate(status, "reading truncated Zstd-compressed stream");
     }
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the
@@ -167,7 +167,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   if (just_initialized_ && exact_size() == absl::nullopt) {
     // Try again in case the source has grown.
@@ -240,12 +240,12 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool ZstdReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool ZstdReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -259,7 +259,7 @@ bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     truncated_ = false;
     set_buffer();
     set_limit_pos(0);
@@ -286,15 +286,15 @@ absl::optional<Position> ZstdReaderBase::SizeImpl() {
 }
 
 bool ZstdReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
 std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {

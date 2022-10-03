@@ -117,7 +117,7 @@ class CFileWriterBase : public BufferedWriter {
 
   // Returns the `FILE` being written to. If the `FILE` is owned then changed to
   // `nullptr` by `Close()`, otherwise unchanged.
-  virtual FILE* dest_file() const = 0;
+  virtual FILE* DestFile() const = 0;
 
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
@@ -251,7 +251,7 @@ class CFileWriter : public CFileWriterBase {
   // otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  FILE* dest_file() const override { return dest_.get(); }
+  FILE* DestFile() const override { return dest_.get(); }
 
  protected:
   using CFileWriterBase::Initialize;

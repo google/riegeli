@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -41,7 +42,9 @@ class Writer;
 class CordReaderBase : public PullableReader {
  public:
   // Returns the `absl::Cord` being read from. Unchanged by `Close()`.
-  virtual const absl::Cord* src_cord() const = 0;
+  virtual const absl::Cord* SrcCord() const = 0;
+  ABSL_DEPRECATED("Use src() or SrcCord() instead.")
+  const absl::Cord* src_cord() const { return SrcCord(); }
 
   bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -71,10 +74,10 @@ class CordReaderBase : public PullableReader {
 
   // Invariant:
   //   if `!is_open()` or
-  //      `*src_cord()` is flat with size at most `kMaxBytesToCopy`
+  //      `*SrcCord()` is flat with size at most `kMaxBytesToCopy`
   //       then `iter_ == absl::nullopt`
   //       else `iter_ != absl::nullopt` and
-  //            `*iter_` reads from `*src_cord()`
+  //            `*iter_` reads from `*SrcCord()`
   absl::optional<absl::Cord::CharIterator> iter_;
 
  private:
@@ -91,18 +94,18 @@ class CordReaderBase : public PullableReader {
 
   // Invariants if `iter_ == absl::nullopt` and `is_open()`:
   //   scratch is not used
-  //   `start() == src_cord()->TryFlat()->data()`
-  //   `start_to_limit() == src_cord()->TryFlat()->size()`
+  //   `start() == SrcCord()->TryFlat()->data()`
+  //   `start_to_limit() == SrcCord()->TryFlat()->size()`
   //   `start_pos() == 0`
   //
   // Invariants if `iter_ != absl::nullopt` and scratch is not used:
-  //   `start() == (*iter_ == src_cord()->char_end()
+  //   `start() == (*iter_ == SrcCord()->char_end()
   //                    ? nullptr
   //                    : absl::Cord::ChunkRemaining(*iter_).data())`
-  //   `start_to_limit() == (*iter_ == src_cord()->char_end()
+  //   `start_to_limit() == (*iter_ == SrcCord()->char_end()
   //                          ? 0
   //                          : absl::Cord::ChunkRemaining(*iter_).size())`
-  //   `start_pos()` is the position of `*iter_` in `*src_cord()`
+  //   `start_pos()` is the position of `*iter_` in `*SrcCord()`
 };
 
 // A `Reader` which reads from an `absl::Cord`.
@@ -150,7 +153,7 @@ class CordReader : public CordReaderBase {
   // read from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  const absl::Cord* src_cord() const override { return src_.get(); }
+  const absl::Cord* SrcCord() const override { return src_.get(); }
 
  private:
   void MoveSrc(CordReader&& that);

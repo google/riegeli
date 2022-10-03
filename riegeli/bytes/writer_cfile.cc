@@ -47,14 +47,14 @@ void WriterCFileCookieBase::Initialize(Writer* writer) {
 }
 
 inline const char* WriterCFileCookieBase::OpenMode() {
-  Writer& writer = *dest_writer();
+  Writer& writer = *DestWriter();
   return writer.SupportsReadMode() && writer.SupportsRandomAccess() ? "w+"
                                                                     : "w";
 }
 
 inline ssize_t WriterCFileCookieBase::Read(char* dest, size_t length) {
   if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
-    Writer& writer = *dest_writer();
+    Writer& writer = *DestWriter();
     const Position pos = writer.pos();
     reader_ = writer.ReadMode(pos);
     if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
@@ -93,7 +93,7 @@ inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
   // Msan does not properly track initialization performed by precompiled
   // libraries. The data to write might have been composed by e.g. `fprintf()`.
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(src, length);
-  Writer& writer = *dest_writer();
+  Writer& writer = *DestWriter();
   if (ABSL_PREDICT_FALSE(reader_ != nullptr)) {
     const Position pos = reader_->pos();
     reader_ = nullptr;
@@ -121,7 +121,7 @@ inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
 
 inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
                                                            int whence) {
-  Writer& writer = *dest_writer();
+  Writer& writer = *DestWriter();
   Position new_pos;
   switch (whence) {
     case SEEK_SET:

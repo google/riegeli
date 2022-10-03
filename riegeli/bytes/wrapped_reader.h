@@ -42,8 +42,8 @@ class Writer;
 class WrappedReaderBase : public Reader {
  public:
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override;
@@ -88,9 +88,9 @@ class WrappedReaderBase : public Reader {
   bool ReadInternal(size_t length, Dest& dest);
 
   // Invariants if `is_open()`:
-  //   `start() == src_reader()->start()`
-  //   `limit() == src_reader()->limit()`
-  //   `limit_pos() == src_reader()->limit_pos()`
+  //   `start() == SrcReader()->start()`
+  //   `limit() == SrcReader()->limit()`
+  //   `limit_pos() == SrcReader()->limit_pos()`
 };
 
 // A `Reader` which just reads from another `Reader`.
@@ -136,8 +136,8 @@ class WrappedReader : public WrappedReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

@@ -89,7 +89,7 @@ class ReaderCFileCookieBase {
   ReaderCFileCookieBase(const ReaderCFileCookieBase&) = delete;
   ReaderCFileCookieBase& operator=(const ReaderCFileCookieBase&) = delete;
 
-  virtual Reader* src_reader() = 0;
+  virtual Reader* SrcReader() = 0;
 
   void Initialize(Reader* reader);
 };
@@ -117,7 +117,7 @@ class ReaderCFileCookie : public ReaderCFileCookieBase {
   int Close() override;
 
  protected:
-  Reader* src_reader() override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
 
  private:
   Dependency<Reader*, Src> src_;

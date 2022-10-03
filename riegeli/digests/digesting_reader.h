@@ -42,8 +42,8 @@ namespace riegeli {
 class DigestingReaderBase : public Reader {
  public:
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   bool SupportsSize() override;
   bool SupportsNewReader() override;
@@ -82,9 +82,9 @@ class DigestingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Invariants if `is_open()`:
-  //   `start() == src_reader()->cursor()`
-  //   `limit() == src_reader()->limit()`
-  //   `limit_pos() == src_reader()->limit_pos()`
+  //   `start() == SrcReader()->cursor()`
+  //   `limit() == SrcReader()->limit()`
+  //   `limit_pos() == SrcReader()->limit_pos()`
 };
 
 // A `Reader` which reads from another `Reader`, and lets another object observe
@@ -173,8 +173,8 @@ class DigestingReader : public DigestingReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

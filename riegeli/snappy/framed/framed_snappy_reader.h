@@ -41,8 +41,8 @@ class FramedSnappyReaderBase : public PullableReader {
   class Options {};
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
@@ -79,7 +79,7 @@ class FramedSnappyReaderBase : public PullableReader {
 
   // Invariant if scratch is not used:
   //   `start() == nullptr` or `start() == uncompressed_.data()` or
-  //   `limit() == src_reader()->cursor()`
+  //   `limit() == SrcReader()->cursor()`
 };
 
 // A `Reader` which decompresses data with framed Snappy format after getting
@@ -129,8 +129,8 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

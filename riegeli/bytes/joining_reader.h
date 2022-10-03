@@ -53,8 +53,8 @@ class JoiningReaderBase : public PullableReader {
   void SetReadAllHintImpl(bool read_all_hint) override;
 
   // Returns the shard `Reader`.
-  virtual Reader* shard_reader() = 0;
-  virtual const Reader* shard_reader() const = 0;
+  virtual Reader* ShardReader() = 0;
+  virtual const Reader* ShardReader() const = 0;
 
   // Opens the next shard as `shard()` if it exists.
   //
@@ -68,7 +68,7 @@ class JoiningReaderBase : public PullableReader {
   //  * `false` (when `!ok()`) - failure
   //
   // `OpenShardImpl()` must be overridden but should not be called directly
-  // because it does not synchronize buffer pointers of `*shard_reader()` with
+  // because it does not synchronize buffer pointers of `*ShardReader()` with
   // `*this`. See `OpenShard()` for that.
   virtual bool OpenShardImpl() = 0;
 
@@ -82,16 +82,16 @@ class JoiningReaderBase : public PullableReader {
   //  * `true`  - success (`ok()`, `!shard_is_open()`)
   //  * `false` - failure (`!ok()`, `!shard_is_open()`)
   //
-  // The default implementation calls `shard_reader()->Close()` and propagates
+  // The default implementation calls `ShardReader()->Close()` and propagates
   // failures from that.
   //
   // `CloseShardImpl()` can be overridden but should not be called directly
   // because it does not synchronize buffer pointers of `*this` with
-  // `*shard_reader()`. See `CloseShard()` for that.
+  // `*ShardReader()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
   // Calls `OpenShardImpl()` and synchronizes buffer pointers of
-  // `*shard_reader()` with `*this`.
+  // `*ShardReader()` with `*this`.
   //
   // Preconditions:
   //   `ok()`
@@ -103,7 +103,7 @@ class JoiningReaderBase : public PullableReader {
   //  * `false` (when `!ok()`) - failure
   bool OpenShard();
 
-  // Synchronizes buffer pointers of `*this` with `*shard_reader()` and calls
+  // Synchronizes buffer pointers of `*this` with `*ShardReader()` and calls
   // `CloseShardImpl()`.
   //
   // Preconditions:
@@ -118,7 +118,7 @@ class JoiningReaderBase : public PullableReader {
   // Returns `true` if a shard is open.
   //
   // Same as `shard != nullptr && shard->is_open()`, with the default `shard` of
-  // `shard_reader()`.
+  // `ShardReader()`.
   bool shard_is_open() const;
   bool shard_is_open(const Reader* shard) const;
 
@@ -154,8 +154,8 @@ class JoiningReaderBase : public PullableReader {
   bool read_all_hint_ = false;
 
   // Invariants if `is_open()` and scratch is not used:
-  //   `start() == (shard_is_open() ? shard_reader()->cursor() : nullptr)`
-  //   `limit() <= (shard_is_open() ? shard_reader()->limit() : nullptr)`
+  //   `start() == (shard_is_open() ? ShardReader()->cursor() : nullptr)`
+  //   `limit() <= (shard_is_open() ? ShardReader()->limit() : nullptr)`
 };
 
 // Abstract class of a `Reader` which joins data from multiple shards.
@@ -184,8 +184,8 @@ class JoiningReader : public JoiningReaderBase {
   // Returns the object providing and possibly owning the shard `Reader`.
   Shard& shard() { return shard_.manager(); }
   const Shard& shard() const { return shard_.manager(); }
-  Reader* shard_reader() override { return shard_.get(); }
-  const Reader* shard_reader() const override { return shard_.get(); }
+  Reader* ShardReader() override { return shard_.get(); }
+  const Reader* ShardReader() const override { return shard_.get(); }
 
  private:
   void MoveShard(JoiningReader&& that);
@@ -218,7 +218,7 @@ inline void JoiningReaderBase::Reset() {
 }
 
 inline bool JoiningReaderBase::shard_is_open() const {
-  return shard_is_open(shard_reader());
+  return shard_is_open(ShardReader());
 }
 
 inline bool JoiningReaderBase::shard_is_open(const Reader* shard) const {

@@ -146,7 +146,7 @@ void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "should never happen in ReadCsvRecordFromString()";
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   FailWithoutAnnotation(
@@ -155,7 +155,7 @@ void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
 
 absl::Status CsvReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   return AnnotateOverSrc(std::move(status));
@@ -527,7 +527,7 @@ inline bool CsvReaderBase::ReadRecordInternal(
         << "Failed precondition of CsvReaderBase::ReadRecordInternal(): "
            "called more than once by ReadCsvRecordFromString()";
   }
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
 try_again:
   size_t field_index = 0;
   // Assign to existing elements of `record` when possible and then `erase()`

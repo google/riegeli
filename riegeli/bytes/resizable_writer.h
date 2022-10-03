@@ -305,8 +305,8 @@ class ResizableWriter : public ResizableWriterBase {
   const Dest& dest() const { return dest_.manager(); }
 
   // Returns the `Resizable` being written to. Unchanged by `Close()`.
-  Resizable* dest_resizable() { return dest_.get(); }
-  const Resizable* dest_resizable() const { return dest_.get(); }
+  Resizable* DestResizable() { return dest_.get(); }
+  const Resizable* DestResizable() const { return dest_.get(); }
 
  protected:
   void Initialize(Resizable* dest, bool append);

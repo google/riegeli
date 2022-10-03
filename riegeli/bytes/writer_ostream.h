@@ -104,8 +104,10 @@ class WriterOStreamBase : public std::iostream {
   };
 
   // Returns the `Writer`. Unchanged by `close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
+  virtual Writer* DestWriter() = 0;
+  virtual const Writer* DestWriter() const = 0;
+  ABSL_DEPRECATED("Use dest() or DestWriter() instead.")
+  const Writer* dest_writer() const { return DestWriter(); }
 
   // If `!is_open()`, does nothing. Otherwise:
   //  * Synchronizes the current `WriterOStream` position to the `Writer`.
@@ -212,8 +214,8 @@ class WriterOStream : public WriterOStreamBase {
   // `close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.get(); }
-  const Writer* dest_writer() const override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
+  const Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

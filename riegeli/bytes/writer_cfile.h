@@ -127,12 +127,12 @@ class WriterCFileCookieBase {
   WriterCFileCookieBase(const WriterCFileCookieBase&) = delete;
   WriterCFileCookieBase& operator=(const WriterCFileCookieBase&) = delete;
 
-  virtual Writer* dest_writer() = 0;
+  virtual Writer* DestWriter() = 0;
 
   void Initialize(Writer* writer);
 
   absl::optional<FlushType> flush_type_;
-  // If `nullptr`, `*dest_writer()` was used last time. If not `nullptr`,
+  // If `nullptr`, `*DestWriter()` was used last time. If not `nullptr`,
   // `*reader_` was used last time.
   Reader* reader_ = nullptr;
 };
@@ -159,7 +159,7 @@ class WriterCFileCookie : public WriterCFileCookieBase {
   int Close() override;
 
  protected:
-  Writer* dest_writer() override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
 
  private:
   Dependency<Writer*, Dest> dest_;

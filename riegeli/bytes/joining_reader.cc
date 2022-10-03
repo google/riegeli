@@ -36,7 +36,7 @@ namespace riegeli {
 void JoiningReaderBase::Done() {
   PullableReader::Done();
   if (ABSL_PREDICT_TRUE(ok())) {
-    Reader* shard = shard_reader();
+    Reader* shard = ShardReader();
     if (shard_is_open(shard)) CloseShardInternal();
   }
 }
@@ -48,7 +48,7 @@ bool JoiningReaderBase::CloseShardImpl() {
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
          "shard already closed";
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (ABSL_PREDICT_FALSE(!shard->Close())) {
     return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
   }
@@ -70,7 +70,7 @@ inline bool JoiningReaderBase::OpenShardInternal() {
       << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
          "shard not opened";
   if (read_all_hint_) {
-    Reader* shard = shard_reader();
+    Reader* shard = ShardReader();
     shard->SetReadAllHint(true);
   }
   return true;
@@ -106,7 +106,7 @@ bool JoiningReaderBase::OpenShard() {
       << "Failed precondition of JoiningReaderBase::OpenShard(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   MakeBuffer(*shard);
   return true;
 }
@@ -117,15 +117,15 @@ bool JoiningReaderBase::CloseShard() {
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShard(): "
          "shard already closed";
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   SyncBuffer(*shard);
   return CloseShardInternal();
 }
 
 absl::Status JoiningReaderBase::AnnotateStatusImpl(absl::Status status) {
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) status = shard->AnnotateStatus(std::move(status));
-  // The status might have been annotated by `*shard_reader()` with the position
+  // The status might have been annotated by `*ShardReader()` with the position
   // within the shard. Clarify that the current position is the position across
   // shards instead of delegating to `PullableReader::AnnotateStatusImpl()`.
   return AnnotateOverShard(std::move(status));
@@ -141,7 +141,7 @@ absl::Status JoiningReaderBase::AnnotateOverShard(absl::Status status) {
 void JoiningReaderBase::SetReadAllHintImpl(bool read_all_hint) {
   if (ABSL_PREDICT_FALSE(!ok())) return;
   read_all_hint_ = read_all_hint;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (!shard_is_open(shard)) return;
   BehindScratch behind_scratch(this);
   SyncBuffer(*shard);
@@ -157,12 +157,12 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   while (ABSL_PREDICT_FALSE(!shard->Pull(1, recommended_length))) {
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
@@ -170,7 +170,7 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
     }
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   if (ABSL_PREDICT_FALSE(pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
@@ -187,12 +187,12 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   for (;;) {
     const size_t length_to_read =
@@ -211,7 +211,7 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   MakeBuffer(*shard);
   return true;
@@ -246,12 +246,12 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
 template <typename Dest>
 inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   for (;;) {
     const size_t length_to_read =
@@ -270,7 +270,7 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   MakeBuffer(*shard);
   return true;
@@ -284,12 +284,12 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   for (;;) {
     const size_t length_to_read =
@@ -308,7 +308,7 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   MakeBuffer(*shard);
   return true;
@@ -323,12 +323,12 @@ void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Reader* shard = shard_reader();
+  Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return;
-    shard = shard_reader();
+    shard = ShardReader();
   }
   shard->ReadHint(min_length, recommended_length);
   MakeBuffer(*shard);

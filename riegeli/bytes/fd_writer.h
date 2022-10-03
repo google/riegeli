@@ -170,7 +170,7 @@ class FdWriterBase : public BufferedWriter {
 
   // Returns the fd being written to. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int dest_fd() const = 0;
+  virtual int DestFd() const = 0;
 
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
@@ -335,7 +335,7 @@ class FdWriter : public FdWriterBase {
   // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  int dest_fd() const override { return dest_.get(); }
+  int DestFd() const override { return dest_.get(); }
 
  protected:
   using FdWriterBase::Initialize;

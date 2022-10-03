@@ -66,8 +66,8 @@ class PrefixLimitingWriterBase : public Writer {
   };
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
+  virtual Writer* DestWriter() = 0;
+  virtual const Writer* DestWriter() const = 0;
 
   // Returns the base position of the origial `Writer`.
   Position base_pos() const { return base_pos_; }
@@ -121,9 +121,9 @@ class PrefixLimitingWriterBase : public Writer {
   AssociatedReader<PrefixLimitingReader<Reader*>> associated_reader_;
 
   // Invariants if `ok()`:
-  //   `start() == dest_writer()->cursor()`
-  //   `limit() == dest_writer()->limit()`
-  //   `start_pos() == dest_writer()->pos() - base_pos_`
+  //   `start() == DestWriter()->cursor()`
+  //   `limit() == DestWriter()->limit()`
+  //   `start_pos() == DestWriter()->pos() - base_pos_`
 };
 
 // A `Writer` which writes to another `Writer`, hiding data before a base
@@ -175,8 +175,8 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.get(); }
-  const Writer* dest_writer() const override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
+  const Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

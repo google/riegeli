@@ -40,7 +40,7 @@ class Writer;
 class ChainReaderBase : public PullableReader {
  public:
   // Returns the `Chain` being read from. Unchanged by `Close()`.
-  virtual const Chain* src_chain() const = 0;
+  virtual const Chain* SrcChain() const = 0;
 
   bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -71,15 +71,15 @@ class ChainReaderBase : public PullableReader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  // Invariant: `iter_.chain() == (is_open() ? src_chain() : nullptr)`
+  // Invariant: `iter_.chain() == (is_open() ? SrcChain() : nullptr)`
   Chain::BlockIterator iter_;
 
   // Invariants if `is_open()` and scratch is not used:
   //   `start() ==
-  //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
+  //       (iter_ == SrcChain()->blocks().cend() ? nullptr : iter_->data())`
   //   `start_to_limit() ==
-  //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())`
-  //   `start_pos()` is the position of `iter_` in `*src_chain()`
+  //       (iter_ == SrcChain()->blocks().cend() ? 0 : iter_->size())`
+  //   `start_pos()` is the position of `iter_` in `*SrcChain()`
 };
 
 // A `Reader` which reads from a `Chain`.
@@ -126,7 +126,7 @@ class ChainReader : public ChainReaderBase {
   // from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  const Chain* src_chain() const override { return src_.get(); }
+  const Chain* SrcChain() const override { return src_.get(); }
 
  private:
   void MoveSrc(ChainReader&& that);

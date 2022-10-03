@@ -113,7 +113,7 @@ bool OStreamWriterBase::supports_random_access() {
   }
   bool supported = false;
   if (ABSL_PREDICT_TRUE(is_open())) {
-    std::ostream& dest = *dest_stream();
+    std::ostream& dest = *DestStream();
     dest.seekp(0, std::ios_base::end);
     if (dest.fail()) {
       // Not supported.
@@ -144,7 +144,7 @@ bool OStreamWriterBase::supports_read_mode() {
   }
   bool supported = false;
   if (ABSL_PREDICT_TRUE(is_open())) {
-    std::istream* const src = src_stream();
+    std::istream* const src = SrcStream();
     if (src != nullptr) {
       const std::streamoff stream_pos = src->tellg();
       if (stream_pos >= 0) {
@@ -152,7 +152,7 @@ bool OStreamWriterBase::supports_read_mode() {
         if (src->fail()) {
           src->clear(src->rdstate() & ~std::ios_base::failbit);
         } else {
-          std::ostream& dest = *dest_stream();
+          std::ostream& dest = *DestStream();
           errno = 0;
           dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
           if (ABSL_PREDICT_FALSE(dest.fail())) {
@@ -173,7 +173,7 @@ inline bool OStreamWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::ostream& dest = *dest_stream();
+  std::ostream& dest = *DestStream();
   errno = 0;
   dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::seekp()");
@@ -187,7 +187,7 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
-  std::ostream& dest = *dest_stream();
+  std::ostream& dest = *DestStream();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<std::streamoff>::max()} -
                              start_pos())) {
@@ -230,7 +230,7 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
-  std::ostream& dest = *dest_stream();
+  std::ostream& dest = *DestStream();
   errno = 0;
   if (new_pos > start_pos()) {
     // Seeking forwards.
@@ -265,7 +265,7 @@ absl::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
-  std::ostream& dest = *dest_stream();
+  std::ostream& dest = *DestStream();
   errno = 0;
   dest.seekp(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(dest.fail())) {
@@ -295,7 +295,7 @@ Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  std::istream& src = *src_stream();
+  std::istream& src = *SrcStream();
   IStreamReader<>* const reader = associated_reader_.ResetReader(
       &src, IStreamReaderBase::Options().set_buffer_options(buffer_options()));
   read_mode_ = true;

@@ -102,8 +102,8 @@ class CordWriterBase : public Writer {
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
-  virtual absl::Cord* dest_cord() = 0;
-  virtual const absl::Cord* dest_cord() const = 0;
+  virtual absl::Cord* DestCord() = 0;
+  virtual const absl::Cord* DestCord() const = 0;
 
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -153,7 +153,7 @@ class CordWriterBase : public Writer {
   // Invariants:
   //   `start() == nullptr` or `start() == short_buffer_`
   //       or `start() == buffer_.data()`
-  //   if `ok()` then `start_pos() == dest_cord()->size()`
+  //   if `ok()` then `start_pos() == DestCord()->size()`
 };
 
 // A `Writer` which appends to an `absl::Cord`.
@@ -218,8 +218,8 @@ class CordWriter : public CordWriterBase {
   // written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  absl::Cord* dest_cord() override { return dest_.get(); }
-  const absl::Cord* dest_cord() const override { return dest_.get(); }
+  absl::Cord* DestCord() override { return dest_.get(); }
+  const absl::Cord* DestCord() const override { return dest_.get(); }
 
  private:
   // The object providing and possibly owning the `absl::Cord` being written to.

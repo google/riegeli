@@ -128,7 +128,7 @@ inline bool Lz4ReaderBase::ReadHeader(Reader& src) {
 
 void Lz4ReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_) && growing_source_) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
         absl::InvalidArgumentError("Truncated Lz4-compressed stream"))));
   }
@@ -142,7 +142,7 @@ absl::Status Lz4ReaderBase::AnnotateStatusImpl(absl::Status status) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
       status = Annotate(status, "reading truncated Lz4-compressed stream");
     }
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the
@@ -179,7 +179,7 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(!header_read_)) {
     if (ABSL_PREDICT_FALSE(!ReadHeader(src))) return false;
@@ -245,12 +245,12 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool Lz4ReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool Lz4ReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -264,7 +264,7 @@ bool Lz4ReaderBase::SeekBehindBuffer(Position new_pos) {
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     truncated_ = false;
     set_buffer();
     set_limit_pos(0);
@@ -291,15 +291,15 @@ absl::optional<Position> Lz4ReaderBase::SizeImpl() {
 }
 
 bool Lz4ReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
 std::unique_ptr<Reader> Lz4ReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {

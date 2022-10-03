@@ -40,8 +40,8 @@ class ReaderFactoryBase : public Object {
   class Options : public BufferOptionsBase<Options> {};
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   // Returns the original position of the original `Reader`.
   Position pos() const { return initial_pos_; }
@@ -145,8 +145,8 @@ class ReaderFactory : public ReaderFactoryBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

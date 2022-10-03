@@ -113,7 +113,7 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  std::istream& src = *src_stream();
+  std::istream& src = *SrcStream();
   errno = 0;
   for (;;) {
     Position max_pos;
@@ -198,7 +198,7 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::istream& src = *src_stream();
+  std::istream& src = *SrcStream();
   errno = 0;
   if (new_pos > limit_pos()) {
     // Seeking forwards.
@@ -243,7 +243,7 @@ absl::optional<Position> IStreamReaderBase::SizeImpl() {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
-  std::istream& src = *src_stream();
+  std::istream& src = *SrcStream();
   errno = 0;
   src.seekg(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(src.fail())) {

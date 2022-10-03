@@ -34,16 +34,16 @@ namespace riegeli {
 
 void WrappedReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     SyncBuffer(src);
   }
   Reader::Done();
 }
 
 absl::Status WrappedReaderBase::AnnotateStatusImpl(absl::Status status) {
-  // Fully delegate annotations to `*src_reader()`.
+  // Fully delegate annotations to `*SrcReader()`.
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     SyncBuffer(src);
     status = src.AnnotateStatus(std::move(status));
     MakeBuffer(src);
@@ -56,7 +56,7 @@ bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool pull_ok = src.Pull(min_length, recommended_length);
   MakeBuffer(src);
@@ -68,7 +68,7 @@ bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.Read(length, dest);
   MakeBuffer(src);
@@ -98,7 +98,7 @@ bool WrappedReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 template <typename Dest>
 inline bool WrappedReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.ReadAndAppend(length, dest);
   MakeBuffer(src);
@@ -110,7 +110,7 @@ bool WrappedReaderBase::CopySlow(Position length, Writer& dest) {
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
   MakeBuffer(src);
@@ -122,7 +122,7 @@ bool WrappedReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
   MakeBuffer(src);
@@ -135,24 +135,24 @@ void WrappedReaderBase::ReadHintSlow(size_t min_length,
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   src.ReadHint(min_length, recommended_length);
   MakeBuffer(src);
 }
 
 bool WrappedReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool WrappedReaderBase::SupportsRandomAccess() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 
 bool WrappedReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -161,7 +161,7 @@ bool WrappedReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool seek_ok = src.Seek(new_pos);
   MakeBuffer(src);
@@ -169,13 +169,13 @@ bool WrappedReaderBase::SeekSlow(Position new_pos) {
 }
 
 bool WrappedReaderBase::SupportsSize() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsSize();
 }
 
 absl::optional<Position> WrappedReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
@@ -183,15 +183,15 @@ absl::optional<Position> WrappedReaderBase::SizeImpl() {
 }
 
 bool WrappedReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
 std::unique_ptr<Reader> WrappedReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
   if (ABSL_PREDICT_FALSE(reader == nullptr)) {
     FailWithoutAnnotation(src.status());

@@ -157,7 +157,7 @@ bool CFileWriterBase::supports_random_access() {
       // "/sys" files do not support random access. It is hard to reliably
       // recognize them, so `CFileWriter` checks the filename.
     } else {
-      FILE* const dest = dest_file();
+      FILE* const dest = DestFile();
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
         // Not supported.
         clearerr(dest);
@@ -197,7 +197,7 @@ bool CFileWriterBase::supports_read_mode() {
   }
   bool supported = false;
   if (supports_random_access() && ABSL_PREDICT_TRUE(is_open())) {
-    FILE* const dest = dest_file();
+    FILE* const dest = DestFile();
     if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
       clearerr(dest);
     } else {
@@ -221,7 +221,7 @@ inline bool CFileWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  FILE* const dest = dest_file();
+  FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest,
                                                IntCast<off_t>(start_pos()),
                                                SEEK_SET) != 0)) {
@@ -237,7 +237,7 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
-  FILE* const dest = dest_file();
+  FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos())) {
@@ -278,7 +278,7 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
-  FILE* const dest = dest_file();
+  FILE* const dest = DestFile();
   if (new_pos > start_pos()) {
     // Seeking forwards.
     if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
@@ -313,7 +313,7 @@ absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
-  FILE* const dest = dest_file();
+  FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
@@ -342,7 +342,7 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  FILE* const dest = dest_file();
+  FILE* const dest = DestFile();
   CFileReader<UnownedCFile>* const reader = associated_reader_.ResetReader(
       dest, CFileReaderBase::Options()
                 .set_assumed_filename(filename())

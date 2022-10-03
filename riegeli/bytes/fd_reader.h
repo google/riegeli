@@ -163,7 +163,7 @@ class FdReaderBase : public BufferedReader {
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int src_fd() const = 0;
+  virtual int SrcFd() const = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
@@ -295,7 +295,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int src_fd() const = 0;
+  virtual int SrcFd() const = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
@@ -420,7 +420,7 @@ class FdReader : public FdReaderBase {
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  int src_fd() const override { return src_.get(); }
+  int SrcFd() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -527,7 +527,7 @@ class FdMMapReader : public FdMMapReaderBase {
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  int src_fd() const override { return src_.get(); }
+  int SrcFd() const override { return src_.get(); }
 
  protected:
   void Done() override;

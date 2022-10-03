@@ -57,7 +57,7 @@ inline void Bzip2ReaderBase::InitializeDecompressor() {
 
 void Bzip2ReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
         absl::InvalidArgumentError("Truncated bzip2-compressed stream"))));
   }
@@ -114,7 +114,7 @@ absl::Status Bzip2ReaderBase::AnnotateStatusImpl(absl::Status status) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
       status = Annotate(status, "reading truncated bzip2-compressed stream");
     }
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the
@@ -151,7 +151,7 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   max_length = UnsignedMin(max_length,
                            std::numeric_limits<Position>::max() - limit_pos());
@@ -229,12 +229,12 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool Bzip2ReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool Bzip2ReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -248,7 +248,7 @@ bool Bzip2ReaderBase::SeekBehindBuffer(Position new_pos) {
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     truncated_ = false;
     stream_had_data_ = false;
     set_buffer();
@@ -266,15 +266,15 @@ bool Bzip2ReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 bool Bzip2ReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
 std::unique_ptr<Reader> Bzip2ReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {

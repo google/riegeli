@@ -82,8 +82,8 @@ class IStreamReaderBase : public BufferedReader {
   };
 
   // Returns the stream being read from. Unchanged by `Close()`.
-  virtual std::istream* src_stream() = 0;
-  virtual const std::istream* src_stream() const = 0;
+  virtual std::istream* SrcStream() = 0;
+  virtual const std::istream* SrcStream() const = 0;
 
   bool ToleratesReadingAhead() override {
     return read_all_hint() || supports_random_access();
@@ -176,8 +176,8 @@ class IStreamReader : public IStreamReaderBase {
   // from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  std::istream* src_stream() override { return src_.get(); }
-  const std::istream* src_stream() const override { return src_.get(); }
+  std::istream* SrcStream() override { return src_.get(); }
+  const std::istream* SrcStream() const override { return src_.get(); }
 
  protected:
   void Done() override;

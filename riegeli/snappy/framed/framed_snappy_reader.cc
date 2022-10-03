@@ -58,7 +58,7 @@ void FramedSnappyReaderBase::Initialize(Reader* src) {
 
 void FramedSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     FailWithoutAnnotation(
         AnnotateOverSrc(src.AnnotateStatus(absl::InvalidArgumentError(
             "Truncated FramedSnappy-compressed stream"))));
@@ -78,7 +78,7 @@ absl::Status FramedSnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
       status =
           Annotate(status, "reading truncated FramedSnappy-compressed stream");
     }
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the
@@ -102,7 +102,7 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   while (src.Pull(sizeof(uint32_t))) {
     const uint32_t chunk_header = ReadLittleEndian32(src.cursor());
@@ -228,12 +228,12 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
 }
 
 bool FramedSnappyReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool FramedSnappyReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -247,7 +247,7 @@ bool FramedSnappyReaderBase::SeekBehindScratch(Position new_pos) {
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     truncated_ = false;
     set_buffer();
     set_limit_pos(0);
@@ -263,7 +263,7 @@ bool FramedSnappyReaderBase::SeekBehindScratch(Position new_pos) {
 }
 
 bool FramedSnappyReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
@@ -271,8 +271,8 @@ std::unique_ptr<Reader> FramedSnappyReaderBase::NewReaderImpl(
     Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {

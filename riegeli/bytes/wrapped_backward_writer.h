@@ -39,8 +39,8 @@ namespace riegeli {
 class WrappedBackwardWriterBase : public BackwardWriter {
  public:
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
-  virtual BackwardWriter* dest_writer() = 0;
-  virtual const BackwardWriter* dest_writer() const = 0;
+  virtual BackwardWriter* DestWriter() = 0;
+  virtual const BackwardWriter* DestWriter() const = 0;
 
   bool PrefersCopying() const override;
   bool SupportsTruncate() override;
@@ -80,9 +80,9 @@ class WrappedBackwardWriterBase : public BackwardWriter {
   bool WriteInternal(Src&& src);
 
   // Invariants if `ok()`:
-  //   `start() == dest_writer()->start()`
-  //   `limit() == dest_writer()->limit()`
-  //   `start_pos() == dest_writer()->start_pos()`
+  //   `start() == DestWriter()->start()`
+  //   `limit() == DestWriter()->limit()`
+  //   `start_pos() == DestWriter()->start_pos()`
 };
 
 // A `BackwardWriter` which juts writes to another `BackwardWriter`.
@@ -133,8 +133,8 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
   // `BackwardWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  BackwardWriter* dest_writer() override { return dest_.get(); }
-  const BackwardWriter* dest_writer() const override { return dest_.get(); }
+  BackwardWriter* DestWriter() override { return dest_.get(); }
+  const BackwardWriter* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

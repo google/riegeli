@@ -201,7 +201,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  const int src = src_fd();
+  const int src = SrcFd();
   for (;;) {
     Position max_pos;
     if (exact_size() != absl::nullopt) {
@@ -265,7 +265,7 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  const int src = src_fd();
+  const int src = SrcFd();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     Position file_size;
@@ -296,7 +296,7 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
-  const int src = src_fd();
+  const int src = SrcFd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
@@ -314,7 +314,7 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  const int src = src_fd();
+  const int src = SrcFd();
   std::unique_ptr<FdReader<UnownedFd>> reader =
       std::make_unique<FdReader<UnownedFd>>(
           src, FdReaderBase::Options()
@@ -428,7 +428,7 @@ absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  const int src = src_fd();
+  const int src = SrcFd();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
@@ -440,7 +440,7 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
 std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  const int src = src_fd();
+  const int src = SrcFd();
   std::unique_ptr<FdMMapReader<UnownedFd>> reader =
       std::make_unique<FdMMapReader<UnownedFd>>(kClosed);
   reader->InitializeWithExistingData(src, filename(), initial_pos,

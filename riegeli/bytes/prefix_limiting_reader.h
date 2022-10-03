@@ -65,8 +65,8 @@ class PrefixLimitingReaderBase : public Reader {
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   // Returns the base position of the origial `Reader`.
   Position base_pos() const { return base_pos_; }
@@ -119,9 +119,9 @@ class PrefixLimitingReaderBase : public Reader {
   Position base_pos_ = 0;
 
   // Invariants if `is_open()`:
-  //   `start() >= src_reader()->cursor()`
-  //   `limit() == src_reader()->limit()`
-  //   `limit_pos() == src_reader()->limit_pos() - base_pos_`
+  //   `start() >= SrcReader()->cursor()`
+  //   `limit() == SrcReader()->limit()`
+  //   `limit_pos() == SrcReader()->limit_pos() - base_pos_`
 };
 
 // A `Reader` which reads from another `Reader`, hiding data before a base
@@ -172,8 +172,8 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

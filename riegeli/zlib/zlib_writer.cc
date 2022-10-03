@@ -111,7 +111,7 @@ void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   WriteInternal(src, dest, Z_FINISH);
 }
 
@@ -162,7 +162,7 @@ bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
 
 absl::Status ZlibWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the
@@ -184,7 +184,7 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, Z_NO_FLUSH);
 }
 
@@ -249,12 +249,12 @@ bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, Z_SYNC_FLUSH);
 }
 
 bool ZlibWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
@@ -266,7 +266,7 @@ Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
           absl::string_view(), FlushType::kFromObject))) {
     return nullptr;
   }
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));

@@ -63,7 +63,7 @@ bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(min_length >
@@ -80,7 +80,7 @@ bool ChainWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -99,7 +99,7 @@ bool ChainWriterBase::WriteSlow(Chain&& src) {
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -118,7 +118,7 @@ bool ChainWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -137,7 +137,7 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -156,7 +156,7 @@ bool ChainWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
@@ -172,7 +172,7 @@ bool ChainWriterBase::WriteZerosSlow(Position length) {
 
 bool ChainWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   SyncBuffer(dest);
@@ -181,7 +181,7 @@ bool ChainWriterBase::FlushImpl(FlushType flush_type) {
 
 bool ChainWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
@@ -197,7 +197,7 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
 
 Reader* ChainWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  Chain& dest = *dest_chain();
+  Chain& dest = *DestChain();
   SyncBuffer(dest);
   ChainReader<>* const reader = associated_reader_.ResetReader(&dest);
   reader->Seek(initial_pos);

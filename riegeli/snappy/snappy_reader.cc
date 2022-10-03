@@ -65,7 +65,7 @@ void SnappyReaderBase::Done() {
 
 absl::Status SnappyReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the

@@ -125,7 +125,7 @@ class CFileReaderBase : public BufferedReader {
 
   // Returns the `FILE` being read from. If the `FILE` is owned then changed to
   // `nullptr` by `Close()`, otherwise unchanged.
-  virtual FILE* src_file() const = 0;
+  virtual FILE* SrcFile() const = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
@@ -245,7 +245,7 @@ class CFileReader : public CFileReaderBase {
   // otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  FILE* src_file() const override { return src_.get(); }
+  FILE* SrcFile() const override { return src_.get(); }
 
  protected:
   void Done() override;

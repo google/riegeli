@@ -82,10 +82,10 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   Chain::BlockIterator iter_;
 
   // Invariants if `is_open()` and scratch is not used:
-  //   `start() ==
-  //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
+  //   `start() == (iter_ == secondary_buffer_.blocks().cend() ? nullptr
+  //                                                           : iter_->data())`
   //   `start_to_limit() ==
-  //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())`
+  //        (iter_ == secondary_buffer_.blocks().cend() ? 0 : iter_->size())`
 };
 
 inline ReaderFactoryBase::ConcurrentReader::ConcurrentReader(
@@ -580,7 +580,7 @@ void ReaderFactoryBase::Done() { shared_.reset(); }
 absl::Status ReaderFactoryBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
     if (shared_ == nullptr) {
-      Reader& src = *src_reader();
+      Reader& src = *SrcReader();
       return src.AnnotateStatus(std::move(status));
     } else {
       absl::MutexLock l(&shared_->mutex);
@@ -594,7 +594,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::NewReader(
     Position initial_pos) const {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (shared_ == nullptr) {
-    Reader& src = const_cast<Reader&>(*src_reader());
+    Reader& src = const_cast<Reader&>(*SrcReader());
     std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
     RIEGELI_ASSERT(reader != nullptr)
         << "Failed postcondition of Reader::NewReader(): "

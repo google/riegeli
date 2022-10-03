@@ -94,7 +94,7 @@ class FileWriterBase : public Writer {
 
   // Returns the `::tensorflow::WritableFile` being written to. Unchanged by
   // `Close()`.
-  virtual ::tensorflow::WritableFile* dest_file() const = 0;
+  virtual ::tensorflow::WritableFile* DestFile() const = 0;
 
   // Returns the name of the `::tensorflow::WritableFile` being written to.
   // Unchanged by `Close()`.
@@ -221,7 +221,7 @@ class FileWriter : public FileWriterBase {
   // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
+  ::tensorflow::WritableFile* DestFile() const override { return dest_.get(); }
 
  protected:
   void Done() override;

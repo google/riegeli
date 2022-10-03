@@ -64,7 +64,7 @@ void Bzip2WriterBase::DoneBehindBuffer(absl::string_view src) {
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   WriteInternal(src, dest, BZ_FINISH);
 }
 
@@ -115,7 +115,7 @@ bool Bzip2WriterBase::FailOperation(absl::string_view operation,
 
 absl::Status Bzip2WriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the
@@ -137,7 +137,7 @@ bool Bzip2WriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BZ_RUN);
 }
 
@@ -207,7 +207,7 @@ bool Bzip2WriterBase::FlushBehindBuffer(absl::string_view src,
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BZ_FLUSH);
 }
 

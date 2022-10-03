@@ -101,8 +101,8 @@ class StringWriterBase : public Writer {
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
-  virtual std::string* dest_string() = 0;
-  virtual const std::string* dest_string() const = 0;
+  virtual std::string* DestString() = 0;
+  virtual const std::string* DestString() const = 0;
 
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -153,28 +153,28 @@ class StringWriterBase : public Writer {
                            size_t recommended_length = 0);
 
   Chain::Options options_;
-  // Buffered data which did not fit under `dest_string()->capacity()`.
+  // Buffered data which did not fit under `DestString()->capacity()`.
   Chain secondary_buffer_;
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
-  // If `!uses_secondary_buffer()`, then `*dest_string()` contains the data
+  // If `!uses_secondary_buffer()`, then `*DestString()` contains the data
   // followed by `available()` free space.
   //
-  // If `uses_secondary_buffer()`, then `*dest_string()` contains some prefix of
+  // If `uses_secondary_buffer()`, then `*DestString()` contains some prefix of
   // the data, and `secondary_buffer_` contains the rest of the data followed by
   // `available()` free space.
   //
   // Invariants if `ok()`:
   //   `(!uses_secondary_buffer() &&
   //     start_pos() == 0 &&
-  //     start() == &(*dest_string())[0] &&
-  //     start_to_limit() == dest_string()->size()) ||
+  //     start() == &(*DestString())[0] &&
+  //     start_to_limit() == DestString()->size()) ||
   //    (uses_secondary_buffer() &&
   //     limit() == secondary_buffer_.blocks().back().data() +
   //                secondary_buffer_.blocks().back().size()) ||
   //    start() == nullptr`
-  //   `limit_pos() == dest_string()->size() + secondary_buffer_.size()`
+  //   `limit_pos() == DestString()->size() + secondary_buffer_.size()`
 };
 
 // A `Writer` which appends to a `std::string`, resizing it as necessary.
@@ -239,8 +239,8 @@ class StringWriter : public StringWriterBase {
   // written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  std::string* dest_string() override { return dest_.get(); }
-  const std::string* dest_string() const override { return dest_.get(); }
+  std::string* DestString() override { return dest_.get(); }
+  const std::string* DestString() const override { return dest_.get(); }
 
  private:
   void MoveDestAndSecondaryBuffer(StringWriter&& that);

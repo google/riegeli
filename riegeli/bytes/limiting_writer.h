@@ -115,8 +115,8 @@ class LimitingWriterBase : public Writer {
   };
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
+  virtual Writer* DestWriter() = 0;
+  virtual const Writer* DestWriter() const = 0;
 
   // Accesses the limit expressed as an absolute position.
   //
@@ -197,9 +197,9 @@ class LimitingWriterBase : public Writer {
   bool exact_ = false;
 
   // Invariants if `ok()`:
-  //   `start() == dest_writer()->start()`
-  //   `limit() == dest_writer()->limit()`
-  //   `start_pos() == dest_writer()->start_pos()`
+  //   `start() == DestWriter()->start()`
+  //   `limit() == DestWriter()->limit()`
+  //   `start_pos() == DestWriter()->start_pos()`
 };
 
 // A `Writer` which writes to another `Writer` up to the specified size limit.
@@ -249,8 +249,8 @@ class LimitingWriter : public LimitingWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.get(); }
-  const Writer* dest_writer() const override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
+  const Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

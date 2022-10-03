@@ -41,8 +41,8 @@ class SnappyReaderBase : public ChainReader<Chain> {
   class Options {};
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
  protected:
   explicit SnappyReaderBase(Closed) noexcept : ChainReader(kClosed) {}
@@ -117,8 +117,8 @@ class SnappyReader : public SnappyReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

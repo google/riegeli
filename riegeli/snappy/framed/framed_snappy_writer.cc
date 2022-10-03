@@ -73,7 +73,7 @@ void FramedSnappyWriterBase::Done() {
 
 absl::Status FramedSnappyWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the
@@ -105,7 +105,7 @@ bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
@@ -164,12 +164,12 @@ bool FramedSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return PushInternal(dest);
 }
 
 bool FramedSnappyWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
@@ -181,7 +181,7 @@ Reader* FramedSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
           FlushType::kFromObject))) {
     return nullptr;
   }
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));

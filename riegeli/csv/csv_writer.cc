@@ -75,7 +75,7 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
 
 absl::Status CsvWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   return AnnotateOverDest(std::move(status));

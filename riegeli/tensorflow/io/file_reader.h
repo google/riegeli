@@ -102,7 +102,7 @@ class FileReaderBase : public Reader {
   // Returns the `::tensorflow::RandomAccessFile` being read from. If the
   // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
   // `Close()`, otherwise unchanged.
-  virtual ::tensorflow::RandomAccessFile* src_file() const = 0;
+  virtual ::tensorflow::RandomAccessFile* SrcFile() const = 0;
 
   // Returns the name of the `::tensorflow::RandomAccessFile` being read from.
   // Unchanged by `Close()`.
@@ -265,7 +265,7 @@ class FileReader : public FileReaderBase {
   // `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  ::tensorflow::RandomAccessFile* src_file() const override {
+  ::tensorflow::RandomAccessFile* SrcFile() const override {
     return src_.get();
   }
 

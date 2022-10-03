@@ -37,7 +37,7 @@ namespace riegeli {
 
 void PrefixLimitingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     SyncBuffer(src);
   }
   Reader::Done();
@@ -45,7 +45,7 @@ void PrefixLimitingReaderBase::Done() {
 
 absl::Status PrefixLimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the original
@@ -68,7 +68,7 @@ bool PrefixLimitingReaderBase::PullSlow(size_t min_length,
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool pull_ok = src.Pull(min_length, recommended_length);
   MakeBuffer(src);
@@ -80,7 +80,7 @@ bool PrefixLimitingReaderBase::ReadSlow(size_t length, char* dest) {
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.Read(length, dest);
   MakeBuffer(src);
@@ -110,7 +110,7 @@ bool PrefixLimitingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 template <typename Dest>
 inline bool PrefixLimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.ReadAndAppend(length, dest);
   MakeBuffer(src);
@@ -122,7 +122,7 @@ bool PrefixLimitingReaderBase::CopySlow(Position length, Writer& dest) {
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
   MakeBuffer(src);
@@ -134,7 +134,7 @@ bool PrefixLimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
   MakeBuffer(src);
@@ -147,24 +147,24 @@ void PrefixLimitingReaderBase::ReadHintSlow(size_t min_length,
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   src.ReadHint(min_length, recommended_length);
   MakeBuffer(src);
 }
 
 bool PrefixLimitingReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool PrefixLimitingReaderBase::SupportsRandomAccess() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 
 bool PrefixLimitingReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -173,7 +173,7 @@ bool PrefixLimitingReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   bool seek_ok;
   if (ABSL_PREDICT_FALSE(new_pos >
@@ -188,13 +188,13 @@ bool PrefixLimitingReaderBase::SeekSlow(Position new_pos) {
 }
 
 bool PrefixLimitingReaderBase::SupportsSize() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsSize();
 }
 
 absl::optional<Position> PrefixLimitingReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
@@ -203,7 +203,7 @@ absl::optional<Position> PrefixLimitingReaderBase::SizeImpl() {
 }
 
 bool PrefixLimitingReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
@@ -211,8 +211,8 @@ std::unique_ptr<Reader> PrefixLimitingReaderBase::NewReaderImpl(
     Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> reader =
       src.NewReader(SaturatingAdd(base_pos_, initial_pos));
   if (ABSL_PREDICT_FALSE(reader == nullptr)) {

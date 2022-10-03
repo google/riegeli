@@ -38,7 +38,7 @@ namespace riegeli {
 
 void SplittingWriterBase::DoneBehindScratch() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer* shard = shard_writer();
+    Writer* shard = ShardWriter();
     if (shard_is_open(shard)) {
       SyncBuffer(*shard);
       CloseShardInternal();
@@ -53,7 +53,7 @@ bool SplittingWriterBase::CloseShardImpl() {
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
          "shard already closed";
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (ABSL_PREDICT_FALSE(!shard->Close())) {
     return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
   }
@@ -85,7 +85,7 @@ inline bool SplittingWriterBase::OpenShardInternal() {
          "shard not opened";
   shard_pos_limit_ = SaturatingAdd(start_pos(), *size_limit);
   if (size_hint_ != absl::nullopt) {
-    Writer* shard = shard_writer();
+    Writer* shard = ShardWriter();
     shard->SetWriteSizeHint(
         SaturatingSub(UnsignedMin(*size_hint_, shard_pos_limit_), start_pos()));
   }
@@ -123,7 +123,7 @@ bool SplittingWriterBase::OpenShard() {
       << "Failed precondition of SplittingWriterBase::OpenShard(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   MakeBuffer(*shard);
   return true;
 }
@@ -135,15 +135,15 @@ bool SplittingWriterBase::CloseShard() {
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShard(): "
          "shard already closed";
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   SyncBuffer(*shard);
   return CloseShardInternal();
 }
 
 absl::Status SplittingWriterBase::AnnotateStatusImpl(absl::Status status) {
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (shard_is_open(shard)) status = shard->AnnotateStatus(std::move(status));
-  // The status might have been annotated by `*shard_writer()` with the position
+  // The status might have been annotated by `*ShardWriter()` with the position
   // within the shard. Clarify that the current position is the position across
   // shards instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
   return AnnotateOverShard(std::move(status));
@@ -163,7 +163,7 @@ void SplittingWriterBase::SetWriteSizeHintImpl(
       write_size_hint == absl::nullopt
           ? absl::nullopt
           : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (!shard_is_open(shard)) return;
   BehindScratch behind_scratch(this);
   SyncBuffer(*shard);
@@ -186,7 +186,7 @@ bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (!shard_is_open(shard)) return ForcePushUsingScratch();
   SyncBuffer(*shard);
   if (start_pos() == shard_pos_limit_) {
@@ -256,12 +256,12 @@ inline bool SplittingWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_writer();
+    shard = ShardWriter();
   }
   Position length_to_write = shard_pos_limit_ - start_pos();
   bool write_ok;
@@ -289,7 +289,7 @@ inline bool SplittingWriterBase::WriteInternal(Src&& src) {
       }
       if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
       if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-      shard = shard_writer();
+      shard = ShardWriter();
       length_to_write = UnsignedMin(length, shard_pos_limit_ - start_pos());
     }
   }
@@ -308,12 +308,12 @@ bool SplittingWriterBase::WriteZerosBehindScratch(Position length) {
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
-  Writer* shard = shard_writer();
+  Writer* shard = ShardWriter();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
   } else {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_writer();
+    shard = ShardWriter();
   }
   bool write_ok;
   for (;;) {
@@ -331,7 +331,7 @@ bool SplittingWriterBase::WriteZerosBehindScratch(Position length) {
     }
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_writer();
+    shard = ShardWriter();
   }
   MakeBuffer(*shard);
   return write_ok;
@@ -345,7 +345,7 @@ bool SplittingWriterBase::FlushBehindScratch(FlushType flush_type) {
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
-  Writer* const shard = shard_writer();
+  Writer* const shard = ShardWriter();
   if (shard_is_open(shard)) {
     SyncBuffer(*shard);
     if (flush_type != FlushType::kFromObject) {

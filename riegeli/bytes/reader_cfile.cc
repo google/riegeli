@@ -39,7 +39,7 @@ namespace cfile_internal {
 ReaderCFileCookieBase::~ReaderCFileCookieBase() {}
 
 inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
-  Reader& reader = *src_reader();
+  Reader& reader = *SrcReader();
   if (!reader.ToleratesReadingAhead()) {
     if (ABSL_PREDICT_FALSE(!reader.Pull(1, length))) {
       if (ABSL_PREDICT_FALSE(!reader.ok())) {
@@ -61,7 +61,7 @@ inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
 
 inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
                                                            int whence) {
-  Reader& reader = *src_reader();
+  Reader& reader = *SrcReader();
   Position new_pos;
   switch (whence) {
     case SEEK_SET:

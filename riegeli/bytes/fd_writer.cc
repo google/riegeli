@@ -206,7 +206,7 @@ bool FdWriterBase::supports_size() {
       // Some "/proc" files also do not support random access, but they are
       // recognized by a failing `lseek(SEEK_END)`.
     } else {
-      const int dest = dest_fd();
+      const int dest = DestFd();
       if (lseek(dest, 0, SEEK_END) < 0) {
         // Not supported.
       } else if (ABSL_PREDICT_FALSE(
@@ -225,7 +225,7 @@ inline bool FdWriterBase::WriteMode() {
   if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
   read_mode_ = false;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   return SeekInternal(dest, start_pos());
 }
 
@@ -236,7 +236,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos())) {
@@ -272,7 +272,7 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
     case FlushType::kFromProcess:
       return true;
     case FlushType::kFromMachine: {
-      const int dest = dest_fd();
+      const int dest = DestFd();
       if (ABSL_PREDICT_FALSE(fsync(dest) < 0)) {
         return FailOperation("fsync()");
       }
@@ -322,7 +322,7 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   if (new_pos > start_pos()) {
     // Seeking forwards.
     struct stat stat_info;
@@ -348,7 +348,7 @@ absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
     return BufferedWriter::SizeBehindBuffer();
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
     FailOperation("fstat()");
@@ -363,7 +363,7 @@ bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   if (new_size >= start_pos()) {
     // Seeking forwards.
     struct stat stat_info;
@@ -394,7 +394,7 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return BufferedWriter::ReadModeBehindBuffer(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  const int dest = dest_fd();
+  const int dest = DestFd();
   FdReader<UnownedFd>* const reader = associated_reader_.ResetReader(
       dest, FdReaderBase::Options()
                 .set_assumed_filename(filename())

@@ -134,7 +134,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  ::tensorflow::RandomAccessFile* const src = src_file();
+  ::tensorflow::RandomAccessFile* const src = SrcFile();
   const size_t available_length = available();
   size_t cursor_index;
   const size_t buffer_length =
@@ -290,7 +290,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
          "enough data available, use Read(char*) instead";
   if (length >= buffer_sizer_.LengthToReadDirectly(pos(), start_to_limit(),
                                                    available())) {
-    ::tensorflow::RandomAccessFile* const src = src_file();
+    ::tensorflow::RandomAccessFile* const src = SrcFile();
     const size_t available_length = available();
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
@@ -315,7 +315,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  ::tensorflow::RandomAccessFile* const src = src_file();
+  ::tensorflow::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     if (ABSL_PREDICT_FALSE(!ok())) {
@@ -379,7 +379,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  ::tensorflow::RandomAccessFile* const src = src_file();
+  ::tensorflow::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     if (ABSL_PREDICT_FALSE(!ok())) {
@@ -440,7 +440,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
-  ::tensorflow::RandomAccessFile* const src = src_file();
+  ::tensorflow::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     if (ABSL_PREDICT_FALSE(!ok())) {
@@ -663,7 +663,7 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  ::tensorflow::RandomAccessFile* const src = src_file();
+  ::tensorflow::RandomAccessFile* const src = SrcFile();
   std::unique_ptr<FileReader<::tensorflow::RandomAccessFile*>> reader =
       std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
           src, FileReaderBase::Options()

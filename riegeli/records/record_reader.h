@@ -162,8 +162,8 @@ class RecordReaderBase : public Object {
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual ChunkReader* src_chunk_reader() = 0;
-  virtual const ChunkReader* src_chunk_reader() const = 0;
+  virtual ChunkReader* SrcChunkReader() = 0;
+  virtual const ChunkReader* SrcChunkReader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -552,8 +552,8 @@ class RecordReader : public RecordReaderBase {
   // `ChunkReader`. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  ChunkReader* src_chunk_reader() override { return src_.get(); }
-  const ChunkReader* src_chunk_reader() const override { return src_.get(); }
+  ChunkReader* SrcChunkReader() override { return src_.get(); }
+  const ChunkReader* SrcChunkReader() const override { return src_.get(); }
 
   // An optimized implementation in a derived class, avoiding a virtual call.
   RecordPosition pos() const;
@@ -623,7 +623,7 @@ inline RecordPosition RecordReaderBase::pos() const {
       ABSL_PREDICT_FALSE(recoverable_ == Recoverable::kRecoverChunkDecoder)) {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());
   }
-  return RecordPosition(src_chunk_reader()->pos(), 0);
+  return RecordPosition(SrcChunkReader()->pos(), 0);
 }
 
 template <typename Record, typename Test>

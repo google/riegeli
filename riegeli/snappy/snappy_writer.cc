@@ -50,7 +50,7 @@ void SnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) SyncBuffer();
   Writer::Done();
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     {
       absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
       if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -64,7 +64,7 @@ void SnappyWriterBase::Done() {
 
 absl::Status SnappyWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the

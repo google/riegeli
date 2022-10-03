@@ -36,7 +36,7 @@ namespace riegeli {
 class StringReaderBase : public Reader {
  public:
   // Returns the `std::string` or array being read from. Unchanged by `Close()`.
-  virtual absl::string_view src_string_view() const = 0;
+  virtual absl::string_view SrcStringView() const = 0;
 
   bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -132,7 +132,7 @@ class StringReader : public StringReaderBase {
   // being read from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  absl::string_view src_string_view() const override { return src_.get(); }
+  absl::string_view SrcStringView() const override { return src_.get(); }
 
  private:
   void MoveSrc(StringReader&& that);

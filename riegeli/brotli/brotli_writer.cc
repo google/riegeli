@@ -118,7 +118,7 @@ void BrotliWriterBase::DoneBehindBuffer(absl::string_view src) {
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   WriteInternal(src, dest, BROTLI_OPERATION_FINISH);
 }
 
@@ -132,7 +132,7 @@ void BrotliWriterBase::Done() {
 
 absl::Status BrotliWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the
@@ -166,7 +166,7 @@ bool BrotliWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BROTLI_OPERATION_PROCESS);
 }
 
@@ -208,12 +208,12 @@ bool BrotliWriterBase::FlushBehindBuffer(absl::string_view src,
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BROTLI_OPERATION_FLUSH);
 }
 
 bool BrotliWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   if (dest != nullptr && dest->SupportsReadMode()) {
     for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
          dictionary_.chunks()) {
@@ -232,7 +232,7 @@ Reader* BrotliWriterBase::ReadModeBehindBuffer(Position initial_pos) {
           absl::string_view(), FlushType::kFromObject))) {
     return nullptr;
   }
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));

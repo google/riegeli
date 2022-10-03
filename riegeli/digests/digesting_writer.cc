@@ -32,16 +32,16 @@ namespace riegeli {
 
 void DigestingWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     SyncBuffer(dest);
   }
   Writer::Done();
 }
 
 absl::Status DigestingWriterBase::AnnotateStatusImpl(absl::Status status) {
-  // Fully delegate annotations to `*dest_writer()`.
+  // Fully delegate annotations to `*DestWriter()`.
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
     MakeBuffer(dest);
@@ -71,7 +71,7 @@ bool DigestingWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
@@ -116,7 +116,7 @@ bool DigestingWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src>
 inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   DigesterWrite(src);
   const bool write_ok = dest.Write(std::forward<Src>(src));
@@ -129,7 +129,7 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   DigesterWriteZeros(length);
   const bool write_ok = dest.WriteZeros(length);
@@ -138,18 +138,18 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool DigestingWriterBase::PrefersCopying() const {
-  const Writer* const dest = dest_writer();
+  const Writer* const dest = DestWriter();
   return dest != nullptr && dest->PrefersCopying();
 }
 
 bool DigestingWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
 Reader* DigestingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(initial_pos);
   MakeBuffer(dest);

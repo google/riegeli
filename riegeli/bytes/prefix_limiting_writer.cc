@@ -37,7 +37,7 @@ namespace riegeli {
 
 void PrefixLimitingWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     SyncBuffer(dest);
   }
   Writer::Done();
@@ -46,7 +46,7 @@ void PrefixLimitingWriterBase::Done() {
 
 absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the original
@@ -69,7 +69,7 @@ bool PrefixLimitingWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
@@ -114,7 +114,7 @@ bool PrefixLimitingWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src>
 inline bool PrefixLimitingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -126,7 +126,7 @@ bool PrefixLimitingWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
@@ -134,7 +134,7 @@ bool PrefixLimitingWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool PrefixLimitingWriterBase::SupportsRandomAccess() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
@@ -143,7 +143,7 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   bool seek_ok;
   if (ABSL_PREDICT_FALSE(new_pos >
@@ -158,13 +158,13 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
 }
 
 bool PrefixLimitingWriterBase::PrefersCopying() const {
-  const Writer* const dest = dest_writer();
+  const Writer* const dest = DestWriter();
   return dest != nullptr && dest->PrefersCopying();
 }
 
 absl::optional<Position> PrefixLimitingWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
   MakeBuffer(dest);
@@ -173,13 +173,13 @@ absl::optional<Position> PrefixLimitingWriterBase::SizeImpl() {
 }
 
 bool PrefixLimitingWriterBase::SupportsTruncate() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsTruncate();
 }
 
 bool PrefixLimitingWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   bool truncate_ok;
   if (ABSL_PREDICT_FALSE(new_size >
@@ -194,13 +194,13 @@ bool PrefixLimitingWriterBase::TruncateImpl(Position new_size) {
 }
 
 bool PrefixLimitingWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
 Reader* PrefixLimitingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(SaturatingAdd(base_pos_, initial_pos));
   MakeBuffer(dest);

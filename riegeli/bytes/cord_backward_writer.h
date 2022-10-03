@@ -100,8 +100,8 @@ class CordBackwardWriterBase : public BackwardWriter {
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
-  virtual absl::Cord* dest_cord() = 0;
-  virtual const absl::Cord* dest_cord() const = 0;
+  virtual absl::Cord* DestCord() = 0;
+  virtual const absl::Cord* DestCord() const = 0;
 
   bool SupportsTruncate() override { return true; }
 
@@ -147,7 +147,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   // Invariants:
   //   `limit() == nullptr` or `limit() == short_buffer_`
   //       or `limit() == buffer_.data()`
-  //   if `ok()` then `start_pos() == dest_cord()->size()`
+  //   if `ok()` then `start_pos() == DestCord()->size()`
 };
 
 // A `Writer` which prepends to an `absl::Cord`.
@@ -210,8 +210,8 @@ class CordBackwardWriter : public CordBackwardWriterBase {
   // written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  absl::Cord* dest_cord() override { return dest_.get(); }
-  const absl::Cord* dest_cord() const override { return dest_.get(); }
+  absl::Cord* DestCord() override { return dest_.get(); }
+  const absl::Cord* DestCord() const override { return dest_.get(); }
 
  private:
   // The object providing and possibly owning the `absl::Cord` being written to.

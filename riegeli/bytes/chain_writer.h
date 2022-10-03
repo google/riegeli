@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -100,8 +101,10 @@ class ChainWriterBase : public Writer {
   };
 
   // Returns the `Chain` being written to.
-  virtual Chain* dest_chain() = 0;
-  virtual const Chain* dest_chain() const = 0;
+  virtual Chain* DestChain() = 0;
+  virtual const Chain* DestChain() const = 0;
+  ABSL_DEPRECATED("Use dest() or DestChain() instead.")
+  const Chain* dest_chain() const { return DestChain(); }
 
   bool SupportsTruncate() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -145,9 +148,9 @@ class ChainWriterBase : public Writer {
   AssociatedReader<ChainReader<const Chain*>> associated_reader_;
 
   // Invariants if `ok()`:
-  //   `limit() == nullptr || limit() == dest_chain()->blocks().back().data() +
-  //                                     dest_chain()->blocks().back().size()`
-  //   `limit_pos() == dest_chain()->size()`
+  //   `limit() == nullptr || limit() == DestChain()->blocks().back().data() +
+  //                                     DestChain()->blocks().back().size()`
+  //   `limit_pos() == DestChain()->size()`
 };
 
 // A `Writer` which appends to a `Chain`.
@@ -212,8 +215,8 @@ class ChainWriter : public ChainWriterBase {
   // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Chain* dest_chain() override { return dest_.get(); }
-  const Chain* dest_chain() const override { return dest_.get(); }
+  Chain* DestChain() override { return dest_.get(); }
+  const Chain* DestChain() const override { return dest_.get(); }
 
  private:
   void MoveDest(ChainWriter&& that);

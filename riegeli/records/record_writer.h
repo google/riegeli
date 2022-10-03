@@ -429,8 +429,8 @@ class RecordWriterBase : public Object {
   ~RecordWriterBase();
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
-  virtual ChunkWriter* dest_chunk_writer() = 0;
-  virtual const ChunkWriter* dest_chunk_writer() const = 0;
+  virtual ChunkWriter* DestChunkWriter() = 0;
+  virtual const ChunkWriter* DestChunkWriter() const = 0;
 
   // Writes the next record.
   //
@@ -643,8 +643,8 @@ class RecordWriter : public RecordWriterBase {
   // `ChunkWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  ChunkWriter* dest_chunk_writer() override { return dest_.get(); }
-  const ChunkWriter* dest_chunk_writer() const override { return dest_.get(); }
+  ChunkWriter* DestChunkWriter() override { return dest_.get(); }
+  const ChunkWriter* DestChunkWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

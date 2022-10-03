@@ -74,7 +74,7 @@ inline void StringWriterBase::MakeSecondaryBuffer(size_t min_length,
 void StringWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   const size_t size_hint =
@@ -95,7 +95,7 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(min_length >
@@ -128,7 +128,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -156,7 +156,7 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -184,7 +184,7 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -216,7 +216,7 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -248,7 +248,7 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(length > dest.max_size() - IntCast<size_t>(pos()))) {
@@ -272,7 +272,7 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
 
 bool StringWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (!uses_secondary_buffer()) {
@@ -287,7 +287,7 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
 
 bool StringWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
@@ -309,7 +309,7 @@ Reader* StringWriterBase::ReadModeImpl(Position initial_pos) {
           !StringWriterBase::FlushImpl(FlushType::kFromObject))) {
     return nullptr;
   }
-  std::string& dest = *dest_string();
+  std::string& dest = *DestString();
   StringReader<>* const reader = associated_reader_.ResetReader(dest);
   reader->Seek(initial_pos);
   return reader;

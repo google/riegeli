@@ -43,8 +43,8 @@ class Reader;
 class DigestingWriterBase : public Writer {
  public:
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
+  virtual Writer* DestWriter() = 0;
+  virtual const Writer* DestWriter() const = 0;
 
   bool PrefersCopying() const override;
   bool SupportsReadMode() override;
@@ -90,9 +90,9 @@ class DigestingWriterBase : public Writer {
   bool WriteInternal(Src&& src);
 
   // Invariants if `ok()`:
-  //   `start() == dest_writer()->cursor()`
-  //   `limit() == dest_writer()->limit()`
-  //   `start_pos() == dest_writer()->pos()`
+  //   `start() == DestWriter()->cursor()`
+  //   `limit() == DestWriter()->limit()`
+  //   `start_pos() == DestWriter()->pos()`
 };
 
 // A `Writer` which writes to another `Writer`, and lets another object observe
@@ -186,8 +186,8 @@ class DigestingWriter : public DigestingWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.get(); }
-  const Writer* dest_writer() const override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
+  const Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

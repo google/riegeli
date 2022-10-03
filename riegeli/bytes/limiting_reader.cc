@@ -36,7 +36,7 @@ namespace riegeli {
 
 void LimitingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     SyncBuffer(src);
     if (fail_if_longer_ && pos() == max_pos_ &&
         ABSL_PREDICT_FALSE(src.Pull())) {
@@ -71,9 +71,9 @@ void LimitingReaderBase::FailPositionLimitExceeded() {
 }
 
 absl::Status LimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
-  // Fully delegate annotations to `*src_reader()`.
+  // Fully delegate annotations to `*SrcReader()`.
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     SyncBuffer(src);
     status = src.AnnotateStatus(std::move(status));
     MakeBuffer(src);
@@ -89,7 +89,7 @@ bool LimitingReaderBase::PullSlow(size_t min_length,
   RIEGELI_ASSERT_LE(pos(), max_pos_)
       << "Failed invariant of LimitingReaderBase: position exceeds the limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const size_t min_length_to_pull = UnsignedMin(min_length, max_pos_ - pos());
   const bool pull_ok = src.Pull(min_length_to_pull, recommended_length);
@@ -106,7 +106,7 @@ bool LimitingReaderBase::ReadSlow(size_t length, char* dest) {
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const size_t length_to_read = UnsignedMin(length, max_pos_ - pos());
   const bool read_ok = src.Read(length_to_read, dest);
@@ -141,7 +141,7 @@ inline bool LimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const size_t length_to_read = UnsignedMin(length, max_pos_ - pos());
   const bool read_ok = src.ReadAndAppend(length_to_read, dest);
@@ -158,7 +158,7 @@ bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const Position length_to_copy = UnsignedMin(length, max_pos_ - pos());
   const bool copy_ok = src.Copy(length_to_copy, dest);
@@ -175,7 +175,7 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
     const bool seek_ok = src.Seek(max_pos_);
@@ -198,7 +198,7 @@ void LimitingReaderBase::ReadHintSlow(size_t min_length,
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const Position remaining = max_pos_ - pos();
   src.ReadHint(UnsignedMin(min_length, remaining),
@@ -207,17 +207,17 @@ void LimitingReaderBase::ReadHintSlow(size_t min_length,
 }
 
 bool LimitingReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool LimitingReaderBase::SupportsRandomAccess() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 
 bool LimitingReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -229,7 +229,7 @@ bool LimitingReaderBase::SeekSlow(Position new_pos) {
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const Position pos_to_seek = UnsignedMin(new_pos, max_pos_);
   const bool seek_ok = src.Seek(pos_to_seek);
@@ -240,7 +240,7 @@ bool LimitingReaderBase::SeekSlow(Position new_pos) {
 
 bool LimitingReaderBase::SupportsSize() {
   if (exact_) return true;
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsSize();
 }
 
@@ -250,7 +250,7 @@ absl::optional<Position> LimitingReaderBase::SizeImpl() {
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_) return max_pos_;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   SyncBuffer(src);
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
@@ -259,7 +259,7 @@ absl::optional<Position> LimitingReaderBase::SizeImpl() {
 }
 
 bool LimitingReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
@@ -270,8 +270,8 @@ std::unique_ptr<Reader> LimitingReaderBase::NewReaderImpl(
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> reader =
       src.NewReader(UnsignedMin(initial_pos, max_pos_));
   if (ABSL_PREDICT_FALSE(reader == nullptr)) {

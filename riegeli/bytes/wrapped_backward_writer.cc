@@ -30,7 +30,7 @@ namespace riegeli {
 
 void WrappedBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    BackwardWriter& dest = *dest_writer();
+    BackwardWriter& dest = *DestWriter();
     SyncBuffer(dest);
   }
   BackwardWriter::Done();
@@ -38,9 +38,9 @@ void WrappedBackwardWriterBase::Done() {
 
 absl::Status WrappedBackwardWriterBase::AnnotateStatusImpl(
     absl::Status status) {
-  // Fully delegate annotations to `*dest_writer()`.
+  // Fully delegate annotations to `*DestWriter()`.
   if (is_open()) {
-    BackwardWriter& dest = *dest_writer();
+    BackwardWriter& dest = *DestWriter();
     SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
     MakeBuffer(dest);
@@ -54,7 +54,7 @@ bool WrappedBackwardWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  BackwardWriter& dest = *dest_writer();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
@@ -99,7 +99,7 @@ bool WrappedBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src>
 inline bool WrappedBackwardWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  BackwardWriter& dest = *dest_writer();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -111,7 +111,7 @@ bool WrappedBackwardWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  BackwardWriter& dest = *dest_writer();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
@@ -119,18 +119,18 @@ bool WrappedBackwardWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool WrappedBackwardWriterBase::PrefersCopying() const {
-  const BackwardWriter* const dest = dest_writer();
+  const BackwardWriter* const dest = DestWriter();
   return dest != nullptr && dest->PrefersCopying();
 }
 
 bool WrappedBackwardWriterBase::SupportsTruncate() {
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter* const dest = DestWriter();
   return dest != nullptr && dest->SupportsTruncate();
 }
 
 bool WrappedBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  BackwardWriter& dest = *dest_writer();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);

@@ -37,8 +37,8 @@ namespace riegeli {
 class DefaultChunkReaderBase : public Object {
  public:
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual Reader* src_reader() = 0;
-  virtual const Reader* src_reader() const = 0;
+  virtual Reader* SrcReader() = 0;
+  virtual const Reader* SrcReader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -179,7 +179,7 @@ class DefaultChunkReaderBase : public Object {
   //
   // Preconditions:
   //   `ok()`
-  //   `records_internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
+  //   `records_internal::RemainingInBlockHeader(SrcReader()->pos()) > 0`
   bool ReadBlockHeader();
 
   // Shared implementation of `SeekToChunkContaining()`, `SeekToChunkBefore()`,
@@ -192,20 +192,20 @@ class DefaultChunkReaderBase : public Object {
   // If `true`, the source is truncated (in the middle of a chunk) at the
   // current position. If the source does not grow, `Close()` will fail.
   //
-  // Invariant: if `truncated_` then `src_reader()->pos() > pos_`
+  // Invariant: if `truncated_` then `SrcReader()->pos() > pos_`
   bool truncated_ = false;
 
   // Beginning of the current chunk.
   //
-  // If `pos_ > src_reader()->pos()`, the source ends in a skipped region. In
+  // If `pos_ > SrcReader()->pos()`, the source ends in a skipped region. In
   // this case `pos_` can be a block boundary instead of a chunk boundary.
   Position pos_ = 0;
 
   // Chunk header and chunk data, filled to the point derived from `pos_` and
-  // `src_reader()->pos()`.
+  // `SrcReader()->pos()`.
   Chunk chunk_;
 
-  // Block header, filled to the point derived from `src_reader()->pos()`.
+  // Block header, filled to the point derived from `SrcReader()->pos()`.
   records_internal::BlockHeader block_header_;
 
   // Whether `Recover()` is applicable, and if so, how it should be performed:
@@ -286,8 +286,8 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.get(); }
-  const Reader* src_reader() const override { return src_.get(); }
+  Reader* SrcReader() override { return src_.get(); }
+  const Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

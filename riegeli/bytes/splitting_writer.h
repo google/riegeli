@@ -49,8 +49,8 @@ class SplittingWriterBase : public PushableWriter {
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
 
   // Returns the shard `Writer`.
-  virtual Writer* shard_writer() = 0;
-  virtual const Writer* shard_writer() const = 0;
+  virtual Writer* ShardWriter() = 0;
+  virtual const Writer* ShardWriter() const = 0;
 
   // Opens the next shard as `shard()`. Or opens a temporary destination for
   // shard data as `shard()`, to be moved to the final destination later.
@@ -67,7 +67,7 @@ class SplittingWriterBase : public PushableWriter {
   // is opened.
   //
   // `OpenShardImpl()` must be overridden but should not be called directly
-  // because it does not synchronize buffer pointers of `*shard_writer()` with
+  // because it does not synchronize buffer pointers of `*ShardWriter()` with
   // `*this`. See `OpenShard()` for that.
   virtual absl::optional<Position> OpenShardImpl() = 0;
 
@@ -87,11 +87,11 @@ class SplittingWriterBase : public PushableWriter {
   //
   // `CloseShardImpl()` can be overridden but should not be called directly
   // because it does not synchronize buffer pointers of `*this` with
-  // `*shard_writer()`. See `CloseShard()` for that.
+  // `*ShardWriter()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
   // Calls `OpenShardImpl()` and synchronizes buffer pointers of
-  // `*shard_writer()` with `*this`.
+  // `*ShardWriter()` with `*this`.
   //
   // Preconditions:
   //   `ok()`
@@ -102,7 +102,7 @@ class SplittingWriterBase : public PushableWriter {
   //  * `false` - failure (`!ok()`)
   bool OpenShard();
 
-  // Synchronizes buffer pointers of `*this` with `*shard_writer()` and calls
+  // Synchronizes buffer pointers of `*this` with `*ShardWriter()` and calls
   // `CloseShardImpl()`.
   //
   // Preconditions:
@@ -117,7 +117,7 @@ class SplittingWriterBase : public PushableWriter {
   // Returns `true` if a shard is open.
   //
   // Same as `shard != nullptr && shard->is_open()`, with the default `shard` of
-  // `shard_writer()`.
+  // `ShardWriter()`.
   bool shard_is_open() const;
   bool shard_is_open(const Writer* shard) const;
 
@@ -159,8 +159,8 @@ class SplittingWriterBase : public PushableWriter {
   Position shard_pos_limit_ = 0;
 
   // Invariants if `ok()` and scratch is not used:
-  //   `start() == (shard_is_open() ? shard_writer()->cursor() : nullptr)`
-  //   `limit() <= (shard_is_open() ? shard_writer()->limit() : nullptr)`
+  //   `start() == (shard_is_open() ? ShardWriter()->cursor() : nullptr)`
+  //   `limit() <= (shard_is_open() ? ShardWriter()->limit() : nullptr)`
   //   `pos() <= shard_pos_limit_`
 };
 
@@ -191,8 +191,8 @@ class SplittingWriter : public SplittingWriterBase {
   // Returns the object providing and possibly owning the shard `Writer`.
   Shard& shard() { return shard_.manager(); }
   const Shard& shard() const { return shard_.manager(); }
-  Writer* shard_writer() override { return shard_.get(); }
-  const Writer* shard_writer() const override { return shard_.get(); }
+  Writer* ShardWriter() override { return shard_.get(); }
+  const Writer* ShardWriter() const override { return shard_.get(); }
 
  private:
   void MoveShard(SplittingWriter&& that);
@@ -230,7 +230,7 @@ inline void SplittingWriterBase::Reset() {
 }
 
 inline bool SplittingWriterBase::shard_is_open() const {
-  return shard_is_open(shard_writer());
+  return shard_is_open(ShardWriter());
 }
 
 inline bool SplittingWriterBase::shard_is_open(const Writer* shard) const {

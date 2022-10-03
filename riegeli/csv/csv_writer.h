@@ -167,8 +167,10 @@ class CsvWriterBase : public Object {
   };
 
   // Returns the byte `Writer` being written to. Unchanged by `Close()`.
-  virtual Writer* dest_writer() = 0;
-  virtual const Writer* dest_writer() const = 0;
+  virtual Writer* DestWriter() = 0;
+  virtual const Writer* DestWriter() const = 0;
+  ABSL_DEPRECATED("Use dest() or DestWriter() instead.")
+  Writer* dest_writer() { return DestWriter(); }
 
   // Returns `true` if writing the header was requested, i.e. if
   // `Options::header() != absl::nullopt`.
@@ -348,8 +350,8 @@ class CsvWriter : public CsvWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.get(); }
-  const Writer* dest_writer() const override { return dest_.get(); }
+  Writer* DestWriter() override { return dest_.get(); }
+  const Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -474,7 +476,7 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
         << "Failed precondition of CsvWriterBase::WriteRecordInternal(): "
            "called more than once by WriteCsvRecordToString()";
   }
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   using std::begin;
   auto iter = begin(record);
   using std::end;

@@ -33,8 +33,8 @@ namespace riegeli {
 class ArrayBackwardWriterBase : public PushableBackwardWriter {
  public:
   // Returns the array being written to. Unchanged by `Close()`.
-  virtual absl::Span<char> dest_span() = 0;
-  virtual absl::Span<const char> dest_span() const = 0;
+  virtual absl::Span<char> DestSpan() = 0;
+  virtual absl::Span<const char> DestSpan() const = 0;
 
   // Returns written data in a suffix of the original array. Valid only after
   // `Close()` or `Flush()`.
@@ -127,8 +127,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  absl::Span<char> dest_span() override { return dest_.get(); }
-  absl::Span<const char> dest_span() const override { return dest_.get(); }
+  absl::Span<char> DestSpan() override { return dest_.get(); }
+  absl::Span<const char> DestSpan() const override { return dest_.get(); }
 
  private:
   void MoveDest(ArrayBackwardWriter&& that);

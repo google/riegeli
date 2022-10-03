@@ -89,8 +89,8 @@ class OStreamWriterBase : public BufferedWriter {
   };
 
   // Returns the stream being written to. Unchanged by `Close()`.
-  virtual std::ostream* dest_stream() = 0;
-  virtual const std::ostream* dest_stream() const = 0;
+  virtual std::ostream* DestStream() = 0;
+  virtual const std::ostream* DestStream() const = 0;
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsTruncate() override { return false; }
@@ -112,7 +112,7 @@ class OStreamWriterBase : public BufferedWriter {
 
   // Returns the stream pointer as `std::istream*` if the static type of the
   // destination derives from `std::istream`, otherwise returns `nullptr`.
-  virtual std::istream* src_stream() = 0;
+  virtual std::istream* SrcStream() = 0;
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
@@ -193,11 +193,11 @@ class OStreamWriter : public OStreamWriterBase {
   // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  std::ostream* dest_stream() override { return dest_.get(); }
-  const std::ostream* dest_stream() const override { return dest_.get(); }
+  std::ostream* DestStream() override { return dest_.get(); }
+  const std::ostream* DestStream() const override { return dest_.get(); }
 
  protected:
-  std::istream* src_stream() override;
+  std::istream* SrcStream() override;
 
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
@@ -333,7 +333,7 @@ inline void OStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
-inline std::istream* OStreamWriter<Dest>::src_stream() {
+inline std::istream* OStreamWriter<Dest>::SrcStream() {
   return stream_internal::DetectIStream(dest_.get());
 }
 

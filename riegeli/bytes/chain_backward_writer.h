@@ -97,8 +97,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
   };
 
   // Returns the `Chain` being written to.
-  virtual Chain* dest_chain() = 0;
-  virtual const Chain* dest_chain() const = 0;
+  virtual Chain* DestChain() = 0;
+  virtual const Chain* DestChain() const = 0;
 
   bool SupportsTruncate() override { return true; }
 
@@ -138,8 +138,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
   Chain::Options options_;
 
   // Invariants if `ok()`:
-  //   `limit() == nullptr || limit() == dest_chain()->blocks().front().data()`
-  //   `limit_pos() == dest_chain()->size()`
+  //   `limit() == nullptr || limit() == DestChain()->blocks().front().data()`
+  //   `limit_pos() == DestChain()->size()`
 };
 
 // A `BackwardWriter` which prepends to a `Chain`.
@@ -202,8 +202,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // to.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Chain* dest_chain() override { return dest_.get(); }
-  const Chain* dest_chain() const override { return dest_.get(); }
+  Chain* DestChain() override { return dest_.get(); }
+  const Chain* DestChain() const override { return dest_.get(); }
 
  private:
   void MoveDest(ChainBackwardWriter&& that);

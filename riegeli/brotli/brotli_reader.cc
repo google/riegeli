@@ -81,7 +81,7 @@ inline void BrotliReaderBase::InitializeDecompressor() {
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
         absl::InvalidArgumentError("Truncated Brotli-compressed stream"))));
   }
@@ -96,7 +96,7 @@ absl::Status BrotliReaderBase::AnnotateStatusImpl(absl::Status status) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
       status = Annotate(status, "reading truncated Brotli-compressed stream");
     }
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*src->reader()` with the
@@ -121,7 +121,7 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   size_t available_out = 0;
   for (;;) {
@@ -184,12 +184,12 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
 }
 
 bool BrotliReaderBase::ToleratesReadingAhead() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
 bool BrotliReaderBase::SupportsRewind() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
@@ -203,7 +203,7 @@ bool BrotliReaderBase::SeekBehindScratch(Position new_pos) {
   if (new_pos <= limit_pos()) {
     // Seeking backwards.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     truncated_ = false;
     set_buffer();
     set_limit_pos(0);
@@ -220,15 +220,15 @@ bool BrotliReaderBase::SeekBehindScratch(Position new_pos) {
 }
 
 bool BrotliReaderBase::SupportsNewReader() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
 std::unique_ptr<Reader> BrotliReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
-  // if `src_reader()->SupportsNewReader()`.
-  Reader& src = *src_reader();
+  // if `SrcReader()->SupportsNewReader()`.
+  Reader& src = *SrcReader();
   std::unique_ptr<Reader> compressed_reader =
       src.NewReader(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {

@@ -56,7 +56,7 @@ void DefaultChunkReaderBase::Done() {
   recoverable_ = Recoverable::kNo;
   recoverable_pos_ = 0;
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     RIEGELI_ASSERT_GT(src.pos(), pos_)
         << "Failed invariant of DefaultChunkReader: a chunk beginning must "
            "have been read for the chunk to be considered incomplete";
@@ -86,7 +86,7 @@ inline bool DefaultChunkReaderBase::FailSeeking(const Reader& src,
 
 absl::Status DefaultChunkReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Reader& src = *src_reader();
+    Reader& src = *SrcReader();
     return src.AnnotateStatus(std::move(status));
   }
   return status;
@@ -98,7 +98,7 @@ bool DefaultChunkReaderBase::CheckFileFormat() {
 
 bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
   src.ReadHint(SaturatingIntCast<size_t>(chunk_end - src.pos()),
                SaturatingIntCast<size_t>(records_internal::AddWithOverhead(
@@ -175,7 +175,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
 
 bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
 
   if (ABSL_PREDICT_FALSE(src.pos() < pos_)) {
@@ -209,7 +209,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
       << status();
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   RIEGELI_ASSERT_LT(records_internal::DistanceWithoutOverhead(pos_, src.pos()),
                     chunk_.header.size())
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
@@ -304,7 +304,7 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
       << status();
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   const size_t remaining_length =
       records_internal::RemainingInBlockHeader(src.pos());
   RIEGELI_ASSERT_GT(remaining_length, 0u)
@@ -335,7 +335,7 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
 
 bool DefaultChunkReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   const Position region_begin = pos_;
 again:
   RIEGELI_ASSERT(!ok()) << "Failed invariant of DefaultChunkReader: "
@@ -421,14 +421,14 @@ find_chunk:
 }
 
 bool DefaultChunkReaderBase::SupportsRandomAccess() {
-  Reader* const src = src_reader();
+  Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 
 bool DefaultChunkReaderBase::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (pos_ == new_pos) return true;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   pos_ = new_pos;
   chunk_.Clear();
@@ -458,7 +458,7 @@ template <DefaultChunkReaderBase::WhichChunk which_chunk>
 bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (pos_ == new_pos) return true;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   truncated_ = false;
   const Position block_begin =
       records_internal::RoundDownToBlockBoundary(new_pos);
@@ -550,7 +550,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
 
 absl::optional<Position> DefaultChunkReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Reader& src = *src_reader();
+  Reader& src = *SrcReader();
   const absl::optional<Position> size = src.Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
     FailWithoutAnnotation(src.status());

@@ -32,16 +32,16 @@ namespace riegeli {
 
 void WrappedWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     SyncBuffer(dest);
   }
   Writer::Done();
 }
 
 absl::Status WrappedWriterBase::AnnotateStatusImpl(absl::Status status) {
-  // Fully delegate annotations to `*dest_writer()`.
+  // Fully delegate annotations to `*DestWriter()`.
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
     MakeBuffer(dest);
@@ -54,7 +54,7 @@ bool WrappedWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
@@ -99,7 +99,7 @@ bool WrappedWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src>
 inline bool WrappedWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -111,7 +111,7 @@ bool WrappedWriterBase::WriteZerosSlow(Position length) {
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
@@ -119,7 +119,7 @@ bool WrappedWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool WrappedWriterBase::SupportsRandomAccess() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
@@ -128,7 +128,7 @@ bool WrappedWriterBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool seek_ok = dest.Seek(new_pos);
   MakeBuffer(dest);
@@ -136,13 +136,13 @@ bool WrappedWriterBase::SeekSlow(Position new_pos) {
 }
 
 bool WrappedWriterBase::PrefersCopying() const {
-  const Writer* const dest = dest_writer();
+  const Writer* const dest = DestWriter();
   return dest != nullptr && dest->PrefersCopying();
 }
 
 absl::optional<Position> WrappedWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
   MakeBuffer(dest);
@@ -150,13 +150,13 @@ absl::optional<Position> WrappedWriterBase::SizeImpl() {
 }
 
 bool WrappedWriterBase::SupportsTruncate() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsTruncate();
 }
 
 bool WrappedWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
@@ -164,13 +164,13 @@ bool WrappedWriterBase::TruncateImpl(Position new_size) {
 }
 
 bool WrappedWriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
 Reader* WrappedWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(initial_pos);
   MakeBuffer(dest);

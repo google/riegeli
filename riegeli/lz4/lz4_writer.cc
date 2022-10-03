@@ -132,7 +132,7 @@ void Lz4WriterBase::Done() {
           absl::StrCat("Actual size does not match pledged size: ", start_pos(),
                        " < ", *pledged_size_)));
     } else if (compressor_ != nullptr) {
-      Writer& dest = *dest_writer();
+      Writer& dest = *DestWriter();
       DoneCompression(dest);
     }
   }
@@ -155,7 +155,7 @@ inline bool Lz4WriterBase::DoneCompression(Writer& dest) {
 
 absl::Status Lz4WriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    Writer& dest = *dest_writer();
+    Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
   // The status might have been annotated by `*dest->writer()` with the
@@ -177,7 +177,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -252,7 +252,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
 
 bool Lz4WriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!BufferedWriter::FlushImpl(flush_type))) return false;
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!dest.Push(LZ4F_compressBound(0, &preferences_)))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
@@ -266,7 +266,7 @@ bool Lz4WriterBase::FlushImpl(FlushType flush_type) {
 }
 
 bool Lz4WriterBase::SupportsReadMode() {
-  Writer* const dest = dest_writer();
+  Writer* const dest = DestWriter();
   return dest != nullptr && dest->SupportsReadMode();
 }
 
@@ -277,7 +277,7 @@ Reader* Lz4WriterBase::ReadModeBehindBuffer(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!Lz4WriterBase::FlushImpl(FlushType::kFromObject))) {
     return nullptr;
   }
-  Writer& dest = *dest_writer();
+  Writer& dest = *DestWriter();
   Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
   if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));
