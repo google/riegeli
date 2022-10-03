@@ -71,7 +71,7 @@ class ChainOptions {
   //
   // Default: `kDefaultMinBlockSize` (256).
   ChainOptions& set_min_block_size(size_t min_block_size) & {
-    min_block_size_ = min_block_size;
+    min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
     return *this;
   }
   ChainOptions&& set_min_block_size(size_t min_block_size) && {
@@ -89,7 +89,7 @@ class ChainOptions {
     RIEGELI_ASSERT_GT(max_block_size, 0u)
         << "Failed precondition of Chain::Options::set_max_block_size(): "
            "zero block size";
-    max_block_size_ = max_block_size;
+    max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
     return *this;
   }
   ChainOptions&& set_max_block_size(size_t max_block_size) && {
@@ -99,8 +99,9 @@ class ChainOptions {
 
  private:
   size_t size_hint_ = 0;
-  size_t min_block_size_ = kDefaultMinBlockSize;
-  size_t max_block_size_ = kDefaultMaxBlockSize;
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
 };
 
 // `ChainBlock::Options` is defined at the namespace scope because clang has
@@ -128,7 +129,7 @@ class ChainBlockOptions {
   //
   // Default: `kDefaultMinBlockSize` (256).
   ChainBlockOptions& set_min_block_size(size_t min_block_size) & {
-    min_block_size_ = min_block_size;
+    min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
     return *this;
   }
   ChainBlockOptions&& set_min_block_size(size_t min_block_size) && {
@@ -138,7 +139,8 @@ class ChainBlockOptions {
 
  private:
   size_t size_hint_ = 0;
-  size_t min_block_size_ = kDefaultMinBlockSize;
+  // Use `uint32_t` instead of `size_t` for consistency with `ChainOptions`.
+  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
 };
 
 }  // namespace chain_internal

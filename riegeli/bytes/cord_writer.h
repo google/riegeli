@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CORD_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -66,7 +67,7 @@ class CordWriterBase : public Writer {
     //
     // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_block_size(size_t min_block_size) & {
-      min_block_size_ = min_block_size;
+      min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_min_block_size(size_t min_block_size) && {
@@ -85,7 +86,7 @@ class CordWriterBase : public Writer {
           << "Failed precondition of "
              "CordWriterBase::Options::set_max_block_size(): "
              "zero block size";
-      max_block_size_ = max_block_size;
+      max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_max_block_size(size_t max_block_size) && {
@@ -95,8 +96,9 @@ class CordWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    size_t min_block_size_ = kDefaultMinBlockSize;
-    size_t max_block_size_ = kDefaultMaxBlockSize;
+    // Use `uint32_t` instead of `size_t` to reduce the object size.
+    uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
@@ -138,8 +140,9 @@ class CordWriterBase : public Writer {
   void SyncBuffer(absl::Cord& dest);
 
   absl::optional<Position> size_hint_;
-  size_t min_block_size_ = kDefaultMinBlockSize;
-  size_t max_block_size_ = kDefaultMaxBlockSize;
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
 
   // Buffered data to be appended, in either `short_buffer_` or `buffer_`.
   char short_buffer_[kShortBufferSize];
@@ -251,8 +254,8 @@ explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
 // Implementation details follow.
 
 inline CordWriterBase::CordWriterBase(const Options& options)
-    : min_block_size_(options.min_block_size()),
-      max_block_size_(options.max_block_size()) {}
+    : min_block_size_(IntCast<uint32_t>(options.min_block_size())),
+      max_block_size_(IntCast<uint32_t>(options.max_block_size())) {}
 
 inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
@@ -285,8 +288,8 @@ inline CordWriterBase& CordWriterBase::operator=(
 inline void CordWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   size_hint_ = absl::nullopt;
-  min_block_size_ = kDefaultMinBlockSize;
-  max_block_size_ = kDefaultMaxBlockSize;
+  min_block_size_ = uint32_t{kDefaultMinBlockSize};
+  max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   buffer_ = Buffer();
   associated_reader_.Reset();
 }
@@ -294,8 +297,8 @@ inline void CordWriterBase::Reset(Closed) {
 inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset();
   size_hint_ = absl::nullopt;
-  min_block_size_ = options.min_block_size();
-  max_block_size_ = options.max_block_size();
+  min_block_size_ = IntCast<uint32_t>(options.min_block_size());
+  max_block_size_ = IntCast<uint32_t>(options.max_block_size());
   associated_reader_.Reset();
 }
 

@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_RESIZABLE_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <string>
 #include <tuple>
@@ -68,7 +69,7 @@ class ResizableWriterBase : public Writer {
     //
     // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_buffer_size(size_t min_buffer_size) & {
-      min_buffer_size_ = min_buffer_size;
+      min_buffer_size_ = UnsignedMin(min_buffer_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_min_buffer_size(size_t min_buffer_size) && {
@@ -85,7 +86,7 @@ class ResizableWriterBase : public Writer {
           << "Failed precondition of "
              "ResizableWriterBase::Options::set_max_buffer_size(): "
              "zero buffer size";
-      max_buffer_size_ = max_buffer_size;
+      max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_max_buffer_size(size_t max_buffer_size) && {
@@ -95,8 +96,9 @@ class ResizableWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    size_t min_buffer_size_ = kDefaultMinBlockSize;
-    size_t max_buffer_size_ = kDefaultMaxBlockSize;
+    // Use `uint32_t` instead of `size_t` to reduce the object size.
+    uint32_t min_buffer_size_ = uint32_t{kDefaultMinBlockSize};
+    uint32_t max_buffer_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   bool SupportsTruncate() override { return true; }

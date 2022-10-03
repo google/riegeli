@@ -137,7 +137,6 @@ cc_library(
     hdrs = ["buffer_options.h"],
     deps = [
         "//riegeli/base",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/types:optional",
     ],
 )

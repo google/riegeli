@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CHAIN_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <tuple>
 #include <type_traits>
@@ -64,7 +65,7 @@ class ChainWriterBase : public Writer {
     //
     // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_block_size(size_t min_block_size) & {
-      min_block_size_ = min_block_size;
+      min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_min_block_size(size_t min_block_size) && {
@@ -83,7 +84,7 @@ class ChainWriterBase : public Writer {
           << "Failed precondition of "
              "ChainWriterBase::Options::set_max_block_size(): "
              "zero block size";
-      max_block_size_ = max_block_size;
+      max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_max_block_size(size_t max_block_size) && {
@@ -93,8 +94,9 @@ class ChainWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    size_t min_block_size_ = kDefaultMinBlockSize;
-    size_t max_block_size_ = kDefaultMaxBlockSize;
+    // Use `uint32_t` instead of `size_t` to reduce the object size.
+    uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   // Returns the `Chain` being written to.

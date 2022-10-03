@@ -16,10 +16,10 @@
 #define RIEGELI_BYTES_BUFFER_OPTIONS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <utility>
 
-#include "absl/flags/flag.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 
@@ -39,7 +39,7 @@ class BufferOptions {
   // Default: `kDefaultMinBufferSize` (4K).
   static constexpr size_t kDefaultMinBufferSize = size_t{4} << 10;
   BufferOptions& set_min_buffer_size(size_t min_buffer_size) & {
-    min_buffer_size_ = min_buffer_size;
+    min_buffer_size_ = UnsignedMin(min_buffer_size, uint32_t{1} << 31);
     return *this;
   }
   BufferOptions&& set_min_buffer_size(size_t min_buffer_size) && {
@@ -56,7 +56,7 @@ class BufferOptions {
   // Default: `kDefaultMaxBufferSize` (64K).
   static constexpr size_t kDefaultMaxBufferSize = size_t{64} << 10;
   BufferOptions& set_max_buffer_size(size_t max_buffer_size) & {
-    max_buffer_size_ = max_buffer_size;
+    max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
     return *this;
   }
   BufferOptions&& set_max_buffer_size(size_t max_buffer_size) && {
@@ -74,8 +74,9 @@ class BufferOptions {
   }
 
  private:
-  size_t min_buffer_size_ = kDefaultMinBufferSize;
-  size_t max_buffer_size_ = kDefaultMaxBufferSize;
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t min_buffer_size_ = uint32_t{kDefaultMinBufferSize};
+  uint32_t max_buffer_size_ = uint32_t{kDefaultMaxBufferSize};
 };
 
 // Deriving `Options` from `BufferOptionsBase<Options>` makes it easier to

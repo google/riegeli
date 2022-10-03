@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CORD_BACKWARD_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -63,7 +64,7 @@ class CordBackwardWriterBase : public BackwardWriter {
     //
     // Default: `kDefaultMinBlockSize` (256).
     Options& set_min_block_size(size_t min_block_size) & {
-      min_block_size_ = min_block_size;
+      min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_min_block_size(size_t min_block_size) && {
@@ -83,7 +84,7 @@ class CordBackwardWriterBase : public BackwardWriter {
           << "Failed precondition of "
              "CordBackwardWriterBase::Options::set_max_block_size(): "
              "zero block size";
-      max_block_size_ = max_block_size;
+      max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
     Options&& set_max_block_size(size_t max_block_size) && {
@@ -93,8 +94,9 @@ class CordBackwardWriterBase : public BackwardWriter {
 
    private:
     bool prepend_ = false;
-    size_t min_block_size_ = kDefaultMinBlockSize;
-    size_t max_block_size_ = kDefaultMaxBlockSize;
+    // Use `uint32_t` instead of `size_t` to reduce the object size.
+    uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
@@ -134,8 +136,9 @@ class CordBackwardWriterBase : public BackwardWriter {
   void SyncBuffer(absl::Cord& dest);
 
   absl::optional<Position> size_hint_;
-  size_t min_block_size_ = kDefaultMinBlockSize;
-  size_t max_block_size_ = kDefaultMaxBlockSize;
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
 
   // Buffered data to be prepended, in either `short_buffer_` or `buffer_`.
   char short_buffer_[kShortBufferSize];
@@ -247,8 +250,8 @@ explicit CordBackwardWriter(
 // Implementation details follow.
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
-    : min_block_size_(options.min_block_size()),
-      max_block_size_(options.max_block_size()) {}
+    : min_block_size_(IntCast<uint32_t>(options.min_block_size())),
+      max_block_size_(IntCast<uint32_t>(options.max_block_size())) {}
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(
     CordBackwardWriterBase&& that) noexcept
@@ -280,16 +283,16 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
 inline void CordBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
   size_hint_ = absl::nullopt;
-  min_block_size_ = kDefaultMinBlockSize;
-  max_block_size_ = kDefaultMaxBlockSize;
+  min_block_size_ = uint32_t{kDefaultMinBlockSize};
+  max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   buffer_ = Buffer();
 }
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset();
   size_hint_ = absl::nullopt;
-  min_block_size_ = options.min_block_size();
-  max_block_size_ = options.max_block_size();
+  min_block_size_ = IntCast<uint32_t>(options.min_block_size());
+  max_block_size_ = IntCast<uint32_t>(options.max_block_size());
 }
 
 inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
