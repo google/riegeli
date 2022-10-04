@@ -259,23 +259,26 @@ class CsvHeader {
   // Makes `*this` equivalent to a newly constructed `CsvHeader`.
   //
   // Precondition: like for the corresponding constructor
-  void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   template <typename Names,
             std::enable_if_t<
                 csv_internal::IsIterableOf<Names, absl::string_view>::value &&
                     !std::is_same<std::decay_t<Names>, CsvHeader>::value,
                 int> = 0>
-  void Reset(Names&& names);
-  void Reset(std::initializer_list<absl::string_view> names);
-  void Reset(std::function<std::string(absl::string_view)> normalizer);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Names&& names);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::initializer_list<absl::string_view> names);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::function<std::string(absl::string_view)> normalizer);
   template <
       typename Names,
       std::enable_if_t<
           csv_internal::IsIterableOf<Names, absl::string_view>::value, int> = 0>
-  void Reset(std::function<std::string(absl::string_view)> normalizer,
-             Names&& names);
-  void Reset(std::function<std::string(absl::string_view)> normalizer,
-             std::initializer_list<absl::string_view> names);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::function<std::string(absl::string_view)> normalizer, Names&& names);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::function<std::string(absl::string_view)> normalizer,
+      std::initializer_list<absl::string_view> names);
 
   // Makes `*this` equivalent to a newly constructed `CsvHeader`, reporting
   // whether construction was successful.
@@ -676,14 +679,15 @@ class CsvRecord {
   // Makes `*this` equivalent to a newly constructed `CsvRecord`.
   //
   // Precondition: like for the corresponding constructor
-  void Reset();
-  void Reset(CsvHeader header);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(CsvHeader header);
   template <typename Fields,
             std::enable_if_t<
                 csv_internal::IsIterableOf<Fields, absl::string_view>::value,
                 int> = 0>
-  void Reset(CsvHeader header, Fields&& fields);
-  void Reset(CsvHeader header, std::initializer_list<absl::string_view> fields);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(CsvHeader header, Fields&& fields);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      CsvHeader header, std::initializer_list<absl::string_view> fields);
 
   // Makes `*this` equivalent to a newly constructed `CsvRecord`, reporting
   // whether construction was successful.

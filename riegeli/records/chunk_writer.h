@@ -188,11 +188,14 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkWriter`. This
   // avoids constructing a temporary `DefaultChunkWriter` and moving from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Writer`.
   // Unchanged by `Close()`.
@@ -253,13 +256,17 @@ class DependencyImpl<ChunkWriter*, M,
     return *this;
   }
 
-  void Reset() { chunk_writer_.Reset(kClosed); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_writer_.Reset(kClosed); }
 
-  void Reset(const M& manager) { chunk_writer_.Reset(manager); }
-  void Reset(M&& manager) { chunk_writer_.Reset(std::move(manager)); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
+    chunk_writer_.Reset(manager);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
+    chunk_writer_.Reset(std::move(manager));
+  }
 
   template <typename... MArgs>
-  void Reset(std::tuple<MArgs...> manager_args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<MArgs...> manager_args) {
     chunk_writer_.Reset(std::move(manager_args));
   }
 

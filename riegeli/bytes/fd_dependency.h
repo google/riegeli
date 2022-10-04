@@ -17,6 +17,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/fd_internal.h"
 
@@ -38,8 +39,8 @@ class OwnedFd {
 
   ~OwnedFd();
 
-  void Reset();
-  void Reset(int fd);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd);
 
   // Returns the owned file descriptor, or -1 if none.
   int get() const { return fd_; }
@@ -66,8 +67,8 @@ class UnownedFd {
   UnownedFd(const UnownedFd& that) noexcept = default;
   UnownedFd& operator=(const UnownedFd& that) noexcept = default;
 
-  void Reset() { fd_ = -1; }
-  void Reset(int fd) { fd_ = fd; }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { fd_ = -1; }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd) { fd_ = fd; }
 
   // Returns the owned file descriptor, or a negative value if none.
   int get() const { return fd_; }

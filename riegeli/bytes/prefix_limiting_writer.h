@@ -165,11 +165,14 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   // Makes `*this` equivalent to a newly constructed `PrefixLimitingWriter`.
   // This avoids constructing a temporary `PrefixLimitingWriter` and moving
   // from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.

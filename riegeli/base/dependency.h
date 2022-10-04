@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -133,11 +134,12 @@ inline int DependencySentinel(int*) { return -1; }
 //   // constructing a temporary Dependency and moving from it.
 //   //
 //   // These methods are optional.
-//   void Reset();
-//   void Reset(const Manager& manager);
-//   void Reset(Manager&& manager);
+//   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager);
+//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
 //   template <typename... ManagerArgs>
-//   void Reset(std::tuple<ManagerArgs...> manager_args);
+//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+//       std::tuple<ManagerArgs...> manager_args);
 //
 //   // Exposes the contained `Manager`.
 //   Manager& manager();
@@ -328,13 +330,20 @@ class DependencyBase {
     return *this;
   }
 
-  void Reset() { Reset(DependencySentinel(static_cast<Manager*>(nullptr))); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
+    Reset(DependencySentinel(static_cast<Manager*>(nullptr)));
+  }
 
-  void Reset(const Manager& manager) { manager_ = manager; }
-  void Reset(Manager&& manager) { manager_ = std::move(manager); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
+    manager_ = manager;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
+    manager_ = std::move(manager);
+  }
 
   template <typename... ManagerArgs>
-  void Reset(std::tuple<ManagerArgs...> manager_args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::tuple<ManagerArgs...> manager_args) {
 #if __cpp_lib_apply
     std::apply(
         [&](ManagerArgs&&... args) {

@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -225,15 +226,18 @@ class StringWriter : public StringWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_same<DependentDest, std::string>::value,
                              int> = 0>
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `std::string` being
   // written to. Unchanged by `Close()`.

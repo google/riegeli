@@ -19,6 +19,7 @@
 
 #include <atomic>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -46,7 +47,7 @@ class SharedBuffer {
 
   // Ensures at least `min_capacity` of space and unique ownership of the data.
   // Existing contents are lost.
-  void Reset(size_t min_capacity);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity);
 
   // Returns `true` if this `SharedBuffer` is the only owner of the data.
   bool has_unique_owner() const;

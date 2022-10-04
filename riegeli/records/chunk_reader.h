@@ -276,11 +276,11 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkReader`. This
   // avoids constructing a temporary `DefaultChunkReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src);
-  void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
 
   // Returns the object providing and possibly owning the byte `Reader`.
   // Unchanged by `Close()`.
@@ -333,13 +333,17 @@ class DependencyImpl<ChunkReader*, M,
     return *this;
   }
 
-  void Reset() { chunk_reader_.Reset(kClosed); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_reader_.Reset(kClosed); }
 
-  void Reset(const M& manager) { chunk_reader_.Reset(manager); }
-  void Reset(M&& manager) { chunk_reader_.Reset(std::move(manager)); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
+    chunk_reader_.Reset(manager);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
+    chunk_reader_.Reset(std::move(manager));
+  }
 
   template <typename... MArgs>
-  void Reset(std::tuple<MArgs...> manager_args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<MArgs...> manager_args) {
     chunk_reader_.Reset(std::move(manager_args));
   }
 

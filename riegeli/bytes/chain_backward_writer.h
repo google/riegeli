@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -188,15 +189,18 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
   // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `Chain` being written
   // to.

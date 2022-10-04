@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/memory.h"
@@ -40,7 +41,7 @@ class Buffer {
   ~Buffer() { DeleteInternal(); }
 
   // Ensures at least `min_capacity` of space. Existing contents are lost.
-  void Reset(size_t min_capacity);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity);
 
   // Returns the data pointer.
   char* data() const { return data_; }

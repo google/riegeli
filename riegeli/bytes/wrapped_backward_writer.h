@@ -123,11 +123,11 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `WrappedBackwardWriter`.
   // This avoids constructing a temporary `WrappedBackwardWriter` and moving
   // from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest);
-  void Reset(Dest&& dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
 
   // Returns the object providing and possibly owning the original
   // `BackwardWriter`. Unchanged by `Close()`.

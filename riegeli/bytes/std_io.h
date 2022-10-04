@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_STD_IO_H_
 #define RIEGELI_BYTES_STD_IO_H_
 
+#include "absl/base/attributes.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -50,8 +51,8 @@ class StdIn : public FdReader<UnownedFd> {
 
   // Makes `*this` equivalent to a newly constructed `StdIn`. This avoids
   // constructing a temporary `StdIn` and moving from it.
-  void Reset(Closed);
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
  protected:
   void Done() override;
@@ -96,8 +97,8 @@ class StdOut : public FdWriter<UnownedFd> {
 
   // Makes `*this` equivalent to a newly constructed `StdOut`. This avoids
   // constructing a temporary `StdOut` and moving from it.
-  void Reset(Closed);
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 };
 
 // A new `Writer` writing to standard error (by default to the same destination
@@ -135,8 +136,8 @@ class StdErr : public FdWriter<UnownedFd> {
 
   // Makes `*this` equivalent to a newly constructed `StdErr`. This avoids
   // constructing a temporary `StdErr` and moving from it.
-  void Reset(Closed);
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 };
 
 // Sets file descriptors used by future instances of `Std{In,Out,Err}` in the

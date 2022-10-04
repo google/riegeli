@@ -320,16 +320,21 @@ class FdWriter : public FdWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `FdWriter`. This avoids
   // constructing a temporary `FdWriter` and moving from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
-  void Reset(int dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int> = 0>
-  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.

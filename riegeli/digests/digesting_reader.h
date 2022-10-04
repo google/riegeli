@@ -158,13 +158,16 @@ class DigestingReader : public DigestingReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `DigestingReader`. This
   // avoids constructing a temporary `DigestingReader` and moving from it.
-  void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   template <typename... DigesterArgs>
-  void Reset(const Src& src, DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          DigesterArgs&&... digester_args);
   template <typename... DigesterArgs>
-  void Reset(Src&& src, DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          DigesterArgs&&... digester_args);
   template <typename... SrcArgs, typename... DigesterArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          DigesterArgs&&... digester_args);
 
   // Digests buffered data if needed, and returns the digest.
   DigestType Digest();

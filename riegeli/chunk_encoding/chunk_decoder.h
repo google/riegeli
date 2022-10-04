@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -80,7 +81,7 @@ class ChunkDecoder : public Object {
 
   // Makes `*this` equivalent to a newly constructed `ChunkDecoder`. This avoids
   // constructing a temporary `ChunkDecoder` and moving from it.
-  void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Resets the `ChunkDecoder` to an empty chunk. Keeps options unchanged.
   void Clear();

@@ -256,17 +256,17 @@ class Chain {
 
   // Makes `*this` equivalent to a newly constructed `Chain`. This avoids
   // constructing a temporary `Chain` and moving from it.
-  void Reset();
-  void Reset(absl::string_view src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view src);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Reset(Src&& src);
-  void Reset(const ChainBlock& src);
-  void Reset(ChainBlock&& src);
-  void Reset(const absl::Cord& src);
-  void Reset(absl::Cord&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const ChainBlock& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(ChainBlock&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
 
-  void Clear();
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
   // A container of `absl::string_view` blocks comprising data of the `Chain`.
   Blocks blocks() const;
@@ -866,7 +866,7 @@ class ChainBlock {
   ChainBlock(ChainBlock&& that) noexcept = default;
   ChainBlock& operator=(ChainBlock&& that) noexcept = default;
 
-  void Clear();
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
   explicit operator absl::string_view() const;
   const char* data() const;

@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -114,19 +115,19 @@ class StringReader : public StringReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `StringReader`. This avoids
   // constructing a temporary `StringReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src);
-  void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
   template <typename DependentSrc = Src,
             std::enable_if_t<
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
-  void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   template <typename DependentSrc = Src,
             std::enable_if_t<
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
-  void Reset(const char* src, size_t size);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const char* src, size_t size);
 
   // Returns the object providing and possibly owning the `std::string` or array
   // being read from. Unchanged by `Close()`.

@@ -30,6 +30,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -137,7 +138,7 @@ class PythonWrapped {
                 "PythonWrapped does not support overaligned types");
 
   template <typename... Args>
-  void emplace(Args&&... args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void emplace(Args&&... args) {
     if (has_value_) {
       get()->~T();
     } else {
@@ -146,7 +147,7 @@ class PythonWrapped {
     new (storage_) T(std::forward<Args>(args)...);
   }
 
-  void reset() {
+  ABSL_ATTRIBUTE_REINITIALIZES void reset() {
     if (has_value_) {
       get()->~T();
       has_value_ = false;

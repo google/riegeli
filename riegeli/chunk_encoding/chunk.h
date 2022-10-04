@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "absl/base/attributes.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
@@ -92,8 +93,8 @@ class ChunkHeader {
 };
 
 struct Chunk {
-  void Reset() { data = Chain(); }
-  void Clear() { data.Clear(); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { data = Chain(); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() { data.Clear(); }
 
   bool WriteTo(Writer& dest) const;
   bool ReadFrom(Reader& src);

@@ -126,11 +126,11 @@ class WrappedReader : public WrappedReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `WrappedReader`. This
   // avoids constructing a temporary `WrappedReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src);
-  void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.

@@ -20,6 +20,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 
@@ -165,8 +166,8 @@ class ReadBufferSizer {
   ReadBufferSizer(const ReadBufferSizer& that) noexcept;
   ReadBufferSizer& operator=(const ReadBufferSizer& that) noexcept;
 
-  void Reset();
-  void Reset(const BufferOptions& buffer_options);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
 
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const { return buffer_options_; }
@@ -269,8 +270,8 @@ class WriteBufferSizer {
   WriteBufferSizer(const WriteBufferSizer& that) noexcept;
   WriteBufferSizer& operator=(const WriteBufferSizer& that) noexcept;
 
-  void Reset();
-  void Reset(const BufferOptions& buffer_options);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
 
   // Returns the options passed to the constructor.
   const BufferOptions& buffer_options() const { return buffer_options_; }

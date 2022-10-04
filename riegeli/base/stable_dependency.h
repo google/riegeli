@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -99,14 +100,14 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
     return *this;
   }
 
-  void Reset() {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     if (dep_ != nullptr) {
       dep_.reset();
       new (&dummy_) Dependency<P*, M>();
     }
   }
 
-  void Reset(const M& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
       dep_ = std::make_unique<Dependency<P*, M>>(manager);
@@ -114,7 +115,7 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
       dep_->Reset(manager);
     }
   }
-  void Reset(M&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
       dep_ = std::make_unique<Dependency<P*, M>>(std::move(manager));
@@ -124,7 +125,8 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
   }
 
   template <typename... ManagerArgs>
-  void Reset(std::tuple<ManagerArgs...> manager_args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::tuple<ManagerArgs...> manager_args) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
       dep_ = std::make_unique<Dependency<P*, M>>(std::move(manager_args));

@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
@@ -220,11 +221,12 @@ class AnyDependencyImpl {
 
   // Makes `*this` equivalent to a newly constructed `AnyDependencyImpl`. This
   // avoids constructing a temporary `AnyDependencyImpl` and moving from it.
-  void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   template <typename Manager>
-  void Reset(Manager&& manager);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
   template <typename Manager, typename ManagerArg>
-  void Reset(absl::in_place_type_t<Manager>, ManagerArg&& manager_arg);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
+                                          ManagerArg&& manager_arg);
 
   // Holds a `Dependency<Ptr, Manager>`.
   //
@@ -233,7 +235,7 @@ class AnyDependencyImpl {
   // Same as `Reset(absl::in_place_type<Manager>,
   //                std::forward_as_tuple(manager_args...))`.
   template <typename Manager, typename... ManagerArgs>
-  void Emplace(ManagerArgs&&... manager_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Emplace(ManagerArgs&&... manager_args);
 
 #if __cpp_deduction_guides
   // Like above, but the exact `Manager` type is deduced using CTAD from
@@ -242,7 +244,7 @@ class AnyDependencyImpl {
   // Only templates with solely type template parameters are supported.
   template <template <typename...> class ManagerTemplate,
             typename... ManagerArgs>
-  void Emplace(ManagerArgs&&... manager_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Emplace(ManagerArgs&&... manager_args);
 #endif
 
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
@@ -516,14 +518,17 @@ class AnyDependencyRefImpl
   // Makes `*this` equivalent to a newly constructed `AnyDependencyRefImpl`.
   // This avoids constructing a temporary `AnyDependencyRefImpl` and moving from
   // it.
-  void Reset() { AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
+    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset();
+  }
   template <typename Manager>
-  void Reset(Manager&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
         absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
   }
   template <typename Manager, typename ManagerArg>
-  void Reset(absl::in_place_type_t<Manager>, ManagerArg&& manager_arg) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
+                                          ManagerArg&& manager_arg) {
     AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
         absl::in_place_type<Manager>, std::forward<ManagerArg>(manager_arg));
   }

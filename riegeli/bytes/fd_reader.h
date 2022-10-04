@@ -405,16 +405,20 @@ class FdReader : public FdReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FdReader`. This avoids
   // constructing a temporary `FdReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src, Options options = Options());
-  void Reset(Src&& src, Options options = Options());
-  void Reset(int src, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          Options options = Options());
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
-  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
@@ -512,16 +516,20 @@ class FdMMapReader : public FdMMapReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FdMMapReader`. This avoids
   // constructing a temporary `FdMMapReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src, Options options = Options());
-  void Reset(Src&& src, Options options = Options());
-  void Reset(int src, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          Options options = Options());
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int> = 0>
-  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.

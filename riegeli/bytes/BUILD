@@ -137,6 +137,7 @@ cc_library(
     hdrs = ["buffer_options.h"],
     deps = [
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -661,6 +662,7 @@ cc_library(
         ":fd_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

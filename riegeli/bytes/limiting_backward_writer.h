@@ -239,11 +239,14 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `LimitingBackwardWriter`.
   // This avoids constructing a temporary `LimitingBackwardWriter` and moving
   // from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest, Options options = Options());
-  void Reset(Dest&& dest, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the original
   // `BackwardWriter`. Unchanged by `Close()`.

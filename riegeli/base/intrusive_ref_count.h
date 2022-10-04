@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -75,9 +76,9 @@ class RefCountedPtr {
 
   ~RefCountedPtr();
 
-  void reset();
-  void reset(nullptr_t) { reset(); }
-  void reset(T* ptr);
+  ABSL_ATTRIBUTE_REINITIALIZES void reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void reset(nullptr_t) { reset(); }
+  ABSL_ATTRIBUTE_REINITIALIZES void reset(T* ptr);
 
   T* get() const { return ptr_; }
   T& operator*() const {

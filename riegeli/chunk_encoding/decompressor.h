@@ -21,6 +21,7 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -77,11 +78,14 @@ class Decompressor : public Object {
 
   // Makes `*this` equivalent to a newly constructed `Decompressor`. This avoids
   // constructing a temporary `Decompressor` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src, CompressionType compression_type);
-  void Reset(Src&& src, CompressionType compression_type);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          CompressionType compression_type);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          CompressionType compression_type);
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, CompressionType compression_type);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          CompressionType compression_type);
 
   // Returns the `Reader` from which uncompressed data should be read.
   //

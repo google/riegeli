@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -124,15 +125,15 @@ class ArrayWriter : public ArrayWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ArrayWriter`. This avoids
   // constructing a temporary `ArrayWriter` and moving from it.
-  void Reset(Closed);
-  void Reset(const Dest& dest);
-  void Reset(Dest&& dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
   template <typename DependentDest = Dest,
             std::enable_if_t<
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
-  void Reset(char* dest, size_t size);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by `Close()`.

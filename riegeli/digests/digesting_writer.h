@@ -170,14 +170,16 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `DigestingWriter`. This
   // avoids constructing a temporary `DigestingWriter` and moving from it.
-  void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   template <typename... DigesterArgs>
-  void Reset(const Dest& dest, DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+                                          DigesterArgs&&... digester_args);
   template <typename... DigesterArgs>
-  void Reset(Dest&& dest, DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+                                          DigesterArgs&&... digester_args);
   template <typename... DestArgs, typename... DigesterArgs>
-  void Reset(std::tuple<DestArgs...> dest_args,
-             DigesterArgs&&... digester_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+                                          DigesterArgs&&... digester_args);
 
   // Digests buffered data if needed, and returns the digest.
   DigestType Digest();

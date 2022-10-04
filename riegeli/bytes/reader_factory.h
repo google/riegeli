@@ -135,11 +135,14 @@ class ReaderFactory : public ReaderFactoryBase {
 
   // Makes `*this` equivalent to a newly constructed `ReaderFactory`. This
   // avoids constructing a temporary `ReaderFactory` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src, Options options = Options());
-  void Reset(Src&& src, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          Options options = Options());
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.

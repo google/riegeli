@@ -229,16 +229,21 @@ class CFileReader : public CFileReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `CFileReader`. This avoids
   // constructing a temporary `CFileReader` and moving from it.
-  void Reset(Closed);
-  void Reset(const Src& src, Options options = Options());
-  void Reset(Src&& src, Options options = Options());
-  void Reset(FILE* src, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
+                                          Options options = Options());
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          Options options = Options());
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_same<DependentSrc, OwnedCFile>::value, int> = 0>
-  void Reset(absl::string_view filename, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. If the `FILE` is owned then changed to `nullptr` by `Close()`,

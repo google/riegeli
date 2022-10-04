@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -46,8 +47,8 @@ class NullWriter : public Writer {
 
   // Makes `*this` equivalent to a newly constructed `NullWriter`. This avoids
   // constructing a temporary `NullWriter` and moving from it.
-  void Reset(Closed);
-  void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
