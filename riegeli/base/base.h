@@ -743,9 +743,15 @@ inline bool Wasteful(size_t total, size_t used) {
   return total - used > UnsignedMax(used, kDefaultMinBlockSize);
 }
 
-// Resize `dest` to `size`, ensuring that repeated growth has the cost
+// Resizes `dest` to `size`, ensuring that repeated growth has the cost
 // proportional to the final size. New contents are unspecified.
 void ResizeStringAmortized(std::string& dest, size_t new_size);
+
+// Copies `src` to `dest[]`.
+void CopyCordToArray(const absl::Cord& src, char* dest);
+
+// Appends `src` to `dest`.
+void AppendCordToString(const absl::Cord& src, std::string& dest);
 
 // Variants of `absl::Cord` operations with different block sizing tradeoffs:
 //  * `MakeBlockyCord(src)` is like `absl::Cord(src)`.
@@ -760,7 +766,7 @@ absl::Cord MakeBlockyCord(absl::string_view src);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 
-// Assert that a region of memory is initialized, which is checked when running
+// Asserts that a region of memory is initialized, which is checked when running
 // under memory sanitizer.
 inline void AssertInitialized(const char* data, size_t size) {
 #ifdef MEMORY_SANITIZER

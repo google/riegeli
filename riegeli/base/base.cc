@@ -53,6 +53,20 @@ void ResizeStringAmortized(std::string& dest, size_t new_size) {
   dest.resize(new_size);
 }
 
+void CopyCordToArray(const absl::Cord& src, char* dest) {
+  char* dest = cursor();
+  for (const absl::string_view fragment : src.Chunks()) {
+    std::memcpy(dest, fragment.data(), fragment.size());
+    dest += fragment.size();
+  }
+}
+
+void AppendCordToString(const absl::Cord& src, std::string& dest) {
+  const size_t old_size = dest.size();
+  ResizeStringAmortized(dest, old_size + src.size());
+  CopyCordToArray(src, &dest[old_size]);
+}
+
 absl::Cord MakeBlockyCord(absl::string_view src) {
   // `absl::cord_internal::kMaxFlatLength`.
   static constexpr size_t kMaxFlatLength =

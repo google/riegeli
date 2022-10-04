@@ -575,11 +575,7 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
-    char* dest = cursor();
-    for (const absl::string_view fragment : src.Chunks()) {
-      std::memcpy(dest, fragment.data(), fragment.size());
-      dest += fragment.size();
-    }
+    CopyCordToArray(src, cursor());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());
@@ -595,11 +591,7 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
-    char* dest = cursor();
-    for (const absl::string_view fragment : src.Chunks()) {
-      std::memcpy(dest, fragment.data(), fragment.size());
-      dest += fragment.size();
-    }
+    CopyCordToArray(src, cursor());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());

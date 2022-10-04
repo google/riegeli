@@ -163,12 +163,8 @@ bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
   if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
-      char* dest = cursor();
-      for (const absl::string_view fragment : src.Chunks()) {
-        std::memcpy(dest, fragment.data(), fragment.size());
-        dest += fragment.size();
-      }
-      set_cursor(dest);
+      CopyCordToArray(src, cursor());
+      move_cursor(src.size());
       return true;
     }
     set_start_pos(pos());
@@ -194,12 +190,8 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
   if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
-      char* dest = cursor();
-      for (const absl::string_view fragment : src.Chunks()) {
-        std::memcpy(dest, fragment.data(), fragment.size());
-        dest += fragment.size();
-      }
-      set_cursor(dest);
+      CopyCordToArray(src, cursor());
+      move_cursor(src.size());
       return true;
     }
     set_start_pos(pos());
