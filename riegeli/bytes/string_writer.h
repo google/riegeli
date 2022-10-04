@@ -105,7 +105,7 @@ class StringWriterBase : public Writer {
   virtual std::string* DestString() = 0;
   virtual const std::string* DestString() const = 0;
 
-  bool SupportsTruncate() override { return true; }
+  bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -133,17 +133,32 @@ class StringWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  // Returns the amount of data written, either to `*DestString()` or to
+  // `secondary_buffer_`.
+  size_t used_size() const;
+
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
+  //
+  // Precondition: `!uses_secondary_buffer()`
   void SyncDestBuffer(std::string& dest);
 
+  // Sets buffer pointers to `dest`.
+  //
+  // Precondition: `!uses_secondary_buffer()`
+  void MakeDestBuffer(std::string& dest, size_t cursor_index);
+
   // Appends some uninitialized space to `dest` if this can be done without
-  // reallocation.
-  void MakeDestBuffer(std::string& dest);
+  // reallocation. Sets buffer pointers to `dest`.
+  //
+  // Precondition: `!uses_secondary_buffer()`
+  void GrowDestToCapacityAndMakeBuffer(std::string& dest, size_t cursor_index);
 
   // Discards uninitialized space from the end of `secondary_buffer_`, so that
   // it contains only actual data written.
@@ -157,14 +172,24 @@ class StringWriterBase : public Writer {
   // Buffered data which did not fit under `DestString()->capacity()`.
   Chain secondary_buffer_;
 
+  // Size of written data is always `UnsignedMax(pos(), written_size_)`.
+  // This is used to determine the size after seeking backwards.
+  //
+  // Invariant: if `uses_secondary_buffer()` then `written_size_ == 0`.
+  size_t written_size_ = 0;
+
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
   // If `!uses_secondary_buffer()`, then `*DestString()` contains the data
-  // followed by `available()` free space.
+  // before the current position of length `pos()`, followed by the data after
+  // the current position of length `SaturatingSub(written_size_, pos())`,
+  // followed by free space of length
+  // `DestString()->size() - UnsignedMax(pos(), written_size_)`.
   //
   // If `uses_secondary_buffer()`, then `*DestString()` contains some prefix of
   // the data, and `secondary_buffer_` contains the rest of the data followed by
-  // `available()` free space.
+  // free space of length `available()`. In this case there is no data after the
+  // current position.
   //
   // Invariants if `ok()`:
   //   `(!uses_secondary_buffer() &&
@@ -175,12 +200,14 @@ class StringWriterBase : public Writer {
   //     limit() == secondary_buffer_.blocks().back().data() +
   //                secondary_buffer_.blocks().back().size()) ||
   //    start() == nullptr`
-  //   `limit_pos() == DestString()->size() + secondary_buffer_.size()`
+  //   `limit_pos() >= secondary_buffer_.size()`
+  //   `UnsignedMax(limit_pos(), written_size_) ==
+  //        DestString()->size() + secondary_buffer_.size()`
 };
 
 // A `Writer` which appends to a `std::string`, resizing it as necessary.
 //
-// It supports `ReadMode()`.
+// It supports `Seek()` and `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `std::string` being written to. `Dest` must support
@@ -294,6 +321,7 @@ inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
       // `secondary_buffer_` will be moved by `StringWriter::StringWriter()`.
+      written_size_(that.written_size_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
@@ -301,6 +329,7 @@ inline StringWriterBase& StringWriterBase::operator=(
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
   // `secondary_buffer_` will be moved by `StringWriter::operator=`.
+  written_size_ = that.written_size_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
@@ -309,6 +338,7 @@ inline void StringWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   options_ = Chain::Options();
   secondary_buffer_ = Chain();
+  written_size_ = 0;
   associated_reader_.Reset();
 }
 
@@ -319,6 +349,7 @@ inline void StringWriterBase::Reset(size_t min_buffer_size,
                  .set_min_block_size(min_buffer_size)
                  .set_max_block_size(max_buffer_size);
   secondary_buffer_.Clear();
+  written_size_ = 0;
   associated_reader_.Reset();
 }
 

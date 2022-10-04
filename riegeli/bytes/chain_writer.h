@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -106,7 +107,7 @@ class ChainWriterBase : public Writer {
   ABSL_DEPRECATED("Use dest() or DestChain() instead.")
   const Chain* dest_chain() const { return DestChain(); }
 
-  bool SupportsTruncate() override { return true; }
+  bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -131,31 +132,71 @@ class ChainWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains
-  // only actual data written.
+  // only actual data written. Ensures that data which follow the current
+  // position are separated in `*tail_`.
   void SyncBuffer(Chain& dest);
 
   // Appends uninitialized space to `dest`.
   void MakeBuffer(Chain& dest, size_t min_length = 1,
                   size_t recommended_length = 0);
 
+  // Moves `length` of data from the beginning of `*tail_` to the end of `dest`.
+  void MoveFromTail(size_t length, Chain& dest);
+
+  // Moves `length` of data from the end of `dest` to the beginning of `*tail_`.
+  void MoveToTail(size_t length, Chain& dest);
+
+  // Returns `true` if data which follow the current position are appended to
+  // `dest`.
+  bool HasAppendedTail(const Chain& dest) const;
+
+  // Moves data which follow the current position from being appended to `dest`
+  // to being separated in `*tail_`.
+  void ExtractTail(Chain& dest);
+
+  // Moves data which follow the current position from being separated in
+  // `*tail_` to being appended to `dest`.
+  void AppendTail(Chain& dest);
+
+  // Removes a prefix of `*tail_` of the given `length`, staturated at clearing
+  // the whole `*tail_`.
+  void ShrinkTail(size_t length);
+
   Chain::Options options_;
+
+  // If `limit_pos() < DestChain()->size()`, then data after the current
+  // position are appended to `*DestChain()`, buffer pointers are `nullptr`,
+  // and `tail_ == nullptr || tail_->empty()`.
+  //
+  // Otherwise, if `tail_ != nullptr`, data after the current position are
+  // separated in `*tail_`, ignoring a prefix of `*tail_` with length
+  // `start_to_cursor()`, saturated at ignoring the whole `*tail_` (the ignored
+  // prefix is being overwritten with buffered data).
+  //
+  // `tail_` is stored behind `std::unique_ptr` to reduce the object size in the
+  // common case when random access is not used.
+  std::unique_ptr<Chain> tail_;
 
   AssociatedReader<ChainReader<const Chain*>> associated_reader_;
 
   // Invariants if `ok()`:
   //   `limit() == nullptr || limit() == DestChain()->blocks().back().data() +
   //                                     DestChain()->blocks().back().size()`
-  //   `limit_pos() == DestChain()->size()`
+  //   `limit_pos() <= DestChain()->size()`
+  //   if `limit_pos() < DestChain()->size()` then
+  //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
 };
 
 // A `Writer` which appends to a `Chain`.
 //
-// It supports `ReadMode()`.
+// It supports `Seek()` and `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Chain` being written to. `Dest` must support
@@ -268,12 +309,14 @@ inline ChainWriterBase::ChainWriterBase(const Options& options)
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
+      tail_(std::move(that.tail_)),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
     ChainWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
+  tail_ = std::move(that.tail_);
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
@@ -281,6 +324,7 @@ inline ChainWriterBase& ChainWriterBase::operator=(
 inline void ChainWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   options_ = Chain::Options();
+  tail_.reset();
   associated_reader_.Reset();
 }
 
@@ -289,6 +333,7 @@ inline void ChainWriterBase::Reset(const Options& options) {
   options_ = Chain::Options()
                  .set_min_block_size(options.min_block_size())
                  .set_max_block_size(options.max_block_size());
+  if (tail_ != nullptr) tail_->Clear();
   associated_reader_.Reset();
 }
 

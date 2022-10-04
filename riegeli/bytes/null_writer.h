@@ -51,7 +51,7 @@ class NullWriter : public Writer {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
   bool PrefersCopying() const override { return true; }
-  bool SupportsTruncate() override { return true; }
+  bool SupportsRandomAccess() override { return true; }
 
  protected:
   void Done() override;
@@ -61,6 +61,8 @@ class NullWriter : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteZerosSlow(Position length) override;
+  bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 
  private:
@@ -72,6 +74,10 @@ class NullWriter : public Writer {
 
   WriteBufferSizer buffer_sizer_;
   Buffer buffer_;
+
+  // Size of written data is always `UnsignedMax(pos(), written_size_)`.
+  // This is used to determine the size after seeking backwards.
+  Position written_size_ = 0;
 };
 
 // Implementation details follow.
@@ -79,12 +85,14 @@ class NullWriter : public Writer {
 inline NullWriter::NullWriter(NullWriter&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       buffer_sizer_(that.buffer_sizer_),
-      buffer_(std::move(that.buffer_)) {}
+      buffer_(std::move(that.buffer_)),
+      written_size_(that.written_size_) {}
 
 inline NullWriter& NullWriter::operator=(NullWriter&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
+  written_size_ = that.written_size_;
   return *this;
 }
 
@@ -92,11 +100,13 @@ inline void NullWriter::Reset(Closed) {
   Writer::Reset(kClosed);
   buffer_sizer_.Reset();
   buffer_ = Buffer();
+  written_size_ = 0;
 }
 
 inline void NullWriter::Reset() {
   Writer::Reset();
   buffer_sizer_.Reset();
+  written_size_ = 0;
 }
 
 }  // namespace riegeli

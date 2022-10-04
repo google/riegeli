@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -106,7 +107,7 @@ class CordWriterBase : public Writer {
   virtual absl::Cord* DestCord() = 0;
   virtual const absl::Cord* DestCord() const = 0;
 
-  bool SupportsTruncate() override { return true; }
+  bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -131,14 +132,39 @@ class CordWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;
 
-  // If the buffer is not empty, appends it to `dest`.
+  // If the buffer is not empty, appends it to `dest`. Ensures that data which
+  // follow the current position are separated in `*tail_`.
   void SyncBuffer(absl::Cord& dest);
+
+  // Moves `length` of data from the beginning of `*tail_` to the end of `dest`.
+  void MoveFromTail(size_t length, absl::Cord& dest);
+
+  // Moves `length` of data from the end of `dest` to the beginning of `*tail_`.
+  void MoveToTail(size_t length, absl::Cord& dest);
+
+  // Returns `true` if data which follow the current position are appended to
+  // `dest`.
+  bool HasAppendedTail(const absl::Cord& dest) const;
+
+  // Moves data which follow the current position from being appended to `dest`
+  // to being separated in `*tail_`.
+  void ExtractTail(absl::Cord& dest);
+
+  // Moves data which follow the current position from being separated in
+  // `*tail_` to being appended to `dest`.
+  void AppendTail(absl::Cord& dest);
+
+  // Removes a prefix of `*tail_` of the given `length`, staturated at clearing
+  // the whole `*tail_`.
+  void ShrinkTail(size_t length);
 
   absl::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
@@ -149,17 +175,32 @@ class CordWriterBase : public Writer {
   char short_buffer_[kShortBufferSize];
   Buffer buffer_;
 
+  // If `start_pos() < DestCord()->size()`, then data after the current
+  // position are appended to `*DestCord()`, buffer pointers are `nullptr`,
+  // and `tail_ == nullptr || tail_->empty()`.
+  //
+  // Otherwise, if `tail_ != nullptr`, data after the current position are
+  // separated in `*tail_`, ignoring a prefix of `*tail_` with length
+  // `start_to_cursor()`, saturated at ignoring the whole `*tail_` (the ignored
+  // prefix is being overwritten with buffered data).
+  //
+  // `tail_` is stored behind `std::unique_ptr` to reduce the object size in the
+  // common case when random access is not used.
+  std::unique_ptr<absl::Cord> tail_;
+
   AssociatedReader<CordReader<const absl::Cord*>> associated_reader_;
 
   // Invariants:
   //   `start() == nullptr` or `start() == short_buffer_`
   //       or `start() == buffer_.data()`
-  //   if `ok()` then `start_pos() == DestCord()->size()`
+  //   if `ok()` then `start_pos() <= DestCord()->size()`
+  //   if `ok() && start_pos() < DestCord()->size()` then
+  //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
 };
 
 // A `Writer` which appends to an `absl::Cord`.
 //
-// It supports `ReadMode()`.
+// It supports `Seek()` and `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `absl::Cord` being written to. `Dest` must support
@@ -267,6 +308,7 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)),
+      tail_(std::move(that.tail_)),
       associated_reader_(std::move(that.associated_reader_)) {
   if (start() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
@@ -281,6 +323,7 @@ inline CordWriterBase& CordWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
+  tail_ = std::move(that.tail_);
   associated_reader_ = std::move(that.associated_reader_);
   if (start() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
@@ -295,6 +338,7 @@ inline void CordWriterBase::Reset(Closed) {
   min_block_size_ = uint32_t{kDefaultMinBlockSize};
   max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   buffer_ = Buffer();
+  tail_.reset();
   associated_reader_.Reset();
 }
 
@@ -303,6 +347,7 @@ inline void CordWriterBase::Reset(const Options& options) {
   size_hint_ = absl::nullopt;
   min_block_size_ = IntCast<uint32_t>(options.min_block_size());
   max_block_size_ = IntCast<uint32_t>(options.max_block_size());
+  if (tail_ != nullptr) tail_->Clear();
   associated_reader_.Reset();
 }
 

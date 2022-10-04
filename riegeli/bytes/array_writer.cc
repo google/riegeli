@@ -18,6 +18,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -47,8 +48,35 @@ bool ArrayWriterBase::FlushBehindScratch(FlushType flush_type) {
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  written_ = absl::MakeSpan(start(), start_to_cursor());
+  const size_t size = UnsignedMax(start_to_cursor(), written_.size());
+  written_ = absl::MakeSpan(start(), size);
   return true;
+}
+
+bool ArrayWriterBase::SeekBehindScratch(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of PushableWriter::SeekBehindScratch(): "
+         "position unchanged, use Seek() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::SeekBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = UnsignedMax(start_to_cursor(), written_.size());
+  if (ABSL_PREDICT_FALSE(new_pos > size)) {
+    set_cursor(start() + size);
+    return false;
+  }
+  written_ = absl::MakeSpan(start(), size);
+  set_cursor(start() + new_pos);
+  return true;
+}
+
+absl::optional<Position> ArrayWriterBase::SizeBehindScratch() {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::SizeBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return UnsignedMax(start_to_cursor(), written_.size());
 }
 
 bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
@@ -56,7 +84,12 @@ bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
       << "Failed precondition of PushableWriter::TruncateBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(new_size > start_to_cursor())) return false;
+  const size_t size = UnsignedMax(start_to_cursor(), written_.size());
+  if (ABSL_PREDICT_FALSE(new_size > size)) {
+    set_cursor(start() + size);
+    return false;
+  }
+  written_ = absl::MakeSpan(start(), new_size);
   set_cursor(start() + new_size);
   return true;
 }
@@ -66,8 +99,8 @@ Reader* ArrayWriterBase::ReadModeBehindScratch(Position initial_pos) {
       << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  StringReader<>* const reader =
-      associated_reader_.ResetReader(start(), start_to_cursor());
+  const size_t size = UnsignedMax(start_to_cursor(), written_.size());
+  StringReader<>* const reader = associated_reader_.ResetReader(start(), size);
   reader->Seek(initial_pos);
   return reader;
 }

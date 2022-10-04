@@ -35,7 +35,7 @@ void ChainBackwardWriterBase::Done() {
 
 inline void ChainBackwardWriterBase::SyncBuffer(Chain& dest) {
   set_start_pos(pos());
-  dest.RemovePrefix(available());
+  dest.RemovePrefix(available(), options_);
   set_buffer();
 }
 
@@ -187,7 +187,7 @@ bool ChainBackwardWriterBase::TruncateImpl(Position new_size) {
     return true;
   }
   set_start_pos(new_size);
-  dest.RemovePrefix(dest.size() - IntCast<size_t>(new_size));
+  dest.RemovePrefix(dest.size() - IntCast<size_t>(new_size), options_);
   set_buffer();
   return true;
 }

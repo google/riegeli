@@ -20,6 +20,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -109,14 +110,60 @@ bool NullWriter::WriteZerosSlow(Position length) {
   return MakeBuffer();
 }
 
+bool NullWriter::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const Position size = UnsignedMax(pos(), written_size_);
+  if (new_pos >= start_pos() && new_pos <= limit_pos()) {
+    if (ABSL_PREDICT_FALSE(new_pos > size)) {
+      set_cursor(start() + (size - start_pos()));
+      return false;
+    }
+    written_size_ = size;
+    set_cursor(start() + (new_pos - start_pos()));
+    return true;
+  }
+  buffer_sizer_.EndRun(pos());
+  if (ABSL_PREDICT_FALSE(new_pos > size)) {
+    set_start_pos(size);
+    set_cursor(start());
+    buffer_sizer_.BeginRun(start_pos());
+    return false;
+  }
+  written_size_ = size;
+  set_start_pos(new_pos);
+  set_cursor(start());
+  buffer_sizer_.BeginRun(start_pos());
+  return true;
+}
+
+absl::optional<Position> NullWriter::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return UnsignedMax(pos(), written_size_);
+}
+
 bool NullWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (new_size >= start_pos()) {
-    if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
+  const Position size = UnsignedMax(pos(), written_size_);
+  if (new_size >= start_pos() && new_size <= limit_pos()) {
+    if (ABSL_PREDICT_FALSE(new_size > size)) {
+      set_cursor(start() + (size - start_pos()));
+      return false;
+    }
+    written_size_ = new_size;
     set_cursor(start() + (new_size - start_pos()));
     return true;
   }
   buffer_sizer_.EndRun(pos());
+  if (ABSL_PREDICT_FALSE(new_size > size)) {
+    set_start_pos(size);
+    set_cursor(start());
+    buffer_sizer_.BeginRun(start_pos());
+    return false;
+  }
+  written_size_ = new_size;
   set_start_pos(new_size);
   set_cursor(start());
   buffer_sizer_.BeginRun(start_pos());

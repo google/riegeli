@@ -56,8 +56,10 @@ inline void ResizableWriterBase::MakeSecondaryBuffer(
 void ResizableWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
-  const size_t size_hint = SaturatingAdd(
-      IntCast<size_t>(pos()), SaturatingIntCast<size_t>(*write_size_hint));
+  const size_t size_hint =
+      UnsignedMax(SaturatingAdd(IntCast<size_t>(pos()),
+                                SaturatingIntCast<size_t>(*write_size_hint)),
+                  written_size_);
   if (!uses_secondary_buffer()) {
     GrowDestAndMakeBuffer(size_hint);
     return;
@@ -79,17 +81,21 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    if (pos() == 0) {
+    if (pos() == 0 || ABSL_PREDICT_FALSE(written_size_ > pos())) {
       // Allocate the first block directly in the destination. It is possible
       // that it will not need to be copied if it turns out to be the only
       // block, although this decision might cause it to remain wasteful if less
       // data are written than space requested.
-      return GrowDestAndMakeBuffer(UnsignedMax(min_length, recommended_length));
+      //
+      // Resize the destination also if data follow the current position.
+      return GrowDestAndMakeBuffer(IntCast<size_t>(pos()) +
+                                   UnsignedMax(min_length, recommended_length));
     }
     GrowDestToCapacityAndMakeBuffer();
     if (min_length <= available()) return true;
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -115,6 +121,7 @@ bool ResizableWriterBase::WriteSlow(const Chain& src) {
     }
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -142,6 +149,7 @@ bool ResizableWriterBase::WriteSlow(Chain&& src) {
     }
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -169,6 +177,7 @@ bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
     }
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -196,6 +205,7 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
     }
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -223,6 +233,7 @@ bool ResizableWriterBase::WriteZerosSlow(Position length) {
     }
     set_start_pos(pos());
     set_buffer();
+    written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
@@ -242,32 +253,63 @@ bool ResizableWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-bool ResizableWriterBase::TruncateImpl(Position new_size) {
+bool ResizableWriterBase::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-  if (!uses_secondary_buffer()) {
-    if (start() == nullptr) {
-      set_start_pos(new_size);
-    } else {
-      set_cursor(start() + IntCast<size_t>(new_size));
+  if (new_pos > pos()) {
+    if (ABSL_PREDICT_FALSE(uses_secondary_buffer())) return false;
+    if (ABSL_PREDICT_FALSE(new_pos > used_size())) {
+      MakeDestBuffer(used_size());
+      return false;
     }
   } else {
-    if (new_size < IntCast<size_t>(limit_pos()) - secondary_buffer_.size()) {
+    if (uses_secondary_buffer()) {
+      SyncSecondaryBuffer();
+      if (ABSL_PREDICT_FALSE(!GrowDestAndMakeBuffer(IntCast<size_t>(pos())))) {
+        return false;
+      }
+      secondary_buffer_.CopyTo(cursor() - secondary_buffer_.size());
       secondary_buffer_.Clear();
-    } else {
-      secondary_buffer_.RemoveSuffix(
-          IntCast<size_t>(limit_pos()) - IntCast<size_t>(new_size), options_);
     }
+    written_size_ = used_size();
+  }
+  MakeDestBuffer(IntCast<size_t>(new_pos));
+  return true;
+}
+
+absl::optional<Position> ResizableWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  return used_size();
+}
+
+bool ResizableWriterBase::TruncateImpl(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (new_size > pos()) {
+    if (ABSL_PREDICT_FALSE(uses_secondary_buffer())) return false;
+    if (ABSL_PREDICT_FALSE(new_size > used_size())) {
+      MakeDestBuffer(used_size());
+      return false;
+    }
+  } else if (new_size > limit_pos() - secondary_buffer_.size()) {
+    secondary_buffer_.RemoveSuffix(
+        IntCast<size_t>(limit_pos()) - IntCast<size_t>(new_size), options_);
     set_start_pos(new_size);
     set_buffer();
+    return true;
+  } else {
+    secondary_buffer_.Clear();
   }
+  written_size_ = 0;
+  MakeDestBuffer(IntCast<size_t>(new_size));
   return true;
 }
 
 Reader* ResizableWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (!uses_secondary_buffer()) {
-    MakeDestBuffer();
+    MakeDestBuffer(IntCast<size_t>(pos()));
   } else {
     SyncSecondaryBuffer();
     if (ABSL_PREDICT_FALSE(!GrowDestAndMakeBuffer(IntCast<size_t>(pos())))) {
@@ -277,7 +319,7 @@ Reader* ResizableWriterBase::ReadModeImpl(Position initial_pos) {
     secondary_buffer_.Clear();
   }
   StringReader<>* const reader =
-      associated_reader_.ResetReader(start(), start_to_cursor());
+      associated_reader_.ResetReader(start(), used_dest_size());
   reader->Seek(initial_pos);
   return reader;
 }

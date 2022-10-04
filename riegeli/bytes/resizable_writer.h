@@ -102,7 +102,7 @@ class ResizableWriterBase : public Writer {
     uint32_t max_buffer_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
-  bool SupportsTruncate() override { return true; }
+  bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
 
  protected:
@@ -116,12 +116,21 @@ class ResizableWriterBase : public Writer {
   void Reset(Closed);
   void Reset(size_t min_buffer_size, size_t max_buffer_size);
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
-  size_t SecondaryBufferSize() const { return secondary_buffer_.size(); }
   void MoveSecondaryBuffer(ResizableWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
 
-  // Sets the size of the destination to `pos()`. Sets buffer pointers to the
-  // destination.
+  // Returns the amount of data written, either to the destination or to
+  // `secondary_buffer_`.
+  size_t used_size() const;
+
+  // Returns the amount of data written to the destination. Does not include
+  // data wrtitten to `secondary_buffer_`.
+  //
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
+  size_t used_dest_size() const;
+
+  // Sets the size of the destination to `used_size()`. Sets buffer pointers to
+  // the destination.
   //
   // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   virtual bool ResizeDest() = 0;
@@ -129,7 +138,7 @@ class ResizableWriterBase : public Writer {
   // Sets buffer pointers to the destination.
   //
   // Precondition: `!uses_secondary_buffer()`
-  virtual void MakeDestBuffer() = 0;
+  virtual void MakeDestBuffer(size_t cursor_index) = 0;
 
   // Appends some uninitialized space to the destination if this can be done
   // without reallocation. Sets buffer pointers to the destination.
@@ -153,6 +162,8 @@ class ResizableWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
@@ -169,14 +180,25 @@ class ResizableWriterBase : public Writer {
   // Buffered data which did not fit into the destination.
   Chain secondary_buffer_;
 
+  // Size of written data is always `UnsignedMax(pos(), written_size_)`.
+  // This is used to determine the size after seeking backwards.
+  //
+  // Invariant: if `uses_secondary_buffer()` then `written_size_ == 0`.
+  size_t written_size_ = 0;
+
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
   // If `!uses_secondary_buffer()`, then the destination contains the data
-  // followed by `available()` free space.
+  // before the current position of length `pos()`, followed by the data after
+  // the current position of length `SaturatingSub(written_size_, pos())`,
+  // followed by free space of length
+  // `ResizableTraits::Size(*dest_) - UnsignedMax(pos(), written_size_)`.
   //
-  // If `uses_secondary_buffer()`, then the destination contains some prefix of
-  // the data followed by some free space, and `secondary_buffer_` contains the
-  // rest of the data followed by `available()` free space.
+  // If `uses_secondary_buffer()`, then the destination contains the prefix of
+  // the data of length `limit_pos() - secondary_buffer_.size()` followed by
+  // free space, and `secondary_buffer_` contains the rest of the data of length
+  // `secondary_buffer_.size() - available()` followed by free space of length
+  // `available()`. In this case there is no data after the current position.
   //
   // Invariants if `ok()` (`dest_` is defined in `ResizableWriter`):
   //   `(!uses_secondary_buffer() &&
@@ -188,15 +210,13 @@ class ResizableWriterBase : public Writer {
   //                secondary_buffer_.blocks().back().size()) ||
   //    start() == nullptr`
   //   `limit_pos() >= secondary_buffer_.size()`
-  //   `limit_pos() <= ResizableTraits::Size(*dest_) + secondary_buffer_.size()`
-  //   if `!uses_secondary_buffer()` then
-  //       `limit_pos() == ResizableTraits::Size(*dest_)`
+  //   `ResizableTraits::Size(*dest_) >= limit_pos() - secondary_buffer_.size()`
 };
 
 // A `Writer` which appends to a resizable array, resizing it as necessary.
 // It generalizes `StringWriter` to other objects with a flat representation.
 //
-// It supports `ReadMode()`.
+// It supports `Seek()` and `ReadMode()`.
 //
 // The `ResizableTraits` template parameter specifies how the resizable is
 // represented. It should contain at least the following static members:
@@ -316,7 +336,7 @@ class ResizableWriter : public ResizableWriterBase {
   void Initialize(Resizable* dest, bool append);
 
   bool ResizeDest() override;
-  void MakeDestBuffer() override;
+  void MakeDestBuffer(size_t cursor_index) override;
   void GrowDestToCapacityAndMakeBuffer() override;
   bool GrowDestAndMakeBuffer(size_t new_size) override;
 
@@ -386,6 +406,7 @@ inline ResizableWriterBase::ResizableWriterBase(
       options_(that.options_),
       // `secondary_buffer_` will be moved by
       // `ResizableWriter::ResizableWriter()`.
+      written_size_(that.written_size_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ResizableWriterBase& ResizableWriterBase::operator=(
@@ -393,6 +414,7 @@ inline ResizableWriterBase& ResizableWriterBase::operator=(
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
   // `secondary_buffer_` will be moved by `ResizableWriter::operator=`.
+  written_size_ = that.written_size_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
@@ -401,6 +423,7 @@ inline void ResizableWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   options_ = Chain::Options();
   secondary_buffer_ = Chain();
+  written_size_ = 0;
   associated_reader_.Reset();
 }
 
@@ -411,6 +434,7 @@ inline void ResizableWriterBase::Reset(size_t min_buffer_size,
                  .set_min_block_size(min_buffer_size)
                  .set_max_block_size(max_buffer_size);
   secondary_buffer_.Clear();
+  written_size_ = 0;
   associated_reader_.Reset();
 }
 
@@ -428,6 +452,22 @@ inline void ResizableWriterBase::MoveSecondaryBufferAndBufferPointers(
                                secondary_buffer_.blocks().back().size()) -
                  buffer_size,
              buffer_size, cursor_index);
+}
+
+inline size_t ResizableWriterBase::used_size() const {
+  return UnsignedMax(IntCast<size_t>(pos()), written_size_);
+}
+
+inline size_t ResizableWriterBase::used_dest_size() const {
+  if (uses_secondary_buffer()) {
+    RIEGELI_ASSERT_EQ(available(), 0u)
+        << "Failed precondition of ResizableWriterBase::used_dest_size(): "
+        << "secondary buffer has free space";
+  }
+  RIEGELI_ASSERT_GE(used_size(), secondary_buffer_.size())
+      << "Failed invariant of ResizableWriterBase: "
+         "negative destination size";
+  return used_size() - secondary_buffer_.size();
 }
 
 template <typename ResizableTraits, typename Dest>
@@ -581,28 +621,26 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
         << "Failed precondition of ResizableWriter::ResizeDest(): "
         << "secondary buffer has free space";
   }
-  RIEGELI_ASSERT_GE(limit_pos(), SecondaryBufferSize())
-      << "Failed invariant of ResizableWriter: "
-         "negative destination size";
-  const size_t new_size = IntCast<size_t>(pos());
-  if (ABSL_PREDICT_FALSE(!ResizableTraits::Resize(
-          *dest_, new_size, new_size - SecondaryBufferSize()))) {
+  const size_t new_size = used_size();
+  const size_t cursor_index = IntCast<size_t>(pos());
+  if (ABSL_PREDICT_FALSE(
+          !ResizableTraits::Resize(*dest_, new_size, used_dest_size()))) {
     return FailOverflow();
   }
   RIEGELI_ASSERT_EQ(ResizableTraits::Size(*dest_), new_size)
-      << "Failed postcondition of ResizableTraits::Reaize(): "
+      << "Failed postcondition of ResizableTraits::Resize(): "
          "not resized to requested size";
-  set_buffer(ResizableTraits::Data(*dest_), new_size, new_size);
+  set_buffer(ResizableTraits::Data(*dest_), new_size, cursor_index);
   set_start_pos(0);
   return true;
 }
 
 template <typename ResizableTraits, typename Dest>
-void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer() {
+void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
+    size_t cursor_index) {
   RIEGELI_ASSERT(!uses_secondary_buffer())
       << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
          "secondary buffer is used";
-  const size_t cursor_index = IntCast<size_t>(pos());
   set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
              cursor_index);
   set_start_pos(0);
@@ -629,14 +667,14 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
         << "Failed precondition of ResizableWriter::GrowDestAndMakeBuffer(): "
         << "secondary buffer has free space";
   }
-  RIEGELI_ASSERT_GE(limit_pos(), SecondaryBufferSize())
-      << "Failed invariant of ResizableWriter: "
-         "negative destination size";
   const size_t cursor_index = IntCast<size_t>(pos());
-  if (ABSL_PREDICT_FALSE(!ResizableTraits::Grow(
-          *dest_, new_size, cursor_index - SecondaryBufferSize()))) {
+  if (ABSL_PREDICT_FALSE(
+          !ResizableTraits::Grow(*dest_, new_size, used_dest_size()))) {
     return FailOverflow();
   }
+  RIEGELI_ASSERT_GE(ResizableTraits::Size(*dest_), new_size)
+      << "Failed postcondition of ResizableTraits::Grow(): "
+         "not resized to at least requested size";
   set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
              cursor_index);
   set_start_pos(0);
