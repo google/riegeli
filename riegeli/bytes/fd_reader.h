@@ -617,10 +617,9 @@ inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
-    // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
-    // set by `Initialize()`.
-    : ChainReader(std::forward_as_tuple()),
-      has_independent_pos_(has_independent_pos) {}
+    // The `Chain` to read from is not known yet. `ChainReader` will be reset in
+    // `Initialize()` to read from the `Chain` when it is known.
+    : ChainReader(kClosed), has_independent_pos_(has_independent_pos) {}
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(static_cast<ChainReader&&>(that)),
@@ -642,9 +641,9 @@ inline void FdMMapReaderBase::Reset(Closed) {
 }
 
 inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
-  // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
-  // by `Initialize()`.
-  ChainReader::Reset(std::forward_as_tuple());
+  // The `Chain` to read from is not known yet. `ChainReader` will be reset in
+  // `Initialize()` to read from the `Chain` when it is known.
+  ChainReader::Reset(kClosed);
   // `filename_` will be set by `Initialize()` or `OpenFd()`.
   has_independent_pos_ = has_independent_pos;
 }

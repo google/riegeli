@@ -347,7 +347,6 @@ again:
   const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
     if (errno == EINTR) goto again;
-    ChainReader::Reset(kClosed);
     FailOperation("open()");
     return -1;
   }
@@ -374,9 +373,8 @@ void FdMMapReaderBase::InitializePos(int src,
     FailOperation("mmap()");
     return;
   }
-  // `FdMMapReaderBase` derives from `ChainReader<Chain>` but the `Chain` to
-  // read from was not known in `FdMMapReaderBase` constructor. This sets the
-  // `Chain` and updates the `ChainReader` to read from it.
+  // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
+  // Set it now.
   ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
       std::forward_as_tuple(),
       absl::string_view(static_cast<const char*>(data),
