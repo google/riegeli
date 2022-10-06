@@ -67,12 +67,12 @@ class CFileReaderBase : public BufferedReader {
     const std::string& assumed_filename() const { return assumed_filename_; }
 
     // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
-    // argument of `fopen()` and specifies the open mode, typically "r".
+    // argument of `fopen()` and specifies the open mode, typically "rb".
     //
     // If `CFileReader` reads from an already open `FILE`, `mode()` has no
     // effect.
     //
-    // Default: "r".
+    // Default: "rb".
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -118,7 +118,7 @@ class CFileReaderBase : public BufferedReader {
 
    private:
     std::string assumed_filename_;
-    std::string mode_ = "r";
+    std::string mode_ = "rb";
     absl::optional<Position> assumed_pos_;
     bool growing_source_ = false;
   };

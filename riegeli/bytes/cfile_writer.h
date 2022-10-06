@@ -71,14 +71,15 @@ class CFileWriterBase : public BufferedWriter {
     const std::string& assumed_filename() const { return assumed_filename_; }
 
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
-    // argument of `fopen()` and specifies the open mode, typically "w" or "a".
+    // argument of `fopen()` and specifies the open mode, typically "wb" or
+    // "ab".
     //
     // If `CFileWriter` writes to an already open `FILE` and `assumed_pos()` is
     // not set, `mode()` should start with "a" if the `FILE` was originally open
     // in append mode. This allows to determine the effective initial position
     // and lets `SupportsRandomAccess()` correctly return `false`.
     //
-    // Default: "w".
+    // Default: "wb".
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -111,7 +112,7 @@ class CFileWriterBase : public BufferedWriter {
 
    private:
     std::string assumed_filename_;
-    std::string mode_ = "w";
+    std::string mode_ = "wb";
     absl::optional<Position> assumed_pos_;
   };
 
