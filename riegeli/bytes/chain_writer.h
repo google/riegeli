@@ -104,8 +104,6 @@ class ChainWriterBase : public Writer {
   // Returns the `Chain` being written to.
   virtual Chain* DestChain() = 0;
   virtual const Chain* DestChain() const = 0;
-  ABSL_DEPRECATED("Use dest() or DestChain() instead.")
-  const Chain* dest_chain() const { return DestChain(); }
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }

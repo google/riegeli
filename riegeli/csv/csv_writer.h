@@ -169,8 +169,6 @@ class CsvWriterBase : public Object {
   // Returns the byte `Writer` being written to. Unchanged by `Close()`.
   virtual Writer* DestWriter() = 0;
   virtual const Writer* DestWriter() const = 0;
-  ABSL_DEPRECATED("Use dest() or DestWriter() instead.")
-  Writer* dest_writer() { return DestWriter(); }
 
   // Returns `true` if writing the header was requested, i.e. if
   // `Options::header() != absl::nullopt`.
