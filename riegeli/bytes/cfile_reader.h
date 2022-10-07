@@ -164,7 +164,8 @@ class CFileReaderBase : public BufferedReader {
   bool growing_source_ = false;
   bool supports_random_access_ = false;
 
-  // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
+  // Invariant:
+  //   `limit_pos() <= std::numeric_limits<cfile_internal::Offset>::max()`
 };
 
 // A `Reader` which reads from a `FILE`.

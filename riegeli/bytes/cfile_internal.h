@@ -15,18 +15,18 @@
 #ifndef RIEGELI_BYTES_CFILE_INTERNAL_H_
 #define RIEGELI_BYTES_CFILE_INTERNAL_H_
 
+// Warning: Do not include this header in other headers, because the definition
+// of `off_t` depends on `_FILE_OFFSET_BITS` which can reliably be set only
+// in a standalone compilation unit.
+
 #include <stdio.h>
 #include <sys/types.h>
 
-#include <cerrno>
-#include <limits>
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
 
 namespace riegeli {
 namespace cfile_internal {
@@ -38,9 +38,13 @@ template <typename File, typename Enable = void>
 struct HaveFSeekO : std::false_type {};
 
 template <typename File>
-struct HaveFSeekO<File, absl::void_t<decltype(fseeko(
-                            std::declval<File*>(), std::declval<off_t>(),
-                            std::declval<int>()))>> : std::true_type {};
+struct HaveFSeekO<File, absl::void_t<decltype(fseeko(std::declval<File*>(),
+                                                     std::declval<off_t>(),
+                                                     std::declval<int>())),
+                                     decltype(ftello(std::declval<File*>()))>>
+    : std::true_type {};
+
+using Offset = absl::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
 inline int FSeek(File* file, off_t offset, int whence) {
@@ -48,14 +52,8 @@ inline int FSeek(File* file, off_t offset, int whence) {
 }
 
 template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, off_t offset, int whence) {
-  if (ABSL_PREDICT_FALSE(offset < std::numeric_limits<long>::min() ||
-                         offset > std::numeric_limits<long>::max())) {
-    // The `off_t` offset cannot be represented as `long`.
-    errno = EOVERFLOW;
-    return -1;
-  }
-  return fseek(file, IntCast<long>(offset), whence);
+inline int FSeek(File* file, long offset, int whence) {
+  return fseek(file, offset, whence);
 }
 
 constexpr absl::string_view kFSeekFunctionName =
@@ -67,14 +65,8 @@ inline off_t FTell(File* file) {
 }
 
 template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline off_t FTell(File* file) {
-  const long offset = ftell(file);
-  if (ABSL_PREDICT_FALSE(offset > std::numeric_limits<off_t>::max())) {
-    // The `long` offset cannot be represented as `off_t`.
-    errno = EOVERFLOW;
-    return -1;
-  }
-  return IntCast<off_t>(offset);
+inline long FTell(File* file) {
+  return ftell(file);
 }
 
 constexpr absl::string_view kFTellFunctionName =

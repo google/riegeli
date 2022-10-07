@@ -168,7 +168,8 @@ class CFileWriterBase : public BufferedWriter {
   AssociatedReader<CFileReader<UnownedCFile>> associated_reader_;
   bool read_mode_ = false;
 
-  // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
+  // Invariant:
+  //   `start_pos() <= std::numeric_limits<cfile_internal::Offset>::max()`
 };
 
 // A `Writer` which writes to a `FILE`.

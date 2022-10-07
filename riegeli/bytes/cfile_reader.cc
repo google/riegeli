@@ -119,14 +119,15 @@ void CFileReaderBase::InitializePos(FILE* src,
     return;
   }
   if (assumed_pos != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(*assumed_pos >
-                           Position{std::numeric_limits<off_t>::max()})) {
+    if (ABSL_PREDICT_FALSE(
+            *assumed_pos >
+            Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
     set_limit_pos(*assumed_pos);
   } else {
-    const off_t file_pos = cfile_internal::FTell(src);
+    const cfile_internal::Offset file_pos = cfile_internal::FTell(src);
     if (file_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
       clearerr(src);
@@ -144,14 +145,15 @@ void CFileReaderBase::InitializePos(FILE* src,
         // Not supported.
         clearerr(src);
       } else {
-        const off_t file_size = cfile_internal::FTell(src);
+        const cfile_internal::Offset file_size = cfile_internal::FTell(src);
         if (ABSL_PREDICT_FALSE(file_size < 0)) {
           FailOperation(cfile_internal::kFTellFunctionName);
           return;
         }
-        if (ABSL_PREDICT_FALSE(
-                cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
-                                      SEEK_SET) != 0)) {
+        if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+                                   src,
+                                   IntCast<cfile_internal::Offset>(limit_pos()),
+                                   SEEK_SET) != 0)) {
           FailOperation(cfile_internal::kFSeekFunctionName);
           return;
         }
@@ -204,7 +206,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       max_pos = *exact_size();
       if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
     } else {
-      max_pos = Position{std::numeric_limits<off_t>::max()};
+      max_pos = Position{std::numeric_limits<cfile_internal::Offset>::max()};
       if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
     }
     const size_t length_to_read =
@@ -248,7 +250,8 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       if (ABSL_PREDICT_FALSE(new_pos > *exact_size())) {
         // Stream ends.
         if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
-                src, IntCast<off_t>(*exact_size()), SEEK_SET)) != 0) {
+                src, IntCast<cfile_internal::Offset>(*exact_size()),
+                SEEK_SET)) != 0) {
           return FailOperation(cfile_internal::kFSeekFunctionName);
         }
         set_limit_pos(*exact_size());
@@ -258,7 +261,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END) != 0)) {
         return FailOperation(cfile_internal::kFSeekFunctionName);
       }
-      const off_t file_size = cfile_internal::FTell(src);
+      const cfile_internal::Offset file_size = cfile_internal::FTell(src);
       if (ABSL_PREDICT_FALSE(file_size < 0)) {
         return FailOperation(cfile_internal::kFTellFunctionName);
       }
@@ -270,8 +273,8 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       }
     }
   }
-  if (ABSL_PREDICT_FALSE(
-          cfile_internal::FSeek(src, IntCast<off_t>(new_pos), SEEK_SET)) != 0) {
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+          src, IntCast<cfile_internal::Offset>(new_pos), SEEK_SET)) != 0) {
     return FailOperation(cfile_internal::kFSeekFunctionName);
   }
   set_limit_pos(new_pos);
@@ -291,13 +294,14 @@ absl::optional<Position> CFileReaderBase::SizeImpl() {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
-  const off_t file_size = cfile_internal::FTell(src);
+  const cfile_internal::Offset file_size = cfile_internal::FTell(src);
   if (ABSL_PREDICT_FALSE(file_size < 0)) {
     FailOperation(cfile_internal::kFTellFunctionName);
     return absl::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, IntCast<off_t>(limit_pos()),
-                                               SEEK_SET) != 0)) {
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+                             src, IntCast<cfile_internal::Offset>(limit_pos()),
+                             SEEK_SET) != 0)) {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return absl::nullopt;
   }
