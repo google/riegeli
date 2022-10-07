@@ -363,7 +363,10 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
     if (available() <= kMaxBytesToCopy) {
-      if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available()))) return false;
+      if (ABSL_PREDICT_FALSE(
+              !dest.Write(absl::string_view(cursor(), available())))) {
+        return false;
+      }
     } else {
       Chain data;
       iter_.AppendSubstrTo(absl::string_view(cursor(), available()), data);
@@ -379,7 +382,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
         if (start_to_cursor() <= kMaxBytesToCopy) {
-          return dest.Write(start(), start_to_cursor());
+          return dest.Write(absl::string_view(start(), start_to_cursor()));
         } else {
           Chain data;
           iter_.AppendSubstrTo(absl::string_view(start(), start_to_cursor()),

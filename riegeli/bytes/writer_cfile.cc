@@ -29,6 +29,7 @@
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
@@ -106,7 +107,7 @@ inline ssize_t WriterCFileCookieBase::Write(const char* src, size_t length) {
       return 0;
     }
   }
-  if (ABSL_PREDICT_FALSE(!writer.Write(src, length))) {
+  if (ABSL_PREDICT_FALSE(!writer.Write(absl::string_view(src, length)))) {
     errno = StatusCodeToErrno(writer.status().code());
     return 0;
   }

@@ -305,7 +305,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
                                                      available_length);
     if (read_directly) {
       if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-        if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available_length))) {
+        if (ABSL_PREDICT_FALSE(
+                !dest.Write(absl::string_view(cursor(), available_length)))) {
           move_cursor(available_length);
           return false;
         }
@@ -328,7 +329,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       if (available_length > 0) {
         bool write_ok;
         if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-          write_ok = dest.Write(cursor(), available_length);
+          write_ok = dest.Write(absl::string_view(cursor(), available_length));
         } else {
           Chain data;
           buffer_.AppendSubstrTo(
@@ -386,7 +387,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
   bool write_ok = true;
   if (length > 0) {
     if (IntCast<size_t>(length) <= kMaxBytesToCopy || dest.PrefersCopying()) {
-      write_ok = dest.Write(cursor(), IntCast<size_t>(length));
+      write_ok =
+          dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)));
     } else {
       Chain data;
       buffer_.AppendSubstrTo(

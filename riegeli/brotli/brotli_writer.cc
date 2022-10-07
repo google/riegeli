@@ -192,7 +192,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
     const char* const data = reinterpret_cast<const char*>(
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
-      if (ABSL_PREDICT_FALSE(!dest.Write(data, length))) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(absl::string_view(data, length)))) {
         return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
       }
     } else if (available_in == 0) {

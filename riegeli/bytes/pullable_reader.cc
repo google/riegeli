@@ -404,7 +404,7 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
       const size_t length_to_copy = UnsignedMin(length, available());
       bool write_ok;
       if (length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()) {
-        write_ok = dest.Write(cursor(), length_to_copy);
+        write_ok = dest.Write(absl::string_view(cursor(), length_to_copy));
       } else {
         Chain data;
         scratch_->buffer.AppendSubstrTo(
@@ -436,7 +436,7 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
       if (available() >= length) {
         bool write_ok;
         if (length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-          write_ok = dest.Write(cursor(), length);
+          write_ok = dest.Write(absl::string_view(cursor(), length));
         } else {
           Chain data;
           scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length),

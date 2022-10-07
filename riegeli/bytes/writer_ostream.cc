@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
@@ -252,7 +253,8 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!WriteMode())) return 0;
   const Position pos_before = writer_->pos();
-  if (ABSL_PREDICT_FALSE(!writer_->Write(src, IntCast<size_t>(length)))) {
+  if (ABSL_PREDICT_FALSE(
+          !writer_->Write(absl::string_view(src, IntCast<size_t>(length))))) {
     FailWriter();
     // `Write()` could have decreased `pos()` on failure.
     const Position length_written = SaturatingSub(writer_->pos(), pos_before);

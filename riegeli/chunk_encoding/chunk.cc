@@ -45,7 +45,8 @@ uint64_t ChunkHeader::computed_header_hash() const {
 }
 
 bool Chunk::WriteTo(Writer& dest) const {
-  if (ABSL_PREDICT_FALSE(!dest.Write(header.bytes(), header.size()))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest.Write(absl::string_view(header.bytes(), header.size())))) {
     return false;
   }
   return dest.Write(data);

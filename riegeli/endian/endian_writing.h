@@ -21,6 +21,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -442,8 +443,9 @@ inline bool WriteBigEndian<double>(double data, Writer& dest) {
 inline bool WriteLittleEndian16s(absl::Span<const uint16_t> data,
                                  Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint16_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint16_t)));
   } else {
     for (const uint16_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndian16(value, dest))) return false;
@@ -455,8 +457,9 @@ inline bool WriteLittleEndian16s(absl::Span<const uint16_t> data,
 inline bool WriteLittleEndian32s(absl::Span<const uint32_t> data,
                                  Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint32_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint32_t)));
   } else {
     for (const uint32_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndian32(value, dest))) return false;
@@ -468,8 +471,9 @@ inline bool WriteLittleEndian32s(absl::Span<const uint32_t> data,
 inline bool WriteLittleEndian64s(absl::Span<const uint64_t> data,
                                  Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint64_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint64_t)));
   } else {
     for (const uint64_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndian64(value, dest))) return false;
@@ -481,8 +485,9 @@ inline bool WriteLittleEndian64s(absl::Span<const uint64_t> data,
 inline bool WriteLittleEndianSigned16s(absl::Span<const int16_t> data,
                                        Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int16_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int16_t)));
   } else {
     for (const int16_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned16(value, dest))) {
@@ -496,8 +501,9 @@ inline bool WriteLittleEndianSigned16s(absl::Span<const int16_t> data,
 inline bool WriteLittleEndianSigned32s(absl::Span<const int32_t> data,
                                        Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int32_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int32_t)));
   } else {
     for (const int32_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned32(value, dest))) {
@@ -511,8 +517,9 @@ inline bool WriteLittleEndianSigned32s(absl::Span<const int32_t> data,
 inline bool WriteLittleEndianSigned64s(absl::Span<const int64_t> data,
                                        Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int64_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int64_t)));
   } else {
     for (const int64_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned64(value, dest))) {
@@ -526,8 +533,9 @@ inline bool WriteLittleEndianSigned64s(absl::Span<const int64_t> data,
 inline bool WriteLittleEndianFloats(absl::Span<const float> data,
                                     Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(float));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(float)));
   } else {
     for (const float value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndianFloat(value, dest))) {
@@ -541,8 +549,9 @@ inline bool WriteLittleEndianFloats(absl::Span<const float> data,
 inline bool WriteLittleEndianDoubles(absl::Span<const double> data,
                                      Writer& dest) {
   if (endian_internal::IsLittleEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(double));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(double)));
   } else {
     for (const double value : data) {
       if (ABSL_PREDICT_FALSE(!WriteLittleEndianDouble(value, dest))) {
@@ -555,8 +564,9 @@ inline bool WriteLittleEndianDoubles(absl::Span<const double> data,
 
 inline bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint16_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint16_t)));
   } else {
     for (const uint16_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndian16(value, dest))) return false;
@@ -567,8 +577,9 @@ inline bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest) {
 
 inline bool WriteBigEndian32s(absl::Span<const uint32_t> data, Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint32_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint32_t)));
   } else {
     for (const uint32_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndian32(value, dest))) return false;
@@ -579,8 +590,9 @@ inline bool WriteBigEndian32s(absl::Span<const uint32_t> data, Writer& dest) {
 
 inline bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(uint64_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint64_t)));
   } else {
     for (const uint64_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndian64(value, dest))) return false;
@@ -592,8 +604,9 @@ inline bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest) {
 inline bool WriteBigEndianSigned16s(absl::Span<const int16_t> data,
                                     Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int16_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int16_t)));
   } else {
     for (const int16_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned16(value, dest))) {
@@ -607,8 +620,9 @@ inline bool WriteBigEndianSigned16s(absl::Span<const int16_t> data,
 inline bool WriteBigEndianSigned32s(absl::Span<const int32_t> data,
                                     Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int32_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int32_t)));
   } else {
     for (const int32_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned32(value, dest))) {
@@ -622,8 +636,9 @@ inline bool WriteBigEndianSigned32s(absl::Span<const int32_t> data,
 inline bool WriteBigEndianSigned64s(absl::Span<const int64_t> data,
                                     Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(int64_t));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(int64_t)));
   } else {
     for (const int64_t value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned64(value, dest))) {
@@ -636,8 +651,9 @@ inline bool WriteBigEndianSigned64s(absl::Span<const int64_t> data,
 
 inline bool WriteBigEndianFloats(absl::Span<const float> data, Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(float));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(float)));
   } else {
     for (const float value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndianFloat(value, dest))) return false;
@@ -648,8 +664,9 @@ inline bool WriteBigEndianFloats(absl::Span<const float> data, Writer& dest) {
 
 inline bool WriteBigEndianDoubles(absl::Span<const double> data, Writer& dest) {
   if (endian_internal::IsBigEndian()) {
-    return dest.Write(reinterpret_cast<const char*>(data.data()),
-                      data.size() * sizeof(double));
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(double)));
   } else {
     for (const double value : data) {
       if (ABSL_PREDICT_FALSE(!WriteBigEndianDouble(value, dest))) return false;
@@ -661,7 +678,8 @@ inline bool WriteBigEndianDoubles(absl::Span<const double> data, Writer& dest) {
 template <>
 inline bool WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
                                         Writer& dest) {
-  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
 }
 template <>
 inline bool WriteLittleEndians<uint16_t>(absl::Span<const uint16_t> data,
@@ -681,7 +699,8 @@ inline bool WriteLittleEndians<uint64_t>(absl::Span<const uint64_t> data,
 template <>
 inline bool WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
                                        Writer& dest) {
-  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
 }
 template <>
 inline bool WriteLittleEndians<int16_t>(absl::Span<const int16_t> data,
@@ -712,7 +731,8 @@ inline bool WriteLittleEndians<double>(absl::Span<const double> data,
 template <>
 inline bool WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
                                      Writer& dest) {
-  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
 }
 template <>
 inline bool WriteBigEndians<uint16_t>(absl::Span<const uint16_t> data,
@@ -732,7 +752,8 @@ inline bool WriteBigEndians<uint64_t>(absl::Span<const uint64_t> data,
 template <>
 inline bool WriteBigEndians<int8_t>(absl::Span<const int8_t> data,
                                     Writer& dest) {
-  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
 }
 template <>
 inline bool WriteBigEndians<int16_t>(absl::Span<const int16_t> data,

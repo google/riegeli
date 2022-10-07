@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "crc32c/crc32c.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
@@ -57,9 +58,9 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
   initial_compressed_pos_ = dest->pos();
   if (dest->pos() == 0) {
     // Stream identifier.
-    if (ABSL_PREDICT_FALSE(!dest->Write("\xff\x06\x00\x00"
-                                        "sNaPpY",
-                                        10))) {
+    if (ABSL_PREDICT_FALSE(!dest->Write(absl::string_view("\xff\x06\x00\x00"
+                                                          "sNaPpY",
+                                                          10)))) {
       FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     }
   }

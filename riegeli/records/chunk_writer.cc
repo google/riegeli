@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -101,8 +102,8 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
       records_internal::BlockHeader block_header(
           IntCast<uint64_t>(pos_ - chunk_begin),
           IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(
-              !dest.Write(block_header.bytes(), block_header.size()))) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(
+              absl::string_view(block_header.bytes(), block_header.size())))) {
         return FailWithoutAnnotation(dest.status());
       }
       pos_ += block_header.size();
@@ -129,8 +130,8 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
       records_internal::BlockHeader block_header(
           IntCast<uint64_t>(pos_ - chunk_begin),
           IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(
-              !dest.Write(block_header.bytes(), block_header.size()))) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(
+              absl::string_view(block_header.bytes(), block_header.size())))) {
         return FailWithoutAnnotation(dest.status());
       }
       pos_ += block_header.size();

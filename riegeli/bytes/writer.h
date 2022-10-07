@@ -161,6 +161,7 @@ class Writer : public Object {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   bool Write(Src&& src);
+  ABSL_DEPRECATED("Use Write(absl::string_view) instead.")
   bool Write(const char* src, size_t length);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
@@ -461,6 +462,7 @@ template <typename Src, typename Dest,
 absl::Status Write(Src&& src, Dest&& dest);
 template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+ABSL_DEPRECATED("Use Write(absl::string_view) instead.")
 absl::Status Write(const char* src, size_t length, Dest&& dest);
 template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
