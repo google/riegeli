@@ -86,15 +86,10 @@ again:
 inline void FdWriterBase::InitializePos(
     int dest, absl::optional<Position> assumed_pos,
     absl::optional<Position> independent_pos) {
-  int flags = 0;
-  if (assumed_pos == absl::nullopt) {
-    // Flags are needed only if `assumed_pos == absl::nullopt`. Avoid `fcntl()`
-    // otherwise.
-    flags = fcntl(dest, F_GETFL);
-    if (ABSL_PREDICT_FALSE(flags < 0)) {
-      FailOperation("fcntl()");
-      return;
-    }
+  int flags = fcntl(dest, F_GETFL);
+  if (ABSL_PREDICT_FALSE(flags < 0)) {
+    FailOperation("fcntl()");
+    return;
   }
   return InitializePos(dest, flags, assumed_pos, independent_pos);
 }
