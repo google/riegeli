@@ -603,7 +603,6 @@ cc_library(
         ":buffer_options",
         ":buffered_reader",
         ":fd_internal",
-        ":fd_mmap_reader",  # TODO: Temporary.
         ":reader",
         "//riegeli/base",
         "//riegeli/base:status",

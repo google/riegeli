@@ -36,8 +36,6 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/fd_internal.h"
-// TODO: Temporary.
-#include "riegeli/bytes/fd_mmap_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
