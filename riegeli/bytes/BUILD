@@ -602,6 +602,29 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
+        ":fd_internal",
+        ":fd_mmap_reader",  # TODO: Temporary.
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "fd_mmap_reader",
+    srcs = [
+        "fd_dependency.h",
+        "fd_mmap_reader.cc",
+    ],
+    hdrs = ["fd_mmap_reader.h"],
+    # fd_mmap_reader.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
+    deps = [
         ":chain_reader",
         ":fd_internal",
         ":reader",
