@@ -33,8 +33,9 @@ class ReadLineOptions {
  public:
   // Line terminator representations to recognize.
   enum class Newline {
-    kLf,   // LF ("\n")
-    kAny,  // LF | CR | CR LF ("\n" | "\r" | "\r\n")
+    kLf,        // LF ("\n")
+    kLfOrCrLf,  // LF |      CR LF ("\n" |        "\r\n")
+    kAny,       // LF | CR | CR LF ("\n" | "\r" | "\r\n")
   };
 
   ReadLineOptions() noexcept {}

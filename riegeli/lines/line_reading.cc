@@ -104,6 +104,7 @@ inline bool FoundNewline(Reader& src, Dest& dest, ReadLineOptions options,
 template <typename Dest>
 inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
   if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
+  size_t length;
   do {
     switch (options.newline()) {
       case ReadLineOptions::Newline::kLf: {
@@ -113,8 +114,39 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
           return FoundNewline(src, dest, options,
                               PtrDistance(src.cursor(), newline), 1);
         }
+        length = src.available();
         goto continue_reading;
       }
+      case ReadLineOptions::Newline::kLfOrCrLf:
+        for (const char* newline = src.cursor(); newline < src.limit();
+             ++newline) {
+          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+            return FoundNewline(src, dest, options,
+                                PtrDistance(src.cursor(), newline), 1);
+          }
+          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+            length = PtrDistance(src.cursor(), newline);
+            if (ABSL_PREDICT_FALSE(newline + 1 == src.limit())) {
+              // The CR is last in the buffer.
+              if (ABSL_PREDICT_TRUE(length > 0)) {
+                // The CR is not first in the buffer. Move line read so far to
+                // `dest` to avoid copying that part during flattening of the CR
+                // together with the next buffer.
+                goto continue_reading;
+              }
+              // The buffer contains only CR.
+              if (ABSL_PREDICT_TRUE(src.Pull(2) && src.cursor()[1] == '\n')) {
+                return FoundNewline(src, dest, options, 0, 2);
+              }
+              // `src.Pull()` might have invalidated `newline` pointer.
+              newline = src.cursor();
+            } else if (ABSL_PREDICT_TRUE(newline[1] == '\n')) {
+              return FoundNewline(src, dest, options, length, 2);
+            }
+          }
+        }
+        length = src.available();
+        goto continue_reading;
       case ReadLineOptions::Newline::kAny:
         for (const char* newline = src.cursor(); newline < src.limit();
              ++newline) {
@@ -123,24 +155,38 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
                                 PtrDistance(src.cursor(), newline), 1);
           }
           if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            const size_t length = PtrDistance(src.cursor(), newline);
-            return FoundNewline(src, dest, options, length,
-                                ABSL_PREDICT_TRUE(src.Pull(length + 2)) &&
-                                        src.cursor()[length + 1] == '\n'
-                                    ? size_t{2}
-                                    : size_t{1});
+            length = PtrDistance(src.cursor(), newline);
+            if (ABSL_PREDICT_FALSE(newline + 1 == src.limit())) {
+              // The CR is last in the buffer.
+              if (ABSL_PREDICT_TRUE(length > 0)) {
+                // The CR is not first in the buffer. Move line read so far to
+                // `dest` to avoid copying that part during flattening of the CR
+                // together with the next buffer.
+                goto continue_reading;
+              }
+              // The buffer contains only CR.
+              return FoundNewline(
+                  src, dest, options, 0,
+                  ABSL_PREDICT_TRUE(src.Pull(2) && src.cursor()[1] == '\n')
+                      ? size_t{2}
+                      : size_t{1});
+            }
+            return FoundNewline(
+                src, dest, options, length,
+                ABSL_PREDICT_TRUE(newline[1] == '\n') ? size_t{2} : size_t{1});
           }
         }
+        length = src.available();
         goto continue_reading;
     }
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
-    if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
+    if (ABSL_PREDICT_FALSE(length > options.max_length())) {
       return MaxLineLengthExceeded(src, dest, options.max_length());
     }
-    options.set_max_length(options.max_length() - src.available());
-    ReadFlat(src, src.available(), dest);
+    options.set_max_length(options.max_length() - length);
+    ReadFlat(src, length, dest);
   } while (src.Pull());
   return src.ok();
 }
@@ -165,6 +211,27 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
         }
         goto continue_reading;
       }
+      case ReadLineOptions::Newline::kLfOrCrLf:
+        for (const char* newline = src.cursor() + length; newline < src.limit();
+             ++newline) {
+          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+            return FoundNewline(src, dest, options,
+                                PtrDistance(src.cursor(), newline), 1);
+          }
+          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+            length = PtrDistance(src.cursor(), newline);
+            if (ABSL_PREDICT_FALSE(length > options.max_length())) {
+              return MaxLineLengthExceeded(src, dest, options.max_length());
+            }
+            if (ABSL_PREDICT_TRUE(src.Pull(length + 2) &&
+                                  src.cursor()[length + 1] == '\n')) {
+              return FoundNewline(src, dest, options, length, 2);
+            }
+            // `src.Pull()` might have invalidated `newline` pointer.
+            newline = src.cursor() + length;
+          }
+        }
+        goto continue_reading;
       case ReadLineOptions::Newline::kAny:
         for (const char* newline = src.cursor() + length; newline < src.limit();
              ++newline) {
@@ -174,11 +241,12 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
           }
           if (ABSL_PREDICT_FALSE(*newline == '\r')) {
             length = PtrDistance(src.cursor(), newline);
-            return FoundNewline(src, dest, options, length,
-                                ABSL_PREDICT_TRUE(src.Pull(length + 2)) &&
-                                        src.cursor()[length + 1] == '\n'
-                                    ? size_t{2}
-                                    : size_t{1});
+            return FoundNewline(
+                src, dest, options, length,
+                ABSL_PREDICT_TRUE(src.Pull(length + 2) &&
+                                  src.cursor()[length + 1] == '\n')
+                    ? size_t{2}
+                    : size_t{1});
           }
         }
         goto continue_reading;
