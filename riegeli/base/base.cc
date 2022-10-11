@@ -54,7 +54,6 @@ void ResizeStringAmortized(std::string& dest, size_t new_size) {
 }
 
 void CopyCordToArray(const absl::Cord& src, char* dest) {
-  char* dest = cursor();
   for (const absl::string_view fragment : src.Chunks()) {
     std::memcpy(dest, fragment.data(), fragment.size());
     dest += fragment.size();
