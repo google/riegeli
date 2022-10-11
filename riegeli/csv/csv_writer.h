@@ -292,7 +292,7 @@ class CsvWriterBase : public Object {
 // By a common convention the first record consists of field names. This is
 // supported by `Options::header()` and `WriteRecord(CsvRecord)`.
 //
-// A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
+// A record is terminated by a newline: LF, CR, or CR-LF ("\n", "\r", or
 // "\r\n").
 //
 // A record consists of a sequence of fields separated by a field separator

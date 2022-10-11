@@ -33,9 +33,9 @@ class WriteLineOptions {
  public:
   // Line terminator representation to write.
   enum class Newline {
-    kLf,    // LF ("\n")
-    kCr,    // CR ("\r")
-    kCrLf,  // CR LF ("\r\n")
+    kLf,    // LF    ("\n")
+    kCr,    // CR    ("\r")
+    kCrLf,  // CR-LF ("\r\n")
   };
 
   WriteLineOptions() noexcept {}

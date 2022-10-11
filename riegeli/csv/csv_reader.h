@@ -343,14 +343,14 @@ class CsvReaderBase : public Object {
   //
   // This is 1 if no record was attempted to be read.
   //
-  // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
+  // A line is terminated by LF, CR, or CR-LF ("\n", "\r", or "\r\n").
   //
   // `last_line_number()` is unchanged by `Close()`.
   int64_t last_line_number() const { return last_line_number_; }
 
   // The number of the next line, starting from 1.
   //
-  // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
+  // A line is terminated by LF, CR, or CR-LF ("\n", "\r", or "\r\n").
   //
   // `line_number()` is unchanged by `Close()`.
   int64_t line_number() const { return line_number_; }
@@ -421,7 +421,7 @@ class CsvReaderBase : public Object {
 // By a common convention the first record consists of field names. This is
 // supported by `Options::required_header()` and `ReadRecord(CsvRecord&)`.
 //
-// A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
+// A record is terminated by a newline: LF, CR, or CR-LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
 //
 // If a comment character is set (usually it is not), a line beginning with the
