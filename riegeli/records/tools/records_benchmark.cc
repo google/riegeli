@@ -120,7 +120,7 @@ bool SizeLimiter::Accept(size_t size) {
 uint64_t FileSize(const std::string& filename) {
   struct stat stat_info;
   RIEGELI_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
-      << riegeli::ErrnoToCanonicalStatus(errno, "stat() failed").message();
+      << riegeli::ErrnoToStatus(errno, "stat() failed").message();
   return riegeli::IntCast<uint64_t>(stat_info.st_size);
 }
 

@@ -21,8 +21,7 @@
 namespace riegeli {
 
 // Converts `errno` value to `absl::Status`.
-absl::Status ErrnoToCanonicalStatus(int error_number,
-                                    absl::string_view message);
+absl::Status ErrnoToStatus(int error_number, absl::string_view message);
 
 // Converts `absl::StatusCode` to `errno` value.
 int StatusCodeToErrno(absl::StatusCode status_code);

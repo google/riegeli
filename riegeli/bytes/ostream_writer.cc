@@ -97,9 +97,8 @@ bool OStreamWriterBase::FailOperation(absl::string_view operation) {
   // the operation may fail without setting `errno`.
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
-  return Fail(error_number == 0
-                  ? absl::UnknownError(message)
-                  : ErrnoToCanonicalStatus(error_number, message));
+  return Fail(error_number == 0 ? absl::UnknownError(message)
+                                : ErrnoToStatus(error_number, message));
 }
 
 bool OStreamWriterBase::supports_random_access() {

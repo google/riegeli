@@ -178,8 +178,7 @@ bool CFileReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of CFileReaderBase::FailOperation(): "
          "zero errno";
-  return Fail(
-      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 absl::Status CFileReaderBase::AnnotateStatusImpl(absl::Status status) {

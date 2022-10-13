@@ -73,7 +73,7 @@ class MMapRef {
 
 void MMapRef::operator()(absl::string_view data) const {
   RIEGELI_CHECK_EQ(munmap(const_cast<char*>(data.data()), data.size()), 0)
-      << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
+      << ErrnoToStatus(errno, "munmap() failed").message();
 }
 
 void MMapRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
@@ -168,8 +168,7 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
-  return Fail(
-      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {

@@ -204,8 +204,7 @@ std::string StrError(int error_code) {
 
 }  // namespace
 
-absl::Status ErrnoToCanonicalStatus(int error_number,
-                                    absl::string_view message) {
+absl::Status ErrnoToStatus(int error_number, absl::string_view message) {
   return absl::Status(ErrnoToStatusCode(error_number),
                       absl::StrCat(message, ": ", StrError(error_number)));
 }
