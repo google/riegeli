@@ -270,7 +270,7 @@ class AnyDependencyImpl {
   // `P`, for convenience.
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<Ptr>& operator*() const {
+  std::remove_pointer_t<DependentPtr>& operator*() const {
     RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of AnyDependency::operator*: null pointer";
     return *ptr_;
