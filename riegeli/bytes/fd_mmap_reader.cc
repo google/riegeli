@@ -12,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make `pread()` available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
-#undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 500
-#endif
-
 // Make `off_t` 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
@@ -61,7 +55,7 @@ namespace {
 
 class MMapRef {
  public:
-  MMapRef() noexcept {}
+  explicit MMapRef(const char* addr) : addr_(addr) {}
 
   MMapRef(const MMapRef&) = delete;
   MMapRef& operator=(const MMapRef&) = delete;
@@ -69,10 +63,15 @@ class MMapRef {
   void operator()(absl::string_view data) const;
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
+
+ private:
+  const char* addr_;
 };
 
 void MMapRef::operator()(absl::string_view data) const {
-  RIEGELI_CHECK_EQ(munmap(const_cast<char*>(data.data()), data.size()), 0)
+  RIEGELI_CHECK_EQ(munmap(const_cast<char*>(addr_),
+                          data.size() + PtrDistance(addr_, data.data())),
+                   0)
       << ErrnoToStatus(errno, "munmap() failed").message();
 }
 
@@ -84,11 +83,12 @@ void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 void FdMMapReaderBase::Initialize(
     int src, absl::optional<std::string>&& assumed_filename,
-    absl::optional<Position> independent_pos) {
+    absl::optional<Position> independent_pos,
+    absl::optional<Position> max_length) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
   filename_ = fd_internal::ResolveFilename(src, std::move(assumed_filename));
-  InitializePos(src, independent_pos);
+  InitializePos(src, independent_pos, max_length);
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int mode) {
@@ -109,52 +109,77 @@ again:
 }
 
 void FdMMapReaderBase::InitializePos(int src,
-                                     absl::optional<Position> independent_pos) {
-  struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-    FailOperation("fstat()");
-    return;
-  }
-  if (ABSL_PREDICT_FALSE(IntCast<Position>(stat_info.st_size) >
-                         std::numeric_limits<size_t>::max())) {
-    Fail(absl::OutOfRangeError(absl::StrCat("mmap() cannot be used reading ",
-                                            filename_, ": File too large")));
-    return;
-  }
-  if (stat_info.st_size == 0) return;
-  void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
-                          PROT_READ, MAP_SHARED, src, 0);
-  if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
-    FailOperation("mmap()");
-    return;
-  }
-  // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
-  // Set it now.
-  ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
-      std::forward_as_tuple(),
-      absl::string_view(static_cast<const char*>(data),
-                        IntCast<size_t>(stat_info.st_size)))));
+                                     absl::optional<Position> independent_pos,
+                                     absl::optional<Position> max_length) {
+  Position initial_pos;
   if (independent_pos != absl::nullopt) {
-    move_cursor(UnsignedMin(*independent_pos, available()));
+    initial_pos = *independent_pos;
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
       FailOperation("lseek()");
       return;
     }
-    move_cursor(UnsignedMin(IntCast<Position>(file_pos), available()));
+    initial_pos = IntCast<Position>(file_pos);
   }
+
+  struct stat stat_info;
+  if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
+    FailOperation("fstat()");
+    return;
+  }
+  Position base_pos = 0;
+  Position length = IntCast<Position>(stat_info.st_size);
+  if (max_length != absl::nullopt) {
+    base_pos = initial_pos;
+    length = UnsignedMin(SaturatingSub(length, initial_pos), *max_length);
+  }
+  if (independent_pos == absl::nullopt) base_pos_to_sync_ = base_pos;
+  if (length == 0) {
+    // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
+    // Set it now to empty.
+    ChainReader::Reset(std::forward_as_tuple());
+    return;
+  }
+
+  Position rounded_base_pos = base_pos;
+  if (rounded_base_pos > 0) {
+    const long page_size = sysconf(_SC_PAGE_SIZE);
+    if (ABSL_PREDICT_FALSE(page_size < 0)) {
+      FailOperation("sysconf()");
+      return;
+    }
+    rounded_base_pos &= ~IntCast<Position>(page_size - 1);
+  }
+  const Position rounding = base_pos - rounded_base_pos;
+  const Position rounded_length = length + rounding;
+  if (ABSL_PREDICT_FALSE(rounded_length > std::numeric_limits<size_t>::max())) {
+    Fail(absl::OutOfRangeError("File too large for memory mapping"));
+    return;
+  }
+  void* const addr = mmap(nullptr, IntCast<size_t>(rounded_length), PROT_READ,
+                          MAP_SHARED, src, IntCast<off_t>(rounded_base_pos));
+  if (ABSL_PREDICT_FALSE(addr == MAP_FAILED)) {
+    FailOperation("mmap()");
+    return;
+  }
+
+  // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
+  // Set it now.
+  ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
+      std::forward_as_tuple(static_cast<const char*>(addr)),
+      absl::string_view(static_cast<const char*>(addr) + rounding,
+                        IntCast<size_t>(length)))));
+  if (max_length == absl::nullopt) Seek(initial_pos);
 }
 
 void FdMMapReaderBase::InitializeWithExistingData(int src,
                                                   absl::string_view filename,
-                                                  Position independent_pos,
                                                   const Chain& data) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`.
   filename_.assign(filename.data(), filename.size());
   ChainReader::Reset(data);
-  move_cursor(independent_pos);
 }
 
 void FdMMapReaderBase::Done() {
@@ -181,8 +206,10 @@ absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int src = SrcFd();
-  if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+  if (base_pos_to_sync_ != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(lseek(src,
+                                 IntCast<off_t>(*base_pos_to_sync_ + pos()),
+                                 SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
   }
@@ -195,8 +222,8 @@ std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
   const int src = SrcFd();
   std::unique_ptr<FdMMapReader<UnownedFd>> reader =
       std::make_unique<FdMMapReader<UnownedFd>>(kClosed);
-  reader->InitializeWithExistingData(src, filename(), initial_pos,
-                                     ChainReader::src());
+  reader->InitializeWithExistingData(src, filename(), ChainReader::src());
+  reader->Seek(initial_pos);
   return reader;
 }
 

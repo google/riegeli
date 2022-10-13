@@ -114,10 +114,37 @@ class FdMMapReaderBase : public ChainReader<Chain> {
       return independent_pos_;
     }
 
+    // If `absl::nullopt`, the whole file is mapped into memory. `pos()`
+    // corresponds to original file positions.
+    //
+    // If not `absl::nullopt`, only the range of this length starting from the
+    // current position or `independent_pos()` is mapped into memory, or the
+    // remaining part of the file if that is shorter. `pos()` starts from 0.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_max_length(absl::optional<Position> max_length) & {
+      max_length_ = max_length;
+      return *this;
+    }
+    Options&& set_max_length(absl::optional<Position> max_length) && {
+      return std::move(set_max_length(max_length));
+    }
+    absl::optional<Position> max_length() const { return max_length_; }
+
+    // Sets `max_length()` to the remaining part of the file.
+    Options& set_remaining_length() & {
+      set_max_length(std::numeric_limits<Position>::max());
+      return *this;
+    }
+    Options&& set_remaining_length() && {
+      return std::move(set_remaining_length());
+    }
+
    private:
     absl::optional<std::string> assumed_filename_;
     int mode_ = O_RDONLY;
     absl::optional<Position> independent_pos_;
+    absl::optional<Position> max_length_;
   };
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
@@ -134,19 +161,21 @@ class FdMMapReaderBase : public ChainReader<Chain> {
  protected:
   explicit FdMMapReaderBase(Closed) noexcept : ChainReader(kClosed) {}
 
-  explicit FdMMapReaderBase(bool has_independent_pos);
+  explicit FdMMapReaderBase();
 
   FdMMapReaderBase(FdMMapReaderBase&& that) noexcept;
   FdMMapReaderBase& operator=(FdMMapReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(bool has_independent_pos);
+  void Reset();
   void Initialize(int src, absl::optional<std::string>&& assumed_filename,
-                  absl::optional<Position> independent_pos);
+                  absl::optional<Position> independent_pos,
+                  absl::optional<Position> max_length);
   int OpenFd(absl::string_view filename, int mode);
-  void InitializePos(int src, absl::optional<Position> independent_pos);
+  void InitializePos(int src, absl::optional<Position> independent_pos,
+                     absl::optional<Position> max_length);
   void InitializeWithExistingData(int src, absl::string_view filename,
-                                  Position independent_pos, const Chain& data);
+                                  const Chain& data);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
@@ -155,7 +184,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
  private:
   std::string filename_;
-  bool has_independent_pos_ = false;
+  absl::optional<Position> base_pos_to_sync_;
 };
 
 // A `Reader` which reads from a file descriptor by mapping the whole file to
@@ -245,7 +274,7 @@ class FdMMapReader : public FdMMapReaderBase {
   void Initialize(absl::string_view filename, Options&& options);
   using FdMMapReaderBase::InitializeWithExistingData;
   void InitializeWithExistingData(int src, absl::string_view filename,
-                                  Position independent_pos, const Chain& data);
+                                  const Chain& data);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -277,51 +306,50 @@ explicit FdMMapReader(
 
 // Implementation details follow.
 
-inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
+inline FdMMapReaderBase::FdMMapReaderBase()
     // The `Chain` to read from is not known yet. `ChainReader` will be reset in
     // `Initialize()` to read from the `Chain` when it is known.
-    : ChainReader(kClosed), has_independent_pos_(has_independent_pos) {}
+    : ChainReader(kClosed) {}
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(static_cast<ChainReader&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
-      has_independent_pos_(that.has_independent_pos_) {}
+      base_pos_to_sync_(that.base_pos_to_sync_) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
   ChainReader::operator=(static_cast<ChainReader&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
-  has_independent_pos_ = that.has_independent_pos_;
+  base_pos_to_sync_ = that.base_pos_to_sync_;
   return *this;
 }
 
 inline void FdMMapReaderBase::Reset(Closed) {
   ChainReader::Reset(kClosed);
   filename_ = std::string();
-  has_independent_pos_ = false;
+  base_pos_to_sync_ = absl::nullopt;
 }
 
-inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
+inline void FdMMapReaderBase::Reset() {
   // The `Chain` to read from is not known yet. `ChainReader` will be reset in
   // `Initialize()` to read from the `Chain` when it is known.
   ChainReader::Reset(kClosed);
   // `filename_` will be set by `Initialize()` or `OpenFd()`.
-  has_independent_pos_ = has_independent_pos;
+  base_pos_to_sync_ = absl::nullopt;
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(const Src& src, Options options)
-    : FdMMapReaderBase(options.independent_pos() != absl::nullopt), src_(src) {
+    : src_(src) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(Src&& src, Options options)
-    : FdMMapReaderBase(options.independent_pos() != absl::nullopt),
-      src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
@@ -332,18 +360,16 @@ template <typename Src>
 template <typename... SrcArgs>
 inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : FdMMapReaderBase(options.independent_pos() != absl::nullopt),
-      src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
-                                       Options options)
-    : FdMMapReaderBase(options.independent_pos() != absl::nullopt) {
+                                       Options options) {
   Initialize(filename, std::move(options));
 }
 
@@ -368,18 +394,18 @@ inline void FdMMapReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(const Src& src, Options options) {
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
+  FdMMapReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
+  FdMMapReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
@@ -391,10 +417,10 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
+  FdMMapReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.independent_pos());
+             options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
@@ -402,7 +428,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename,
                                      Options options) {
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
+  FdMMapReaderBase::Reset();
   Initialize(filename, std::move(options));
 }
 
@@ -412,18 +438,16 @@ void FdMMapReader<Src>::Initialize(absl::string_view filename,
   const int src = OpenFd(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), options.independent_pos());
+  InitializePos(src_.get(), options.independent_pos(), options.max_length());
 }
 
 template <typename Src>
 void FdMMapReader<Src>::InitializeWithExistingData(int src,
                                                    absl::string_view filename,
-                                                   Position independent_pos,
                                                    const Chain& data) {
-  FdMMapReaderBase::Reset(true);
+  FdMMapReaderBase::Reset();
   src_.Reset(std::forward_as_tuple(src));
-  FdMMapReaderBase::InitializeWithExistingData(src, filename, independent_pos,
-                                               data);
+  FdMMapReaderBase::InitializeWithExistingData(src, filename, data);
 }
 
 template <typename Src>
