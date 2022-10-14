@@ -405,6 +405,12 @@ class CsvHeader {
   // Renders contents in a human-readable way.
   std::string DebugString() const;
 
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  void AbslStringify(Sink& sink, const CsvHeader& self) {
+    sink.Append(self.DebugString());
+  }
+
   // Same as: `out << header.DebugString()`
   friend std::ostream& operator<<(std::ostream& out, const CsvHeader& header);
 
@@ -845,7 +851,13 @@ class CsvRecord {
   // Renders contents in a human-readable way.
   std::string DebugString() const;
 
-  // Same as: `out << header.DebugString()`
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  void AbslStringify(Sink& sink, const CsvRecord& self) {
+    sink.Append(self.DebugString());
+  }
+
+  // Same as: `out << record.DebugString()`
   friend std::ostream& operator<<(std::ostream& out, const CsvRecord& record);
 
  private:

@@ -438,6 +438,12 @@ class Chain {
     return self.AbslHashValueImpl(std::move(hash_state), self);
   }
 
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Chain& self) {
+    return self.AbslStringifyImpl(sink);
+  }
+
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
   // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
@@ -623,6 +629,8 @@ class Chain {
 
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state) const;
+  template <typename Sink>
+  void AbslStringifyImpl(Sink& sink) const;
 
   BlockPtrs block_ptrs_;
 
@@ -2077,6 +2085,13 @@ HashState Chain::AbslHashValueImpl(HashState hash_state) const {
         combiner.add_buffer(std::move(hash_state), block.data(), block.size());
   }
   return HashState::combine(combiner.finalize(std::move(hash_state)), size());
+}
+
+template <typename Sink>
+void Chain::AbslStringifyImpl(Sink& sink) const {
+  for (const absl::string_view block : blocks()) {
+    sink.Append(block);
+  }
 }
 
 template <typename T>

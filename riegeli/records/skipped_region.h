@@ -53,6 +53,12 @@ class SkippedRegion {
   // Formats `SkippedRegion` as string: "[<begin>..<end>): <message>".
   std::string ToString() const;
 
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  void AbslStringify(Sink& sink, const SkippedRegion& self) {
+    sink.Append(self.ToString());
+  }
+
   // Same as: `out << skipped_region.ToString()`
   friend std::ostream& operator<<(std::ostream& out,
                                   const SkippedRegion& skipped_region);

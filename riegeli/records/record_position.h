@@ -116,6 +116,12 @@ class RecordPosition {
                               self.record_index_);
   }
 
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  void AbslStringify(Sink& sink, RecordPosition self) {
+    sink.Append(self.ToString());
+  }
+
   // Same as: `out << pos.ToString()`
   friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
