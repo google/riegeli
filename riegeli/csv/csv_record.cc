@@ -283,6 +283,12 @@ absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
   return iter->second;
 }
 
+bool operator==(const CsvHeader& a, const CsvHeader& b) {
+  if (ABSL_PREDICT_TRUE(a.payload_ == b.payload_)) return true;
+  if (a.payload_ == nullptr || b.payload_ == nullptr) return false;
+  return a.payload_->index_to_name == b.payload_->index_to_name;
+}
+
 inline void CsvHeader::EnsureUniqueOwner() {
   if (payload_ == nullptr) {
     payload_ = MakeRefCounted<Payload>();
@@ -425,6 +431,10 @@ absl::Status CsvRecord::FailMissingNames(
   }
   message.Close();
   return absl::FailedPreconditionError(message.dest());
+}
+
+bool operator==(const CsvRecord& a, const CsvRecord& b) {
+  return a.header() == b.header() && a.fields() == b.fields();
 }
 
 std::string CsvRecord::DebugString() const {

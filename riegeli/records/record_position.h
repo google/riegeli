@@ -77,15 +77,44 @@ class RecordPosition {
   std::string ToBytes() const;
   bool FromBytes(absl::string_view serialized);
 
-  friend bool operator==(RecordPosition a, RecordPosition b);
-  friend bool operator!=(RecordPosition a, RecordPosition b);
-  friend bool operator<(RecordPosition a, RecordPosition b);
-  friend bool operator>(RecordPosition a, RecordPosition b);
-  friend bool operator<=(RecordPosition a, RecordPosition b);
-  friend bool operator>=(RecordPosition a, RecordPosition b);
+  friend bool operator==(RecordPosition a, RecordPosition b) {
+    return a.chunk_begin() == b.chunk_begin() &&
+           a.record_index() == b.record_index();
+  }
+  friend bool operator!=(RecordPosition a, RecordPosition b) {
+    return a.chunk_begin() != b.chunk_begin() ||
+           a.record_index() != b.record_index();
+  }
+  friend bool operator<(RecordPosition a, RecordPosition b) {
+    if (a.chunk_begin() != b.chunk_begin()) {
+      return a.chunk_begin() < b.chunk_begin();
+    }
+    return a.record_index() < b.record_index();
+  }
+  friend bool operator>(RecordPosition a, RecordPosition b) {
+    if (a.chunk_begin() != b.chunk_begin()) {
+      return a.chunk_begin() > b.chunk_begin();
+    }
+    return a.record_index() > b.record_index();
+  }
+  friend bool operator<=(RecordPosition a, RecordPosition b) {
+    if (a.chunk_begin() != b.chunk_begin()) {
+      return a.chunk_begin() < b.chunk_begin();
+    }
+    return a.record_index() <= b.record_index();
+  }
+  friend bool operator>=(RecordPosition a, RecordPosition b) {
+    if (a.chunk_begin() != b.chunk_begin()) {
+      return a.chunk_begin() > b.chunk_begin();
+    }
+    return a.record_index() >= b.record_index();
+  }
 
   template <typename HashState>
-  friend HashState AbslHashValue(HashState hash_state, RecordPosition self);
+  friend HashState AbslHashValue(HashState hash_state, RecordPosition self) {
+    return HashState::combine(std::move(hash_state), self.chunk_begin_,
+                              self.record_index_);
+  }
 
   // Same as: `out << pos.ToString()`
   friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
@@ -179,50 +208,6 @@ inline RecordPosition::RecordPosition(uint64_t chunk_begin,
   RIEGELI_ASSERT_LE(record_index,
                     std::numeric_limits<uint64_t>::max() - chunk_begin)
       << "RecordPosition overflow";
-}
-
-inline bool operator==(RecordPosition a, RecordPosition b) {
-  return a.chunk_begin() == b.chunk_begin() &&
-         a.record_index() == b.record_index();
-}
-
-inline bool operator!=(RecordPosition a, RecordPosition b) {
-  return a.chunk_begin() != b.chunk_begin() ||
-         a.record_index() != b.record_index();
-}
-
-inline bool operator<(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin()) {
-    return a.chunk_begin() < b.chunk_begin();
-  }
-  return a.record_index() < b.record_index();
-}
-
-inline bool operator>(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin()) {
-    return a.chunk_begin() > b.chunk_begin();
-  }
-  return a.record_index() > b.record_index();
-}
-
-inline bool operator<=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin()) {
-    return a.chunk_begin() < b.chunk_begin();
-  }
-  return a.record_index() <= b.record_index();
-}
-
-inline bool operator>=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin()) {
-    return a.chunk_begin() > b.chunk_begin();
-  }
-  return a.record_index() >= b.record_index();
-}
-
-template <typename HashState>
-inline HashState AbslHashValue(HashState hash_state, RecordPosition self) {
-  return HashState::combine(std::move(hash_state), self.chunk_begin_,
-                            self.record_index_);
 }
 
 namespace records_internal {

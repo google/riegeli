@@ -302,7 +302,9 @@ class Writer : public Object {
   Reader* ReadMode(Position initial_pos);
 
   // Support `absl::Format(&writer, format, args...)`.
-  friend void AbslFormatFlush(Writer* dest, absl::string_view src);
+  friend void AbslFormatFlush(Writer* dest, absl::string_view src) {
+    dest->Write(src);
+  }
 
  protected:
   using Object::Object;
@@ -785,10 +787,6 @@ inline bool Writer::Truncate(Position new_size) {
 inline Reader* Writer::ReadMode(Position initial_pos) {
   AssertInitialized(start(), start_to_cursor());
   return ReadModeImpl(initial_pos);
-}
-
-inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
-  dest->Write(src);
 }
 
 namespace writer_internal {

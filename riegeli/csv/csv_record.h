@@ -398,7 +398,9 @@ class CsvHeader {
 
   // Compares the sequence of field names. Does not compare the normalizer.
   friend bool operator==(const CsvHeader& a, const CsvHeader& b);
-  friend bool operator!=(const CsvHeader& a, const CsvHeader& b);
+  friend bool operator!=(const CsvHeader& a, const CsvHeader& b) {
+    return !(a == b);
+  }
 
   // Renders contents in a human-readable way.
   std::string DebugString() const;
@@ -836,7 +838,9 @@ class CsvRecord {
   absl::Status TrySplit(Dest& dest) const;
 
   friend bool operator==(const CsvRecord& a, const CsvRecord& b);
-  friend bool operator!=(const CsvRecord& a, const CsvRecord& b);
+  friend bool operator!=(const CsvRecord& a, const CsvRecord& b) {
+    return !(a == b);
+  }
 
   // Renders contents in a human-readable way.
   std::string DebugString() const;
@@ -1122,16 +1126,6 @@ inline bool CsvHeader::empty() const { return payload_ == nullptr; }
 inline size_t CsvHeader::size() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return 0;
   return payload_->index_to_name.size();
-}
-
-inline bool operator==(const CsvHeader& a, const CsvHeader& b) {
-  if (ABSL_PREDICT_TRUE(a.payload_ == b.payload_)) return true;
-  if (a.payload_ == nullptr || b.payload_ == nullptr) return false;
-  return a.payload_->index_to_name == b.payload_->index_to_name;
-}
-
-inline bool operator!=(const CsvHeader& a, const CsvHeader& b) {
-  return !(a == b);
 }
 
 template <size_t num_fields>
@@ -1420,14 +1414,6 @@ absl::Status CsvRecord::TrySplit(Dest& dest) const {
     return FailMissingNames(missing_names);
   }
   return absl::OkStatus();
-}
-
-inline bool operator==(const CsvRecord& a, const CsvRecord& b) {
-  return a.header() == b.header() && a.fields() == b.fields();
-}
-
-inline bool operator!=(const CsvRecord& a, const CsvRecord& b) {
-  return !(a == b);
 }
 
 }  // namespace riegeli
