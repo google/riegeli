@@ -40,8 +40,8 @@ namespace riegeli {
 // owned object.
 //
 // Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
-// `M*` (not owned), `M` (owned), or `std::unique_ptr<M>` (owned), with `M`
-// derived from `P`.
+// `M*` (not owned), `M` (owned), or `std::unique_ptr<M, Deleter>` (owned),
+// with `M` derived from `P`.
 //
 // Often `Dependency<Ptr, Manager>` is a member of a host class template
 // parameterized by `Manager`, with `Ptr` fixed by the host class. The member
@@ -529,11 +529,37 @@ class DependencyImpl<P*, nullptr_t> : public DependencyBase<nullptr_t> {
   static constexpr bool kIsStable = true;
 };
 
+namespace dependency_internal {
+
+template <typename M, typename Enable = void>
+struct DereferencedForVoidPtr : std::false_type {};
+template <typename M>
+struct DereferencedForVoidPtr<M*> : std::true_type {};
+template <>
+struct DereferencedForVoidPtr<nullptr_t> : std::true_type {};
+template <typename M, typename Deleter>
+struct DereferencedForVoidPtr<std::unique_ptr<M, Deleter>> : std::true_type {};
+template <typename M>
+struct DereferencedForVoidPtr<std::reference_wrapper<M>> : std::true_type {};
+
+}  // namespace dependency_internal
+
 // Specialization of `DependencyImpl<P*, M>` when `M*` is convertible to `P*`:
 // an owned dependency stored by value.
+//
+// If `P` is possibly cv-qualified `void`, then `Dependency<P*, Manager>`
+// has an ambiguous interpretation for `Manager` being `M*`, `nullptr_t`,
+// `std::unique_ptr<M, Deleter>`, or `std::reference_wrapper<M>`. The ambiguity
+// is resolved in favor of pointing the `void*` to the dereferenced `M`, not to
+// the pointer object itself.
 template <typename P, typename M>
-class DependencyImpl<P*, M,
-                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<
+    P*, M,
+    std::enable_if_t<absl::conjunction<
+        std::is_convertible<M*, P*>,
+        std::negation<absl::conjunction<
+            std::is_void<P>, dependency_internal::DereferencedForVoidPtr<
+                                 std::decay_t<M>>>>>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
@@ -546,8 +572,8 @@ class DependencyImpl<P*, M,
   static constexpr bool kIsStable = false;
 };
 
-// Specialization of `DependencyImpl<P*, std::unique_ptr<M>>` when `M*` is
-// convertible to `P*`: an owned dependency stored by `std::unique_ptr`.
+// Specialization of `DependencyImpl<P*, std::unique_ptr<M, Deleter>>` when `M*`
+// is convertible to `P*`: an owned dependency stored by `std::unique_ptr`.
 template <typename P, typename M, typename Deleter>
 class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
