@@ -111,8 +111,8 @@ struct Repr {
 using Storage = char[];
 
 // A `Dependency<Ptr, Manager>` is stored inline in
-// `Repr<Ptr, inline_size, inline_align>` if it fits in that storage.
-// If `inline_size == 0`, the dependency is also required to be stable.
+// `Repr<Ptr, inline_size, inline_align>` if it fits in that storage and is
+// movable. If `inline_size == 0`, the dependency is also required to be stable.
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
@@ -126,7 +126,8 @@ struct IsInline<
                          sizeof(Repr<Ptr, inline_size, inline_align>) &&
                      alignof(Dependency<Ptr, Manager>) <=
                          alignof(Repr<Ptr, inline_size, inline_align>) &&
-                     (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable)>>
+                     (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable) &&
+                     std::is_move_constructible<Manager>::value>>
     : std::true_type {};
 
 // Method pointers.
