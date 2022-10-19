@@ -435,7 +435,7 @@ class Chain {
 
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state, const Chain& self) {
-    return self.AbslHashValueImpl(std::move(hash_state), self);
+    return self.AbslHashValueImpl(std::move(hash_state));
   }
 
   // Default stringification by `absl::StrCat()` etc.
