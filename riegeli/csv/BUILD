@@ -52,6 +52,8 @@ cc_library(
         ":containers",
         "//riegeli/base",
         "//riegeli/base:intrusive_ref_count",
+        "//riegeli/bytes:absl_stringify_writer",
+        "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base",

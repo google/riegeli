@@ -41,6 +41,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/containers.h"
 
@@ -406,12 +407,16 @@ class CsvHeader {
   std::string DebugString() const;
 
   // Default stringification by `absl::StrCat()` etc.
+  //
+  // Writes `header.DebugString()` to `sink`.
   template <typename Sink>
-  void AbslStringify(Sink& sink, const CsvHeader& self) {
-    sink.Append(self.DebugString());
+  void AbslStringify(Sink& sink, const CsvHeader& header) {
+    AbslStringifyWriter<Sink*> writer(&sink);
+    header.WriteDebugStringTo(writer);
+    writer.Close();
   }
 
-  // Same as: `out << header.DebugString()`
+  // Writes `header.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvHeader& header);
 
  private:
@@ -462,6 +467,8 @@ class CsvHeader {
       std::vector<std::string>&& names);
 
   void EnsureUniqueOwner();
+
+  void WriteDebugStringTo(Writer& writer) const;
 
   // A one-element cache of a recently constructed `Payload`, to reuse the
   // `Payload` when multiple `CsvHeader` objects are created from the same
@@ -852,12 +859,16 @@ class CsvRecord {
   std::string DebugString() const;
 
   // Default stringification by `absl::StrCat()` etc.
+  //
+  // Writes `record.DebugString()` to `sink`.
   template <typename Sink>
-  void AbslStringify(Sink& sink, const CsvRecord& self) {
-    sink.Append(self.DebugString());
+  void AbslStringify(Sink& sink, const CsvRecord& record) {
+    AbslStringifyWriter<Sink*> writer(&sink);
+    record.WriteDebugStringTo(writer);
+    writer.Close();
   }
 
-  // Same as: `out << record.DebugString()`
+  // Writes `header.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvRecord& record);
 
  private:
@@ -870,6 +881,8 @@ class CsvRecord {
 
   absl::Status FailMissingNames(
       absl::Span<const std::string> missing_names) const;
+
+  void WriteDebugStringTo(Writer& writer) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;

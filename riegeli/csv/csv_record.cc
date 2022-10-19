@@ -38,6 +38,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -297,19 +298,26 @@ inline void CsvHeader::EnsureUniqueOwner() {
   }
 }
 
-std::string CsvHeader::DebugString() const {
-  std::string result;
-  StringWriter<> writer(&result);
+void CsvHeader::WriteDebugStringTo(Writer& writer) const {
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
     csv_internal::WriteDebugQuotedIfNeeded(*iter, writer);
   }
+}
+
+std::string CsvHeader::DebugString() const {
+  std::string result;
+  StringWriter<> writer(&result);
+  WriteDebugStringTo(writer);
   writer.Close();
   return result;
 }
 
 std::ostream& operator<<(std::ostream& out, const CsvHeader& header) {
-  return out << header.DebugString();
+  OStreamWriter writer(&out);
+  header.WriteDebugStringTo(writer);
+  writer.Close();
+  return out;
 }
 
 CsvRecord::CsvRecord(CsvHeader header,
@@ -437,24 +445,31 @@ bool operator==(const CsvRecord& a, const CsvRecord& b) {
   return a.header() == b.header() && a.fields() == b.fields();
 }
 
-std::string CsvRecord::DebugString() const {
+void CsvRecord::WriteDebugStringTo(Writer& writer) const {
   RIEGELI_ASSERT_EQ(header_.size(), fields_.size())
       << "Failed invariant of CsvRecord: "
          "mismatched length of CSV header and fields";
-  std::string result;
-  StringWriter<> writer(&result);
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
     csv_internal::WriteDebugQuotedIfNeeded(iter->first, writer);
     writer.WriteChar(':');
     csv_internal::WriteDebugQuotedIfNeeded(iter->second, writer);
   }
+}
+
+std::string CsvRecord::DebugString() const {
+  std::string result;
+  StringWriter<> writer(&result);
+  WriteDebugStringTo(writer);
   writer.Close();
   return result;
 }
 
 std::ostream& operator<<(std::ostream& out, const CsvRecord& record) {
-  return out << record.DebugString();
+  OStreamWriter writer(&out);
+  record.WriteDebugStringTo(writer);
+  writer.Close();
+  return out;
 }
 
 }  // namespace riegeli

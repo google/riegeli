@@ -854,3 +854,14 @@ cc_library(
         "@com_google_absl//absl/types:optional",
     ],
 )
+
+cc_library(
+    name = "absl_stringify_writer",
+    hdrs = ["absl_stringify_writer.h"],
+    deps = [
+        ":buffered_writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
