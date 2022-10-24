@@ -39,10 +39,15 @@
 namespace riegeli {
 
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
-  if (options.required_header() != absl::nullopt) {
+  if (options.required_header() != absl::nullopt ||
+      options.assumed_header() != absl::nullopt) {
     // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
     // uses this as a precondition.
     has_header_ = true;
+    RIEGELI_ASSERT(options.required_header() == absl::nullopt ||
+                   options.assumed_header() == absl::nullopt)
+        << "Failed precondition of CsvReader: "
+           "required_header() and assumed_header() both set";
   }
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CsvReader: null Reader pointer";
@@ -133,6 +138,8 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
         }
       }
     }
+  } else if (options.assumed_header() != absl::nullopt) {
+    header_ = *std::move(options.assumed_header());
   }
 
   recovery_ = std::move(options.recovery());
@@ -472,7 +479,8 @@ next_field:
 bool CsvReaderBase::ReadRecord(CsvRecord& record) {
   RIEGELI_CHECK(has_header())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
-         "CsvReaderBase::Options::required_header() != nullopt is required";
+         "CsvReaderBase::Options::required_header() != nullopt or "
+         "assumed_header() != nullopt is required";
   if (ABSL_PREDICT_FALSE(!ok())) {
     record.Reset();
     return false;

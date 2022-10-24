@@ -71,6 +71,8 @@ class CsvReaderBase : public Object {
     // If the file is empty, actual field names have duplicates, or some
     // required fields are not present, reading the header fails.
     //
+    // `required_header()` and `assumed_header()` must not be both set.
+    //
     // Default: `absl::nullopt`.
     Options& set_required_header(absl::optional<CsvHeader> header) & {
       required_header_ = std::move(header);
@@ -90,6 +92,33 @@ class CsvReaderBase : public Object {
     absl::optional<CsvHeader>& required_header() { return required_header_; }
     const absl::optional<CsvHeader>& required_header() const {
       return required_header_;
+    }
+
+    // If not `absl::nullopt`, a header is not read from the file, but
+    // `ReadRecord(CsvRecord&)` is supported as if this header was present as
+    // the first record.
+    //
+    // `required_header()` and `assumed_header()` must not be both set.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_assumed_header(absl::optional<CsvHeader> header) & {
+      assumed_header_ = std::move(header);
+      return *this;
+    }
+    Options&& set_assumed_header(absl::optional<CsvHeader> header) && {
+      return std::move(set_assumed_header(std::move(header)));
+    }
+    Options& set_assumed_header(
+        std::initializer_list<absl::string_view> names) & {
+      return set_assumed_header(CsvHeader(names));
+    }
+    Options&& set_assumed_header(
+        std::initializer_list<absl::string_view> names) && {
+      return std::move(set_assumed_header(names));
+    }
+    absl::optional<CsvHeader>& assumed_header() { return assumed_header_; }
+    const absl::optional<CsvHeader>& assumed_header() const {
+      return assumed_header_;
     }
 
     // Comment character.
@@ -249,6 +278,7 @@ class CsvReaderBase : public Object {
 
    private:
     absl::optional<CsvHeader> required_header_;
+    absl::optional<CsvHeader> assumed_header_;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
