@@ -24,8 +24,8 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "riegeli/base/base.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
 namespace internal {

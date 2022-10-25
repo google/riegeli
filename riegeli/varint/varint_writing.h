@@ -20,7 +20,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/constexpr.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/varint/varint_internal.h"

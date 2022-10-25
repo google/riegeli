@@ -23,7 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"

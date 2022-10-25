@@ -19,7 +19,7 @@
 #include <stdint.h>
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"

@@ -1,4 +1,4 @@
-// Copyright 2017 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,46 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/cord_utils.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <cstring>
-#include <exception>
-#include <iostream>
 #include <new>
-#include <sstream>
 #include <string>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/string_utils.h"
 
 namespace riegeli {
-
-namespace internal {
-
-CheckFailed::CheckFailed(const char* file, int line, const char* function,
-                         const char* message) {
-  stream_ << "Check failed at " << file << ":" << line << " in " << function
-          << ": " << message << " ";
-}
-
-CheckFailed::~CheckFailed() {
-  std::cerr << stream_.str() << std::endl;
-  std::terminate();
-}
-
-}  // namespace internal
-
-void ResizeStringAmortized(std::string& dest, size_t new_size) {
-  if (new_size > dest.capacity()) {
-    dest.reserve(UnsignedMax(
-        new_size,
-        UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
-  }
-  dest.resize(new_size);
-}
 
 void CopyCordToArray(const absl::Cord& src, char* dest) {
   for (const absl::string_view fragment : src.Chunks()) {

@@ -23,7 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_internal.h"
@@ -76,9 +76,9 @@ bool WriteBigEndianDouble(double data, BackwardWriter& dest);
 //  * `true`  - success (`dest.ok()`)
 //  * `false` - failure (`!dest.ok()`)
 template <typename T>
-bool WriteLittleEndian(internal::type_identity_t<T> data, Writer& dest);
+bool WriteLittleEndian(type_identity_t<T> data, Writer& dest);
 template <typename T>
-bool WriteBigEndian(internal::type_identity_t<T> data, Writer& dest);
+bool WriteBigEndian(type_identity_t<T> data, Writer& dest);
 
 // Writes an array of numbers in a fixed width Little/Big Endian encoding.
 //
@@ -116,11 +116,10 @@ bool WriteBigEndianDoubles(absl::Span<const double> data, Writer& dest);
 //  * `true`  - success (`dest.ok()`)
 //  * `false` - failure (`!dest.ok()`)
 template <typename T>
-bool WriteLittleEndians(absl::Span<const internal::type_identity_t<T>> data,
+bool WriteLittleEndians(absl::Span<const type_identity_t<T>> data,
                         Writer& dest);
 template <typename T>
-bool WriteBigEndians(absl::Span<const internal::type_identity_t<T>> data,
-                     Writer& dest);
+bool WriteBigEndians(absl::Span<const type_identity_t<T>> data, Writer& dest);
 
 // Writes a number in a fixed width Little/Big Endian encoding to an array.
 //
@@ -148,9 +147,9 @@ void WriteBigEndianDouble(double data, char* dest);
 //
 // Writes `sizeof(T)` bytes to `dest[]`.
 template <typename T>
-void WriteLittleEndian(internal::type_identity_t<T> data, char* dest);
+void WriteLittleEndian(type_identity_t<T> data, char* dest);
 template <typename T>
-void WriteBigEndian(internal::type_identity_t<T> data, char* dest);
+void WriteBigEndian(type_identity_t<T> data, char* dest);
 
 // Writes an array of numbers in a fixed width Little/Big Endian encoding to an
 // array.
@@ -187,11 +186,9 @@ void WriteBigEndianDoubles(absl::Span<const double> data, char* dest);
 //  * `true`  - success (`dest.ok()`)
 //  * `false` - failure (`!dest.ok()`)
 template <typename T>
-void WriteLittleEndians(absl::Span<const internal::type_identity_t<T>> data,
-                        char* dest);
+void WriteLittleEndians(absl::Span<const type_identity_t<T>> data, char* dest);
 template <typename T>
-void WriteBigEndians(absl::Span<const internal::type_identity_t<T>> data,
-                     char* dest);
+void WriteBigEndians(absl::Span<const type_identity_t<T>> data, char* dest);
 
 // Implementation details follow.
 

@@ -11,7 +11,10 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         "//python/riegeli/base:utils",
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:object",
+        "//riegeli/base:types",
         "//riegeli/bytes:buffer_options",
         "//riegeli/bytes:buffered_reader",
         "@com_google_absl//absl/base:core_headers",
@@ -32,7 +35,10 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         "//python/riegeli/base:utils",
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:object",
+        "//riegeli/base:types",
         "//riegeli/bytes:buffer_options",
         "//riegeli/bytes:buffered_writer",
         "@com_google_absl//absl/base:core_headers",

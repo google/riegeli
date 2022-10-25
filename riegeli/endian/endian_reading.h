@@ -22,7 +22,7 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_internal.h"
 
@@ -68,9 +68,9 @@ bool ReadBigEndianDouble(Reader& src, double& dest);
 //                                 (`src` position is unchanged,
 //                                 `dest` is undefined)
 template <typename T>
-bool ReadLittleEndian(Reader& src, internal::type_identity_t<T>& dest);
+bool ReadLittleEndian(Reader& src, type_identity_t<T>& dest);
 template <typename T>
-bool ReadBigEndian(Reader& src, internal::type_identity_t<T>& dest);
+bool ReadBigEndian(Reader& src, type_identity_t<T>& dest);
 
 // Reads an array of numbers in a fixed width Little/Big Endian encoding.
 //
@@ -118,10 +118,9 @@ bool ReadBigEndianDoubles(Reader& src, absl::Span<double> dest);
 //                                 (`src` position is undefined,
 //                                 `dest[]` is undefined)
 template <typename T>
-bool ReadLittleEndians(Reader& src,
-                       absl::Span<internal::type_identity_t<T>> dest);
+bool ReadLittleEndians(Reader& src, absl::Span<type_identity_t<T>> dest);
 template <typename T>
-bool ReadBigEndians(Reader& src, absl::Span<internal::type_identity_t<T>> dest);
+bool ReadBigEndians(Reader& src, absl::Span<type_identity_t<T>> dest);
 
 // Reads a number in a fixed width Little/Big Endian encoding from an array.
 //
@@ -186,11 +185,9 @@ void ReadBigEndianDoubles(const char* src, absl::Span<double> dest);
 //
 // Reads `dest.size() * sizeof(T)` bytes  from `src[]`.
 template <typename T>
-void ReadLittleEndians(const char* src,
-                       absl::Span<internal::type_identity_t<T>> dest);
+void ReadLittleEndians(const char* src, absl::Span<type_identity_t<T>> dest);
 template <typename T>
-void ReadBigEndians(const char* src,
-                    absl::Span<internal::type_identity_t<T>> dest);
+void ReadBigEndians(const char* src, absl::Span<type_identity_t<T>> dest);
 
 // Implementation details follow.
 

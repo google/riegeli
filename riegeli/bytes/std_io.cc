@@ -18,9 +18,9 @@
 
 #include <utility>
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 

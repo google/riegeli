@@ -19,7 +19,7 @@
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 
 namespace riegeli {
 

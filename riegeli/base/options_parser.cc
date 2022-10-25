@@ -30,7 +30,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 
 namespace riegeli {
 

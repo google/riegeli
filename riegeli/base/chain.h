@@ -37,10 +37,12 @@
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/intrusive_ref_count.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/new_aligned.h"
 
 namespace riegeli {
 

@@ -20,7 +20,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 

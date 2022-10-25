@@ -21,6 +21,7 @@
 
 #include "absl/strings/string_view.h"
 #include "crc32c/crc32c.h"
+#include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
 

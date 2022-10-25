@@ -22,7 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
 

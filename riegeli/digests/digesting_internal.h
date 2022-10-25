@@ -23,8 +23,9 @@
 
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/types.h"
+#include "riegeli/base/zeros.h"
 
 namespace riegeli {
 namespace digesting_internal {

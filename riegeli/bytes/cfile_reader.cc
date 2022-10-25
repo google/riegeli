@@ -42,10 +42,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_internal.h"
 

@@ -11,7 +11,10 @@ cc_library(
     hdrs = ["csv_reader.h"],
     deps = [
         ":csv_record",
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
         "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
@@ -31,7 +34,10 @@ cc_library(
     deps = [
         ":containers",
         ":csv_record",
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
         "//riegeli/base:status",
         "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
@@ -50,7 +56,8 @@ cc_library(
     hdrs = ["csv_record.h"],
     deps = [
         ":containers",
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",

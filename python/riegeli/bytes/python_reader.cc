@@ -37,7 +37,10 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "python/riegeli/base/utils.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {

@@ -39,7 +39,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"

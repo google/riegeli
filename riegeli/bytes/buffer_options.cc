@@ -19,7 +19,10 @@
 #include <limits>
 
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
 

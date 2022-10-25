@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/decompressor.h"

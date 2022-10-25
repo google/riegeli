@@ -25,9 +25,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
 

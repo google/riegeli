@@ -17,7 +17,7 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 

@@ -28,9 +28,10 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/object.h"
+#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 

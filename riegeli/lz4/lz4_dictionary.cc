@@ -24,7 +24,6 @@
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
-#include "riegeli/base/intrusive_ref_count.h"
 
 namespace riegeli {
 

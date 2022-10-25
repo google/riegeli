@@ -31,8 +31,9 @@
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_writer.h"
 #include "python/riegeli/records/record_position.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/types.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_writer.h"
 

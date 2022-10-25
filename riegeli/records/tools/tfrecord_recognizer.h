@@ -15,7 +15,7 @@
 #ifndef RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
 #define RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "tensorflow/core/lib/io/record_reader.h"

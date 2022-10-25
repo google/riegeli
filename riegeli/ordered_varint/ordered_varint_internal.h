@@ -17,12 +17,12 @@
 
 #include <stddef.h>
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint32, 5);
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint64, 9);
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint32, 5);
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint64, 9);
 
 }  // namespace riegeli
 

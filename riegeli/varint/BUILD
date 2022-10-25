@@ -13,7 +13,8 @@ cc_library(
     ],
     hdrs = ["varint_reading.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:constexpr",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
@@ -25,7 +26,8 @@ cc_library(
     srcs = ["varint_internal.h"],
     hdrs = ["varint_writing.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:constexpr",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",

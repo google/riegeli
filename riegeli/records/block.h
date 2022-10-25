@@ -19,7 +19,10 @@
 #include <stdint.h>
 
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/constexpr.h"
+#include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
 #include "riegeli/endian/endian_reading.h"
@@ -73,10 +76,10 @@ class BlockHeader {
   char bytes_[3 * sizeof(uint64_t)];
 };
 
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
+RIEGELI_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
 
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(Position, kUsableBlockSize,
-                                  kBlockSize - BlockHeader::size());
+RIEGELI_INLINE_CONSTEXPR(Position, kUsableBlockSize,
+                         kBlockSize - BlockHeader::size());
 
 // Whether `pos` is a block boundary (immediately before a block header).
 inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize == 0; }

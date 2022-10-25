@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/base/memory.h"
+#include "riegeli/base/zeros.h"
 
 #include <stddef.h>
 
@@ -20,7 +20,8 @@
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/cord_utils.h"
+#include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
 

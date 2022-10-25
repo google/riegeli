@@ -17,7 +17,8 @@
 
 #include <stdint.h>
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/constexpr.h"
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -46,8 +47,8 @@ static_assert(static_cast<uint32_t>(MessageId::kRoot) <= 8,
 // `kSubmessageWireType` does marks the end of a submessage, distinguishing it
 // from the end of a string or bytes field, which is encoded using
 // `WireType::kLengthDelimited`.
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(WireType, kSubmessageWireType,
-                                  static_cast<WireType>(6));
+RIEGELI_INLINE_CONSTEXPR(WireType, kSubmessageWireType,
+                         static_cast<WireType>(6));
 
 enum class Subtype : uint8_t {
   kTrivial = 0,

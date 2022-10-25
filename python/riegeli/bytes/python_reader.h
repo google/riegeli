@@ -30,8 +30,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 

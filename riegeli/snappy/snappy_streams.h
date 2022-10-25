@@ -17,7 +17,8 @@
 
 #include <stddef.h>
 
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "snappy-sinksource.h"

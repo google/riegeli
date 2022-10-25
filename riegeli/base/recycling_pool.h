@@ -27,8 +27,8 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
-#include "riegeli/base/base.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
 

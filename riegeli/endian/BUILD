@@ -10,7 +10,7 @@ cc_library(
     srcs = ["endian_internal.h"],
     hdrs = ["endian_reading.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
@@ -23,7 +23,7 @@ cc_library(
     srcs = ["endian_internal.h"],
     hdrs = ["endian_writing.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base",

@@ -27,8 +27,9 @@
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {

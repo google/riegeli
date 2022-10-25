@@ -25,10 +25,10 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
 

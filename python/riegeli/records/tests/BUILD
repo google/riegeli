@@ -17,6 +17,11 @@ py_test(
     ],
 )
 
+proto_library(
+    name = "records_test_proto",
+    srcs = ["records_test.proto"],
+)
+
 py_proto_library(
     name = "records_test_py_pb2",
     srcs = ["records_test.proto"],

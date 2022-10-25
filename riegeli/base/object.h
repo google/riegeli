@@ -17,19 +17,21 @@
 
 #include <stdint.h>
 
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/constexpr.h"
+#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 
 // By convention, a constructor with a single parameter of type `Closed`
 // constructs the object as closed.
 struct Closed {};
-RIEGELI_INTERNAL_INLINE_CONSTEXPR(Closed, kClosed, Closed());
+RIEGELI_INLINE_CONSTEXPR(Closed, kClosed, Closed());
 
 // Internal representation of the basic state of class `Object` and similar
 // classes: whether the object is open or closed, and whether it is not failed
@@ -110,32 +112,6 @@ class ObjectState {
   // `status_ptr_` is `kOk`, or `kClosedSuccessfully`, or a `FailedStatus*`
   // `reinterpret_cast` to `uintptr_t`.
   uintptr_t status_ptr_;
-};
-
-// `TypeId::For<A>()` is a token which is equal to `TypeId::For<B>()` whenever
-// `A` and `B` are the same type. `TypeId()` is another value not equal to any
-// other.
-class TypeId {
- public:
-  constexpr TypeId() noexcept {}
-
-  template <typename T>
-  static constexpr TypeId For();
-
-  friend constexpr bool operator==(TypeId a, TypeId b) {
-    return a.ptr_ == b.ptr_;
-  }
-  friend constexpr bool operator!=(TypeId a, TypeId b) {
-    return a.ptr_ != b.ptr_;
-  }
-
- private:
-  template <typename T>
-  struct TypeIdToken;
-
-  explicit constexpr TypeId(const void* ptr) : ptr_(ptr) {}
-
-  const void* ptr_ = nullptr;
 };
 
 // `Object` is an abstract base class for data readers and writers, managing
@@ -386,19 +362,6 @@ inline bool Object::Close() {
 
 inline absl::Status Object::AnnotateStatus(absl::Status status) {
   return AnnotateStatusImpl(std::move(status));
-}
-
-template <typename T>
-struct TypeId::TypeIdToken {
-  static const char token;
-};
-
-template <typename T>
-const char TypeId::TypeIdToken<T>::token = '\0';
-
-template <typename T>
-constexpr TypeId TypeId::For() {
-  return TypeId(&TypeIdToken<T>::token);
 }
 
 }  // namespace riegeli

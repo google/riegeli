@@ -18,7 +18,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
 

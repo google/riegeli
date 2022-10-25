@@ -27,7 +27,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/skipped_region.h"

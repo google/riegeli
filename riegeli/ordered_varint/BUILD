@@ -13,7 +13,8 @@ cc_library(
     ],
     hdrs = ["ordered_varint_reading.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:assert",
+        "//riegeli/base:constexpr",
         "//riegeli/bytes:reader",
         "//riegeli/endian:endian_reading",
         "@com_google_absl//absl/base:core_headers",
@@ -28,7 +29,9 @@ cc_library(
     ],
     hdrs = ["ordered_varint_writing.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:constexpr",
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/base:core_headers",

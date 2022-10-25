@@ -22,7 +22,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 
 namespace riegeli {
 

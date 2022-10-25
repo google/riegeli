@@ -35,7 +35,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/types.h"
 #include "riegeli/records/record_position.h"
 
 namespace riegeli {

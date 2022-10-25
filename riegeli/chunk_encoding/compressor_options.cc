@@ -20,7 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"

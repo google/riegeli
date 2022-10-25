@@ -20,8 +20,8 @@
 #include <utility>
 
 #include "absl/container/flat_hash_set.h"
-#include "riegeli/base/base.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
 

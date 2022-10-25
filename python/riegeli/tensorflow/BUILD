@@ -19,7 +19,7 @@ cc_binary(
     copts = ["-DNDEBUG"],
     linkshared = True,
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
         "//riegeli/records:record_position",
         "//riegeli/records:record_reader",
         "//riegeli/records:skipped_region",

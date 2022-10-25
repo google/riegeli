@@ -25,9 +25,9 @@
 
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/cfile_dependency.h"
 #include "riegeli/bytes/writer.h"
 

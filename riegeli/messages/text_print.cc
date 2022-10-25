@@ -21,7 +21,7 @@
 #include "absl/strings/cord.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"

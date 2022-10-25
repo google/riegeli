@@ -10,7 +10,8 @@ cc_library(
     srcs = ["line_reading.cc"],
     hdrs = ["line_reading.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
@@ -24,7 +25,7 @@ cc_library(
     name = "line_writing",
     hdrs = ["line_writing.h"],
     deps = [
-        "//riegeli/base",
+        "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",

@@ -20,7 +20,9 @@
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
+#include "riegeli/base/cord_utils.h"
 
 namespace riegeli {
 
