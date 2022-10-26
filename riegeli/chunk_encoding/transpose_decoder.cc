@@ -1290,8 +1290,10 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         }
         continue;
 
-      case chunk_encoding_internal::CallbackType::kImplicit:
-        RIEGELI_ASSERT_UNREACHABLE() << "kImplicit is masked out";
+      // `chunk_encoding_internal::CallbackType::kImplicit` is masked out.
+      default:
+        RIEGELI_ASSERT_UNREACHABLE() << "Unknown callback type: "
+                                     << static_cast<int>(node->callback_type);
     }
   }
 
