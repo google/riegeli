@@ -19,6 +19,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
 
@@ -98,6 +100,26 @@ struct TestReturnsOptionalOrderingOrSearchGuide<
                      (std::is_convertible<
                           decltype(std::declval<Test>()(std::declval<Pos>())),
                           absl::optional<SearchGuide<Pos>>>::value &&
+                      !std::is_convertible<decltype(std::declval<Test>()(
+                                               std::declval<Pos>())),
+                                           SearchGuide<Pos>>::value)>>
+    : std::true_type {};
+
+template <typename Test, typename Pos, typename Enable = void>
+struct TestReturnsStatusOrOrderingOrSearchGuide : std::false_type {};
+
+template <typename Test, typename Pos>
+struct TestReturnsStatusOrOrderingOrSearchGuide<
+    Test, Pos,
+    std::enable_if_t<(std::is_convertible<
+                          decltype(std::declval<Test>()(std::declval<Pos>())),
+                          absl::StatusOr<absl::partial_ordering>>::value &&
+                      !std::is_convertible<decltype(std::declval<Test>()(
+                                               std::declval<Pos>())),
+                                           absl::partial_ordering>::value) ||
+                     (std::is_convertible<
+                          decltype(std::declval<Test>()(std::declval<Pos>())),
+                          absl::StatusOr<SearchGuide<Pos>>>::value &&
                       !std::is_convertible<decltype(std::declval<Test>()(
                                                std::declval<Pos>())),
                                            SearchGuide<Pos>>::value)>>
@@ -189,6 +211,25 @@ template <typename Traits, typename Test,
                   Test, typename Traits::Pos>::value,
               int> = 0>
 absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
+    typename Traits::Pos low, typename Traits::Pos high, Test&& test,
+    const Traits& traits);
+
+// A variant of `BinarySearch()` which supports cancellation with a `Status`.
+//
+// If a `test()` returns a failed `absl::StatusOr`, `BinarySearch()` returns
+// the corresponding failed `absl::StatusOr`.
+template <typename Pos, typename Test,
+          std::enable_if_t<
+              binary_search_internal::TestReturnsStatusOrOrderingOrSearchGuide<
+                  Test, Pos>::value,
+              int> = 0>
+absl::StatusOr<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test&& test);
+template <typename Traits, typename Test,
+          std::enable_if_t<
+              binary_search_internal::TestReturnsStatusOrOrderingOrSearchGuide<
+                  Test, typename Traits::Pos>::value,
+              int> = 0>
+absl::StatusOr<SearchResult<typename Traits::Pos>> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits);
 
@@ -380,6 +421,42 @@ inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
       },
       traits);
   if (ABSL_PREDICT_FALSE(cancelled)) return absl::nullopt;
+  return result;
+}
+
+template <typename Pos, typename Test,
+          std::enable_if_t<
+              binary_search_internal::TestReturnsStatusOrOrderingOrSearchGuide<
+                  Test, Pos>::value,
+              int>>
+inline absl::StatusOr<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
+                                                      Test&& test) {
+  return BinarySearch(std::move(low), std::move(high), std::forward<Test>(test),
+                      DefaultSearchTraits<Pos>());
+}
+
+template <typename Traits, typename Test,
+          std::enable_if_t<
+              binary_search_internal::TestReturnsStatusOrOrderingOrSearchGuide<
+                  Test, typename Traits::Pos>::value,
+              int>>
+inline absl::StatusOr<SearchResult<typename Traits::Pos>> BinarySearch(
+    typename Traits::Pos low, typename Traits::Pos high, Test&& test,
+    const Traits& traits) {
+  absl::Status status;
+  SearchResult<typename Traits::Pos> result = BinarySearch(
+      std::move(low), std::move(high),
+      [&](const typename Traits::Pos& pos) {
+        auto test_result = test(pos);
+        if (ABSL_PREDICT_FALSE(!test_result.ok())) {
+          status = test_result.status();
+          return binary_search_internal::CancelSearch<
+              std::decay_t<decltype(*test_result)>>::At(pos);
+        }
+        return *std::move(test_result);
+      },
+      traits);
+  if (ABSL_PREDICT_FALSE(!status.ok())) return status;
   return result;
 }
 
