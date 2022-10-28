@@ -75,9 +75,9 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename, const char* mode) {
   return dest;
 }
 
-inline void CFileWriterBase::InitializePos(FILE* dest,
-                                           absl::optional<Position> assumed_pos,
-                                           bool append) {
+void CFileWriterBase::InitializePos(FILE* dest,
+                                    absl::optional<Position> assumed_pos,
+                                    bool append) {
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
