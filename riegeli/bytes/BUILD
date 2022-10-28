@@ -8,13 +8,14 @@ licenses(["notice"])
 cc_library(
     name = "reader",
     hdrs = ["reader.h"],
+    # TODO: Temporarily while reader.h includes {read,copy}_all.h.
+    features = ["-use_header_modules"],
     deps = [
         ":reader_and_writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
-        "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
@@ -28,6 +29,8 @@ cc_library(
 cc_library(
     name = "writer",
     hdrs = ["writer.h"],
+    # TODO: Temporarily while writer.h includes write.h.
+    features = ["-use_header_modules"],
     deps = [
         ":reader_and_writer",
         "//riegeli/base:arithmetic",
@@ -35,7 +38,6 @@ cc_library(
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
         "//riegeli/base:cord_utils",
-        "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:reset",
         "//riegeli/base:types",
@@ -72,14 +74,22 @@ cc_library(
     name = "reader_and_writer",
     srcs = [
         "backward_writer.cc",
+        "copy_all.cc",
+        "read_all.cc",
         "reader.cc",
         "writer.cc",
     ],
     hdrs = [
         "backward_writer.h",
+        "copy_all.h",
+        "read_all.h",
         "reader.h",
+        "write.h",
         "writer.h",
     ],
+    # TODO: Temporarily while reader.h includes {read,copy}_all.h
+    # and writer.h includes write.h.
+    features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:arithmetic",
@@ -100,6 +110,47 @@ cc_library(
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "read_all",
+    hdrs = ["read_all.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
+    name = "copy_all",
+    hdrs = ["copy_all.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base:dependency",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "write",
+    hdrs = ["write.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 

@@ -65,11 +65,6 @@ bool Reader::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Reader position overflow"));
 }
 
-bool Reader::FailMaxLengthExceeded(Position max_length) {
-  return Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Maximum length exceeded: ", max_length)));
-}
-
 bool Reader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
@@ -200,227 +195,138 @@ void Reader::ReadHintSlow(size_t min_length, size_t recommended_length) {
          "enough data available, use ReadHint() instead";
 }
 
+namespace read_all_internal {
+
+absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
+                         size_t max_length);
+absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length);
+absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length);
+absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length);
+absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
+                                  size_t max_length);
+absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length);
+absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
+                                  size_t max_length);
+
+}  // namespace read_all_internal
+
 bool Reader::ReadAll(absl::string_view& dest, size_t max_length) {
-  max_length = UnsignedMin(max_length, dest.max_size());
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest = absl::string_view();
-      return false;
+  {
+    absl::Status status =
+        read_all_internal::ReadAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!Read(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!ok())) return false;
-      }
-      return FailMaxLengthExceeded(max_length);
-    }
-    if (ABSL_PREDICT_FALSE(!Read(IntCast<size_t>(remaining), dest))) {
-      return ok();
-    }
-    return true;
-  } else {
-    do {
-      if (ABSL_PREDICT_FALSE(available() > max_length)) {
-        dest = absl::string_view(cursor(), max_length);
-        move_cursor(max_length);
-        return FailMaxLengthExceeded(max_length);
-      }
-    } while (Pull(available() + 1));
-    dest = absl::string_view(cursor(), available());
-    move_cursor(available());
-    return ok();
   }
+  return true;
 }
 
 bool Reader::ReadAll(std::string& dest, size_t max_length) {
-  dest.clear();
-  return ReadAndAppendAll(dest, max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
+    }
+  }
+  return true;
 }
 
 bool Reader::ReadAll(Chain& dest, size_t max_length) {
-  dest.Clear();
-  return ReadAndAppendAll(dest, max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
+    }
+  }
+  return true;
 }
 
 bool Reader::ReadAll(absl::Cord& dest, size_t max_length) {
-  dest.Clear();
-  return ReadAndAppendAll(dest, max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
+    }
+  }
+  return true;
 }
 
 bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
-  max_length = UnsignedMin(max_length, dest.max_size() - dest.size());
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!ok())) return false;
-      }
-      return FailMaxLengthExceeded(max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAndAppendAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return ok();
-    }
-    return true;
-  } else {
-    if (ABSL_PREDICT_FALSE(!Pull())) return ok();
-    size_t remaining_max_length = max_length;
-    const size_t dest_pos = dest.size();
-    if (available() < dest.capacity() - dest_pos) {
-      // Try to fill all remaining space in `dest`, to avoid copying through the
-      // `Chain` in case the remaining length is smaller.
-      const size_t length =
-          UnsignedMin(dest.capacity() - dest_pos, remaining_max_length);
-      dest.resize(dest_pos + length);
-      size_t length_read;
-      if (!Read(length, &dest[dest_pos], &length_read)) {
-        dest.erase(dest_pos + length_read);
-        return ok();
-      }
-      remaining_max_length -= length_read;
-    }
-    Chain buffer;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        ReadAndAppend(remaining_max_length, buffer);
-        std::move(buffer).AppendTo(dest);
-        return FailMaxLengthExceeded(max_length);
-      }
-      remaining_max_length -= available();
-      ReadAndAppend(available(), buffer);
-    } while (Pull());
-    std::move(buffer).AppendTo(dest);
-    return ok();
   }
+  return true;
 }
 
 bool Reader::ReadAndAppendAll(Chain& dest, size_t max_length) {
-  max_length =
-      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!ok())) return false;
-      }
-      return FailMaxLengthExceeded(max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAndAppendAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return ok();
-    }
-    return true;
-  } else {
-    size_t remaining_max_length = max_length;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        ReadAndAppend(remaining_max_length, dest);
-        return FailMaxLengthExceeded(max_length);
-      }
-      remaining_max_length -= available();
-      ReadAndAppend(available(), dest);
-    } while (Pull());
-    return ok();
   }
+  return true;
 }
 
 bool Reader::ReadAndAppendAll(absl::Cord& dest, size_t max_length) {
-  max_length =
-      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
-        if (ABSL_PREDICT_FALSE(!ok())) return false;
-      }
-      return FailMaxLengthExceeded(max_length);
+  {
+    absl::Status status =
+        read_all_internal::ReadAndAppendAllImpl(*this, dest, max_length);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
-      return ok();
-    }
-    return true;
-  } else {
-    size_t remaining_max_length = max_length;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        ReadAndAppend(remaining_max_length, dest);
-        return FailMaxLengthExceeded(max_length);
-      }
-      remaining_max_length -= available();
-      ReadAndAppend(available(), dest);
-    } while (Pull());
-    return ok();
   }
+  return true;
 }
+
+namespace copy_all_internal {
+
+absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
+                         bool set_write_size_hint);
+absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
+                         bool set_write_size_hint);
+
+}  // namespace copy_all_internal
 
 bool Reader::CopyAll(Writer& dest, Position max_length,
                      bool set_write_size_hint) {
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (set_write_size_hint) dest.SetWriteSizeHint(max_length);
-      if (ABSL_PREDICT_FALSE(!Copy(max_length, dest))) return dest.ok() && ok();
-      return FailMaxLengthExceeded(max_length);
+  {
+    absl::Status status =
+        copy_all_internal::CopyAllImpl(*this, dest, max_length, false);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok() || !dest.ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    if (set_write_size_hint) dest.SetWriteSizeHint(remaining);
-    if (ABSL_PREDICT_FALSE(!Copy(remaining, dest))) return dest.ok() && ok();
-    return true;
-  } else {
-    Position remaining_max_length = max_length;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        if (ABSL_PREDICT_FALSE(!Copy(remaining_max_length, dest))) {
-          if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
-        }
-        return FailMaxLengthExceeded(max_length);
-      }
-      remaining_max_length -= available();
-      if (ABSL_PREDICT_FALSE(!Copy(available(), dest))) {
-        if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
-      }
-    } while (Pull());
-    return ok();
   }
+  return true;
 }
 
 bool Reader::CopyAll(BackwardWriter& dest, size_t max_length,
                      bool set_write_size_hint) {
-  if (SupportsSize()) {
-    const absl::optional<Position> size = Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!Skip(max_length))) {
-        if (ABSL_PREDICT_FALSE(!ok())) return false;
-      }
-      return FailMaxLengthExceeded(max_length);
+  {
+    absl::Status status =
+        copy_all_internal::CopyAllImpl(*this, dest, max_length, false);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (ABSL_PREDICT_FALSE(!ok() || !dest.ok())) return false;
+      return FailWithoutAnnotation(std::move(status));
     }
-    if (set_write_size_hint) dest.SetWriteSizeHint(remaining);
-    if (ABSL_PREDICT_FALSE(!Copy(IntCast<size_t>(remaining), dest))) {
-      return dest.ok() && ok();
-    }
-    return true;
-  } else {
-    size_t remaining_max_length = max_length;
-    Chain data;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        move_cursor(remaining_max_length);
-        return FailMaxLengthExceeded(max_length);
-      }
-      remaining_max_length -= available();
-      ReadAndAppend(available(), data);
-    } while (Pull());
-    if (ABSL_PREDICT_FALSE(!ok())) return false;
-    return dest.Write(std::move(data));
   }
+  return true;
 }
 
 bool Reader::SyncImpl(SyncType sync_type) { return ok(); }

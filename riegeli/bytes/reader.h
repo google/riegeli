@@ -22,7 +22,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -35,7 +34,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -250,69 +248,40 @@ class Reader : public Object {
   // `min_length`.
   void ReadHint(size_t min_length = 1, size_t recommended_length = 0);
 
-  // Reads all remaining bytes from the buffer and/or the source to `dest`,
-  // clearing any existing data in `dest`.
-  //
-  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
-  // would be read.
-  //
-  // `ReadAll(absl::string_view&)` points `dest` to an array holding the data.
-  // The array is valid until the next non-const operation on the `Reader`.
-  //
-  // Return values:
-  //  * `true` (`ok()`)   - success
-  //  * `false` (`!ok()`) - failure
+  ABSL_DEPRECATED("Use riegeli::ReadAll(std::string&) free function instead")
   bool ReadAll(absl::string_view& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
+  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
   bool ReadAll(std::string& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
+  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
   bool ReadAll(Chain& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
+  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
   bool ReadAll(absl::Cord& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
 
-  // Reads all remaining bytes from the buffer and/or the source to `dest`,
-  // appending to any existing data in `dest`.
-  //
-  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
-  // would be read.
-  //
-  // Return values:
-  //  * `true` (`ok()`)   - success
-  //  * `false` (`!ok()`) - failure
+  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
   bool ReadAndAppendAll(std::string& dest,
                         size_t max_length = std::numeric_limits<size_t>::max());
+  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
   bool ReadAndAppendAll(Chain& dest,
                         size_t max_length = std::numeric_limits<size_t>::max());
+  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
   bool ReadAndAppendAll(absl::Cord& dest,
                         size_t max_length = std::numeric_limits<size_t>::max());
 
-  // Reads all remaining bytes from the buffer and/or the source to `dest`,
-  //
-  // `CopyAll(Writer&)` writes as much as could be read if reading failed,
-  // and reads an unspecified length (between what could be written and the
-  // requested length) if writing failed.
-  //
-  // `CopyAll(BackwardWriter&)` writes nothing if reading failed, and reads
-  // the full requested length even if writing failed.
-  //
-  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
-  // would be read.
-  //
-  // If `set_write_size_hint` is `true`, calls `dest.SetWriteSizeHint()` if the
-  // length to copy is known, which is useful only when `CopyAll()` will be
-  // followed by `dest.Close()`.
-  //
-  // Return values:
-  //  * `true` (`dest.ok() && ok()`)    - success
-  //  * `false` (`!dest.ok() || !ok()`) - failure
+  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
   bool CopyAll(Writer& dest,
                Position max_length = std::numeric_limits<Position>::max(),
                bool set_write_size_hint = false);
+  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
   bool CopyAll(BackwardWriter& dest,
                size_t max_length = std::numeric_limits<size_t>::max(),
                bool set_write_size_hint = false);
+  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
   bool CopyAll(Writer& dest, bool set_write_size_hint);
+  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
   bool CopyAll(BackwardWriter& dest, bool set_write_size_hint);
 
   // Synchronizes the current position to the source and discards buffered data
@@ -576,8 +545,6 @@ class Reader : public Object {
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
 
  private:
-  ABSL_ATTRIBUTE_COLD bool FailMaxLengthExceeded(Position max_length);
-
   const char* start_ = nullptr;
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
@@ -587,78 +554,6 @@ class Reader : public Object {
   // Invariant: `limit_pos_ >= start_to_limit()`
   Position limit_pos_ = 0;
 };
-
-// Combines creating a `Reader`, calling `ReadAll()`, and `VerifyEndAndClose()`
-// (if the `Reader` is owned).
-//
-// The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAll(Src&& src, std::string& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAll(Src&& src, Chain& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAll(Src&& src, absl::Cord& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
-
-// Combines creating a `Reader`, calling `ReadAndAppendAll()`, and
-// `VerifyEndAndClose()` (if the `Reader` is owned).
-//
-// The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAndAppendAll(
-    Src&& src, std::string& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAndAppendAll(
-    Src&& src, Chain& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-absl::Status ReadAndAppendAll(
-    Src&& src, absl::Cord& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
-
-// Combines creating a `Reader` and/or `Writer` / `BackwardWriter`, calling
-// `CopyAll()`, and `VerifyEndAndClose()` and/or `Close()` (if the `Reader`
-// and/or `Writer` / `BackwardWriter` is owned).
-//
-// The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
-//
-// The `Dest` template parameter specifies the type of the object providing and
-// possibly owning the `Writer` / `BackwardWriter`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned).
-// Analogously for `BackwardWriter`.
-template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int> = 0>
-absl::Status CopyAll(
-    Src&& src, Dest&& dest,
-    Position max_length = std::numeric_limits<Position>::max());
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int> = 0>
-absl::Status CopyAll(Src&& src, Dest&& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
 
 // Implementation details follow.
 
@@ -1030,127 +925,11 @@ inline bool Reader::Skip(Position length, Position* length_skipped) {
 
 inline absl::optional<Position> Reader::Size() { return SizeImpl(); }
 
-namespace reader_internal {
-
-template <typename Src, typename Dest>
-inline absl::Status ReadAllImpl(Src&& src, Dest& dest, size_t max_length) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status;
-  if (ABSL_PREDICT_FALSE(!src_dep->ReadAll(dest, max_length))) {
-    status = src_dep->status();
-  }
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
-  }
-  return status;
-}
-
-template <typename Src, typename Dest>
-inline absl::Status ReadAndAppendAllImpl(Src&& src, Dest& dest,
-                                         size_t max_length) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status;
-  if (ABSL_PREDICT_FALSE(!src_dep->ReadAndAppendAll(dest, max_length))) {
-    status = src_dep->status();
-  }
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
-  }
-  return status;
-}
-
-template <typename WriterType, typename LengthType, typename Src, typename Dest>
-inline absl::Status CopyAllImpl(Src&& src, Dest&& dest, LengthType max_length) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  Dependency<WriterType*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status;
-  if (ABSL_PREDICT_FALSE(
-          !src_dep->CopyAll(*dest_dep, max_length, dest_dep.is_owning()))) {
-    status = !dest_dep->ok() ? dest_dep->status() : src_dep->status();
-  }
-  if (dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      status.Update(dest_dep->status());
-    }
-  }
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
-  }
-  return status;
-}
-
-}  // namespace reader_internal
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, std::string& dest, size_t max_length) {
-  return reader_internal::ReadAllImpl(std::forward<Src>(src), dest, max_length);
-}
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, Chain& dest, size_t max_length) {
-  return reader_internal::ReadAllImpl(std::forward<Src>(src), dest, max_length);
-}
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t max_length) {
-  return reader_internal::ReadAllImpl(std::forward<Src>(src), dest, max_length);
-}
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAndAppendAll(Src&& src, std::string& dest,
-                                     size_t max_length) {
-  return reader_internal::ReadAndAppendAllImpl(std::forward<Src>(src), dest,
-                                               max_length);
-}
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAndAppendAll(Src&& src, Chain& dest,
-                                     size_t max_length) {
-  return reader_internal::ReadAndAppendAllImpl(std::forward<Src>(src), dest,
-                                               max_length);
-}
-
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAndAppendAll(Src&& src, absl::Cord& dest,
-                                     size_t max_length) {
-  return reader_internal::ReadAndAppendAllImpl(std::forward<Src>(src), dest,
-                                               max_length);
-}
-
-template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int>>
-absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length) {
-  return reader_internal::CopyAllImpl<Writer>(
-      std::forward<Src>(src), std::forward<Dest>(dest), max_length);
-}
-
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int>>
-absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
-  return reader_internal::CopyAllImpl<BackwardWriter>(
-      std::forward<Src>(src), std::forward<Dest>(dest), max_length);
-}
-
 }  // namespace riegeli
+
+// TODO: Remove these includes once users are migrated to include them
+// directly for `riegeli::Read{,AndAppend}All()` and `riegeli::CopyAll()`.
+#include "riegeli/bytes/copy_all.h"
+#include "riegeli/bytes/read_all.h"
 
 #endif  // RIEGELI_BYTES_READER_H_
