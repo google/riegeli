@@ -127,10 +127,10 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
     }
     std::streamsize length_to_read = IntCast<std::streamsize>(
         UnsignedMin(min_length, max_pos - limit_pos(),
-                    size_t{std::numeric_limits<std::streamsize>::max()}));
+                    UnsignedCast(std::numeric_limits<std::streamsize>::max())));
     const std::streamsize max_length_to_read = IntCast<std::streamsize>(
         UnsignedMin(max_length, max_pos - limit_pos(),
-                    size_t{std::numeric_limits<std::streamsize>::max()}));
+                    UnsignedCast(std::numeric_limits<std::streamsize>::max())));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
       // Use `std::istream::readsome()` to read as much data as is available,

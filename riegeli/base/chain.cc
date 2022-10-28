@@ -2624,7 +2624,8 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
   std::ostream::sentry sentry(out);
   if (sentry) {
     if (ABSL_PREDICT_FALSE(
-            str.size() > size_t{std::numeric_limits<std::streamsize>::max()})) {
+            str.size() >
+            UnsignedCast(std::numeric_limits<std::streamsize>::max()))) {
       out.setstate(std::ios::badbit);
       return out;
     }

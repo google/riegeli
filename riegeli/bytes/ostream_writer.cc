@@ -197,7 +197,7 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   errno = 0;
   do {
     const size_t length_to_write = UnsignedMin(
-        src.size(), size_t{std::numeric_limits<std::streamsize>::max()});
+        src.size(), UnsignedCast(std::numeric_limits<std::streamsize>::max()));
     dest.write(src.data(), IntCast<std::streamsize>(length_to_write));
     if (ABSL_PREDICT_FALSE(dest.fail())) {
       return FailOperation("ostream::write()");

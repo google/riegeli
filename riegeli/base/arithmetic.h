@@ -28,7 +28,7 @@
 
 namespace riegeli {
 
-// `IntCast<A>(value)` converts between integral types, asserting that the value
+// `IntCast<A>(value)` converts between integral types, asserting that `value`
 // fits in the target type.
 
 template <
@@ -71,6 +71,13 @@ inline A IntCast(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Value out of range";
   return static_cast<A>(value);
+}
+
+// `UnsignedCast(value)` converts `value` to the corresponding unsigned type,
+// asserting that `value` was non-negative.
+template <typename T>
+inline std::make_unsigned_t<T> UnsignedCast(T value) {
+  return IntCast<std::make_unsigned_t<T>>(value);
 }
 
 // `SignedMin()` returns the minimum of its arguments, which must be signed

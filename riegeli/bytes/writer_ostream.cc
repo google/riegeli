@@ -194,7 +194,7 @@ std::streamsize WriterStreambuf::showmanyc() {
   }
   return IntCast<std::streamsize>(
       UnsignedMin(reader_->available(),
-                  size_t{std::numeric_limits<std::streamsize>::max()}));
+                  UnsignedCast(std::numeric_limits<std::streamsize>::max())));
 }
 
 int WriterStreambuf::underflow() {
