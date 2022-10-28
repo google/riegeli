@@ -118,22 +118,14 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     }
 
     ::tensorflow::Status CheckExternalState() const override {
-#if TF_GRAPH_DEF_VERSION >= 1137
-      return ::tensorflow::OkStatus();
-#else
-      return ::tensorflow::Status::OK();
-#endif
+      return ::tensorflow::Status();
     }
 
     ::tensorflow::Status InputDatasets(
         std::vector<const ::tensorflow::data::DatasetBase*>* inputs)
         const override {
       inputs->clear();
-#if TF_GRAPH_DEF_VERSION >= 1137
-      return ::tensorflow::OkStatus();
-#else
-      return ::tensorflow::Status::OK();
-#endif
+      return ::tensorflow::Status();
     }
 
    protected:
@@ -148,11 +140,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       TF_RETURN_IF_ERROR(b->AddScalar(max_buffer_size_, &max_buffer_size));
       TF_RETURN_IF_ERROR(b->AddDataset(
           this, {filenames, min_buffer_size, max_buffer_size}, output));
-#if TF_GRAPH_DEF_VERSION >= 1137
-      return ::tensorflow::OkStatus();
-#else
-      return ::tensorflow::Status::OK();
-#endif
+      return ::tensorflow::Status();
     }
 
    private:
@@ -178,11 +166,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
                   value.data(), value.size());
               out_tensors->push_back(std::move(result_tensor));
               *end_of_sequence = false;
-#if TF_GRAPH_DEF_VERSION >= 1137
-              return ::tensorflow::OkStatus();
-#else
-              return ::tensorflow::Status::OK();
-#endif
+              return ::tensorflow::Status();
             }
             SkippedRegion skipped_region;
             if (reader_->Recover(&skipped_region)) {
@@ -215,11 +199,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           // Iteration ends when there are no more files to process.
           if (current_file_index_ == dataset()->filenames_.size()) {
             *end_of_sequence = true;
-#if TF_GRAPH_DEF_VERSION >= 1137
-            return ::tensorflow::OkStatus();
-#else
-            return ::tensorflow::Status::OK();
-#endif
+            return ::tensorflow::Status();
           }
 
           // Actually move on to next file.
@@ -240,11 +220,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           TF_RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
                                                  reader_->pos().ToBytes()));
         }
-#if TF_GRAPH_DEF_VERSION >= 1137
-        return ::tensorflow::OkStatus();
-#else
-        return ::tensorflow::Status::OK();
-#endif
+        return ::tensorflow::Status();
       }
 
       ::tensorflow::Status RestoreInternal(
@@ -284,11 +260,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           reader_->Seek(pos);
           // Any errors from seeking will be reported during reading.
         }
-#if TF_GRAPH_DEF_VERSION >= 1137
-        return ::tensorflow::OkStatus();
-#else
-        return ::tensorflow::Status::OK();
-#endif
+        return ::tensorflow::Status();
       }
 
      private:
