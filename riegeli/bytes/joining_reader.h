@@ -155,7 +155,7 @@ class JoiningReaderBase : public PullableReader {
 
   bool read_all_hint_ = false;
 
-  // Invariants if `is_open()` and scratch is not used:
+  // Invariants if `ok()` and scratch is not used:
   //   `start() == (shard_is_open() ? ShardReader()->cursor() : nullptr)`
   //   `limit() <= (shard_is_open() ? ShardReader()->limit() : nullptr)`
 };

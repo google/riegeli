@@ -201,15 +201,15 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
     const size_t length_to_read =
         UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     size_t length_read;
-    if (ABSL_PREDICT_TRUE(shard->Read(length_to_read, dest, &length_read))) {
-      move_limit_pos(length_read);
+    const bool read_ok = shard->Read(length_to_read, dest, &length_read);
+    move_limit_pos(length_read);
+    if (ABSL_PREDICT_TRUE(read_ok)) {
       if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    move_limit_pos(length_read);
     dest += length_read;
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
@@ -260,16 +260,16 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
     const size_t length_to_read =
         UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     size_t length_read;
-    if (ABSL_PREDICT_TRUE(
-            shard->ReadAndAppend(length_to_read, dest, &length_read))) {
-      move_limit_pos(length_read);
+    const bool read_ok =
+        shard->ReadAndAppend(length_to_read, dest, &length_read);
+    move_limit_pos(length_read);
+    if (ABSL_PREDICT_TRUE(read_ok)) {
       if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    move_limit_pos(length_read);
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
@@ -298,16 +298,19 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
     const size_t length_to_read =
         UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
     Position length_read;
-    if (ABSL_PREDICT_TRUE(shard->Copy(length_to_read, dest, &length_read))) {
-      move_limit_pos(length_read);
+    const bool copy_ok = shard->Copy(length_to_read, dest, &length_read);
+    move_limit_pos(length_read);
+    if (ABSL_PREDICT_TRUE(copy_ok)) {
       if (ABSL_PREDICT_FALSE(length_to_read < length)) return FailOverflow();
       break;
     }
-    if (ABSL_PREDICT_FALSE(!dest.ok())) return false;
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
     }
-    move_limit_pos(length_read);
+    if (ABSL_PREDICT_FALSE(!dest.ok())) {
+      MakeBuffer(*shard);
+      return false;
+    }
     length -= length_read;
     if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
