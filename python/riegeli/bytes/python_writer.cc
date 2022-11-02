@@ -38,7 +38,6 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 

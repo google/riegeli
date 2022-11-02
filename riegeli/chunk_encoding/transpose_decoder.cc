@@ -34,7 +34,6 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"

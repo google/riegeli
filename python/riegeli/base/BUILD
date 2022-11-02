@@ -14,7 +14,6 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
-        "//riegeli/base:object",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
