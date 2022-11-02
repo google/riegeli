@@ -59,7 +59,6 @@ cc_library(
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
         "//riegeli/base:cord_utils",
-        "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
@@ -144,6 +143,7 @@ cc_library(
     name = "write",
     hdrs = ["write.h"],
     deps = [
+        ":backward_writer",
         ":writer",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
