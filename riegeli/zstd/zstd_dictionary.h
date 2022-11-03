@@ -67,13 +67,13 @@ class ZstdDictionary {
   using ZSTD_CDictHandle = std::unique_ptr<ZSTD_CDict, ZSTD_CDictReleaser>;
 
   // Creates an empty `ZstdDictionary`.
-  ZstdDictionary() noexcept {}
+  ZstdDictionary() = default;
 
-  ZstdDictionary(const ZstdDictionary& that);
-  ZstdDictionary& operator=(const ZstdDictionary& that);
+  ZstdDictionary(const ZstdDictionary& that) = default;
+  ZstdDictionary& operator=(const ZstdDictionary& that) = default;
 
-  ZstdDictionary(ZstdDictionary&& that) noexcept;
-  ZstdDictionary& operator=(ZstdDictionary&& that) noexcept;
+  ZstdDictionary(ZstdDictionary&& that) = default;
+  ZstdDictionary& operator=(ZstdDictionary&& that) = default;
 
   // Resets the `ZstdDictionary` to the empty state.
   ZstdDictionary& Reset() &;
@@ -215,23 +215,6 @@ struct ZstdDictionary::ZSTD_CDictCache : RefCountedBase<ZSTD_CDictCache> {
   mutable absl::once_flag compression_once;
   mutable std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> compression_dictionary;
 };
-
-inline ZstdDictionary::ZstdDictionary(const ZstdDictionary& that)
-    : repr_(that.repr_) {}
-
-inline ZstdDictionary& ZstdDictionary::operator=(const ZstdDictionary& that) {
-  repr_ = that.repr_;
-  return *this;
-}
-
-inline ZstdDictionary::ZstdDictionary(ZstdDictionary&& that) noexcept
-    : repr_(std::move(that.repr_)) {}
-
-inline ZstdDictionary& ZstdDictionary::ZstdDictionary::operator=(
-    ZstdDictionary&& that) noexcept {
-  repr_ = std::move(that.repr_);
-  return *this;
-}
 
 inline ZstdDictionary& ZstdDictionary::Reset() & {
   repr_.reset();

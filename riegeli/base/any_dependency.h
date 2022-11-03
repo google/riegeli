@@ -456,7 +456,7 @@ class AnyDependencyRefImpl
     : public AnyDependencyImpl<Ptr, inline_size, inline_align> {
  public:
   // Creates an empty `AnyDependencyRefImpl`.
-  AnyDependencyRefImpl() noexcept {}
+  AnyDependencyRefImpl() = default;
 
   // Holds a `Dependency<Ptr, Manager&&>` (which collapses to
   // `Dependency<Ptr, Manager&>` if `Manager` is itself an lvalue reference).
@@ -507,15 +507,8 @@ class AnyDependencyRefImpl
             absl::in_place_type<Manager>,
             std::forward<ManagerArg>(manager_arg)) {}
 
-  AnyDependencyRefImpl(AnyDependencyRefImpl&& that) noexcept
-      : AnyDependencyImpl<Ptr, inline_size, inline_align>(
-            static_cast<AnyDependencyImpl<Ptr, inline_size, inline_align>&&>(
-                that)) {}
-  AnyDependencyRefImpl& operator=(AnyDependencyRefImpl&& that) noexcept {
-    AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
-        static_cast<AnyDependencyImpl<Ptr, inline_size, inline_align>&&>(that));
-    return *this;
-  }
+  AnyDependencyRefImpl(AnyDependencyRefImpl&& that) = default;
+  AnyDependencyRefImpl& operator=(AnyDependencyRefImpl&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `AnyDependencyRefImpl`.
   // This avoids constructing a temporary `AnyDependencyRefImpl` and moving from

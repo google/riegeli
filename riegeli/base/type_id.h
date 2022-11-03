@@ -23,7 +23,10 @@ namespace riegeli {
 // `TypeId()` is another value not equal to any other.
 class TypeId {
  public:
-  constexpr TypeId() noexcept {}
+  constexpr TypeId() = default;
+
+  TypeId(const TypeId& that) = default;
+  TypeId& operator=(const TypeId& that) = default;
 
   template <typename T>
   static constexpr TypeId For();

@@ -259,9 +259,7 @@ class DependencyMaybeRef<
   explicit DependencyMaybeRef(M& manager) noexcept
       : DependencyImpl<Ptr, std::decay_t<M>>(manager) {}
 
-  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
-      : DependencyImpl<Ptr, std::decay_t<M>>(
-            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
 };
 
@@ -279,9 +277,7 @@ class DependencyMaybeRef<
   explicit DependencyMaybeRef(M&& manager) noexcept
       : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager)) {}
 
-  DependencyMaybeRef(DependencyMaybeRef&& that) noexcept
-      : DependencyImpl<Ptr, std::decay_t<M>>(
-            static_cast<DependencyImpl<Ptr, std::decay_t<M>>&&>(that)) {}
+  DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
 };
 
@@ -323,13 +319,6 @@ class DependencyBase {
   {
   }
 
-  DependencyBase(DependencyBase&& that) noexcept
-      : manager_(std::move(that.manager_)) {}
-  DependencyBase& operator=(DependencyBase&& that) noexcept {
-    manager_ = std::move(that.manager_);
-    return *this;
-  }
-
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Reset(DependencySentinel(static_cast<Manager*>(nullptr)));
   }
@@ -360,6 +349,9 @@ class DependencyBase {
   const Manager& manager() const { return manager_; }
 
  protected:
+  DependencyBase(DependencyBase&& that) = default;
+  DependencyBase& operator=(DependencyBase&& that) = default;
+
   ~DependencyBase() = default;
 
  private:
@@ -464,12 +456,12 @@ class DependencyBase<Manager&> {
  public:
   explicit DependencyBase(Manager& manager) noexcept : manager_(manager) {}
 
-  DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
-  DependencyBase& operator=(DependencyBase&&) = delete;
-
   Manager& manager() const { return manager_; }
 
  protected:
+  DependencyBase(DependencyBase&& that) = default;
+  DependencyBase& operator=(DependencyBase&&) = delete;
+
   ~DependencyBase() = default;
 
  private:
@@ -486,12 +478,12 @@ class DependencyBase<Manager&&> {
  public:
   explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 
-  DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
-  DependencyBase& operator=(DependencyBase&&) = delete;
-
   Manager& manager() const { return manager_; }
 
  protected:
+  DependencyBase(DependencyBase&& that) = default;
+  DependencyBase& operator=(DependencyBase&&) = delete;
+
   ~DependencyBase() = default;
 
  private:

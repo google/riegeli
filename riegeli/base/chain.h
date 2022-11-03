@@ -228,7 +228,7 @@ class Chain {
   template <typename T, typename... Args>
   static Chain FromExternal(std::tuple<Args...> args, absl::string_view data);
 
-  constexpr Chain() noexcept {}
+  constexpr Chain() = default;
 
   // Converts from a string-like type.
   //
@@ -752,12 +752,12 @@ class Chain::BlockIterator {
     reference ref_;
   };
 
-  BlockIterator() noexcept {}
+  BlockIterator() = default;
 
   explicit BlockIterator(const Chain* chain, size_t block_index);
 
-  BlockIterator(const BlockIterator& that) noexcept = default;
-  BlockIterator& operator=(const BlockIterator& that) noexcept = default;
+  BlockIterator(const BlockIterator& that) = default;
+  BlockIterator& operator=(const BlockIterator& that) = default;
 
   const Chain* chain() const { return chain_; }
   size_t block_index() const;
@@ -907,10 +907,10 @@ class Chain::Blocks {
   using size_type = size_t;
   using difference_type = ptrdiff_t;
 
-  Blocks() noexcept {}
+  Blocks() = default;
 
-  Blocks(const Blocks& that) noexcept = default;
-  Blocks& operator=(const Blocks& that) noexcept = default;
+  Blocks(const Blocks& that) = default;
+  Blocks& operator=(const Blocks& that) = default;
 
   iterator begin() const;
   iterator cbegin() const { return begin(); }
@@ -985,16 +985,16 @@ class ChainBlock {
   static ChainBlock FromExternal(std::tuple<Args...> args,
                                  absl::string_view data);
 
-  constexpr ChainBlock() noexcept {}
+  constexpr ChainBlock() = default;
 
-  ChainBlock(const ChainBlock& that) noexcept = default;
-  ChainBlock& operator=(const ChainBlock& that) noexcept = default;
+  ChainBlock(const ChainBlock& that) = default;
+  ChainBlock& operator=(const ChainBlock& that) = default;
 
   // The source `ChainBlock` is left cleared.
   //
   // Moving a `ChainBlock` keeps its data pointers unchanged.
-  ChainBlock(ChainBlock&& that) noexcept = default;
-  ChainBlock& operator=(ChainBlock&& that) noexcept = default;
+  ChainBlock(ChainBlock&& that) = default;
+  ChainBlock& operator=(ChainBlock&& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 

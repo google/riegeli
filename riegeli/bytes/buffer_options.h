@@ -161,12 +161,12 @@ class BufferOptionsBase {
 // similar length to the previous non-empty run.
 class ReadBufferSizer {
  public:
-  ReadBufferSizer() noexcept {}
+  ReadBufferSizer() = default;
 
   explicit ReadBufferSizer(const BufferOptions& buffer_options);
 
-  ReadBufferSizer(const ReadBufferSizer& that) noexcept;
-  ReadBufferSizer& operator=(const ReadBufferSizer& that) noexcept;
+  ReadBufferSizer(const ReadBufferSizer& that) = default;
+  ReadBufferSizer& operator=(const ReadBufferSizer& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
@@ -265,12 +265,12 @@ class ReadBufferSizer {
 // run.
 class WriteBufferSizer {
  public:
-  WriteBufferSizer() noexcept {}
+  WriteBufferSizer() = default;
 
   explicit WriteBufferSizer(const BufferOptions& buffer_options);
 
-  WriteBufferSizer(const WriteBufferSizer& that) noexcept;
-  WriteBufferSizer& operator=(const WriteBufferSizer& that) noexcept;
+  WriteBufferSizer(const WriteBufferSizer& that) = default;
+  WriteBufferSizer& operator=(const WriteBufferSizer& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
@@ -360,23 +360,6 @@ constexpr size_t BufferOptionsBase<Options>::kDefaultMaxBufferSize;
 inline ReadBufferSizer::ReadBufferSizer(const BufferOptions& buffer_options)
     : buffer_options_(buffer_options) {}
 
-inline ReadBufferSizer::ReadBufferSizer(const ReadBufferSizer& that) noexcept
-    : buffer_options_(that.buffer_options_),
-      base_pos_(that.base_pos_),
-      buffer_length_from_last_run_(that.buffer_length_from_last_run_),
-      read_all_hint_(that.read_all_hint_),
-      exact_size_(that.exact_size_) {}
-
-inline ReadBufferSizer& ReadBufferSizer::operator=(
-    const ReadBufferSizer& that) noexcept {
-  buffer_options_ = that.buffer_options_;
-  base_pos_ = that.base_pos_;
-  buffer_length_from_last_run_ = that.buffer_length_from_last_run_;
-  read_all_hint_ = that.read_all_hint_;
-  exact_size_ = that.exact_size_;
-  return *this;
-}
-
 inline void ReadBufferSizer::Reset() {
   buffer_options_ = BufferOptions();
   base_pos_ = 0;
@@ -404,21 +387,6 @@ inline void ReadBufferSizer::EndRun(Position pos) {
 
 inline WriteBufferSizer::WriteBufferSizer(const BufferOptions& buffer_options)
     : buffer_options_(buffer_options) {}
-
-inline WriteBufferSizer::WriteBufferSizer(const WriteBufferSizer& that) noexcept
-    : buffer_options_(that.buffer_options_),
-      base_pos_(that.base_pos_),
-      buffer_length_from_last_run_(that.buffer_length_from_last_run_),
-      size_hint_(that.size_hint_) {}
-
-inline WriteBufferSizer& WriteBufferSizer::operator=(
-    const WriteBufferSizer& that) noexcept {
-  buffer_options_ = that.buffer_options_;
-  base_pos_ = that.base_pos_;
-  buffer_length_from_last_run_ = that.buffer_length_from_last_run_;
-  size_hint_ = that.size_hint_;
-  return *this;
-}
 
 inline void WriteBufferSizer::Reset() {
   buffer_options_ = BufferOptions();

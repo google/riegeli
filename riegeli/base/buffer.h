@@ -29,7 +29,7 @@ namespace riegeli {
 // Dynamically allocated byte buffer.
 class Buffer {
  public:
-  Buffer() noexcept {}
+  Buffer() = default;
 
   // Ensures at least `min_capacity` of space.
   explicit Buffer(size_t min_capacity);

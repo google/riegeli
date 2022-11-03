@@ -49,13 +49,13 @@ namespace riegeli {
 class Lz4Dictionary {
  public:
   // Creates an empty `Lz4Dictionary`.
-  Lz4Dictionary() noexcept {}
+  Lz4Dictionary() = default;
 
-  Lz4Dictionary(const Lz4Dictionary& that);
-  Lz4Dictionary& operator=(const Lz4Dictionary& that);
+  Lz4Dictionary(const Lz4Dictionary& that) = default;
+  Lz4Dictionary& operator=(const Lz4Dictionary& that) = default;
 
-  Lz4Dictionary(Lz4Dictionary&& that) noexcept;
-  Lz4Dictionary& operator=(Lz4Dictionary&& that) noexcept;
+  Lz4Dictionary(Lz4Dictionary&& that) = default;
+  Lz4Dictionary& operator=(Lz4Dictionary&& that) = default;
 
   // Resets the `Lz4Dictionary` to the empty state.
   Lz4Dictionary& Reset() &;
@@ -164,23 +164,6 @@ class Lz4Dictionary::Repr : public RefCountedBase<Repr> {
   mutable std::unique_ptr<LZ4F_CDict, LZ4F_CDictDeleter>
       compression_dictionary_;
 };
-
-inline Lz4Dictionary::Lz4Dictionary(const Lz4Dictionary& that)
-    : repr_(that.repr_) {}
-
-inline Lz4Dictionary& Lz4Dictionary::operator=(const Lz4Dictionary& that) {
-  repr_ = that.repr_;
-  return *this;
-}
-
-inline Lz4Dictionary::Lz4Dictionary(Lz4Dictionary&& that) noexcept
-    : repr_(std::move(that.repr_)) {}
-
-inline Lz4Dictionary& Lz4Dictionary::Lz4Dictionary::operator=(
-    Lz4Dictionary&& that) noexcept {
-  repr_ = std::move(that.repr_);
-  return *this;
-}
 
 inline Lz4Dictionary& Lz4Dictionary::Reset() & {
   repr_.reset();

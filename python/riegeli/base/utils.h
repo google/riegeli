@@ -202,8 +202,8 @@ class Exception {
   Exception(const Exception& that) noexcept;
   Exception& operator=(const Exception& that) noexcept;
 
-  Exception(Exception&& that) noexcept;
-  Exception& operator=(Exception&& that) noexcept;
+  Exception(Exception&& that) = default;
+  Exception& operator=(Exception&& that) = default;
 
   // Fetches the active Python exception.
   static Exception Fetch();
@@ -577,18 +577,6 @@ absl::optional<absl::partial_ordering> PartialOrderingFromPython(
 // Implementation details follow.
 
 inline Exception::Exception(const Exception& that) noexcept { *this = that; }
-
-inline Exception::Exception(Exception&& that) noexcept
-    : type_(std::move(that.type_)),
-      value_(std::move(that.value_)),
-      traceback_(std::move(that.traceback_)) {}
-
-inline Exception& Exception::operator=(Exception&& that) noexcept {
-  type_ = std::move(that.type_);
-  value_ = std::move(that.value_);
-  traceback_ = std::move(that.traceback_);
-  return *this;
-}
 
 inline int Exception::Traverse(visitproc visit, void* arg) {
   Py_VISIT(type_.get());

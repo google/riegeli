@@ -39,10 +39,10 @@ RIEGELI_INLINE_CONSTEXPR(Closed, kClosed, Closed());
 class ObjectState {
  public:
   // Creates a closed `ObjectState`.
-  explicit ObjectState(Closed) noexcept;
+  explicit ObjectState(Closed) noexcept : status_ptr_(kClosedSuccessfully) {}
 
   // Creates an open `ObjectState`.
-  ObjectState() noexcept;
+  ObjectState() = default;
 
   ObjectState(const ObjectState& that) = delete;
   ObjectState& operator=(const ObjectState& that) = delete;
@@ -111,7 +111,7 @@ class ObjectState {
 
   // `status_ptr_` is `kOk`, or `kClosedSuccessfully`, or a `FailedStatus*`
   // `reinterpret_cast` to `uintptr_t`.
-  uintptr_t status_ptr_;
+  uintptr_t status_ptr_ = kOk;
 };
 
 // `Object` is an abstract base class for data readers and writers, managing
@@ -234,11 +234,11 @@ class Object {
   explicit Object(Closed) noexcept : state_(kClosed) {}
 
   // Creates an open `Object`.
-  Object() noexcept {}
+  Object() = default;
 
   // Moves the part of the object defined in the `Object` class.
-  Object(Object&& that) noexcept = default;
-  Object& operator=(Object&& that) noexcept = default;
+  Object(Object&& that) = default;
+  Object& operator=(Object&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `Object`. This avoids
   // constructing a temporary `Object` and moving from it. Derived classes which
@@ -295,11 +295,6 @@ class Object {
 };
 
 // Implementation details follow.
-
-inline ObjectState::ObjectState(Closed) noexcept
-    : status_ptr_(kClosedSuccessfully) {}
-
-inline ObjectState::ObjectState() noexcept : status_ptr_(kOk) {}
 
 inline ObjectState::ObjectState(ObjectState&& that) noexcept
     : status_ptr_(std::exchange(that.status_ptr_, kClosedSuccessfully)) {}

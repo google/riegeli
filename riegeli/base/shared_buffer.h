@@ -33,17 +33,17 @@ namespace riegeli {
 // Like `Buffer`, but ownership of the data can be shared.
 class SharedBuffer {
  public:
-  SharedBuffer() noexcept {}
+  SharedBuffer() = default;
 
   // Ensures at least `min_capacity` of space.
   explicit SharedBuffer(size_t min_capacity);
 
-  SharedBuffer(const SharedBuffer& that) noexcept = default;
-  SharedBuffer& operator=(const SharedBuffer& that) noexcept = default;
+  SharedBuffer(const SharedBuffer& that) = default;
+  SharedBuffer& operator=(const SharedBuffer& that) = default;
 
   // The source `SharedBuffer` is left deallocated.
-  SharedBuffer(SharedBuffer&& that) noexcept = default;
-  SharedBuffer& operator=(SharedBuffer&& that) noexcept = default;
+  SharedBuffer(SharedBuffer&& that) = default;
+  SharedBuffer& operator=(SharedBuffer&& that) = default;
 
   // Ensures at least `min_capacity` of space and unique ownership of the data.
   // Existing contents are lost.

@@ -31,13 +31,13 @@ namespace riegeli {
 class OwnedCFile {
  public:
   // Creates an `OwnedCFile` which does not own a file.
-  OwnedCFile() noexcept {}
+  OwnedCFile() = default;
 
   // Creates an `OwnedCFile` which owns `file` if `file != nullptr`.
   explicit OwnedCFile(FILE* file) noexcept : file_(file) {}
 
-  OwnedCFile(OwnedCFile&& that) noexcept;
-  OwnedCFile& operator=(OwnedCFile&& that) noexcept;
+  OwnedCFile(OwnedCFile&& that) = default;
+  OwnedCFile& operator=(OwnedCFile&& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { file_.reset(); }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file) { file_.reset(file); }
@@ -73,13 +73,13 @@ class OwnedCFile {
 class UnownedCFile {
  public:
   // Creates an `UnownedCFile` which does not refer to a file.
-  UnownedCFile() noexcept {}
+  UnownedCFile() = default;
 
   // Creates an `UnownedCFile` which refers to `file` if `file != nullptr`.
   explicit UnownedCFile(FILE* file) noexcept : file_(file) {}
 
-  UnownedCFile(const UnownedCFile& that) noexcept = default;
-  UnownedCFile& operator=(const UnownedCFile& that) noexcept = default;
+  UnownedCFile(const UnownedCFile& that) = default;
+  UnownedCFile& operator=(const UnownedCFile& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { file_ = nullptr; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file) { file_ = file; }
@@ -128,16 +128,6 @@ class DependencyImpl<FILE*, UnownedCFile>
   bool is_owning() const { return false; }
   static constexpr bool kIsStable = true;
 };
-
-// Implementation details follow.
-
-inline OwnedCFile::OwnedCFile(OwnedCFile&& that) noexcept
-    : file_(std::move(that.file_)) {}
-
-inline OwnedCFile& OwnedCFile::operator=(OwnedCFile&& that) noexcept {
-  file_ = std::move(that.file_);
-  return *this;
-}
 
 }  // namespace riegeli
 

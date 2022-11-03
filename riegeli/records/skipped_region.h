@@ -28,17 +28,17 @@ namespace riegeli {
 // Details about a skipped region of invalid file contents.
 class SkippedRegion {
  public:
-  SkippedRegion() noexcept {}
+  SkippedRegion() = default;
 
   // Creates a `SkippedRegion` with the given region location and message
   // explaining why the region is invalid.
   explicit SkippedRegion(Position begin, Position end, std::string message);
 
-  SkippedRegion(const SkippedRegion& that);
-  SkippedRegion& operator=(const SkippedRegion& that);
+  SkippedRegion(const SkippedRegion& that) = default;
+  SkippedRegion& operator=(const SkippedRegion& that) = default;
 
-  SkippedRegion(SkippedRegion&&) noexcept;
-  SkippedRegion& operator=(SkippedRegion&&) noexcept;
+  SkippedRegion(SkippedRegion&&) = default;
+  SkippedRegion& operator=(SkippedRegion&&) = default;
 
   // File position of the beginning of the skipped region, inclusive.
   Position begin() const { return begin_; }
@@ -78,28 +78,6 @@ inline SkippedRegion::SkippedRegion(Position begin, Position end,
   RIEGELI_ASSERT_LE(begin, end)
       << "Failed precondition of SkippedRegion::SkippedRegion: "
          "positions in the wrong order";
-}
-
-inline SkippedRegion::SkippedRegion(const SkippedRegion& that)
-    : begin_(that.begin_), end_(that.end_), message_(that.message_) {}
-
-inline SkippedRegion& SkippedRegion::operator=(const SkippedRegion& that) {
-  begin_ = that.begin_;
-  end_ = that.end_;
-  message_ = that.message_;
-  return *this;
-}
-
-inline SkippedRegion::SkippedRegion(SkippedRegion&& that) noexcept
-    : begin_(that.begin_),
-      end_(that.end_),
-      message_(std::move(that.message_)) {}
-
-inline SkippedRegion& SkippedRegion::operator=(SkippedRegion&& that) noexcept {
-  begin_ = that.begin_;
-  end_ = that.end_;
-  message_ = std::move(that.message_);
-  return *this;
 }
 
 }  // namespace riegeli

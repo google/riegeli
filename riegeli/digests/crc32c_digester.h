@@ -29,10 +29,10 @@ namespace riegeli {
 // `DigestingWriter`.
 class Crc32cDigester {
  public:
-  Crc32cDigester() noexcept = default;
+  Crc32cDigester() = default;
 
-  Crc32cDigester(const Crc32cDigester& that) noexcept = default;
-  Crc32cDigester& operator=(const Crc32cDigester& that) noexcept = default;
+  Crc32cDigester(const Crc32cDigester& that) = default;
+  Crc32cDigester& operator=(const Crc32cDigester& that) = default;
 
   void Write(absl::string_view src);
 

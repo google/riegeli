@@ -29,7 +29,7 @@ namespace riegeli {
 class OwnedFd {
  public:
   // Creates an `OwnedFd` which does not own a fd.
-  OwnedFd() noexcept {}
+  OwnedFd() = default;
 
   // Creates an `OwnedFd` which owns `fd` if `fd >= 0`.
   explicit OwnedFd(int fd) noexcept : fd_(fd) {}
@@ -59,13 +59,13 @@ class OwnedFd {
 class UnownedFd {
  public:
   // Creates an `UnownedFd` which does not refer to a fd.
-  UnownedFd() noexcept {}
+  UnownedFd() = default;
 
   // Creates an `UnownedFd` which refers to `fd` if `fd >= 0`.
   explicit UnownedFd(int fd) noexcept : fd_(fd) {}
 
-  UnownedFd(const UnownedFd& that) noexcept = default;
-  UnownedFd& operator=(const UnownedFd& that) noexcept = default;
+  UnownedFd(const UnownedFd& that) = default;
+  UnownedFd& operator=(const UnownedFd& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { fd_ = -1; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd) { fd_ = fd; }

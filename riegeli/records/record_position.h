@@ -50,14 +50,14 @@ namespace riegeli {
 class RecordPosition {
  public:
   // Creates a `RecordPosition` corresponding to the first record.
-  constexpr RecordPosition() noexcept {}
+  constexpr RecordPosition() = default;
 
   // Creates a `RecordPosition` corresponding to the given record of the chunk
   // beginning at the given file position.
   explicit RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
-  RecordPosition(const RecordPosition& that) noexcept = default;
-  RecordPosition& operator=(const RecordPosition& that) noexcept = default;
+  RecordPosition(const RecordPosition& that) = default;
+  RecordPosition& operator=(const RecordPosition& that) = default;
 
   // File position of the beginning of the chunk containing the given record.
   uint64_t chunk_begin() const { return chunk_begin_; }
@@ -146,7 +146,7 @@ class FutureChunkBegin {
   using Action =
       absl::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
 
-  constexpr FutureChunkBegin() noexcept {}
+  constexpr FutureChunkBegin() = default;
 
   /*implicit*/ FutureChunkBegin(Position chunk_begin) noexcept;
 
@@ -186,7 +186,7 @@ class FutureChunkBegin {
 // chunks finish encoding in background.
 class FutureRecordPosition {
  public:
-  constexpr FutureRecordPosition() noexcept {}
+  constexpr FutureRecordPosition() = default;
 
   /*implicit*/ FutureRecordPosition(RecordPosition pos) noexcept;
 

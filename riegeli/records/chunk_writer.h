@@ -249,12 +249,8 @@ class DependencyImpl<ChunkWriter*, M,
   explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_writer_(std::move(manager_args)) {}
 
-  DependencyImpl(DependencyImpl&& that) noexcept
-      : chunk_writer_(std::move(that.chunk_writer_)) {}
-  DependencyImpl& operator=(DependencyImpl&& that) noexcept {
-    chunk_writer_ = std::move(that.chunk_writer_);
-    return *this;
-  }
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_writer_.Reset(kClosed); }
 

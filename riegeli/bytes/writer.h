@@ -460,7 +460,7 @@ class Writer : public Object {
 template <typename ReaderClass>
 class AssociatedReader {
  public:
-  AssociatedReader() noexcept {}
+  AssociatedReader() = default;
 
   AssociatedReader(AssociatedReader&& that) noexcept;
   AssociatedReader& operator=(AssociatedReader&& that) noexcept;

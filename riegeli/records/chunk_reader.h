@@ -326,12 +326,8 @@ class DependencyImpl<ChunkReader*, M,
   explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_reader_(std::move(manager_args)) {}
 
-  DependencyImpl(DependencyImpl&& that) noexcept
-      : chunk_reader_(std::move(that.chunk_reader_)) {}
-  DependencyImpl& operator=(DependencyImpl&& that) noexcept {
-    chunk_reader_ = std::move(that.chunk_reader_);
-    return *this;
-  }
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_reader_.Reset(kClosed); }
 

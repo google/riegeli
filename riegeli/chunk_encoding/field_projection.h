@@ -50,13 +50,13 @@ class Field {
 
   // Starts with the root message. Field path can be built with
   // `AddFieldNumber()`.
-  Field() noexcept {}
+  Field() = default;
 
-  Field(const Field& that);
-  Field& operator=(const Field& that);
+  Field(const Field& that) = default;
+  Field& operator=(const Field& that) = default;
 
-  Field(Field&& that) noexcept;
-  Field& operator=(Field&& that) noexcept;
+  Field(Field&& that) = default;
+  Field& operator=(Field&& that) = default;
 
   // Adds a field to the end of the path.
   Field& AddFieldNumber(int field_number) &;
@@ -84,13 +84,13 @@ class FieldProjection {
   /*implicit*/ FieldProjection(std::initializer_list<Field> fields);
 
   // Starts with an empty set to include. Fields can be added by `AddField()`.
-  FieldProjection() noexcept {}
+  FieldProjection() = default;
 
-  FieldProjection(const FieldProjection&);
-  FieldProjection& operator=(const FieldProjection&);
+  FieldProjection(const FieldProjection&) = default;
+  FieldProjection& operator=(const FieldProjection&) = default;
 
-  FieldProjection(FieldProjection&&) noexcept;
-  FieldProjection& operator=(FieldProjection&&) noexcept;
+  FieldProjection(FieldProjection&&) = default;
+  FieldProjection& operator=(FieldProjection&&) = default;
 
   // Adds a field to the set to include.
   FieldProjection& AddField(Field field) &;
@@ -120,20 +120,6 @@ inline void Field::AssertValid(int field_number) {
   RIEGELI_ASSERT_LE(field_number, (1 << 29) - 1) << "Field number out of range";
 }
 
-inline Field::Field(const Field& that) : path_(that.path_) {}
-
-inline Field& Field::operator=(const Field& that) {
-  path_ = that.path_;
-  return *this;
-}
-
-inline Field::Field(Field&& that) noexcept : path_(std::move(that.path_)) {}
-
-inline Field& Field::operator=(Field&& that) noexcept {
-  path_ = std::move(that.path_);
-  return *this;
-}
-
 inline Field& Field::AddFieldNumber(int field_number) & {
   AssertValid(field_number);
   path_.push_back(field_number);
@@ -152,24 +138,6 @@ inline FieldProjection FieldProjection::All() {
 
 inline FieldProjection::FieldProjection(std::initializer_list<Field> fields)
     : fields_(fields) {}
-
-inline FieldProjection::FieldProjection(const FieldProjection& that)
-    : fields_(that.fields_) {}
-
-inline FieldProjection& FieldProjection::operator=(
-    const FieldProjection& that) {
-  fields_ = that.fields_;
-  return *this;
-}
-
-inline FieldProjection::FieldProjection(FieldProjection&& that) noexcept
-    : fields_(std::move(that.fields_)) {}
-
-inline FieldProjection& FieldProjection::operator=(
-    FieldProjection&& that) noexcept {
-  fields_ = std::move(that.fields_);
-  return *this;
-}
 
 inline FieldProjection& FieldProjection::AddField(Field field) & {
   fields_.push_back(std::move(field));

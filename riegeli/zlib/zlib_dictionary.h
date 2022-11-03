@@ -38,7 +38,13 @@ namespace riegeli {
 class ZlibDictionary {
  public:
   // Creates an empty `ZlibDictionary`.
-  ZlibDictionary() noexcept {}
+  ZlibDictionary() = default;
+
+  ZlibDictionary(const ZlibDictionary& that) = default;
+  ZlibDictionary& operator=(const ZlibDictionary& that) = default;
+
+  ZlibDictionary(ZlibDictionary&& that) = default;
+  ZlibDictionary& operator=(ZlibDictionary&& that) = default;
 
   // Resets the `ZlibDictionary` to the empty state.
   ZlibDictionary& Reset() &;

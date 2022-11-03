@@ -73,8 +73,8 @@ class Decompressor : public Object {
   explicit Decompressor(std::tuple<SrcArgs...> src_args,
                         CompressionType compression_type);
 
-  Decompressor(Decompressor&& that) noexcept;
-  Decompressor& operator=(Decompressor&& that) noexcept;
+  Decompressor(Decompressor&& that) = default;
+  Decompressor& operator=(Decompressor&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `Decompressor`. This avoids
   // constructing a temporary `Decompressor` and moving from it.
@@ -139,19 +139,6 @@ template <typename... SrcArgs>
 inline Decompressor<Src>::Decompressor(std::tuple<SrcArgs...> src_args,
                                        CompressionType compression_type) {
   Initialize(std::move(src_args), compression_type);
-}
-
-template <typename Src>
-inline Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
-    : Object(static_cast<Object&&>(that)),
-      decompressed_(std::move(that.decompressed_)) {}
-
-template <typename Src>
-inline Decompressor<Src>& Decompressor<Src>::operator=(
-    Decompressor&& that) noexcept {
-  Object::operator=(static_cast<Object&&>(that));
-  decompressed_ = std::move(that.decompressed_);
-  return *this;
 }
 
 template <typename Src>

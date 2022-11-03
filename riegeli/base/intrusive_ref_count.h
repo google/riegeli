@@ -47,7 +47,7 @@ namespace riegeli {
 template <typename T>
 class RefCountedPtr {
  public:
-  constexpr RefCountedPtr() noexcept {}
+  constexpr RefCountedPtr() = default;
   /*implicit*/ constexpr RefCountedPtr(nullptr_t) noexcept {}
 
   explicit RefCountedPtr(T* ptr) noexcept : ptr_(ptr) {}

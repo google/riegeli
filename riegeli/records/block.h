@@ -33,7 +33,7 @@ namespace records_internal {
 
 class BlockHeader {
  public:
-  BlockHeader() noexcept {}
+  BlockHeader() = default;
 
   explicit BlockHeader(uint64_t previous_chunk, uint64_t next_chunk) {
     set_previous_chunk(previous_chunk);
@@ -41,8 +41,8 @@ class BlockHeader {
     set_header_hash(computed_header_hash());
   }
 
-  BlockHeader(const BlockHeader& that) noexcept = default;
-  BlockHeader& operator=(const BlockHeader& that) noexcept = default;
+  BlockHeader(const BlockHeader& that) = default;
+  BlockHeader& operator=(const BlockHeader& that) = default;
 
   char* bytes() { return bytes_; }
   const char* bytes() const { return bytes_; }

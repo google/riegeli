@@ -68,13 +68,13 @@ class BrotliDictionary {
   static constexpr size_t kMaxRawChunks = SHARED_BROTLI_MAX_COMPOUND_DICTS;
 
   // Creates an empty `BrotliDictionary`.
-  BrotliDictionary() noexcept {}
+  BrotliDictionary() = default;
 
-  BrotliDictionary(const BrotliDictionary& that);
-  BrotliDictionary& operator=(const BrotliDictionary& that);
+  BrotliDictionary(const BrotliDictionary& that) = default;
+  BrotliDictionary& operator=(const BrotliDictionary& that) = default;
 
-  BrotliDictionary(BrotliDictionary&& that) noexcept;
-  BrotliDictionary& operator=(BrotliDictionary&& that) noexcept;
+  BrotliDictionary(BrotliDictionary&& that) = default;
+  BrotliDictionary& operator=(BrotliDictionary&& that) = default;
 
   // Resets the `BrotliDictionary` to the empty state.
   BrotliDictionary& Reset() &;
@@ -225,24 +225,6 @@ class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
 };
 
 // Implementation details follow.
-
-inline BrotliDictionary::BrotliDictionary(const BrotliDictionary& that)
-    : chunks_(that.chunks_) {}
-
-inline BrotliDictionary& BrotliDictionary::operator=(
-    const BrotliDictionary& that) {
-  chunks_ = that.chunks_;
-  return *this;
-}
-
-inline BrotliDictionary::BrotliDictionary(BrotliDictionary&& that) noexcept
-    : chunks_(std::move(that.chunks_)) {}
-
-inline BrotliDictionary& BrotliDictionary::BrotliDictionary::operator=(
-    BrotliDictionary&& that) noexcept {
-  chunks_ = std::move(that.chunks_);
-  return *this;
-}
 
 inline BrotliDictionary& BrotliDictionary::Reset() & {
   chunks_.clear();

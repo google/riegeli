@@ -42,7 +42,7 @@ void RiegeliBrotliFreeFunc(void* opaque, void* ptr);
 class BrotliAllocator {
  public:
   // Specifies the default allocator chosen by the Brotli engine.
-  BrotliAllocator() noexcept {}
+  BrotliAllocator() = default;
 
   // Specifies functions to allocate and free a block of memory.
   //

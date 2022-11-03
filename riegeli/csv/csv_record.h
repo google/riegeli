@@ -142,10 +142,10 @@ class CsvHeader {
     using pointer = const std::string*;
     using difference_type = ptrdiff_t;
 
-    iterator() noexcept {}
+    iterator() = default;
 
-    iterator(const iterator& that) noexcept = default;
-    iterator& operator=(const iterator& that) noexcept = default;
+    iterator(const iterator& that) = default;
+    iterator& operator=(const iterator& that) = default;
 
     reference operator*() const;
     pointer operator->() const;
@@ -202,7 +202,7 @@ class CsvHeader {
   using difference_type = ptrdiff_t;
 
   // Creates a `CsvHeader` with no field names.
-  CsvHeader() noexcept {}
+  CsvHeader() = default;
 
   // Creates a `CsvHeader` with no field names.
   //
@@ -250,12 +250,12 @@ class CsvHeader {
   explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::initializer_list<absl::string_view> names);
 
-  CsvHeader(const CsvHeader& that) noexcept = default;
-  CsvHeader& operator=(const CsvHeader& that) noexcept = default;
+  CsvHeader(const CsvHeader& that) = default;
+  CsvHeader& operator=(const CsvHeader& that) = default;
 
   // The source `CsvHeader` is left empty.
-  CsvHeader(CsvHeader&& that) noexcept = default;
-  CsvHeader& operator=(CsvHeader&& that) noexcept = default;
+  CsvHeader(CsvHeader&& that) = default;
+  CsvHeader& operator=(CsvHeader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CsvHeader`.
   //
@@ -421,7 +421,7 @@ class CsvHeader {
 
  private:
   struct Payload : RefCountedBase<Payload> {
-    Payload() noexcept {}
+    Payload() = default;
     Payload(std::function<std::string(absl::string_view)>&& normalizer)
         : normalizer(std::move(normalizer)) {}
     Payload(const Payload& that);
@@ -584,7 +584,7 @@ class CsvRecord {
       reference ref_;
     };
 
-    IteratorImpl() noexcept {}
+    IteratorImpl() = default;
 
     // Conversion from `iterator` to `const_iterator`.
     template <
@@ -595,8 +595,8 @@ class CsvRecord {
             int> = 0>
     /*implicit*/ IteratorImpl(IteratorImpl<ThatFieldIterator> that) noexcept;
 
-    IteratorImpl(const IteratorImpl& that) noexcept = default;
-    IteratorImpl& operator=(const IteratorImpl& that) noexcept = default;
+    IteratorImpl(const IteratorImpl& that) = default;
+    IteratorImpl& operator=(const IteratorImpl& that) = default;
 
     reference operator*() const;
     pointer operator->() const;
@@ -663,7 +663,7 @@ class CsvRecord {
   using difference_type = ptrdiff_t;
 
   // Creates a `CsvRecord` with no fields.
-  CsvRecord() noexcept {}
+  CsvRecord() = default;
 
   // Creates a `CsvRecord` with the given field names, and with all field values
   // empty.
@@ -681,12 +681,12 @@ class CsvRecord {
   explicit CsvRecord(CsvHeader header,
                      std::initializer_list<absl::string_view> fields);
 
-  CsvRecord(const CsvRecord& that);
-  CsvRecord& operator=(const CsvRecord& that);
+  CsvRecord(const CsvRecord& that) = default;
+  CsvRecord& operator=(const CsvRecord& that) = default;
 
   // The source `CsvRecord` is left empty.
-  CsvRecord(CsvRecord&& that) noexcept;
-  CsvRecord& operator=(CsvRecord&& that) noexcept;
+  CsvRecord(CsvRecord&& that) = default;
+  CsvRecord& operator=(CsvRecord&& that) = default;
 
   // Returns the set of field names.
   const CsvHeader& header() const { return header_; }
@@ -1269,26 +1269,6 @@ CsvRecord::CsvRecord(CsvHeader header, Fields&& fields) {
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
   RIEGELI_CHECK(status.ok())
       << "Failed precondition of CsvRecord::CsvRecord(): " << status.message();
-}
-
-inline CsvRecord::CsvRecord(const CsvRecord& that)
-    : header_(that.header_), fields_(that.fields_) {}
-
-inline CsvRecord& CsvRecord::operator=(const CsvRecord& that) {
-  header_ = that.header_;
-  fields_ = that.fields_;
-  return *this;
-}
-
-inline CsvRecord::CsvRecord(CsvRecord&& that) noexcept
-    : header_(std::move(that.header_)),  // Leaves `that.header_` empty.
-      fields_(std::move(that.fields_))   // Leaves `that.fields_` empty.
-{}
-
-inline CsvRecord& CsvRecord::operator=(CsvRecord&& that) noexcept {
-  header_ = std::move(that.header_);  // Leaves `that.header_` empty.
-  fields_ = std::move(that.fields_);  // Leaves `that.fields_` empty.
-  return *this;
 }
 
 template <

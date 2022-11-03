@@ -31,13 +31,13 @@ namespace riegeli {
 
 class ChunkHeader {
  public:
-  ChunkHeader() noexcept {}
+  ChunkHeader() = default;
 
   explicit ChunkHeader(const Chain& data, ChunkType chunk_type,
                        uint64_t num_records, uint64_t decoded_data_size);
 
-  ChunkHeader(const ChunkHeader& that) noexcept = default;
-  ChunkHeader& operator=(const ChunkHeader& that) noexcept = default;
+  ChunkHeader(const ChunkHeader& that) = default;
+  ChunkHeader& operator=(const ChunkHeader& that) = default;
 
   char* bytes() { return bytes_; }
   const char* bytes() const { return bytes_; }

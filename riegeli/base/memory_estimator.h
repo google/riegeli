@@ -71,7 +71,7 @@ namespace riegeli {
 // The estimation can thus be inexact.
 class MemoryEstimator {
  public:
-  MemoryEstimator() {}
+  MemoryEstimator() = default;
 
   MemoryEstimator(const MemoryEstimator& that);
   MemoryEstimator& operator=(const MemoryEstimator& that);
