@@ -582,7 +582,7 @@ class DependencyImpl<
     P*, M,
     std::enable_if_t<absl::conjunction<
         std::is_convertible<M*, P*>,
-        std::negation<absl::conjunction<
+        absl::negation<absl::conjunction<
             std::is_void<P>, dependency_internal::DereferencedForVoidPtr<
                                  std::decay_t<M>>>>>::value>>
     : public DependencyBase<M> {
@@ -617,7 +617,7 @@ struct IsValidDependencyImpl<
     P*, M,
     std::enable_if_t<absl::conjunction<
         std::is_convertible<M*, P*>,
-        std::negation<absl::conjunction<
+        absl::negation<absl::conjunction<
             std::is_void<P>, dependency_internal::DereferencedForVoidPtr<
                                  std::decay_t<M>>>>>::value>> : std::true_type {
 };
