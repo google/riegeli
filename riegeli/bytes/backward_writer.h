@@ -150,8 +150,6 @@ class BackwardWriter : public Object {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   bool Write(Src&& src);
-  ABSL_DEPRECATED("Use Write(absl::string_view) instead.")
-  bool Write(const char* src, size_t length);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
@@ -494,10 +492,6 @@ inline bool BackwardWriter::Write(Src&& src) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
   return WriteSlow(Chain(std::move(src)));
-}
-
-inline bool BackwardWriter::Write(const char* src, size_t length) {
-  return Write(absl::string_view(src, length));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {

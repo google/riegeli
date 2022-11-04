@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -50,10 +49,6 @@ template <typename Src, typename Dest,
                                IsValidDependency<Writer*, Dest&&>::value,
                            int> = 0>
 absl::Status Write(Src&& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-ABSL_DEPRECATED("Use Write(absl::string_view) instead.")
-absl::Status Write(const char* src, size_t length, Dest&& dest);
 template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
 absl::Status Write(const Chain& src, Dest&& dest);
@@ -146,13 +141,6 @@ inline absl::Status Write(Src&& src, Dest&& dest) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   return write_internal::WriteInternal(std::move(src),
-                                       std::forward<Dest>(dest));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(const char* src, size_t length, Dest&& dest) {
-  return write_internal::WriteInternal(absl::string_view(src, length),
                                        std::forward<Dest>(dest));
 }
 
