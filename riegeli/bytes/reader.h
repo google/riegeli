@@ -248,42 +248,6 @@ class Reader : public Object {
   // `min_length`.
   void ReadHint(size_t min_length = 1, size_t recommended_length = 0);
 
-  ABSL_DEPRECATED("Use riegeli::ReadAll(std::string&) free function instead")
-  bool ReadAll(absl::string_view& dest,
-               size_t max_length = std::numeric_limits<size_t>::max());
-  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
-  bool ReadAll(std::string& dest,
-               size_t max_length = std::numeric_limits<size_t>::max());
-  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
-  bool ReadAll(Chain& dest,
-               size_t max_length = std::numeric_limits<size_t>::max());
-  ABSL_DEPRECATED("Use riegeli::ReadAll() free function instead")
-  bool ReadAll(absl::Cord& dest,
-               size_t max_length = std::numeric_limits<size_t>::max());
-
-  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
-  bool ReadAndAppendAll(std::string& dest,
-                        size_t max_length = std::numeric_limits<size_t>::max());
-  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
-  bool ReadAndAppendAll(Chain& dest,
-                        size_t max_length = std::numeric_limits<size_t>::max());
-  ABSL_DEPRECATED("Use riegeli::ReadAndAppendAll() free function instead")
-  bool ReadAndAppendAll(absl::Cord& dest,
-                        size_t max_length = std::numeric_limits<size_t>::max());
-
-  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
-  bool CopyAll(Writer& dest,
-               Position max_length = std::numeric_limits<Position>::max(),
-               bool set_write_size_hint = false);
-  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
-  bool CopyAll(BackwardWriter& dest,
-               size_t max_length = std::numeric_limits<size_t>::max(),
-               bool set_write_size_hint = false);
-  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
-  bool CopyAll(Writer& dest, bool set_write_size_hint);
-  ABSL_DEPRECATED("Use riegeli::CopyAll() free function instead")
-  bool CopyAll(BackwardWriter& dest, bool set_write_size_hint);
-
   // Synchronizes the current position to the source and discards buffered data
   // read from the source (if applicable).
   //
@@ -867,15 +831,6 @@ inline void Reader::move_limit_pos(Position length) {
 
 inline void Reader::set_limit_pos(Position limit_pos) {
   limit_pos_ = limit_pos;
-}
-
-inline bool Reader::CopyAll(Writer& dest, bool set_write_size_hint) {
-  return CopyAll(dest, std::numeric_limits<Position>::max(),
-                 set_write_size_hint);
-}
-
-inline bool Reader::CopyAll(BackwardWriter& dest, bool set_write_size_hint) {
-  return CopyAll(dest, std::numeric_limits<size_t>::max(), set_write_size_hint);
 }
 
 inline bool Reader::Seek(Position new_pos) {
