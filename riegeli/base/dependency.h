@@ -211,17 +211,33 @@ class DependencyImpl;
 
 namespace dependency_internal {
 
-// `IsValidDependencyImpl<Ptr, Manager>::value` is `true` when
-// `DependencyImpl<Ptr, Manager>` is defined.
+// `IsValidDependencyProbe<Ptr, Manager>::value` is `true` when
+// `DependencyImpl<Ptr, Manager>` is defined, as determined by instantiating
+// the `DependencyImpl` and calling `get()`.
 
 template <typename Ptr, typename Manager, typename Enable = void>
-struct IsValidDependencyImpl : std::false_type {};
+struct IsValidDependencyProbe : std::false_type {};
 
 template <typename Ptr, typename Manager>
-struct IsValidDependencyImpl<
+struct IsValidDependencyProbe<
     Ptr, Manager,
-    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>>().get())>>
+    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>&>().get())>>
     : std::true_type {};
+
+}  // namespace dependency_internal
+
+// `IsValidDependencyImpl<Ptr, Manager>::value` is `true` when
+// `DependencyImpl<Ptr, Manager>` is defined.
+//
+// By default this is determined by instantiating the `DependencyImpl` and
+// checking if `get()` is available. If that instantiation might have undesired
+// side effects in contexts where `IsValidDependencyImpl` is needed,
+// `IsValidDependencyImpl` can also be specialized explicitly.
+template <typename Ptr, typename Manager, typename Enable = void>
+struct IsValidDependencyImpl
+    : dependency_internal::IsValidDependencyProbe<Ptr, Manager> {};
+
+namespace dependency_internal {
 
 // `DependencyMaybeRef<Ptr, Manager>` extends `DependencyImpl<Ptr, Manager>`
 // with specializations when `Manager` is `M&` or `M&&`.
@@ -287,14 +303,19 @@ class DependencyMaybeRef<
 // `Dependency<Ptr, Manager>` is defined.
 
 template <typename Ptr, typename Manager, typename Enable = void>
-struct IsValidDependency : std::false_type {};
+struct IsValidDependency : IsValidDependencyImpl<Ptr, Manager> {};
 
-template <typename Ptr, typename Manager>
+template <typename Ptr, typename M>
 struct IsValidDependency<
-    Ptr, Manager,
-    absl::void_t<decltype(std::declval<dependency_internal::DependencyMaybeRef<
-                              Ptr, Manager>>()
-                              .get())>> : std::true_type {};
+    Ptr, M&,
+    std::enable_if_t<IsValidDependencyImpl<Ptr, std::decay_t<M>>::value>>
+    : std::true_type {};
+
+template <typename Ptr, typename M>
+struct IsValidDependency<
+    Ptr, M&&,
+    std::enable_if_t<IsValidDependencyImpl<Ptr, std::decay_t<M>>::value>>
+    : std::true_type {};
 
 // Implementation shared between most specializations of `DependencyImpl`.
 template <typename Manager>
@@ -303,7 +324,13 @@ class DependencyBase {
   DependencyBase() noexcept
       : DependencyBase(DependencySentinel(static_cast<Manager*>(nullptr))) {}
 
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_copy_constructible<DependentManager>::value, int> = 0>
   explicit DependencyBase(const Manager& manager) : manager_(manager) {}
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_move_constructible<DependentManager>::value, int> = 0>
   explicit DependencyBase(Manager&& manager) noexcept
       : manager_(std::move(manager)) {}
 
@@ -323,9 +350,15 @@ class DependencyBase {
     Reset(DependencySentinel(static_cast<Manager*>(nullptr)));
   }
 
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_copy_constructible<DependentManager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
     manager_ = manager;
   }
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_move_constructible<DependentManager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     manager_ = std::move(manager);
   }
@@ -523,7 +556,7 @@ class DependencyImpl<P*, nullptr_t> : public DependencyBase<nullptr_t> {
 
 namespace dependency_internal {
 
-template <typename M, typename Enable = void>
+template <typename Manager, typename Enable = void>
 struct DereferencedForVoidPtr : std::false_type {};
 template <typename M>
 struct DereferencedForVoidPtr<M*> : std::true_type {};
@@ -543,7 +576,7 @@ struct DereferencedForVoidPtr<std::reference_wrapper<M>> : std::true_type {};
 // has an ambiguous interpretation for `Manager` being `M*`, `nullptr_t`,
 // `std::unique_ptr<M, Deleter>`, or `std::reference_wrapper<M>`. The ambiguity
 // is resolved in favor of pointing the `void*` to the dereferenced `M`, not to
-// the pointer object itself.
+// the `Manager` object itself.
 template <typename P, typename M>
 class DependencyImpl<
     P*, M,
@@ -562,6 +595,31 @@ class DependencyImpl<
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable = false;
+};
+
+// `IsValidDependencyImpl<P*, M>` when `M*` is convertible to `P*` is
+// specialized explicitly for a subtle reason:
+//
+// Consider a type `T` like `BrotliReader<AnyDependency<Reader*>>`.
+// Checking `IsValidDependency<Reader*, T>` by instantiating
+// `DependencyImpl<Reader*, T>` would try to generate the copy constructor of
+// `DependencyImpl<Reader*, T>`, which would try to copy `DependencyBase<T>`,
+// which would consider not only its copy constructor but also its constructor
+// from `const T&` (even though conversion from `DependencyBase<T>` to `T`
+// would ultimately fail), which would check whether `T` is copy constructible,
+// which would consider not only its deleted copy constructor but also its
+// constructor from `const AnyDependency<Reader*>&`, which would check whether
+// `T` is implicitly convertible to `AnyDependency<Reader*>`, which would check
+// whether `IsValidDependency<Reader*, T>`, which is still in the process of
+// being determined.
+template <typename P, typename M>
+struct IsValidDependencyImpl<
+    P*, M,
+    std::enable_if_t<absl::conjunction<
+        std::is_convertible<M*, P*>,
+        std::negation<absl::conjunction<
+            std::is_void<P>, dependency_internal::DereferencedForVoidPtr<
+                                 std::decay_t<M>>>>>::value>> : std::true_type {
 };
 
 // Specialization of `DependencyImpl<P*, std::unique_ptr<M, Deleter>>` when `M*`

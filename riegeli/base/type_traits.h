@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_TYPE_TRAITS_H_
 
 #include <type_traits>
+#include <utility>
 
 namespace riegeli {
 
@@ -30,10 +31,29 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
+#if __cpp_deduction_guides
+
+// `DeduceClassTemplateArguments<Template, Args...>::type` and
+// `DeduceClassTemplateArgumentsT<Template, Args...>` deduce class template
+// arguments using CTAD from constructor arguments.
+//
+// Only templates with solely type template parameters are supported.
+
+template <template <typename...> class Template, typename... Args>
+struct DeduceClassTemplateArguments {
+  using type = decltype(Template(std::declval<Args>()...));
+};
+
+template <template <typename...> class Template, typename... Args>
+using DeduceClassTemplateArgumentsT =
+    typename DeduceClassTemplateArguments<Template, Args...>::type;
+
+#endif
+
 // `IntersectionType<Ts...>::type` and `IntersectionTypeT<Ts...>` compute the
 // smallest of unsigned integer types.
 
-namespace internal {
+namespace type_traits_internal {
 
 template <typename A, typename B, typename Common>
 struct IntersectionTypeImpl;
@@ -53,7 +73,7 @@ struct IntersectionTypeImpl<A, A, A> {
   using type = A;
 };
 
-}  // namespace internal
+}  // namespace type_traits_internal
 
 template <typename... T>
 struct IntersectionType;
@@ -68,7 +88,8 @@ struct IntersectionType<A> {
 
 template <typename A, typename B>
 struct IntersectionType<A, B>
-    : internal::IntersectionTypeImpl<A, B, std::common_type_t<A, B>> {};
+    : type_traits_internal::IntersectionTypeImpl<A, B,
+                                                 std::common_type_t<A, B>> {};
 
 template <typename A, typename B, typename... Rest>
 struct IntersectionType<A, B, Rest...>
