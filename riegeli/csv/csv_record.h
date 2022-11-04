@@ -57,7 +57,7 @@ namespace csv_internal {
 template <typename T1, typename T2>
 class ReferencePair : public std::pair<T1, T2> {
  public:
-  using std::pair<T1, T2>::pair;
+  using ReferencePair::pair::pair;
 
   template <class U1, class U2,
             std::enable_if_t<std::is_constructible<T1, U1&>::value &&
@@ -66,14 +66,14 @@ class ReferencePair : public std::pair<T1, T2> {
                                    std::is_convertible<U2&, T2>::value),
                              int> = 0>
   explicit constexpr ReferencePair(std::pair<U1, U2>& p)
-      : std::pair<T1, T2>(p.first, p.second) {}
+      : ReferencePair::pair(p.first, p.second) {}
 
   template <class U1, class U2,
             std::enable_if_t<std::is_convertible<U1&, T1>::value &&
                                  std::is_convertible<U2&, T2>::value,
                              int> = 0>
   /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
-      : std::pair<T1, T2>(p.first, p.second) {}
+      : ReferencePair::pair(p.first, p.second) {}
 };
 
 }  // namespace csv_internal

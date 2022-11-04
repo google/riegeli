@@ -111,7 +111,7 @@ class UnownedCFile {
 template <>
 class DependencyImpl<FILE*, OwnedCFile> : public DependencyBase<OwnedCFile> {
  public:
-  using DependencyBase<OwnedCFile>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   FILE* get() const { return this->manager().get(); }
   FILE* Release() { return this->manager().Release(); }
@@ -124,7 +124,7 @@ template <>
 class DependencyImpl<FILE*, UnownedCFile>
     : public DependencyBase<UnownedCFile> {
  public:
-  using DependencyBase<UnownedCFile>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   FILE* get() const { return this->manager().get(); }
   FILE* Release() { return nullptr; }

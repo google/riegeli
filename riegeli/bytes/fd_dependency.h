@@ -86,7 +86,7 @@ class UnownedFd {
 template <>
 class DependencyImpl<int, OwnedFd> : public DependencyBase<OwnedFd> {
  public:
-  using DependencyBase<OwnedFd>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   int get() const { return this->manager().get(); }
   int Release() { return this->manager().Release(); }
@@ -98,7 +98,7 @@ class DependencyImpl<int, OwnedFd> : public DependencyBase<OwnedFd> {
 template <>
 class DependencyImpl<int, UnownedFd> : public DependencyBase<UnownedFd> {
  public:
-  using DependencyBase<UnownedFd>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   int get() const { return this->manager().get(); }
   int Release() { return -1; }

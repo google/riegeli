@@ -431,8 +431,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
     : public DependencyBase<AnyDependencyImpl<Ptr, inline_size, inline_align>> {
  public:
-  using DependencyBase<
-      AnyDependencyImpl<Ptr, inline_size, inline_align>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
   Ptr Release() { return this->manager().Release(); }
@@ -451,8 +450,7 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
     : public DependencyBase<
           AnyDependencyImpl<Ptr, inline_size, inline_align>&&> {
  public:
-  using DependencyBase<
-      AnyDependencyImpl<Ptr, inline_size, inline_align>&&>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
   Ptr Release() { return this->manager().Release(); }
@@ -473,8 +471,7 @@ class DependencyImpl<
     : public DependencyBase<std::reference_wrapper<
           AnyDependencyImpl<Ptr, inline_size, inline_align>>> {
  public:
-  using DependencyBase<std::reference_wrapper<
-      AnyDependencyImpl<Ptr, inline_size, inline_align>>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get().get(); }
   Ptr Release() { return this->manager().get().Release(); }
@@ -522,7 +519,7 @@ class AnyDependencyRefImpl
                             IsValidDependency<Ptr, Manager&&>>::value,
           int> = 0>
   /*implicit*/ AnyDependencyRefImpl(Manager&& manager)
-      : AnyDependencyImpl<Ptr, inline_size, inline_align>(
+      : AnyDependencyRefImpl::AnyDependencyImpl(
             absl::in_place_type<Manager&&>, std::forward<Manager>(manager)) {}
   template <
       typename Manager,
@@ -532,7 +529,7 @@ class AnyDependencyRefImpl
                             IsValidDependency<Ptr, Manager&&>>::value,
           int> = 0>
   AnyDependencyRefImpl& operator=(Manager&& manager) {
-    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+    AnyDependencyRefImpl::AnyDependencyImpl::Reset(
         absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
     return *this;
   }
@@ -550,7 +547,7 @@ class AnyDependencyRefImpl
             std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
   explicit AnyDependencyRefImpl(absl::in_place_type_t<Manager>,
                                 ManagerArg&& manager_arg)
-      : AnyDependencyImpl<Ptr, inline_size, inline_align>(
+      : AnyDependencyRefImpl::AnyDependencyImpl(
             absl::in_place_type<Manager>,
             std::forward<ManagerArg>(manager_arg)) {}
 
@@ -561,19 +558,19 @@ class AnyDependencyRefImpl
   // This avoids constructing a temporary `AnyDependencyRefImpl` and moving from
   // it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset();
+    AnyDependencyRefImpl::AnyDependencyImpl::Reset();
   }
   template <typename Manager,
             std::enable_if_t<IsValidDependency<Ptr, Manager&&>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
-    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+    AnyDependencyRefImpl::AnyDependencyImpl::Reset(
         absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
   }
   template <typename Manager, typename ManagerArg,
             std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
                                           ManagerArg&& manager_arg) {
-    AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+    AnyDependencyRefImpl::AnyDependencyImpl::Reset(
         absl::in_place_type<Manager>, std::forward<ManagerArg>(manager_arg));
   }
 };
@@ -584,8 +581,7 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
     : public DependencyBase<
           AnyDependencyRefImpl<Ptr, inline_size, inline_align>> {
  public:
-  using DependencyBase<
-      AnyDependencyRefImpl<Ptr, inline_size, inline_align>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
   Ptr Release() { return this->manager().Release(); }
@@ -605,8 +601,7 @@ class DependencyImpl<Ptr,
     : public DependencyBase<
           AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&> {
  public:
-  using DependencyBase<
-      AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
   Ptr Release() { return this->manager().Release(); }
@@ -626,8 +621,7 @@ class DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<
     : public DependencyBase<std::reference_wrapper<
           AnyDependencyRefImpl<Ptr, inline_size, inline_align>>> {
  public:
-  using DependencyBase<std::reference_wrapper<
-      AnyDependencyRefImpl<Ptr, inline_size, inline_align>>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get().get(); }
   Ptr Release() { return this->manager().get().Release(); }

@@ -258,7 +258,7 @@ template <typename Ptr, typename Manager>
 class DependencyMaybeRef<
     Ptr, Manager, std::enable_if_t<IsValidDependencyImpl<Ptr, Manager>::value>>
     : public DependencyImpl<Ptr, Manager> {
-  using DependencyImpl<Ptr, Manager>::DependencyImpl;
+  using DependencyMaybeRef::DependencyImpl::DependencyImpl;
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&>` when
@@ -273,7 +273,7 @@ class DependencyMaybeRef<
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
   explicit DependencyMaybeRef(M& manager) noexcept
-      : DependencyImpl<Ptr, std::decay_t<M>>(manager) {}
+      : DependencyMaybeRef::DependencyImpl(manager) {}
 
   DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
@@ -291,7 +291,7 @@ class DependencyMaybeRef<
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
   explicit DependencyMaybeRef(M&& manager) noexcept
-      : DependencyImpl<Ptr, std::decay_t<M>>(std::move(manager)) {}
+      : DependencyMaybeRef::DependencyImpl(std::move(manager)) {}
 
   DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
@@ -416,8 +416,7 @@ class Dependency<Ptr, Manager,
                  std::enable_if_t<IsValidDependency<Ptr, Manager>::value>>
     : public dependency_internal::DependencyMaybeRef<Ptr, Manager> {
  public:
-  using dependency_internal::DependencyMaybeRef<Ptr,
-                                                Manager>::DependencyMaybeRef;
+  using Dependency::DependencyMaybeRef::DependencyMaybeRef;
 
   // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart pointer
   // to `P`, for convenience: it provides `operator*`, `operator->`, and can be
@@ -530,7 +529,7 @@ class DependencyImpl<P*, M*,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
  public:
-  using DependencyBase<M*>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return this->manager(); }
   M* Release() { return nullptr; }
@@ -545,7 +544,7 @@ class DependencyImpl<P*, M*,
 template <typename P>
 class DependencyImpl<P*, nullptr_t> : public DependencyBase<nullptr_t> {
  public:
-  using DependencyBase<nullptr_t>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   nullptr_t get() const { return nullptr; }
   nullptr_t Release() { return nullptr; }
@@ -587,7 +586,7 @@ class DependencyImpl<
                                  std::decay_t<M>>>>>::value>>
     : public DependencyBase<M> {
  public:
-  using DependencyBase<M>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() { return &this->manager(); }
   const M* get() const { return &this->manager(); }
@@ -629,7 +628,7 @@ class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
-  using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return this->manager().get(); }
   M* Release() { return this->manager().release(); }
@@ -645,7 +644,7 @@ class DependencyImpl<P*, M&,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M&> {
  public:
-  using DependencyBase<M&>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager(); }
   M* Release() { return nullptr; }
@@ -661,7 +660,7 @@ class DependencyImpl<P*, M&&,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M&&> {
  public:
-  using DependencyBase<M&&>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager(); }
   M* Release() { return nullptr; }
@@ -677,7 +676,7 @@ class DependencyImpl<P*, std::reference_wrapper<M>,
                      std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<std::reference_wrapper<M>> {
  public:
-  using DependencyBase<std::reference_wrapper<M>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager().get(); }
   M* Release() { return nullptr; }
@@ -741,7 +740,7 @@ template <>
 class DependencyImpl<absl::string_view, absl::string_view>
     : public DependencyBase<absl::string_view> {
  public:
-  using DependencyBase<absl::string_view>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const { return this->manager(); }
 
@@ -752,7 +751,7 @@ template <>
 class DependencyImpl<absl::string_view, absl::Span<const char>>
     : public DependencyBase<absl::Span<const char>> {
  public:
-  using DependencyBase<absl::Span<const char>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(this->manager());
@@ -765,7 +764,7 @@ template <>
 class DependencyImpl<absl::string_view, absl::Span<char>>
     : public DependencyBase<absl::Span<char>> {
  public:
-  using DependencyBase<absl::Span<char>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(this->manager());
@@ -778,7 +777,7 @@ template <>
 class DependencyImpl<absl::string_view, const char*>
     : public DependencyBase<const char*> {
  public:
-  using DependencyBase<const char*>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(this->manager());
@@ -790,7 +789,7 @@ class DependencyImpl<absl::string_view, const char*>
 template <>
 class DependencyImpl<absl::string_view, char*> : public DependencyBase<char*> {
  public:
-  using DependencyBase<char*>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(this->manager());
@@ -806,7 +805,7 @@ class DependencyImpl<
                      std::is_convertible<M, absl::Span<const char>>::value>>
     : public DependencyBase<M*> {
  public:
-  using DependencyBase<M*>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(*this->manager());
@@ -822,7 +821,7 @@ class DependencyImpl<
                      std::is_convertible<M, absl::Span<const char>>::value>>
     : public DependencyBase<M> {
  public:
-  using DependencyBase<M>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(this->manager());
@@ -838,7 +837,7 @@ class DependencyImpl<
                      std::is_convertible<M, absl::Span<const char>>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
-  using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::string_view get() const {
     return string_view_internal::ToStringView(*this->manager());
@@ -855,7 +854,7 @@ template <>
 class DependencyImpl<absl::Span<char>, absl::Span<char>>
     : public DependencyBase<absl::Span<char>> {
  public:
-  using DependencyBase<absl::Span<char>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::Span<char> get() const { return this->manager(); }
 
@@ -868,7 +867,7 @@ class DependencyImpl<
     std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
                      !std::is_pointer<M>::value>> : public DependencyBase<M*> {
  public:
-  using DependencyBase<M*>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 
@@ -881,7 +880,7 @@ class DependencyImpl<
     std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
                      !std::is_pointer<M>::value>> : public DependencyBase<M> {
  public:
-  using DependencyBase<M>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::Span<char> get() { return absl::Span<char>(this->manager()); }
   absl::Span<const char> get() const {
@@ -898,7 +897,7 @@ class DependencyImpl<
                      !std::is_pointer<M>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
-  using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
+  using DependencyImpl::DependencyBase::DependencyBase;
 
   absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 

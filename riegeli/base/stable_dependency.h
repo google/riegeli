@@ -51,7 +51,7 @@ class StableDependency;
 template <typename P, typename M>
 class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable>>
     : public Dependency<P*, M> {
-  using Dependency<P*, M>::Dependency;
+  using StableDependency::Dependency::Dependency;
 };
 
 // Specialization when `Dependency<P*, M>` is not stable: allocates the

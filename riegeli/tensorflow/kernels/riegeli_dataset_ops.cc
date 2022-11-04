@@ -146,8 +146,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
    private:
     class Iterator : public ::tensorflow::data::DatasetIterator<Dataset> {
      public:
-      explicit Iterator(const Params& params)
-          : DatasetIterator<Dataset>(params) {}
+      explicit Iterator(const Params& params) : DatasetIterator(params) {}
 
       ::tensorflow::Status GetNextInternal(
           ::tensorflow::data::IteratorContext* ctx,
