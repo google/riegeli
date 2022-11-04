@@ -45,7 +45,11 @@ namespace riegeli {
 //   void Unref() const;
 // ```
 template <typename T>
-class RefCountedPtr {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        RefCountedPtr {
  public:
   constexpr RefCountedPtr() = default;
   /*implicit*/ constexpr RefCountedPtr(nullptr_t) noexcept {}

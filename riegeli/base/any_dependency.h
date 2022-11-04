@@ -113,7 +113,9 @@ using Storage = char[];
 
 // A `Dependency<Ptr, Manager>` is stored inline in
 // `Repr<Ptr, inline_size, inline_align>` if it fits in that storage and is
-// movable. If `inline_size == 0`, the dependency is also required to be stable.
+// movable. If `inline_size == 0`, the dependency is also required to be stable
+// (because then `AnyDependency` declares itself stable) and trivially
+// relocatable (because then `AnyDependency` declares itself with trivial ABI).
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
@@ -128,9 +130,27 @@ struct IsInline<
             sizeof(Repr<Ptr, inline_size, inline_align>) &&
         alignof(Dependency<Ptr, Manager>) <=
             alignof(Repr<Ptr, inline_size, inline_align>) &&
-        (inline_size > 0 || Dependency<Ptr, Manager>::kIsStable) &&
-        std::is_move_constructible<Dependency<Ptr, Manager>>::value>>
-    : std::true_type {};
+        std::is_move_constructible<Dependency<Ptr, Manager>>::value &&
+        (inline_size > 0 ||
+         (Dependency<Ptr, Manager>::kIsStable
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+          && absl::is_trivially_relocatable<Dependency<Ptr, Manager>>::value
+#endif
+          ))>> : std::true_type {
+};
+
+// Conditionally make the ABI trivial. To be used as a base class, with the
+// derived class having an unconditional `ABSL_ATTRIBUTE_TRIVIAL_ABI` (it will
+// not be effective if a base class does not have trivial ABI).
+template <bool is_trivial>
+class ConditionallyTrivialAbi;
+template <>
+class ConditionallyTrivialAbi<false> {
+ public:
+  ~ConditionallyTrivialAbi() {}
+};
+template <>
+class ConditionallyTrivialAbi<true> {};
 
 // Method pointers.
 template <typename Ptr>
@@ -172,8 +192,16 @@ struct IsAnyDependency<Ptr,
 
 // `AnyDependencyImpl` implements `AnyDependency` after `InlineManagers` have
 // been reduced to their maximum size and alignment.
+//
+// `ABSL_ATTRIBUTE_TRIVIAL_ABI` is effective if `inline_size == 0`.
 template <typename Ptr, size_t inline_size, size_t inline_align = 0>
-class AnyDependencyImpl {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        AnyDependencyImpl
+    : public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
+                                                              0> {
  public:
   // Creates an empty `AnyDependencyImpl`.
   AnyDependencyImpl() noexcept;

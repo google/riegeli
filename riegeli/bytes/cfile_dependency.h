@@ -28,7 +28,11 @@ namespace riegeli {
 // Owns a `FILE` (`nullptr` means none).
 //
 // `OwnedCFile` is explicitly convertible from `FILE*`.
-class OwnedCFile {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        OwnedCFile {
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() = default;

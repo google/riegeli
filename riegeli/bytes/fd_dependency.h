@@ -26,7 +26,11 @@ namespace riegeli {
 // Owns a file descriptor (-1 means none).
 //
 // `OwnedFd` is explicitly convertible from `int`.
-class OwnedFd {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        OwnedFd {
  public:
   // Creates an `OwnedFd` which does not own a fd.
   OwnedFd() = default;

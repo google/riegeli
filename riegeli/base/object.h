@@ -36,7 +36,11 @@ RIEGELI_INLINE_CONSTEXPR(Closed, kClosed, Closed());
 // Internal representation of the basic state of class `Object` and similar
 // classes: whether the object is open or closed, and whether it is not failed
 // or failed (with an associated `absl::Status` for failure details).
-class ObjectState {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        ObjectState {
  public:
   // Creates a closed `ObjectState`.
   explicit ObjectState(Closed) noexcept : status_ptr_(kClosedSuccessfully) {}

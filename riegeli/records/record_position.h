@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
@@ -140,7 +141,11 @@ class RecordPosition {
 
 namespace records_internal {
 
-class FutureChunkBegin {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        FutureChunkBegin {
  public:
   struct PadToBlockBoundary {};
   using Action =
@@ -184,7 +189,11 @@ class FutureChunkBegin {
 // `RecordWriter` returns `FutureRecordPosition` instead of `RecordPosition`
 // because with `parallelism > 0` the actual position is not known until pending
 // chunks finish encoding in background.
-class FutureRecordPosition {
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        FutureRecordPosition {
  public:
   constexpr FutureRecordPosition() = default;
 
