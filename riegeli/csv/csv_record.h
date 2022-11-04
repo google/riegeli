@@ -410,7 +410,7 @@ class CsvHeader {
   //
   // Writes `header.DebugString()` to `sink`.
   template <typename Sink>
-  void AbslStringify(Sink& sink, const CsvHeader& header) {
+  friend void AbslStringify(Sink& sink, const CsvHeader& header) {
     AbslStringifyWriter<Sink*> writer(&sink);
     header.WriteDebugStringTo(writer);
     writer.Close();
@@ -862,7 +862,7 @@ class CsvRecord {
   //
   // Writes `record.DebugString()` to `sink`.
   template <typename Sink>
-  void AbslStringify(Sink& sink, const CsvRecord& record) {
+  friend void AbslStringify(Sink& sink, const CsvRecord& record) {
     AbslStringifyWriter<Sink*> writer(&sink);
     record.WriteDebugStringTo(writer);
     writer.Close();

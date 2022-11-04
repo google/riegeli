@@ -56,7 +56,7 @@ class SkippedRegion {
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  void AbslStringify(Sink& sink, const SkippedRegion& self) {
+  friend void AbslStringify(Sink& sink, const SkippedRegion& self) {
     sink.Append(self.ToString());
   }
 

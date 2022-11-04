@@ -119,7 +119,7 @@ class RecordPosition {
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  void AbslStringify(Sink& sink, RecordPosition self) {
+  friend void AbslStringify(Sink& sink, RecordPosition self) {
     sink.Append(self.ToString());
   }
 
