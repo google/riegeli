@@ -16,7 +16,6 @@
 #define RIEGELI_BYTES_ISTREAM_READER_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <cerrno>
 #include <istream>

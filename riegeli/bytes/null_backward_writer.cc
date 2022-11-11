@@ -20,12 +20,14 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffer_options.h"
 
 namespace riegeli {

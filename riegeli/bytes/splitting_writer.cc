@@ -34,6 +34,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/cord_reader.h"
+#include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
 

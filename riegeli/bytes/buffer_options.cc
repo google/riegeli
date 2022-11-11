@@ -16,8 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
-
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"

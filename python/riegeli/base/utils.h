@@ -197,7 +197,7 @@ class PythonWrapped {
 class Exception {
  public:
   // No exception.
-  Exception() noexcept {}
+  Exception() = default;
 
   Exception(const Exception& that) noexcept;
   Exception& operator=(const Exception& that) noexcept;
@@ -423,7 +423,7 @@ inline PythonPtr BytesToPython(absl::string_view value) {
 // is needed.
 class MemoryView {
  public:
-  MemoryView() noexcept {}
+  MemoryView() = default;
 
   MemoryView(const MemoryView&) = delete;
   MemoryView& operator=(const MemoryView&) = delete;

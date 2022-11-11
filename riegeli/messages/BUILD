@@ -15,7 +15,6 @@ cc_library(
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
-        "//riegeli/base:type_id",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:cord_reader",

@@ -126,6 +126,7 @@ cc_library(
         ":skipped_region",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:types",

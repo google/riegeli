@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <cstring>
-#include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>

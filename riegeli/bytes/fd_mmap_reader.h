@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <tuple>

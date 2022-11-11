@@ -28,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

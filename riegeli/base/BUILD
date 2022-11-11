@@ -292,6 +292,7 @@ cc_library(
         ":new_aligned",
         ":no_destructor",
         ":string_utils",
+        ":types",
         ":zeros",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",

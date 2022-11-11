@@ -15,8 +15,6 @@
 #ifndef RIEGELI_BYTES_WRITE_H_
 #define RIEGELI_BYTES_WRITE_H_
 
-#include <stddef.h>
-
 #include <string>
 #include <type_traits>
 #include <utility>

@@ -18,7 +18,6 @@
 #include <stdio.h>
 
 #include <memory>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/dependency.h"
@@ -28,11 +27,7 @@ namespace riegeli {
 // Owns a `FILE` (`nullptr` means none).
 //
 // `OwnedCFile` is explicitly convertible from `FILE*`.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-        OwnedCFile {
+class OwnedCFile {
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() = default;

@@ -192,8 +192,8 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
   return WriteInternal(src, dest, ZSTD_e_continue);
 }
 
-bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
-                                   ZSTD_EndDirective end_op) {
+inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
+                                          ZSTD_EndDirective end_op) {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of ZstdWriterBase::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() >

@@ -16,6 +16,8 @@
 
 #include <stddef.h>
 
+#include <string>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/object.h"

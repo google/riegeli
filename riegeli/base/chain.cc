@@ -44,6 +44,7 @@
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/string_utils.h"
+#include "riegeli/base/types.h"
 #include "riegeli/base/zeros.h"
 
 namespace riegeli {
@@ -78,7 +79,7 @@ void WritePadding(std::ostream& out, size_t pad) {
 
 class ZeroRef {
  public:
-  ZeroRef() noexcept {}
+  ZeroRef() = default;
 
   ZeroRef(const ZeroRef&) = delete;
   ZeroRef& operator=(const ZeroRef&) = delete;

@@ -144,6 +144,7 @@ struct IsInline<
 // not be effective if a base class does not have trivial ABI).
 template <bool is_trivial>
 class ConditionallyTrivialAbi;
+
 template <>
 class ConditionallyTrivialAbi<false> {
  public:
@@ -169,12 +170,11 @@ struct Methods {
   size_t inline_align_used;  // Or 0 if inline storage is not used.
 };
 
-template <typename Ptr>
-struct NullMethods;
-
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
 struct MethodsFor;
+template <typename Ptr>
+struct NullMethods;
 
 // `IsAnyDependency` detects `AnyDependencyImpl` or `AnyDependencyRefImpl` type
 // with the given `Ptr`.
