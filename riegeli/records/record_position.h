@@ -126,7 +126,7 @@ class RecordPosition {
     sink.Append(self.ToString());
   }
 
-  // Writes `self.DebugString()` to `out`.
+  // Writes `self.ToString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, RecordPosition self);
 
  private:
