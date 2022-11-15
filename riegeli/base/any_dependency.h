@@ -319,7 +319,8 @@ class
 
   // If the `Dependency` owns the dependent object and can release it,
   // `Release()` returns the released pointer, otherwise returns a sentinel
-  // `Ptr` constructed from `DependencySentinel(static_cast<Ptr*>(nullptr))`.
+  // `Ptr` constructed from
+  // `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
   Ptr Release() { return methods_->release(repr_.storage); }
 
   // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be compared against
@@ -644,7 +645,7 @@ struct IsValidDependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<
 namespace any_dependency_internal {
 
 // `any_dependency_internal::SentinelPtr<Ptr>()` returns a sentinel `Ptr`
-// constructed from `DependencySentinel(static_cast<Ptr*>(nullptr))`.
+// constructed from `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
 
 template <typename Ptr>
 inline Ptr SentinelPtrInternal(const Ptr& ptr) {
@@ -679,12 +680,12 @@ inline Ptr SentinelPtrInternal(std::tuple<PtrArgs...> ptr_args) {
 template <typename Ptr>
 inline Ptr SentinelPtr() {
   return SentinelPtrInternal<Ptr>(
-      DependencySentinel(static_cast<Ptr*>(nullptr)));
+      RiegeliDependencySentinel(static_cast<Ptr*>(nullptr)));
 }
 
 // `any_dependency_internal::Release(dep)` calls `dep.Release()` if that is
 // defined, otherwise returns a sentinel `Ptr` constructed from
-// `DependencySentinel(static_cast<Ptr*>(nullptr))`.
+// `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
 
 template <typename T, typename Enable = void>
 struct HasRelease : std::false_type {};

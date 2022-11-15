@@ -77,25 +77,26 @@ namespace riegeli {
 // owns the dependent object (in contrast to passing `&m`) but does not destroy
 // it.
 
-// `DependencySentinel(T*)` specifies how to initialize a default `Manager`
-// (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
+// `RiegeliDependencySentinel(T*)` specifies how to initialize a default
+// `Manager` (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
 //
 // To customize that for a class `T`, define a free function
-// `friend T DependencySentinel(T*)` as a friend of `T` inside class definition
-// or in the same namespace as `T`, so that it can be found via ADL.
+// `friend T RiegeliDependencySentinel(T*)` as a friend of `T` inside class
+// definition or in the same namespace as `T`, so that it can be found via ADL.
 //
-// `DependencySentinel(T*)` returns a value of type `T`, or a tuple of its
-// constructor arguments to avoid constructing a temporary `T` and moving from
-// it.
+// `RiegeliDependencySentinel(T*)` returns a value of type `T`, or a tuple of
+// its constructor arguments to avoid constructing a temporary `T` and moving
+// from it.
 //
-// The argument of `DependencySentinel(T*)` is always a null pointer, used to
-// choose the right overload based on the type.
+// The argument of `RiegeliDependencySentinel(T*)` is always a null pointer,
+// used to choose the right overload based on the type.
 
-inline std::tuple<> DependencySentinel(void*) { return {}; }
+inline std::tuple<> RiegeliDependencySentinel(void*) { return {}; }
 
-// Specialization of `DependencySentinel(int*)`, used for file descriptors.
+// Specialization of `RiegeliDependencySentinel(int*)`, used for file
+// descriptors.
 
-inline int DependencySentinel(int*) { return -1; }
+inline int RiegeliDependencySentinel(int*) { return -1; }
 
 // `Dependency<Ptr, Manager>` derives from `DependencyImpl<Ptr, Manager>` which
 // has specializations for various combinations of `Ptr` and `Manager` types.
@@ -105,7 +106,7 @@ inline int DependencySentinel(int*) { return -1; }
 //
 // ```
 //   // Constructs a dummy `Manager` from
-//   // `DependencySentinel(static_cast<Manager*>(nullptr))`. Used
+//   // `RiegeliDependencySentinel(static_cast<Manager*>(nullptr))`. Used
 //   // when the host object is closed and does not need a dependent object.
 //   //
 //   // This constructor is optional.
@@ -322,7 +323,8 @@ template <typename Manager>
 class DependencyBase {
  public:
   DependencyBase() noexcept
-      : DependencyBase(DependencySentinel(static_cast<Manager*>(nullptr))) {}
+      : DependencyBase(
+            RiegeliDependencySentinel(static_cast<Manager*>(nullptr))) {}
 
   template <typename DependentManager = Manager,
             std::enable_if_t<
@@ -347,7 +349,7 @@ class DependencyBase {
   }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    Reset(DependencySentinel(static_cast<Manager*>(nullptr)));
+    Reset(RiegeliDependencySentinel(static_cast<Manager*>(nullptr)));
   }
 
   template <typename DependentManager = Manager,

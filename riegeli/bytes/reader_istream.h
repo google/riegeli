@@ -119,7 +119,7 @@ class ReaderIStreamBase : public std::istream {
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.
-  friend std::tuple<Closed> DependencySentinel(ReaderIStreamBase*) {
+  friend std::tuple<Closed> RiegeliDependencySentinel(ReaderIStreamBase*) {
     return {kClosed};
   }
 

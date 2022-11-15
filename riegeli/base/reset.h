@@ -36,7 +36,7 @@ namespace riegeli {
 // If it is not known whether the given class provides member functions
 // `Reset()`, generic code can use `riegeli::Reset(object, args...)`. This calls
 // the first defined form among the following:
-//  * `ResetInternal(object, args...)`
+//  * `RiegeliReset(object, args...)`
 //  * `object.Reset(args...)`
 //  * `object = T(args...)`
 //
@@ -45,10 +45,10 @@ namespace riegeli {
 //
 // Hence to customize `riegeli::Reset()` for a class `T`, define overloads of
 // either a member function `void T::Reset(...)`, or a free function
-// `friend void ResetInternal(T& self, ...)` as a friend of `T` inside class
+// `friend void RiegeliReset(T& self, ...)` as a friend of `T` inside class
 // definition or in the same namespace as `T`, so that it can be found via ADL.
 //
-// `ResetInternal()` is predefined for `std::string` and `absl::Cord`.
+// `RiegeliReset()` is predefined for `std::string` and `absl::Cord`.
 
 template <typename T>
 void Reset(T& object, const T& src);
@@ -61,42 +61,42 @@ void Reset(T& object, Args&&... args);
 
 // Implementation details follow.
 
-inline void ResetInternal(std::string& self) { self.clear(); }
+inline void RiegeliReset(std::string& self) { self.clear(); }
 
-inline void ResetInternal(std::string& self, size_t length, char ch) {
+inline void RiegeliReset(std::string& self, size_t length, char ch) {
   self.assign(length, ch);
 }
 
-inline void ResetInternal(std::string& self, absl::string_view src) {
+inline void RiegeliReset(std::string& self, absl::string_view src) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `self.assign(src)`
   self.assign(src.data(), src.size());
 }
 
-inline void ResetInternal(std::string& self, const char* src) {
+inline void RiegeliReset(std::string& self, const char* src) {
   self.assign(src);
 }
 
-inline void ResetInternal(std::string& self, const char* src, size_t length) {
+inline void RiegeliReset(std::string& self, const char* src, size_t length) {
   self.assign(src, length);
 }
 
-inline void ResetInternal(absl::Cord& self) { self.Clear(); }
+inline void RiegeliReset(absl::Cord& self) { self.Clear(); }
 
-inline void ResetInternal(absl::Cord& self, absl::string_view src) {
+inline void RiegeliReset(absl::Cord& self, absl::string_view src) {
   self = src;
 }
 
 namespace reset_internal {
 
 template <typename T, typename Enable, typename... Args>
-struct HasResetInternal : std::false_type {};
+struct HasRiegeliReset : std::false_type {};
 
 template <typename T, typename... Args>
-struct HasResetInternal<T,
-                        absl::void_t<decltype(ResetInternal(
-                            std::declval<T&>(), std::declval<Args>()...))>,
-                        Args...> : std::true_type {};
+struct HasRiegeliReset<T,
+                       absl::void_t<decltype(RiegeliReset(
+                           std::declval<T&>(), std::declval<Args>()...))>,
+                       Args...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Args>
 struct HasReset : std::false_type {};
@@ -108,13 +108,13 @@ struct HasReset<
     Args...> : std::true_type {};
 
 template <typename T, typename... Args,
-          std::enable_if_t<HasResetInternal<T, void, Args...>::value, int> = 0>
+          std::enable_if_t<HasRiegeliReset<T, void, Args...>::value, int> = 0>
 inline void ResetImpl(T& object, Args&&... args) {
-  ResetInternal(object, std::forward<Args>(args)...);
+  RiegeliReset(object, std::forward<Args>(args)...);
 }
 
 template <typename T, typename... Args,
-          std::enable_if_t<!HasResetInternal<T, void, Args...>::value &&
+          std::enable_if_t<!HasRiegeliReset<T, void, Args...>::value &&
                                HasReset<T, void, Args...>::value,
                            int> = 0>
 inline void ResetImpl(T& object, Args&&... args) {
@@ -122,7 +122,7 @@ inline void ResetImpl(T& object, Args&&... args) {
 }
 
 template <typename T, typename... Args,
-          std::enable_if_t<!HasResetInternal<T, void, Args...>::value &&
+          std::enable_if_t<!HasRiegeliReset<T, void, Args...>::value &&
                                !HasReset<T, void, Args...>::value,
                            int> = 0>
 inline void ResetImpl(T& object, Args&&... args) {

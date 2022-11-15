@@ -292,7 +292,9 @@ class Object {
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
 
   // Support `Dependency`.
-  friend std::tuple<Closed> DependencySentinel(Object*) { return {kClosed}; }
+  friend std::tuple<Closed> RiegeliDependencySentinel(Object*) {
+    return {kClosed};
+  }
 
  private:
   ObjectState state_;

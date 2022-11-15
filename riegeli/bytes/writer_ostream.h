@@ -135,7 +135,7 @@ class WriterOStreamBase : public std::iostream {
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.
-  friend std::tuple<Closed> DependencySentinel(WriterOStreamBase*) {
+  friend std::tuple<Closed> RiegeliDependencySentinel(WriterOStreamBase*) {
     return {kClosed};
   }
 
