@@ -49,7 +49,7 @@ namespace {
 
 inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
                              size_t already_scanned) {
-  writer.WriteChar('"');
+  writer.Write('"');
   const char* start = src.data();
   const char* next_to_check = src.data() + already_scanned;
   const char* const limit = src.data() + src.size();
@@ -61,8 +61,7 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
     start = next_quote;
     next_to_check = next_quote + 1;
   }
-  writer.Write(absl::string_view(start, PtrDistance(start, limit)));
-  writer.WriteChar('"');
+  writer.Write(absl::string_view(start, PtrDistance(start, limit)), '"');
 }
 
 inline std::string DebugQuotedIfNeeded(absl::string_view src) {
@@ -186,7 +185,7 @@ absl::Status CsvHeader::TryResetUncached(
     for (std::vector<absl::string_view>::const_iterator iter =
              duplicate_names.cbegin();
          iter != duplicate_names.cend(); ++iter) {
-      if (iter != duplicate_names.cbegin()) message.WriteChar(',');
+      if (iter != duplicate_names.cbegin()) message.Write(',');
       csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
     }
     message.Close();
@@ -301,7 +300,7 @@ inline void CsvHeader::EnsureUniqueOwner() {
 
 void CsvHeader::WriteDebugStringTo(Writer& writer) const {
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.WriteChar(',');
+    if (iter != cbegin()) writer.Write(',');
     csv_internal::WriteDebugQuotedIfNeeded(*iter, writer);
   }
 }
@@ -429,13 +428,13 @@ absl::Status CsvRecord::FailMissingNames(
   for (absl::Span<const std::string>::const_iterator iter =
            missing_names.cbegin();
        iter != missing_names.cend(); ++iter) {
-    if (iter != missing_names.cbegin()) message.WriteChar(',');
+    if (iter != missing_names.cbegin()) message.Write(',');
     csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
   message.Write("; existing field names: ");
   for (CsvHeader::const_iterator iter = header_.cbegin();
        iter != header_.cend(); ++iter) {
-    if (iter != header_.cbegin()) message.WriteChar(',');
+    if (iter != header_.cbegin()) message.Write(',');
     csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
   }
   message.Close();
@@ -451,9 +450,9 @@ void CsvRecord::WriteDebugStringTo(Writer& writer) const {
       << "Failed invariant of CsvRecord: "
          "mismatched length of CSV header and fields";
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.WriteChar(',');
+    if (iter != cbegin()) writer.Write(',');
     csv_internal::WriteDebugQuotedIfNeeded(iter->first, writer);
-    writer.WriteChar(':');
+    writer.Write(':');
     csv_internal::WriteDebugQuotedIfNeeded(iter->second, writer);
   }
 }

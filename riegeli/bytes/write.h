@@ -15,16 +15,20 @@
 #ifndef RIEGELI_BYTES_WRITE_H_
 #define RIEGELI_BYTES_WRITE_H_
 
-#include <string>
+#include <stddef.h>
+
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
-#include "riegeli/base/chain.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/type_traits.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -39,64 +43,60 @@ namespace riegeli {
 // `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned).
 // Analogously for `BackwardWriter`.
 
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-absl::Status Write(absl::string_view src, Dest&& dest);
-template <typename Src, typename Dest,
-          std::enable_if_t<std::is_same<Src, std::string>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(Src&& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-absl::Status Write(const Chain& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-absl::Status Write(Chain&& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-absl::Status Write(const absl::Cord& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
-absl::Status Write(absl::Cord&& src, Dest&& dest);
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(absl::string_view src, Dest&& dest);
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<Writer*, GetTypeFromEndT<1, Args&&...>>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>>::value,
+              int> = 0>
+absl::Status Write(Args&&... args);
 template <
-    typename Src, typename Dest,
-    std::enable_if_t<std::is_same<Src, std::string>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int> = 0>
-absl::Status Write(Src&& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(const Chain& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(Chain&& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(const absl::Cord& src, Dest&& dest);
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value,
-                           int> = 0>
-absl::Status Write(absl::Cord&& src, Dest&& dest);
+    typename... Args,
+    std::enable_if_t<
+        absl::conjunction<
+            IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                 IsStringLike>>::value,
+        int> = 0>
+absl::Status Write(Args&&... args);
 
 // Implementation details follow.
 
 namespace write_internal {
 
-template <typename Src, typename Dest>
-inline absl::Status WriteInternal(Src&& src, Dest&& dest) {
+template <typename... Srcs,
+          std::enable_if_t<
+              absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
+                                                 std::declval<const Srcs&>())),
+                                             size_t>...>::value,
+              int> = 0>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(Writer& dest,
+                                                          const Srcs&... srcs) {
+  dest.SetWriteSizeHint(
+      SaturatingAdd<Position>(Position{riegeli::StringifiedSize(srcs)}...));
+}
+
+template <typename... Srcs,
+          std::enable_if_t<
+              !absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
+                                                  std::declval<const Srcs&>())),
+                                              size_t>...>::value,
+              int> = 0>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(Writer& dest,
+                                                          const Srcs&... srcs) {
+}
+
+template <typename... Srcs, typename Dest, size_t... indices>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
+    std::tuple<Srcs...> srcs, Dest&& dest, std::index_sequence<indices...>) {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(src.size());
+  if (dest_dep.is_owning()) {
+    SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
+  }
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!dest_dep->Write(std::forward<Src>(src)))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
     status = dest_dep->status();
   }
   if (dest_dep.is_owning()) {
@@ -107,12 +107,17 @@ inline absl::Status WriteInternal(Src&& src, Dest&& dest) {
   return status;
 }
 
-template <typename Src, typename Dest>
-inline absl::Status BackwardWriteInternal(Src&& src, Dest&& dest) {
+template <typename... Srcs, typename Dest, size_t... indices>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
+    std::tuple<Srcs...> srcs, Dest&& dest, std::index_sequence<indices...>) {
   Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(src.size());
+  if (dest_dep.is_owning()) {
+    dest_dep->SetWriteSizeHint(SaturatingAdd<Position>(
+        Position{riegeli::StringifiedSize(std::get<indices>(srcs))}...));
+  }
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(!dest_dep->Write(std::forward<Src>(src)))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
     status = dest_dep->status();
   }
   if (dest_dep.is_owning()) {
@@ -125,96 +130,33 @@ inline absl::Status BackwardWriteInternal(Src&& src, Dest&& dest) {
 
 }  // namespace write_internal
 
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(absl::string_view src, Dest&& dest) {
-  return write_internal::WriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <typename Src, typename Dest,
-          std::enable_if_t<std::is_same<Src, std::string>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int>>
-inline absl::Status Write(Src&& src, Dest&& dest) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  return write_internal::WriteInternal(std::move(src),
-                                       std::forward<Dest>(dest));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(const Chain& src, Dest&& dest) {
-  return write_internal::WriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(Chain&& src, Dest&& dest) {
-  return write_internal::WriteInternal(std::move(src),
-                                       std::forward<Dest>(dest));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(const absl::Cord& src, Dest&& dest) {
-  return write_internal::WriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
-inline absl::Status Write(absl::Cord&& src, Dest&& dest) {
-  return write_internal::WriteInternal(std::move(src),
-                                       std::forward<Dest>(dest));
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<Writer*, GetTypeFromEndT<1, Args&&...>>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>>::value,
+              int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
+  return write_internal::WriteInternal(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...),
+      std::make_index_sequence<sizeof...(Args) - 1>());
 }
 
 template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value, int>>
-inline absl::Status Write(absl::string_view src, Dest&& dest) {
-  return write_internal::BackwardWriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<std::is_same<Src, std::string>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int>>
-inline absl::Status Write(Src&& src, Dest&& dest) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  return write_internal::BackwardWriteInternal(std::move(src),
-                                               std::forward<Dest>(dest));
-}
-
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value, int>>
-inline absl::Status Write(const Chain& src, Dest&& dest) {
-  return write_internal::BackwardWriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value, int>>
-inline absl::Status Write(Chain&& src, Dest&& dest) {
-  return write_internal::BackwardWriteInternal(std::move(src),
-                                               std::forward<Dest>(dest));
-}
-
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value, int>>
-inline absl::Status Write(const absl::Cord& src, Dest&& dest) {
-  return write_internal::BackwardWriteInternal(src, std::forward<Dest>(dest));
-}
-
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<BackwardWriter*, Dest&&>::value, int>>
-inline absl::Status Write(absl::Cord&& src, Dest&& dest) {
-  return write_internal::BackwardWriteInternal(std::move(src),
-                                               std::forward<Dest>(dest));
+    typename... Args,
+    std::enable_if_t<
+        absl::conjunction<
+            IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                 IsStringLike>>::value,
+        int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
+  return write_internal::BackwardWriteInternal(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...),
+      std::make_index_sequence<sizeof...(Args) - 1>());
 }
 
 }  // namespace riegeli

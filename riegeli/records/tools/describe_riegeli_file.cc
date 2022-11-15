@@ -27,7 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/any_dependency.h"
@@ -49,6 +48,7 @@
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
+#include "riegeli/lines/line_writing.h"
 #include "riegeli/messages/message_parse.h"
 #include "riegeli/messages/text_print.h"
 #include "riegeli/records/chunk_reader.h"
@@ -274,15 +274,13 @@ absl::Status DescribeTransposedChunk(
 }
 
 void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
-  absl::Format(&report,
-               "file {\n"
-               "  filename: \"%s\"\n",
-               absl::Utf8SafeCEscape(filename));
+  WriteLine("file {", report);
+  WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
   DefaultChunkReader<FdReader<>> chunk_reader(std::forward_as_tuple(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const absl::optional<Position> size = chunk_reader.Size();
     if (size != absl::nullopt) {
-      absl::Format(&report, "  file_size: %u\n", *size);
+      WriteLine("  file_size: ", *size, report);
     }
   }
   TextPrintOptions print_options;
@@ -296,7 +294,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        absl::Format(&errors, "%s\n", skipped_region.message());
+        WriteLine(skipped_region.message(), errors);
         continue;
       }
       break;
@@ -329,17 +327,17 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
           break;
       }
       if (ABSL_PREDICT_FALSE(!status.ok())) {
-        absl::Format(&errors, "%s\n", status.message());
+        WriteLine(status.message(), errors);
       }
     }
-    absl::Format(&report, "  chunk {\n");
+    WriteLine("  chunk {", report);
     TextPrintToWriter(chunk_summary, report, print_options).IgnoreError();
-    absl::Format(&report, "  }\n");
+    WriteLine("  }", report);
   }
-  absl::Format(&report, "}\n");
+  WriteLine('}', report);
   report.Flush();
   if (!chunk_reader.Close()) {
-    absl::Format(&errors, "%s\n", chunk_reader.status().message());
+    WriteLine(chunk_reader.status().message(), errors);
   }
 }
 

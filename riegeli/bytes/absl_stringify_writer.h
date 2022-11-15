@@ -27,6 +27,8 @@
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/prefix_limiting_writer.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
@@ -45,7 +47,8 @@ class AbslStringifyWriter : public BufferedWriter {
   explicit AbslStringifyWriter(Closed) noexcept : BufferedWriter(kClosed) {}
 
   // Will write to `*dest`.
-  explicit AbslStringifyWriter(Dest dest) : dest_(std::move(dest)) {}
+  explicit AbslStringifyWriter(Dest dest)
+      : dest_(std::move(RIEGELI_ASSERT_NOTNULL(dest))) {}
 
   AbslStringifyWriter(AbslStringifyWriter&& that) noexcept;
   AbslStringifyWriter& operator=(AbslStringifyWriter&& that) noexcept;
@@ -64,6 +67,36 @@ class AbslStringifyWriter : public BufferedWriter {
 
  private:
   Dest dest_{};
+};
+
+// Specialization of `AbslStringifyWriter<StringifySink*>` which avoids
+// wrapping a `Writer` in a `StringifySink` and adapting it back to a `Writer`.
+template <>
+class AbslStringifyWriter<StringifySink*> : public PrefixLimitingWriter<> {
+ public:
+  // Creates a closed `AbslStringifyWriter`.
+  explicit AbslStringifyWriter(Closed) noexcept
+      : PrefixLimitingWriter(kClosed) {}
+
+  // Will write to `*dest`.
+  explicit AbslStringifyWriter(StringifySink* dest)
+      : PrefixLimitingWriter(RIEGELI_ASSERT_NOTNULL(dest)->dest()),
+        dest_(dest) {}
+
+  AbslStringifyWriter(AbslStringifyWriter&& that) noexcept;
+  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) noexcept;
+
+  // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
+  // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(StringifySink* dest);
+
+  // Returns a pointer to the sink being written to. Unchanged by `Close()`.
+  StringifySink*& dest() { return dest_; }
+  StringifySink* const& dest() const { return dest_; }
+
+ private:
+  StringifySink* dest_{};
 };
 
 // Support CTAD.
@@ -115,6 +148,28 @@ bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   dest_->Append(src);
   move_start_pos(src.size());
   return true;
+}
+
+inline AbslStringifyWriter<StringifySink*>::AbslStringifyWriter(
+    AbslStringifyWriter&& that) noexcept
+    : PrefixLimitingWriter(static_cast<PrefixLimitingWriter&&>(that)),
+      dest_(that.dest_) {}
+
+inline AbslStringifyWriter<StringifySink*>& AbslStringifyWriter<
+    StringifySink*>::operator=(AbslStringifyWriter&& that) noexcept {
+  PrefixLimitingWriter::operator=(static_cast<PrefixLimitingWriter&&>(that));
+  dest_ = that.dest_;
+  return *this;
+}
+
+inline void AbslStringifyWriter<StringifySink*>::Reset(Closed) {
+  PrefixLimitingWriter::Reset(kClosed);
+  dest_ = nullptr;
+}
+
+inline void AbslStringifyWriter<StringifySink*>::Reset(StringifySink* dest) {
+  PrefixLimitingWriter::Reset(dest->dest());
+  dest_ = dest;
 }
 
 }  // namespace riegeli

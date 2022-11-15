@@ -21,11 +21,13 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -42,6 +44,84 @@
 namespace riegeli {
 
 class Reader;
+class Writer;
+
+// An sink for `AbslStringify()` which appends to a `Writer`.
+class StringifySink {
+ public:
+  // Creates a dummy `StringifySink`. It must not be used.
+  StringifySink() = default;
+
+  // Will write to `*dest`.
+  explicit StringifySink(Writer* dest) : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+
+  StringifySink(StringifySink&& that) = default;
+  StringifySink& operator=(StringifySink&& that) = default;
+
+  // Returns the `Writer` being written to.
+  Writer* dest() const { return dest_; }
+
+  void Append(size_t length, char src);
+  void Append(absl::string_view src);
+  friend void AbslFormatFlush(StringifySink* dest, absl::string_view src) {
+    dest->Append(src);
+  }
+
+ private:
+  Writer* dest_ = nullptr;
+};
+
+// Checks if the type supports stringification using `AbslStringify()`.
+template <typename T, typename Enable = void>
+struct HasAbslStringify : std::false_type {};
+template <typename T>
+struct HasAbslStringify<
+    T, absl::void_t<decltype(AbslStringify(std::declval<StringifySink&>(),
+                                           std::declval<const T&>()))>>
+    : std::true_type {};
+
+// `StringifiedSize()` of a stringifiable value returns its size in `size_t` if
+// easily known, otherwise `void`.
+//
+// It has the same overloads as `Writer::Write()`, assuming that the parameter
+// is passed by const reference.
+inline size_t StringifiedSize(char src) { return 1; }
+#if __cpp_char8_t
+inline size_t StringifiedSize(char8_t src) { return 1; }
+#endif
+inline size_t StringifiedSize(absl::string_view src) { return src.size(); }
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t StringifiedSize(const char* src) {
+  return std::strlen(src);
+}
+inline size_t StringifiedSize(const Chain& src) { return src.size(); }
+inline size_t StringifiedSize(const absl::Cord& src) { return src.size(); }
+void StringifiedSize(signed char);
+void StringifiedSize(unsigned char);
+void StringifiedSize(short src);
+void StringifiedSize(unsigned short src);
+void StringifiedSize(int src);
+void StringifiedSize(unsigned src);
+void StringifiedSize(long src);
+void StringifiedSize(unsigned long src);
+void StringifiedSize(long long src);
+void StringifiedSize(unsigned long long src);
+void StringifiedSize(float);
+void StringifiedSize(double);
+void StringifiedSize(long double);
+template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+void StringifiedSize(const Src&);
+void StringifiedSize(bool) = delete;
+void StringifiedSize(wchar_t) = delete;
+void StringifiedSize(char16_t) = delete;
+void StringifiedSize(char32_t) = delete;
+
+// `IsStringifiable` checks if the type is an appropriate argument for
+// `Writer::Write()`, `riegeli::Write(Writer&)`, and `riegeli::WriteLine()`.
+template <typename T, typename Enable = void>
+struct IsStringifiable : std::false_type {};
+template <typename T>
+struct IsStringifiable<T, absl::void_t<decltype(riegeli::StringifiedSize(
+                              std::declval<const T&>()))>> : std::true_type {};
 
 // Abstract class `Writer` writes sequences of bytes to a destination. The
 // nature of the destination depends on the particular class derived from
@@ -142,13 +222,15 @@ class Writer : public Object {
   // Invariant: if `!ok()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
-  // Writes a single character or byte to the buffer or the destination.
+  ABSL_DEPRECATED("Use Write() instead")
+  bool WriteChar(char src) { return Write(src); }
+
+  // Writes a single byte to the buffer or the destination.
   //
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  bool WriteChar(char src);
-  bool WriteByte(uint8_t src);
+  bool WriteByte(uint8_t src) { return Write(static_cast<char>(src)); }
 
   // Writes a fixed number of bytes from `src` to the buffer and/or the
   // destination.
@@ -160,7 +242,13 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
   //  * `false` - failure (less than `src.size()` bytes written, `!ok()`)
+  bool Write(char src);
+#if __cpp_char8_t
+  bool Write(char8_t src) { return Write(static_cast<char>(src)); }
+#endif
   bool Write(absl::string_view src);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  bool Write(const char* src) { return Write(absl::string_view(src)); }
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   bool Write(Src&& src);
@@ -168,6 +256,48 @@ class Writer : public Object {
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
+
+  // Writes a stringified value to the buffer and/or the destination.
+  //
+  // Return values:
+  //  * `true`  - success
+  //  * `false` - failure (`!ok()`)
+  bool Write(signed char src);
+  bool Write(unsigned char src);
+  bool Write(short src);
+  bool Write(unsigned short src);
+  bool Write(int src);
+  bool Write(unsigned src);
+  bool Write(long src);
+  bool Write(unsigned long src);
+  bool Write(long long src);
+  bool Write(unsigned long long src);
+  bool Write(float src);
+  bool Write(double src);
+  bool Write(long double src);
+  template <typename Src,
+            std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+  bool Write(Src&& src);
+
+  // Other integer types are is not supported. Delete overloads to avoid
+  // implicit conversions.
+  bool Write(bool src) = delete;
+  bool Write(wchar_t src) = delete;
+  bool Write(char16_t src) = delete;
+  bool Write(char32_t src) = delete;
+
+  // Writes stringified values to the buffer and/or the destination.
+  //
+  // Return values:
+  //  * `true`  - success
+  //  * `false` - failure (`!ok()`)
+  template <
+      typename... Srcs,
+      std::enable_if_t<
+          absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
+                            IsStringifiable<Srcs>...>::value,
+          int> = 0>
+  bool Write(Srcs&&... srcs);
 
   // Writes the given number of zero bytes to the buffer and/or the destination.
   //
@@ -437,6 +567,23 @@ class Writer : public Object {
   virtual Reader* ReadModeImpl(Position initial_pos);
 
  private:
+#if !__cpp_fold_expressions
+  template <size_t index, typename... Srcs,
+            std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+      std::tuple<Srcs...>&& srcs) {
+    return Write(std::forward<std::tuple_element_t<index, std::tuple<Srcs...>>>(
+               std::get<index>(srcs))) &&
+           WriteInternal<index + 1>(std::move(srcs));
+  }
+  template <size_t index, typename... Srcs,
+            std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+      std::tuple<Srcs...>&& srcs) {
+    return true;
+  }
+#endif
+
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
@@ -484,6 +631,12 @@ class AssociatedReader {
 };
 
 // Implementation details follow.
+
+inline void StringifySink::Append(size_t length, char src) {
+  dest_->WriteChars(length, src);
+}
+
+inline void StringifySink::Append(absl::string_view src) { dest_->Write(src); }
 
 inline Writer::Writer(Writer&& that) noexcept
     : Object(static_cast<Object&&>(that)),
@@ -567,15 +720,11 @@ inline void Writer::set_buffer(char* start, size_t start_to_limit,
   limit_ = start + start_to_limit;
 }
 
-inline bool Writer::WriteChar(char src) {
+inline bool Writer::Write(char src) {
   if (ABSL_PREDICT_FALSE(!Push())) return false;
   *cursor() = src;
   move_cursor(1);
   return true;
-}
-
-inline bool Writer::WriteByte(uint8_t src) {
-  return WriteChar(static_cast<char>(src));
 }
 
 inline bool Writer::Write(absl::string_view src) {
@@ -669,6 +818,27 @@ inline bool Writer::Write(absl::Cord&& src) {
   }
   AssertInitialized(start(), start_to_cursor());
   return WriteSlow(std::move(src));
+}
+
+template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>
+inline bool Writer::Write(Src&& src) {
+  StringifySink sink(this);
+  AbslStringify(sink, std::forward<Src>(src));
+  return ok();
+}
+
+template <
+    typename... Srcs,
+    std::enable_if_t<
+        absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
+                          IsStringifiable<Srcs>...>::value,
+        int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
+#if __cpp_fold_expressions
+  return (Write(std::forward<Srcs>(srcs)) && ...);
+#else
+  return WriteInternal<0>(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
+#endif
 }
 
 inline bool Writer::WriteZeros(Position length) {

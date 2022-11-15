@@ -31,6 +31,7 @@ cc_binary(
         "//riegeli/chunk_encoding:decompressor",
         "//riegeli/chunk_encoding:field_projection",
         "//riegeli/chunk_encoding:transpose_decoder",
+        "//riegeli/lines:line_writing",
         "//riegeli/messages:message_parse",
         "//riegeli/messages:text_print",
         "//riegeli/records:chunk_reader",
@@ -43,7 +44,6 @@ cc_binary(
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -72,6 +72,7 @@ cc_binary(
         "//riegeli/bytes:fd_writer",
         "//riegeli/bytes:std_io",
         "//riegeli/bytes:writer",
+        "//riegeli/lines:line_writing",
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",
         "//riegeli/records:record_writer",

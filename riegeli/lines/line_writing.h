@@ -15,15 +15,17 @@
 #ifndef RIEGELI_LINES_LINE_WRITING_H_
 #define RIEGELI_LINES_LINE_WRITING_H_
 
-#include <string>
+#include <stddef.h>
+
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/chain.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -65,73 +67,80 @@ class WriteLineOptions {
 // Return values:
 //  * `true`  - success
 //  * `false` - failure (`!ok()`)
-bool WriteLine(absl::string_view src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-bool WriteLine(Src&& src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-bool WriteLine(const Chain& src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-bool WriteLine(Chain&& src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-bool WriteLine(const absl::Cord& src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-bool WriteLine(absl::Cord&& src, Writer& dest,
-               WriteLineOptions options = WriteLineOptions());
-bool WriteLine(Writer& dest, WriteLineOptions options = WriteLineOptions());
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_convertible<GetTypeFromEndT<1, Args&&...>, Writer&>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>>::value,
+              int> = 0>
+bool WriteLine(Args&&... args);
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_convertible<GetTypeFromEndT<1, Args&&...>,
+                                      WriteLineOptions>,
+                  std::is_convertible<GetTypeFromEndT<2, Args&&...>, Writer&>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<2, Args&&...>,
+                                       IsStringifiable>>::value,
+              int> = 0>
+bool WriteLine(Args&&... args);
 
 // Implementation details follow.
 
-inline bool WriteLine(absl::string_view src, Writer& dest,
-                      WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
-  return WriteLine(dest, options);
-}
+namespace write_line_internal {
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline bool WriteLine(Src&& src, Writer& dest, WriteLineOptions options) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
-  return WriteLine(dest, options);
-}
-
-inline bool WriteLine(const Chain& src, Writer& dest,
-                      WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
-  return WriteLine(dest, options);
-}
-
-inline bool WriteLine(Chain&& src, Writer& dest, WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
-  return WriteLine(dest, options);
-}
-
-inline bool WriteLine(const absl::Cord& src, Writer& dest,
-                      WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
-  return WriteLine(dest, options);
-}
-
-inline bool WriteLine(absl::Cord&& src, Writer& dest,
-                      WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
-  return WriteLine(dest, options);
-}
-
-inline bool WriteLine(Writer& dest, WriteLineOptions options) {
+template <typename... Srcs, size_t... indices>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
+    std::tuple<Srcs...> srcs, Writer& dest, WriteLineOptions options,
+    std::index_sequence<indices...>) {
+  if (ABSL_PREDICT_FALSE(
+          !dest.Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
+    return false;
+  }
   switch (options.newline()) {
     case WriteLineOptions::Newline::kLf:
-      return dest.WriteChar('\n');
+      return dest.Write('\n');
     case WriteLineOptions::Newline::kCr:
-      return dest.WriteChar('\r');
+      return dest.Write('\r');
     case WriteLineOptions::Newline::kCrLf:
       return dest.Write("\r\n");
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());
+}
+
+}  // namespace write_line_internal
+
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_convertible<GetTypeFromEndT<1, Args&&...>, Writer&>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>>::value,
+              int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
+  return write_line_internal::WriteLineInternal(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...), WriteLineOptions(),
+      std::make_index_sequence<sizeof...(Args) - 1>());
+}
+
+template <typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_convertible<GetTypeFromEndT<1, Args&&...>,
+                                      WriteLineOptions>,
+                  std::is_convertible<GetTypeFromEndT<2, Args&&...>, Writer&>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<2, Args&&...>,
+                                       IsStringifiable>>::value,
+              int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
+  return write_line_internal::WriteLineInternal(
+      RemoveFromEnd<2>(std::forward<Args>(args)...),
+      GetFromEnd<2>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...),
+      std::make_index_sequence<sizeof...(Args) - 2>());
 }
 
 }  // namespace riegeli

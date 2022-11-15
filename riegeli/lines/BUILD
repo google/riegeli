@@ -26,10 +26,9 @@ cc_library(
     hdrs = ["line_writing.h"],
     deps = [
         "//riegeli/base:assert",
-        "//riegeli/base:chain",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/meta:type_traits",
     ],
 )

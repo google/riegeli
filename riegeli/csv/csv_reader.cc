@@ -124,13 +124,13 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
             for (std::vector<absl::string_view>::const_iterator iter =
                      missing_names.cbegin();
                  iter != missing_names.cend(); ++iter) {
-              if (iter != missing_names.cbegin()) message.WriteChar(',');
+              if (iter != missing_names.cbegin()) message.Write(',');
               csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
             }
             message.Write("; existing field names: ");
             for (CsvHeader::const_iterator iter = header_.cbegin();
                  iter != header_.cend(); ++iter) {
-              if (iter != header_.cbegin()) message.WriteChar(',');
+              if (iter != header_.cbegin()) message.Write(',');
               csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
             }
             message.Close();

@@ -97,7 +97,7 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
         "expressible: '",
         absl::CHexEscape(absl::string_view(&field[already_scanned], 1)), "'")));
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
   const char* start = field.data();
@@ -118,7 +118,7 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
           !dest.Write(absl::string_view(start, PtrDistance(start, limit))))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
   return true;

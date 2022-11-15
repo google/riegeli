@@ -249,6 +249,11 @@ inline A SaturatingIntCast(B value) {
 // type if addition would overflow.
 
 template <typename T, std::enable_if_t<std::is_unsigned<T>::value, int> = 0>
+constexpr T SaturatingAdd() {
+  return 0;
+}
+
+template <typename T, std::enable_if_t<std::is_unsigned<T>::value, int> = 0>
 constexpr T SaturatingAdd(T a) {
   return a;
 }

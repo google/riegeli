@@ -488,7 +488,7 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
       if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
       ++iter;
       if (iter == end_iter) break;
-      if (ABSL_PREDICT_FALSE(!dest.WriteChar(field_separator_))) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(field_separator_))) {
         return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
       }
     }

@@ -15,8 +15,13 @@
 #ifndef RIEGELI_BASE_TYPE_TRAITS_H_
 #define RIEGELI_BASE_TYPE_TRAITS_H_
 
+#include <stddef.h>
+
+#include <tuple>
 #include <type_traits>
 #include <utility>
+
+#include "absl/meta/type_traits.h"
 
 namespace riegeli {
 
@@ -30,6 +35,100 @@ struct type_identity {
 
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
+
+namespace type_traits_internal {
+
+// Transforms a `std::tuple` type to another `std::tuple` type by selecting
+// element types corresponding to the given `std::index_sequence`.
+template <typename Tuple, typename Indices>
+struct SelectTypesFromTuple;
+template <typename Tuple, size_t... indices>
+struct SelectTypesFromTuple<Tuple, std::index_sequence<indices...>> {
+  using type = std::tuple<std::tuple_element_t<indices, Tuple>...>;
+};
+
+// Selects element types from a `std::tuple` type corresponding to the given
+// `std::index_sequence`.
+template <typename Tuple, size_t... indices>
+std::tuple<std::tuple_element_t<indices, Tuple>...> SelectFromTuple(
+    Tuple&& tuple, std::index_sequence<indices...>) {
+  return std::tuple<std::tuple_element_t<indices, Tuple>...>(
+      std::forward<std::tuple_element_t<indices, Tuple>>(
+          std::get<indices>(tuple))...);
+}
+
+// SFINAE-friendly helper for `GetTypeFromEnd`.
+template <size_t reverse_index, typename Enable, typename... T>
+struct GetTypeFromEndImpl {};
+template <size_t reverse_index, typename... T>
+struct GetTypeFromEndImpl<
+    reverse_index,
+    std::enable_if_t<(reverse_index > 0 && reverse_index <= sizeof...(T))>,
+    T...> : std::tuple_element<sizeof...(T) - reverse_index, std::tuple<T...>> {
+};
+
+// SFINAE-friendly helper for `RemoveTypesFromEnd`.
+template <size_t num_from_end, typename Enable, typename... T>
+struct RemoveTypesFromEndImpl {};
+template <size_t num_from_end, typename... T>
+struct RemoveTypesFromEndImpl<
+    num_from_end, std::enable_if_t<(num_from_end <= sizeof...(T))>, T...>
+    : SelectTypesFromTuple<std::tuple<T...>, std::make_index_sequence<
+                                                 sizeof...(T) - num_from_end>> {
+};
+
+}  // namespace type_traits_internal
+
+// `GetTypeFromEnd<reverse_index, T...>::type` and
+// `GetTypeFromEndT<reverse_index, T...>` extract a type from a parameter pack
+// by its index from the end (1 = last).
+template <size_t reverse_index, typename... T>
+struct GetTypeFromEnd
+    : type_traits_internal::GetTypeFromEndImpl<reverse_index, void, T...> {};
+template <size_t reverse_index, typename... T>
+using GetTypeFromEndT = typename GetTypeFromEnd<reverse_index, T...>::type;
+
+// `GetFromEnd<reverse_index>(args...)` extracts an argument from a sequence of
+// arguments by its index from the end (1 = last).
+template <size_t reverse_index, typename... Args,
+          std::enable_if_t<
+              (reverse_index > 0 && reverse_index <= sizeof...(Args)), int> = 0>
+inline GetTypeFromEndT<reverse_index, Args&&...> GetFromEnd(Args&&... args) {
+  return std::get<sizeof...(Args) - reverse_index>(
+      std::tuple<Args&&...>(std::forward<Args>(args)...));
+}
+
+// `RemoveTypesFromEnd<num_from_end, T...>` transforms a parameter pack to a
+// `std::tuple` type by removing the given number of elements from the end.
+template <size_t num_from_end, typename... T>
+struct RemoveTypesFromEnd
+    : type_traits_internal::RemoveTypesFromEndImpl<num_from_end, void, T...> {};
+template <size_t num_from_end, typename... T>
+using RemoveTypesFromEndT =
+    typename RemoveTypesFromEnd<num_from_end, T...>::type;
+
+// `RemoveFromEnd<num_from_end>(args...)` transforms a sequence of arguments to
+// a `std::tuple` by removing the given number of arguments from the end.
+template <size_t num_from_end, typename... Args,
+          std::enable_if_t<(num_from_end <= sizeof...(Args)), int> = 0>
+inline RemoveTypesFromEndT<num_from_end, Args&&...> RemoveFromEnd(
+    Args&&... args) {
+  return type_traits_internal::SelectFromTuple(
+      std::tuple<Args&&...>(std::forward<Args>(args)...),
+      std::make_index_sequence<sizeof...(Args) - num_from_end>());
+}
+
+// `TupleElementsSatisfy<Tuple, Predicate>::value` and
+// `TupleElementsSatisfyV<Tuple, Predicate>::value` check if all element types
+// of a `std::tuple` type satisfy a predicate.
+template <typename Tuple, template <typename...> class Predicate>
+struct TupleElementsSatisfy;
+template <typename... T, template <typename...> class Predicate>
+struct TupleElementsSatisfy<std::tuple<T...>, Predicate>
+    : absl::conjunction<Predicate<T>...> {};
+template <typename Tuple, template <typename...> class Predicate>
+inline bool TupleElementsSatisfyV =
+    TupleElementsSatisfy<Tuple, Predicate>::value;
 
 #if __cpp_deduction_guides
 

@@ -154,13 +154,15 @@ class Reader : public Object {
   // `cursor()`.
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
+  ABSL_DEPRECATED("Use Read() instead")
+  bool ReadChar(char& dest) { return Read(dest); }
+
   // Reads a single byte from the buffer or the source.
   //
   // Return values:
   //  * `true`                 - success (`dest` is set)
   //  * `false` (when `ok()`)  - source ends (`dest` is undefined)
   //  * `false` (when `!ok()`) - failure (`dest` is undefined)
-  bool ReadChar(char& dest);
   bool ReadByte(uint8_t& dest);
 
   // Reads a fixed number of bytes from the buffer and/or the source to `dest`,
@@ -181,6 +183,7 @@ class Reader : public Object {
   //  * `true`                 - success (`length` bytes read)
   //  * `false` (when `ok()`)  - source ends (less than `length` bytes read)
   //  * `false` (when `!ok()`) - failure (less than `length` bytes read)
+  bool Read(char& dest);
   bool Read(size_t length, absl::string_view& dest);
   bool Read(size_t length, char* dest, size_t* length_read = nullptr);
   bool Read(size_t length, std::string& dest);
@@ -603,16 +606,16 @@ inline void Reader::set_buffer(const char* start, size_t start_to_limit,
   limit_ = start + start_to_limit;
 }
 
-inline bool Reader::ReadChar(char& dest) {
+inline bool Reader::ReadByte(uint8_t& dest) {
   if (ABSL_PREDICT_FALSE(!Pull())) return false;
-  dest = *cursor();
+  dest = static_cast<uint8_t>(*cursor());
   move_cursor(1);
   return true;
 }
 
-inline bool Reader::ReadByte(uint8_t& dest) {
+inline bool Reader::Read(char& dest) {
   if (ABSL_PREDICT_FALSE(!Pull())) return false;
-  dest = static_cast<uint8_t>(*cursor());
+  dest = *cursor();
   move_cursor(1);
   return true;
 }

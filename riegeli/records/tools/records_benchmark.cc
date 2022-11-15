@@ -52,6 +52,7 @@
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/std_io.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/lines/line_writing.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
@@ -219,8 +220,8 @@ bool Benchmarks::ReadFile(absl::string_view filename,
   riegeli::FdReader<> file_reader(filename);
   if (ABSL_PREDICT_FALSE(!file_reader.ok())) {
     riegeli::StdErr errors;
-    absl::Format(&errors, "Could not open file: %s\n",
-                 file_reader.status().ToString());
+    riegeli::WriteLine("Could not open file: ", file_reader.status().ToString(),
+                       errors);
     errors.Close();
     std::exit(1);
   }
@@ -231,7 +232,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
       RIEGELI_CHECK(tfrecord_recognizer.Close())
           << tfrecord_recognizer.status();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
-      absl::Format(&report, "Reading TFRecord: %s\n", filename);
+      riegeli::WriteLine("Reading TFRecord: ", filename, report);
       report.Flush();
       return ReadTFRecord(filename, record_reader_options, records,
                           size_limiter);
@@ -243,14 +244,14 @@ bool Benchmarks::ReadFile(absl::string_view filename,
     if (chunk_reader.CheckFileFormat()) {
       RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.status();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
-      absl::Format(&report, "Reading Riegeli/records: %s\n", filename);
+      riegeli::WriteLine("Reading Riegeli/records: ", filename, report);
       report.Flush();
       return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
                          records, size_limiter);
     }
   }
   riegeli::StdErr errors;
-  absl::Format(&errors, "Unknown file format: %s\n", filename);
+  riegeli::WriteLine("Unknown file format: ", filename, errors);
   errors.Close();
   std::exit(1);
 }
@@ -402,9 +403,8 @@ void Benchmarks::RunAll(riegeli::Writer& report) {
                "");
   absl::Format(&report, "%-*s    %%     MB/s MB/s  MB/s MB/s\n",
                max_name_width_, "Format");
-  absl::Format(
-      &report, "%s\n",
-      std::string(riegeli::IntCast<size_t>(max_name_width_ + 30), '-'));
+  report.WriteChars(riegeli::IntCast<size_t>(max_name_width_ + 30), '-');
+  riegeli::WriteLine(report);
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
@@ -504,12 +504,12 @@ void Benchmarks::RunOne(
   for (const std::array<Stats*, 2>& stats_cpu_real :
        {std::array<Stats*, 2>{{&writing_cpu_speed, &writing_real_speed}},
         std::array<Stats*, 2>{{&reading_cpu_speed, &reading_real_speed}}}) {
-    absl::Format(&report, " ");
+    report.Write(' ');
     for (Stats* const stats : stats_cpu_real) {
       absl::Format(&report, " %4.0f", stats->Median());
     }
   }
-  absl::Format(&report, "\n");
+  riegeli::WriteLine(report);
 }
 
 const char kUsage[] =
@@ -533,7 +533,7 @@ int main(int argc, char** argv) {
   std::vector<std::string> records;
   if (args.size() <= 1) {
     riegeli::StdErr std_err;
-    absl::Format(&std_err, "%s\n", kUsage);
+    riegeli::WriteLine(kUsage, std_err);
     std_err.Close();
     return 1;
   }
