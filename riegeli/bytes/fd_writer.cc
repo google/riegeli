@@ -45,6 +45,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -102,16 +103,24 @@ void FdWriterBase::InitializePos(int dest, int flags,
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "has_independent_pos_ not reset";
-  RIEGELI_ASSERT(supports_size_ == LazyBoolState::kFalse)
-      << "Failed precondition of FdWriterBase::InitializePos(): "
-         "supports_size_ not reset";
-  RIEGELI_ASSERT(!supports_random_access_)
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(!supports_read_mode_)
+  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
-  supports_read_mode_ = (flags & O_ACCMODE) == O_RDWR;
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "random_access_status_ not reset";
+  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "read_mode_status_ not reset";
+  if ((flags & O_ACCMODE) != O_RDWR) {
+    supports_read_mode_ = LazyBoolState::kFalse;
+    static const NoDestructor<absl::Status> status(
+        absl::UnimplementedError("Flags do not include O_RDWR"));
+    read_mode_status_ = *status;
+  }
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(independent_pos != absl::nullopt)) {
       Fail(absl::InvalidArgumentError(
@@ -125,6 +134,12 @@ void FdWriterBase::InitializePos(int dest, int flags,
       return;
     }
     set_start_pos(*assumed_pos);
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "FileWriterBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
+    read_mode_status_.Update(random_access_status_);
   } else if (independent_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE((flags & O_APPEND) != 0)) {
       Fail(
@@ -133,32 +148,41 @@ void FdWriterBase::InitializePos(int dest, int flags,
       return;
     }
     has_independent_pos_ = true;
-    supports_size_ = LazyBoolState::kTrue;
-    supports_random_access_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
       return;
     }
     set_start_pos(*independent_pos);
+    supports_random_access_ = LazyBoolState::kTrue;
+    if (supports_read_mode_ == LazyBoolState::kUnknown) {
+      supports_read_mode_ = LazyBoolState::kTrue;
+    }
   } else {
     const off_t file_pos =
         lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
     if (file_pos < 0) {
       // Random access is not supported. Assume the current position as 0.
+      supports_random_access_ = LazyBoolState::kFalse;
+      supports_read_mode_ = LazyBoolState::kFalse;
+      random_access_status_ = FailedOperationStatus("lseek()");
+      read_mode_status_.Update(random_access_status_);
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
     if ((flags & O_APPEND) != 0) {
       // `lseek(SEEK_END)` succeeded.
-      supports_size_ = LazyBoolState::kTrue;
-      // Random access is not supported because writing in append mode always
-      // happens at the end. `supports_random_access_` is left as `false`.
+      supports_random_access_ = LazyBoolState::kFalse;
+      if (supports_read_mode_ == LazyBoolState::kUnknown) {
+        supports_read_mode_ = LazyBoolState::kTrue;
+      }
+      static const NoDestructor<absl::Status> status(
+          absl::UnimplementedError("Append mode excludes random access"));
+      random_access_status_ = *status;
     } else {
       // `lseek(SEEK_CUR)` succeeded, and `lseek(SEEK_END)` will be checked
-      // later.
-      supports_size_ = LazyBoolState::kUnknown;
-      supports_random_access_ = true;
+      // later. `supports_random_access_` and `supports_read_mode_` are left as
+      // `LazyBoolState::kUnknown`.
     }
   }
   BeginRun();
@@ -166,15 +190,22 @@ void FdWriterBase::InitializePos(int dest, int flags,
 
 void FdWriterBase::Done() {
   BufferedWriter::Done();
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
 }
 
-bool FdWriterBase::FailOperation(absl::string_view operation) {
+inline absl::Status FdWriterBase::FailedOperationStatus(
+    absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdWriterBase::FailOperation(): "
+      << "Failed precondition of FdWriterBase::FailedOperationStatus(): "
          "zero errno";
-  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
+  return ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
+}
+
+bool FdWriterBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
 absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -184,37 +215,74 @@ absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
   return BufferedWriter::AnnotateStatusImpl(std::move(status));
 }
 
-bool FdWriterBase::supports_size() {
-  switch (supports_size_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
+inline absl::Status FdWriterBase::SizeStatus() {
+  RIEGELI_ASSERT(ok()) << "Failed precondition of FdWriterBase::SizeStatus(): "
+                       << status();
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+    // "/sys" files do not support random access. It is hard to reliably
+    // recognize them, so `FdWriter` checks the filename.
+    //
+    // Some "/proc" files also do not support random access, but they are
+    // recognized by a failing `lseek(SEEK_END)`.
+    return absl::UnimplementedError("/sys files do not support random access");
   }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-      // "/sys" files do not support random access. It is hard to reliably
-      // recognize them, so `FdWriter` checks the filename.
-      //
-      // Some "/proc" files also do not support random access, but they are
-      // recognized by a failing `lseek(SEEK_END)`.
-    } else {
-      const int dest = DestFd();
-      if (lseek(dest, 0, SEEK_END) < 0) {
-        // Not supported.
-      } else if (ABSL_PREDICT_FALSE(
-                     lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) < 0)) {
-        FailOperation("lseek()");
-      } else {
-        supported = true;
-      }
-    }
+  const int dest = DestFd();
+  if (lseek(dest, 0, SEEK_END) < 0) {
+    // Not supported.
+    return FailedOperationStatus("lseek()");
   }
-  supports_size_ = supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
+  // Supported.
+  if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
+                         0)) {
+    FailOperation("lseek()");
+    return status();
+  }
+  return absl::OkStatus();
+}
+
+bool FdWriterBase::SupportsRandomAccess() {
+  if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
+    return supports_random_access_ == LazyBoolState::kTrue;
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Status status = SizeStatus();
+  if (!status.ok()) {
+    // Not supported.
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    random_access_status_ = std::move(status);
+    read_mode_status_.Update(random_access_status_);
+    return false;
+  }
+  // Supported.
+  supports_random_access_ = LazyBoolState::kTrue;
+  if (supports_read_mode_ == LazyBoolState::kUnknown) {
+    supports_read_mode_ = LazyBoolState::kTrue;
+  }
+  return true;
+}
+
+bool FdWriterBase::SupportsReadMode() {
+  if (ABSL_PREDICT_TRUE(supports_read_mode_ != LazyBoolState::kUnknown)) {
+    return supports_read_mode_ == LazyBoolState::kTrue;
+  }
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+      << "Failed invariant of FdWriterBase: "
+         "supports_random_access_ is resolved but supports_read_mode_ is not";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Status status = SizeStatus();
+  if (!status.ok()) {
+    // Not supported.
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    random_access_status_ = std::move(status);
+    read_mode_status_ = random_access_status_;
+    return false;
+  }
+  // Supported.
+  supports_random_access_ = LazyBoolState::kTrue;
+  supports_read_mode_ = LazyBoolState::kTrue;
+  return true;
 }
 
 inline bool FdWriterBase::WriteMode() {
@@ -311,10 +379,9 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return false;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
@@ -338,10 +405,9 @@ absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   const int dest = DestFd();
@@ -384,10 +450,9 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_read_mode())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::ReadModeBehindBuffer(initial_pos);
+  if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsReadMode())) {
+    if (ok()) Fail(read_mode_status_);
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   const int dest = DestFd();

@@ -110,10 +110,13 @@ class FileReaderBase : public Reader {
   absl::string_view filename() const { return filename_; }
 
   bool ToleratesReadingAhead() override {
-    return buffer_sizer_.read_all_hint() || !filename_.empty();
+    return buffer_sizer_.read_all_hint() ||
+           FileReaderBase::SupportsRandomAccess();
   }
   bool SupportsRandomAccess() override { return !filename_.empty(); }
-  bool SupportsNewReader() override { return !filename_.empty(); }
+  bool SupportsNewReader() override {
+    return FileReaderBase::SupportsRandomAccess();
+  }
 
  protected:
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
@@ -132,8 +135,6 @@ class FileReaderBase : public Reader {
   bool InitializeFilename(absl::string_view filename);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
-                                         absl::string_view operation);
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -152,6 +153,10 @@ class FileReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
+                                         absl::string_view operation);
+  static absl::Status NoRandomAccessStatus();
+
   void set_exact_size(absl::optional<Position> exact_size) {
     buffer_sizer_.set_exact_size(exact_size);
   }

@@ -132,9 +132,9 @@ class CFileReaderBase : public BufferedReader {
   absl::string_view filename() const { return filename_; }
 
   bool ToleratesReadingAhead() override {
-    return read_all_hint() || supports_random_access();
+    return read_all_hint() || CFileReaderBase::SupportsRandomAccess();
   }
-  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
 
  protected:
   explicit CFileReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -152,17 +152,20 @@ class CFileReaderBase : public BufferedReader {
   FILE* OpenFile(absl::string_view filename, const char* mode);
   void InitializePos(FILE* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access() const { return supports_random_access_; }
 
+  void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
+  absl::Status FailedOperationStatus(absl::string_view operation);
+
   std::string filename_;
   bool growing_source_ = false;
   bool supports_random_access_ = false;
+  absl::Status random_access_status_;
 
   // Invariant:
   //   `limit_pos() <= std::numeric_limits<cfile_internal::Offset>::max()`
@@ -298,14 +301,17 @@ inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
       growing_source_(that.growing_source_),
-      supports_random_access_(that.supports_random_access_) {}
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, false)),
+      random_access_status_(std::move(that.random_access_status_)) {}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
   growing_source_ = that.growing_source_;
-  supports_random_access_ = that.supports_random_access_;
+  supports_random_access_ = std::exchange(that.supports_random_access_, false);
+  random_access_status_ = std::move(that.random_access_status_);
   return *this;
 }
 
@@ -314,6 +320,7 @@ inline void CFileReaderBase::Reset(Closed) {
   filename_ = std::string();
   growing_source_ = false;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
 }
 
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
@@ -322,6 +329,7 @@ inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
   // `filename_` will be set by `Initialize()` or `OpenFile()`.
   growing_source_ = growing_source;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
 }
 
 template <typename Src>

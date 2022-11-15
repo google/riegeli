@@ -85,9 +85,9 @@ class IStreamReaderBase : public BufferedReader {
   virtual const std::istream* SrcStream() const = 0;
 
   bool ToleratesReadingAhead() override {
-    return read_all_hint() || supports_random_access();
+    return read_all_hint() || IStreamReaderBase::SupportsRandomAccess();
   }
-  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
 
  protected:
   explicit IStreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -102,15 +102,18 @@ class IStreamReaderBase : public BufferedReader {
   void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access() const { return supports_random_access_; }
 
+  void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
+  absl::Status FailedOperationStatus(absl::string_view operation);
+
   bool growing_source_ = false;
   bool supports_random_access_ = false;
+  absl::Status random_access_status_;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -220,13 +223,16 @@ inline IStreamReaderBase::IStreamReaderBase(const BufferOptions& buffer_options,
 inline IStreamReaderBase::IStreamReaderBase(IStreamReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
-      supports_random_access_(that.supports_random_access_) {}
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, false)),
+      random_access_status_(std::move(that.random_access_status_)) {}
 
 inline IStreamReaderBase& IStreamReaderBase::operator=(
     IStreamReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
-  supports_random_access_ = that.supports_random_access_;
+  supports_random_access_ = std::exchange(that.supports_random_access_, false);
+  random_access_status_ = std::move(that.random_access_status_);
   return *this;
 }
 
@@ -234,6 +240,7 @@ inline void IStreamReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
 }
 
 inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
@@ -241,6 +248,7 @@ inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -327,7 +335,7 @@ template <typename Src>
 bool IStreamReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SyncImpl(sync_type))) return false;
   if ((sync_type != SyncType::kFromObject || src_.is_owning()) &&
-      supports_random_access()) {
+      IStreamReaderBase::SupportsRandomAccess()) {
     if (ABSL_PREDICT_FALSE(src_->sync() != 0)) {
       return FailOperation("istream::sync()");
     }

@@ -46,6 +46,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -91,6 +92,9 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of FdReaderBase::InitializePos(): "
+         "random_access_status_ not reset";
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(independent_pos != absl::nullopt)) {
       Fail(absl::InvalidArgumentError(
@@ -104,19 +108,25 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
       return;
     }
     set_limit_pos(*assumed_pos);
+    // `supports_random_access_` is left as `false`.
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "FdReaderBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
   } else if (independent_pos != absl::nullopt) {
     has_independent_pos_ = true;
-    supports_random_access_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
       return;
     }
     set_limit_pos(*independent_pos);
+    supports_random_access_ = true;
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (file_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      // `supports_random_access_` is left as `false`.
+      random_access_status_ = FailedOperationStatus("lseek()");
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
@@ -128,30 +138,46 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
       //
       // Some "/proc" files also do not support random access, but they are
       // recognized by a failing `lseek(SEEK_END)`.
+      //
+      // `supports_random_access_` is left as `false`.
+      random_access_status_ =
+          absl::UnimplementedError("/sys files do not support random access");
     } else {
       const off_t file_size = lseek(src, 0, SEEK_END);
       if (file_size < 0) {
-        // Not supported.
+        // Not supported. `supports_random_access_` is left as `false`.
+        random_access_status_ = FailedOperationStatus("lseek()");
       } else {
+        // Supported.
+        supports_random_access_ = true;
         if (ABSL_PREDICT_FALSE(
                 lseek(src, IntCast<off_t>(limit_pos()), SEEK_SET) < 0)) {
           FailOperation("lseek()");
           return;
         }
         if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-        supports_random_access_ = true;
       }
     }
   }
   BeginRun();
 }
 
-bool FdReaderBase::FailOperation(absl::string_view operation) {
+void FdReaderBase::Done() {
+  BufferedReader::Done();
+  random_access_status_ = absl::OkStatus();
+}
+
+inline absl::Status FdReaderBase::FailedOperationStatus(
+    absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdReaderBase::FailOperation(): "
+      << "Failed precondition of FdReaderBase::FailedOperationStatus(): "
          "zero errno";
-  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
+  return ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
+}
+
+bool FdReaderBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
 absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
@@ -212,7 +238,7 @@ inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(supports_random_access())
+  RIEGELI_ASSERT(FdReaderBase::SupportsRandomAccess())
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "random access not supported";
   if (!has_independent_pos_) {
@@ -231,7 +257,11 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
+  if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {
+    if (ABSL_PREDICT_FALSE(new_pos < start_pos())) {
+      if (ok()) Fail(random_access_status_);
+      return false;
+    }
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -259,10 +289,9 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> FdReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedReader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
@@ -277,10 +306,9 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
 }
 
 std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedReader::NewReaderImpl(initial_pos);
+  if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.

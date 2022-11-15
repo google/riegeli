@@ -113,7 +113,9 @@ class PythonReader : public BufferedReader {
 
   const Exception& exception() const { return exception_; }
 
-  bool ToleratesReadingAhead() override { return supports_random_access_; }
+  bool ToleratesReadingAhead() override {
+    return PythonReader::SupportsRandomAccess();
+  }
   bool SupportsRandomAccess() override { return supports_random_access_; }
 
   // For implementing `tp_traverse` of objects containing `PythonReader`.
@@ -132,6 +134,7 @@ class PythonReader : public BufferedReader {
   PythonPtrLocking src_;
   bool owns_src_ = false;
   bool supports_random_access_ = false;
+  absl::Status random_access_status_;
   Exception exception_;
   PythonPtrLocking read_function_;
   absl::string_view read_function_name_;
@@ -142,7 +145,9 @@ inline PythonReader::PythonReader(PythonReader&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       src_(std::move(that.src_)),
       owns_src_(that.owns_src_),
-      supports_random_access_(that.supports_random_access_),
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, false)),
+      random_access_status_(std::move(that.random_access_status_)),
       exception_(std::move(that.exception_)),
       read_function_(std::move(that.read_function_)),
       read_function_name_(that.read_function_name_),
@@ -152,7 +157,8 @@ inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   src_ = std::move(that.src_);
   owns_src_ = that.owns_src_;
-  supports_random_access_ = that.supports_random_access_;
+  supports_random_access_ = std::exchange(that.supports_random_access_, false);
+  random_access_status_ = std::move(that.random_access_status_);
   exception_ = std::move(that.exception_);
   read_function_ = std::move(that.read_function_);
   read_function_name_ = that.read_function_name_;

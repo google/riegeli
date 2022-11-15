@@ -93,9 +93,9 @@ class OStreamWriterBase : public BufferedWriter {
   virtual std::ostream* DestStream() = 0;
   virtual const std::ostream* DestStream() const = 0;
 
-  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsRandomAccess() override;
   bool SupportsTruncate() override { return false; }
-  bool SupportsReadMode() override { return supports_read_mode(); }
+  bool SupportsReadMode() override;
 
  protected:
   explicit OStreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -107,9 +107,9 @@ class OStreamWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos,
                   bool assumed_append);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   // Returns the stream pointer as `std::istream*` if the static type of the
   // destination derives from `std::istream`, otherwise returns `nullptr`.
@@ -123,15 +123,17 @@ class OStreamWriterBase : public BufferedWriter {
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
+  // Encodes a `bool` or a marker that the value is not resolved yet.
+  enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
 
-  bool supports_random_access();
-  bool supports_read_mode();
+  absl::Status FailedOperationStatus(absl::string_view operation);
+
   bool WriteMode();
 
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
-  LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
+  LazyBoolState supports_random_access_ = LazyBoolState::kUnknown;
+  LazyBoolState supports_read_mode_ = LazyBoolState::kUnknown;
+  absl::Status random_access_status_;
+  absl::Status read_mode_status_;
 
   AssociatedReader<IStreamReader<std::istream*>> associated_reader_;
   bool read_mode_ = false;
@@ -240,16 +242,24 @@ inline OStreamWriterBase::OStreamWriterBase(const BufferOptions& buffer_options)
 
 inline OStreamWriterBase::OStreamWriterBase(OStreamWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      supports_random_access_(that.supports_random_access_),
-      supports_read_mode_(that.supports_read_mode_),
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, LazyBoolState::kUnknown)),
+      supports_read_mode_(
+          std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown)),
+      random_access_status_(std::move(that.random_access_status_)),
+      read_mode_status_(std::move(that.read_mode_status_)),
       associated_reader_(std::move(that.associated_reader_)),
       read_mode_(that.read_mode_) {}
 
 inline OStreamWriterBase& OStreamWriterBase::operator=(
     OStreamWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  supports_random_access_ = that.supports_random_access_;
-  supports_read_mode_ = that.supports_read_mode_;
+  supports_random_access_ =
+      std::exchange(that.supports_random_access_, LazyBoolState::kUnknown);
+  supports_read_mode_ =
+      std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown);
+  random_access_status_ = std::move(that.random_access_status_);
+  read_mode_status_ = std::move(that.read_mode_status_);
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
   return *this;
@@ -257,16 +267,20 @@ inline OStreamWriterBase& OStreamWriterBase::operator=(
 
 inline void OStreamWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  supports_random_access_ = LazyBoolState::kFalse;
-  supports_read_mode_ = LazyBoolState::kFalse;
+  supports_random_access_ = LazyBoolState::kUnknown;
+  supports_read_mode_ = LazyBoolState::kUnknown;
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
   read_mode_ = false;
 }
 
 inline void OStreamWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  supports_random_access_ = LazyBoolState::kFalse;
-  supports_read_mode_ = LazyBoolState::kFalse;
+  supports_random_access_ = LazyBoolState::kUnknown;
+  supports_read_mode_ = LazyBoolState::kUnknown;
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
   read_mode_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the

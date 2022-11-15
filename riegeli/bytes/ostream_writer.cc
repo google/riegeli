@@ -31,6 +31,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/istream_reader.h"
@@ -44,12 +45,18 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
                                    bool assumed_append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
-      << "Failed precondition of OStreamWriterBase::Initialize(): "
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+      << "Failed precondition of OStreamWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kFalse)
-      << "Failed precondition of OStreamWriterBase::Initialize(): "
+  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+      << "Failed precondition of OStreamWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+         "random_access_status_ not reset";
+  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+         "read_mode_status_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     // Either constructing the stream failed or the stream was already in a
     // failed state. In any case `OStreamWriterBase` should fail.
@@ -64,33 +71,48 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
       return;
     }
     set_start_pos(*assumed_pos);
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "OStreamWriterBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
+    read_mode_status_ = *status;
   } else {
+    errno = 0;
     const std::streamoff stream_pos = dest->tellp();
     if (stream_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      supports_random_access_ = LazyBoolState::kFalse;
+      supports_read_mode_ = LazyBoolState::kFalse;
+      random_access_status_ = FailedOperationStatus("ostream::tellp()");
+      read_mode_status_ = random_access_status_;
       return;
     }
     set_start_pos(IntCast<Position>(stream_pos));
     if (assumed_append) {
-      // Random access is not supported because writing in append mode always
-      // happens at the end. `supports_random_access_` is left as
-      // `LazyBoolState::kFalse`.
+      supports_random_access_ = LazyBoolState::kFalse;
+      // `supports_read_mode_` is left as `LazyBoolState::kUnknown`.
+      static const NoDestructor<absl::Status> status(
+          absl::UnimplementedError("Append mode excludes random access"));
+      random_access_status_ = *status;
     } else {
       // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
-      // checked later.
-      supports_random_access_ = LazyBoolState::kUnknown;
+      // checked later. `supports_random_access_` and `supports_read_mode_` are
+      // left as `LazyBoolState::kUnknown`.
     }
-    supports_read_mode_ = LazyBoolState::kUnknown;
   }
   BeginRun();
 }
 
 void OStreamWriterBase::Done() {
   BufferedWriter::Done();
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
 }
 
-bool OStreamWriterBase::FailOperation(absl::string_view operation) {
+inline absl::Status OStreamWriterBase::FailedOperationStatus(
+    absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.
@@ -99,75 +121,72 @@ bool OStreamWriterBase::FailOperation(absl::string_view operation) {
   // the operation may fail without setting `errno`.
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
-  return Fail(error_number == 0 ? absl::UnknownError(message)
-                                : ErrnoToStatus(error_number, message));
+  return error_number == 0 ? absl::UnknownError(message)
+                           : ErrnoToStatus(error_number, message);
 }
 
-bool OStreamWriterBase::supports_random_access() {
-  switch (supports_random_access_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
-  }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    std::ostream& dest = *DestStream();
-    dest.seekp(0, std::ios_base::end);
-    if (dest.fail()) {
-      // Not supported.
-      dest.clear(dest.rdstate() & ~std::ios_base::failbit);
-    } else {
-      errno = 0;
-      dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-      if (ABSL_PREDICT_FALSE(dest.fail())) {
-        FailOperation("ostream::seekp()");
-      } else {
-        supported = true;
-      }
-    }
-  }
-  supports_random_access_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
+bool OStreamWriterBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
-bool OStreamWriterBase::supports_read_mode() {
-  switch (supports_read_mode_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
+bool OStreamWriterBase::SupportsRandomAccess() {
+  if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
+    return supports_random_access_ == LazyBoolState::kTrue;
   }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    std::istream* const src = SrcStream();
-    if (src != nullptr) {
-      const std::streamoff stream_pos = src->tellg();
-      if (stream_pos >= 0) {
-        src->seekg(0, std::ios_base::end);
-        if (src->fail()) {
-          src->clear(src->rdstate() & ~std::ios_base::failbit);
-        } else {
-          std::ostream& dest = *DestStream();
-          errno = 0;
-          dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-          if (ABSL_PREDICT_FALSE(dest.fail())) {
-            FailOperation("ostream::seekp()");
-          } else {
-            supported = true;
-          }
-        }
-      }
-    }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  std::ostream& dest = *DestStream();
+  errno = 0;
+  dest.seekp(0, std::ios_base::end);
+  if (dest.fail()) {
+    // Not supported.
+    supports_random_access_ = LazyBoolState::kFalse;
+    random_access_status_ = FailedOperationStatus("ostream::seekp()");
+    dest.clear(dest.rdstate() & ~std::ios_base::failbit);
+    return false;
   }
-  supports_read_mode_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
+  // Supported.
+  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::seekp()");
+  supports_random_access_ = LazyBoolState::kTrue;
+  return true;
+}
+
+bool OStreamWriterBase::SupportsReadMode() {
+  if (ABSL_PREDICT_TRUE(supports_read_mode_ != LazyBoolState::kUnknown)) {
+    return supports_read_mode_ == LazyBoolState::kTrue;
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  std::istream* const src = SrcStream();
+  if (src == nullptr) {
+    supports_read_mode_ = LazyBoolState::kFalse;
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "Read mode requires the static type of the destination "
+        "deriving from std::istream"));
+    read_mode_status_ = *status;
+    return false;
+  }
+  errno = 0;
+  const std::streamoff stream_pos = src->tellg();
+  if (stream_pos < 0) {
+    // Not supported.
+    supports_read_mode_ = LazyBoolState::kFalse;
+    read_mode_status_ = FailedOperationStatus("istream::tellg()");
+    return false;
+  }
+  src->seekg(0, std::ios_base::end);
+  if (src->fail()) {
+    // Not supported.
+    supports_read_mode_ = LazyBoolState::kFalse;
+    read_mode_status_ = FailedOperationStatus("istream::seekg()");
+    src->clear(src->rdstate() & ~std::ios_base::failbit);
+    return false;
+  }
+  // Supported.
+  supports_read_mode_ = LazyBoolState::kTrue;
+  std::ostream& dest = *DestStream();
+  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::seekp()");
+  return true;
 }
 
 inline bool OStreamWriterBase::WriteMode() {
@@ -224,10 +243,9 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return false;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
@@ -259,10 +277,9 @@ absl::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
@@ -290,10 +307,9 @@ Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_read_mode())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::ReadModeBehindBuffer(initial_pos);
+  if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsReadMode())) {
+    if (ok()) Fail(read_mode_status_);
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   std::istream& src = *SrcStream();

@@ -38,6 +38,7 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 
@@ -52,6 +53,10 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
   dest_.reset(dest);
   if (options.assumed_pos() != absl::nullopt) {
     set_start_pos(*options.assumed_pos());
+    // `supports_random_access_` is left as `false`.
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "PythonWriter::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
   } else {
     static constexpr Identifier id_seekable("seekable");
     const PythonPtr seekable_result(
@@ -61,9 +66,16 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
       return;
     }
     const int seekable_is_true = PyObject_IsTrue(seekable_result.get());
-    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) return;
+    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) {
+      FailOperation("PyObject_IsTrue() after seekable()");
+      return;
+    }
     if (seekable_is_true == 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      // `supports_random_access_` is left as `false`.
+      static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+          "seekable() is False which excludes random access"));
+      random_access_status_ = *status;
       return;
     }
     static constexpr Identifier id_tell("tell");
@@ -87,6 +99,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
 
 void PythonWriter::Done() {
   BufferedWriter::Done();
+  random_access_status_ = absl::OkStatus();
   if (owns_dest_ && dest_ != nullptr) {
     PythonLock lock;
     static constexpr Identifier id_close("close");
@@ -220,10 +233,9 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return false;
   }
   PythonLock lock;
   if (new_pos > start_pos()) {
@@ -253,7 +265,7 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
 inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of PythonWriter::SizeInternal(): " << status();
-  RIEGELI_ASSERT(supports_random_access_)
+  RIEGELI_ASSERT(PythonWriter::SupportsRandomAccess())
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
@@ -301,12 +313,11 @@ absl::optional<Position> PythonWriter::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
@@ -329,12 +340,11 @@ bool PythonWriter::TruncateBehindBuffer(Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::TruncateBehindBuffer(new_size);
+  if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return false;
   }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;

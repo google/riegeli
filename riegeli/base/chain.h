@@ -1651,7 +1651,7 @@ inline const Chain::BlockPtr* Chain::BlockPtrPtr::as_ptr() const {
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
   if (is_special()) {
     return BlockPtrPtr(IntCast<uintptr_t>(IntCast<ptrdiff_t>(repr_) +
-                                          n * ptrdiff_t{sizeof(RawBlock*)}));
+                                          n* ptrdiff_t{sizeof(RawBlock*)}));
   }
   return BlockPtrPtr::from_ptr(as_ptr() + n);
 }
@@ -1659,7 +1659,7 @@ inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator-(ptrdiff_t n) const {
   if (is_special()) {
     return BlockPtrPtr(IntCast<uintptr_t>(IntCast<ptrdiff_t>(repr_) -
-                                          n * ptrdiff_t{sizeof(RawBlock*)}));
+                                          n* ptrdiff_t{sizeof(RawBlock*)}));
   }
   return BlockPtrPtr::from_ptr(as_ptr() - n);
 }

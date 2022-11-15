@@ -39,6 +39,7 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
@@ -52,6 +53,10 @@ PythonReader::PythonReader(PyObject* src, Options options)
   src_.reset(src);
   if (options.assumed_pos() != absl::nullopt) {
     set_limit_pos(*options.assumed_pos());
+    // `supports_random_access_` is left as `false`.
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "PythonReader::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
   } else {
     static constexpr Identifier id_seekable("seekable");
     const PythonPtr seekable_result(
@@ -61,9 +66,16 @@ PythonReader::PythonReader(PyObject* src, Options options)
       return;
     }
     const int seekable_is_true = PyObject_IsTrue(seekable_result.get());
-    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) return;
+    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) {
+      FailOperation("PyObject_IsTrue() after seekable()");
+      return;
+    }
     if (seekable_is_true == 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      // `supports_random_access_` is left as `false`.
+      static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+          "seekable() is False which excludes random access"));
+      random_access_status_ = *status;
       return;
     }
     static constexpr Identifier id_tell("tell");
@@ -87,6 +99,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
 
 void PythonReader::Done() {
   BufferedReader::Done();
+  random_access_status_ = absl::OkStatus();
   if (owns_src_ && src_ != nullptr) {
     PythonLock lock;
     static constexpr Identifier id_close("close");
@@ -245,12 +258,14 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
+  if (ABSL_PREDICT_FALSE(!PythonReader::SupportsRandomAccess())) {
+    if (ABSL_PREDICT_FALSE(new_pos < start_pos())) {
+      if (ok()) Fail(random_access_status_);
+      return false;
+    }
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   PythonLock lock;
   if (new_pos > limit_pos()) {
     // Seeking forwards.
@@ -279,7 +294,7 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
 inline absl::optional<Position> PythonReader::SizeInternal() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of PythonReader::SizeInternal(): " << status();
-  RIEGELI_ASSERT(supports_random_access_)
+  RIEGELI_ASSERT(PythonReader::SupportsRandomAccess())
       << "Failed precondition of PythonReader::SizeInternal(): "
          "random access not supported";
   PythonLock::AssertHeld();
@@ -321,12 +336,11 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
 }
 
 absl::optional<Position> PythonReader::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedReader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(!PythonReader::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
+  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;

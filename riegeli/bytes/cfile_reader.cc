@@ -45,6 +45,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -116,6 +117,9 @@ void CFileReaderBase::InitializePos(FILE* src,
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of CFileReaderBase::InitializePos(): "
+         "random_access_status_ not reset";
   if (ABSL_PREDICT_FALSE(ferror(src))) {
     FailOperation("FILE");
     return;
@@ -128,10 +132,17 @@ void CFileReaderBase::InitializePos(FILE* src,
       return;
     }
     set_limit_pos(*assumed_pos);
+    // `supports_random_access_` is left as `false`.
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "CFileReaderBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
   } else {
     const cfile_internal::Offset file_pos = cfile_internal::FTell(src);
     if (file_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      // `supports_random_access_` is left as `false`.
+      random_access_status_ =
+          FailedOperationStatus(cfile_internal::kFTellFunctionName);
       clearerr(src);
       return;
     }
@@ -141,10 +152,16 @@ void CFileReaderBase::InitializePos(FILE* src,
     if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
       // "/sys" files do not support random access. It is hard to reliably
       // recognize them, so `CFileReader` checks the filename.
+      //
+      // `supports_random_access_` is left as `false`.
+      random_access_status_ =
+          absl::UnimplementedError("/sys files do not support random access");
     } else {
       FILE* const src = SrcFile();
       if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
-        // Not supported.
+        // Not supported. `supports_random_access_` is left as `false`.
+        random_access_status_ =
+            FailedOperationStatus(cfile_internal::kFSeekFunctionName);
         clearerr(src);
       } else {
         const cfile_internal::Offset file_size = cfile_internal::FTell(src);
@@ -165,9 +182,14 @@ void CFileReaderBase::InitializePos(FILE* src,
           // reliably recognize them using the `FILE` API, so `CFileReader`
           // checks the filename. Random access is assumed to be unsupported if
           // they claim to have a zero size.
+          //
+          // `supports_random_access_` is left as `false`.
+          random_access_status_ = absl::UnimplementedError(
+              "/proc files claiming zero size do not support random access");
         } else {
-          if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
+          // Supported.
           supports_random_access_ = true;
+          if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
         }
       }
     }
@@ -175,12 +197,22 @@ void CFileReaderBase::InitializePos(FILE* src,
   BeginRun();
 }
 
-bool CFileReaderBase::FailOperation(absl::string_view operation) {
+void CFileReaderBase::Done() {
+  BufferedReader::Done();
+  random_access_status_ = absl::OkStatus();
+}
+
+inline absl::Status CFileReaderBase::FailedOperationStatus(
+    absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of CFileReaderBase::FailOperation(): "
+      << "Failed precondition of CFileReaderBase::FailedOperationStatus(): "
          "zero errno";
-  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
+  return ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
+}
+
+bool CFileReaderBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
 absl::Status CFileReaderBase::AnnotateStatusImpl(absl::Status status) {
@@ -240,7 +272,11 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
+  if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {
+    if (ABSL_PREDICT_FALSE(new_pos < start_pos())) {
+      if (ok()) Fail(random_access_status_);
+      return false;
+    }
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -283,10 +319,9 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> CFileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedReader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();

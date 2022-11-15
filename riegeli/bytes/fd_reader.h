@@ -168,10 +168,12 @@ class FdReaderBase : public BufferedReader {
   absl::string_view filename() const { return filename_; }
 
   bool ToleratesReadingAhead() override {
-    return read_all_hint() || supports_random_access();
+    return read_all_hint() || FdReaderBase::SupportsRandomAccess();
   }
-  bool SupportsRandomAccess() override { return supports_random_access(); }
-  bool SupportsNewReader() override { return supports_random_access(); }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
+  bool SupportsNewReader() override {
+    return FdReaderBase::SupportsRandomAccess();
+  }
 
  protected:
   explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -191,8 +193,8 @@ class FdReaderBase : public BufferedReader {
   void InitializePos(int src, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access() const { return supports_random_access_; }
 
+  void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
@@ -200,12 +202,15 @@ class FdReaderBase : public BufferedReader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  absl::Status FailedOperationStatus(absl::string_view operation);
+
   bool SeekInternal(int src, Position new_pos);
 
   std::string filename_;
   bool has_independent_pos_ = false;
   bool growing_source_ = false;
   bool supports_random_access_ = false;
+  absl::Status random_access_status_;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -350,14 +355,17 @@ inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
       filename_(std::exchange(that.filename_, std::string())),
       has_independent_pos_(that.has_independent_pos_),
       growing_source_(that.growing_source_),
-      supports_random_access_(that.supports_random_access_) {}
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, false)),
+      random_access_status_(std::move(that.random_access_status_)) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
   has_independent_pos_ = that.has_independent_pos_;
   growing_source_ = that.growing_source_;
-  supports_random_access_ = that.supports_random_access_;
+  supports_random_access_ = std::exchange(that.supports_random_access_, false);
+  random_access_status_ = std::move(that.random_access_status_);
   return *this;
 }
 
@@ -367,6 +375,7 @@ inline void FdReaderBase::Reset(Closed) {
   has_independent_pos_ = false;
   growing_source_ = false;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
 }
 
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
@@ -376,6 +385,7 @@ inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
   has_independent_pos_ = false;
   growing_source_ = growing_source;
   supports_random_access_ = false;
+  random_access_status_ = absl::OkStatus();
 }
 
 template <typename Src>

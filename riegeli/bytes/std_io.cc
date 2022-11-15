@@ -53,7 +53,7 @@ void StdIn::Reset(Options options) {
 void StdIn::Done() {
   RIEGELI_ASSERT(StdInPending().empty())
       << "Multiple instances of StdIn in use at a time";
-  if (available() > 0 && !supports_random_access()) {
+  if (available() > 0 && !SupportsRandomAccess()) {
     StdInPending() = SaveBuffer();
   }
   FdReader::Done();

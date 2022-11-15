@@ -128,6 +128,7 @@ class PythonWriter : public BufferedWriter {
   PythonPtrLocking dest_;
   bool owns_dest_ = false;
   bool supports_random_access_ = false;
+  absl::Status random_access_status_;
   Exception exception_;
   PythonPtrLocking write_function_;
   bool use_bytes_ = false;
@@ -137,7 +138,9 @@ inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dest_(std::move(that.dest_)),
       owns_dest_(that.owns_dest_),
-      supports_random_access_(that.supports_random_access_),
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, false)),
+      random_access_status_(std::move(that.random_access_status_)),
       exception_(std::move(that.exception_)),
       write_function_(std::move(that.write_function_)),
       use_bytes_(that.use_bytes_) {}
@@ -146,7 +149,8 @@ inline PythonWriter& PythonWriter::operator=(PythonWriter&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   dest_ = std::move(that.dest_);
   owns_dest_ = that.owns_dest_;
-  supports_random_access_ = that.supports_random_access_;
+  supports_random_access_ = std::exchange(that.supports_random_access_, false);
+  random_access_status_ = std::move(that.random_access_status_);
   exception_ = std::move(that.exception_);
   write_function_ = std::move(that.write_function_);
   use_bytes_ = that.use_bytes_;

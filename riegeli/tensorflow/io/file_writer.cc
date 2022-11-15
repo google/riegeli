@@ -297,10 +297,10 @@ bool FileWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return Writer::ReadModeImpl(initial_pos);
+  if (ABSL_PREDICT_FALSE(!FileWriterBase::SupportsReadMode())) {
+    Fail(absl::UnimplementedError(
+        "A non-empty filename required for read mode"));
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;

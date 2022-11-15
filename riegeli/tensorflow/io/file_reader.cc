@@ -105,8 +105,8 @@ void FileReaderBase::Done() {
   buffer_ = ChainBlock();
 }
 
-bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
-                                   absl::string_view operation) {
+inline bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
+                                          absl::string_view operation) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileReaderBase::FailOperation(): "
          "status not failed";
@@ -114,6 +114,11 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
                             status.error_message()),
                absl::StrCat(operation, " failed")));
+}
+
+inline absl::Status FileReaderBase::NoRandomAccessStatus() {
+  return absl::UnimplementedError(
+      "A non-empty filename required for random access");
 }
 
 absl::Status FileReaderBase::AnnotateStatusImpl(absl::Status status) {
@@ -610,7 +615,13 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SeekSlow(new_pos);
+  if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
+    if (ABSL_PREDICT_FALSE(new_pos < start_pos())) {
+      if (ok()) Fail(NoRandomAccessStatus());
+      return false;
+    }
+    return Reader::SeekSlow(new_pos);
+  }
   buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
@@ -642,10 +653,9 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> FileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return Reader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(NoRandomAccessStatus());
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
@@ -663,10 +673,9 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
 }
 
 std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return Reader::NewReaderImpl(initial_pos);
+  if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(NoRandomAccessStatus());
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.

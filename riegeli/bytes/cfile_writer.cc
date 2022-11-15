@@ -42,6 +42,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -78,12 +79,18 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename, const char* mode) {
 void CFileWriterBase::InitializePos(FILE* dest,
                                     absl::optional<Position> assumed_pos,
                                     bool append) {
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kFalse)
+  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of CFileWriterBase::InitializePos(): "
+         "random_access_status_ not reset";
+  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+      << "Failed precondition of CFileWriterBase::InitializePos(): "
+         "read_mode_status_ not reset";
   if (ABSL_PREDICT_FALSE(ferror(dest))) {
     FailOperation("FILE");
     return;
@@ -96,10 +103,21 @@ void CFileWriterBase::InitializePos(FILE* dest,
       return;
     }
     set_start_pos(*assumed_pos);
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "CFileWriterBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
+    read_mode_status_ = *status;
   } else {
     if (append) {
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
         // Random access is not supported. Assume the current position as 0.
+        supports_random_access_ = LazyBoolState::kFalse;
+        supports_read_mode_ = LazyBoolState::kFalse;
+        random_access_status_ =
+            FailedOperationStatus(cfile_internal::kFSeekFunctionName);
+        read_mode_status_ = random_access_status_;
         clearerr(dest);
         return;
       }
@@ -107,34 +125,48 @@ void CFileWriterBase::InitializePos(FILE* dest,
     const cfile_internal::Offset file_pos = cfile_internal::FTell(dest);
     if (file_pos < 0) {
       // Random access is not supported. Assume the current position as 0.
+      supports_random_access_ = LazyBoolState::kFalse;
+      supports_read_mode_ = LazyBoolState::kFalse;
+      random_access_status_ =
+          FailedOperationStatus(cfile_internal::kFTellFunctionName);
+      read_mode_status_ = random_access_status_;
       clearerr(dest);
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
     if (append) {
-      // Random access is not supported because writing in append mode always
-      // happens at the end. `supports_random_access_` is left as
-      // `LazyBoolState::kFalse`.
+      supports_random_access_ = LazyBoolState::kFalse;
+      // `supports_read_mode_` is left as `LazyBoolState::kUnknown`.
+      static const NoDestructor<absl::Status> status(
+          absl::UnimplementedError("Append mode excludes random access"));
+      random_access_status_ = *status;
     } else {
       // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
-      supports_random_access_ = LazyBoolState::kUnknown;
+      // `supports_random_access_` and `supports_read_mode_` are left as
+      // `LazyBoolState::kUnknown`.
     }
-    supports_read_mode_ = LazyBoolState::kUnknown;
   }
   BeginRun();
 }
 
 void CFileWriterBase::Done() {
   BufferedWriter::Done();
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
 }
 
-bool CFileWriterBase::FailOperation(absl::string_view operation) {
+inline absl::Status CFileWriterBase::FailedOperationStatus(
+    absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of CFileWriterBase::FailOperation(): "
+      << "Failed precondition of CFileWriterBase::FailedOperationStatus(): "
          "zero errno";
-  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
+  return ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
+}
+
+bool CFileWriterBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
 absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -144,81 +176,114 @@ absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
   return BufferedWriter::AnnotateStatusImpl(std::move(status));
 }
 
-bool CFileWriterBase::supports_random_access() {
-  switch (supports_random_access_) {
-    case LazyBoolState::kFalse:
-      return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
+inline absl::Status CFileWriterBase::SizeStatus() {
+  RIEGELI_ASSERT(ok())
+      << "Failed precondition of CFileWriterBase::SizeStatus(): " << status();
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+    // "/sys" files do not support random access. It is hard to reliably
+    // recognize them, so `CFileWriter` checks the filename.
+    return absl::UnimplementedError("/sys files do not support random access");
   }
-  bool supported = false;
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-      // "/sys" files do not support random access. It is hard to reliably
-      // recognize them, so `CFileWriter` checks the filename.
-    } else {
-      FILE* const dest = DestFile();
-      if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
-        // Not supported.
-        clearerr(dest);
-      } else {
-        const cfile_internal::Offset file_size = cfile_internal::FTell(dest);
-        if (ABSL_PREDICT_FALSE(file_size < 0)) {
-          FailOperation(cfile_internal::kFTellFunctionName);
-        } else if (ABSL_PREDICT_FALSE(
-                       cfile_internal::FSeek(
-                           dest, IntCast<cfile_internal::Offset>(limit_pos()),
-                           SEEK_SET) != 0)) {
-          FailOperation(cfile_internal::kFSeekFunctionName);
-        } else if (file_size == 0 &&
-                   ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-          // Some "/proc" files do not support random access. It is hard to
-          // reliably recognize them using the `FILE` API, so `CFileWriter`
-          // checks the filename. Random access is assumed to be unsupported if
-          // they claim to have a zero size.
-        } else {
-          supported = true;
-        }
-      }
-    }
+  FILE* const dest = DestFile();
+  if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
+    // Not supported.
+    const absl::Status status =
+        FailedOperationStatus(cfile_internal::kFSeekFunctionName);
+    clearerr(dest);
+    return status;
   }
-  supports_random_access_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
+  const cfile_internal::Offset file_size = cfile_internal::FTell(dest);
+  if (ABSL_PREDICT_FALSE(file_size < 0)) {
+    FailOperation(cfile_internal::kFTellFunctionName);
+    return status();
+  }
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+                             dest, IntCast<cfile_internal::Offset>(limit_pos()),
+                             SEEK_SET) != 0)) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
+    return status();
+  }
+  if (file_size == 0 &&
+      ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
+    // Some "/proc" files do not support random access. It is hard to
+    // reliably recognize them using the `FILE` API, so `CFileWriter`
+    // checks the filename. Random access is assumed to be unsupported if
+    // they claim to have a zero size.
+    return absl::UnimplementedError(
+        "/proc files claiming zero size do not support random access");
+  }
+  // Supported.
+  return absl::OkStatus();
 }
 
-bool CFileWriterBase::supports_read_mode() {
-  switch (supports_read_mode_) {
-    case LazyBoolState::kFalse:
+bool CFileWriterBase::SupportsRandomAccess() {
+  if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
+    return supports_random_access_ == LazyBoolState::kTrue;
+  }
+  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+      << "Failed invariant of CFileWriterBase: "
+         "supports_read_mode_ is resolved but supports_random_access_ is not";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Status status = SizeStatus();
+  if (!status.ok()) {
+    // Not supported.
+    supports_random_access_ = LazyBoolState::kFalse;
+    supports_read_mode_ = LazyBoolState::kFalse;
+    random_access_status_ = std::move(status);
+    read_mode_status_ = random_access_status_;
+    return false;
+  }
+  // Supported.
+  supports_random_access_ = LazyBoolState::kTrue;
+  return true;
+}
+
+bool CFileWriterBase::SupportsReadMode() {
+  if (ABSL_PREDICT_TRUE(supports_read_mode_ != LazyBoolState::kUnknown)) {
+    return supports_read_mode_ == LazyBoolState::kTrue;
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (supports_random_access_ == LazyBoolState::kUnknown) {
+    // It is unknown whether even size is supported.
+    absl::Status status = SizeStatus();
+    if (!status.ok()) {
+      // Not supported.
+      supports_random_access_ = LazyBoolState::kFalse;
+      supports_read_mode_ = LazyBoolState::kFalse;
+      random_access_status_ = std::move(status);
+      read_mode_status_ = random_access_status_;
       return false;
-    case LazyBoolState::kTrue:
-      return true;
-    case LazyBoolState::kUnknown:
-      break;
-  }
-  bool supported = false;
-  if (supports_random_access() && ABSL_PREDICT_TRUE(is_open())) {
-    FILE* const dest = DestFile();
-    if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
-      clearerr(dest);
-    } else {
-      char buf[1];
-      fread(buf, 1, 1, dest);
-      if (!ferror(dest)) supported = true;
-      clearerr(dest);
-      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
-                                 dest,
-                                 IntCast<cfile_internal::Offset>(start_pos()),
-                                 SEEK_SET) != 0)) {
-        return FailOperation(cfile_internal::kFSeekFunctionName);
-      }
     }
+    // Size is supported.
+    supports_random_access_ = LazyBoolState::kTrue;
   }
-  supports_read_mode_ =
-      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
-  return supported;
+
+  FILE* const dest = DestFile();
+  if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
+    // Read mode is not supported.
+    supports_read_mode_ = LazyBoolState::kFalse;
+    read_mode_status_ =
+        FailedOperationStatus(cfile_internal::kFSeekFunctionName);
+    clearerr(dest);
+    return false;
+  }
+  char buf[1];
+  fread(buf, 1, 1, dest);
+  if (ferror(dest)) {
+    // Not supported.
+    supports_read_mode_ = LazyBoolState::kFalse;
+    read_mode_status_ = FailedOperationStatus("fread()");
+    clearerr(dest);
+  } else {
+    // Supported.
+    supports_read_mode_ = LazyBoolState::kTrue;
+  }
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+                             dest, IntCast<cfile_internal::Offset>(start_pos()),
+                             SEEK_SET) != 0)) {
+    return FailOperation(cfile_internal::kFSeekFunctionName);
+  }
+  return supports_read_mode_ == LazyBoolState::kTrue;
 }
 
 inline bool CFileWriterBase::WriteMode() {
@@ -276,10 +341,9 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return false;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
@@ -312,10 +376,9 @@ absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   read_mode_ = false;
@@ -342,10 +405,9 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_read_mode())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedWriter::ReadModeBehindBuffer(initial_pos);
+  if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsReadMode())) {
+    if (ok()) Fail(read_mode_status_);
+    return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   FILE* const dest = DestFile();

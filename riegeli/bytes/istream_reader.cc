@@ -30,6 +30,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
@@ -42,6 +43,9 @@ void IStreamReaderBase::Initialize(std::istream* src,
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of IStreamReaderBase::Initialize(): "
          "supports_random_access_ not reset";
+  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+      << "Failed precondition of IStreamReaderBase::Initialize(): "
+         "random_access_status_ not reset";
   if (ABSL_PREDICT_FALSE(src->fail())) {
     // Either constructing the stream failed or the stream was already in a
     // failed state. In any case `IStreamReaderBase` should fail.
@@ -59,10 +63,17 @@ void IStreamReaderBase::Initialize(std::istream* src,
       return;
     }
     set_limit_pos(*assumed_pos);
+    // `supports_random_access_` is left as `false`.
+    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
+        "IStreamReaderBase::Options::assumed_pos() excludes random access"));
+    random_access_status_ = *status;
   } else {
+    errno = 0;
     const std::streamoff stream_pos = src->tellg();
     if (stream_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
+      // `supports_random_access_` is left as `false`.
+      random_access_status_ = FailedOperationStatus("istream::tellg()");
       return;
     }
     set_limit_pos(IntCast<Position>(stream_pos));
@@ -70,10 +81,12 @@ void IStreamReaderBase::Initialize(std::istream* src,
     // Check if random access is supported.
     src->seekg(0, std::ios_base::end);
     if (src->fail()) {
-      // Not supported.
+      // Not supported. `supports_random_access_` is left as `false`.
+      random_access_status_ = FailedOperationStatus("istream::seekg()");
       src->clear(src->rdstate() & ~std::ios_base::failbit);
     } else {
-      errno = 0;
+      // Supported.
+      supports_random_access_ = true;
       const std::streamoff stream_size = src->tellg();
       if (ABSL_PREDICT_FALSE(stream_size < 0)) {
         FailOperation("istream::tellg()");
@@ -85,13 +98,18 @@ void IStreamReaderBase::Initialize(std::istream* src,
         return;
       }
       if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
-      supports_random_access_ = true;
     }
   }
   BeginRun();
 }
 
-bool IStreamReaderBase::FailOperation(absl::string_view operation) {
+void IStreamReaderBase::Done() {
+  BufferedReader::Done();
+  random_access_status_ = absl::OkStatus();
+}
+
+inline absl::Status IStreamReaderBase::FailedOperationStatus(
+    absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.
@@ -100,8 +118,12 @@ bool IStreamReaderBase::FailOperation(absl::string_view operation) {
   // the operation may fail without setting `errno`.
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
-  return Fail(error_number == 0 ? absl::UnknownError(message)
-                                : ErrnoToStatus(error_number, message));
+  return error_number == 0 ? absl::UnknownError(message)
+                           : ErrnoToStatus(error_number, message);
+}
+
+bool IStreamReaderBase::FailOperation(absl::string_view operation) {
+  return Fail(FailedOperationStatus(operation));
 }
 
 bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -195,7 +217,11 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
+  if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {
+    if (ABSL_PREDICT_FALSE(new_pos < start_pos())) {
+      if (ok()) Fail(random_access_status_);
+      return false;
+    }
     return BufferedReader::SeekBehindBuffer(new_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -237,10 +263,9 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> IStreamReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    // Delegate to base class version which fails, to avoid duplicating the
-    // failure message here.
-    return BufferedReader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {
+    if (ok()) Fail(random_access_status_);
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();

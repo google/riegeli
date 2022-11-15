@@ -125,9 +125,9 @@ class CFileWriterBase : public BufferedWriter {
   // `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsRandomAccess() override;
   bool SupportsTruncate() override { return false; }
-  bool SupportsReadMode() override { return supports_read_mode(); }
+  bool SupportsReadMode() override;
 
  protected:
   explicit CFileWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -145,8 +145,6 @@ class CFileWriterBase : public BufferedWriter {
   void InitializePos(FILE* dest, absl::optional<Position> assumed_pos,
                      bool append);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool supports_random_access();
-  bool supports_read_mode();
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -157,14 +155,29 @@ class CFileWriterBase : public BufferedWriter {
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState : uint8_t { kFalse, kTrue, kUnknown };
+  // Encodes a `bool` or a marker that the value is not resolved yet.
+  enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
+
+  absl::Status FailedOperationStatus(absl::string_view operation);
+  // Lazily determined condition shared by `SupportsRandomAccess()` and
+  // `SupportsReadMode()`.
+  absl::Status SizeStatus();
 
   bool WriteMode();
 
   std::string filename_;
-  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
-  LazyBoolState supports_read_mode_ = LazyBoolState::kFalse;
+  LazyBoolState supports_random_access_ = LazyBoolState::kUnknown;
+  // If `supports_read_mode_ == LazyBoolState::kUnknown`,
+  // then at least size is known to be supported
+  // when `supports_random_access_ != LazyBoolState::kUnknown`
+  // (no matter whether `LazyBoolState::kTrue` or LazyBoolState::kFalse`).
+  //
+  // Invariant:
+  //   if `supports_random_access_ == LazyBoolState::kUnknown` then
+  //       `supports_read_mode_ == LazyBoolState::kUnknown`
+  LazyBoolState supports_read_mode_ = LazyBoolState::kUnknown;
+  absl::Status random_access_status_;
+  absl::Status read_mode_status_;
 
   AssociatedReader<CFileReader<UnownedCFile>> associated_reader_;
   bool read_mode_ = false;
@@ -305,8 +318,12 @@ inline CFileWriterBase::CFileWriterBase(const BufferOptions& buffer_options)
 inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       filename_(std::exchange(that.filename_, std::string())),
-      supports_random_access_(that.supports_random_access_),
-      supports_read_mode_(that.supports_read_mode_),
+      supports_random_access_(
+          std::exchange(that.supports_random_access_, LazyBoolState::kUnknown)),
+      supports_read_mode_(
+          std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown)),
+      random_access_status_(std::move(that.random_access_status_)),
+      read_mode_status_(std::move(that.read_mode_status_)),
       associated_reader_(std::move(that.associated_reader_)),
       read_mode_(that.read_mode_) {}
 
@@ -314,8 +331,12 @@ inline CFileWriterBase& CFileWriterBase::operator=(
     CFileWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   filename_ = std::exchange(that.filename_, std::string());
-  supports_random_access_ = that.supports_random_access_;
-  supports_read_mode_ = that.supports_read_mode_;
+  supports_random_access_ =
+      std::exchange(that.supports_random_access_, LazyBoolState::kUnknown);
+  supports_read_mode_ =
+      std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown);
+  random_access_status_ = std::move(that.random_access_status_);
+  read_mode_status_ = std::move(that.read_mode_status_);
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
   return *this;
@@ -324,8 +345,10 @@ inline CFileWriterBase& CFileWriterBase::operator=(
 inline void CFileWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   filename_ = std::string();
-  supports_random_access_ = LazyBoolState::kFalse;
-  supports_read_mode_ = LazyBoolState::kFalse;
+  supports_random_access_ = LazyBoolState::kUnknown;
+  supports_read_mode_ = LazyBoolState::kUnknown;
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
   read_mode_ = false;
 }
@@ -333,8 +356,10 @@ inline void CFileWriterBase::Reset(Closed) {
 inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
   // `filename_` will be set by `Initialize()` or `OpenFile()`.
-  supports_random_access_ = LazyBoolState::kFalse;
-  supports_read_mode_ = LazyBoolState::kFalse;
+  supports_random_access_ = LazyBoolState::kUnknown;
+  supports_read_mode_ = LazyBoolState::kUnknown;
+  random_access_status_ = absl::OkStatus();
+  read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
   read_mode_ = false;
 }
