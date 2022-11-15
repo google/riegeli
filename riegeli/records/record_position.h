@@ -119,13 +119,15 @@ class RecordPosition {
   }
 
   // Default stringification by `absl::StrCat()` etc.
+  //
+  // Writes `self.ToString()` to `sink`.
   template <typename Sink>
   friend void AbslStringify(Sink& sink, RecordPosition self) {
     sink.Append(self.ToString());
   }
 
-  // Same as: `out << pos.ToString()`
-  friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
+  // Writes `self.DebugString()` to `out`.
+  friend std::ostream& operator<<(std::ostream& out, RecordPosition self);
 
  private:
   // Invariant:

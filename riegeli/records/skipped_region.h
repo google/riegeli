@@ -55,14 +55,15 @@ class SkippedRegion {
   std::string ToString() const;
 
   // Default stringification by `absl::StrCat()` etc.
+  //
+  // Writes `self.ToString()` to `sink`.
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const SkippedRegion& self) {
     sink.Append(self.ToString());
   }
 
-  // Same as: `out << skipped_region.ToString()`
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const SkippedRegion& skipped_region);
+  // Writes `self.ToString()` to `out`.
+  friend std::ostream& operator<<(std::ostream& out, const SkippedRegion& self);
 
  private:
   Position begin_ = 0;

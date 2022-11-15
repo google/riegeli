@@ -408,16 +408,16 @@ class CsvHeader {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `header.DebugString()` to `sink`.
+  // Writes `self.DebugString()` to `sink`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const CsvHeader& header) {
+  friend void AbslStringify(Sink& sink, const CsvHeader& self) {
     AbslStringifyWriter<Sink*> writer(&sink);
-    header.WriteDebugStringTo(writer);
+    self.WriteDebugStringTo(writer);
     writer.Close();
   }
 
-  // Writes `header.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvHeader& header);
+  // Writes `self.DebugString()` to `out`.
+  friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self);
 
  private:
   struct Payload : RefCountedBase<Payload> {
@@ -860,16 +860,16 @@ class CsvRecord {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `record.DebugString()` to `sink`.
+  // Writes `self.DebugString()` to `sink`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const CsvRecord& record) {
+  friend void AbslStringify(Sink& sink, const CsvRecord& self) {
     AbslStringifyWriter<Sink*> writer(&sink);
-    record.WriteDebugStringTo(writer);
+    self.WriteDebugStringTo(writer);
     writer.Close();
   }
 
-  // Writes `header.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvRecord& record);
+  // Writes `self.DebugString()` to `out`.
+  friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self);
 
  private:
   friend class CsvReaderBase;

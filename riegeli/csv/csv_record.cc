@@ -313,9 +313,9 @@ std::string CsvHeader::DebugString() const {
   return result;
 }
 
-std::ostream& operator<<(std::ostream& out, const CsvHeader& header) {
+std::ostream& operator<<(std::ostream& out, const CsvHeader& self) {
   OStreamWriter<> writer(&out);
-  header.WriteDebugStringTo(writer);
+  self.WriteDebugStringTo(writer);
   writer.Close();
   return out;
 }
@@ -465,9 +465,9 @@ std::string CsvRecord::DebugString() const {
   return result;
 }
 
-std::ostream& operator<<(std::ostream& out, const CsvRecord& record) {
+std::ostream& operator<<(std::ostream& out, const CsvRecord& self) {
   OStreamWriter<> writer(&out);
-  record.WriteDebugStringTo(writer);
+  self.WriteDebugStringTo(writer);
   writer.Close();
   return out;
 }

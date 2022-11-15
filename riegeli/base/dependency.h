@@ -81,8 +81,8 @@ namespace riegeli {
 // (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
 //
 // To customize that for a class `T`, define a free function
-// `DependencySentinel(T*)` in the same namespace as `T`, so that it is found
-// via ADL.
+// `friend T DependencySentinel(T*)` as a friend of `T` inside class definition
+// or in the same namespace as `T`, so that it can be found via ADL.
 //
 // `DependencySentinel(T*)` returns a value of type `T`, or a tuple of its
 // constructor arguments to avoid constructing a temporary `T` and moving from

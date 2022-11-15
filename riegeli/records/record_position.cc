@@ -108,8 +108,8 @@ bool RecordPosition::FromBytes(absl::string_view serialized) {
   return true;
 }
 
-std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
-  return out << pos.ToString();
+std::ostream& operator<<(std::ostream& out, RecordPosition self) {
+  return out << self.ToString();
 }
 
 namespace records_internal {

@@ -2621,19 +2621,19 @@ absl::strong_ordering Chain::Compare(const Chain& that) const {
   return absl::strong_ordering::equal;
 }
 
-std::ostream& operator<<(std::ostream& out, const Chain& str) {
+std::ostream& operator<<(std::ostream& out, const Chain& self) {
   std::ostream::sentry sentry(out);
   if (sentry) {
     if (ABSL_PREDICT_FALSE(
-            str.size() >
+            self.size() >
             UnsignedCast(std::numeric_limits<std::streamsize>::max()))) {
       out.setstate(std::ios::badbit);
       return out;
     }
     size_t lpad = 0;
     size_t rpad = 0;
-    if (IntCast<size_t>(out.width()) > str.size()) {
-      const size_t pad = IntCast<size_t>(out.width()) - str.size();
+    if (IntCast<size_t>(out.width()) > self.size()) {
+      const size_t pad = IntCast<size_t>(out.width()) - self.size();
       if ((out.flags() & out.adjustfield) == out.left) {
         rpad = pad;
       } else {
@@ -2641,7 +2641,7 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
       }
     }
     if (lpad > 0) WritePadding(out, lpad);
-    for (const absl::string_view fragment : str.blocks()) {
+    for (const absl::string_view fragment : self.blocks()) {
       out.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
     }
     if (rpad > 0) WritePadding(out, rpad);

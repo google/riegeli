@@ -446,7 +446,7 @@ class Chain {
     return self.AbslStringifyImpl(sink);
   }
 
-  friend std::ostream& operator<<(std::ostream& out, const Chain& str);
+  friend std::ostream& operator<<(std::ostream& out, const Chain& self);
 
   // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
   // otherwise does nothing.

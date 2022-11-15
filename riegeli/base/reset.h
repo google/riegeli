@@ -43,9 +43,10 @@ namespace riegeli {
 // As special cases, `riegeli::Reset(object, src)` for `src` of type `const T&`
 // or `T&&` simply calls `object = src` or `object = std::move(src)`.
 //
-// Hence to customize `riegeli::Reset()` for a class `T`, either define member
-// functions `T::Reset()`, or define free functions `ResetInternal()` in the
-// same namespace as `T`, so that they are found via ADL.
+// Hence to customize `riegeli::Reset()` for a class `T`, define overloads of
+// either a member function `void T::Reset(...)`, or a free function
+// `friend void ResetInternal(T& self, ...)` as a friend of `T` inside class
+// definition or in the same namespace as `T`, so that it can be found via ADL.
 //
 // `ResetInternal()` is predefined for `std::string` and `absl::Cord`.
 
@@ -60,30 +61,30 @@ void Reset(T& object, Args&&... args);
 
 // Implementation details follow.
 
-inline void ResetInternal(std::string& object) { object.clear(); }
+inline void ResetInternal(std::string& self) { self.clear(); }
 
-inline void ResetInternal(std::string& object, size_t length, char ch) {
-  object.assign(length, ch);
+inline void ResetInternal(std::string& self, size_t length, char ch) {
+  self.assign(length, ch);
 }
 
-inline void ResetInternal(std::string& object, absl::string_view src) {
+inline void ResetInternal(std::string& self, absl::string_view src) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `object.assign(src)`
-  object.assign(src.data(), src.size());
+  // `self.assign(src)`
+  self.assign(src.data(), src.size());
 }
 
-inline void ResetInternal(std::string& object, const char* src) {
-  object.assign(src);
+inline void ResetInternal(std::string& self, const char* src) {
+  self.assign(src);
 }
 
-inline void ResetInternal(std::string& object, const char* src, size_t length) {
-  object.assign(src, length);
+inline void ResetInternal(std::string& self, const char* src, size_t length) {
+  self.assign(src, length);
 }
 
-inline void ResetInternal(absl::Cord& object) { object.Clear(); }
+inline void ResetInternal(absl::Cord& self) { self.Clear(); }
 
-inline void ResetInternal(absl::Cord& object, absl::string_view src) {
-  object = src;
+inline void ResetInternal(absl::Cord& self, absl::string_view src) {
+  self = src;
 }
 
 namespace reset_internal {
