@@ -118,36 +118,48 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         length = src.available();
         goto continue_reading;
       }
-      case ReadLineOptions::Newline::kLfOrCrLf:
-        for (const char* newline = src.cursor(); newline < src.limit();
-             ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src.cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+      case ReadLineOptions::Newline::kLfOrCrLf: {
+        const char* newline = static_cast<const char*>(
+            std::memchr(src.cursor(), '\n', src.available()));
+        for (;;) {
+          if (ABSL_PREDICT_TRUE(newline != nullptr)) {
             length = PtrDistance(src.cursor(), newline);
-            if (ABSL_PREDICT_FALSE(newline + 1 == src.limit())) {
-              // The CR is last in the buffer.
-              if (ABSL_PREDICT_TRUE(length > 0)) {
-                // The CR is not first in the buffer. Move line read so far to
-                // `dest` to avoid copying that part during flattening of the CR
-                // together with the next buffer.
-                goto continue_reading;
-              }
-              // The buffer contains only CR.
-              if (ABSL_PREDICT_TRUE(src.Pull(2) && src.cursor()[1] == '\n')) {
-                return FoundNewline(src, dest, options, 0, 2);
-              }
-              // `src.Pull()` might have invalidated `newline` pointer.
-              newline = src.cursor();
-            } else if (ABSL_PREDICT_TRUE(newline[1] == '\n')) {
-              return FoundNewline(src, dest, options, length, 2);
+            if (length > 0 && newline[-1] == '\r') {
+              return FoundNewline(src, dest, options, length - 1, 2);
             }
+            return FoundNewline(src, dest, options, length, 1);
           }
+          if (ABSL_PREDICT_TRUE(src.limit()[-1] != '\r')) {
+            length = src.available();
+            goto continue_reading;
+          }
+          // The buffer ends with CR.
+          length = src.available() - 1;
+          if (ABSL_PREDICT_TRUE(length > 0)) {
+            // The CR is not first in the buffer. Move line read so far to
+            // `dest` to avoid copying that part during flattening of the CR
+            // together with the next buffer.
+            goto continue_reading;
+          }
+          // The buffer contains only CR.
+          if (ABSL_PREDICT_FALSE(!src.Pull(2))) {
+            // The CR is the final character and is not a part of a line
+            // terminator.
+            if (ABSL_PREDICT_FALSE(options.max_length() < 1)) {
+              return MaxLineLengthExceeded(src, dest, options.max_length());
+            }
+            ReadFlat(src, 1, dest);
+            return src.ok();
+          }
+          // The buffer begins with CR.
+          if (ABSL_PREDICT_TRUE(src.cursor()[1] == '\n')) {
+            return FoundNewline(src, dest, options, 0, 2);
+          }
+          // The CR is not a part of a line terminator. Search for LF again.
+          newline = static_cast<const char*>(
+              std::memchr(src.cursor() + 2, '\n', src.available() - 2));
         }
-        length = src.available();
-        goto continue_reading;
+      }
       case ReadLineOptions::Newline::kAny:
         for (const char* newline = src.cursor(); newline < src.limit();
              ++newline) {
@@ -213,26 +225,39 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
         goto continue_reading;
       }
       case ReadLineOptions::Newline::kLfOrCrLf:
-        for (const char* newline = src.cursor() + length; newline < src.limit();
-             ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src.cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+        for (;;) {
+          const char* const newline = static_cast<const char*>(std::memchr(
+              src.cursor() + length, '\n', src.available() - length));
+          if (ABSL_PREDICT_TRUE(newline != nullptr)) {
             length = PtrDistance(src.cursor(), newline);
-            if (ABSL_PREDICT_FALSE(length > options.max_length())) {
+            if (length > 0 && newline[-1] == '\r') {
+              return FoundNewline(src, dest, options, length - 1, 2);
+            }
+            return FoundNewline(src, dest, options, length, 1);
+          }
+          if (ABSL_PREDICT_TRUE(src.limit()[-1] != '\r')) goto continue_reading;
+          // The buffer ends with CR.
+          length = src.available() - 1;
+          if (ABSL_PREDICT_FALSE(length > options.max_length())) {
+            return MaxLineLengthExceeded(src, dest, options.max_length());
+          }
+          if (ABSL_PREDICT_FALSE(!src.Pull(length + 2))) {
+            // The CR is the final character and is not a part of a line
+            // terminator.
+            if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
               return MaxLineLengthExceeded(src, dest, options.max_length());
             }
-            if (ABSL_PREDICT_TRUE(src.Pull(length + 2) &&
-                                  src.cursor()[length + 1] == '\n')) {
-              return FoundNewline(src, dest, options, length, 2);
-            }
-            // `src.Pull()` might have invalidated `newline` pointer.
-            newline = src.cursor() + length;
+            dest = absl::string_view(src.cursor(), src.available());
+            src.move_cursor(src.available());
+            return src.ok();
           }
+          if (ABSL_PREDICT_TRUE(src.cursor()[length + 1] == '\n')) {
+            return FoundNewline(src, dest, options, length, 2);
+          }
+          // The CR at `src.cursor()[length]` is not a part of a line
+          // terminator. Search for LF again.
+          length += 2;
         }
-        goto continue_reading;
       case ReadLineOptions::Newline::kAny:
         for (const char* newline = src.cursor() + length; newline < src.limit();
              ++newline) {
