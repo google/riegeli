@@ -7,10 +7,16 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "newline",
+    hdrs = ["newline.h"],
+)
+
+cc_library(
     name = "line_reading",
     srcs = ["line_reading.cc"],
     hdrs = ["line_reading.h"],
     deps = [
+        ":newline",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
@@ -26,6 +32,7 @@ cc_library(
     name = "line_writing",
     hdrs = ["line_writing.h"],
     deps = [
+        ":newline",
         "//riegeli/base:assert",
         "//riegeli/base:type_traits",
         "//riegeli/bytes:writer",

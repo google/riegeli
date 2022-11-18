@@ -40,6 +40,7 @@
 #include "riegeli/csv/containers.h"
 #include "riegeli/csv/csv_record.h"
 #include "riegeli/lines/line_writing.h"
+#include "riegeli/lines/newline.h"
 
 namespace riegeli {
 
@@ -55,8 +56,8 @@ bool WriteStandaloneRecord(const Fields& record, CsvWriterBase& csv_writer);
 // Template parameter independent part of `CsvWriter`.
 class CsvWriterBase : public Object {
  public:
-  // Line terminator representation to write.
-  using Newline = WriteLineOptions::Newline;
+  // Deprecated alias.
+  using Newline = WriteNewline;
 
   class Options {
    public:
@@ -92,15 +93,15 @@ class CsvWriterBase : public Object {
 
     // Record terminator.
     //
-    // Default: `Newline::kLf`.
-    Options& set_newline(Newline newline) & {
+    // Default: `WriteNewline::kLf`.
+    Options& set_newline(WriteNewline newline) & {
       newline_ = newline;
       return *this;
     }
-    Options&& set_newline(Newline newline) && {
+    Options&& set_newline(WriteNewline newline) && {
       return std::move(set_newline(newline));
     }
-    Newline newline() const { return newline_; }
+    WriteNewline newline() const { return newline_; }
 
     // Comment character.
     //
@@ -160,7 +161,7 @@ class CsvWriterBase : public Object {
 
    private:
     absl::optional<CsvHeader> header_;
-    Newline newline_ = Newline::kLf;
+    WriteNewline newline_ = WriteNewline::kLf;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
@@ -273,7 +274,7 @@ class CsvWriterBase : public Object {
   // of a more complicated lookup code.
   std::array<bool, std::numeric_limits<unsigned char>::max() + 1>
       quotes_needed_{};
-  Newline newline_ = Newline::kLf;
+  WriteNewline newline_ = WriteNewline::kLf;
   char field_separator_ = '\0';
   absl::optional<char> quote_;
   uint64_t record_index_ = 0;
@@ -286,7 +287,7 @@ class CsvWriterBase : public Object {
 // https://specs.frictionlessdata.io/csv-dialect/.
 //
 // `CsvWriter` writes RFC4180-compliant CSV files if
-// `Options::newline() == CsvWriterBase::Newline::kCrLf`, and also supports some
+// `Options::newline() == WriteNewline::kCrLf`, and also supports some
 // extensions.
 //
 // By a common convention the first record consists of field names. This is

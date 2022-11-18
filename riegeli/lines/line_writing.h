@@ -27,35 +27,32 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/lines/newline.h"
 
 namespace riegeli {
 
 // Options for `WriteLine()`.
 class WriteLineOptions {
  public:
-  // Line terminator representation to write.
-  enum class Newline {
-    kLf,    // LF    ("\n")
-    kCr,    // CR    ("\r")
-    kCrLf,  // CR-LF ("\r\n")
-  };
+  // Deprecated alias.
+  using Newline = WriteNewline;
 
   WriteLineOptions() noexcept {}
 
   // Line terminator representation to write.
   //
-  // Default: `Newline::kLf`.
-  WriteLineOptions& set_newline(Newline newline) & {
+  // Default: `WriteNewline::kLf`.
+  WriteLineOptions& set_newline(WriteNewline newline) & {
     newline_ = newline;
     return *this;
   }
-  WriteLineOptions&& set_newline(Newline newline) && {
+  WriteLineOptions&& set_newline(WriteNewline newline) && {
     return std::move(set_newline(newline));
   }
-  Newline newline() const { return newline_; }
+  WriteNewline newline() const { return newline_; }
 
  private:
-  Newline newline_ = Newline::kLf;
+  WriteNewline newline_ = WriteNewline::kLf;
 };
 
 // Writes an optional string, then a line terminator.
@@ -99,11 +96,11 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
     return false;
   }
   switch (options.newline()) {
-    case WriteLineOptions::Newline::kLf:
+    case WriteNewline::kLf:
       return dest.Write('\n');
-    case WriteLineOptions::Newline::kCr:
+    case WriteNewline::kCr:
       return dest.Write('\r');
-    case WriteLineOptions::Newline::kCrLf:
+    case WriteNewline::kCrLf:
       return dest.Write("\r\n");
   }
   RIEGELI_ASSERT_UNREACHABLE()

@@ -29,6 +29,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/lines/newline.h"
 
 namespace riegeli {
 
@@ -108,7 +109,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
   size_t length;
   do {
     switch (options.newline()) {
-      case ReadLineOptions::Newline::kLf: {
+      case ReadNewline::kLf: {
         const char* const newline = static_cast<const char*>(
             std::memchr(src.cursor(), '\n', src.available()));
         if (ABSL_PREDICT_TRUE(newline != nullptr)) {
@@ -118,7 +119,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         length = src.available();
         goto continue_reading;
       }
-      case ReadLineOptions::Newline::kLfOrCrLf: {
+      case ReadNewline::kLfOrCrLf: {
         const char* newline = static_cast<const char*>(
             std::memchr(src.cursor(), '\n', src.available()));
         for (;;) {
@@ -160,7 +161,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
               std::memchr(src.cursor() + 2, '\n', src.available() - 2));
         }
       }
-      case ReadLineOptions::Newline::kAny:
+      case ReadNewline::kAny:
         for (const char* newline = src.cursor(); newline < src.limit();
              ++newline) {
           if (ABSL_PREDICT_FALSE(*newline == '\n')) {
@@ -215,7 +216,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   }
   do {
     switch (options.newline()) {
-      case ReadLineOptions::Newline::kLf: {
+      case ReadNewline::kLf: {
         const char* const newline = static_cast<const char*>(
             std::memchr(src.cursor() + length, '\n', src.available() - length));
         if (ABSL_PREDICT_TRUE(newline != nullptr)) {
@@ -224,7 +225,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
         }
         goto continue_reading;
       }
-      case ReadLineOptions::Newline::kLfOrCrLf:
+      case ReadNewline::kLfOrCrLf:
         for (;;) {
           const char* const newline = static_cast<const char*>(std::memchr(
               src.cursor() + length, '\n', src.available() - length));
@@ -258,7 +259,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
           // terminator. Search for LF again.
           length += 2;
         }
-      case ReadLineOptions::Newline::kAny:
+      case ReadNewline::kAny:
         for (const char* newline = src.cursor() + length; newline < src.limit();
              ++newline) {
           if (ABSL_PREDICT_FALSE(*newline == '\n')) {

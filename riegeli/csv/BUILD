@@ -43,6 +43,7 @@ cc_library(
         "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
+        "//riegeli/lines:newline",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

@@ -25,32 +25,29 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/lines/newline.h"
 
 namespace riegeli {
 
 // Options for `ReadLine()`.
 class ReadLineOptions {
  public:
-  // Line terminator representations to recognize.
-  enum class Newline {
-    kLf,        // LF              ("\n")
-    kLfOrCrLf,  // LF |      CR-LF ("\n" |        "\r\n")
-    kAny,       // LF | CR | CR-LF ("\n" | "\r" | "\r\n")
-  };
+  // Deprecated alias.
+  using Newline = ReadNewline;
 
   ReadLineOptions() noexcept {}
 
   // Line terminator representations to recognize.
   //
-  // Default: `Newline::kLf`.
-  ReadLineOptions& set_newline(Newline newline) & {
+  // Default: `ReadNewline::kLf`.
+  ReadLineOptions& set_newline(ReadNewline newline) & {
     newline_ = newline;
     return *this;
   }
-  ReadLineOptions&& set_newline(Newline newline) && {
+  ReadLineOptions&& set_newline(ReadNewline newline) && {
     return std::move(set_newline(newline));
   }
-  Newline newline() const { return newline_; }
+  ReadNewline newline() const { return newline_; }
 
   // If `false`, line terminators are stripped.
   //
@@ -83,7 +80,7 @@ class ReadLineOptions {
   size_t max_length() const { return max_length_; }
 
  private:
-  Newline newline_ = Newline::kLf;
+  ReadNewline newline_ = ReadNewline::kLf;
   bool keep_newline_ = false;
   size_t max_length_ = std::numeric_limits<size_t>::max();
 };
@@ -92,11 +89,11 @@ class ReadLineOptions {
 //
 // Line terminator after the last line is optional.
 //
-// Warning: if `options.newline()` is `Newline::kAny`, for lines terminated with
-// CR, `ReadLine()` reads ahead one character after the CR. If reading ahead
-// only as much as needed is required, e.g. when reading from an interactive
-// stream, another implementation would be required (which would keep state
-// between calls).
+// Warning: if `options.newline()` is `ReadNewline::kAny`, for lines terminated
+// with CR, `ReadLine()` reads ahead one character after the CR. If reading
+// ahead only as much as needed is required, e.g. when reading from an
+// interactive stream, another implementation would be required (which would
+// keep state between calls).
 //
 // Return values:
 //  * `true`                     - success (`dest` is set)
