@@ -885,9 +885,4 @@ inline absl::optional<Position> Reader::Size() { return SizeImpl(); }
 
 }  // namespace riegeli
 
-// TODO: Remove these includes once users are migrated to include them
-// directly for `riegeli::Read{,AndAppend}All()` and `riegeli::CopyAll()`.
-#include "riegeli/bytes/copy_all.h"
-#include "riegeli/bytes/read_all.h"
-
 #endif  // RIEGELI_BYTES_READER_H_

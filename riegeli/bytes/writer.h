@@ -980,8 +980,4 @@ void AssociatedReader<ReaderClass>::Delete(Reader* reader) {
 
 }  // namespace riegeli
 
-// TODO: Remove this include once users are migrated to include it
-// directly for `riegeli::Write()`.
-#include "riegeli/bytes/write.h"
-
 #endif  // RIEGELI_BYTES_WRITER_H_
