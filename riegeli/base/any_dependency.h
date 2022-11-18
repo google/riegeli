@@ -382,7 +382,7 @@ class
 
 #if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename... Args, size_t... indices>
-  explicit AnyDependencyImpl(std::tuple<Args...>&& args,
+  explicit AnyDependencyImpl(ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
                              std::index_sequence<indices...>)
       : AnyDependencyImpl(std::forward<Args>(std::get<indices>(args))...) {}
 #endif
@@ -661,8 +661,9 @@ inline Ptr SentinelPtrInternal(Ptr&& ptr) {
 
 #if !__cpp_lib_make_from_tuple
 template <typename Ptr, typename... PtrArgs, size_t... indices>
-inline Ptr SentinelPtrInternal(std::tuple<PtrArgs...>&& ptr_args,
-                               std::index_sequence<indices...>) {
+inline Ptr SentinelPtrInternal(
+    ABSL_ATTRIBUTE_UNUSED std::tuple<PtrArgs...>&& ptr_args,
+    std::index_sequence<indices...>) {
   return Ptr(std::forward<PtrArgs>(std::get<indices>(ptr_args))...);
 }
 #endif

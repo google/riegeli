@@ -89,7 +89,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(Writer& dest,
 
 template <typename... Srcs, typename Dest, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
-    std::tuple<Srcs...> srcs, Dest&& dest, std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
+    std::index_sequence<indices...>) {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.is_owning()) {
     SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
@@ -109,7 +110,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
 
 template <typename... Srcs, typename Dest, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
-    std::tuple<Srcs...> srcs, Dest&& dest, std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
+    std::index_sequence<indices...>) {
   Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.is_owning()) {
     dest_dep->SetWriteSizeHint(SaturatingAdd<Position>(

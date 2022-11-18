@@ -9,7 +9,10 @@ licenses(["notice"])
 cc_library(
     name = "type_traits",
     hdrs = ["type_traits.h"],
-    deps = ["@com_google_absl//absl/meta:type_traits"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
 )
 
 cc_library(

@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 
 namespace riegeli {
@@ -51,7 +52,7 @@ struct SelectTypesFromTuple<Tuple, std::index_sequence<indices...>> {
 // `std::index_sequence`.
 template <typename Tuple, size_t... indices>
 std::tuple<std::tuple_element_t<indices, Tuple>...> SelectFromTuple(
-    Tuple&& tuple, std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED Tuple&& tuple, std::index_sequence<indices...>) {
   return std::tuple<std::tuple_element_t<indices, Tuple>...>(
       std::forward<std::tuple_element_t<indices, Tuple>>(
           std::get<indices>(tuple))...);

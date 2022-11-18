@@ -92,8 +92,8 @@ namespace write_line_internal {
 
 template <typename... Srcs, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
-    std::tuple<Srcs...> srcs, Writer& dest, WriteLineOptions options,
-    std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Writer& dest,
+    WriteLineOptions options, std::index_sequence<indices...>) {
   if (ABSL_PREDICT_FALSE(
           !dest.Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
     return false;

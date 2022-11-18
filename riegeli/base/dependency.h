@@ -392,16 +392,18 @@ class DependencyBase {
  private:
 #if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename... ManagerArgs, size_t... indices>
-  explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
-                          std::index_sequence<indices...>)
+  explicit DependencyBase(
+      ABSL_ATTRIBUTE_UNUSED std::tuple<ManagerArgs...>&& manager_args,
+      std::index_sequence<indices...>)
       : manager_(
             std::forward<ManagerArgs>(std::get<indices>(manager_args))...) {}
 #endif
 
 #if !__cpp_lib_apply
   template <typename... ManagerArgs, size_t... indices>
-  void ResetInternal(std::tuple<ManagerArgs...>&& manager_args,
-                     std::index_sequence<indices...>) {
+  void ResetInternal(
+      ABSL_ATTRIBUTE_UNUSED std::tuple<ManagerArgs...>&& manager_args,
+      std::index_sequence<indices...>) {
     riegeli::Reset(manager_, std::forward<ManagerArgs>(
                                  std::get<indices>(manager_args))...);
   }
