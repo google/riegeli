@@ -51,9 +51,9 @@ absl::Status PrefixLimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
     Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
-  // The status might have been annotated by `*src->reader()` with the original
-  // position. Clarify that the current position is the relative position
-  // instead of delegating to `Reader::AnnotateStatusImpl()`.
+  // The status might have been annotated by `src` with the original position.
+  // Clarify that the current position is the relative position instead of
+  // delegating to `Reader::AnnotateStatusImpl()`.
   return AnnotateOverSrc(std::move(status));
 }
 

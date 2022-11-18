@@ -147,9 +147,9 @@ bool SplittingWriterBase::CloseShard() {
 absl::Status SplittingWriterBase::AnnotateStatusImpl(absl::Status status) {
   Writer* shard = ShardWriter();
   if (shard_is_open(shard)) status = shard->AnnotateStatus(std::move(status));
-  // The status might have been annotated by `*ShardWriter()` with the position
-  // within the shard. Clarify that the current position is the position across
-  // shards instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
+  // The status might have been annotated by `*shard` with the position within
+  // the shard. Clarify that the current position is the position across shards
+  // instead of delegating to `PushableWriter::AnnotateStatusImpl()`.
   return AnnotateOverShard(std::move(status));
 }
 

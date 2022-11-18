@@ -52,9 +52,9 @@ absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
     Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
-  // The status might have been annotated by `*dest->writer()` with the original
-  // position. Clarify that the current position is the relative position
-  // instead of delegating to `Writer::AnnotateStatusImpl()`.
+  // The status might have been annotated by `dest` with the original position.
+  // Clarify that the current position is the relative position instead of
+  // delegating to `Writer::AnnotateStatusImpl()`.
   return AnnotateOverDest(std::move(status));
 }
 

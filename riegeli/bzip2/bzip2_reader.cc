@@ -119,9 +119,9 @@ absl::Status Bzip2ReaderBase::AnnotateStatusImpl(absl::Status status) {
     Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
   }
-  // The status might have been annotated by `*src->reader()` with the
-  // compressed position. Clarify that the current position is the uncompressed
-  // position instead of delegating to `BufferedReader::AnnotateStatusImpl()`.
+  // The status might have been annotated by `src` with the compressed position.
+  // Clarify that the current position is the uncompressed position instead of
+  // delegating to `BufferedReader::AnnotateStatusImpl()`.
   return AnnotateOverSrc(std::move(status));
 }
 

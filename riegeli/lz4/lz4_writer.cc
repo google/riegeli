@@ -160,9 +160,9 @@ absl::Status Lz4WriterBase::AnnotateStatusImpl(absl::Status status) {
     Writer& dest = *DestWriter();
     status = dest.AnnotateStatus(std::move(status));
   }
-  // The status might have been annotated by `*dest->writer()` with the
-  // compressed position. Clarify that the current position is the uncompressed
-  // position instead of delegating to `BufferedWriter::AnnotateStatusImpl()`.
+  // The status might have been annotated by `dest` with the compressed
+  // position. Clarify that the current position is the uncompressed position
+  // instead of delegating to `BufferedWriter::AnnotateStatusImpl()`.
   return AnnotateOverDest(std::move(status));
 }
 

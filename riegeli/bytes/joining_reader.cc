@@ -128,9 +128,9 @@ bool JoiningReaderBase::CloseShard() {
 absl::Status JoiningReaderBase::AnnotateStatusImpl(absl::Status status) {
   Reader* shard = ShardReader();
   if (shard_is_open(shard)) status = shard->AnnotateStatus(std::move(status));
-  // The status might have been annotated by `*ShardReader()` with the position
-  // within the shard. Clarify that the current position is the position across
-  // shards instead of delegating to `PullableReader::AnnotateStatusImpl()`.
+  // The status might have been annotated by `*shard` with the position within
+  // the shard. Clarify that the current position is the position across shards
+  // instead of delegating to `PullableReader::AnnotateStatusImpl()`.
   return AnnotateOverShard(std::move(status));
 }
 
