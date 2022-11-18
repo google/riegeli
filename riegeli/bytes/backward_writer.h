@@ -579,7 +579,8 @@ inline bool BackwardWriter::Write(absl::string_view src) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool BackwardWriter::Write(Src&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
+  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy) ||
+      Wasteful(src.capacity(), src.size())) {
     return Write(absl::string_view(src));
   }
   AssertInitialized(src.data(), src.size());
