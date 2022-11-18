@@ -1,7 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(
-    default_applicable_licenses = ["//riegeli:license"],
     default_visibility = ["//visibility:public"],
     features = ["header_modules"],
 )
