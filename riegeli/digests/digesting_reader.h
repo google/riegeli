@@ -126,8 +126,10 @@ class DigestingReaderBase : public Reader {
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the first template argument can be deduced as the value
+// type of the second constructor argument (there must be two constructor
+// arguments for CTAD), and the second template argument can be deduced as the
+// value type of the first constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `DigestingReader` is
 // closed or no longer used.

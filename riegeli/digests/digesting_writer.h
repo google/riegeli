@@ -137,8 +137,10 @@ class DigestingWriterBase : public Writer {
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the first template argument can be deduced as the value
+// type of the second constructor argument (there must be two constructor
+// arguments for CTAD), and the second template argument can be deduced as the
+// value type of the first constructor argument. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
