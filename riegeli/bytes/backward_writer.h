@@ -585,8 +585,8 @@ inline bool BackwardWriter::Write(Src&& src) {
   }
   AssertInitialized(src.data(), src.size());
   AssertInitialized(cursor(), start_to_cursor());
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   return WriteSlow(Chain(std::move(src)));
 }
 

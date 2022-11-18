@@ -158,8 +158,8 @@ inline void AssignToString(absl::string_view src, std::string& dest) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
 inline void AssignToString(Src&& src, std::string& dest) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   dest = std::move(src);
 }
 

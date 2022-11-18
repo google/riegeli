@@ -63,6 +63,12 @@ class StringifySink {
 
   void Append(size_t length, char src);
   void Append(absl::string_view src);
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void Append(Src&& src);
   friend void AbslFormatFlush(StringifySink* dest, absl::string_view src) {
     dest->Append(src);
   }
@@ -638,6 +644,14 @@ inline void StringifySink::Append(size_t length, char src) {
 
 inline void StringifySink::Append(absl::string_view src) { dest_->Write(src); }
 
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline void StringifySink::Append(Src&& src) {
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
+  dest_->Write(std::move(src));
+}
+
 inline Writer::Writer(Writer&& that) noexcept
     : Object(static_cast<Object&&>(that)),
       start_(std::exchange(that.start_, nullptr)),
@@ -752,8 +766,8 @@ inline bool Writer::Write(Src&& src) {
   }
   AssertInitialized(src.data(), src.size());
   AssertInitialized(start(), start_to_cursor());
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   return WriteSlow(Chain(std::move(src)));
 }
 
