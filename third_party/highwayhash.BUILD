@@ -20,6 +20,11 @@ config_setting(
     values = {"cpu": "ppc"},
 )
 
+config_setting(
+    name = "cpu_aarch64",
+    values = {"cpu": "aarch64"},
+)
+
 #-----------------------------------------------------------------------------
 # Platform-specific
 
@@ -185,6 +190,31 @@ cc_library(
 )
 
 cc_library(
+    name = "hh_neon",
+    srcs = [
+        "highwayhash/hh_neon.cc",
+        "highwayhash/vector_neon.h",
+    ],
+    hdrs = ["highwayhash/highwayhash_target.h"],
+    copts = select({
+        ":cpu_aarch64": [],
+        "//conditions:default": ["-DHH_DISABLE_TARGET_SPECIFIC"],
+    }),
+    textual_hdrs = [
+        "highwayhash/highwayhash_target.cc",
+        "highwayhash/highwayhash.h",
+        "highwayhash/hh_buffer.h",
+        "highwayhash/hh_neon.h",
+    ],
+    deps = [
+        ":arch_specific",
+        ":compiler_specific",
+        ":hh_types",
+        ":load3",
+    ],
+)
+
+cc_library(
     name = "hh_vsx",
     srcs = ["highwayhash/hh_vsx.cc"],
     hdrs = ["highwayhash/highwayhash_target.h"],
@@ -233,6 +263,7 @@ cc_library(
         ":hh_portable",
     ] + select({
         ":cpu_ppc": [":hh_vsx"],
+        ":cpu_aarch64": [":hh_neon"],
         "//conditions:default": [
             ":hh_avx2",
             ":hh_sse41",
@@ -248,9 +279,13 @@ cc_library(
     deps = [
         ":arch_specific",
         ":compiler_specific",
-        ":hh_avx2",
         ":hh_portable",
-        ":hh_sse41",
         ":hh_types",
-    ],
+    ] + select({
+        ":cpu_aarch64": [":hh_neon"],
+        "//conditions:default": [
+            ":hh_avx2",
+            ":hh_sse41",
+        ],
+    }),
 )
