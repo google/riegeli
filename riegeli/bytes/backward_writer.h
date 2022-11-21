@@ -395,10 +395,14 @@ class BackwardWriter : public Object {
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `available() < src.size()`
   //
+  // Precondition for `WriteStringSlow()`:
+  //   `src.size() >= kMaxBytesToCopy`
+  //
   // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
   // `WriteSlow(const absl::Cord&)`, and `WriteSlow(absl::Cord&&):
   //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
+  bool WriteStringSlow(std::string&& src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
@@ -579,15 +583,12 @@ inline bool BackwardWriter::Write(absl::string_view src) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool BackwardWriter::Write(Src&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy) || PrefersCopying() ||
-      Wasteful(src.capacity(), src.size())) {
+  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
   }
-  AssertInitialized(src.data(), src.size());
-  AssertInitialized(cursor(), start_to_cursor());
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  return WriteSlow(Chain(std::move(src)));
+  return WriteStringSlow(std::move(src));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {

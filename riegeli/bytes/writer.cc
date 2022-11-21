@@ -267,6 +267,18 @@ bool Writer::WriteSlow(absl::string_view src) {
   return true;
 }
 
+bool Writer::WriteStringSlow(std::string&& src) {
+  RIEGELI_ASSERT_GT(src.size(), kMaxBytesToCopy)
+      << "Failed precondition of Writer::WriteStringSlow(): "
+         "string too short, use Write() instead";
+  if (PrefersCopying() || Wasteful(src.capacity(), src.size())) {
+    return Write(absl::string_view(src));
+  }
+  AssertInitialized(src.data(), src.size());
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(Chain(std::move(src)));
+}
+
 bool Writer::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
