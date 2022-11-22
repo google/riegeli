@@ -49,7 +49,9 @@ void PrefixLimitingReaderBase::Done() {
 absl::Status PrefixLimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
     Reader& src = *SrcReader();
+    SyncBuffer(src);
     status = src.AnnotateStatus(std::move(status));
+    MakeBuffer(src);
   }
   // The status might have been annotated by `src` with the original position.
   // Clarify that the current position is the relative position instead of
@@ -58,7 +60,7 @@ absl::Status PrefixLimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 absl::Status PrefixLimitingReaderBase::AnnotateOverSrc(absl::Status status) {
-  if (is_open()) {
+  if (is_open() && base_pos_ > 0) {
     return Annotate(status,
                     absl::StrCat("with relative position at byte ", pos()));
   }

@@ -50,7 +50,9 @@ void PrefixLimitingWriterBase::Done() {
 absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
     Writer& dest = *DestWriter();
+    SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
+    MakeBuffer(dest);
   }
   // The status might have been annotated by `dest` with the original position.
   // Clarify that the current position is the relative position instead of
@@ -59,7 +61,7 @@ absl::Status PrefixLimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 absl::Status PrefixLimitingWriterBase::AnnotateOverDest(absl::Status status) {
-  if (is_open()) {
+  if (is_open() && base_pos_ > 0) {
     return Annotate(status,
                     absl::StrCat("with relative position at byte ", pos()));
   }
