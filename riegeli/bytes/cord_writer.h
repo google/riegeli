@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -27,6 +26,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -85,7 +85,7 @@ class CordWriterBase : public Writer {
     // This is for performance tuning, not a guarantee: does not apply to
     // objects allocated separately and then written to this `CordWriter`.
     //
-    // Default: `kDefaultMaxBlockSize` (64K).
+    // Default: `kDefaultMaxBlockSize - 13` (65523).
     Options& set_max_block_size(size_t max_block_size) & {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
@@ -103,7 +103,8 @@ class CordWriterBase : public Writer {
     bool append_ = false;
     // Use `uint32_t` instead of `size_t` to reduce the object size.
     uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+    uint32_t max_block_size_ =
+        uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
@@ -141,7 +142,10 @@ class CordWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
-  static constexpr size_t kShortBufferSize = 64;
+  static constexpr size_t kCordBufferBlockSize =
+      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
+  static constexpr size_t kCordBufferMaxSize =
+      absl::CordBuffer::MaximumPayload(kCordBufferBlockSize);
 
   // If the buffer is not empty, appends it to `dest`. Ensures that data which
   // follow the current position are separated in `*tail_`.
@@ -172,10 +176,11 @@ class CordWriterBase : public Writer {
   absl::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+  uint32_t max_block_size_ =
+      uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
 
-  // Buffered data to be appended, in either `short_buffer_` or `buffer_`.
-  char short_buffer_[kShortBufferSize];
+  // Buffered data to be appended, in either `cord_buffer_` or `buffer_`.
+  absl::CordBuffer cord_buffer_;
   Buffer buffer_;
 
   // If `start_pos() < DestCord()->size()`, then data after the current
@@ -194,7 +199,7 @@ class CordWriterBase : public Writer {
   AssociatedReader<CordReader<const absl::Cord*>> associated_reader_;
 
   // Invariants:
-  //   `start() == nullptr` or `start() == short_buffer_`
+  //   `start() == nullptr` or `start() == cord_buffer_.data()`
   //       or `start() == buffer_.data()`
   //   if `ok()` then `start_pos() <= DestCord()->size()`
   //   if `ok() && start_pos() < DestCord()->size()` then
@@ -313,9 +318,11 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       buffer_(std::move(that.buffer_)),
       tail_(std::move(that.tail_)),
       associated_reader_(std::move(that.associated_reader_)) {
-  if (start() == that.short_buffer_) {
-    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
+  if (start() == that.cord_buffer_.data()) {
+    cord_buffer_ = std::move(that.cord_buffer_);
+    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
+  } else {
+    cord_buffer_ = std::move(that.cord_buffer_);
   }
 }
 
@@ -328,9 +335,11 @@ inline CordWriterBase& CordWriterBase::operator=(
   buffer_ = std::move(that.buffer_);
   tail_ = std::move(that.tail_);
   associated_reader_ = std::move(that.associated_reader_);
-  if (start() == that.short_buffer_) {
-    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
+  if (start() == that.cord_buffer_.data()) {
+    cord_buffer_ = std::move(that.cord_buffer_);
+    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
+  } else {
+    cord_buffer_ = std::move(that.cord_buffer_);
   }
   return *this;
 }
@@ -339,7 +348,9 @@ inline void CordWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   size_hint_ = absl::nullopt;
   min_block_size_ = uint32_t{kDefaultMinBlockSize};
-  max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+  max_block_size_ =
+      uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
+  cord_buffer_ = absl::CordBuffer();
   buffer_ = Buffer();
   tail_.reset();
   associated_reader_.Reset();
@@ -358,9 +369,19 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
   if (append) {
+    cord_buffer_ = dest->GetAppendBuffer(0, 1);
     set_start_pos(dest->size());
+    const size_t existing_length = cord_buffer_.length();
+    if (existing_length > 0) {
+      cord_buffer_.SetLength(
+          UnsignedMin(cord_buffer_.capacity(),
+                      std::numeric_limits<size_t>::max() - dest->size()));
+      set_buffer(cord_buffer_.data(), cord_buffer_.length(), existing_length);
+    }
   } else {
+    cord_buffer_ = dest->GetAppendBuffer(0, 0);
     dest->Clear();
+    cord_buffer_.SetLength(0);
   }
 }
 

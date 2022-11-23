@@ -23,6 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
@@ -43,12 +44,14 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
-constexpr size_t CordWriterBase::kShortBufferSize;
+constexpr size_t CordWriterBase::kCordBufferBlockSize;
+constexpr size_t CordWriterBase::kCordBufferMaxSize;
 #endif
 
 void CordWriterBase::Done() {
   CordWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
+  cord_buffer_ = absl::CordBuffer();
   buffer_ = Buffer();
   tail_.reset();
   associated_reader_.Reset();
@@ -63,8 +66,13 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
   ShrinkTail(start_to_cursor());
   set_start_pos(pos());
   const absl::string_view data(start(), start_to_cursor());
-  if (start() == short_buffer_) {
-    dest.Append(data);
+  if (start() == cord_buffer_.data()) {
+    cord_buffer_.SetLength(data.size());
+    if (!Wasteful(cord_buffer_.capacity(), cord_buffer_.length())) {
+      dest.Append(std::move(cord_buffer_));
+    } else {
+      AppendToBlockyCord(data, dest);
+    }
   } else {
     std::move(buffer_).AppendSubstrTo(data, dest);
   }
@@ -153,10 +161,11 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     if (size_hint_ != absl::nullopt) {
       needed_length = UnsignedMax(needed_length, *size_hint_);
     }
-    if (needed_length <= kShortBufferSize) {
-      // Use `short_buffer_`, even if it is smaller than `min_block_size_`,
-      // because this avoids allocation.
-      set_buffer(short_buffer_, kShortBufferSize);
+    if (needed_length <= cord_buffer_.capacity()) {
+      // Use the initial capacity of `cord_buffer_`, even if it is smaller than
+      // `min_block_size_`, because this avoids allocation.
+      cord_buffer_.SetLength(cord_buffer_.capacity());
+      set_buffer(cord_buffer_.data(), cord_buffer_.length());
       return true;
     }
   }
@@ -164,34 +173,54 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  if (start() == short_buffer_) {
-    const size_t cursor_index = start_to_cursor();
-    buffer_.Reset(UnsignedClamp(
-        UnsignedMax(
-            ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
-                               size_hint_, start_pos()),
-            SaturatingAdd(cursor_index, recommended_length)),
-        // Ensure at least `kShortBufferSize` of length, so that `short_buffer_`
-        // can be copied using a fixed length `std::memcpy()`.
-        UnsignedMax(cursor_index + min_length, kShortBufferSize),
-        max_block_size_));
-    std::memcpy(buffer_.data(), short_buffer_, kShortBufferSize);
-    set_buffer(buffer_.data(),
-               UnsignedMin(buffer_.capacity(),
-                           std::numeric_limits<size_t>::max() - dest.size()),
-               cursor_index);
-  } else {
-    SyncBuffer(dest);
-    buffer_.Reset(UnsignedClamp(
-        UnsignedMax(
-            ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
-                               size_hint_, start_pos()),
-            recommended_length),
-        min_length, max_block_size_));
-    set_buffer(buffer_.data(),
-               UnsignedMin(buffer_.capacity(),
-                           std::numeric_limits<size_t>::max() - dest.size()));
+  if (start_to_cursor() >= min_block_size_) SyncBuffer(dest);
+  const size_t cursor_index = start_to_cursor();
+  const size_t buffer_length = UnsignedClamp(
+      UnsignedMax(ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
+                                     size_hint_, start_pos()),
+                  SaturatingAdd(cursor_index, recommended_length)),
+      cursor_index + min_length, max_block_size_);
+  if (buffer_length <= kCordBufferMaxSize) {
+    RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
+                   start() != cord_buffer_.data())
+        << "Failed invariant of CordWriter: "
+           "cord_buffer_ has enough capacity but was used only partially";
+    absl::CordBuffer new_cord_buffer =
+        cord_buffer_.capacity() >= buffer_length
+            ? std::move(cord_buffer_)
+            : absl::CordBuffer::CreateWithCustomLimit(kCordBufferBlockSize,
+                                                      buffer_length);
+    if (new_cord_buffer.capacity() >= cursor_index + min_length) {
+      new_cord_buffer.SetLength(
+          UnsignedMin(new_cord_buffer.capacity(),
+                      std::numeric_limits<size_t>::max() - dest.size()));
+      if (
+          // `std::memcpy(_, nullptr, 0)` is undefined.
+          cursor_index > 0) {
+        std::memcpy(new_cord_buffer.data(), start(), cursor_index);
+      }
+      cord_buffer_ = std::move(new_cord_buffer);
+      set_buffer(cord_buffer_.data(), cord_buffer_.length(), cursor_index);
+      return true;
+    }
   }
+  RIEGELI_ASSERT(buffer_.capacity() < buffer_length ||
+                 start() != buffer_.data())
+      << "Failed invariant of CordWriter: "
+         "buffer_ has enough capacity but was used only partially";
+  Buffer new_buffer = buffer_.capacity() >= buffer_length
+                          ? std::move(buffer_)
+                          : Buffer(buffer_length);
+  if (
+      // `std::memcpy(_, nullptr, 0)` is undefined.
+      cursor_index > 0) {
+    std::memcpy(new_buffer.data(), start(), cursor_index);
+  }
+  buffer_ = std::move(new_buffer);
+  set_buffer(buffer_.data(),
+             UnsignedMin(buffer_.capacity(),
+                         std::numeric_limits<size_t>::max() - dest.size()),
+             cursor_index);
   return true;
 }
 

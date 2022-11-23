@@ -18,13 +18,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -80,7 +80,7 @@ class CordBackwardWriterBase : public BackwardWriter {
     // objects allocated separately and then written to this
     // `CordBackwardWriter`.
     //
-    // Default: `kDefaultMaxBlockSize` (64K).
+    // Default: `kDefaultMaxBlockSize - 13` (65523).
     Options& set_max_block_size(size_t max_block_size) & {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
@@ -98,7 +98,8 @@ class CordBackwardWriterBase : public BackwardWriter {
     bool prepend_ = false;
     // Use `uint32_t` instead of `size_t` to reduce the object size.
     uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+    uint32_t max_block_size_ =
+        uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
@@ -132,7 +133,10 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
-  static constexpr size_t kShortBufferSize = 64;
+  static constexpr size_t kCordBufferBlockSize =
+      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
+  static constexpr size_t kCordBufferMaxSize =
+      absl::CordBuffer::MaximumPayload(kCordBufferBlockSize);
 
   // If the buffer is not empty, prepends it to `dest`.
   void SyncBuffer(absl::Cord& dest);
@@ -140,14 +144,15 @@ class CordBackwardWriterBase : public BackwardWriter {
   absl::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+  uint32_t max_block_size_ =
+      uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
 
-  // Buffered data to be prepended, in either `short_buffer_` or `buffer_`.
-  char short_buffer_[kShortBufferSize];
+  // Buffered data to be prepended, in either `cord_buffer_` or `buffer_`.
+  absl::CordBuffer cord_buffer_;
   Buffer buffer_;
 
   // Invariants:
-  //   `limit() == nullptr` or `limit() == short_buffer_`
+  //   `limit() == nullptr` or `limit() == cord_buffer_.data()`
   //       or `limit() == buffer_.data()`
   //   if `ok()` then `start_pos() == DestCord()->size()`
 };
@@ -265,9 +270,11 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)) {
-  if (limit() == that.short_buffer_) {
-    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
+  if (limit() == that.cord_buffer_.data()) {
+    cord_buffer_ = std::move(that.cord_buffer_);
+    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
+  } else {
+    cord_buffer_ = std::move(that.cord_buffer_);
   }
 }
 
@@ -278,9 +285,11 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
-  if (limit() == that.short_buffer_) {
-    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
+  if (limit() == that.cord_buffer_.data()) {
+    cord_buffer_ = std::move(that.cord_buffer_);
+    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
+  } else {
+    cord_buffer_ = std::move(that.cord_buffer_);
   }
   return *this;
 }
@@ -289,7 +298,9 @@ inline void CordBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
   size_hint_ = absl::nullopt;
   min_block_size_ = uint32_t{kDefaultMinBlockSize};
-  max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+  max_block_size_ =
+      uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
+  cord_buffer_ = absl::CordBuffer();
   buffer_ = Buffer();
 }
 
