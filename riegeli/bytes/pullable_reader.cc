@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -209,6 +210,73 @@ bool PullableReader::ReadBehindScratch(size_t length, Chain& dest) {
   return true;
 }
 
+// `absl::Cord::GetCustomAppendBuffer()` was introduced after Abseil LTS version
+// 20220623. Use it if available, with fallback code if not.
+
+namespace {
+
+template <typename T, typename Enable = void>
+struct HasGetCustomAppendBuffer : std::false_type {};
+
+template <typename T>
+struct HasGetCustomAppendBuffer<
+    T, absl::void_t<decltype(std::declval<T&>().GetCustomAppendBuffer(
+           std::declval<size_t>(), std::declval<size_t>(),
+           std::declval<size_t>()))>> : std::true_type {};
+
+template <
+    typename DependentCord = absl::Cord,
+    std::enable_if_t<HasGetCustomAppendBuffer<DependentCord>::value, int> = 0>
+inline bool ReadBehindScratchToCord(Reader& src, size_t length,
+                                    DependentCord& dest) {
+  static constexpr size_t kCordBufferBlockSize =
+      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
+  absl::CordBuffer buffer =
+      dest.GetCustomAppendBuffer(kCordBufferBlockSize, length, 1);
+  absl::Span<char> span = buffer.available_up_to(length);
+  if (buffer.capacity() < kDefaultMinBlockSize && length > span.size()) {
+    absl::CordBuffer new_buffer = absl::CordBuffer::CreateWithCustomLimit(
+        kCordBufferBlockSize, buffer.length() + length);
+    std::memcpy(new_buffer.data(), buffer.data(), buffer.length());
+    new_buffer.SetLength(buffer.length());
+    buffer = std::move(new_buffer);
+    span = buffer.available_up_to(length);
+  }
+  for (;;) {
+    size_t length_read;
+    const bool read_ok = src.Read(span.size(), span.data(), &length_read);
+    buffer.IncreaseLengthBy(length_read);
+    dest.Append(std::move(buffer));
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
+    if (length == 0) return true;
+    buffer =
+        absl::CordBuffer::CreateWithCustomLimit(kCordBufferBlockSize, length);
+    span = buffer.available_up_to(length);
+  }
+}
+
+template <
+    typename DependentCord = absl::Cord,
+    std::enable_if_t<!HasGetCustomAppendBuffer<DependentCord>::value, int> = 0>
+inline bool ReadBehindScratchToCord(Reader& src, size_t length,
+                                    DependentCord& dest) {
+  Buffer buffer;
+  do {
+    buffer.Reset(UnsignedMin(length, kDefaultMaxBlockSize));
+    const size_t length_to_read = UnsignedMin(length, buffer.capacity());
+    size_t length_read;
+    const bool read_ok = src.Read(length_to_read, buffer.data(), &length_read);
+    const absl::string_view data(buffer.data(), length_read);
+    std::move(buffer).AppendSubstrTo(data, dest);
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
+  } while (length > 0);
+  return true;
+}
+
+}  // namespace
+
 bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
@@ -219,18 +287,7 @@ bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
-  Buffer buffer;
-  do {
-    buffer.Reset(UnsignedMin(length, kDefaultMaxBlockSize));
-    const size_t length_to_read = UnsignedMin(length, buffer.capacity());
-    size_t length_read;
-    const bool read_ok = Read(length_to_read, buffer.data(), &length_read);
-    const absl::string_view data(buffer.data(), length_read);
-    std::move(buffer).AppendSubstrTo(data, dest);
-    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    length -= length_read;
-  } while (length > 0);
-  return true;
+  return ReadBehindScratchToCord(*this, length, dest);
 }
 
 bool PullableReader::CopyBehindScratch(Position length, Writer& dest) {
