@@ -323,9 +323,12 @@ cc_library(
 
 cc_library(
     name = "recycling_pool",
+    srcs = ["recycling_pool.cc"],
     hdrs = ["recycling_pool.h"],
     deps = [
+        ":arithmetic",
         ":assert",
+        ":constexpr",
         ":no_destructor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -28,9 +28,15 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/constexpr.h"
 #include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
+
+namespace recycling_pool_internal {
+RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMaxSize, 16);
+size_t DefaultGlobalMaxSize();
+}  // namespace recycling_pool_internal
 
 // `RecyclingPool<T, Deleter>` keeps a pool of idle objects of type `T`, so that
 // instead of creating a new object of type `T`, an existing object can be
@@ -62,8 +68,14 @@ class RecyclingPool {
     void operator()(T* ptr) const {}
   };
 
-  // The default value of the constructor argument.
-  static constexpr size_t kDefaultMaxSize = 16;
+  // The default value of the constructor argument (16).
+  static constexpr size_t kDefaultMaxSize =
+      recycling_pool_internal::kDefaultMaxSize;
+
+  // The default value of the argument of `global()`.
+  //
+  // This is the maximum of 16 and the number of available threads.
+  static size_t DefaultGlobalMaxSize();
 
   // Creates a pool with the given maximum number of objects to keep.
   explicit RecyclingPool(size_t max_size = kDefaultMaxSize)
@@ -77,7 +89,7 @@ class RecyclingPool {
   //
   // If called multiple times with different `max_size` arguments, the largest
   // `max_size` is in effect.
-  static RecyclingPool& global(size_t max_size = kDefaultMaxSize);
+  static RecyclingPool& global(size_t max_size = DefaultGlobalMaxSize());
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
@@ -150,8 +162,14 @@ class KeyedRecyclingPool {
     void operator()(T* ptr) const {}
   };
 
-  // The default value of the constructor argument.
-  static constexpr size_t kDefaultMaxSize = 16;
+  // The default value of the constructor argument (16).
+  static constexpr size_t kDefaultMaxSize =
+      recycling_pool_internal::kDefaultMaxSize;
+
+  // The default value of the argument of `global()`.
+  //
+  // This is the maximum of 16 and the number of available threads.
+  static size_t DefaultGlobalMaxSize();
 
   // Creates a pool with the given maximum number of objects to keep.
   explicit KeyedRecyclingPool(size_t max_size = kDefaultMaxSize)
@@ -165,7 +183,7 @@ class KeyedRecyclingPool {
   //
   // If called multiple times with different `max_size` arguments, the largest
   // `max_size` is in effect.
-  static KeyedRecyclingPool& global(size_t max_size = kDefaultMaxSize);
+  static KeyedRecyclingPool& global(size_t max_size = DefaultGlobalMaxSize());
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
@@ -253,6 +271,11 @@ inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
       << "Failed precondition of RecyclingPool::Recycler: "
          "default-constructed recycler used with an object";
   pool_->RawPut(RawHandle(ptr, original_deleter()));
+}
+
+template <typename T, typename Deleter>
+inline size_t RecyclingPool<T, Deleter>::DefaultGlobalMaxSize() {
+  return recycling_pool_internal::DefaultGlobalMaxSize();
 }
 
 template <typename T, typename Deleter>
@@ -370,6 +393,11 @@ inline void KeyedRecyclingPool<T, Key, Deleter>::Recycler::operator()(
       << "Failed precondition of KeyedRecyclingPool::Recycler: "
          "default-constructed recycler used with an object";
   pool_->RawPut(key_, RawHandle(ptr, original_deleter()));
+}
+
+template <typename T, typename Key, typename Deleter>
+inline size_t KeyedRecyclingPool<T, Key, Deleter>::DefaultGlobalMaxSize() {
+  return recycling_pool_internal::DefaultGlobalMaxSize();
 }
 
 template <typename T, typename Key, typename Deleter>
