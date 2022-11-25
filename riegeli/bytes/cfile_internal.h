@@ -27,6 +27,7 @@
 
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 namespace cfile_internal {
@@ -56,8 +57,8 @@ inline int FSeek(File* file, long offset, int whence) {
   return fseek(file, offset, whence);
 }
 
-constexpr absl::string_view kFSeekFunctionName =
-    HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()";
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName,
+                         HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()");
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
 inline off_t FTell(File* file) {
@@ -69,8 +70,8 @@ inline long FTell(File* file) {
   return ftell(file);
 }
 
-constexpr absl::string_view kFTellFunctionName =
-    HaveFSeekO<FILE>::value ? "ftello()" : "ftell()";
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName,
+                         HaveFSeekO<FILE>::value ? "ftello()" : "ftell()");
 
 }  // namespace cfile_internal
 }  // namespace riegeli
