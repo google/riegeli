@@ -74,9 +74,10 @@ class FileWriterBase : public Writer {
     // If `false`, the file will be truncated to empty if it exists.
     //
     // If `true`, the file will not be truncated if it exists, and writing will
-    // continue at its end.
+    // always happen at its end, or will continue at its end, depending on the
+    // nature of the file.
     //
-    // This is applicable if `FileWriter` opens a file with a filename.
+    // If `FileWriter` writes to an already open file, `append()` has no effect.
     //
     // Default: `false`.
     Options& set_append(bool append) & {

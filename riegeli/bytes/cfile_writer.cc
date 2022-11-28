@@ -54,13 +54,73 @@
 
 namespace riegeli {
 
+CFileWriterBase::Options& CFileWriterBase::Options::set_existing(
+    bool existing) & {
+  if (ABSL_PREDICT_FALSE(mode_.empty())) mode_ = "w";
+  if (existing) {
+    mode_[0] = 'r';
+    // Add '+' to modifiers unless it already exists there.
+    for (size_t i = 1; i < mode_.size(); ++i) {
+      if (mode_[i] == '+') return *this;
+      if (mode_[i] == ',') break;
+    }
+    mode_.insert(1, "+");
+  } else {
+    mode_[0] = 'w';
+    // Remove '+' from modifiers.
+    for (size_t i = 1; i < mode_.size(); ++i) {
+      if (mode_[i] == '+') {
+        mode_.erase(i, 1);
+        --i;
+        continue;
+      }
+      if (mode_[i] == ',') break;
+    }
+  }
+  return *this;
+}
+
+CFileWriterBase::Options& CFileWriterBase::Options::set_read(bool read) & {
+  if (ABSL_PREDICT_FALSE(mode_.empty())) mode_ = "w";
+  if (read) {
+    // Add '+' to modifiers unless it already exists there.
+    for (size_t i = 1; i < mode_.size(); ++i) {
+      if (mode_[i] == '+') return *this;
+      if (mode_[i] == ',') break;
+    }
+    mode_.insert(1, "+");
+  } else {
+    if (mode_[0] == 'r') return *this;
+    // Remove '+' from modifiers.
+    for (size_t i = 1; i < mode_.size(); ++i) {
+      if (mode_[i] == '+') {
+        mode_.erase(i, 1);
+        --i;
+        continue;
+      }
+      if (mode_[i] == ',') break;
+    }
+  }
+  return *this;
+}
+
+bool CFileWriterBase::Options::read() const {
+  if (ABSL_PREDICT_FALSE(mode_.empty())) return false;
+  if (mode_[0] == 'r') return true;
+  for (size_t i = 1; i < mode_.size(); ++i) {
+    if (mode_[i] == '+') return true;
+    if (mode_[i] == ',') break;
+  }
+  return false;
+}
+
 void CFileWriterBase::Initialize(FILE* dest, std::string&& assumed_filename,
-                                 absl::optional<Position> assumed_pos,
-                                 bool append) {
+                                 const char* mode,
+                                 absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   filename_ = std::move(assumed_filename);
-  InitializePos(dest, assumed_pos, append);
+  InitializePos(dest, mode, /*mode_was_passed_to_fopen=*/false, assumed_pos);
 }
 
 FILE* CFileWriterBase::OpenFile(absl::string_view filename, const char* mode) {
@@ -76,9 +136,9 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename, const char* mode) {
   return dest;
 }
 
-void CFileWriterBase::InitializePos(FILE* dest,
-                                    absl::optional<Position> assumed_pos,
-                                    bool append) {
+void CFileWriterBase::InitializePos(FILE* dest, const char* mode,
+                                    bool mode_was_passed_to_fopen,
+                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
@@ -95,6 +155,24 @@ void CFileWriterBase::InitializePos(FILE* dest,
     FailOperation("FILE");
     return;
   }
+  if (mode_was_passed_to_fopen) {
+    bool read = false;
+    if (mode[0] != '\0') {
+      for (const char* ptr = mode + 1; *ptr != '\0'; ++ptr) {
+        if (*ptr == '+') {
+          read = true;
+          break;
+        }
+        if (*ptr == ',') break;
+      }
+    }
+    if (!read) {
+      supports_read_mode_ = LazyBoolState::kFalse;
+      static const NoDestructor<absl::Status> status(
+          absl::UnimplementedError("Mode does not include '+'"));
+      read_mode_status_ = *status;
+    }
+  }
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
@@ -108,16 +186,16 @@ void CFileWriterBase::InitializePos(FILE* dest,
     static const NoDestructor<absl::Status> status(absl::UnimplementedError(
         "CFileWriterBase::Options::assumed_pos() excludes random access"));
     random_access_status_ = *status;
-    read_mode_status_ = *status;
+    read_mode_status_.Update(*status);
   } else {
-    if (append) {
+    if (mode[0] == 'a') {
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
         // Random access is not supported. Assume the current position as 0.
         supports_random_access_ = LazyBoolState::kFalse;
         supports_read_mode_ = LazyBoolState::kFalse;
         random_access_status_ =
             FailedOperationStatus(cfile_internal::kFSeekFunctionName);
-        read_mode_status_ = random_access_status_;
+        read_mode_status_.Update(random_access_status_);
         clearerr(dest);
         return;
       }
@@ -129,14 +207,18 @@ void CFileWriterBase::InitializePos(FILE* dest,
       supports_read_mode_ = LazyBoolState::kFalse;
       random_access_status_ =
           FailedOperationStatus(cfile_internal::kFTellFunctionName);
-      read_mode_status_ = random_access_status_;
+      read_mode_status_.Update(random_access_status_);
       clearerr(dest);
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
-    if (append) {
+    if (mode[0] == 'a') {
+      // `cfile_internal::FSeek(SEEK_END)` succeeded.
       supports_random_access_ = LazyBoolState::kFalse;
-      // `supports_read_mode_` is left as `LazyBoolState::kUnknown`.
+      if (mode_was_passed_to_fopen &&
+          supports_read_mode_ == LazyBoolState::kUnknown) {
+        supports_read_mode_ = LazyBoolState::kTrue;
+      }
       static const NoDestructor<absl::Status> status(
           absl::UnimplementedError("Append mode excludes random access"));
       random_access_status_ = *status;
@@ -152,7 +234,7 @@ void CFileWriterBase::InitializePos(FILE* dest,
 void CFileWriterBase::Done() {
   BufferedWriter::Done();
   random_access_status_ = absl::OkStatus();
-  read_mode_status_ = absl::OkStatus();
+  read_mode_status_.Update(absl::OkStatus());
   associated_reader_.Reset();
 }
 

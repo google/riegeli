@@ -95,6 +95,9 @@ class FdWriterBase : public BufferedWriter {
     //
     // If `FdWriter` writes to an already open fd, `mode()` has no effect.
     //
+    // `mode()` can also be changed with `set_existing()`, `set_read()`, and
+    // `set_append()`.
+    //
     // Default: `O_WRONLY | O_CREAT | O_TRUNC`.
     Options& set_mode(int mode) & {
       mode_ = mode;
@@ -102,6 +105,65 @@ class FdWriterBase : public BufferedWriter {
     }
     Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
     int mode() const { return mode_; }
+
+    // If `false`, the file will be created if it does not exist, or it will be
+    // truncated to empty if it exists. This implies `set_read(false)` and
+    // `set_append(false)` unless overwritten later.
+    //
+    // If `true`, the file must already exist, and its contents will not be
+    // truncated. Writing will start from the beginning, with random access
+    // supported. This implies `set_read(true)` unless overwritten later.
+    //
+    // If `FdWriter` writes to an already open fd, `existing()` has no effect.
+    //
+    // `set_existing()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_existing(bool existing) & {
+      mode_ = (mode_ & ~(O_ACCMODE | O_CREAT | O_TRUNC | O_APPEND)) |
+              (existing ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC);
+      return *this;
+    }
+    Options&& set_existing(bool existing) && {
+      return std::move(set_existing(existing));
+    }
+    bool existing() const { return (mode_ & O_CREAT) == 0; }
+
+    // If `false`, the fd will be open for writing.
+    //
+    // If `true`, the fd will be open for writing and reading (using
+    // `ReadMode()`).
+    //
+    // If `FdWriter` writes to an already open fd, `read()` has no effect.
+    //
+    // `set_read()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_read(bool read) & {
+      mode_ = (mode_ & ~O_ACCMODE) | (read ? O_RDWR : O_WRONLY);
+      return *this;
+    }
+    Options&& set_read(bool read) && { return std::move(set_read(read)); }
+    bool read() const { return (mode_ & O_ACCMODE) == O_RDWR; }
+
+    // If `false`, the file will be truncated to empty if it exists.
+    //
+    // If `true`, the file will not be truncated if it exists, and writing will
+    // always happen at its end.
+    //
+    // If `FdWriter` writes to an already open fd, `append()` has no effect.
+    //
+    // `set_append()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_append(bool append) & {
+      mode_ = (mode_ & ~(O_TRUNC | O_APPEND)) | (append ? O_APPEND : O_TRUNC);
+      return *this;
+    }
+    Options&& set_append(bool append) && {
+      return std::move(set_append(append));
+    }
+    bool append() const { return (mode_ & O_APPEND) != 0; }
 
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
