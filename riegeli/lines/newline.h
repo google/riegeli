@@ -15,13 +15,25 @@
 #ifndef RIEGELI_LINES_NEWLINE_H_
 #define RIEGELI_LINES_NEWLINE_H_
 
+#include "absl/strings/string_view.h"
+#include "riegeli/base/constexpr.h"
+
 namespace riegeli {
 
 // Line terminator representations to recognize.
 enum class ReadNewline {
   kLf,        // LF              ("\n")
-  kLfOrCrLf,  // LF |      CR-LF ("\n" |        "\r\n")
+  kCrLfOrLf,  // LF |      CR-LF ("\n" |        "\r\n")
   kAny,       // LF | CR | CR-LF ("\n" | "\r" | "\r\n")
+
+  // Deprecated alias.
+  kLfOrCrLf = kCrLfOrLf,
+
+#ifndef _WIN32
+  kNative = kLf,
+#else
+  kNative = kCrLfOrLf,
+#endif
 };
 
 // Line terminator representation to write.
@@ -29,7 +41,20 @@ enum class WriteNewline {
   kLf,    // LF    ("\n")
   kCr,    // CR    ("\r")
   kCrLf,  // CR-LF ("\r\n")
+
+#ifndef _WIN32
+  kNative = kLf,
+#else
+  kNative = kCrLf,
+#endif
 };
+
+// Native line representation as a string.
+#ifndef _WIN32
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\n");
+#else
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\r\n");
+#endif
 
 }  // namespace riegeli
 

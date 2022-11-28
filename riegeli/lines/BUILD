@@ -8,6 +8,10 @@ licenses(["notice"])
 cc_library(
     name = "newline",
     hdrs = ["newline.h"],
+    deps = [
+        "//riegeli/base:constexpr",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(

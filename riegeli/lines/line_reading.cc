@@ -119,7 +119,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         length = src.available();
         goto continue_reading;
       }
-      case ReadNewline::kLfOrCrLf: {
+      case ReadNewline::kCrLfOrLf: {
         const char* newline = static_cast<const char*>(
             std::memchr(src.cursor(), '\n', src.available()));
         for (;;) {
@@ -225,7 +225,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
         }
         goto continue_reading;
       }
-      case ReadNewline::kLfOrCrLf:
+      case ReadNewline::kCrLfOrLf:
         for (;;) {
           const char* const newline = static_cast<const char*>(std::memchr(
               src.cursor() + length, '\n', src.available() - length));
