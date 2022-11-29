@@ -49,6 +49,7 @@
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/lines/line_writing.h"
+#include "riegeli/lines/text_writer.h"
 #include "riegeli/messages/message_parse.h"
 #include "riegeli/messages/text_print.h"
 #include "riegeli/records/chunk_reader.h"
@@ -331,7 +332,8 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
       }
     }
     WriteLine("  chunk {", report);
-    TextPrintToWriter(chunk_summary, report, print_options).IgnoreError();
+    TextPrintToWriter(chunk_summary, TextWriter(&report), print_options)
+        .IgnoreError();
     WriteLine("  }", report);
   }
   WriteLine('}', report);

@@ -51,8 +51,10 @@
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/std_io.h"
+#include "riegeli/bytes/write.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/line_writing.h"
+#include "riegeli/lines/text_writer.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
@@ -394,17 +396,18 @@ void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
 }
 
 void Benchmarks::RunAll(riegeli::Writer& report) {
-  absl::Format(&report, "Original uncompressed size: %.3f MB\n",
+  absl::Format(&report, "Original uncompressed size: %.3f MB",
                static_cast<double>(original_size_) / 1000000.0);
-  absl::Format(&report, "Creating files %s/record_benchmark_*\n", output_dir_);
-  absl::Format(&report, "%-*s  Compr.    Write       Read\n", max_name_width_,
-               "");
-  absl::Format(&report, "%-*s  ratio    CPU Real   CPU Real\n", max_name_width_,
-               "");
-  absl::Format(&report, "%-*s    %%     MB/s MB/s  MB/s MB/s\n",
-               max_name_width_, "Format");
+  WriteLine(report);
+  WriteLine("Creating files ", output_dir_, "/record_benchmark_*", report);
+  absl::Format(&report, "%-*s", max_name_width_, "");
+  WriteLine("  Compr.    Write       Read", report);
+  absl::Format(&report, "%-*s", max_name_width_, "");
+  WriteLine("  ratio    CPU Real   CPU Real", report);
+  absl::Format(&report, "%-*s", max_name_width_, "Format");
+  WriteLine("    %     MB/s MB/s  MB/s MB/s", report);
   report.WriteChars(riegeli::IntCast<size_t>(max_name_width_ + 30), '-');
-  riegeli::WriteLine(report);
+  WriteLine(report);
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
@@ -532,8 +535,9 @@ int main(int argc, char** argv) {
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   std::vector<std::string> records;
   if (args.size() <= 1) {
-    riegeli::StdErr std_err;
-    riegeli::WriteLine(kUsage, std_err);
+    riegeli::TextWriter<riegeli::WriteNewline::kNative, riegeli::StdErr>
+        std_err(std::forward_as_tuple());
+    std_err.Write(kUsage, '\n');
     std_err.Close();
     return 1;
   }

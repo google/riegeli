@@ -39,7 +39,7 @@ class ReadLineOptions {
 
   // Line terminator representations to recognize.
   //
-  // Default: `ReadNewline::kLf`.
+  // Default: `ReadNewline::kNative`.
   ReadLineOptions& set_newline(ReadNewline newline) & {
     newline_ = newline;
     return *this;
@@ -80,7 +80,7 @@ class ReadLineOptions {
   size_t max_length() const { return max_length_; }
 
  private:
-  ReadNewline newline_ = ReadNewline::kLf;
+  ReadNewline newline_ = ReadNewline::kNative;
   bool keep_newline_ = false;
   size_t max_length_ = std::numeric_limits<size_t>::max();
 };

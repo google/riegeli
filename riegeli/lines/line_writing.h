@@ -41,7 +41,7 @@ class WriteLineOptions {
 
   // Line terminator representation to write.
   //
-  // Default: `WriteNewline::kLf`.
+  // Default: `WriteNewline::kNative`.
   WriteLineOptions& set_newline(WriteNewline newline) & {
     newline_ = newline;
     return *this;
@@ -52,7 +52,7 @@ class WriteLineOptions {
   WriteNewline newline() const { return newline_; }
 
  private:
-  WriteNewline newline_ = WriteNewline::kLf;
+  WriteNewline newline_ = WriteNewline::kNative;
 };
 
 // Writes an optional string, then a line terminator.

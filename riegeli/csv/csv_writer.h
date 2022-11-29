@@ -93,7 +93,7 @@ class CsvWriterBase : public Object {
 
     // Record terminator.
     //
-    // Default: `WriteNewline::kLf`.
+    // Default: `WriteNewline::kNative`.
     Options& set_newline(WriteNewline newline) & {
       newline_ = newline;
       return *this;
@@ -161,7 +161,7 @@ class CsvWriterBase : public Object {
 
    private:
     absl::optional<CsvHeader> header_;
-    WriteNewline newline_ = WriteNewline::kLf;
+    WriteNewline newline_ = WriteNewline::kNative;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
@@ -274,7 +274,7 @@ class CsvWriterBase : public Object {
   // of a more complicated lookup code.
   std::array<bool, std::numeric_limits<unsigned char>::max() + 1>
       quotes_needed_{};
-  WriteNewline newline_ = WriteNewline::kLf;
+  WriteNewline newline_ = WriteNewline::kNative;
   char field_separator_ = '\0';
   absl::optional<char> quote_;
   uint64_t record_index_ = 0;
