@@ -43,3 +43,50 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
+
+cc_library(
+    name = "text_reader",
+    srcs = ["text_reader.cc"],
+    hdrs = ["text_reader.h"],
+    deps = [
+        ":newline",
+        "//riegeli/base:any_dependency",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+        "//riegeli/base:status",
+        "//riegeli/base:types",
+        "//riegeli/bytes:buffer_options",
+        "//riegeli/bytes:buffered_reader",
+        "//riegeli/bytes:prefix_limiting_reader",
+        "//riegeli/bytes:reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "text_writer",
+    srcs = ["text_writer.cc"],
+    hdrs = ["text_writer.h"],
+    deps = [
+        ":line_writing",
+        ":newline",
+        "//riegeli/base:any_dependency",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+        "//riegeli/base:status",
+        "//riegeli/base:types",
+        "//riegeli/bytes:buffer_options",
+        "//riegeli/bytes:buffered_writer",
+        "//riegeli/bytes:prefix_limiting_writer",
+        "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
