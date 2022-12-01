@@ -35,10 +35,16 @@ namespace riegeli {
 // `dest` (clearing any existing data in `dest`), and `VerifyEndAndClose()`
 // (if the `Reader` is owned).
 //
+// `ReadAll(char*)` sets `*length_read` to the length read.
+//
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
+                     size_t* length_read);
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, std::string& dest,
@@ -80,6 +86,8 @@ absl::Status ReadAndAppendAll(
 
 namespace read_all_internal {
 
+absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
+                         size_t* length_read);
 absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length);
 absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length);
 absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length);
@@ -117,6 +125,22 @@ inline absl::Status ReadAndAppendAllInternal(Src&& src, Dest& dest,
 }
 
 }  // namespace read_all_internal
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
+                     size_t* length_read) {
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  absl::Status status =
+      read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
+    }
+  }
+  return status;
+}
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>

@@ -35,6 +35,16 @@ namespace riegeli {
 // copying all remaining data, and `VerifyEndAndClose()` and/or `Close()`
 // (if the `Reader` and/or `Writer` / `BackwardWriter` is owned).
 //
+// `CopyAll(Writer&)` writes as much as could be read if reading failed, reads
+// an unspecified length (between what could be written and `max_length`) if
+// writing failed, and reads and writes `max_length` if `max_length` was
+// exceeded.
+//
+// `CopyAll(BackwardWriter&)` writes nothing if reading failed, reads an
+// unspecified length (between what could be written and `max_length`) if
+// writing failed, and reads `max_length` and writes nothing if `max_length` was
+// exceeded.
+//
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),

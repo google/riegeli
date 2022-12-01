@@ -44,6 +44,18 @@ absl::Status MaxLengthExceeded(Reader& src, Position max_length) {
 
 }  // namespace
 
+absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
+                         size_t* length_read) {
+  if (!src.Read(max_length, dest, length_read)) {
+    if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+    return absl::OkStatus();
+  }
+  if (ABSL_PREDICT_FALSE(src.Pull())) {
+    return MaxLengthExceeded(src, max_length);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length) {
   dest.clear();
   return ReadAndAppendAllImpl(src, dest, max_length);
