@@ -16,12 +16,8 @@
 #define RIEGELI_BASE_ERRNO_MAPPING_H_
 
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 
 namespace riegeli {
-
-// Converts `errno` value to `absl::Status`.
-absl::Status ErrnoToStatus(int error_number, absl::string_view message);
 
 // Converts `absl::StatusCode` to `errno` value.
 int StatusCodeToErrno(absl::StatusCode status_code);

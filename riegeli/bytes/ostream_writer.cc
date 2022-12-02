@@ -30,7 +30,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -122,7 +121,7 @@ inline absl::Status OStreamWriterBase::FailedOperationStatus(
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
   return error_number == 0 ? absl::UnknownError(message)
-                           : ErrnoToStatus(error_number, message);
+                           : absl::ErrnoToStatus(error_number, message);
 }
 
 bool OStreamWriterBase::FailOperation(absl::string_view operation) {

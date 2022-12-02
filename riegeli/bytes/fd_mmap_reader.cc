@@ -42,7 +42,6 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
@@ -74,7 +73,7 @@ void MMapRef::operator()(absl::string_view data) const {
   RIEGELI_CHECK_EQ(munmap(const_cast<char*>(addr_),
                           data.size() + PtrDistance(addr_, data.data())),
                    0)
-      << ErrnoToStatus(errno, "munmap() failed").message();
+      << absl::ErrnoToStatus(errno, "munmap() failed").message();
 }
 
 void MMapRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
@@ -195,7 +194,8 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
-  return Fail(ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
+  return Fail(
+      absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {

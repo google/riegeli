@@ -46,12 +46,10 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/std_io.h"
-#include "riegeli/bytes/write.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/line_writing.h"
 #include "riegeli/lines/text_writer.h"
@@ -124,7 +122,7 @@ bool SizeLimiter::Accept(size_t size) {
 uint64_t FileSize(const std::string& filename) {
   struct stat stat_info;
   RIEGELI_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
-      << riegeli::ErrnoToStatus(errno, "stat() failed").message();
+      << absl::ErrnoToStatus(errno, "stat() failed").message();
   return riegeli::IntCast<uint64_t>(stat_info.st_size);
 }
 

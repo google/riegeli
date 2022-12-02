@@ -12,202 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make strerror_r() available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
-#undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #include "riegeli/base/errno_mapping.h"
 
 #include <cerrno>
-#include <string>
 
-#include "absl/base/attributes.h"
-#include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 
 namespace riegeli {
-
-namespace {
-
-absl::StatusCode ErrnoToStatusCode(int error_number) {
-  switch (error_number) {
-    case 0:
-      return absl::StatusCode::kOk;
-    case EINVAL:        // Invalid argument
-    case ENAMETOOLONG:  // Filename too long
-    case E2BIG:         // Argument list too long
-    case EDESTADDRREQ:  // Destination address required
-    case EDOM:          // Mathematics argument out of domain of function
-    case EFAULT:        // Bad address
-    case EILSEQ:        // Illegal byte sequence
-    case ENOPROTOOPT:   // Protocol not available
-    case ENOSTR:        // Not a STREAM
-    case ENOTSOCK:      // Not a socket
-    case ENOTTY:        // Inappropriate I/O control operation
-    case EPROTOTYPE:    // Protocol wrong type for socket
-    case ESPIPE:        // Invalid seek
-      return absl::StatusCode::kInvalidArgument;
-    case ETIMEDOUT:  // Connection timed out
-    case ETIME:      // Timer expired
-      return absl::StatusCode::kDeadlineExceeded;
-    case ENODEV:  // No such device
-    case ENOENT:  // No such file or directory
-#ifdef ENOMEDIUM
-    case ENOMEDIUM:  // No medium found
-#endif
-    case ENXIO:  // No such device or address
-    case ESRCH:  // No such process
-      return absl::StatusCode::kNotFound;
-    case EEXIST:         // File exists
-    case EADDRNOTAVAIL:  // Address not available
-    case EALREADY:       // Connection already in progress
-#ifdef ENOTUNIQ
-    case ENOTUNIQ:  // Name not unique on network
-#endif
-      return absl::StatusCode::kAlreadyExists;
-    case EPERM:   // Operation not permitted
-    case EACCES:  // Permission denied
-#ifdef ENOKEY
-    case ENOKEY:  // Required key not available
-#endif
-    case EROFS:  // Read only file system
-      return absl::StatusCode::kPermissionDenied;
-    case ENOTEMPTY:   // Directory not empty
-    case EISDIR:      // Is a directory
-    case ENOTDIR:     // Not a directory
-    case EADDRINUSE:  // Address already in use
-    case EBADF:       // Invalid file descriptor
-#ifdef EBADFD
-    case EBADFD:  // File descriptor in bad state
-#endif
-    case EBUSY:    // Device or resource busy
-    case ECHILD:   // No child processes
-    case EISCONN:  // Socket is connected
-#ifdef EISNAM
-    case EISNAM:  // Is a named type file
-#endif
-#ifdef ENOTBLK
-    case ENOTBLK:  // Block device required
-#endif
-    case ENOTCONN:  // The socket is not connected
-    case EPIPE:     // Broken pipe
-#ifdef ESHUTDOWN
-    case ESHUTDOWN:  // Cannot send after transport endpoint shutdown
-#endif
-    case ETXTBSY:  // Text file busy
-#ifdef EUNATCH
-    case EUNATCH:  // Protocol driver not attached
-#endif
-      return absl::StatusCode::kFailedPrecondition;
-    case ENOSPC:  // No space left on device
-#ifdef EDQUOT
-    case EDQUOT:  // Disk quota exceeded
-#endif
-    case EMFILE:   // Too many open files
-    case EMLINK:   // Too many links
-    case ENFILE:   // Too many open files in system
-    case ENOBUFS:  // No buffer space available
-    case ENODATA:  // No message is available on the STREAM read queue
-    case ENOMEM:   // Not enough space
-    case ENOSR:    // No STREAM resources
-#ifdef EUSERS
-    case EUSERS:  // Too many users
-#endif
-      return absl::StatusCode::kResourceExhausted;
-#ifdef ECHRNG
-    case ECHRNG:  // Channel number out of range
-#endif
-    case EFBIG:      // File too large
-    case EOVERFLOW:  // Value too large to be stored in data type
-    case ERANGE:     // Result too large
-      return absl::StatusCode::kOutOfRange;
-#ifdef ENOPKG
-    case ENOPKG:  // Package not installed
-#endif
-    case ENOSYS:        // Function not implemented
-    case ENOTSUP:       // Operation not supported
-    case EAFNOSUPPORT:  // Address family not supported
-#ifdef EPFNOSUPPORT
-    case EPFNOSUPPORT:  // Protocol family not supported
-#endif
-    case EPROTONOSUPPORT:  // Protocol not supported
-#ifdef ESOCKTNOSUPPORT
-    case ESOCKTNOSUPPORT:  // Socket type not supported
-#endif
-    case EXDEV:  // Improper link
-      return absl::StatusCode::kUnimplemented;
-    case EAGAIN:  // Resource temporarily unavailable
-#ifdef ECOMM
-    case ECOMM:  // Communication error on send
-#endif
-    case ECONNREFUSED:  // Connection refused
-    case ECONNABORTED:  // Connection aborted
-    case ECONNRESET:    // Connection reset
-    case EINTR:         // Interrupted function call
-#ifdef EHOSTDOWN
-    case EHOSTDOWN:  // Host is down
-#endif
-    case EHOSTUNREACH:  // Host is unreachable
-    case ENETDOWN:      // Network is down
-    case ENETRESET:     // Connection aborted by network
-    case ENETUNREACH:   // Network unreachable
-    case ENOLCK:        // No locks available
-    case ENOLINK:       // Link has been severed
-#ifdef ENONET
-    case ENONET:  // Machine is not on the network
-#endif
-      return absl::StatusCode::kUnavailable;
-    case EDEADLK:  // Resource deadlock avoided
-#ifdef ESTALE
-    case ESTALE:  // Stale file handle
-#endif
-      return absl::StatusCode::kAborted;
-    case ECANCELED:  // Operation cancelled
-      return absl::StatusCode::kCancelled;
-    default:
-      return absl::StatusCode::kUnknown;
-  }
-}
-
-#ifndef _WIN32
-// POSIX `strerror_r()` returns `int`.
-ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(int result, const char* buffer,
-                                                 int error_code) {
-  if (ABSL_PREDICT_FALSE(result != 0)) {
-    return absl::StrCat("Unknown error ", error_code);
-  }
-  return buffer;
-}
-
-// GNU `strerror_r()` returns `char*`.
-ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(char* result,
-                                                 const char* buffer,
-                                                 int error_code) {
-  return result;
-}
-#endif
-
-std::string StrError(int error_code) {
-#ifdef _WIN32
-  // On Windows, regular `strerror()` is thread-safe and `strerror_r()` does not
-  // exist.
-  return ::strerror(error_code);
-#else
-  char message[256];
-  return StrErrorResult(strerror_r(error_code, message, sizeof(message)),
-                        message, error_code);
-#endif
-}
-
-}  // namespace
-
-absl::Status ErrnoToStatus(int error_number, absl::string_view message) {
-  return absl::Status(ErrnoToStatusCode(error_number),
-                      absl::StrCat(message, ": ", StrError(error_number)));
-}
 
 int StatusCodeToErrno(absl::StatusCode status_code) {
   switch (status_code) {
@@ -231,7 +42,7 @@ int StatusCodeToErrno(absl::StatusCode status_code) {
       return ENOSPC;
     case absl::StatusCode::kFailedPrecondition:
       // Does not round trip:
-      // `ErrnoToStatusCode(EINVAL) == absl::StatusCode::kInvalidArgument`
+      // `absl::ErrnoToStatusCode(EINVAL) == absl::StatusCode::kInvalidArgument`
       return EINVAL;
     case absl::StatusCode::kAborted:
       return EDEADLK;
@@ -241,21 +52,22 @@ int StatusCodeToErrno(absl::StatusCode status_code) {
       return ENOTSUP;
     case absl::StatusCode::kInternal:
       // Does not round trip:
-      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      // `absl::ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
       return EIO;
     case absl::StatusCode::kUnavailable:
       return EAGAIN;
     case absl::StatusCode::kDataLoss:
       // Does not round trip:
-      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      // `absl::ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
       return EIO;
     case absl::StatusCode::kUnauthenticated:
       // Does not round trip:
-      // `ErrnoToStatusCode(EACCES) == absl::StatusCode::kPermissionDenied`
+      // `absl::ErrnoToStatusCode(EACCES) ==
+      //      absl::StatusCode::kPermissionDenied`
       return EACCES;
     default:
       // Does not round trip:
-      // `ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
+      // `absl::ErrnoToStatusCode(EIO) == absl::StatusCode::kUnknown`
       return EIO;
   }
 }

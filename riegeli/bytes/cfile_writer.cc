@@ -41,7 +41,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
@@ -244,7 +243,7 @@ inline absl::Status CFileWriterBase::FailedOperationStatus(
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of CFileWriterBase::FailedOperationStatus(): "
          "zero errno";
-  return ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
+  return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
 }
 
 bool CFileWriterBase::FailOperation(absl::string_view operation) {
