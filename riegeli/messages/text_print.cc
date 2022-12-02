@@ -40,6 +40,15 @@ absl::Status TextPrintToWriterImpl(const google::protobuf::Message& src,
       << "Failed to text-print message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
+  if (options.header()) {
+    const google::protobuf::Descriptor* const descriptor = src.GetDescriptor();
+    dest.Write("# proto-file: ", descriptor->file()->name(),
+               "\n"
+               "# proto-message: ",
+               descriptor->containing_type() ? descriptor->full_name()
+                                             : descriptor->name(),
+               "\n\n");
+  }
   WriterOutputStream output_stream(&dest);
   const bool print_ok = options.printer().Print(src, &output_stream);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();

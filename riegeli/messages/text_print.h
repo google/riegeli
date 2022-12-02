@@ -50,6 +50,30 @@ class TextPrintOptions {
   }
   bool partial() const { return partial_; }
 
+  // If `false`, print just the message.
+  //
+  // If `true`, prefix the output with comments informing about the filename and
+  // message name, to aid tools and humans in interpreting the file:
+  //
+  // ```
+  // # proto-file: path/filename.proto
+  // # proto-message: MessageName
+  // ```
+  //
+  // See
+  // https://developers.google.com/protocol-buffers/docs/text-format-spec#header
+  // for details.
+  //
+  // Default: `false`.
+  TextPrintOptions& set_header(bool header) & {
+    header_ = header;
+    return *this;
+  }
+  TextPrintOptions&& set_header(bool header) && {
+    return std::move(set_header(header));
+  }
+  bool header() const { return header_; }
+
   // Other text printing options.
   google::protobuf::TextFormat::Printer& printer() { return printer_; }
   const google::protobuf::TextFormat::Printer& printer() const {
@@ -58,6 +82,7 @@ class TextPrintOptions {
 
  private:
   bool partial_ = false;
+  bool header_ = false;
   google::protobuf::TextFormat::Printer printer_;
 };
 
