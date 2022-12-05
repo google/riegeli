@@ -195,39 +195,6 @@ cc_library(
     ],
 )
 
-# TODO: Remove this library once users are migrated to more specific
-# libraries.
-cc_library(
-    name = "base",
-    hdrs = [
-        "any_dependency.h",
-        "base.h",
-        "dependency.h",
-        "memory.h",
-        "object.h",
-    ],
-    deps = [
-        ":any_dependency",
-        ":arithmetic",
-        ":assert",
-        ":buffering",
-        ":constexpr",
-        ":dependency",
-        ":estimated_allocated_size",
-        ":object",
-        ":reset",
-        ":type_id",
-        ":types",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
-    ],
-)
-
 cc_library(
     name = "memory_estimator",
     srcs = ["memory_estimator.cc"],
