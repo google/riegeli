@@ -35,6 +35,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_dependency.h"
+#include "riegeli/bytes/file_mode_string.h"
 
 namespace riegeli {
 
@@ -149,7 +150,7 @@ class CFileReaderBase : public BufferedReader {
   void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(FILE* src, std::string&& assumed_filename,
                   absl::optional<Position> assumed_pos);
-  FILE* OpenFile(absl::string_view filename, const char* mode);
+  FILE* OpenFile(absl::string_view filename, const std::string& mode);
   void InitializePos(FILE* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
@@ -433,7 +434,7 @@ inline void CFileReader<Src>::Reset(absl::string_view filename,
 template <typename Src>
 void CFileReader<Src>::Initialize(absl::string_view filename,
                                   Options&& options) {
-  FILE* const src = OpenFile(filename, options.mode().c_str());
+  FILE* const src = OpenFile(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.assumed_pos());

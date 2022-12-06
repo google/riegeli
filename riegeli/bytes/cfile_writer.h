@@ -35,6 +35,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_dependency.h"
+#include "riegeli/bytes/file_mode_string.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -104,11 +105,14 @@ class CFileWriterBase : public BufferedWriter {
     // `set_existing()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_existing(bool existing) &;
+    Options& set_existing(bool existing) & {
+      file_internal::SetExisting(existing, mode_);
+      return *this;
+    }
     Options&& set_existing(bool existing) && {
       return std::move(set_existing(existing));
     }
-    bool existing() const { return mode_[0] == 'r'; }
+    bool existing() const { return file_internal::GetExisting(mode_); }
 
     // If `false`, the `FILE` will be open for writing, except that
     // `set_read(false)` has no effect after `set_existing(true)`.
@@ -122,9 +126,12 @@ class CFileWriterBase : public BufferedWriter {
     // `set_read()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_read(bool read) &;
+    Options& set_read(bool read) & {
+      file_internal::SetRead(read, mode_);
+      return *this;
+    }
     Options&& set_read(bool read) && { return std::move(set_read(read)); }
-    bool read() const;
+    bool read() const { return file_internal::GetRead(mode_); }
 
     // If `false`, the file will be truncated to empty if it exists.
     //
@@ -143,14 +150,13 @@ class CFileWriterBase : public BufferedWriter {
     //
     // Default: `false`.
     Options& set_append(bool append) & {
-      if (ABSL_PREDICT_FALSE(mode_.empty())) mode_ = "w";
-      mode_[0] = append ? 'a' : 'w';
+      file_internal::SetAppend(append, mode_);
       return *this;
     }
     Options&& set_append(bool append) && {
       return std::move(set_append(append));
     }
-    bool append() const { return mode_[0] == 'a'; }
+    bool append() const { return file_internal::GetAppend(mode_); }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
@@ -199,10 +205,10 @@ class CFileWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
-  void Initialize(FILE* dest, std::string&& assumed_filename, const char* mode,
-                  absl::optional<Position> assumed_pos);
-  FILE* OpenFile(absl::string_view filename, const char* mode);
-  void InitializePos(FILE* dest, const char* mode,
+  void Initialize(FILE* dest, std::string&& assumed_filename,
+                  absl::string_view mode, absl::optional<Position> assumed_pos);
+  FILE* OpenFile(absl::string_view filename, const std::string& mode);
+  void InitializePos(FILE* dest, absl::string_view mode,
                      bool mode_was_passed_to_fopen,
                      absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -428,15 +434,15 @@ inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(const Dest& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
@@ -448,8 +454,8 @@ template <typename... DestArgs>
 inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
@@ -484,16 +490,16 @@ template <typename Dest>
 inline void CFileWriter<Dest>::Reset(const Dest& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
 inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
@@ -507,8 +513,8 @@ inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-             options.mode().c_str(), options.assumed_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
+             options.assumed_pos());
 }
 
 template <typename Dest>
@@ -523,10 +529,10 @@ inline void CFileWriter<Dest>::Reset(absl::string_view filename,
 template <typename Dest>
 void CFileWriter<Dest>::Initialize(absl::string_view filename,
                                    Options&& options) {
-  FILE* const dest = OpenFile(filename, options.mode().c_str());
+  FILE* const dest = OpenFile(filename, options.mode());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), options.mode().c_str(),
+  InitializePos(dest_.get(), options.mode(),
                 /*mode_was_passed_to_fopen=*/true, options.assumed_pos());
 }
 

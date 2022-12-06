@@ -1033,6 +1033,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
+        ":file_mode_string",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:constexpr",
@@ -1065,6 +1066,7 @@ cc_library(
         ":buffer_options",
         ":buffered_writer",
         ":cfile_reader",
+        ":file_mode_string",
         ":reader",
         ":writer",
         "//riegeli/base:arithmetic",

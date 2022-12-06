@@ -98,11 +98,12 @@ void CFileReaderBase::Initialize(FILE* src, std::string&& assumed_filename,
   InitializePos(src, assumed_pos);
 }
 
-FILE* CFileReaderBase::OpenFile(absl::string_view filename, const char* mode) {
+FILE* CFileReaderBase::OpenFile(absl::string_view filename,
+                                const std::string& mode) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
-  FILE* const src = fopen(filename_.c_str(), mode);
+  FILE* const src = fopen(filename_.c_str(), mode.c_str());
   if (ABSL_PREDICT_FALSE(src == nullptr)) {
     BufferedReader::Reset(kClosed);
     FailOperation("fopen()");
