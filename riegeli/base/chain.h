@@ -1270,9 +1270,9 @@ class Chain::RawBlock {
 
 struct Chain::ExternalMethods {
   void (*delete_block)(RawBlock* block);
-  void (*register_unique)(const RawBlock* block,
+  void (*register_unique)(const RawBlock& block,
                           MemoryEstimator& memory_estimator);
-  void (*dump_structure)(const RawBlock* block, std::ostream& out);
+  void (*dump_structure)(const RawBlock& block, std::ostream& out);
 };
 
 namespace chain_internal {
@@ -1422,9 +1422,9 @@ struct Chain::ExternalMethodsFor {
 
  private:
   static void DeleteBlock(RawBlock* block);
-  static void RegisterUnique(const RawBlock* block,
+  static void RegisterUnique(const RawBlock& block,
                              MemoryEstimator& memory_estimator);
-  static void DumpStructure(const RawBlock* block, std::ostream& out);
+  static void DumpStructure(const RawBlock& block, std::ostream& out);
 };
 
 template <typename T>
@@ -1460,19 +1460,19 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::RegisterUnique(
-    const RawBlock* block, MemoryEstimator& memory_estimator) {
+    const RawBlock& block, MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
                                          sizeof(T));
-  chain_internal::RegisterSubobjects(block->unchecked_external_object<T>(),
-                                     absl::string_view(*block),
+  chain_internal::RegisterSubobjects(block.unchecked_external_object<T>(),
+                                     absl::string_view(block),
                                      memory_estimator);
 }
 
 template <typename T>
-void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
+void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
                                                  std::ostream& out) {
-  chain_internal::DumpStructure(block->unchecked_external_object<T>(),
-                                absl::string_view(*block), out);
+  chain_internal::DumpStructure(block.unchecked_external_object<T>(),
+                                absl::string_view(block), out);
 }
 
 template <typename T, typename... Args>

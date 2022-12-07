@@ -113,18 +113,22 @@ inline void ResetImpl(T& object, Args&&... args) {
   RiegeliReset(object, std::forward<Args>(args)...);
 }
 
-template <typename T, typename... Args,
-          std::enable_if_t<!HasRiegeliReset<T, void, Args...>::value &&
-                               HasReset<T, void, Args...>::value,
-                           int> = 0>
+template <
+    typename T, typename... Args,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<HasRiegeliReset<T, void, Args...>>,
+                          HasReset<T, void, Args...>>::value,
+        int> = 0>
 inline void ResetImpl(T& object, Args&&... args) {
   object.Reset(std::forward<Args>(args)...);
 }
 
-template <typename T, typename... Args,
-          std::enable_if_t<!HasRiegeliReset<T, void, Args...>::value &&
-                               !HasReset<T, void, Args...>::value,
-                           int> = 0>
+template <
+    typename T, typename... Args,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<HasRiegeliReset<T, void, Args...>>,
+                          absl::negation<HasReset<T, void, Args...>>>::value,
+        int> = 0>
 inline void ResetImpl(T& object, Args&&... args) {
   object = T(std::forward<Args>(args)...);
 }

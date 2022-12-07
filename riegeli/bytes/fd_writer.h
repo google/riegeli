@@ -283,7 +283,7 @@ class FdWriterBase : public BufferedWriter {
     // The current fd position is not disturbed except on Windows, where seeking
     // and writing is nevertheless atomic. This is useful for multiple writers
     // concurrently writing to disjoint regions of the same file. The fd must
-    // support `pwrite()`(`_get_osfhandle()` and `WriteFile()` with
+    // support `pwrite()` (`_get_osfhandle()` and `WriteFile()` with
     // `OVERLAPPED*` on Windows). On Windows binary mode is also required.
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.

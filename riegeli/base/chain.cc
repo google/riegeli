@@ -410,7 +410,7 @@ inline void Chain::RawBlock::RegisterShared(
       memory_estimator.RegisterDynamicMemory(kInternalAllocatedOffset() +
                                              capacity());
     } else {
-      external_.methods->register_unique(this, memory_estimator);
+      external_.methods->register_unique(*this, memory_estimator);
     }
   }
 }
@@ -425,7 +425,7 @@ inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
     out << " space_after: " << raw_space_after();
   } else {
     out << " ";
-    external_.methods->dump_structure(this, out);
+    external_.methods->dump_structure(*this, out);
   }
   out << " }";
 }
