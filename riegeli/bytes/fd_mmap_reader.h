@@ -35,8 +35,8 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/fd_close.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -53,7 +53,9 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // returned by `filename()`.
     //
     // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
-    // "/dev/stderr", or "/proc/self/fd/<fd>" is assumed.
+    // "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` is inferred from
+    // the fd (on Windows: "CONIN$", "CONOUT$", "CONERR$", or
+    // `absl::StrCat("<fd ", fd, ">")`).
     //
     // If `FdMMapReader` opens a fd with a filename, `assumed_filename()` has no
     // effect.
@@ -83,12 +85,14 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     }
 
     // If `FdMMapReader` opens a fd with a filename, `mode()` is the second
-    // argument of `open()` and specifies the open mode and flags, typically
-    // `O_RDONLY`. It must include either `O_RDONLY` or `O_RDWR`.
+    // argument of `open()` (on Windows: `_open()`) and specifies the open mode
+    // and flags, typically `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
+    // It must include either `O_RDONLY` or `O_RDWR` (on Windows: `_O_RDONLY` or
+    // `_O_RDWR`).
     //
     // If `FdMMapReader` reads from an already open fd, `mode()` has no effect.
     //
-    // Default: `O_RDONLY`.
+    // Default: `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
     Options& set_mode(int mode) & {
       mode_ = mode;
       return *this;
@@ -144,7 +148,11 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
    private:
     absl::optional<std::string> assumed_filename_;
+#ifndef _WIN32
     int mode_ = O_RDONLY;
+#else
+    int mode_ = _O_RDONLY | _O_BINARY;
+#endif
     absl::optional<Position> independent_pos_;
     absl::optional<Position> max_length_;
   };
@@ -179,6 +187,9 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void InitializeWithExistingData(int src, absl::string_view filename,
                                   const Chain& data);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+#ifdef _WIN32
+  ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
+#endif
 
   void Done() override;
   bool SyncImpl(SyncType sync_type) override;
@@ -193,10 +204,17 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // memory.
 //
 // The fd must support:
+#ifndef _WIN32
 //  * `close()` - if the fd is owned
 //  * `fstat()`
 //  * `mmap()`
 //  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
+#else
+//  * `_close()`    - if the fd is owned
+//  * `_fstat64()`
+//  * `_get_osfhandle()`, `CreateFileMappingW()`, `MapViewOfFile()`
+//  * `_lseeki64()` - if `Options::independent_pos() == absl::nullopt`
+#endif
 //
 // `FdMMapReader` supports random access and `NewReader()`.
 //
@@ -210,7 +228,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // type of the first constructor argument. This requires C++17.
 //
 // The fd must not be closed until the `FdMMapReader` is closed or no longer
-// used. `File` contents must not be changed while data read from the file is
+// used. File contents must not be changed while data read from the file is
 // accessed without a memory copy.
 template <typename Src = OwnedFd>
 class FdMMapReader : public FdMMapReaderBase {

@@ -20,7 +20,9 @@
 // in a standalone compilation unit.
 
 #include <stdio.h>
+#ifndef _WIN32
 #include <sys/types.h>
+#endif
 
 #include <type_traits>
 #include <utility>
@@ -31,6 +33,8 @@
 
 namespace riegeli {
 namespace cfile_internal {
+
+#ifndef _WIN32
 
 // Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
 // `ftell()`.
@@ -48,12 +52,12 @@ struct HaveFSeekO<File, absl::void_t<decltype(fseeko(std::declval<File*>(),
 using Offset = absl::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, off_t offset, int whence) {
+inline int FSeek(File* file, Offset offset, int whence) {
   return fseeko(file, offset, whence);
 }
 
 template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, long offset, int whence) {
+inline int FSeek(File* file, Offset offset, int whence) {
   return fseek(file, offset, whence);
 }
 
@@ -61,17 +65,33 @@ RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName,
                          HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()");
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline off_t FTell(File* file) {
+inline Offset FTell(File* file) {
   return ftello(file);
 }
 
 template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline long FTell(File* file) {
+inline Offset FTell(File* file) {
   return ftell(file);
 }
 
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName,
                          HaveFSeekO<FILE>::value ? "ftello()" : "ftell()");
+
+#else
+
+using Offset = __int64;
+
+inline int FSeek(FILE* file, Offset offset, int whence) {
+  return _fseeki64(file, offset, whence);
+}
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName, "_fseeki64");
+
+inline Offset FTell(FILE* file) { return _ftelli64(file); }
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName, "_ftelli64()");
+
+#endif
 
 }  // namespace cfile_internal
 }  // namespace riegeli

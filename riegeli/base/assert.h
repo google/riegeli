@@ -44,7 +44,7 @@ namespace internal {
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_unreachable) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(4, 5)
 #define RIEGELI_INTERNAL_UNREACHABLE() __builtin_unreachable()
-#elif defined(_MSC_VER)
+#elif defined(_WIN32)
 #define RIEGELI_INTERNAL_UNREACHABLE() __assume(false)
 #else
 #define RIEGELI_INTERNAL_UNREACHABLE() \
@@ -184,7 +184,7 @@ inline T AssertNotNull(T&& value) {
 
 #if defined(__clang__) || RIEGELI_INTERNAL_IS_GCC_VERSION(2, 6)
 #define RIEGELI_INTERNAL_FUNCTION __PRETTY_FUNCTION__
-#elif defined(_MSC_VER)
+#elif defined(_WIN32)
 #define RIEGELI_INTERNAL_FUNCTION __FUNCSIG__
 #else
 #define RIEGELI_INTERNAL_FUNCTION __func__

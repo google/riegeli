@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
+
 // Make `fseeko()` and `ftello()` available.
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
@@ -22,11 +24,16 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
+#endif
+
 #include "riegeli/bytes/cfile_writer.h"
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/types.h>
 
 #include <cerrno>
 #include <limits>
@@ -35,7 +42,9 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#ifndef _WIN32
 #include "absl/strings/match.h"
+#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -45,6 +54,9 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
+#ifdef _WIN32
+#include "riegeli/base/unicode.h"
+#endif
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_internal.h"
 #include "riegeli/bytes/cfile_reader.h"
@@ -68,12 +80,34 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename,
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
+#ifndef _WIN32
   FILE* const dest = fopen(filename_.c_str(), mode.c_str());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) {
     BufferedWriter::Reset(kClosed);
     FailOperation("fopen()");
     return nullptr;
   }
+#else
+  std::wstring filename_wide;
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
+    BufferedWriter::Reset(kClosed);
+    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
+    return nullptr;
+  }
+  std::wstring mode_wide;
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode, mode_wide))) {
+    BufferedWriter::Reset(kClosed);
+    Fail(absl::InvalidArgumentError(
+        absl::StrCat("Mode not valid UTF-8: ", mode)));
+    return nullptr;
+  }
+  FILE* const dest = _wfopen(filename_wide.c_str(), mode_wide.c_str());
+  if (ABSL_PREDICT_FALSE(dest == nullptr)) {
+    BufferedWriter::Reset(kClosed);
+    FailOperation("_wfopen()");
+    return nullptr;
+  }
+#endif
   return dest;
 }
 
@@ -92,10 +126,18 @@ void CFileWriterBase::InitializePos(FILE* dest, absl::string_view mode,
   RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
+#ifdef _WIN32
+  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+      << "Failed precondition of CFileWriterBase::InitializePos(): "
+         "original_mode_ not reset";
+#endif
   if (ABSL_PREDICT_FALSE(ferror(dest))) {
     FailOperation("FILE");
     return;
   }
+#ifdef _WIN32
+  int text_mode = file_internal::GetTextAsFlags(mode);
+#endif
   if (mode_was_passed_to_fopen) {
     if (!file_internal::GetRead(mode)) {
       supports_read_mode_ = LazyBoolState::kFalse;
@@ -104,6 +146,41 @@ void CFileWriterBase::InitializePos(FILE* dest, absl::string_view mode,
       read_mode_status_ = *status;
     }
   }
+#ifdef _WIN32
+  else if (text_mode != 0) {
+    const int fd = _fileno(dest);
+    if (ABSL_PREDICT_FALSE(fd < 0)) {
+      FailOperation("_fileno()");
+      return;
+    }
+    const int original_mode = _setmode(fd, text_mode);
+    if (ABSL_PREDICT_FALSE(original_mode < 0)) {
+      FailOperation("_setmode()");
+      return;
+    }
+    original_mode_ = original_mode;
+  }
+  if (assumed_pos == absl::nullopt) {
+    if (text_mode == 0) {
+      const int fd = _fileno(dest);
+      if (ABSL_PREDICT_FALSE(fd < 0)) {
+        FailOperation("_fileno()");
+        return;
+      }
+      // There is no `_getmode()`, but `_setmode()` returns the previous mode.
+      text_mode = _setmode(fd, _O_BINARY);
+      if (ABSL_PREDICT_FALSE(text_mode < 0)) {
+        FailOperation("_setmode()");
+        return;
+      }
+      if (ABSL_PREDICT_FALSE(_setmode(fd, text_mode) < 0)) {
+        FailOperation("_setmode()");
+        return;
+      }
+    }
+    if (text_mode != _O_BINARY) assumed_pos = 0;
+  }
+#endif
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
@@ -164,6 +241,17 @@ void CFileWriterBase::InitializePos(FILE* dest, absl::string_view mode,
 
 void CFileWriterBase::Done() {
   BufferedWriter::Done();
+#ifdef _WIN32
+  if (original_mode_ != absl::nullopt) {
+    FILE* const dest = DestFile();
+    const int fd = _fileno(dest);
+    if (ABSL_PREDICT_FALSE(fd < 0)) {
+      FailOperation("_fileno()");
+    } else if (ABSL_PREDICT_FALSE(_setmode(fd, *original_mode_) < 0)) {
+      FailOperation("_setmode()");
+    }
+  }
+#endif
   random_access_status_ = absl::OkStatus();
   read_mode_status_.Update(absl::OkStatus());
   associated_reader_.Reset();
@@ -192,11 +280,13 @@ absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
 inline absl::Status CFileWriterBase::SizeStatus() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of CFileWriterBase::SizeStatus(): " << status();
+#ifndef _WIN32
   if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
     // "/sys" files do not support random access. It is hard to reliably
     // recognize them, so `CFileWriter` checks the filename.
     return absl::UnimplementedError("/sys files do not support random access");
   }
+#endif
   FILE* const dest = DestFile();
   if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     // Not supported.
@@ -216,6 +306,7 @@ inline absl::Status CFileWriterBase::SizeStatus() {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return status();
   }
+#ifndef _WIN32
   if (file_size == 0 &&
       ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
     // Some "/proc" files do not support random access. It is hard to
@@ -225,6 +316,7 @@ inline absl::Status CFileWriterBase::SizeStatus() {
     return absl::UnimplementedError(
         "/proc files claiming zero size do not support random access");
   }
+#endif
   // Supported.
   return absl::OkStatus();
 }

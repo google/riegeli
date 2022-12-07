@@ -15,27 +15,71 @@
 #ifndef RIEGELI_BYTES_FD_INTERNAL_H_
 #define RIEGELI_BYTES_FD_INTERNAL_H_
 
+// Warning: Do not include this header in other headers, because the definition
+// of `off_t` depends on `_FILE_OFFSET_BITS` which can reliably be set only
+// in a standalone compilation unit.
+
 #include <string>
+
+#ifdef _WIN32
+#include <io.h>
+#endif
+#include <sys/stat.h>
+#include <sys/types.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 namespace fd_internal {
 
-// Returns the `assumed_filename`. If `absl::nullopt`, then "/dev/stdin",
-// "/dev/stdout", "/dev/stderr", or "/proc/self/fd/<fd>" is inferred from `fd`.
+// Returns the `assumed_filename`.
+//
+// If `absl::nullopt`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+// `absl::StrCat("/proc/self/fd/", fd)` is inferred from `fd` (on Windows:
+// "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
 std::string ResolveFilename(int fd,
                             absl::optional<std::string>&& assumed_filename);
 
-// Closes a file descriptor, taking interruption by signals into account.
-//
-// Return value:
-//  * 0  - success
-//  * -1 - failure (`errno` is set, `fd` is closed anyway)
-int Close(int fd);
+#ifndef _WIN32
 
-extern const absl::string_view kCloseFunctionName;
+using Offset = off_t;
+
+inline Offset LSeek(int fd, Offset offset, int whence) {
+  return lseek(fd, offset, whence);
+}
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "lseek()");
+
+using StatInfo = struct stat;
+
+inline int FStat(int fd, StatInfo* stat_info) { return fstat(fd, stat_info); }
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "fstat()");
+
+#else
+
+using Offset = __int64;
+
+inline Offset LSeek(int fd, Offset offset, int whence) {
+  return _lseeki64(fd, offset, whence);
+}
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "_lseeki64()");
+
+using StatInfo = struct __stat64;
+
+inline int FStat(int fd, StatInfo* stat_info) {
+  return _fstat64(fd, stat_info);
+}
+
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "_fstat64()");
+
+#endif
 
 }  // namespace fd_internal
 }  // namespace riegeli

@@ -68,12 +68,12 @@ class CFileReaderBase : public BufferedReader {
     const std::string& assumed_filename() const { return assumed_filename_; }
 
     // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
-    // argument of `fopen()` and specifies the open mode, typically "rb".
+    // argument of `fopen()` and specifies the open mode, typically "r" (on
+    // Windows: "rb").
     //
-    // If `CFileReader` reads from an already open `FILE`, `mode()` has no
-    // effect.
+    // `mode()` can also be changed with `set_text()`.
     //
-    // Default: "rb".
+    // Default: "r" (on Windows: "rb").
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -84,6 +84,32 @@ class CFileReaderBase : public BufferedReader {
       return std::move(set_mode(mode));
     }
     const std::string& mode() const { return mode_; }
+
+    // If `false`, data will be read directly from the file. This is called the
+    // binary mode.
+    //
+    // If `true`, text mode translation will be applied on Windows:
+    // CR-LF character pairs are translated to LF, and a ^Z character is
+    // interpreted as end of file.
+    //
+    // It is recommended to use `ReadLine()` or `TextReader` instead, which
+    // expect a binary mode `Reader`.
+    //
+    // `set_text()` has an effect only on Windows. It is applicable whenever
+    // `CFileReader` opens a `FILE` with a filename or reads from an already
+    // open `FILE`.
+    //
+    // `set_text()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_text(bool text) & {
+      file_internal::SetTextReading(text, mode_);
+      return *this;
+    }
+    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    // No `text()` getter is provided. On Windows `mode()` can have unspecified
+    // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
+    // not exist.
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
@@ -119,7 +145,11 @@ class CFileReaderBase : public BufferedReader {
 
    private:
     std::string assumed_filename_;
+#ifndef _WIN32
+    std::string mode_ = "r";
+#else
     std::string mode_ = "rb";
+#endif
     absl::optional<Position> assumed_pos_;
     bool growing_source_ = false;
   };
@@ -149,9 +179,16 @@ class CFileReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, bool growing_source);
   void Initialize(FILE* src, std::string&& assumed_filename,
+#ifdef _WIN32
+                  absl::string_view mode,
+#endif
                   absl::optional<Position> assumed_pos);
   FILE* OpenFile(absl::string_view filename, const std::string& mode);
-  void InitializePos(FILE* src, absl::optional<Position> assumed_pos);
+  void InitializePos(FILE* src,
+#ifdef _WIN32
+                     absl::string_view mode, bool mode_was_passed_to_fopen,
+#endif
+                     absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
@@ -167,6 +204,9 @@ class CFileReaderBase : public BufferedReader {
   bool growing_source_ = false;
   bool supports_random_access_ = false;
   absl::Status random_access_status_;
+#ifdef _WIN32
+  absl::optional<int> original_mode_;
+#endif
 
   // Invariant:
   //   `limit_pos() <= std::numeric_limits<cfile_internal::Offset>::max()`
@@ -304,7 +344,13 @@ inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
       growing_source_(that.growing_source_),
       supports_random_access_(
           std::exchange(that.supports_random_access_, false)),
-      random_access_status_(std::move(that.random_access_status_)) {}
+      random_access_status_(std::move(that.random_access_status_))
+#ifdef _WIN32
+      ,
+      original_mode_(that.original_mode_)
+#endif
+{
+}
 
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
@@ -313,6 +359,9 @@ inline CFileReaderBase& CFileReaderBase::operator=(
   growing_source_ = that.growing_source_;
   supports_random_access_ = std::exchange(that.supports_random_access_, false);
   random_access_status_ = std::move(that.random_access_status_);
+#ifdef _WIN32
+  original_mode_ = that.original_mode_;
+#endif
   return *this;
 }
 
@@ -322,6 +371,9 @@ inline void CFileReaderBase::Reset(Closed) {
   growing_source_ = false;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
 }
 
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
@@ -331,6 +383,9 @@ inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
   growing_source_ = growing_source;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
 }
 
 template <typename Src>
@@ -338,6 +393,9 @@ inline CFileReader<Src>::CFileReader(const Src& src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(src) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -346,6 +404,9 @@ inline CFileReader<Src>::CFileReader(Src&& src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -360,6 +421,9 @@ inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -396,6 +460,9 @@ inline void CFileReader<Src>::Reset(const Src& src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -404,6 +471,9 @@ inline void CFileReader<Src>::Reset(Src&& src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -419,6 +489,9 @@ inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos());
 }
 
@@ -437,7 +510,11 @@ void CFileReader<Src>::Initialize(absl::string_view filename,
   FILE* const src = OpenFile(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), options.assumed_pos());
+  InitializePos(src_.get(),
+#ifdef _WIN32
+                options.mode(), /*mode_was_passed_to_fopen=*/true,
+#endif
+                options.assumed_pos());
 }
 
 template <typename Src>

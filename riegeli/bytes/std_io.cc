@@ -14,8 +14,6 @@
 
 #include "riegeli/bytes/std_io.h"
 
-#include <unistd.h>
-
 #include <utility>
 
 #include "riegeli/base/assert.h"
@@ -28,9 +26,9 @@ namespace riegeli {
 
 namespace {
 
-int std_in_fd = STDIN_FILENO;
-int std_out_fd = STDOUT_FILENO;
-int std_err_fd = STDERR_FILENO;
+int std_in_fd = 0;
+int std_out_fd = 1;
+int std_err_fd = 2;
 
 ChainBlock& StdInPending() {
   static NoDestructor<ChainBlock> pending;

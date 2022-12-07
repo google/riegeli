@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
+
 // Make `fseeko()` and `ftello()` available.
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
@@ -22,11 +24,16 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
+#endif
+
 #include "riegeli/bytes/cfile_reader.h"
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/types.h>
 
 #include <cerrno>
 #include <limits>
@@ -38,7 +45,9 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
+#ifndef _WIN32
 #include "absl/strings/match.h"
+#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -48,6 +57,9 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
+#ifdef _WIN32
+#include "riegeli/base/unicode.h"
+#endif
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_internal.h"
 
@@ -91,11 +103,18 @@ inline size_t AvailableLength(DependentFILE* src) {
 }  // namespace
 
 void CFileReaderBase::Initialize(FILE* src, std::string&& assumed_filename,
+#ifdef _WIN32
+                                 absl::string_view mode,
+#endif
                                  absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   filename_ = std::move(assumed_filename);
-  InitializePos(src, assumed_pos);
+  InitializePos(src,
+#ifdef _WIN32
+                mode, /*mode_was_passed_to_fopen=*/false,
+#endif
+                assumed_pos);
 }
 
 FILE* CFileReaderBase::OpenFile(absl::string_view filename,
@@ -103,16 +122,42 @@ FILE* CFileReaderBase::OpenFile(absl::string_view filename,
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
+#ifndef _WIN32
   FILE* const src = fopen(filename_.c_str(), mode.c_str());
   if (ABSL_PREDICT_FALSE(src == nullptr)) {
     BufferedReader::Reset(kClosed);
     FailOperation("fopen()");
     return nullptr;
   }
+#else
+  std::wstring filename_wide;
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
+    BufferedReader::Reset(kClosed);
+    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
+    return nullptr;
+  }
+  std::wstring mode_wide;
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode, mode_wide))) {
+    BufferedReader::Reset(kClosed);
+    Fail(absl::InvalidArgumentError(
+        absl::StrCat("Mode not valid UTF-8: ", mode)));
+    return nullptr;
+  }
+  FILE* const src = _wfopen(filename_wide.c_str(), mode_wide.c_str());
+  if (ABSL_PREDICT_FALSE(src == nullptr)) {
+    BufferedReader::Reset(kClosed);
+    FailOperation("_wfopen()");
+    return nullptr;
+  }
+#endif
   return src;
 }
 
 void CFileReaderBase::InitializePos(FILE* src,
+#ifdef _WIN32
+                                    absl::string_view mode,
+                                    bool mode_was_passed_to_fopen,
+#endif
                                     absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
@@ -120,10 +165,51 @@ void CFileReaderBase::InitializePos(FILE* src,
   RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "random_access_status_ not reset";
+#ifdef _WIN32
+  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+      << "Failed precondition of CFileReaderBase::InitializePos(): "
+         "original_mode_ not reset";
+#endif
   if (ABSL_PREDICT_FALSE(ferror(src))) {
     FailOperation("FILE");
     return;
   }
+#ifdef _WIN32
+  int text_mode = file_internal::GetTextAsFlags(mode);
+  if (!mode_was_passed_to_fopen && text_mode != 0) {
+    const int fd = _fileno(src);
+    if (ABSL_PREDICT_FALSE(fd < 0)) {
+      FailOperation("_fileno()");
+      return;
+    }
+    const int original_mode = _setmode(fd, text_mode);
+    if (ABSL_PREDICT_FALSE(original_mode < 0)) {
+      FailOperation("_setmode()");
+      return;
+    }
+    original_mode_ = original_mode;
+  }
+  if (assumed_pos == absl::nullopt) {
+    if (text_mode == 0) {
+      const int fd = _fileno(src);
+      if (ABSL_PREDICT_FALSE(fd < 0)) {
+        FailOperation("_fileno()");
+        return;
+      }
+      // There is no `_getmode()`, but `_setmode()` returns the previous mode.
+      text_mode = _setmode(fd, _O_BINARY);
+      if (ABSL_PREDICT_FALSE(text_mode < 0)) {
+        FailOperation("_setmode()");
+        return;
+      }
+      if (ABSL_PREDICT_FALSE(_setmode(fd, text_mode) < 0)) {
+        FailOperation("_setmode()");
+        return;
+      }
+    }
+    if (text_mode != _O_BINARY) assumed_pos = 0;
+  }
+#endif
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
@@ -149,6 +235,7 @@ void CFileReaderBase::InitializePos(FILE* src,
     set_limit_pos(IntCast<Position>(file_pos));
 
     // Check if random access is supported.
+#ifndef _WIN32
     if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
       // "/sys" files do not support random access. It is hard to reliably
       // recognize them, so `CFileReader` checks the filename.
@@ -156,7 +243,9 @@ void CFileReaderBase::InitializePos(FILE* src,
       // `supports_random_access_` is left as `false`.
       random_access_status_ =
           absl::UnimplementedError("/sys files do not support random access");
-    } else {
+    } else
+#endif
+    {
       FILE* const src = SrcFile();
       if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
         // Not supported. `supports_random_access_` is left as `false`.
@@ -176,6 +265,7 @@ void CFileReaderBase::InitializePos(FILE* src,
           FailOperation(cfile_internal::kFSeekFunctionName);
           return;
         }
+#ifndef _WIN32
         if (file_size == 0 &&
             ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
           // Some "/proc" files do not support random access. It is hard to
@@ -186,7 +276,9 @@ void CFileReaderBase::InitializePos(FILE* src,
           // `supports_random_access_` is left as `false`.
           random_access_status_ = absl::UnimplementedError(
               "/proc files claiming zero size do not support random access");
-        } else {
+        } else
+#endif
+        {
           // Supported.
           supports_random_access_ = true;
           if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
@@ -199,6 +291,17 @@ void CFileReaderBase::InitializePos(FILE* src,
 
 void CFileReaderBase::Done() {
   BufferedReader::Done();
+#ifdef _WIN32
+  if (original_mode_ != absl::nullopt) {
+    FILE* const src = SrcFile();
+    const int fd = _fileno(src);
+    if (ABSL_PREDICT_FALSE(fd < 0)) {
+      FailOperation("_fileno()");
+    } else if (ABSL_PREDICT_FALSE(_setmode(fd, *original_mode_) < 0)) {
+      FailOperation("_setmode()");
+    }
+  }
+#endif
   random_access_status_ = absl::OkStatus();
 }
 

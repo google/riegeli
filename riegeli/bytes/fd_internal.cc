@@ -14,15 +14,10 @@
 
 #include "riegeli/bytes/fd_internal.h"
 
-#include <unistd.h>
-
-#include <cerrno>
 #include <string>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 
 namespace riegeli {
@@ -32,6 +27,7 @@ std::string ResolveFilename(int fd,
                             absl::optional<std::string>&& assumed_filename) {
   if (assumed_filename != absl::nullopt) return *std::move(assumed_filename);
   switch (fd) {
+#ifndef _WIN32
     case 0:
       return "/dev/stdin";
     case 1:
@@ -40,33 +36,18 @@ std::string ResolveFilename(int fd,
       return "/dev/stderr";
     default:
       return absl::StrCat("/proc/self/fd/", fd);
+#else
+    case 0:
+      return "CONIN$";
+    case 1:
+      return "CONOUT$";
+    case 2:
+      return "CONERR$";
+    default:
+      return absl::StrCat("<fd ", fd, ">");
+#endif
   }
 }
-
-int Close(int fd) {
-  // http://austingroupbugs.net/view.php?id=529 explains this mess.
-#ifdef POSIX_CLOSE_RESTART
-  // Avoid EINTR by using posix_close(_, 0) if available.
-  if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
-    if (errno == EINPROGRESS) return 0;
-    return -1;
-  }
-#else
-  if (ABSL_PREDICT_FALSE(close(fd) < 0)) {
-    // After `EINTR` it is unspecified whether `fd` has been closed or not.
-    // Assume that it is closed, which is the case e.g. on Linux.
-    if (errno == EINPROGRESS || errno == EINTR) return 0;
-    return -1;
-  }
-#endif
-  return 0;
-}
-
-#ifdef POSIX_CLOSE_RESTART
-extern const absl::string_view kCloseFunctionName = "posix_close()";
-#else
-extern const absl::string_view kCloseFunctionName = "close()";
-#endif
 
 }  // namespace fd_internal
 }  // namespace riegeli

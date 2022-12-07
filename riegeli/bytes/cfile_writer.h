@@ -73,13 +73,13 @@ class CFileWriterBase : public BufferedWriter {
     const std::string& assumed_filename() const { return assumed_filename_; }
 
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
-    // argument of `fopen()` and specifies the open mode, typically "wb" or
-    // "ab".
+    // argument of `fopen()` and specifies the open mode, typically "w" or "a"
+    // (on Windows: "wb" or "ab").
     //
-    // `mode()` can also be changed with `set_existing(), `set_read()`, and
-    // `set_append()`.
+    // `mode()` can also be changed with `set_existing(), `set_read()`,
+    // `set_append()`, and `set_text()`.
     //
-    // Default: "wb".
+    // Default: "w" (on Windows: "wb").
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -158,6 +158,31 @@ class CFileWriterBase : public BufferedWriter {
     }
     bool append() const { return file_internal::GetAppend(mode_); }
 
+    // If `false`, data will be written directly to the file. This is called the
+    // binary mode.
+    //
+    // If `true`, text mode translation will be applied on Windows:
+    // LF characters are translated to CR-LF.
+    //
+    // It is recommended to use `WriteLine()` or `TextWriter` instead, which
+    // expect a binary mode `Writer`.
+    //
+    // `set_text()` has an effect only on Windows. It is applicable whenever
+    // `CFileWriter` opens a `FILE` with a filename or reads from an already
+    // open `FILE`.
+    //
+    // `set_text()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_text(bool text) & {
+      file_internal::SetTextWriting(text, mode_);
+      return *this;
+    }
+    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    // No `text()` getter is provided. On Windows `mode()` can have unspecified
+    // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
+    // not exist.
+
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the `FILE` supports
@@ -179,7 +204,11 @@ class CFileWriterBase : public BufferedWriter {
 
    private:
     std::string assumed_filename_;
+#ifndef _WIN32
+    std::string mode_ = "w";
+#else
     std::string mode_ = "wb";
+#endif
     absl::optional<Position> assumed_pos_;
   };
 
@@ -245,6 +274,9 @@ class CFileWriterBase : public BufferedWriter {
   LazyBoolState supports_read_mode_ = LazyBoolState::kUnknown;
   absl::Status random_access_status_;
   absl::Status read_mode_status_;
+#ifdef _WIN32
+  absl::optional<int> original_mode_;
+#endif
 
   AssociatedReader<CFileReader<UnownedCFile>> associated_reader_;
   bool read_mode_ = false;
@@ -391,8 +423,12 @@ inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
           std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown)),
       random_access_status_(std::move(that.random_access_status_)),
       read_mode_status_(std::move(that.read_mode_status_)),
+#ifdef _WIN32
+      original_mode_(that.original_mode_),
+#endif
       associated_reader_(std::move(that.associated_reader_)),
-      read_mode_(that.read_mode_) {}
+      read_mode_(that.read_mode_) {
+}
 
 inline CFileWriterBase& CFileWriterBase::operator=(
     CFileWriterBase&& that) noexcept {
@@ -404,6 +440,9 @@ inline CFileWriterBase& CFileWriterBase::operator=(
       std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown);
   random_access_status_ = std::move(that.random_access_status_);
   read_mode_status_ = std::move(that.read_mode_status_);
+#ifdef _WIN32
+  original_mode_ = that.original_mode_;
+#endif
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
   return *this;
@@ -416,6 +455,9 @@ inline void CFileWriterBase::Reset(Closed) {
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
   associated_reader_.Reset();
   read_mode_ = false;
 }
@@ -427,6 +469,9 @@ inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
   associated_reader_.Reset();
   read_mode_ = false;
 }

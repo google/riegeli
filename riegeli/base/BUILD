@@ -114,6 +114,27 @@ cc_library(
 )
 
 cc_library(
+    name = "unicode",
+    srcs = ["unicode.cc"],
+    hdrs = ["unicode.h"],
+    features = select({
+        # unicode.cc has #define before #include to influence what the included
+        # files provide.
+        "@platforms//os:windows": ["-use_header_modules"],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@platforms//os:windows": [
+            ":arithmetic",
+            "@com_google_absl//absl/base:core_headers",
+            "@com_google_absl//absl/strings",
+            "@com_google_absl//absl/types:span",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "type_id",
     hdrs = ["type_id.h"],
 )
@@ -175,11 +196,24 @@ cc_library(
         "errno_mapping.h",
         "status.h",
     ],
+    features = select({
+        # errno_mapping.cc has #define before #include to influence what the
+        # included files provide.
+        "@platforms//os:windows": ["-use_header_modules"],
+        "//conditions:default": [],
+    }),
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            ":arithmetic",
+            ":unicode",
+            "@com_google_absl//absl/types:span",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(

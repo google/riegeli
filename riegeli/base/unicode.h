@@ -1,4 +1,4 @@
-// Copyright 2018 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_ERRNO_MAPPING_H_
-#define RIEGELI_BASE_ERRNO_MAPPING_H_
+#ifndef RIEGELI_BASE_UNICODE_H_
+#define RIEGELI_BASE_UNICODE_H_
 
 #ifdef _WIN32
-#include <stdint.h>
-#endif
 
-#include "absl/status/status.h"
-#ifdef _WIN32
+#include <string>
+
 #include "absl/strings/string_view.h"
-#endif
+#include "absl/types/span.h"
 
 namespace riegeli {
 
-// Converts `absl::StatusCode` to `errno` value.
-int StatusCodeToErrno(absl::StatusCode status_code);
+// Converts from UTF-8 string to `wchar_t[]`.
+//
+// Returns `false` on failure.
+bool Utf8ToWide(absl::string_view src, std::wstring& dest);
 
-#ifdef _WIN32
+// Converts from `wchar_t[]` to UTF-8 string.
+//
+// Returns `false` on failure.
+bool WideToUtf8(absl::Span<const wchar_t> src, std::string& dest);
 
-absl::Status WindowsErrorToStatus(uint32_t error_number,
-                                  absl::string_view message);
-
-#endif
+// Converts from `wchar_t[]` to UTF-8 string.
+//
+// Emits replacement characters on failure.
+std::string WideToUtf8Lossy(absl::Span<const wchar_t> src);
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_ERRNO_MAPPING_H_
+#endif
+
+#endif  // RIEGELI_BASE_UNICODE_H_

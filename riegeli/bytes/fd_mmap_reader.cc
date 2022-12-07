@@ -12,19 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
+
 // Make `off_t` 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
+#else
+
+#define WIN32_LEAN_AND_MEAN
+
+#endif
+
 #include "riegeli/bytes/fd_mmap_reader.h"
 
 #include <fcntl.h>
+#ifdef _WIN32
+#include <io.h>
+#endif
 #include <stddef.h>
+#ifdef _WIN32
+#include <stdint.h>
+#endif
 #include <stdio.h>
+#ifndef _WIN32
 #include <sys/mman.h>
-#include <sys/stat.h>
+#endif
 #include <sys/types.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#endif
 
 #include <cerrno>
 #include <limits>
@@ -36,16 +55,26 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#ifndef _WIN32
+#include "absl/status/statusor.h"
+#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
+#ifndef _WIN32
+#include "riegeli/base/no_destructor.h"
+#endif
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
+#ifdef _WIN32
+#include "riegeli/base/unicode.h"
+#endif
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
@@ -53,6 +82,41 @@
 namespace riegeli {
 
 namespace {
+
+#ifdef _WIN32
+
+struct HandleDeleter {
+  void operator()(void* handle) const {
+    RIEGELI_CHECK(CloseHandle(reinterpret_cast<HANDLE>(handle)))
+        << WindowsErrorToStatus(IntCast<uint32_t>(GetLastError()),
+                                "CloseHandle() failed")
+               .message();
+  }
+};
+
+using UniqueHandle = std::unique_ptr<void, HandleDeleter>;
+
+#endif
+
+#ifndef _WIN32
+
+inline absl::StatusOr<Position> GetPageSize() {
+  const long page_size = sysconf(_SC_PAGE_SIZE);
+  if (ABSL_PREDICT_FALSE(page_size < 0)) {
+    return absl::ErrnoToStatus(errno, "sysconf() failed");
+  }
+  return IntCast<Position>(page_size);
+}
+
+#else
+
+inline Position GetPageSize() {
+  SYSTEM_INFO system_info;
+  GetSystemInfo(&system_info);
+  return IntCast<Position>(system_info.dwAllocationGranularity);
+}
+
+#endif
 
 class MMapRef {
  public:
@@ -70,10 +134,17 @@ class MMapRef {
 };
 
 void MMapRef::operator()(absl::string_view data) const {
+#ifndef _WIN32
   RIEGELI_CHECK_EQ(munmap(const_cast<char*>(addr_),
                           data.size() + PtrDistance(addr_, data.data())),
                    0)
       << absl::ErrnoToStatus(errno, "munmap() failed").message();
+#else
+  RIEGELI_CHECK(UnmapViewOfFile(addr_))
+      << WindowsErrorToStatus(IntCast<uint32_t>(GetLastError()),
+                              "UnmapViewOfFile() failed")
+             .message();
+#endif
 }
 
 void MMapRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
@@ -93,12 +164,20 @@ void FdMMapReaderBase::Initialize(
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int mode) {
+#ifndef _WIN32
   RIEGELI_ASSERT((mode & O_ACCMODE) == O_RDONLY || (mode & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdMMapReader: "
          "mode must include either O_RDONLY or O_RDWR";
+#else
+  RIEGELI_ASSERT((mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDONLY ||
+                 (mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDWR)
+      << "Failed precondition of FdMMapReader: "
+         "mode must include either _O_RDONLY or _O_RDWR";
+#endif
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
+#ifndef _WIN32
 again:
   const int src = open(filename_.c_str(), mode, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
@@ -106,6 +185,19 @@ again:
     FailOperation("open()");
     return -1;
   }
+#else
+  std::wstring filename_wide;
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
+    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
+    return -1;
+  }
+  int src;
+  if (ABSL_PREDICT_FALSE(_wsopen_s(&src, filename_wide.c_str(), mode,
+                                   _SH_DENYNO, _S_IREAD) != 0)) {
+    FailOperation("_wsopen_s()");
+    return -1;
+  }
+#endif
   return src;
 }
 
@@ -116,17 +208,17 @@ void FdMMapReaderBase::InitializePos(int src,
   if (independent_pos != absl::nullopt) {
     initial_pos = *independent_pos;
   } else {
-    const off_t file_pos = lseek(src, 0, SEEK_CUR);
+    const fd_internal::Offset file_pos = fd_internal::LSeek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-      FailOperation("lseek()");
+      FailOperation(fd_internal::kLSeekFunctionName);
       return;
     }
     initial_pos = IntCast<Position>(file_pos);
   }
 
-  struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-    FailOperation("fstat()");
+  fd_internal::StatInfo stat_info;
+  if (ABSL_PREDICT_FALSE(fd_internal::FStat(src, &stat_info) < 0)) {
+    FailOperation(fd_internal::kFStatFunctionName);
     return;
   }
   Position base_pos = 0;
@@ -145,12 +237,18 @@ void FdMMapReaderBase::InitializePos(int src,
 
   Position rounded_base_pos = base_pos;
   if (rounded_base_pos > 0) {
-    const long page_size = sysconf(_SC_PAGE_SIZE);
-    if (ABSL_PREDICT_FALSE(page_size < 0)) {
-      FailOperation("sysconf()");
+#ifndef _WIN32
+    static const NoDestructor<absl::StatusOr<Position>> kPageSize(
+        GetPageSize());
+    if (ABSL_PREDICT_FALSE(!kPageSize->ok())) {
+      Fail(kPageSize->status());
       return;
     }
-    rounded_base_pos &= ~IntCast<Position>(page_size - 1);
+    rounded_base_pos &= ~(**kPageSize - 1);
+#else
+    static const Position kPageSize = GetPageSize();
+    rounded_base_pos &= ~(kPageSize - 1);
+#endif
   }
   const Position rounding = base_pos - rounded_base_pos;
   const Position rounded_length = length + rounding;
@@ -158,12 +256,36 @@ void FdMMapReaderBase::InitializePos(int src,
     Fail(absl::OutOfRangeError("File too large for memory mapping"));
     return;
   }
+#ifndef _WIN32
   void* const addr = mmap(nullptr, IntCast<size_t>(rounded_length), PROT_READ,
                           MAP_SHARED, src, IntCast<off_t>(rounded_base_pos));
   if (ABSL_PREDICT_FALSE(addr == MAP_FAILED)) {
     FailOperation("mmap()");
     return;
   }
+#else
+  const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(src));
+  if (ABSL_PREDICT_FALSE(file_handle == INVALID_HANDLE_VALUE ||
+                         file_handle == reinterpret_cast<HANDLE>(-2))) {
+    FailWindowsOperation("_get_osfhandle()");
+    return;
+  }
+  UniqueHandle memory_handle(reinterpret_cast<void*>(
+      CreateFileMappingW(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr)));
+  if (ABSL_PREDICT_FALSE(memory_handle == nullptr)) {
+    FailWindowsOperation("CreateFileMappingW()");
+    return;
+  }
+  void* const addr =
+      MapViewOfFile(reinterpret_cast<HANDLE>(memory_handle.get()),
+                    FILE_MAP_READ, IntCast<DWORD>(rounded_base_pos >> 32),
+                    IntCast<DWORD>(rounded_base_pos & 0xffffffff),
+                    IntCast<size_t>(rounded_length));
+  if (ABSL_PREDICT_FALSE(addr == nullptr)) {
+    FailWindowsOperation("MapViewOfFile()");
+    return;
+  }
+#endif
 
   // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
   // Set it now.
@@ -198,6 +320,19 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
       absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
+#ifdef _WIN32
+
+bool FdMMapReaderBase::FailWindowsOperation(absl::string_view operation) {
+  const DWORD error_number = GetLastError();
+  RIEGELI_ASSERT_NE(error_number, 0)
+      << "Failed precondition of FdMMapReaderBase::FailWindowsOperation(): "
+         "zero error code";
+  return Fail(WindowsErrorToStatus(IntCast<uint32_t>(error_number),
+                                   absl::StrCat(operation, " failed")));
+}
+
+#endif
+
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (!filename_.empty()) {
     status = Annotate(status, absl::StrCat("reading ", filename_));
@@ -209,10 +344,11 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int src = SrcFd();
   if (base_pos_to_sync_ != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(lseek(src,
-                                 IntCast<off_t>(*base_pos_to_sync_ + pos()),
-                                 SEEK_SET) < 0)) {
-      return FailOperation("lseek()");
+    if (ABSL_PREDICT_FALSE(
+            fd_internal::LSeek(
+                src, IntCast<fd_internal::Offset>(*base_pos_to_sync_ + pos()),
+                SEEK_SET) < 0)) {
+      return FailOperation(fd_internal::kLSeekFunctionName);
     }
   }
   return true;

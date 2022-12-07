@@ -19,7 +19,7 @@
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/bytes/fd_internal.h"
+#include "riegeli/bytes/fd_close.h"
 
 namespace riegeli {
 

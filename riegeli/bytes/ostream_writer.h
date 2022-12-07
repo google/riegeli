@@ -59,6 +59,9 @@ class OStreamWriterBase : public BufferedWriter {
     // reported by `pos()`. It does not need to correspond to the current stream
     // position. Random access is not supported.
     //
+    // Warning: On Windows this must not be `absl::nullopt` if the stream is a
+    // `std::ofstream` or `std::fstream` opened in text mode.
+    //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;

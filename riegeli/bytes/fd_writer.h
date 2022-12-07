@@ -35,8 +35,8 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_close.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -50,6 +50,12 @@ class FdWriterBase : public BufferedWriter {
  public:
   class Options : public BufferOptionsBase<Options> {
    public:
+#ifndef _WIN32
+    using Permissions = mode_t;
+#else
+    using Permissions = int;
+#endif
+
     Options() noexcept {}
 
     // If `FdWriter` writes to an already open fd, `assumed_filename()` allows
@@ -57,7 +63,9 @@ class FdWriterBase : public BufferedWriter {
     // returned by `filename()`.
     //
     // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
-    // "/dev/stderr", or "/proc/self/fd/<fd>" is assumed.
+    // "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` is inferred from
+    // the fd (on Windows: "CONIN$", "CONOUT$", "CONERR$", or
+    // `absl::StrCat("<fd ", fd, ">")`).
     //
     // If `FdWriter` opens a fd with a filename, `assumed_filename()` has no
     // effect.
@@ -87,18 +95,21 @@ class FdWriterBase : public BufferedWriter {
     }
 
     // If `FdWriter` opens a fd with a filename, `mode()` is the second argument
-    // of `open()` and specifies the open mode and flags, typically one of:
+    // of `open()` (on Windows: `_open()`) and specifies the open mode and
+    // flags, typically one of:
     //  * `O_WRONLY | O_CREAT | O_TRUNC`
+    //    (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY`)
     //  * `O_WRONLY | O_CREAT | O_APPEND`
+    //    (on Windows: `_O_WRONLY | _O_CREAT | _O_APPEND | _O_BINARY`)
     //
-    // It must include either `O_WRONLY` or `O_RDWR`.
+    // It must include either `O_WRONLY` or `O_RDWR` (on Windows: `_O_WRONLY` or
+    // `_O_RDWR`).
     //
-    // If `FdWriter` writes to an already open fd, `mode()` has no effect.
+    // `mode()` can also be changed with `set_existing()`, `set_read()`,
+    // `set_append()`, and `set_text()`.
     //
-    // `mode()` can also be changed with `set_existing()`, `set_read()`, and
-    // `set_append()`.
-    //
-    // Default: `O_WRONLY | O_CREAT | O_TRUNC`.
+    // Default: `O_WRONLY | O_CREAT | O_TRUNC`
+    //          (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY`).
     Options& set_mode(int mode) & {
       mode_ = mode;
       return *this;
@@ -120,14 +131,26 @@ class FdWriterBase : public BufferedWriter {
     //
     // Default: `false`.
     Options& set_existing(bool existing) & {
+#ifndef _WIN32
       mode_ = (mode_ & ~(O_ACCMODE | O_CREAT | O_TRUNC | O_APPEND)) |
               (existing ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC);
+#else
+      mode_ = (mode_ & ~(_O_RDONLY | _O_WRONLY | _O_RDWR | _O_CREAT | _O_TRUNC |
+                         _O_APPEND)) |
+              (existing ? _O_RDWR : _O_WRONLY | _O_CREAT | _O_TRUNC);
+#endif
       return *this;
     }
     Options&& set_existing(bool existing) && {
       return std::move(set_existing(existing));
     }
-    bool existing() const { return (mode_ & O_CREAT) == 0; }
+    bool existing() const {
+#ifndef _WIN32
+      return (mode_ & O_CREAT) == 0;
+#else
+      return (mode_ & _O_CREAT) == 0;
+#endif
+    }
 
     // If `false`, the fd will be open for writing.
     //
@@ -140,48 +163,103 @@ class FdWriterBase : public BufferedWriter {
     //
     // Default: `false`.
     Options& set_read(bool read) & {
+#ifndef _WIN32
       mode_ = (mode_ & ~O_ACCMODE) | (read ? O_RDWR : O_WRONLY);
+#else
+      mode_ = (mode_ & ~(_O_RDONLY | _O_WRONLY | _O_RDWR)) |
+              (read ? _O_RDWR : _O_WRONLY);
+#endif
       return *this;
     }
     Options&& set_read(bool read) && { return std::move(set_read(read)); }
-    bool read() const { return (mode_ & O_ACCMODE) == O_RDWR; }
+    bool read() const {
+#ifndef _WIN32
+      return (mode_ & O_ACCMODE) == O_RDWR;
+#else
+      return (mode_ & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDWR;
+#endif
+    }
 
     // If `false`, the file will be truncated to empty if it exists.
     //
     // If `true`, the file will not be truncated if it exists, and writing will
     // always happen at its end.
     //
-    // If `FdWriter` writes to an already open fd, `append()` has no effect.
+    // If `FdWriter` writes to an already open fd, `append()` has effect only on
+    // Windows. If `assumed_pos()` is not set, `append()` should be `true` if
+    // the fd was originally open in append mode. This allows to determine the
+    // effective initial position and lets `SupportsRandomAccess()` correctly
+    // return `false`.
     //
     // `set_append()` affects `mode()`.
     //
     // Default: `false`.
     Options& set_append(bool append) & {
+#ifndef _WIN32
       mode_ = (mode_ & ~(O_TRUNC | O_APPEND)) | (append ? O_APPEND : O_TRUNC);
+#else
+      mode_ =
+          (mode_ & ~(_O_TRUNC | _O_APPEND)) | (append ? _O_APPEND : _O_TRUNC);
+#endif
       return *this;
     }
     Options&& set_append(bool append) && {
       return std::move(set_append(append));
     }
-    bool append() const { return (mode_ & O_APPEND) != 0; }
+    bool append() const {
+#ifndef _WIN32
+      return (mode_ & O_APPEND) != 0;
+#else
+      return (mode_ & _O_APPEND) != 0;
+#endif
+    }
 
-    // Permissions to use in case a new file is created (9 bits). The effective
-    // permissions are modified by the process's umask.
+    // If `false`, data will be written directly to the file. This is called the
+    // binary mode.
     //
-    // Default: `0666`.
-    Options& set_permissions(mode_t permissions) & {
+    // If `true`, text mode translation will be applied on Windows:
+    // LF characters are translated to CR-LF.
+    //
+    // It is recommended to use `WriteLine()` or `TextWriter` instead, which
+    // expect a binary mode `Writer`.
+    //
+    // `set_text()` has an effect only on Windows. It is applicable whenever
+    // `FdWriter` opens a fd with a filename or writes to an already open fd.
+    //
+    // `set_text()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_text(bool text) & {
+#ifdef _WIN32
+      mode_ =
+          (mode_ & ~(_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT)) |
+          (text ? _O_TEXT : _O_BINARY);
+#endif
+      return *this;
+    }
+    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    // No `text()` getter is provided. On Windows `mode()` can have unspecified
+    // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
+    // not exist.
+
+    // Permissions to use in case a new file is created (9 bits, except on
+    // Windows: `_S_IREAD`, `_S_IWRITE`, or `_S_IREAD | _S_IWRITE`). The
+    // effective permissions are modified by the process' umask.
+    //
+    // Default: `0666` (on Windows: `_S_IREAD | _S_IWRITE`).
+    Options& set_permissions(Permissions permissions) & {
       permissions_ = permissions;
       return *this;
     }
-    Options&& set_permissions(mode_t permissions) && {
+    Options&& set_permissions(Permissions permissions) && {
       return std::move(set_permissions(permissions));
     }
-    mode_t permissions() const { return permissions_; }
+    Permissions permissions() const { return permissions_; }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current fd position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the fd supports random
-    // access.
+    // access. On Windows binary mode is also required.
     //
     // If not `absl::nullopt`, this position is assumed initially, to be
     // reported by `pos()`. It does not need to correspond to the current fd
@@ -201,10 +279,12 @@ class FdWriterBase : public BufferedWriter {
 
     // If `absl::nullopt`, `FdWriter` writes at the current fd position.
     //
-    // If not `absl::nullopt`, `FdWriter` writes starting from this position,
-    // without disturbing the current fd position. This is useful for multiple
-    // writers concurrently writing to disjoint regions of the same file. The fd
-    // must support `pwrite()`.
+    // If not `absl::nullopt`, `FdWriter` writes starting from this position.
+    // The current fd position is not disturbed except on Windows, where seeking
+    // and writing is nevertheless atomic. This is useful for multiple writers
+    // concurrently writing to disjoint regions of the same file. The fd must
+    // support `pwrite()`(`_get_osfhandle()` and `WriteFile()` with
+    // `OVERLAPPED*` on Windows). On Windows binary mode is also required.
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
@@ -225,8 +305,13 @@ class FdWriterBase : public BufferedWriter {
 
    private:
     absl::optional<std::string> assumed_filename_;
+#ifndef _WIN32
     int mode_ = O_WRONLY | O_CREAT | O_TRUNC;
-    mode_t permissions_ = 0666;
+    Permissions permissions_ = 0666;
+#else
+    int mode_ = _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY;
+    Permissions permissions_ = _S_IREAD | _S_IWRITE;
+#endif
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
   };
@@ -253,14 +338,27 @@ class FdWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
   void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
+#ifdef _WIN32
+                  int mode,
+#endif
                   absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
-  int OpenFd(absl::string_view filename, int mode, mode_t permissions);
+  int OpenFd(absl::string_view filename, int mode,
+             Options::Permissions permissions);
+#ifndef _WIN32
   void InitializePos(int dest, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
-  void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
+#endif
+  void InitializePos(int dest, int mode,
+#ifdef _WIN32
+                     bool mode_was_passed_to_open,
+#endif
+                     absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+#ifdef _WIN32
+  ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
+#endif
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -277,6 +375,9 @@ class FdWriterBase : public BufferedWriter {
   enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
 
   absl::Status FailedOperationStatus(absl::string_view operation);
+#ifdef _WIN32
+  absl::Status FailedWindowsOperationStatus(absl::string_view operation);
+#endif
   // Lazily determined condition shared by `SupportsRandomAccess()` and
   // `SupportsReadMode()`.
   absl::Status SizeStatus();
@@ -286,13 +387,23 @@ class FdWriterBase : public BufferedWriter {
 
   std::string filename_;
   bool has_independent_pos_ = false;
-  // Invariant:
+  // Invariant except on Windows:
   //   if `supports_read_mode_ == LazyBoolState::kUnknown` then
   //       `supports_random_access_ == LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kUnknown;
+  // If `supports_read_mode_ == LazyBoolState::kUnknown`,
+  // then at least size is known to be supported
+  // when `supports_random_access_ != LazyBoolState::kUnknown`
+  // (no matter whether `LazyBoolState::kTrue` or LazyBoolState::kFalse`).
+  //
+  // This is useful on Windows, otherwise this is trivially true
+  // (`supports_random_access_ == LazyBoolState::kUnknown`).
   LazyBoolState supports_read_mode_ = LazyBoolState::kUnknown;
   absl::Status random_access_status_;
   absl::Status read_mode_status_;
+#ifdef _WIN32
+  absl::optional<int> original_mode_;
+#endif
 
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
   bool read_mode_ = false;
@@ -303,8 +414,8 @@ class FdWriterBase : public BufferedWriter {
 // A `Writer` which writes to a file descriptor.
 //
 // The fd must support:
-//  * `fcntl()`     - for the constructor from fd,
-//                    if `Options::assumed_pos() == absl::nullopt`
+#ifndef _WIN32
+//  * `fcntl()`     - for the constructor from fd
 //  * `close()`     - if the fd is owned
 //  * `write()`     - if `Options::independent_pos() == absl::nullopt`
 //  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
@@ -319,11 +430,30 @@ class FdWriterBase : public BufferedWriter {
 //  * `pread()`     - for `ReadMode()`
 //                    if `Options::independent_pos() != absl::nullopt`
 //                    (fd must be opened with `O_RDWR`)
+#else
+//  * `_close()`    - if the fd is owned
+//  * `_write()`    - if `Options::independent_pos() == absl::nullopt`
+//  * `_get_osfhandle()`, `WriteFile()` with `OVERLAPPED*`
+//                  - if `Options::independent_pos() != absl::nullopt`
+//  * `_lseeki64()` - for `Seek()`, `Size()`, or `Truncate(),
+//                    if `Options::independent_pos() == absl::nullopt`
+//  * `_fstat64()`  - for `Seek()`, `Size()`, or `Truncate(),
+//  * `_commit()`   - for `Flush(FlushType::kFromMachine)`
+//  * `_chsize_s()` - for `Truncate()`
+//  * `_read()`     - for `ReadMode()`
+//                    if `Options::independent_pos() == absl::nullopt`
+//                    (fd must be opened with `_O_RDWR`)
+//  * `_get_osfhandle()`, `ReadFile()` with `OVERLAPPED*`
+//                  - for `ReadMode()`
+//                    if `Options::independent_pos() != absl::nullopt`
+//                    (fd must be opened with `_O_RDWR`)
+#endif
 //
 // `FdWriter` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
-// this is checked by calling `lseek(SEEK_END)`).
+// this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
+// On Windows binary mode is also required.
 //
 // On Linux, some virtual file systems ("/proc", "/sys") contain files with
 // contents generated on the fly when the files are read. The files appear as
@@ -335,7 +465,7 @@ class FdWriterBase : public BufferedWriter {
 // access for such files.
 //
 // `FdWriter` supports `ReadMode()` if it supports random access and the fd was
-// opened with `O_RDWR`.
+// opened with `O_RDWR` (`_O_RDWR` on Windows).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
@@ -346,12 +476,12 @@ class FdWriterBase : public BufferedWriter {
 // first constructor argument is a filename or an `int`, otherwise as the value
 // type of the first constructor argument. This requires C++17.
 //
-// Until the `FdWriter` is closed or no longer used, the fd must not be closed;
-// additionally, if `Options::independent_pos() == absl::nullopt`, the fd should
-// not have its position changed, except that if random access is not used,
-// careful interleaving of multiple writers is possible: `Flush()` is needed
-// before switching to another writer, and `pos()` does not take other writers
-// into account.
+// Until the `FdWriter` is closed or no longer used, the fd must not be closed.
+// Additionally, if `Options::independent_pos() == absl::nullopt`
+// (or unconditionally on Windows), the fd should not have its position changed,
+// except that if random access is not used, careful interleaving of multiple
+// writers is possible: `Flush()` is needed before switching to another writer,
+// and `pos()` does not take other writers into account.
 template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
  public:
@@ -456,8 +586,12 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
           std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown)),
       random_access_status_(std::move(that.random_access_status_)),
       read_mode_status_(std::move(that.read_mode_status_)),
+#ifdef _WIN32
+      original_mode_(that.original_mode_),
+#endif
       associated_reader_(std::move(that.associated_reader_)),
-      read_mode_(that.read_mode_) {}
+      read_mode_(that.read_mode_) {
+}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
@@ -469,6 +603,9 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
       std::exchange(that.supports_read_mode_, LazyBoolState::kUnknown),
   random_access_status_ = std::move(that.random_access_status_);
   read_mode_status_ = std::move(that.read_mode_status_);
+#ifdef _WIN32
+  original_mode_ = that.original_mode_;
+#endif
   associated_reader_ = std::move(that.associated_reader_);
   read_mode_ = that.read_mode_;
   return *this;
@@ -482,6 +619,9 @@ inline void FdWriterBase::Reset(Closed) {
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
   associated_reader_.Reset();
   read_mode_ = false;
 }
@@ -494,6 +634,9 @@ inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
   associated_reader_.Reset();
   read_mode_ = false;
 }
@@ -502,6 +645,9 @@ template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(dest) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -509,6 +655,9 @@ template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -522,6 +671,9 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -556,6 +708,9 @@ inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -564,6 +719,9 @@ inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -579,6 +737,9 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options.assumed_filename()),
+#ifdef _WIN32
+             options.mode(),
+#endif
              options.assumed_pos(), options.independent_pos());
 }
 
@@ -595,8 +756,11 @@ void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
   const int dest = OpenFd(filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), options.mode(), options.assumed_pos(),
-                options.independent_pos());
+  InitializePos(dest_.get(), options.mode(),
+#ifdef _WIN32
+                /*mode_was_passed_to_open=*/true,
+#endif
+                options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>

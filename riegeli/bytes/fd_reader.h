@@ -35,8 +35,8 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
+#include "riegeli/bytes/fd_close.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -53,7 +53,9 @@ class FdReaderBase : public BufferedReader {
     // returned by `filename()`.
     //
     // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
-    // "/dev/stderr", or "/proc/self/fd/<fd>" is assumed.
+    // "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` is inferred from
+    // the fd (on Windows: "CONIN$", "CONOUT$", "CONERR$", or
+    // `absl::StrCat("<fd ", fd, ">")`).
     //
     // If `FdReader` opens a fd with a filename, `assumed_filename()` has no
     // effect.
@@ -83,12 +85,14 @@ class FdReaderBase : public BufferedReader {
     }
 
     // If `FdReader` opens a fd with a filename, `mode()` is the second argument
-    // of `open()` and specifies the open mode and flags, typically `O_RDONLY`.
-    // It must include either `O_RDONLY` or `O_RDWR`.
+    // of `open()` (on Windows: `_open()`) and specifies the open mode and
+    // flags, typically `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
+    // It must include either `O_RDONLY` or `O_RDWR` (on Windows: `_O_RDONLY` or
+    // `_O_RDWR`).
     //
-    // If `FdReader` reads from an already open fd, `mode()` has no effect.
+    // `mode()` can also be changed with `set_text()`.
     //
-    // Default: `O_RDONLY`.
+    // Default: `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
     Options& set_mode(int mode) & {
       mode_ = mode;
       return *this;
@@ -96,10 +100,39 @@ class FdReaderBase : public BufferedReader {
     Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
     int mode() const { return mode_; }
 
+    // If `false`, data will be read directly from the file. This is called the
+    // binary mode.
+    //
+    // If `true`, text mode translation will be applied on Windows:
+    // CR-LF character pairs are translated to LF, and a ^Z character is
+    // interpreted as end of file.
+    //
+    // It is recommended to use `ReadLine()` or `TextReader` instead, which
+    // expect a binary mode `Reader`.
+    //
+    // `set_text()` has an effect only on Windows. It is applicable whenever
+    // `FdReader` opens a fd with a filename or reads from an already open fd.
+    //
+    // `set_text()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_text(bool text) & {
+#ifdef _WIN32
+      mode_ =
+          (mode_ & ~(_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT)) |
+          (text ? _O_TEXT : _O_BINARY);
+#endif
+      return *this;
+    }
+    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    // No `text()` getter is provided. On Windows `mode()` can have unspecified
+    // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
+    // not exist.
+
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current fd position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the fd supports random
-    // access.
+    // access. On Windows binary mode is also required.
     //
     // If not `absl::nullopt`, this position is assumed initially, to be
     // reported by `pos()`. It does not need to correspond to the current fd
@@ -119,10 +152,12 @@ class FdReaderBase : public BufferedReader {
 
     // If `absl::nullopt`, `FdReader` reads at the current fd position.
     //
-    // If not `absl::nullopt`, `FdReader` reads starting from this position,
-    // without disturbing the current fd position. This is useful for multiple
-    // readers concurrently reading from the same fd. The fd must support
-    // `pread()`.
+    // If not `absl::nullopt`, `FdReader` reads starting from this position.
+    // The current fd position is not disturbed except on Windows, where seeking
+    // and reading is nevertheless atomic. This is useful for multiple readers
+    // concurrently reading from the same fd. The fd must support `pread()`
+    // (`_get_osfhandle()` and `ReadFile()` with `OVERLAPPED*` on Windows).
+    // On Windows binary mode is also required.
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
@@ -153,7 +188,11 @@ class FdReaderBase : public BufferedReader {
 
    private:
     absl::optional<std::string> assumed_filename_;
+#ifndef _WIN32
     int mode_ = O_RDONLY;
+#else
+    int mode_ = _O_RDONLY | _O_BINARY;
+#endif
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
     bool growing_source_ = false;
@@ -172,7 +211,11 @@ class FdReaderBase : public BufferedReader {
   }
   bool SupportsRandomAccess() override { return supports_random_access_; }
   bool SupportsNewReader() override {
+#ifndef _WIN32
     return FdReaderBase::SupportsRandomAccess();
+#else
+    return has_independent_pos_ && FdReaderBase::SupportsRandomAccess();
+#endif
   }
 
  protected:
@@ -186,13 +229,24 @@ class FdReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, bool growing_source);
-  void Initialize(int src, absl::optional<std::string>&& assumed_filename,
+  void Initialize(int src,
+#ifdef _WIN32
+                  int mode,
+#endif
+                  absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
   int OpenFd(absl::string_view filename, int mode);
-  void InitializePos(int src, absl::optional<Position> assumed_pos,
+  void InitializePos(int src,
+#ifdef _WIN32
+                     int mode, bool mode_was_passed_to_open,
+#endif
+                     absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+#ifdef _WIN32
+  ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
+#endif
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
@@ -211,13 +265,17 @@ class FdReaderBase : public BufferedReader {
   bool growing_source_ = false;
   bool supports_random_access_ = false;
   absl::Status random_access_status_;
+#ifdef _WIN32
+  absl::optional<int> original_mode_;
+#endif
 
-  // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
+  // Invariant: `limit_pos() <= std::numeric_limits<fd_internal::Offset>::max()`
 };
 
 // A `Reader` which reads from a file descriptor.
 //
 // The fd must support:
+#ifndef _WIN32
 //  * `close()` - if the fd is owned
 //  * `read()`  - if `Options::independent_pos() == absl::nullopt`
 //  * `pread()` - if `Options::independent_pos() != absl::nullopt`,
@@ -225,11 +283,21 @@ class FdReaderBase : public BufferedReader {
 //  * `lseek()` - for `Seek()` or `Size()`
 //                if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
+#else
+//  * `_close()`    - if the fd is owned
+//  * `_read()`     - if `Options::independent_pos() == absl::nullopt`
+//  * `_get_osfhandle()`, `ReadFile()` with `OVERLAPPED*`
+//                  - if `Options::independent_pos() != absl::nullopt`
+//  * `_lseeki64()` - for `Seek()` or `Size()`
+//                    if `Options::independent_pos() == absl::nullopt`
+//  * `_fstat64()`  - for `Seek()` or `Size()`
+#endif
 //
 // `FdReader` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
-// this is checked by calling `lseek(SEEK_END)`).
+// this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
+// On Windows binary mode is also required.
 //
 // On Linux, some virtual file systems ("/proc", "/sys") contain files with
 // contents generated on the fly when the files are read. The files appear as
@@ -240,7 +308,8 @@ class FdReaderBase : public BufferedReader {
 // `FdReaderBase::Options().set_assumed_pos(0)` can be used to disable random
 // access for such files.
 //
-// `FdReader` supports `NewReader()` if it supports random access.
+// `FdReader` supports `NewReader()` if it supports random access. On Windows
+// `independent_pos() != absl::nullopt` is also required.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -254,9 +323,9 @@ class FdReaderBase : public BufferedReader {
 // Warning: if random access is not supported and the fd is not owned, it will
 // have an unpredictable amount of extra data consumed because of buffering.
 //
-// Until the `FdReader` is closed or no longer used, the fd must not be closed;
-// additionally, if `Options::independent_pos() == absl::nullopt`, the fd must
-// not have its position changed.
+// Until the `FdReader` is closed or no longer used, the fd must not be closed.
+// Additionally, if `Options::independent_pos() == absl::nullopt`
+// (or unconditionally on Windows), the fd must not have its position changed.
 template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
  public:
@@ -357,7 +426,13 @@ inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
       growing_source_(that.growing_source_),
       supports_random_access_(
           std::exchange(that.supports_random_access_, false)),
-      random_access_status_(std::move(that.random_access_status_)) {}
+      random_access_status_(std::move(that.random_access_status_))
+#ifdef _WIN32
+      ,
+      original_mode_(that.original_mode_)
+#endif
+{
+}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
@@ -366,6 +441,9 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   growing_source_ = that.growing_source_;
   supports_random_access_ = std::exchange(that.supports_random_access_, false);
   random_access_status_ = std::move(that.random_access_status_);
+#ifdef _WIN32
+  original_mode_ = that.original_mode_;
+#endif
   return *this;
 }
 
@@ -376,6 +454,9 @@ inline void FdReaderBase::Reset(Closed) {
   growing_source_ = false;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
 }
 
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
@@ -386,22 +467,33 @@ inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
   growing_source_ = growing_source;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
+#ifdef _WIN32
+  original_mode_ = absl::nullopt;
+#endif
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(const Src& src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(src) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(Src&& src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
@@ -413,8 +505,12 @@ template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
@@ -447,16 +543,24 @@ template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
@@ -470,8 +574,12 @@ inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-             options.assumed_pos(), options.independent_pos());
+  Initialize(src_.get(),
+#ifdef _WIN32
+             options.mode(),
+#endif
+             std::move(options.assumed_filename()), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Src>
@@ -487,7 +595,12 @@ void FdReader<Src>::Initialize(absl::string_view filename, Options&& options) {
   const int src = OpenFd(filename, options.mode());
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), options.assumed_pos(), options.independent_pos());
+  InitializePos(src_.get(),
+#ifdef _WIN32
+                options.mode(),
+                /*mode_was_passed_to_open=*/true,
+#endif
+                options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Src>

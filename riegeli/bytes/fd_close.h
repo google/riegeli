@@ -1,4 +1,4 @@
-// Copyright 2018 Google LLC
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_ERRNO_MAPPING_H_
-#define RIEGELI_BASE_ERRNO_MAPPING_H_
+#ifndef RIEGELI_BYTES_FD_CLOSE_H_
+#define RIEGELI_BYTES_FD_CLOSE_H_
 
-#ifdef _WIN32
-#include <stdint.h>
-#endif
-
-#include "absl/status/status.h"
-#ifdef _WIN32
 #include "absl/strings/string_view.h"
-#endif
 
 namespace riegeli {
+namespace fd_internal {
 
-// Converts `absl::StatusCode` to `errno` value.
-int StatusCodeToErrno(absl::StatusCode status_code);
+// Closes a file descriptor, taking interruption by signals into account.
+//
+// Return value:
+//  * 0  - success
+//  * -1 - failure (`errno` is set, `fd` is closed anyway)
+int Close(int fd);
 
-#ifdef _WIN32
+extern const absl::string_view kCloseFunctionName;
 
-absl::Status WindowsErrorToStatus(uint32_t error_number,
-                                  absl::string_view message);
-
-#endif
-
+}  // namespace fd_internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_ERRNO_MAPPING_H_
+#endif  // RIEGELI_BYTES_FD_CLOSE_H_
