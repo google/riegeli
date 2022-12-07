@@ -138,11 +138,11 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
     case SEEK_CUR:
       new_pos = reader_ != nullptr ? reader_->pos() : writer.pos();
       if (offset < 0) {
-        if (ABSL_PREDICT_FALSE(IntCast<Position>(-offset) > new_pos)) {
+        if (ABSL_PREDICT_FALSE(NegatingUnsignedCast(offset) > new_pos)) {
           errno = EINVAL;
           return absl::nullopt;
         }
-        new_pos -= IntCast<Position>(-offset);
+        new_pos -= NegatingUnsignedCast(offset);
         if (ABSL_PREDICT_FALSE(new_pos >
                                Position{std::numeric_limits<int64_t>::max()})) {
           errno = EINVAL;
@@ -184,11 +184,11 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
         }
       }
       if (ABSL_PREDICT_FALSE(offset > 0 ||
-                             IntCast<Position>(-offset) > *size)) {
+                             NegatingUnsignedCast(offset) > *size)) {
         errno = EINVAL;
         return absl::nullopt;
       }
-      new_pos = *size - IntCast<Position>(-offset);
+      new_pos = *size - NegatingUnsignedCast(offset);
       if (ABSL_PREDICT_FALSE(new_pos >
                              Position{std::numeric_limits<int64_t>::max()})) {
         errno = EINVAL;

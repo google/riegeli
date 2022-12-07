@@ -188,7 +188,7 @@ absl::Status ParseFromString(absl::string_view src,
                              ParseOptions options) {
   bool parse_ok;
   if (ABSL_PREDICT_FALSE(src.size() >
-                         size_t{std::numeric_limits<int>::max()})) {
+                         unsigned{std::numeric_limits<int>::max()})) {
     parse_ok = false;
   } else if (!options.merge() && options.recursion_limit() ==
                                      google::protobuf::io::CodedInputStream::

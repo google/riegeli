@@ -194,19 +194,13 @@ inline bool WriteSigned(T src, Writer& dest) {
     }
     char* ptr = dest.cursor();
     *ptr++ = '-';
-    // Negate in the unsigned space to handle `std::numeric_limits<T>::min()`
-    // correctly.
-    dest.set_cursor(WriteUnsignedDispatch(
-        static_cast<std::make_unsigned_t<T>>(
-            0 - static_cast<std::make_unsigned_t<T>>(src)),
-        ptr));
+    dest.set_cursor(WriteUnsignedDispatch(NegatingUnsignedCast(src), ptr));
   } else {
     // See `digits10` comment in `WriteUnsigned()`.
     if (ABSL_PREDICT_FALSE(!dest.Push(std::numeric_limits<T>::digits10 + 1))) {
       return false;
     }
-    dest.set_cursor(WriteUnsignedDispatch(IntCast<std::make_unsigned_t<T>>(src),
-                                          dest.cursor()));
+    dest.set_cursor(WriteUnsignedDispatch(UnsignedCast(src), dest.cursor()));
   }
   return true;
 }

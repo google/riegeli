@@ -80,6 +80,19 @@ inline std::make_unsigned_t<T> UnsignedCast(T value) {
   return IntCast<std::make_unsigned_t<T>>(value);
 }
 
+// `NegatingUnsignedCast(value)` converts `-value` to the corresponding unsigned
+// type, asserting that `value` was non-positive, and correctly handling
+// `std::numeric_limits<T>::min()`.
+template <typename T, std::enable_if_t<std::is_signed<T>::value, int> = 0>
+inline std::make_unsigned_t<T> NegatingUnsignedCast(T value) {
+  RIEGELI_ASSERT_LE(value, 0)
+      << "Failed precondition of NegatingUnsignedCast(): positive value";
+  // Negate in the unsigned space to correctly handle
+  // `std::numeric_limits<T>::min()`.
+  return static_cast<std::make_unsigned_t<T>>(
+      0 - static_cast<std::make_unsigned_t<T>>(value));
+}
+
 // `SignedMin()` returns the minimum of its arguments, which must be signed
 // integers, as their widest type.
 

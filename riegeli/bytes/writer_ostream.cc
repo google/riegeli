@@ -283,10 +283,10 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
     case std::ios_base::cur:
       new_pos = reader_ != nullptr ? reader_->pos() : writer_->pos();
       if (off < 0) {
-        if (ABSL_PREDICT_FALSE(IntCast<Position>(-off) > new_pos)) {
+        if (ABSL_PREDICT_FALSE(NegatingUnsignedCast(off) > new_pos)) {
           return std::streampos(std::streamoff{-1});
         }
-        new_pos -= IntCast<Position>(-off);
+        new_pos -= NegatingUnsignedCast(off);
         if (ABSL_PREDICT_FALSE(
                 new_pos >
                 Position{std::numeric_limits<std::streamoff>::max()})) {
@@ -327,10 +327,10 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
           return std::streampos(std::streamoff{-1});
         }
       }
-      if (ABSL_PREDICT_FALSE(off > 0 || IntCast<Position>(-off) > *size)) {
+      if (ABSL_PREDICT_FALSE(off > 0 || NegatingUnsignedCast(off) > *size)) {
         return std::streampos(std::streamoff{-1});
       }
-      new_pos = *size - IntCast<Position>(-off);
+      new_pos = *size - NegatingUnsignedCast(off);
       if (ABSL_PREDICT_FALSE(
               new_pos > Position{std::numeric_limits<std::streamoff>::max()})) {
         return std::streampos(std::streamoff{-1});
