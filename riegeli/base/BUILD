@@ -150,6 +150,11 @@ cc_library(
 )
 
 cc_library(
+    name = "closing_ptr",
+    hdrs = ["closing_ptr.h"],
+)
+
+cc_library(
     name = "dependency",
     hdrs = ["dependency.h"],
     deps = [

@@ -451,6 +451,29 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
       AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
 };
 
+// Specialization of
+// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyImpl<Ptr>, Deleter>>`.
+//
+// It covers `ClosingPtr(AnyDependency*)`.
+template <typename Ptr, size_t inline_size, size_t inline_align,
+          typename Deleter>
+class DependencyImpl<
+    Ptr,
+    std::unique_ptr<AnyDependencyImpl<Ptr, inline_size, inline_align>, Deleter>>
+    : public DependencyBase<std::unique_ptr<
+          AnyDependencyImpl<Ptr, inline_size, inline_align>, Deleter>> {
+ public:
+  using DependencyImpl::DependencyBase::DependencyBase;
+
+  Ptr get() const { return this->manager()->get(); }
+  Ptr Release() { return this->manager()->Release(); }
+
+  bool is_owning() const {
+    return this->manager() != nullptr && this->manager()->is_owning();
+  }
+  static constexpr bool kIsStable = true;
+};
+
 // Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>&&>`.
 //
 // It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
@@ -599,6 +622,29 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
   bool is_owning() const { return this->manager().is_owning(); }
   static constexpr bool kIsStable =
       AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
+};
+
+// Specialization of
+// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyRefImpl<Ptr>, Deleter>>`.
+//
+// It covers `ClosingPtr(AnyDependencyRef*)`.
+template <typename Ptr, size_t inline_size, size_t inline_align,
+          typename Deleter>
+class DependencyImpl<
+    Ptr, std::unique_ptr<AnyDependencyRefImpl<Ptr, inline_size, inline_align>,
+                         Deleter>>
+    : public DependencyBase<std::unique_ptr<
+          AnyDependencyRefImpl<Ptr, inline_size, inline_align>, Deleter>> {
+ public:
+  using DependencyImpl::DependencyBase::DependencyBase;
+
+  Ptr get() const { return this->manager()->get(); }
+  Ptr Release() { return this->manager()->Release(); }
+
+  bool is_owning() const {
+    return this->manager() != nullptr && this->manager()->is_owning();
+  }
+  static constexpr bool kIsStable = true;
 };
 
 // Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>&&>`.
