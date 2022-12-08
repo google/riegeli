@@ -13,11 +13,9 @@ http_archive(
 
 http_archive(
     name = "org_brotli",
-    patch_args = ["-p1"],
-    patches = ["//third_party:brotli.patch"],
-    sha256 = "fec5a1d26f3dd102c542548aaa704f655fecec3622a24ec6e97768dcb3c235ff",
-    strip_prefix = "brotli-68f1b90ad0d204907beb58304d0bd06391001a4d",
-    urls = ["https://github.com/google/brotli/archive/68f1b90ad0d204907beb58304d0bd06391001a4d.zip"],  # 2021-08-18
+    sha256 = "84a9a68ada813a59db94d83ea10c54155f1d34399baf377842ff3ab9b3b3256e",
+    strip_prefix = "brotli-3914999fcc1fda92e750ef9190aa6db9bf7bdb07",
+    urls = ["https://github.com/google/brotli/archive/3914999fcc1fda92e750ef9190aa6db9bf7bdb07.zip"],  # 2022-11-17
 )
 
 http_archive(
