@@ -71,7 +71,9 @@ inline Offset LSeek(int fd, Offset offset, int whence) {
 
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "_lseeki64()");
 
-using StatInfo = struct __stat64;
+// `struct __stat64` in a namespace does not work in MSVC due to a bug regarding
+// https://en.cppreference.com/w/cpp/language/elaborated_type_specifier.
+using StatInfo = struct ::__stat64;
 
 inline int FStat(int fd, StatInfo* stat_info) {
   return _fstat64(fd, stat_info);
