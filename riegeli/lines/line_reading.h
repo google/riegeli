@@ -32,9 +32,6 @@ namespace riegeli {
 // Options for `ReadLine()`.
 class ReadLineOptions {
  public:
-  // Deprecated alias.
-  using Newline = ReadNewline;
-
   ReadLineOptions() noexcept {}
 
   // Line terminator representations to recognize.

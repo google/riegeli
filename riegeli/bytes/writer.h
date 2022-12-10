@@ -228,9 +228,6 @@ class Writer : public Object {
   // Invariant: if `!ok()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
-  ABSL_DEPRECATED("Use Write() instead")
-  bool WriteChar(char src) { return Write(src); }
-
   // Writes a single byte to the buffer or the destination.
   //
   // Return values:

@@ -56,9 +56,6 @@ bool WriteStandaloneRecord(const Fields& record, CsvWriterBase& csv_writer);
 // Template parameter independent part of `CsvWriter`.
 class CsvWriterBase : public Object {
  public:
-  // Deprecated alias.
-  using Newline = WriteNewline;
-
   class Options {
    public:
     Options() noexcept {}

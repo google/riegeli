@@ -154,9 +154,6 @@ class Reader : public Object {
   // `cursor()`.
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
 
-  ABSL_DEPRECATED("Use Read() instead")
-  bool ReadChar(char& dest) { return Read(dest); }
-
   // Reads a single byte from the buffer or the source.
   //
   // Return values:

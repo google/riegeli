@@ -34,9 +34,6 @@ namespace riegeli {
 // Options for `WriteLine()`.
 class WriteLineOptions {
  public:
-  // Deprecated alias.
-  using Newline = WriteNewline;
-
   WriteLineOptions() noexcept {}
 
   // Line terminator representation to write.
