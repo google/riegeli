@@ -419,12 +419,26 @@ class CsvHeader {
   // Writes `self.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self);
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const CsvHeader& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.payload_);
+  }
+
  private:
   struct Payload : RefCountedBase<Payload> {
     Payload() = default;
     Payload(std::function<std::string(absl::string_view)>&& normalizer)
         : normalizer(std::move(normalizer)) {}
     Payload(const Payload& that);
+
+    template <typename MemoryEstimator>
+    friend void RiegeliRegisterSubobjects(const Payload& self,
+                                          MemoryEstimator& memory_estimator) {
+      // Ignore `normalizer`. Even if not `nullptr`, usually it is stateless.
+      memory_estimator.RegisterSubobjects(self.index_to_name);
+      memory_estimator.RegisterSubobjects(self.name_to_index);
+    }
 
     std::function<std::string(absl::string_view)> normalizer;
     std::vector<std::string> index_to_name;
@@ -870,6 +884,13 @@ class CsvRecord {
 
   // Writes `self.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self);
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const CsvRecord& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.header_);
+    memory_estimator.RegisterSubobjects(self.fields_);
+  }
 
  private:
   friend class CsvReaderBase;

@@ -69,7 +69,11 @@ cc_library(
 cc_library(
     name = "estimated_allocated_size",
     hdrs = ["estimated_allocated_size.h"],
-    deps = [":arithmetic"],
+    deps = [
+        ":arithmetic",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
+    ],
 )
 
 cc_library(
@@ -150,6 +154,25 @@ cc_library(
 )
 
 cc_library(
+    name = "memory_estimator",
+    srcs = ["memory_estimator.cc"],
+    hdrs = ["memory_estimator.h"],
+    deps = [
+        ":arithmetic",
+        ":estimated_allocated_size",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
     name = "closing_ptr",
     hdrs = ["closing_ptr.h"],
 )
@@ -183,6 +206,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":dependency",
+        ":memory_estimator",
         ":type_id",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
@@ -231,17 +255,6 @@ cc_library(
         ":type_id",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-    ],
-)
-
-cc_library(
-    name = "memory_estimator",
-    srcs = ["memory_estimator.cc"],
-    hdrs = ["memory_estimator.h"],
-    deps = [
-        ":arithmetic",
-        ":estimated_allocated_size",
-        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
 

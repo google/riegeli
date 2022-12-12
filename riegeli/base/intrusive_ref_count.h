@@ -122,6 +122,14 @@ class
     return nullptr != b.get();
   }
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const RefCountedPtr& self,
+                                        MemoryEstimator& memory_estimator) {
+    if (memory_estimator.RegisterNode(self.get())) {
+      memory_estimator.RegisterDynamicObject(*self);
+    }
+  }
+
  private:
   T* ptr_ = nullptr;
 };

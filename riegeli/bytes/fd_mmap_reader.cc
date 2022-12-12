@@ -65,7 +65,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
-#include "riegeli/base/memory_estimator.h"
 #ifndef _WIN32
 #include "riegeli/base/no_destructor.h"
 #endif
@@ -126,8 +125,10 @@ class MMapRef {
   MMapRef& operator=(const MMapRef&) = delete;
 
   void operator()(absl::string_view data) const;
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const MMapRef& self,
+                                        MemoryEstimator& memory_estimator) {}
 
  private:
   const char* addr_;
@@ -146,8 +147,6 @@ void MMapRef::operator()(absl::string_view data) const {
              .message();
 #endif
 }
-
-void MMapRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
 
 void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 

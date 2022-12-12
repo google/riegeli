@@ -17,6 +17,8 @@
 
 #include <stddef.h>
 
+#include "absl/base/attributes.h"
+#include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
@@ -24,7 +26,25 @@ namespace riegeli {
 // Returns the estimated size which will be allocated when requesting to
 // allocate `requested_size`.
 inline size_t EstimatedAllocatedSize(size_t requested_size) {
-  return RoundUp<sizeof(size_t) * 2>(requested_size);
+  // Placeholder for asking the memory manager, which might be possible on some
+  // platforms.
+  return RoundUp<2 * sizeof(void*)>(
+      UnsignedMax(requested_size, 4 * sizeof(void*)));
+}
+
+// Returns the estimated size which was allocated at `ptr` when requested to
+// allocate `requested_size`.
+inline size_t EstimatedAllocatedSize(ABSL_ATTRIBUTE_UNUSED const void* ptr,
+                                     size_t requested_size) {
+  // Placeholder for using `ptr`, which might be possible on some platforms.
+  return EstimatedAllocatedSize(requested_size);
+}
+
+// A deterministic variant of `EstimatedAllocatedSize()`, useful for testing.
+inline size_t EstimatedAllocatedSizeForTesting(size_t requested_size) {
+  // Round to the next power of 2.
+  return size_t{1} << (sizeof(size_t) * 8 - absl::countl_zero(SaturatingSub(
+                                                requested_size, size_t{1})));
 }
 
 }  // namespace riegeli

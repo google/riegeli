@@ -84,11 +84,8 @@ class ZeroRef {
   ZeroRef(const ZeroRef&) = delete;
   ZeroRef& operator=(const ZeroRef&) = delete;
 
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
 };
-
-void ZeroRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
 
 void ZeroRef::DumpStructure(std::ostream& out) const { out << "[zero] { }"; }
 
@@ -103,8 +100,12 @@ class Chain::BlockRef {
   BlockRef(const BlockRef&) = delete;
   BlockRef& operator=(const BlockRef&) = delete;
 
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const BlockRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.block_);
+  }
 
  private:
   RefCountedPtr<RawBlock> block_;
@@ -127,11 +128,6 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
   block_.reset(block);
 }
 
-inline void Chain::BlockRef::RegisterSubobjects(
-    MemoryEstimator& memory_estimator) const {
-  block_->RegisterShared(memory_estimator);
-}
-
 inline void Chain::BlockRef::DumpStructure(absl::string_view data,
                                            std::ostream& out) const {
   out << "[block] { offset: " << PtrDistance(block_->data_begin(), data.data())
@@ -148,19 +144,18 @@ class Chain::StringRef {
   StringRef& operator=(const StringRef&) = delete;
 
   explicit operator absl::string_view() const { return src_; }
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const StringRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.src_);
+  }
 
  private:
   friend class Chain;
 
   std::string src_;
 };
-
-inline void Chain::StringRef::RegisterSubobjects(
-    MemoryEstimator& memory_estimator) const {
-  memory_estimator.RegisterDynamicMemory(src_.capacity() + 1);
-}
 
 inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
   out << "[string] { capacity: " << src_.capacity() << " }";
@@ -181,9 +176,12 @@ class Chain::FlatCordRef {
   FlatCordRef& operator=(const FlatCordRef&) = delete;
 
   explicit operator absl::string_view() const;
-  void RegisterSubobjects(absl::string_view data,
-                          MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const FlatCordRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.src_);
+  }
 
   // Appends the `absl::Cord` to `dest`.
   void AppendTo(absl::Cord& dest) const;
@@ -223,23 +221,6 @@ inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter,
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
       << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
          "Cord is not flat";
-}
-
-inline void Chain::FlatCordRef::RegisterSubobjects(
-    absl::string_view data, MemoryEstimator& memory_estimator) const {
-  // `absl::Cord` does not expose its internal structure, but this `absl::Cord`
-  // is flat, so we can have a reasonable estimation. We identify the
-  // `absl::Cord` node by the pointer to the first character. If some of the
-  // characters are shared, all of them are shared.
-  //
-  // This assumption breaks only if the `absl::Cord` has a substring node. In
-  // this case we do not take into account the substring node, and do not detect
-  // sharing if the source node itself is present too or if multiple substrings
-  // point to different parts of the source node.
-  if (memory_estimator.RegisterNode(data.data())) {
-    memory_estimator.RegisterMemory(
-        SaturatingSub(src_.EstimatedMemoryUsage(), sizeof(absl::Cord)));
-  }
 }
 
 inline Chain::FlatCordRef::operator absl::string_view() const {
@@ -403,18 +384,6 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
   return Wasteful(capacity(), size() + extra_size);
 }
 
-inline void Chain::RawBlock::RegisterShared(
-    MemoryEstimator& memory_estimator) const {
-  if (memory_estimator.RegisterNode(this)) {
-    if (is_internal()) {
-      memory_estimator.RegisterDynamicMemory(kInternalAllocatedOffset() +
-                                             capacity());
-    } else {
-      external_.methods->register_unique(*this, memory_estimator);
-    }
-  }
-}
-
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   out << "block {";
   const size_t ref_count = ref_count_.load(std::memory_order_relaxed);
@@ -428,6 +397,21 @@ inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
     external_.methods->dump_structure(*this, out);
   }
   out << " }";
+}
+
+size_t Chain::RawBlock::DynamicSizeOfImpl() const {
+  if (is_internal()) {
+    return kInternalAllocatedOffset() + capacity();
+  } else {
+    return external_.methods->dynamic_sizeof;
+  }
+}
+
+void Chain::RawBlock::RegisterSubobjectsImpl(
+    MemoryEstimator& memory_estimator) const {
+  if (!is_internal()) {
+    external_.methods->register_subobjects(*this, memory_estimator);
+  }
 }
 
 inline bool Chain::RawBlock::can_append(size_t length) const {
@@ -1200,25 +1184,6 @@ Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
   }
 }
 
-size_t Chain::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(Chain));
-  RegisterSubobjects(memory_estimator);
-  return memory_estimator.TotalMemory();
-}
-
-void Chain::RegisterSubobjects(MemoryEstimator& memory_estimator) const {
-  if (has_allocated()) {
-    memory_estimator.RegisterMemory(
-        2 *
-        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end) *
-        sizeof(BlockPtr));
-  }
-  for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
-    iter->block_ptr->RegisterShared(memory_estimator);
-  }
-}
-
 void Chain::DumpStructure(std::ostream& out) const {
   out << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
   for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
@@ -1226,6 +1191,27 @@ void Chain::DumpStructure(std::ostream& out) const {
     iter->block_ptr->DumpStructure(out);
   }
   out << "\n}\n";
+}
+
+size_t Chain::EstimateMemory() const {
+  MemoryEstimator memory_estimator;
+  memory_estimator.RegisterMemory(sizeof(Chain));
+  memory_estimator.RegisterSubobjects(*this);
+  return memory_estimator.TotalMemory();
+}
+
+void Chain::RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
+  if (has_allocated()) {
+    memory_estimator.RegisterMemory(
+        2 *
+        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end) *
+        sizeof(BlockPtr));
+  }
+  for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
+    if (memory_estimator.RegisterNode(iter->block_ptr)) {
+      memory_estimator.RegisterDynamicObject(*iter->block_ptr);
+    }
+  }
 }
 
 inline void Chain::PushBack(RawBlock* block) {
@@ -2697,17 +2683,6 @@ inline Chain::RawBlock* ChainBlock::RefBlock() const& { return block_->Ref(); }
 
 inline Chain::RawBlock* ChainBlock::RefBlock() && { return block_.release(); }
 
-size_t ChainBlock::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(ChainBlock));
-  RegisterSubobjects(memory_estimator);
-  return memory_estimator.TotalMemory();
-}
-
-void ChainBlock::RegisterSubobjects(MemoryEstimator& memory_estimator) const {
-  if (block_ != nullptr) block_->RegisterShared(memory_estimator);
-}
-
 void ChainBlock::DumpStructure(std::ostream& out) const {
   out << "chain_block {\n  size: " << size() << " memory: " << EstimateMemory();
   if (block_ != nullptr) {
@@ -2715,6 +2690,20 @@ void ChainBlock::DumpStructure(std::ostream& out) const {
     block_->DumpStructure(out);
   }
   out << "\n}\n";
+}
+
+size_t ChainBlock::EstimateMemory() const {
+  MemoryEstimator memory_estimator;
+  memory_estimator.RegisterMemory(sizeof(ChainBlock));
+  memory_estimator.RegisterSubobjects(*this);
+  return memory_estimator.TotalMemory();
+}
+
+void ChainBlock::RegisterSubobjectsImpl(
+    MemoryEstimator& memory_estimator) const {
+  if (memory_estimator.RegisterNode(block_.get())) {
+    memory_estimator.RegisterDynamicObject(*block_);
+  }
 }
 
 inline size_t ChainBlock::NewBlockCapacity(size_t space_before, size_t old_size,

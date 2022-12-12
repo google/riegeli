@@ -14,33 +14,83 @@
 
 #include "riegeli/base/memory_estimator.h"
 
+#ifdef __GXX_RTTI
+#include <cxxabi.h>
+#endif
 #include <stddef.h>
 
+#include <algorithm>
+#include <cstdlib>
+#include <string>
+#include <typeindex>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 
 namespace riegeli {
 
+MemoryEstimator::~MemoryEstimator() = default;
+
 MemoryEstimator::MemoryEstimator(const MemoryEstimator& that)
-    : total_memory_(that.total_memory_), objects_seen_(that.objects_seen_) {}
+    : deterministic_for_testing_(that.deterministic_for_testing_),
+      unknown_types_no_rtti_(that.unknown_types_no_rtti_),
+      total_memory_(that.total_memory_),
+      objects_seen_(that.objects_seen_),
+      unknown_types_(that.unknown_types_) {}
 
 MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& that) {
+  deterministic_for_testing_ = that.deterministic_for_testing_;
+  unknown_types_no_rtti_ = that.unknown_types_no_rtti_;
   total_memory_ = that.total_memory_;
   objects_seen_ = that.objects_seen_;
+  unknown_types_ = that.unknown_types_;
   return *this;
 }
 
 MemoryEstimator::MemoryEstimator(MemoryEstimator&& that) noexcept
-    : total_memory_(std::exchange(that.total_memory_, 0)),
+    : deterministic_for_testing_(
+          std::exchange(that.deterministic_for_testing_, false)),
+      unknown_types_no_rtti_(std::exchange(that.unknown_types_no_rtti_, false)),
+      total_memory_(std::exchange(that.total_memory_, 0)),
       objects_seen_(std::exchange(that.objects_seen_,
-                                  absl::flat_hash_set<const void*>())) {}
+                                  absl::flat_hash_set<const void*>())),
+      unknown_types_(std::exchange(that.unknown_types_,
+                                   absl::flat_hash_set<std::type_index>())) {}
 
 MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
+  deterministic_for_testing_ =
+      std::exchange(that.deterministic_for_testing_, false);
+  unknown_types_no_rtti_ = std::exchange(that.unknown_types_no_rtti_, false);
   total_memory_ = std::exchange(that.total_memory_, 0);
   objects_seen_ =
       std::exchange(that.objects_seen_, absl::flat_hash_set<const void*>());
+  unknown_types_ = std::exchange(that.unknown_types_,
+                                 absl::flat_hash_set<std::type_index>());
   return *this;
+}
+
+std::vector<std::string> MemoryEstimator::UnknownTypes() const {
+  std::vector<std::string> result;
+  result.reserve((unknown_types_no_rtti_ ? 1 : 0) + unknown_types_.size());
+  if (unknown_types_no_rtti_) {
+    result.emplace_back("<no rtti>");
+  }
+  for (const std::type_index index : unknown_types_) {
+#ifdef __GXX_RTTI
+    int status = 0;
+    char* const demangled =
+        abi::__cxa_demangle(index.name(), nullptr, nullptr, &status);
+    if (status == 0 && demangled != nullptr) {
+      result.emplace_back(demangled);
+      std::free(demangled);
+      continue;
+    }
+#endif
+    result.emplace_back(index.name());
+  }
+  std::sort(result.begin(), result.end());
+  return result;
 }
 
 }  // namespace riegeli

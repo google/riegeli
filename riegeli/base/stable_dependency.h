@@ -199,6 +199,16 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
     return dep_->is_owning();
   }
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const StableDependency& self,
+                                        MemoryEstimator& memory_estimator) {
+    if (ABSL_PREDICT_FALSE(self.dep_ == nullptr)) {
+      memory_estimator.RegisterSubobjects(self.dummy_);
+      return;
+    }
+    memory_estimator.RegisterSubobjects(self.dep_);
+  }
+
  private:
   std::unique_ptr<Dependency<P*, M>> dep_;
   union {

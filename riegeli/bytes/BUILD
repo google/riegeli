@@ -885,7 +885,6 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
-        "//riegeli/base:memory_estimator",
         "//riegeli/base:object",
         "//riegeli/base:status",
         "//riegeli/base:types",

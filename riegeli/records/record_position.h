@@ -169,6 +169,12 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   Position get() const;
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const FutureChunkBegin& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.unresolved_);
+  }
+
  private:
   class Unresolved;
 
@@ -213,6 +219,12 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   RecordPosition get() const;
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const FutureRecordPosition& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.chunk_begin_);
+  }
+
  private:
   records_internal::FutureChunkBegin chunk_begin_;
   uint64_t record_index_ = 0;
@@ -238,6 +250,12 @@ class FutureChunkBegin::Unresolved : public RefCountedBase<Unresolved> {
   Unresolved& operator=(const Unresolved&) = delete;
 
   Position get() const;
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const Unresolved& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.actions_);
+  }
 
  private:
   void Resolve() const;

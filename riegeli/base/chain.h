@@ -200,20 +200,18 @@ class Chain {
   //   // If only this function is needed, `T` can be a lambda.
   //   void operator()(absl::string_view data) const {}
   //
-  //   // Registers this object with `MemoryEstimator`.
-  //   void RegisterSubobjects(
-  //       absl::string_view data,
-  //       riegeli::MemoryEstimator& memory_estimator) const {
-  //     if (std::is_same<T, absl::string_view>::value) return;
-  //     if (memory_estimator.RegisterNode(data.data())) {
-  //       memory_estimator.RegisterDynamicMemory(data.size());
-  //     }
-  //   }
-  //
   //   // Shows internal structure in a human-readable way, for debugging.
   //   void DumpStructure(absl::string_view data, std::ostream& out) const {
   //     out << "[external] { }";
   //   }
+  //
+  //   // Registers this object with `MemoryEstimator`.
+  //   //
+  //   // By default calls `memory_estimator.RegisterUnknownType<T>()` and
+  //   // as an approximation of memory usage of an unknown type, registers just
+  //   // the stored `data` if unique.
+  //   friend void RiegeliRegisterSubobjects(
+  //       const T& self, riegeli::MemoryEstimator& memory_estimator);
   // ```
   //
   // The `data` parameter of these member functions, if present, will get the
@@ -304,12 +302,15 @@ class Chain {
   // Precondition: `char_index_in_chain <= size()`
   BlockAndChar BlockAndCharIndex(size_t char_index_in_chain) const;
 
+  // Shows internal structure in a human-readable way, for debugging.
+  void DumpStructure(std::ostream& out) const;
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
   // Registers this `Chain` with `MemoryEstimator`.
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
-  // Shows internal structure in a human-readable way, for debugging.
-  void DumpStructure(std::ostream& out) const;
+  friend void RiegeliRegisterSubobjects(const Chain& self,
+                                        MemoryEstimator& memory_estimator) {
+    self.RegisterSubobjectsImpl(memory_estimator);
+  }
 
   // Appends/prepends some uninitialized space. The buffer will have length at
   // least `min_length`, preferably `recommended_length`, and at most
@@ -629,6 +630,7 @@ class Chain {
   template <typename CordRef>
   void PrependCord(CordRef&& src, const Options& options);
 
+  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state) const;
   template <typename Sink>
@@ -1003,12 +1005,15 @@ class ChainBlock {
   size_t size() const;
   bool empty() const;
 
+  // Shows internal structure in a human-readable way, for debugging.
+  void DumpStructure(std::ostream& out) const;
   // Estimates the amount of memory used by this `ChainBlock`.
   size_t EstimateMemory() const;
   // Registers this `ChainBlock` with `MemoryEstimator`.
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
-  // Shows internal structure in a human-readable way, for debugging.
-  void DumpStructure(std::ostream& out) const;
+  friend void RiegeliRegisterSubobjects(const ChainBlock& self,
+                                        MemoryEstimator& memory_estimator) {
+    self.RegisterSubobjectsImpl(memory_estimator);
+  }
 
   // Appends/prepends some uninitialized space. The buffer will have length at
   // least `min_length`, preferably `recommended_length`, and at most
@@ -1079,6 +1084,8 @@ class ChainBlock {
 
   void RemoveSuffixSlow(size_t length, const Options& options);
   void RemovePrefixSlow(size_t length, const Options& options);
+
+  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
 
   RefCountedPtr<RawBlock> block_;
 };
@@ -1173,10 +1180,16 @@ class Chain::RawBlock {
   bool tiny(size_t extra_size = 0) const;
   bool wasteful(size_t extra_size = 0) const;
 
-  // Registers this `RawBlock` with `MemoryEstimator`.
-  void RegisterShared(MemoryEstimator& memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
+  // Registers this `RawBlock` with `MemoryEstimator`.
+  friend size_t RiegeliDynamicSizeOf(const RawBlock& self) {
+    return self.DynamicSizeOfImpl();
+  }
+  friend void RiegeliRegisterSubobjects(const RawBlock& self,
+                                        MemoryEstimator& memory_estimator) {
+    self.RegisterSubobjectsImpl(memory_estimator);
+  }
 
   bool can_append(size_t length) const;
   bool can_prepend(size_t length) const;
@@ -1255,6 +1268,9 @@ class Chain::RawBlock {
   size_t raw_space_before() const;
   size_t raw_space_after() const;
 
+  size_t DynamicSizeOfImpl() const;
+  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
+
   std::atomic<size_t> ref_count_{1};
   absl::string_view data_;
   // If `is_internal()`, end of allocated space. If `is_external()`, `nullptr`.
@@ -1270,9 +1286,10 @@ class Chain::RawBlock {
 
 struct Chain::ExternalMethods {
   void (*delete_block)(RawBlock* block);
-  void (*register_unique)(const RawBlock& block,
-                          MemoryEstimator& memory_estimator);
   void (*dump_structure)(const RawBlock& block, std::ostream& out);
+  size_t dynamic_sizeof;
+  void (*register_subobjects)(const RawBlock& block,
+                              MemoryEstimator& memory_estimator);
 };
 
 namespace chain_internal {
@@ -1281,28 +1298,28 @@ template <typename T, typename Enable = void>
 struct HasCallOperatorWithData : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorWithData<T, absl::void_t<decltype(std::declval<T>()(
-                                      std::declval<absl::string_view>()))>>
+struct HasCallOperatorWithData<T,
+                               absl::void_t<decltype(std::declval<const T&>()(
+                                   std::declval<absl::string_view>()))>>
     : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct HasCallOperatorWithoutData : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorWithoutData<T,
-                                  absl::void_t<decltype(std::declval<T>()())>>
-    : std::true_type {};
+struct HasCallOperatorWithoutData<
+    T, absl::void_t<decltype(std::declval<const T&>()())>> : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
-inline void CallOperator(T& object, absl::string_view data) {
+inline void CallOperator(const T& object, absl::string_view data) {
   object(data);
 }
 
 template <typename T, std::enable_if_t<!HasCallOperatorWithData<T>::value &&
                                            HasCallOperatorWithoutData<T>::value,
                                        int> = 0>
-inline void CallOperator(T& object, absl::string_view data) {
+inline void CallOperator(const T& object, absl::string_view data) {
   object();
 }
 
@@ -1311,56 +1328,6 @@ template <typename T,
                                !HasCallOperatorWithoutData<T>::value,
                            int> = 0>
 inline void CallOperator(T& object, absl::string_view data) {}
-
-template <typename T, typename Enable = void>
-struct HasRegisterSubobjectsWithData : std::false_type {};
-
-template <typename T>
-struct HasRegisterSubobjectsWithData<
-    T,
-    absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
-        std::declval<absl::string_view>(), std::declval<MemoryEstimator&>()))>>
-    : std::true_type {};
-
-template <typename T, typename Enable = void>
-struct HasRegisterSubobjectsWithoutData : std::false_type {};
-
-template <typename T>
-struct HasRegisterSubobjectsWithoutData<
-    T, absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
-           std::declval<MemoryEstimator&>()))>> : std::true_type {};
-
-template <typename T,
-          std::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
-inline void RegisterSubobjects(T& object, absl::string_view data,
-                               MemoryEstimator& memory_estimator) {
-  object.RegisterSubobjects(data, memory_estimator);
-}
-
-template <typename T,
-          std::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                               HasRegisterSubobjectsWithoutData<T>::value,
-                           int> = 0>
-inline void RegisterSubobjects(T& object, absl::string_view data,
-                               MemoryEstimator& memory_estimator) {
-  object.RegisterSubobjects(memory_estimator);
-}
-
-template <typename T,
-          std::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                               !HasRegisterSubobjectsWithoutData<T>::value,
-                           int> = 0>
-inline void RegisterSubobjects(T& object, absl::string_view data,
-                               MemoryEstimator& memory_estimator) {
-  if (memory_estimator.RegisterNode(data.data())) {
-    memory_estimator.RegisterDynamicMemory(data.size());
-  }
-}
-
-template <>
-inline void RegisterSubobjects(absl::string_view& object,
-                               absl::string_view data,
-                               MemoryEstimator& memory_estimator) {}
 
 template <typename T, typename Enable = void>
 struct HasDumpStructureWithData : std::false_type {};
@@ -1404,6 +1371,25 @@ inline void DumpStructure(T& object, absl::string_view data,
   out << "[external] { }";
 }
 
+template <typename T,
+          std::enable_if_t<RegisterSubobjectsIsGood<T>::value, int> = 0>
+inline void RegisterSubobjects(const T& object, absl::string_view data,
+                               MemoryEstimator& memory_estimator) {
+  memory_estimator.RegisterSubobjects(object);
+}
+
+template <typename T,
+          std::enable_if_t<!RegisterSubobjectsIsGood<T>::value, int> = 0>
+inline void RegisterSubobjects(const T& object, absl::string_view data,
+                               MemoryEstimator& memory_estimator) {
+  memory_estimator.RegisterUnknownType<T>();
+  // As an approximation of memory usage of an unknown type, register just the
+  // stored data if unique.
+  if (memory_estimator.RegisterNode(data.data())) {
+    memory_estimator.RegisterDynamicMemory(data.size());
+  }
+}
+
 }  // namespace chain_internal
 
 template <typename T>
@@ -1422,9 +1408,10 @@ struct Chain::ExternalMethodsFor {
 
  private:
   static void DeleteBlock(RawBlock* block);
-  static void RegisterUnique(const RawBlock& block,
-                             MemoryEstimator& memory_estimator);
   static void DumpStructure(const RawBlock& block, std::ostream& out);
+  static constexpr size_t DynamicSizeOf();
+  static void RegisterSubobjects(const RawBlock& block,
+                                 MemoryEstimator& memory_estimator);
 };
 
 template <typename T>
@@ -1447,7 +1434,7 @@ inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
 
 template <typename T>
 const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
-    DeleteBlock, RegisterUnique, DumpStructure};
+    DeleteBlock, DumpStructure, DynamicSizeOf(), RegisterSubobjects};
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
@@ -1459,20 +1446,23 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 }
 
 template <typename T>
-void Chain::ExternalMethodsFor<T>::RegisterUnique(
-    const RawBlock& block, MemoryEstimator& memory_estimator) {
-  memory_estimator.RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
-                                         sizeof(T));
-  chain_internal::RegisterSubobjects(block.unchecked_external_object<T>(),
-                                     absl::string_view(block),
-                                     memory_estimator);
-}
-
-template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
                                                  std::ostream& out) {
   chain_internal::DumpStructure(block.unchecked_external_object<T>(),
                                 absl::string_view(block), out);
+}
+
+template <typename T>
+constexpr size_t Chain::ExternalMethodsFor<T>::DynamicSizeOf() {
+  return RawBlock::kExternalObjectOffset<T>() + sizeof(T);
+}
+
+template <typename T>
+void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
+    const RawBlock& block, MemoryEstimator& memory_estimator) {
+  chain_internal::RegisterSubobjects(block.unchecked_external_object<T>(),
+                                     absl::string_view(block),
+                                     memory_estimator);
 }
 
 template <typename T, typename... Args>

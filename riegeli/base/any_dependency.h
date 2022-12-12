@@ -31,6 +31,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_id.h"
 
 namespace riegeli {
@@ -173,6 +174,8 @@ struct Methods {
   // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
   // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
   const void* (*get_if)(const Storage self, TypeId type_id);
+  void (*register_subobjects)(const Storage self,
+                              MemoryEstimator& memory_estimator);
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
@@ -377,6 +380,11 @@ class
   template <typename Manager,
             std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
   const Manager* GetIf() const;
+
+  friend void RiegeliRegisterSubobjects(const AnyDependencyImpl& self,
+                                        MemoryEstimator& memory_estimator) {
+    self.methods_->register_subobjects(self.repr_.storage, memory_estimator);
+  }
 
  private:
   // For adopting `methods_` and `repr_` from an instantiation with a different
@@ -806,11 +814,13 @@ struct NullMethods {
   static const void* GetIf(const Storage self, TypeId type_id) {
     return nullptr;
   }
+  static void RegisterSubobjects(const Storage self,
+                                 MemoryEstimator& memory_estimator) {}
 };
 
 template <typename Ptr>
-const Methods<Ptr> NullMethods<Ptr>::methods = {Destroy, 0,        0,    Move,
-                                                Release, IsOwning, GetIf};
+const Methods<Ptr> NullMethods<Ptr>::methods = {
+    Destroy, 0, 0, Move, Release, IsOwning, GetIf, RegisterSubobjects};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
@@ -866,13 +876,17 @@ struct MethodsFor {
     }
     return nullptr;
   }
+  static void RegisterSubobjects(const Storage self,
+                                 MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterDynamicObject(*dep_ptr(self));
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
-        Destroy, 0, 0, Move, Release, IsOwning, GetIf};
+        Destroy, 0, 0, Move, Release, IsOwning, GetIf, RegisterSubobjects};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
@@ -936,6 +950,10 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
     }
     return nullptr;
   }
+  static void RegisterSubobjects(const Storage self,
+                                 MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(dep(self));
+  }
 };
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
@@ -950,7 +968,8 @@ const Methods<Ptr>
         Move,
         Release,
         IsOwning,
-        GetIf};
+        GetIf,
+        RegisterSubobjects};
 
 }  // namespace any_dependency_internal
 
