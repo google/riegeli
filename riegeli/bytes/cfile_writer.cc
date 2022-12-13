@@ -516,6 +516,11 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   FILE* const dest = DestFile();
+  // Synchronize the writing aspect and the reading aspect of the `FILE`.
+  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_CUR) != 0)) {
+    FailOperation(cfile_internal::kFSeekFunctionName);
+    return nullptr;
+  }
   CFileReader<UnownedCFile>* const reader = associated_reader_.ResetReader(
       dest, CFileReaderBase::Options()
                 .set_assumed_filename(filename())
