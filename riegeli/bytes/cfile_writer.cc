@@ -325,9 +325,9 @@ bool CFileWriterBase::SupportsRandomAccess() {
   if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
     return supports_random_access_ == LazyBoolState::kTrue;
   }
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT(supports_read_mode_ != LazyBoolState::kTrue)
       << "Failed invariant of CFileWriterBase: "
-         "supports_read_mode_ is resolved but supports_random_access_ is not";
+         "supports_random_access_ is unknown but supports_read_mode_ is true";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Status status = SizeStatus();
   if (!status.ok()) {
@@ -335,7 +335,7 @@ bool CFileWriterBase::SupportsRandomAccess() {
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
     random_access_status_ = std::move(status);
-    read_mode_status_ = random_access_status_;
+    read_mode_status_.Update(random_access_status_);
     return false;
   }
   // Supported.

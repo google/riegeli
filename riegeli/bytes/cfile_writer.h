@@ -270,7 +270,7 @@ class CFileWriterBase : public BufferedWriter {
   //
   // Invariant:
   //   if `supports_random_access_ == LazyBoolState::kUnknown` then
-  //       `supports_read_mode_ == LazyBoolState::kUnknown`
+  //       `supports_read_mode_ != LazyBoolState::kTrue`
   LazyBoolState supports_read_mode_ = LazyBoolState::kUnknown;
   absl::Status random_access_status_;
   absl::Status read_mode_status_;
