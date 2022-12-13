@@ -388,7 +388,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
     // Seeking forwards.
     if (exact_size() != absl::nullopt) {
       if (ABSL_PREDICT_FALSE(new_pos > *exact_size())) {
-        // Stream ends.
+        // File ends.
         if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
                 src, IntCast<cfile_internal::Offset>(*exact_size()),
                 SEEK_SET)) != 0) {
@@ -407,7 +407,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
       }
       if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
       if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
-        // Stream ends.
+        // File ends.
         set_limit_pos(IntCast<Position>(file_size));
         return false;
       }

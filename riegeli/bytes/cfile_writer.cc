@@ -463,7 +463,7 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
       return FailOperation(cfile_internal::kFTellFunctionName);
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(file_size))) {
-      // Stream ends.
+      // File ends.
       set_start_pos(IntCast<Position>(file_size));
       return false;
     }
