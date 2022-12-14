@@ -194,6 +194,7 @@ void TransposeEncoder::Clear() {
   tags_list_.clear();
   encoded_tags_.clear();
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
+  message_stack_.clear();
   group_stack_.clear();
   message_nodes_.clear();
   nonproto_lengths_writer_.Reset();
@@ -270,8 +271,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
     encoded_tags_.push_back(GetPosInTagsList(
         GetNode(NodeId(chunk_encoding_internal::MessageId::kStartOfMessage, 0)),
         chunk_encoding_internal::Subtype::kTrivial));
-    LimitingReader<> message(&record);
-    return AddMessage(message, chunk_encoding_internal::MessageId::kRoot, 0);
+    return AddMessage(record);
   } else {
     Node* node =
         GetNode(NodeId(chunk_encoding_internal::MessageId::kNonProto, 0));
@@ -328,131 +328,144 @@ inline TransposeEncoder::Node* TransposeEncoder::GetNode(NodeId node_id) {
 // Precondition: `IsProtoMessage` returns `true` for this record.
 // Note: Encoded tags are appended into `encoded_tags_` but data is prepended
 // into respective buffers. `encoded_tags_` will be later traversed backwards.
-inline bool TransposeEncoder::AddMessage(
-    LimitingReaderBase& record,
-    chunk_encoding_internal::MessageId parent_message_id, int depth) {
-  while (record.Pull()) {
-    uint32_t tag;
-    if (!ReadVarint32(record, tag)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record.status();
-    }
-    Node* node = GetNode(NodeId(parent_message_id, tag));
-    switch (GetTagWireType(tag)) {
-      case WireType::kVarint: {
-        // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
-        // and GCC generate better code for clearing high bit of each byte.
-        uint64_t value[2];
-        static_assert(sizeof(value) >= kMaxLengthVarint64,
-                      "value too small to hold a varint64");
-        const absl::optional<size_t> value_length =
-            CopyVarint64(record, reinterpret_cast<char*>(value));
-        if (value_length == absl::nullopt) {
-          RIEGELI_ASSERT_UNREACHABLE() << "Invalid varint: " << record.status();
-        }
-        if (reinterpret_cast<const unsigned char*>(value)[0] <=
-            kMaxVarintInline) {
+inline bool TransposeEncoder::AddMessage(Reader& record) {
+  chunk_encoding_internal::MessageId parent_message_id =
+      chunk_encoding_internal::MessageId::kRoot;
+  LimitingReader<> limited_record(&record);
+  for (;;) {
+    while (limited_record.Pull()) {
+      uint32_t tag;
+      if (!ReadVarint32(limited_record, tag)) {
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Invalid tag: " << limited_record.status();
+      }
+      Node* node = GetNode(NodeId(parent_message_id, tag));
+      switch (GetTagWireType(tag)) {
+        case WireType::kVarint: {
+          // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
+          // and GCC generate better code for clearing high bit of each byte.
+          uint64_t value[2];
+          static_assert(sizeof(value) >= kMaxLengthVarint64,
+                        "value too small to hold a varint64");
+          const absl::optional<size_t> value_length =
+              CopyVarint64(limited_record, reinterpret_cast<char*>(value));
+          if (value_length == absl::nullopt) {
+            RIEGELI_ASSERT_UNREACHABLE()
+                << "Invalid varint: " << limited_record.status();
+          }
+          if (reinterpret_cast<const unsigned char*>(value)[0] <=
+              kMaxVarintInline) {
+            encoded_tags_.push_back(GetPosInTagsList(
+                node, chunk_encoding_internal::Subtype::kVarintInline0 +
+                          reinterpret_cast<const unsigned char*>(value)[0]));
+          } else {
+            encoded_tags_.push_back(GetPosInTagsList(
+                node, chunk_encoding_internal::Subtype::kVarint1 +
+                          IntCast<uint8_t>(*value_length - 1)));
+            // Clear high bit of each byte.
+            for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
+            BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
+            if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
+                    reinterpret_cast<const char*>(value), *value_length)))) {
+              return Fail(buffer->status());
+            }
+          }
+        } break;
+        case WireType::kFixed32: {
           encoded_tags_.push_back(GetPosInTagsList(
-              node, chunk_encoding_internal::Subtype::kVarintInline0 +
-                        reinterpret_cast<const unsigned char*>(value)[0]));
-        } else {
-          encoded_tags_.push_back(GetPosInTagsList(
-              node, chunk_encoding_internal::Subtype::kVarint1 +
-                        IntCast<uint8_t>(*value_length - 1)));
-          // Clear high bit of each byte.
-          for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
-          BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
-          if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
-                  reinterpret_cast<const char*>(value), *value_length)))) {
+              node, chunk_encoding_internal::Subtype::kTrivial));
+          BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
+          if (ABSL_PREDICT_FALSE(
+                  !limited_record.Copy(sizeof(uint32_t), *buffer))) {
             return Fail(buffer->status());
           }
-        }
-      } break;
-      case WireType::kFixed32: {
-        encoded_tags_.push_back(
-            GetPosInTagsList(node, chunk_encoding_internal::Subtype::kTrivial));
-        BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
-        if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint32_t), *buffer))) {
-          return Fail(buffer->status());
-        }
-      } break;
-      case WireType::kFixed64: {
-        encoded_tags_.push_back(
-            GetPosInTagsList(node, chunk_encoding_internal::Subtype::kTrivial));
-        BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
-        if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint64_t), *buffer))) {
-          return Fail(buffer->status());
-        }
-      } break;
-      case WireType::kLengthDelimited: {
-        const Position length_pos = record.pos();
-        uint32_t length;
-        if (!ReadVarint32(record, length)) {
-          RIEGELI_ASSERT_UNREACHABLE() << "Invalid length: " << record.status();
-        }
-        const Position value_pos = record.pos();
-        ScopedLimiter limiter(&record,
-                              ScopedLimiter::Options().set_max_length(length));
-        // Non-toplevel empty strings are treated as strings, not messages.
-        // They have a simpler encoding this way (one node instead of two).
-        if (depth < kMaxRecursionDepth && length != 0 &&
-            IsProtoMessage(record)) {
-          encoded_tags_.push_back(
-              GetPosInTagsList(node, chunk_encoding_internal::Subtype::
-                                         kLengthDelimitedStartOfSubmessage));
-          if (!record.Seek(value_pos)) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking submessage reader failed: " << record.status();
-          }
-          auto end_of_submessage_pos =
-              GetPosInTagsList(node, chunk_encoding_internal::Subtype::
-                                         kLengthDelimitedEndOfSubmessage);
+        } break;
+        case WireType::kFixed64: {
+          encoded_tags_.push_back(GetPosInTagsList(
+              node, chunk_encoding_internal::Subtype::kTrivial));
+          BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
           if (ABSL_PREDICT_FALSE(
-                  !AddMessage(record, node->second.message_id, depth + 1))) {
-            return false;
+                  !limited_record.Copy(sizeof(uint64_t), *buffer))) {
+            return Fail(buffer->status());
           }
-          // Call to `AddMessage()` invalidates `node`.
-          node = nullptr;
-          encoded_tags_.push_back(end_of_submessage_pos);
-        } else {
+        } break;
+        case WireType::kLengthDelimited: {
+          const Position length_pos = limited_record.pos();
+          uint32_t length;
+          if (!ReadVarint32(limited_record, length)) {
+            RIEGELI_ASSERT_UNREACHABLE()
+                << "Invalid length: " << limited_record.status();
+          }
+          const Position value_pos = limited_record.pos();
+          const Position parent_max_record_pos = limited_record.max_pos();
+          limited_record.set_max_length(length);
+          // Non-toplevel empty strings are treated as strings, not messages.
+          // They have a simpler encoding this way (one node instead of two).
+          if (length > 0 &&
+              ABSL_PREDICT_TRUE(message_stack_.size() + group_stack_.size() <
+                                kMaxRecursionDepth) &&
+              IsProtoMessage(limited_record)) {
+            encoded_tags_.push_back(
+                GetPosInTagsList(node, chunk_encoding_internal::Subtype::
+                                           kLengthDelimitedStartOfSubmessage));
+            if (!limited_record.Seek(value_pos)) {
+              RIEGELI_ASSERT_UNREACHABLE()
+                  << "Seeking submessage reader failed: "
+                  << limited_record.status();
+            }
+            const uint32_t end_of_submessage_pos =
+                GetPosInTagsList(node, chunk_encoding_internal::Subtype::
+                                           kLengthDelimitedEndOfSubmessage);
+            message_stack_.push_back(
+                MessageFrame{end_of_submessage_pos, parent_message_id,
+                             IntCast<size_t>(parent_max_record_pos)});
+            parent_message_id = node->second.message_id;
+            continue;
+          }
           encoded_tags_.push_back(GetPosInTagsList(
               node, chunk_encoding_internal::Subtype::kLengthDelimitedString));
-          if (!record.Seek(length_pos)) {
+          if (!limited_record.Seek(length_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking message reader failed: " << record.status();
+                << "Seeking message reader failed: " << limited_record.status();
           }
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
-          if (ABSL_PREDICT_FALSE(!record.Copy(
+          if (ABSL_PREDICT_FALSE(!limited_record.Copy(
                   IntCast<size_t>(value_pos - length_pos) + length, *buffer))) {
             return Fail(buffer->status());
           }
-        }
-      } break;
-      case WireType::kStartGroup: {
-        encoded_tags_.push_back(
-            GetPosInTagsList(node, chunk_encoding_internal::Subtype::kTrivial));
-        group_stack_.push_back(parent_message_id);
-        ++depth;
-        parent_message_id = node->second.message_id;
-      } break;
-      case WireType::kEndGroup:
-        parent_message_id = group_stack_.back();
-        group_stack_.pop_back();
-        --depth;
-        // Note that `parent_message_id` was updated above so the `node` does
-        // not belong to `(parent_message_id, tag)` as in all the other cases.
-        // But we don't reload `node` because this still works. All we need is
-        // some unique consistent node.
-        encoded_tags_.push_back(
-            GetPosInTagsList(node, chunk_encoding_internal::Subtype::kTrivial));
-        break;
-      default:
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Invalid wire type: "
-            << static_cast<uint32_t>(GetTagWireType(tag));
+          limited_record.set_max_pos(parent_max_record_pos);
+        } break;
+        case WireType::kStartGroup: {
+          encoded_tags_.push_back(GetPosInTagsList(
+              node, chunk_encoding_internal::Subtype::kTrivial));
+          group_stack_.push_back(parent_message_id);
+          parent_message_id = node->second.message_id;
+        } break;
+        case WireType::kEndGroup:
+          parent_message_id = group_stack_.back();
+          group_stack_.pop_back();
+          // Note that `parent_message_id` was updated above so the `node` does
+          // not belong to `(parent_message_id, tag)` as in all the other cases.
+          // But we don't reload `node` because this still works. All we need is
+          // some unique consistent node.
+          encoded_tags_.push_back(GetPosInTagsList(
+              node, chunk_encoding_internal::Subtype::kTrivial));
+          break;
+        default:
+          RIEGELI_ASSERT_UNREACHABLE()
+              << "Invalid wire type: "
+              << static_cast<uint32_t>(GetTagWireType(tag));
+      }
     }
+    RIEGELI_ASSERT(limited_record.ok())
+        << "Reading record failed: " << limited_record.status();
+    if (message_stack_.empty()) return true;
+    const MessageFrame& message_frame = message_stack_.back();
+    encoded_tags_.push_back(message_frame.end_of_submessage_pos);
+    parent_message_id = message_frame.parent_message_id;
+    limited_record.set_max_pos(message_frame.parent_max_record_pos);
+    message_stack_.pop_back();
   }
-  RIEGELI_ASSERT(record.ok()) << "Reading record failed: " << record.status();
-  return true;
 }
 
 inline bool TransposeEncoder::AddBuffer(

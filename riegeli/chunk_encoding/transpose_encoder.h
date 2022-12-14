@@ -41,8 +41,6 @@
 
 namespace riegeli {
 
-class LimitingReaderBase;
-
 // Format (values are varint encoded unless indicated otherwise):
 //  - Compression type
 //  - Header length (compressed length if applicable)
@@ -155,10 +153,7 @@ class TransposeEncoder : public ChunkEncoder {
   // Add message recursively to the internal data structures.
   // Precondition: `message` is a valid proto message, i.e. `IsProtoMessage()`
   // on this message returns `true`.
-  // `depth` is the recursion depth.
-  bool AddMessage(LimitingReaderBase& record,
-                  chunk_encoding_internal::MessageId parent_message_id,
-                  int depth);
+  bool AddMessage(Reader& record);
 
   // Write all buffer lengths to `header_writer` and data buffers in `data_` to
   // `data_writer` (compressed using `compressor_`). Fill map with the
@@ -281,6 +276,13 @@ class TransposeEncoder : public ChunkEncoder {
     NodeId node_id;
   };
 
+  // Information about a submessage.
+  struct MessageFrame {
+    uint32_t end_of_submessage_pos;
+    chunk_encoding_internal::MessageId parent_message_id;
+    size_t parent_max_record_pos;
+  };
+
   CompressorOptions compressor_options_;
   // The default approximate bucket size, used if compression is enabled.
   // Finer bucket granularity (i.e. smaller size) worsens compression density
@@ -293,6 +295,8 @@ class TransposeEncoder : public ChunkEncoder {
   std::vector<uint32_t> encoded_tags_;
   // Data buffers in separate vectors per buffer type.
   std::vector<BufferWithMetadata> data_[kNumBufferTypes];
+  // Stack of open submessages.
+  std::vector<MessageFrame> message_stack_;
   // Every group creates a new message ID. We keep track of open groups in this
   // vector.
   std::vector<chunk_encoding_internal::MessageId> group_stack_;
