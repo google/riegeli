@@ -603,12 +603,13 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool FileReaderBase::SyncImpl(SyncType sync_type) {
-  buffer_sizer_.EndRun(pos());
   const Position new_pos = pos();
+  buffer_sizer_.EndRun(new_pos);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
   set_limit_pos(new_pos);
   buffer_sizer_.BeginRun(limit_pos());
-  return ok();
+  return true;
 }
 
 bool FileReaderBase::SeekSlow(Position new_pos) {

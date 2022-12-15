@@ -463,21 +463,20 @@ void BufferedReader::ReadHintSlow(size_t min_length,
 }
 
 bool BufferedReader::SyncImpl(SyncType sync_type) {
-  buffer_sizer_.EndRun(pos());
   if (available() > 0 && !SupportsRandomAccess()) {
     // Seeking back is not feasible.
-    buffer_sizer_.BeginRun(start_pos());
     return ok();
   }
   const Position new_pos = pos();
+  buffer_sizer_.EndRun(new_pos);
   SyncBuffer();
   if (new_pos == limit_pos()) {
-    buffer_sizer_.BeginRun(limit_pos());
-    return ok();
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+  } else {
+    if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
   }
-  const bool seek_ok = SeekBehindBuffer(new_pos);
   buffer_sizer_.BeginRun(start_pos());
-  return seek_ok;
+  return true;
 }
 
 bool BufferedReader::SeekSlow(Position new_pos) {
@@ -490,9 +489,9 @@ bool BufferedReader::SeekSlow(Position new_pos) {
   }
   buffer_sizer_.EndRun(pos());
   SyncBuffer();
-  const bool seek_ok = SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
   buffer_sizer_.BeginRun(start_pos());
-  return seek_ok;
+  return true;
 }
 
 void BufferedReader::ShareBufferTo(BufferedReader& reader) const {
@@ -508,9 +507,8 @@ void BufferedReader::ShareBufferTo(BufferedReader& reader) const {
 ChainBlock BufferedReader::SaveBuffer() {
   set_limit_pos(pos());
   buffer_.RemovePrefix(start_to_cursor());
-  ChainBlock buffer = std::move(buffer_);
   set_buffer();
-  return buffer;
+  return std::move(buffer_);
 }
 
 void BufferedReader::RestoreBuffer(ChainBlock buffer) {

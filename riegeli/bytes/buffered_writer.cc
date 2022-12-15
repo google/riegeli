@@ -156,9 +156,9 @@ bool BufferedWriter::FlushImpl(FlushType flush_type) {
   buffer_sizer_.EndRun(pos());
   const absl::string_view src(start(), start_to_cursor());
   set_buffer();
-  const bool flush_ok = FlushBehindBuffer(src, flush_type);
+  if (ABSL_PREDICT_FALSE(!FlushBehindBuffer(src, flush_type))) return false;
   buffer_sizer_.BeginRun(start_pos());
-  return flush_ok;
+  return true;
 }
 
 bool BufferedWriter::SeekSlow(Position new_pos) {
@@ -167,27 +167,35 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
          "position unchanged, use Seek() instead";
   buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  const bool seek_ok = SeekBehindBuffer(new_pos);
+  if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
   buffer_sizer_.BeginRun(start_pos());
-  return seek_ok;
+  return true;
 }
 
 absl::optional<Position> BufferedWriter::SizeImpl() {
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return absl::nullopt;
-  return SizeBehindBuffer();
+  const absl::optional<Position> size = SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  buffer_sizer_.BeginRun(start_pos());
+  return *size;
 }
 
 bool BufferedWriter::TruncateImpl(Position new_size) {
   buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  const bool truncate_ok = TruncateBehindBuffer(new_size);
+  if (ABSL_PREDICT_FALSE(!TruncateBehindBuffer(new_size))) return false;
   buffer_sizer_.BeginRun(start_pos());
-  return truncate_ok;
+  return true;
 }
 
 Reader* BufferedWriter::ReadModeImpl(Position initial_pos) {
+  buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return nullptr;
-  return ReadModeBehindBuffer(initial_pos);
+  Reader* const reader = ReadModeBehindBuffer(initial_pos);
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;
+  buffer_sizer_.BeginRun(start_pos());
+  return reader;
 }
 
 }  // namespace riegeli

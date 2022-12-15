@@ -314,8 +314,8 @@ Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   std::istream& src = *SrcStream();
   IStreamReader<>* const reader = associated_reader_.ResetReader(
       &src, IStreamReaderBase::Options().set_buffer_options(buffer_options()));
-  read_mode_ = true;
   reader->Seek(initial_pos);
+  read_mode_ = true;
   return reader;
 }
 

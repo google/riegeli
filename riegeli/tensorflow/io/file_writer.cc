@@ -292,8 +292,9 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
 bool FileWriterBase::FlushImpl(FlushType flush_type) {
   buffer_sizer_.EndRun(pos());
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   buffer_sizer_.BeginRun(start_pos());
-  return ok();
+  return true;
 }
 
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
@@ -302,7 +303,6 @@ Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
         "A non-empty filename required for read mode"));
     return nullptr;
   }
-  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;
   return associated_reader_.ResetReader(
       filename_, FileReaderBase::Options()

@@ -476,9 +476,9 @@ void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(
 
 bool ReaderFactoryBase::ConcurrentReader::SyncBehindScratch(
     SyncType sync_type) {
-  buffer_sizer_.EndRun(pos());
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Position new_pos = pos();
+  buffer_sizer_.EndRun(new_pos);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
   secondary_buffer_.Clear();
   iter_ = secondary_buffer_.blocks().cend();
   set_buffer();

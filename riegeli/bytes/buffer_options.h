@@ -156,9 +156,10 @@ class BufferOptionsBase {
 // The buffer length grows geometrically from `min_buffer_size` to
 // `max_buffer_size` through each run of sequential reading operations.
 //
-// A new run may begin from `Reader::Seek()` or `Reader::Sync()`. The buffer
-// length for the new run is optimized for the case when the new run will have a
-// similar length to the previous non-empty run.
+// A new run may begin from a function which forces using a new buffer
+// (`Reader::Seek()` or `Reader::Sync()`). The buffer length for the new run is
+// optimized for the case when the new run will have a similar length to the
+// previous non-empty run.
 class ReadBufferSizer {
  public:
   ReadBufferSizer() = default;
@@ -198,9 +199,13 @@ class ReadBufferSizer {
   //
   // This must be called during initialization if reading starts from a position
   // greater than 0.
+  //
+  // `BeginRun()` may be called again without an intervening `EndRun()`.
   void BeginRun(Position pos) { base_pos_ = pos; }
 
   // Called at the end of a run.
+  //
+  // `EndRun()` may be called again without an intervening `BeginRun()`.
   //
   // Precondition:
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
@@ -259,10 +264,10 @@ class ReadBufferSizer {
 // The buffer length grows geometrically from `min_buffer_size` to
 // `max_buffer_size` through each run of sequential writing operations.
 //
-// A new run may begin from `Writer::Seek()`, `Writer::Flush()`, or
-// `Writer::Truncate()`. The buffer length for the new run is optimized for the
-// case when the new run will have a similar length to the previous non-empty
-// run.
+// A new run may begin from a function which forces using a new buffer (mainly
+// `Writer::Seek()` or `Writer::Flush()`). The buffer length for the new run is
+// optimized for the case when the new run will have a similar length to the
+// previous non-empty run.
 class WriteBufferSizer {
  public:
   WriteBufferSizer() = default;
@@ -297,9 +302,13 @@ class WriteBufferSizer {
   //
   // This must be called during initialization if writing starts from a position
   // greater than 0.
+  //
+  // `BeginRun()` may be called again without an intervening `EndRun()`.
   void BeginRun(Position pos) { base_pos_ = pos; }
 
   // Called at the end of a run.
+  //
+  // `EndRun()` may be called again without an intervening `BeginRun()`.
   //
   // Precondition:
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to

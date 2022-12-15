@@ -525,8 +525,8 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
       dest, CFileReaderBase::Options()
                 .set_assumed_filename(filename())
                 .set_buffer_options(buffer_options()));
-  read_mode_ = true;
   reader->Seek(initial_pos);
+  read_mode_ = true;
   return reader;
 }
 

@@ -729,8 +729,8 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                                          ? absl::make_optional(initial_pos)
                                          : absl::nullopt)
                 .set_buffer_options(buffer_options()));
-  read_mode_ = true;
   if (!has_independent_pos_) reader->Seek(initial_pos);
+  read_mode_ = true;
   return reader;
 }
 
