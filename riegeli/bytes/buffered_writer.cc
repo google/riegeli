@@ -173,7 +173,7 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> BufferedWriter::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return absl::nullopt;
   return SizeBehindBuffer();
 }
 

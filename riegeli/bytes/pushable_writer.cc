@@ -414,7 +414,7 @@ bool PushableWriter::SeekSlow(Position new_pos) {
 
 absl::optional<Position> PushableWriter::SizeImpl() {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return absl::nullopt;
   }
   return SizeBehindScratch();
 }
