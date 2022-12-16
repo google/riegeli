@@ -107,7 +107,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
       const absl::optional<Position> size = reader.Size();
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         errno = StatusCodeToErrno(reader.status().code());
-        return -1;
+        return absl::nullopt;
       }
       if (ABSL_PREDICT_FALSE(offset > 0 ||
                              NegatingUnsignedCast(offset) > *size)) {
@@ -137,7 +137,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
     } else {
       errno = EINVAL;
     }
-    return -1;
+    return absl::nullopt;
   }
   return IntCast<int64_t>(new_pos);
 }

@@ -213,13 +213,13 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       } else {
         errno = EINVAL;
       }
-      return -1;
+      return absl::nullopt;
     }
   } else {
     if (ABSL_PREDICT_FALSE(!writer.SupportsRandomAccess())) {
       // Indicate that `fseek()` is not supported.
       errno = ESPIPE;
-      return -1;
+      return absl::nullopt;
     }
     if (ABSL_PREDICT_FALSE(!writer.Seek(IntCast<Position>(new_pos)))) {
       if (ABSL_PREDICT_FALSE(!writer.ok())) {
@@ -227,7 +227,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       } else {
         errno = EINVAL;
       }
-      return -1;
+      return absl::nullopt;
     }
   }
   return IntCast<int64_t>(new_pos);
