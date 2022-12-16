@@ -73,9 +73,7 @@ MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
 std::vector<std::string> MemoryEstimator::UnknownTypes() const {
   std::vector<std::string> result;
   result.reserve((unknown_types_no_rtti_ ? 1 : 0) + unknown_types_.size());
-  if (unknown_types_no_rtti_) {
-    result.emplace_back("<no rtti>");
-  }
+  if (unknown_types_no_rtti_) result.emplace_back("<no rtti>");
   for (const std::type_index index : unknown_types_) {
 #ifdef __GXX_RTTI
     int status = 0;

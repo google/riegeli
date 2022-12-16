@@ -280,9 +280,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
   DefaultChunkReader<FdReader<>> chunk_reader(std::forward_as_tuple(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const absl::optional<Position> size = chunk_reader.Size();
-    if (size != absl::nullopt) {
-      WriteLine("  file_size: ", *size, report);
-    }
+    if (size != absl::nullopt) WriteLine("  file_size: ", *size, report);
   }
   TextPrintOptions print_options;
   print_options.printer().SetInitialIndentLevel(2);
@@ -327,9 +325,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
         default:
           break;
       }
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        WriteLine(status.message(), errors);
-      }
+      if (ABSL_PREDICT_FALSE(!status.ok())) WriteLine(status.message(), errors);
     }
     WriteLine("  chunk {", report);
     TextPrintToWriter(chunk_summary, TextWriter(&report), print_options)
@@ -338,9 +334,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
   }
   WriteLine('}', report);
   report.Flush();
-  if (!chunk_reader.Close()) {
-    WriteLine(chunk_reader.status().message(), errors);
-  }
+  if (!chunk_reader.Close()) WriteLine(chunk_reader.status().message(), errors);
 }
 
 const char kUsage[] =

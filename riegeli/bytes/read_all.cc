@@ -50,9 +50,7 @@ absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
     if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
     return absl::OkStatus();
   }
-  if (ABSL_PREDICT_FALSE(src.Pull())) {
-    return MaxLengthExceeded(src, max_length);
-  }
+  if (ABSL_PREDICT_FALSE(src.Pull())) return MaxLengthExceeded(src, max_length);
   return absl::OkStatus();
 }
 
