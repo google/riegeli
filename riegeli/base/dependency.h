@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <functional>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -570,8 +569,6 @@ template <>
 struct DereferencedForVoidPtr<nullptr_t> : std::true_type {};
 template <typename M, typename Deleter>
 struct DereferencedForVoidPtr<std::unique_ptr<M, Deleter>> : std::true_type {};
-template <typename M>
-struct DereferencedForVoidPtr<std::reference_wrapper<M>> : std::true_type {};
 
 }  // namespace dependency_internal
 
@@ -579,10 +576,9 @@ struct DereferencedForVoidPtr<std::reference_wrapper<M>> : std::true_type {};
 // an owned dependency stored by value.
 //
 // If `P` is possibly cv-qualified `void`, then `Dependency<P*, Manager>`
-// has an ambiguous interpretation for `Manager` being `M*`, `nullptr_t`,
-// `std::unique_ptr<M, Deleter>`, or `std::reference_wrapper<M>`. The ambiguity
-// is resolved in favor of pointing the `void*` to the dereferenced `M`, not to
-// the `Manager` object itself.
+// has an ambiguous interpretation for `Manager` being `M*`, `nullptr_t`, or
+// `std::unique_ptr<M, Deleter>`. The ambiguity is resolved in favor of pointing
+// the `void*` to the dereferenced `M`, not to the `Manager` object itself.
 template <typename P, typename M>
 class DependencyImpl<
     P*, M,
@@ -670,24 +666,6 @@ class DependencyImpl<P*, M&&,
   using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager(); }
-  M* Release() { return nullptr; }
-
-  bool is_owning() const { return true; }
-  static constexpr bool kIsStable = true;
-};
-
-// Specialization of `DependencyImpl<P*, std::reference_wrapper<M>>` when `M*`
-// is convertible to `P*`: an owned dependency passed by `std::ref()`.
-//
-// Deprecated: use `ClosingPtr(&m)` instead of `std::ref(m)`.
-template <typename P, typename M>
-class DependencyImpl<P*, std::reference_wrapper<M>,
-                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
-    : public DependencyBase<std::reference_wrapper<M>> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  M* get() const { return &this->manager().get(); }
   M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }

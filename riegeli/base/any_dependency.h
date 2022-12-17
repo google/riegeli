@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <functional>
 #include <new>
 #include <tuple>
 #include <type_traits>
@@ -507,45 +506,6 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
   static constexpr bool kIsStable = true;
 };
 
-// Specialization of
-// `DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyImpl<Ptr>>>`.
-//
-// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
-// better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<
-    Ptr,
-    std::reference_wrapper<AnyDependencyImpl<Ptr, inline_size, inline_align>>>
-    : public DependencyBase<std::reference_wrapper<
-          AnyDependencyImpl<Ptr, inline_size, inline_align>>> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  Ptr get() const { return this->manager().get().get(); }
-  Ptr Release() { return this->manager().get().Release(); }
-
-  bool is_owning() const { return this->manager().get().is_owning(); }
-  static constexpr bool kIsStable = true;
-};
-
-// `IsValidDependencyImpl<Ptr, std::reference_wrapper<AnyDependencyImpl<Ptr>>>`
-// is specialized explicitly for a subtle reason:
-//
-// Consider a type `T` like `std::reference_wrapper<AnyDependency<Reader*>>`.
-// Checking `IsValidDependency<Reader*, T>` by instantiating
-// `DependencyImpl<Reader*, T>` would try to generate the copy constructor of
-// `DependencyImpl<Reader*, T>`, which would try to copy `DependencyBase<T>`,
-// which would try to copy `T`, which would consider not only its copy
-// constructor but also its constructor from a compatible reference type, which
-// would try to implicitly convert `const T&` to `AnyDependency<Reader*>`, which
-// would check whether `IsValidDependency<Reader*, T>`, which is still in the
-// process of being determined.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-struct IsValidDependencyImpl<
-    Ptr,
-    std::reference_wrapper<AnyDependencyImpl<Ptr, inline_size, inline_align>>>
-    : std::true_type {};
-
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
 // have been reduced to their maximum size and alignment.
 template <typename Ptr, size_t inline_size, size_t inline_align = 0>
@@ -680,35 +640,6 @@ class DependencyImpl<Ptr,
   bool is_owning() const { return this->manager().is_owning(); }
   static constexpr bool kIsStable = true;
 };
-
-// Specialization of
-// `DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<Ptr>>>`.
-//
-// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
-// is better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<
-                              Ptr, inline_size, inline_align>>>
-    : public DependencyBase<std::reference_wrapper<
-          AnyDependencyRefImpl<Ptr, inline_size, inline_align>>> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  Ptr get() const { return this->manager().get().get(); }
-  Ptr Release() { return this->manager().get().Release(); }
-
-  bool is_owning() const { return this->manager().get().is_owning(); }
-  static constexpr bool kIsStable = true;
-};
-
-// `IsValidDependencyImpl<
-//      Ptr, std::reference_wrapper<AnyDependencyRefImpl<Ptr>>>`
-// is specialized explicitly for a subtle reason. See the analogous
-// specialization with `AnyDependencyImpl` for details.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-struct IsValidDependencyImpl<Ptr, std::reference_wrapper<AnyDependencyRefImpl<
-                                      Ptr, inline_size, inline_align>>>
-    : std::true_type {};
 
 // Implementation details follow.
 
