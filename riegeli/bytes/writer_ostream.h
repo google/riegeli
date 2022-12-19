@@ -131,7 +131,7 @@ class WriterOStreamBase : public std::iostream {
 
   // Returns an `absl::Status` describing the failure if the `WriterOStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `WriterOStream`
-  // is closed, or `absl::OkStatus()` if the `WriterOStream` is OK.
+  // is successfully closed, or `absl::OkStatus()` if the `WriterOStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.

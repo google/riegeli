@@ -115,7 +115,7 @@ class ReaderIStreamBase : public std::istream {
 
   // Returns an `absl::Status` describing the failure if the `ReaderIStream`
   // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIStream`
-  // is closed, or `absl::OkStatus()` if the `ReaderIStream` is OK.
+  // is successfully closed, or `absl::OkStatus()` if the `ReaderIStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.

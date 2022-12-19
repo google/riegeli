@@ -72,7 +72,7 @@ class
 
   // Returns an `absl::Status` describing the failure if the `ObjectState` is
   // failed, or an `absl::FailedPreconditionError()` if the `ObjectState` is
-  // closed, or `absl::OkStatus()` if the `ObjectState` is OK.
+  // successfully closed, or `absl::OkStatus()` if the `ObjectState` is OK.
   absl::Status status() const;
 
   // Marks the `ObjectState` as closed, keeping its `not_failed()` state
@@ -172,8 +172,8 @@ class Object {
   bool not_failed() const { return state_.not_failed(); }
 
   // Returns an `absl::Status` describing the failure if the `Object` is failed,
-  // or an `absl::FailedPreconditionError()` if the `Object` is closed, or
-  // `absl::OkStatus()` if the `Object` is OK.
+  // or an `absl::FailedPreconditionError()` if the `Object` is successfully
+  // closed, or `absl::OkStatus()` if the `Object` is OK.
   absl::Status status() const { return state_.status(); }
 
   // Marks the `Object` as failed with the given `status`, keeping its
