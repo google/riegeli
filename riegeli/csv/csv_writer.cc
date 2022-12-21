@@ -36,17 +36,64 @@
 
 namespace riegeli {
 
+namespace {
+
+std::string ShowEscaped(char ch) {
+  return absl::StrCat("'", absl::CHexEscape(absl::string_view(&ch, 1)), "'");
+}
+
+}  // namespace
+
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CsvWriter: null Writer pointer";
-  RIEGELI_ASSERT(options.field_separator() != options.comment())
-      << "Field separator conflicts with comment character";
-  if (options.quote() != absl::nullopt) {
-    RIEGELI_ASSERT(*options.quote() != options.comment())
-        << "Quote character conflicts with comment character";
-    RIEGELI_ASSERT(*options.quote() != options.field_separator())
-        << "Quote character conflicts with field separator";
+  if (options.comment() != absl::nullopt &&
+      ABSL_PREDICT_FALSE(*options.comment() == '\n' ||
+                         *options.comment() == '\r')) {
+    Fail(absl::InvalidArgumentError(
+        absl::StrCat("Comment character conflicts with record separator: ",
+                     ShowEscaped(*options.comment()))));
+    return;
   }
+  if (ABSL_PREDICT_FALSE(options.field_separator() == '\n' ||
+                         options.field_separator() == '\r')) {
+    Fail(absl::InvalidArgumentError(
+        absl::StrCat("Field separator conflicts with record separator: ",
+                     ShowEscaped(options.field_separator()))));
+    return;
+  }
+  if (ABSL_PREDICT_FALSE(options.field_separator() == options.comment())) {
+    Fail(absl::InvalidArgumentError(
+        absl::StrCat("Field separator conflicts with comment character: ",
+                     ShowEscaped(options.field_separator()))));
+    return;
+  }
+  if (options.quote() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*options.quote() == '\n' ||
+                           *options.quote() == '\r')) {
+      Fail(absl::InvalidArgumentError(
+          absl::StrCat("Quote character conflicts with record separator: ",
+                       ShowEscaped(*options.quote()))));
+      return;
+    }
+    if (ABSL_PREDICT_FALSE(*options.quote() == options.comment())) {
+      Fail(absl::InvalidArgumentError(
+          absl::StrCat("Quote character conflicts with comment character: ",
+                       ShowEscaped(*options.quote()))));
+      return;
+    }
+    if (ABSL_PREDICT_FALSE(*options.quote() == options.field_separator())) {
+      Fail(absl::InvalidArgumentError(
+          absl::StrCat("Quote character conflicts with field separator: ",
+                       ShowEscaped(*options.quote()))));
+      return;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
+    return;
+  }
+
   if (options.header() != absl::nullopt) {
     has_header_ = true;
     header_ = *std::move(options.header());
@@ -65,10 +112,6 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   field_separator_ = options.field_separator();
   quote_ = options.quote();
 
-  if (ABSL_PREDICT_FALSE(!dest->ok())) {
-    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
-    return;
-  }
   if (has_header_) {
     if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) --record_index_;
   }
@@ -94,8 +137,8 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
   if (ABSL_PREDICT_FALSE(quote_ == absl::nullopt)) {
     return Fail(absl::InvalidArgumentError(absl::StrCat(
         "If quoting is turned off, special characters inside fields are not "
-        "expressible: '",
-        absl::CHexEscape(absl::string_view(&field[already_scanned], 1)), "'")));
+        "expressible: ",
+        ShowEscaped(field[already_scanned]))));
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));

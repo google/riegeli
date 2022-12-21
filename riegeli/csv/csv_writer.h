@@ -108,8 +108,6 @@ class CsvWriterBase : public Object {
     //
     // Default: `absl::nullopt`.
     Options& set_comment(absl::optional<char> comment) & {
-      RIEGELI_ASSERT(comment != '\n' && comment != '\r')
-          << "Comment character conflicts with record separator";
       comment_ = comment;
       return *this;
     }
@@ -122,8 +120,6 @@ class CsvWriterBase : public Object {
     //
     // Default: ','.
     Options& set_field_separator(char field_separator) & {
-      RIEGELI_ASSERT(field_separator != '\n' && field_separator != '\r')
-          << "Field separator conflicts with record separator";
       field_separator_ = field_separator;
       return *this;
     }
@@ -146,8 +142,6 @@ class CsvWriterBase : public Object {
     //
     // Default: '"'.
     Options& set_quote(absl::optional<char> quote) & {
-      RIEGELI_ASSERT(quote != '\n' && quote != '\r')
-          << "Quote character conflicts with record separator";
       quote_ = quote;
       return *this;
     }
