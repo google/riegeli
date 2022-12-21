@@ -47,6 +47,12 @@ std::string ShowEscaped(char ch) {
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CsvWriter: null Writer pointer";
+  // Set `header_` early, so that `header()` is valid even in case of a failure.
+  if (options.header() != absl::nullopt) {
+    has_header_ = true;
+    header_ = *std::move(options.header());
+  }
+
   if (options.comment() != absl::nullopt &&
       ABSL_PREDICT_FALSE(*options.comment() == '\n' ||
                          *options.comment() == '\r')) {
@@ -92,11 +98,6 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
-  }
-
-  if (options.header() != absl::nullopt) {
-    has_header_ = true;
-    header_ = *std::move(options.header());
   }
 
   quotes_needed_['\n'] = true;
