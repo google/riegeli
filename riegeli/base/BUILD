@@ -288,10 +288,10 @@ cc_library(
     hdrs = ["shared_buffer.h"],
     deps = [
         ":assert",
+        ":buffer",
         ":buffering",
         ":cord_utils",
         ":intrusive_ref_count",
-        ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",

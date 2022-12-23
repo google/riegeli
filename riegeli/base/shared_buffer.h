@@ -17,14 +17,12 @@
 
 #include <stddef.h>
 
-#include <atomic>
-
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffer.h"
 #include "riegeli/base/intrusive_ref_count.h"
-#include "riegeli/base/new_aligned.h"
 
 namespace riegeli {
 
@@ -81,19 +79,10 @@ class SharedBuffer {
   absl::Cord ToCord(absl::string_view substr) const;
 
  private:
-  // `RefCountedBase` is not used because `offsetof()` requires all data members
-  // to be defined in the same class.
-  struct Payload {
-    void Ref() const;
-    void Unref() const;
-    bool has_unique_owner() const;
+  struct Payload : RefCountedBase<Payload> {
+    explicit Payload(size_t min_capacity) : buffer(min_capacity) {}
 
-    mutable std::atomic<size_t> ref_count{1};
-    // Usable size of the data starting at `allocated_begin`, i.e. excluding the
-    // header.
-    size_t capacity;
-    // Beginning of data (actual allocated size is larger).
-    char allocated_begin[1];
+    Buffer buffer;
   };
 
   void AllocateInternal(size_t min_capacity);
@@ -103,31 +92,17 @@ class SharedBuffer {
 
 // Implementation details follow.
 
-inline void SharedBuffer::Payload::Ref() const {
-  ref_count.fetch_add(1, std::memory_order_relaxed);
-}
-
-inline void SharedBuffer::Payload::Unref() const {
-  // Optimization: avoid an expensive atomic read-modify-write operation if the
-  // reference count is 1.
-  if (ref_count.load(std::memory_order_acquire) == 1 ||
-      ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    DeleteAligned<Payload>(const_cast<Payload*>(this),
-                           offsetof(Payload, allocated_begin) + capacity);
-  }
-}
-
-inline bool SharedBuffer::Payload::has_unique_owner() const {
-  return ref_count.load(std::memory_order_acquire) == 1;
-}
-
 inline SharedBuffer::SharedBuffer(size_t min_capacity) {
   AllocateInternal(min_capacity);
 }
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
   if (payload_ != nullptr) {
-    if (has_unique_owner() && payload_->capacity >= min_capacity) return;
+    if (payload_->has_unique_owner() &&
+        payload_->buffer.capacity() >= min_capacity) {
+      return;
+    }
+    payload_.reset();
   }
   AllocateInternal(min_capacity);
 }
@@ -141,24 +116,21 @@ inline char* SharedBuffer::mutable_data() const {
       << "Failed precondition of SharedBuffer::mutable_data(): "
          "ownership is shared";
   if (payload_ == nullptr) return nullptr;
-  return payload_->allocated_begin;
+  return payload_->buffer.data();
 }
 
 inline const char* SharedBuffer::const_data() const {
   if (payload_ == nullptr) return nullptr;
-  return payload_->allocated_begin;
+  return payload_->buffer.data();
 }
 
 inline size_t SharedBuffer::capacity() const {
   if (payload_ == nullptr) return 0;
-  return payload_->capacity;
+  return payload_->buffer.capacity();
 }
 
 inline void SharedBuffer::AllocateInternal(size_t min_capacity) {
-  size_t raw_capacity;
-  payload_.reset(SizeReturningNewAligned<Payload>(
-      offsetof(Payload, allocated_begin) + min_capacity, &raw_capacity));
-  payload_->capacity = raw_capacity - offsetof(Payload, allocated_begin);
+  payload_ = MakeRefCounted<Payload>(min_capacity);
 }
 
 inline void* SharedBuffer::Share() const {
