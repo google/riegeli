@@ -590,6 +590,7 @@ class Chain {
   void ReserveFrontSlow(size_t extra_capacity);
 
   // Decides about the capacity of a new block to be appended/prepended.
+  //
   // If `replaced_length > 0`, the block will replace an existing block of that
   // size. In addition to `replaced_length`, it requires the capacity of at
   // least `min_length`, preferably `recommended_length`.
@@ -1078,8 +1079,12 @@ class ChainBlock {
 
   // Decides about the capacity of a new block to replace the existing block for
   // appending/prepending of new space.
-  size_t NewBlockCapacity(size_t space_before, size_t old_size,
-                          size_t min_length, size_t recommended_length,
+  //
+  // `extra_space` is the amount of existing free space to keep. In addition to
+  // `size() + extra_space`, the block requires the capacity of at least
+  // `min_length`, preferably `recommended_length`.
+  size_t NewBlockCapacity(size_t extra_space, size_t min_length,
+                          size_t recommended_length,
                           const Options& options) const;
 
   void RemoveSuffixSlow(size_t length, const Options& options);
