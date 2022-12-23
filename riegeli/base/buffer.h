@@ -77,6 +77,12 @@ class
   // `*this` is left unchanged or deallocated.
   void PrependSubstrTo(absl::string_view substr, absl::Cord& dest) &&;
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const Buffer& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterDynamicMemory(self.data_, self.capacity_);
+  }
+
  private:
   void AllocateInternal(size_t min_capacity);
   void DeleteInternal();

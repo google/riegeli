@@ -78,9 +78,21 @@ class SharedBuffer {
   // `substr` must be contained in `*this`.
   absl::Cord ToCord(absl::string_view substr) const;
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const SharedBuffer& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.payload_);
+  }
+
  private:
   struct Payload : RefCountedBase<Payload> {
     explicit Payload(size_t min_capacity) : buffer(min_capacity) {}
+
+    template <typename MemoryEstimator>
+    friend void RiegeliRegisterSubobjects(const Payload& self,
+                                          MemoryEstimator& memory_estimator) {
+      memory_estimator.RegisterSubobjects(self.buffer);
+    }
 
     Buffer buffer;
   };
