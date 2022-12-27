@@ -1159,11 +1159,13 @@ class Chain::RawBlock {
 
   bool TryClear();
 
-  explicit operator absl::string_view() const { return data_; }
-  size_t size() const { return data_.size(); }
-  bool empty() const { return data_.empty(); }
-  const char* data_begin() const { return data_.data(); }
-  const char* data_end() const { return data_begin() + size(); }
+  explicit operator absl::string_view() const {
+    return absl::string_view(data_, size_);
+  }
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+  const char* data_begin() const { return data_; }
+  const char* data_end() const { return data_ + size_; }
 
   // Returns a reference to the external object, assuming that this is an
   // external block holding an object of type `T`.
@@ -1278,7 +1280,8 @@ class Chain::RawBlock {
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
 
   std::atomic<size_t> ref_count_{1};
-  absl::string_view data_;
+  const char* data_;
+  size_t size_;
   // If `is_internal()`, end of allocated space. If `is_external()`, `nullptr`.
   // This distinguishes internal from external blocks.
   char* allocated_end_ = nullptr;
@@ -1480,7 +1483,9 @@ inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
 #else
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
 #endif
-  data_ = absl::string_view(unchecked_external_object<T>());
+  const absl::string_view data(unchecked_external_object<T>());
+  data_ = data.data();
+  size_ = data.size();
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1488,7 +1493,7 @@ inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
                                  absl::string_view data)
-    : data_(data) {
+    : data_(data.data()), size_(data.size()) {
 #if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (&unchecked_external_object<T>())
@@ -1599,7 +1604,7 @@ inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
 
 inline bool Chain::RawBlock::TryClear() {
   if (is_mutable()) {
-    data_.remove_suffix(size());
+    size_ = 0;
     return true;
   }
   return false;
@@ -1610,7 +1615,7 @@ inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
       << "Failed precondition of Chain::RawBlock::TryRemoveSuffix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
-    data_.remove_suffix(length);
+    size_ -= length;
     return true;
   }
   return false;
@@ -1621,7 +1626,8 @@ inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
       << "Failed precondition of Chain::RawBlock::TryRemovePrefix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
-    data_.remove_prefix(length);
+    data_ += length;
+    size_ -= length;
     return true;
   }
   return false;

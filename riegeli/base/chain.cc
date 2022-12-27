@@ -300,7 +300,8 @@ inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
 }
 
 inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
-    : data_(allocated_begin_, 0),
+    : data_(allocated_begin_),
+      size_(0),
       // Redundant cast is needed for `-fsanitize=bounds`.
       allocated_end_(static_cast<char*>(allocated_begin_) +
                      (*raw_capacity - kInternalAllocatedOffset())) {
@@ -435,8 +436,8 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
       // Redundant cast is needed for `-fsanitize=bounds`.
       char* const new_begin =
           static_cast<char*>(allocated_begin_) + (capacity() - final_size) / 2;
-      std::memmove(new_begin, data_.data(), data_.size());
-      data_ = absl::string_view(new_begin, data_.size());
+      std::memmove(new_begin, data_, size_);
+      data_ = new_begin;
       return true;
     }
     space_before_if_not = space_before();
@@ -465,9 +466,9 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
       // contents to the middle of the array, which keeps the amortized cost of
       // adding one element constant.
       char* const new_begin =
-          allocated_end_ - (capacity() - final_size) / 2 - data_.size();
-      std::memmove(new_begin, data_.data(), data_.size());
-      data_ = absl::string_view(new_begin, data_.size());
+          allocated_end_ - (capacity() - final_size) / 2 - size_;
+      std::memmove(new_begin, data_, size_);
+      data_ = new_begin;
       return true;
     }
     space_after_if_not = space_after();
@@ -486,11 +487,10 @@ inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length) {
   RIEGELI_ASSERT(is_mutable())
       << "Failed precondition of Chain::RawBlock::AppendBuffer(): "
          "block is immutable";
-  if (empty()) data_ = absl::string_view(allocated_begin_, 0);
+  if (empty()) data_ = allocated_begin_;
   const size_t length = UnsignedMin(raw_space_after(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_end()), length);
-  data_ = absl::string_view(
-      data_begin(), PtrDistance(data_begin(), buffer.data() + buffer.size()));
+  size_ += length;
   return buffer;
 }
 
@@ -498,12 +498,12 @@ inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length) {
   RIEGELI_ASSERT(is_mutable())
       << "Failed precondition of Chain::RawBlock::PrependBuffer(): "
          "block is immutable";
-  if (empty()) data_ = absl::string_view(allocated_end_, 0);
+  if (empty()) data_ = allocated_end_;
   const size_t length = UnsignedMin(raw_space_before(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_begin()) - length,
                                 length);
-  data_ =
-      absl::string_view(buffer.data(), PtrDistance(buffer.data(), data_end()));
+  data_ -= length;
+  size_ += length;
   return buffer;
 }
 
@@ -511,8 +511,7 @@ inline void Chain::RawBlock::Append(absl::string_view src,
                                     size_t space_before) {
   if (empty()) {
     // Redundant cast is needed for `-fsanitize=bounds`.
-    data_ = absl::string_view(
-        static_cast<char*>(allocated_begin_) + space_before, 0);
+    data_ = static_cast<char*>(allocated_begin_) + space_before;
   }
   return AppendWithExplicitSizeToCopy(src, src.size());
 }
@@ -528,7 +527,7 @@ inline void Chain::RawBlock::AppendWithExplicitSizeToCopy(absl::string_view src,
          "Chain::RawBlock::AppendWithExplicitSizeToCopy(): "
          "not enough space";
   std::memcpy(const_cast<char*>(data_end()), src.data(), size_to_copy);
-  data_ = absl::string_view(data_begin(), size() + src.size());
+  size_ += src.size();
 }
 
 inline void Chain::RawBlock::Prepend(absl::string_view src,
@@ -536,10 +535,11 @@ inline void Chain::RawBlock::Prepend(absl::string_view src,
   RIEGELI_ASSERT(can_prepend(src.size()))
       << "Failed precondition of Chain::RawBlock::Prepend(): "
          "not enough space";
-  if (empty()) data_ = absl::string_view(allocated_end_ - space_after, 0);
+  if (empty()) data_ = allocated_end_ - space_after;
   std::memcpy(const_cast<char*>(data_begin() - src.size()), src.data(),
               src.size());
-  data_ = absl::string_view(data_begin() - src.size(), size() + src.size());
+  data_ -= src.size();
+  size_ += src.size();
 }
 
 inline void Chain::RawBlock::AppendTo(Chain& dest, const Options& options) {
