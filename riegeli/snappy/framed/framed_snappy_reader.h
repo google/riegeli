@@ -149,7 +149,7 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FramedSnappyReader(Closed)->FramedSnappyReader<DeleteCtad<Closed>>;
+explicit FramedSnappyReader(Closed) -> FramedSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FramedSnappyReader(
     const Src& src,

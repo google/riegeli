@@ -140,7 +140,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ArrayBackwardWriter(Closed)->ArrayBackwardWriter<DeleteCtad<Closed>>;
+explicit ArrayBackwardWriter(Closed) -> ArrayBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(const Dest& dest)
     -> ArrayBackwardWriter<std::conditional_t<
@@ -160,7 +160,7 @@ template <typename... DestArgs>
 explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)
     -> ArrayBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 explicit ArrayBackwardWriter(char* dest, size_t size)
-    ->ArrayBackwardWriter<absl::Span<char>>;
+    -> ArrayBackwardWriter<absl::Span<char>>;
 #endif
 
 // Implementation details follow.

@@ -216,7 +216,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit DefaultChunkWriter(Closed)->DefaultChunkWriter<DeleteCtad<Closed>>;
+explicit DefaultChunkWriter(Closed) -> DefaultChunkWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit DefaultChunkWriter(
     const Dest& dest,

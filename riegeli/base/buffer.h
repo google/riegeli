@@ -21,7 +21,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
@@ -65,17 +64,23 @@ class
   // Does nothing if `ptr == nullptr`.
   static void DeleteReleased(void* ptr);
 
-  // Converts `*this` to `absl::Cord`. `substr` must be contained in `*this`.
+  // Converts [`data`..`data + length`) to `absl::Cord`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `*this`.
+  //
   // `*this` is left unchanged or deallocated.
-  absl::Cord ToCord(absl::string_view substr) &&;
+  absl::Cord ToCord(const char* data, size_t length) &&;
 
-  // Appends `substr` to `dest`. `substr` must be contained in `*this`.
+  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `*this`.
+  //
   // `*this` is left unchanged or deallocated.
-  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) &&;
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
-  // Prepends `substr` to `dest`. `substr` must be contained in `*this`.
+  // Prepends [`data`..`data + length`) to `dest`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `*this`.
+  //
   // `*this` is left unchanged or deallocated.
-  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest) &&;
+  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Buffer& self,

@@ -271,7 +271,7 @@ class LimitingWriter : public LimitingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit LimitingWriter(Closed)->LimitingWriter<DeleteCtad<Closed>>;
+explicit LimitingWriter(Closed) -> LimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingWriter(const Dest& dest, LimitingWriterBase::Options options =
                                               LimitingWriterBase::Options())

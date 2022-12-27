@@ -663,7 +663,7 @@ class RecordWriter : public RecordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit RecordWriter(Closed)->RecordWriter<DeleteCtad<Closed>>;
+explicit RecordWriter(Closed) -> RecordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit RecordWriter(const Dest& dest, RecordWriterBase::Options options =
                                             RecordWriterBase::Options())

@@ -246,12 +246,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
   if (length <= available()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+    iter_.AppendSubstrTo(cursor(), length, dest);
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+    iter_.AppendSubstrTo(cursor(), available(), dest);
     length -= available();
     ++iter_;
   }
@@ -261,8 +261,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.AppendSubstrTo(absl::string_view(start(), start_to_cursor()),
-                             dest);
+        iter_.AppendSubstrTo(start(), start_to_cursor(), dest);
         return true;
       }
       iter_.AppendTo(dest);
@@ -304,12 +303,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
   if (length <= available()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+    iter_.AppendSubstrTo(cursor(), length, dest);
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+    iter_.AppendSubstrTo(cursor(), available(), dest);
     length -= available();
     ++iter_;
   }
@@ -319,8 +318,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.AppendSubstrTo(absl::string_view(start(), start_to_cursor()),
-                             dest);
+        iter_.AppendSubstrTo(start(), start_to_cursor(), dest);
         return true;
       }
       iter_.AppendTo(dest);
@@ -360,7 +358,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
          "scratch used";
   if (length <= available()) {
     Chain data;
-    iter_.AppendSubstrTo(absl::string_view(cursor(), length), data);
+    iter_.AppendSubstrTo(cursor(), length, data);
     move_cursor(length);
     return dest.Write(std::move(data));
   }
@@ -372,7 +370,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       }
     } else {
       Chain data;
-      iter_.AppendSubstrTo(absl::string_view(cursor(), available()), data);
+      iter_.AppendSubstrTo(cursor(), available(), data);
       if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
     }
     length -= available();
@@ -388,8 +386,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
           return dest.Write(absl::string_view(start(), start_to_cursor()));
         } else {
           Chain data;
-          iter_.AppendSubstrTo(absl::string_view(start(), start_to_cursor()),
-                               data);
+          iter_.AppendSubstrTo(start(), start_to_cursor(), data);
           return dest.Write(std::move(data));
         }
       }

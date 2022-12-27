@@ -176,8 +176,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
-      buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
-                             dest);
+      buffer_.AppendSubstrTo(cursor(), available_length, dest);
       length -= available_length;
       buffer_.Clear();
       available_length = 0;
@@ -216,7 +215,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       break;
     }
   }
-  buffer_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+  buffer_.AppendSubstrTo(cursor(), length, dest);
   move_cursor(length);
   return enough_read;
 }
@@ -245,8 +244,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
-      buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
-                             dest);
+      buffer_.AppendSubstrTo(cursor(), available_length, dest);
       length -= available_length;
       buffer_.Clear();
       available_length = 0;
@@ -285,7 +283,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       break;
     }
   }
-  buffer_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+  buffer_.AppendSubstrTo(cursor(), length, dest);
   move_cursor(length);
   return enough_read;
 }
@@ -336,7 +334,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
         } else {
           Chain data;
           buffer_.AppendSubstrTo(
-              absl::string_view(cursor(), available_length), data,
+              cursor(), available_length, data,
               Chain::Options().set_size_hint(available_length));
           write_ok = dest.Write(std::move(data));
         }
@@ -395,7 +393,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     } else {
       Chain data;
       buffer_.AppendSubstrTo(
-          absl::string_view(cursor(), IntCast<size_t>(length)), data,
+          cursor(), IntCast<size_t>(length), data,
           Chain::Options().set_size_hint(IntCast<size_t>(length)));
       write_ok = dest.Write(std::move(data));
     }

@@ -214,7 +214,7 @@ class DigestingWriter : public DigestingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit DigestingWriter(Closed)->DigestingWriter<void, DeleteCtad<Closed>>;
+explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
 explicit DigestingWriter(const Dest& dest, Digester&& digester)
     -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;

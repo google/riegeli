@@ -356,7 +356,7 @@ class CsvWriter : public CsvWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit CsvWriter(Closed)->CsvWriter<DeleteCtad<Closed>>;
+explicit CsvWriter(Closed) -> CsvWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CsvWriter(const Dest& dest,
                    CsvWriterBase::Options options = CsvWriterBase::Options())

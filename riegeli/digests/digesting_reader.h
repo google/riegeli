@@ -202,7 +202,7 @@ class DigestingReader : public DigestingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit DigestingReader(Closed)->DigestingReader<void, DeleteCtad<Closed>>;
+explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
 explicit DigestingReader(const Src& src, Digester&& digester)
     -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;

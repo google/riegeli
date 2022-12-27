@@ -155,7 +155,7 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit HadoopSnappyWriter(Closed)->HadoopSnappyWriter<DeleteCtad<Closed>>;
+explicit HadoopSnappyWriter(Closed) -> HadoopSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit HadoopSnappyWriter(
     const Dest& dest,

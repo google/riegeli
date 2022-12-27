@@ -302,7 +302,7 @@ class FdMMapReader : public FdMMapReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FdMMapReader(Closed)->FdMMapReader<DeleteCtad<Closed>>;
+explicit FdMMapReader(Closed) -> FdMMapReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdMMapReader(const Src& src, FdMMapReaderBase::Options options =
                                           FdMMapReaderBase::Options())

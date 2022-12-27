@@ -152,7 +152,7 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit WrappedBackwardWriter(Closed)
-    ->WrappedBackwardWriter<DeleteCtad<Closed>>;
+    -> WrappedBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WrappedBackwardWriter(const Dest& dest)
     -> WrappedBackwardWriter<std::decay_t<Dest>>;

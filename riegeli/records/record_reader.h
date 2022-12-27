@@ -573,7 +573,7 @@ class RecordReader : public RecordReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit RecordReader(Closed)->RecordReader<DeleteCtad<Closed>>;
+explicit RecordReader(Closed) -> RecordReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit RecordReader(const Src& src, RecordReaderBase::Options options =
                                           RecordReaderBase::Options())

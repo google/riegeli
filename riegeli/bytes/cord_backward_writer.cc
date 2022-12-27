@@ -69,7 +69,7 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
       PrependToBlockyCord(data, dest);
     }
   } else {
-    std::move(buffer_).PrependSubstrTo(data, dest);
+    std::move(buffer_).PrependSubstrTo(data.data(), data.size(), dest);
   }
   set_buffer();
 }

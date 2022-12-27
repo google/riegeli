@@ -74,7 +74,7 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
       AppendToBlockyCord(data, dest);
     }
   } else {
-    std::move(buffer_).AppendSubstrTo(data, dest);
+    std::move(buffer_).AppendSubstrTo(data.data(), data.size(), dest);
   }
   set_buffer();
 }

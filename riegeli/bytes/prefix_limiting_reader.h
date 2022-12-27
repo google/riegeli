@@ -194,7 +194,8 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit PrefixLimitingReader(Closed)->PrefixLimitingReader<DeleteCtad<Closed>>;
+explicit PrefixLimitingReader(Closed)
+    -> PrefixLimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit PrefixLimitingReader(const Src& src,
                               PrefixLimitingReaderBase::Options options =

@@ -287,7 +287,7 @@ class StringWriter : public StringWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit StringWriter(Closed)->StringWriter<DeleteCtad<Closed>>;
+explicit StringWriter(Closed) -> StringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
                                             StringWriterBase::Options())
@@ -309,7 +309,7 @@ explicit StringWriter(
     -> StringWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 explicit StringWriter(
     StringWriterBase::Options options = StringWriterBase::Options())
-    ->StringWriter<std::string>;
+    -> StringWriter<std::string>;
 #endif
 
 // Implementation details follow.

@@ -230,7 +230,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit CordBackwardWriter(Closed)->CordBackwardWriter<DeleteCtad<Closed>>;
+explicit CordBackwardWriter(Closed) -> CordBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordBackwardWriter(
     const Dest& dest,
@@ -254,7 +254,7 @@ explicit CordBackwardWriter(
     -> CordBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 explicit CordBackwardWriter(
     CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
-    ->CordBackwardWriter<absl::Cord>;
+    -> CordBackwardWriter<absl::Cord>;
 #endif
 
 // Implementation details follow.

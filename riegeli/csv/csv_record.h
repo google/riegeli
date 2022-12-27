@@ -556,7 +556,7 @@ template <typename... Fields,
                                Fields, absl::string_view>...>::value,
                            int> = 0>
 /*implicit*/ CsvHeaderConstant(Fields&&... fields)
-    ->CsvHeaderConstant<sizeof...(Fields)>;
+    -> CsvHeaderConstant<sizeof...(Fields)>;
 template <typename... Fields,
           std::enable_if_t<absl::conjunction<std::is_convertible<
                                Fields, absl::string_view>...>::value,

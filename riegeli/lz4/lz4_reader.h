@@ -228,7 +228,7 @@ class Lz4Reader : public Lz4ReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit Lz4Reader(Closed)->Lz4Reader<DeleteCtad<Closed>>;
+explicit Lz4Reader(Closed) -> Lz4Reader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit Lz4Reader(const Src& src,
                    Lz4ReaderBase::Options options = Lz4ReaderBase::Options())

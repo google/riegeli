@@ -293,7 +293,7 @@ class FileReader : public FileReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FileReader(Closed)->FileReader<DeleteCtad<Closed>>;
+explicit FileReader(Closed) -> FileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FileReader(const Src& src,
                     FileReaderBase::Options options = FileReaderBase::Options())

@@ -155,7 +155,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FramedSnappyWriter(Closed)->FramedSnappyWriter<DeleteCtad<Closed>>;
+explicit FramedSnappyWriter(Closed) -> FramedSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FramedSnappyWriter(
     const Dest& dest,

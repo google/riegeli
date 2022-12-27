@@ -212,7 +212,7 @@ class BrotliReader : public BrotliReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit BrotliReader(Closed)->BrotliReader<DeleteCtad<Closed>>;
+explicit BrotliReader(Closed) -> BrotliReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit BrotliReader(const Src& src, BrotliReaderBase::Options options =
                                           BrotliReaderBase::Options())

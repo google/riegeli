@@ -178,7 +178,7 @@ class Bzip2Writer : public Bzip2WriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit Bzip2Writer(Closed)->Bzip2Writer<DeleteCtad<Closed>>;
+explicit Bzip2Writer(Closed) -> Bzip2Writer<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit Bzip2Writer(const Dest& dest, Bzip2WriterBase::Options options =
                                            Bzip2WriterBase::Options())

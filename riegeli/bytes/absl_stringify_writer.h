@@ -101,7 +101,7 @@ class AbslStringifyWriter<StringifySink*> : public PrefixLimitingWriter<> {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit AbslStringifyWriter(Closed)->AbslStringifyWriter<DeleteCtad<Closed>>;
+explicit AbslStringifyWriter(Closed) -> AbslStringifyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit AbslStringifyWriter(Dest sink) -> AbslStringifyWriter<Dest>;
 #endif

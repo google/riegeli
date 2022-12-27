@@ -264,7 +264,7 @@ class BrotliWriter : public BrotliWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit BrotliWriter(Closed)->BrotliWriter<DeleteCtad<Closed>>;
+explicit BrotliWriter(Closed) -> BrotliWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit BrotliWriter(const Dest& dest, BrotliWriterBase::Options options =
                                             BrotliWriterBase::Options())

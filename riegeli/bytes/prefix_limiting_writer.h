@@ -197,7 +197,8 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit PrefixLimitingWriter(Closed)->PrefixLimitingWriter<DeleteCtad<Closed>>;
+explicit PrefixLimitingWriter(Closed)
+    -> PrefixLimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit PrefixLimitingWriter(const Dest& dest,
                               PrefixLimitingWriterBase::Options options =

@@ -197,7 +197,7 @@ class IStreamReader : public IStreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit IStreamReader(Closed)->IStreamReader<DeleteCtad<Closed>>;
+explicit IStreamReader(Closed) -> IStreamReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit IStreamReader(const Src& src, IStreamReaderBase::Options options =
                                            IStreamReaderBase::Options())

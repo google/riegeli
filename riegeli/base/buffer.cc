@@ -39,52 +39,58 @@ struct Releaser {
 
 }  // namespace
 
-absl::Cord Buffer::ToCord(absl::string_view substr) && {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-      << "Failed precondition of Buffer::ToCord(): "
-         "substring not contained in the buffer";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(substr.data() + substr.size(), data() + capacity()))
-      << "Failed precondition of Buffer::ToCord(): "
-         "substring not contained in the buffer";
+absl::Cord Buffer::ToCord(const char* data, size_t length) && {
+  if (length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
+        << "Failed precondition of Buffer::ToCord(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
+        << "Failed precondition of Buffer::ToCord(): "
+           "substring not contained in the buffer";
+  }
   // `absl::cord_internal::kMaxInline`.
   static constexpr size_t kMaxInline = 15;
-  if (substr.size() <= kMaxInline || Wasteful(capacity(), substr.size())) {
-    return MakeBlockyCord(substr);
+  if (length <= kMaxInline || Wasteful(capacity_, length)) {
+    return MakeBlockyCord(absl::string_view(data, length));
   }
-  return absl::MakeCordFromExternal(substr, Releaser{std::move(*this)});
+  return absl::MakeCordFromExternal(absl::string_view(data, length),
+                                    Releaser{std::move(*this)});
 }
 
-void Buffer::AppendSubstrTo(absl::string_view substr, absl::Cord& dest) && {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-      << "Failed precondition of Buffer::AppendSubstrTo(): "
-         "substring not contained in the buffer";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(substr.data() + substr.size(), data() + capacity()))
-      << "Failed precondition of Buffer::AppendSubstrTo(): "
-         "substring not contained in the buffer";
-  if (substr.size() <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(capacity(), substr.size())) {
-    AppendToBlockyCord(substr, dest);
+void Buffer::AppendSubstrTo(const char* data, size_t length,
+                            absl::Cord& dest) && {
+  if (length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
+        << "Failed precondition of Buffer::AppendSubstrTo(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
+        << "Failed precondition of Buffer::AppendSubstrTo(): "
+           "substring not contained in the buffer";
+  }
+  if (length <= MaxBytesToCopyToCord(dest) || Wasteful(capacity_, length)) {
+    AppendToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
-  dest.Append(absl::MakeCordFromExternal(substr, Releaser{std::move(*this)}));
+  dest.Append(absl::MakeCordFromExternal(absl::string_view(data, length),
+                                         Releaser{std::move(*this)}));
 }
 
-void Buffer::PrependSubstrTo(absl::string_view substr, absl::Cord& dest) && {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-      << "Failed precondition of Buffer::PrependSubstrTo(): "
-         "substring not contained in the buffer";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(substr.data() + substr.size(), data() + capacity()))
-      << "Failed precondition of Buffer::PrependSubstrTo(): "
-         "substring not contained in the buffer";
-  if (substr.size() <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(capacity(), substr.size())) {
-    PrependToBlockyCord(substr, dest);
+void Buffer::PrependSubstrTo(const char* data, size_t length,
+                             absl::Cord& dest) && {
+  if (length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
+        << "Failed precondition of Buffer::PrependSubstrTo(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
+        << "Failed precondition of Buffer::PrependSubstrTo(): "
+           "substring not contained in the buffer";
+  }
+  if (length <= MaxBytesToCopyToCord(dest) || Wasteful(capacity_, length)) {
+    PrependToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
-  dest.Prepend(absl::MakeCordFromExternal(substr, Releaser{std::move(*this)}));
+  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(data, length),
+                                          Releaser{std::move(*this)}));
 }
 
 }  // namespace riegeli

@@ -231,7 +231,7 @@ class WriterOStream : public WriterOStreamBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit WriterOStream(Closed)->WriterOStream<DeleteCtad<Closed>>;
+explicit WriterOStream(Closed) -> WriterOStream<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WriterOStream(const Dest& dest, WriterOStreamBase::Options options =
                                              WriterOStreamBase::Options())

@@ -207,7 +207,7 @@ class ReaderIStream : public ReaderIStreamBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ReaderIStream(Closed)->ReaderIStream<DeleteCtad<Closed>>;
+explicit ReaderIStream(Closed) -> ReaderIStream<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderIStream(const Src& src, ReaderIStreamBase::Options options =
                                            ReaderIStreamBase::Options())

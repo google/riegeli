@@ -392,7 +392,7 @@ class FdReader : public FdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FdReader(Closed)->FdReader<DeleteCtad<Closed>>;
+explicit FdReader(Closed) -> FdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdReader(const Src& src,
                   FdReaderBase::Options options = FdReaderBase::Options())

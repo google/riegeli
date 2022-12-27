@@ -149,7 +149,7 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit HadoopSnappyReader(Closed)->HadoopSnappyReader<DeleteCtad<Closed>>;
+explicit HadoopSnappyReader(Closed) -> HadoopSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit HadoopSnappyReader(
     const Src& src,

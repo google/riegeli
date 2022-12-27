@@ -223,7 +223,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ChainBackwardWriter(Closed)->ChainBackwardWriter<DeleteCtad<Closed>>;
+explicit ChainBackwardWriter(Closed) -> ChainBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainBackwardWriter(const Dest& dest,
                              ChainBackwardWriterBase::Options options =
@@ -247,7 +247,7 @@ explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
     -> ChainBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 explicit ChainBackwardWriter(ChainBackwardWriterBase::Options options =
                                  ChainBackwardWriterBase::Options())
-    ->ChainBackwardWriter<Chain>;
+    -> ChainBackwardWriter<Chain>;
 #endif
 
 // Implementation details follow.

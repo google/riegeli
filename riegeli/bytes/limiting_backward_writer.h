@@ -272,7 +272,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit LimitingBackwardWriter(Closed)
-    ->LimitingBackwardWriter<DeleteCtad<Closed>>;
+    -> LimitingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingBackwardWriter(const Dest& dest,
                                 LimitingBackwardWriterBase::Options options =

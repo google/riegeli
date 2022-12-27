@@ -211,7 +211,7 @@ class ZstdReader : public ZstdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ZstdReader(Closed)->ZstdReader<DeleteCtad<Closed>>;
+explicit ZstdReader(Closed) -> ZstdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZstdReader(const Src& src,
                     ZstdReaderBase::Options options = ZstdReaderBase::Options())

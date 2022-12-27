@@ -244,7 +244,7 @@ class FileWriter : public FileWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit FileWriter(Closed)->FileWriter<DeleteCtad<Closed>>;
+explicit FileWriter(Closed) -> FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FileWriter(const Dest& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())

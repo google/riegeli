@@ -139,7 +139,7 @@ class ChainReader : public ChainReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ChainReader(Closed)->ChainReader<DeleteCtad<Closed>>;
+explicit ChainReader(Closed) -> ChainReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ChainReader(const Src& src) -> ChainReader<std::decay_t<Src>>;
 template <typename Src>

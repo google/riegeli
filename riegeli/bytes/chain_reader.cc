@@ -81,12 +81,12 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
   if (length <= available()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+    iter_.AppendSubstrTo(cursor(), length, dest);
     move_cursor(length);
     return true;
   }
   if (ABSL_PREDICT_FALSE(iter_ == src.blocks().cend())) return false;
-  iter_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+  iter_.AppendSubstrTo(cursor(), available(), dest);
   length -= available();
   while (++iter_ != src.blocks().cend()) {
     RIEGELI_ASSERT_LE(iter_->size(), src.size() - limit_pos())
@@ -94,7 +94,7 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
     move_limit_pos(iter_->size());
     if (length <= iter_->size()) {
       set_buffer(iter_->data(), iter_->size(), length);
-      iter_.AppendSubstrTo(absl::string_view(start(), length), dest);
+      iter_.AppendSubstrTo(start(), length, dest);
       return true;
     }
     iter_.AppendTo(dest);
@@ -119,12 +119,12 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
   if (length <= available()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+    iter_.AppendSubstrTo(cursor(), length, dest);
     move_cursor(length);
     return true;
   }
   if (ABSL_PREDICT_FALSE(iter_ == src.blocks().cend())) return false;
-  iter_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+  iter_.AppendSubstrTo(cursor(), available(), dest);
   length -= available();
   while (++iter_ != src.blocks().cend()) {
     RIEGELI_ASSERT_LE(iter_->size(), src.size() - limit_pos())
@@ -132,7 +132,7 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
     move_limit_pos(iter_->size());
     if (length <= iter_->size()) {
       set_buffer(iter_->data(), iter_->size(), length);
-      iter_.AppendSubstrTo(absl::string_view(start(), length), dest);
+      iter_.AppendSubstrTo(start(), length, dest);
       return true;
     }
     iter_.AppendTo(dest);

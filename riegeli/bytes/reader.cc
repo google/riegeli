@@ -185,8 +185,8 @@ inline bool ReadSlowToCord(Reader& src, size_t length, DependentCord& dest) {
     const size_t length_to_read = UnsignedMin(length, buffer.capacity());
     size_t length_read;
     const bool read_ok = src.Read(length_to_read, buffer.data(), &length_read);
-    const absl::string_view data(buffer.data(), length_read);
-    std::move(buffer).AppendSubstrTo(data, dest);
+    const char* const data = buffer.data();
+    std::move(buffer).AppendSubstrTo(data, length_read, dest);
     if (ABSL_PREDICT_FALSE(!read_ok)) return false;
     length -= length_read;
   } while (length > 0);

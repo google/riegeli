@@ -267,8 +267,8 @@ inline bool ReadBehindScratchToCord(Reader& src, size_t length,
     const size_t length_to_read = UnsignedMin(length, buffer.capacity());
     size_t length_read;
     const bool read_ok = src.Read(length_to_read, buffer.data(), &length_read);
-    const absl::string_view data(buffer.data(), length_read);
-    std::move(buffer).AppendSubstrTo(data, dest);
+    const char* const data = buffer.data();
+    std::move(buffer).AppendSubstrTo(data, length_read, dest);
     if (ABSL_PREDICT_FALSE(!read_ok)) return false;
     length -= length_read;
   } while (length > 0);
@@ -413,8 +413,7 @@ bool PullableReader::ReadSlow(size_t length, Chain& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_read = UnsignedMin(length, available());
-      scratch_->buffer.AppendSubstrTo(
-          absl::string_view(cursor(), length_to_read), dest);
+      scratch_->buffer.AppendSubstrTo(cursor(), length_to_read, dest);
       move_cursor(length_to_read);
       length -= length_to_read;
       if (length == 0) return true;
@@ -439,8 +438,7 @@ bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_read = UnsignedMin(length, available());
-      scratch_->buffer.AppendSubstrTo(
-          absl::string_view(cursor(), length_to_read), dest);
+      scratch_->buffer.AppendSubstrTo(cursor(), length_to_read, dest);
       move_cursor(length_to_read);
       length -= length_to_read;
       if (length == 0) return true;
@@ -467,8 +465,7 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
         write_ok = dest.Write(absl::string_view(cursor(), length_to_copy));
       } else {
         Chain data;
-        scratch_->buffer.AppendSubstrTo(
-            absl::string_view(cursor(), length_to_copy), data);
+        scratch_->buffer.AppendSubstrTo(cursor(), length_to_copy, data);
         write_ok = dest.Write(std::move(data));
       }
       move_cursor(length_to_copy);
@@ -499,15 +496,13 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
           write_ok = dest.Write(absl::string_view(cursor(), length));
         } else {
           Chain data;
-          scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length),
-                                          data);
+          scratch_->buffer.AppendSubstrTo(cursor(), length, data);
           write_ok = dest.Write(std::move(data));
         }
         move_cursor(length);
         return write_ok;
       }
-      scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), available()),
-                                      from_scratch);
+      scratch_->buffer.AppendSubstrTo(cursor(), available(), from_scratch);
       length -= available();
       SyncScratch();
     }

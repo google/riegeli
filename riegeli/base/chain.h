@@ -854,14 +854,14 @@ class Chain::BlockIterator {
   void AppendTo(Chain& dest, const Options& options = kDefaultOptions) const;
   void AppendTo(absl::Cord& dest) const;
 
-  // Appends `substr` to `dest`. `substr` must be empty or contained in
-  // `**this`.
+  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `**this`.
   //
   // Precondition:
-  //   if `substr` is not empty then this is not past the end iterator.
-  void AppendSubstrTo(absl::string_view substr, Chain& dest,
+  //   if `length > 0` then this is not past the end iterator.
+  void AppendSubstrTo(const char* data, size_t length, Chain& dest,
                       const Options& options = kDefaultOptions) const;
-  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) const;
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
   // Prepends `**this` to `dest`.
   //
@@ -869,14 +869,14 @@ class Chain::BlockIterator {
   void PrependTo(Chain& dest, const Options& options = kDefaultOptions) const;
   void PrependTo(absl::Cord& dest) const;
 
-  // Prepends `substr` to `dest`. `substr` must be empty or contained in
-  // `**this`.
+  // Prepends [`data`..`data + length`) to `dest`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `**this`.
   //
   // Precondition:
-  //   if `substr` is not empty then this is not past the end iterator.
-  void PrependSubstrTo(absl::string_view substr, Chain& dest,
+  //   if `length > 0` then this is not past the end iterator.
+  void PrependSubstrTo(const char* data, size_t length, Chain& dest,
                        const Options& options = kDefaultOptions) const;
-  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest) const;
+  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
  private:
   friend class Chain;
@@ -1054,11 +1054,12 @@ class ChainBlock {
                 const Chain::Options& options = Chain::kDefaultOptions) const;
   void AppendTo(absl::Cord& dest) const;
 
-  // Appends `substr` to `dest`. `substr` must be empty or contained in `*this`.
+  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
   void AppendSubstrTo(
-      absl::string_view substr, Chain& dest,
+      const char* data, size_t length, Chain& dest,
       const Chain::Options& options = Chain::kDefaultOptions) const;
-  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) const;
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
   // Releases the ownership of the block, which must be deleted using
   // `DeleteReleased()` if not `nullptr`.
@@ -1226,18 +1227,18 @@ class Chain::RawBlock {
   template <Ownership ownership>
   void AppendTo(absl::Cord& dest);
 
-  void AppendSubstrTo(absl::string_view substr, Chain& dest,
+  void AppendSubstrTo(const char* data, size_t length, Chain& dest,
                       const Options& options);
-  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest);
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest);
 
   void PrependTo(Chain& dest, const Options& options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void PrependTo(absl::Cord& dest);
 
-  void PrependSubstrTo(absl::string_view substr, Chain& dest,
+  void PrependSubstrTo(const char* data, size_t length, Chain& dest,
                        const Options& options);
-  void PrependSubstrTo(absl::string_view substr, absl::Cord& dest);
+  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest);
 
  private:
   template <typename T>

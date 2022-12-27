@@ -339,7 +339,7 @@ class Lz4Writer : public Lz4WriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit Lz4Writer(Closed)->Lz4Writer<DeleteCtad<Closed>>;
+explicit Lz4Writer(Closed) -> Lz4Writer<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit Lz4Writer(const Dest& dest,
                    Lz4WriterBase::Options options = Lz4WriterBase::Options())

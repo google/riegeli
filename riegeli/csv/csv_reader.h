@@ -525,7 +525,7 @@ class CsvReader : public CsvReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit CsvReader(Closed)->CsvReader<DeleteCtad<Closed>>;
+explicit CsvReader(Closed) -> CsvReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CsvReader(const Src& src,
                    CsvReaderBase::Options options = CsvReaderBase::Options())

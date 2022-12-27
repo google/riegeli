@@ -79,8 +79,7 @@ inline void ChainWriterBase::MoveFromTail(size_t length, Chain& dest) {
     remaining -= iter->size();
     ++iter;
   }
-  iter.AppendSubstrTo(absl::string_view(iter->data(), remaining), dest,
-                      options_);
+  iter.AppendSubstrTo(iter->data(), remaining, dest, options_);
   tail_->RemovePrefix(length, options_);
 }
 
@@ -102,9 +101,8 @@ inline void ChainWriterBase::MoveToTail(size_t length, Chain& dest) {
     iter.PrependTo(*tail_, options_);
     remaining -= iter->size();
   }
-  iter.PrependSubstrTo(
-      absl::string_view(iter->data() + iter->size() - remaining, remaining),
-      *tail_, options_);
+  iter.PrependSubstrTo(iter->data() + iter->size() - remaining, remaining,
+                       *tail_, options_);
   dest.RemoveSuffix(length, options_);
 }
 

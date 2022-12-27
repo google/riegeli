@@ -157,7 +157,7 @@ class ArrayWriter : public ArrayWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ArrayWriter(Closed)->ArrayWriter<DeleteCtad<Closed>>;
+explicit ArrayWriter(Closed) -> ArrayWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayWriter(const Dest& dest) -> ArrayWriter<std::conditional_t<
     !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
@@ -174,7 +174,7 @@ explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
 template <typename... DestArgs>
 explicit ArrayWriter(std::tuple<DestArgs...> dest_args)
     -> ArrayWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit ArrayWriter(char* dest, size_t size)->ArrayWriter<absl::Span<char>>;
+explicit ArrayWriter(char* dest, size_t size) -> ArrayWriter<absl::Span<char>>;
 #endif
 
 // Implementation details follow.

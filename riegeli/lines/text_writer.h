@@ -172,7 +172,7 @@ class TextWriter<WriteNewline::kLf, Dest> : public PrefixLimitingWriter<Dest> {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit TextWriter(Closed)
-    ->TextWriter<WriteNewline::kNative, DeleteCtad<Closed>>;
+    -> TextWriter<WriteNewline::kNative, DeleteCtad<Closed>>;
 template <typename Dest>
 explicit TextWriter(const Dest& dest,
                     TextWriterBase::Options options = TextWriterBase::Options())

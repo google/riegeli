@@ -145,7 +145,7 @@ class StringReader : public StringReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit StringReader(Closed)->StringReader<DeleteCtad<Closed>>;
+explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit StringReader(const Src& src) -> StringReader<std::conditional_t<
     std::is_convertible<const Src*, const std::string*>::value ||
@@ -161,8 +161,8 @@ explicit StringReader(Src&& src) -> StringReader<
 template <typename... SrcArgs>
 explicit StringReader(std::tuple<SrcArgs...> src_args)
     -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-StringReader()->StringReader<>;
-explicit StringReader(const char* src, size_t size)->StringReader<>;
+StringReader() -> StringReader<>;
+explicit StringReader(const char* src, size_t size) -> StringReader<>;
 #endif
 
 // Implementation details follow.

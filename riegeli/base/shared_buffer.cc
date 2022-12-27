@@ -26,21 +26,24 @@
 
 namespace riegeli {
 
-absl::Cord SharedBuffer::ToCord(absl::string_view substr) const {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), const_data()))
-      << "Failed precondition of SharedBuffer::ToCord(): "
-         "substring not contained in the buffer";
-  RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                     const_data() + capacity()))
-      << "Failed precondition of SharedBuffer::ToCord(): "
-         "substring not contained in the buffer";
+absl::Cord SharedBuffer::ToCord(const char* data, size_t length) const {
+  if (length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, const_data()))
+        << "Failed precondition of SharedBuffer::ToCord(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(
+        std::less_equal<>()(data + length, const_data() + capacity()))
+        << "Failed precondition of SharedBuffer::ToCord(): "
+           "substring not contained in the buffer";
+  }
   // `absl::cord_internal::kMaxInline`.
   static constexpr size_t kMaxInline = 15;
-  if (substr.size() <= kMaxInline || Wasteful(capacity(), substr.size())) {
-    return MakeBlockyCord(substr);
+  if (length <= kMaxInline || Wasteful(capacity(), length)) {
+    return MakeBlockyCord(absl::string_view(data, length));
   }
   void* ptr = Share();
-  return absl::MakeCordFromExternal(substr, [ptr] { DeleteShared(ptr); });
+  return absl::MakeCordFromExternal(absl::string_view(data, length),
+                                    [ptr] { DeleteShared(ptr); });
 }
 
 }  // namespace riegeli

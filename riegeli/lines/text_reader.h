@@ -225,7 +225,7 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit TextReader(Closed)
-    ->TextReader<ReadNewline::kNative, DeleteCtad<Closed>>;
+    -> TextReader<ReadNewline::kNative, DeleteCtad<Closed>>;
 template <typename Src>
 explicit TextReader(const Src& src,
                     TextReaderBase::Options options = TextReaderBase::Options())

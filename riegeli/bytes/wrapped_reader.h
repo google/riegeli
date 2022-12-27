@@ -155,7 +155,7 @@ class WrappedReader : public WrappedReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit WrappedReader(Closed)->WrappedReader<DeleteCtad<Closed>>;
+explicit WrappedReader(Closed) -> WrappedReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit WrappedReader(const Src& src) -> WrappedReader<std::decay_t<Src>>;
 template <typename Src>

@@ -318,7 +318,7 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ZstdWriter(Closed)->ZstdWriter<DeleteCtad<Closed>>;
+explicit ZstdWriter(Closed) -> ZstdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZstdWriter(const Dest& dest,
                     ZstdWriterBase::Options options = ZstdWriterBase::Options())

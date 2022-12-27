@@ -172,7 +172,7 @@ class SnappyWriter : public SnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit SnappyWriter(Closed)->SnappyWriter<DeleteCtad<Closed>>;
+explicit SnappyWriter(Closed) -> SnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit SnappyWriter(const Dest& dest, SnappyWriterBase::Options options =
                                             SnappyWriterBase::Options())

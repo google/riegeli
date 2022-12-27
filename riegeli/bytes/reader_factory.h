@@ -161,7 +161,7 @@ class ReaderFactory : public ReaderFactoryBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ReaderFactory(Closed)->ReaderFactory<DeleteCtad<Closed>>;
+explicit ReaderFactory(Closed) -> ReaderFactory<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderFactory(const Src& src, ReaderFactoryBase::Options options =
                                            ReaderFactoryBase::Options())

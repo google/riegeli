@@ -279,7 +279,7 @@ class ZlibWriter : public ZlibWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ZlibWriter(Closed)->ZlibWriter<DeleteCtad<Closed>>;
+explicit ZlibWriter(Closed) -> ZlibWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZlibWriter(const Dest& dest,
                     ZlibWriterBase::Options options = ZlibWriterBase::Options())

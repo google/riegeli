@@ -19,7 +19,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/intrusive_ref_count.h"
@@ -74,9 +73,9 @@ class SharedBuffer {
   // Does nothing if `ptr == nullptr`.
   static void DeleteShared(void* ptr);
 
-  // Converts `*this` to `absl::Cord` by sharing the ownership of the data.
-  // `substr` must be contained in `*this`.
-  absl::Cord ToCord(absl::string_view substr) const;
+  // Converts [`data`..`data + length`) to `absl::Cord`. If `length > 0` then
+  // [`data`..`data + length`) must be contained in `*this`.
+  absl::Cord ToCord(const char* data, size_t length) const;
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBuffer& self,

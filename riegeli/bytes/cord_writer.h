@@ -281,7 +281,7 @@ class CordWriter : public CordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit CordWriter(Closed)->CordWriter<DeleteCtad<Closed>>;
+explicit CordWriter(Closed) -> CordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordWriter(const Dest& dest,
                     CordWriterBase::Options options = CordWriterBase::Options())
@@ -301,7 +301,7 @@ explicit CordWriter(std::tuple<DestArgs...> dest_args,
                     CordWriterBase::Options options = CordWriterBase::Options())
     -> CordWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
-    ->CordWriter<absl::Cord>;
+    -> CordWriter<absl::Cord>;
 #endif
 
 // Implementation details follow.

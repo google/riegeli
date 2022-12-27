@@ -134,7 +134,7 @@ class SnappyReader : public SnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit SnappyReader(Closed)->SnappyReader<DeleteCtad<Closed>>;
+explicit SnappyReader(Closed) -> SnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit SnappyReader(const Src& src, SnappyReaderBase::Options options =
                                           SnappyReaderBase::Options())

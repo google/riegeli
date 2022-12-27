@@ -263,7 +263,7 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
            "may indicate a bug in protocol buffers or it may be caused by "
            "concurrent modification of "
         << src.GetTypeName();
-    dest = std::move(buffer).ToCord(absl::string_view(buffer.data(), size));
+    dest = std::move(buffer).ToCord(buffer.data(), size);
     return absl::OkStatus();
   }
   riegeli::CordWriter<> writer(&dest);

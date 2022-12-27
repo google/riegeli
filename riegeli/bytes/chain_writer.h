@@ -274,7 +274,7 @@ class ChainWriter : public ChainWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ChainWriter(Closed)->ChainWriter<DeleteCtad<Closed>>;
+explicit ChainWriter(Closed) -> ChainWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainWriter(const Dest& dest, ChainWriterBase::Options options =
                                            ChainWriterBase::Options())
@@ -294,9 +294,8 @@ explicit ChainWriter(
     std::tuple<DestArgs...> dest_args,
     ChainWriterBase::Options options = ChainWriterBase::Options())
     -> ChainWriter<DeleteCtad<std::tuple<DestArgs...>>>;
-explicit ChainWriter(
-    ChainWriterBase::Options options = ChainWriterBase::Options())
-    ->ChainWriter<Chain>;
+explicit ChainWriter(ChainWriterBase::Options options =
+                         ChainWriterBase::Options()) -> ChainWriter<Chain>;
 #endif
 
 // Implementation details follow.

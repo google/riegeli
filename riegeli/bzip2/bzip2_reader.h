@@ -197,7 +197,7 @@ class Bzip2Reader : public Bzip2ReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit Bzip2Reader(Closed)->Bzip2Reader<DeleteCtad<Closed>>;
+explicit Bzip2Reader(Closed) -> Bzip2Reader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit Bzip2Reader(const Src& src, Bzip2ReaderBase::Options options =
                                          Bzip2ReaderBase::Options())

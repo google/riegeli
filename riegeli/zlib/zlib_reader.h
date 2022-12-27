@@ -278,7 +278,7 @@ class ZlibReader : public ZlibReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit ZlibReader(Closed)->ZlibReader<DeleteCtad<Closed>>;
+explicit ZlibReader(Closed) -> ZlibReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZlibReader(const Src& src,
                     ZlibReaderBase::Options options = ZlibReaderBase::Options())

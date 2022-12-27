@@ -87,8 +87,7 @@ inline bool PushableWriter::SyncScratch() {
     return Write(Chain(std::move(buffer)));
   } else {
     Chain data;
-    buffer.AppendSubstrTo(absl::string_view(buffer.data(), length_to_write),
-                          data);
+    buffer.AppendSubstrTo(buffer.data(), length_to_write, data);
     return Write(std::move(data));
   }
 }

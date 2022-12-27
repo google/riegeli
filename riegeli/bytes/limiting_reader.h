@@ -345,7 +345,7 @@ class LimitingReader : public LimitingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit LimitingReader(Closed)->LimitingReader<DeleteCtad<Closed>>;
+explicit LimitingReader(Closed) -> LimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit LimitingReader(const Src& src, LimitingReaderBase::Options options =
                                             LimitingReaderBase::Options())
