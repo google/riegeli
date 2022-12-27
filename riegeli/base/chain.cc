@@ -325,26 +325,12 @@ inline size_t Chain::RawBlock::space_before() const {
   RIEGELI_ASSERT(is_internal())
       << "Failed precondition of Chain::RawBlock::space_before(): "
          "block not internal";
-  return PtrDistance(allocated_begin_, empty() ? allocated_end_ : data_begin());
+  return PtrDistance(allocated_begin_, data_begin());
 }
 
 inline size_t Chain::RawBlock::space_after() const {
   RIEGELI_ASSERT(is_internal())
       << "Failed precondition of Chain::RawBlock::space_after(): "
-         "block not internal";
-  return PtrDistance(empty() ? allocated_begin_ : data_end(), allocated_end_);
-}
-
-inline size_t Chain::RawBlock::raw_space_before() const {
-  RIEGELI_ASSERT(is_internal())
-      << "Failed precondition of Chain::RawBlock::raw_space_before(): "
-         "block not internal";
-  return PtrDistance(allocated_begin_, data_begin());
-}
-
-inline size_t Chain::RawBlock::raw_space_after() const {
-  RIEGELI_ASSERT(is_internal())
-      << "Failed precondition of Chain::RawBlock::raw_space_after(): "
          "block not internal";
   return PtrDistance(data_end(), allocated_end_);
 }
@@ -387,8 +373,8 @@ inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   if (ref_count != 1) out << " ref_count: " << ref_count;
   out << " size: " << size();
   if (is_internal()) {
-    if (raw_space_before() > 0) out << " space_before: " << raw_space_before();
-    out << " space_after: " << raw_space_after();
+    if (space_before() > 0) out << " space_before: " << space_before();
+    out << " space_after: " << space_after();
   } else {
     out << " ";
     external_.methods->dump_structure(*this, out);
@@ -412,11 +398,11 @@ void Chain::RawBlock::RegisterSubobjectsImpl(
 }
 
 inline bool Chain::RawBlock::can_append(size_t length) const {
-  return is_mutable() && space_after() >= length;
+  return is_mutable() && (empty() ? capacity() : space_after()) >= length;
 }
 
 inline bool Chain::RawBlock::can_prepend(size_t length) const {
-  return is_mutable() && space_before() >= length;
+  return is_mutable() && (empty() ? capacity() : space_before()) >= length;
 }
 
 inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
@@ -426,6 +412,7 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
       << "Failed precondition of Chain::RawBlock::CanAppendMovingData(): "
          "ChainBlock size overflow";
   if (is_mutable()) {
+    if (empty()) data_ = allocated_begin_;
     if (space_after() >= length) return true;
     const size_t final_size = size() + length;
     if (final_size * 2 <= capacity()) {
@@ -459,6 +446,7 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
       << "Failed precondition of Chain::RawBlock::CanPrependMovingData(): "
          "ChainBlock size overflow";
   if (is_mutable()) {
+    if (empty()) data_ = allocated_end_;
     if (space_before() >= length) return true;
     const size_t final_size = size() + length;
     if (final_size * 2 <= capacity()) {
@@ -488,7 +476,7 @@ inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length) {
       << "Failed precondition of Chain::RawBlock::AppendBuffer(): "
          "block is immutable";
   if (empty()) data_ = allocated_begin_;
-  const size_t length = UnsignedMin(raw_space_after(), max_length);
+  const size_t length = UnsignedMin(space_after(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_end()), length);
   size_ += length;
   return buffer;
@@ -499,7 +487,7 @@ inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length) {
       << "Failed precondition of Chain::RawBlock::PrependBuffer(): "
          "block is immutable";
   if (empty()) data_ = allocated_end_;
-  const size_t length = UnsignedMin(raw_space_before(), max_length);
+  const size_t length = UnsignedMin(space_before(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_begin()) - length,
                                 length);
   data_ -= length;

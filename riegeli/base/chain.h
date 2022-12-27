@@ -1273,8 +1273,6 @@ class Chain::RawBlock {
   size_t capacity() const;
   size_t space_before() const;
   size_t space_after() const;
-  size_t raw_space_before() const;
-  size_t raw_space_after() const;
 
   size_t DynamicSizeOfImpl() const;
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
