@@ -77,6 +77,167 @@ void WritePadding(std::ostream& out, size_t pad) {
   }
 }
 
+class StringRef {
+ public:
+  explicit StringRef(std::string&& src) : src_(std::move(src)) {}
+
+  StringRef(const StringRef&) = delete;
+  StringRef& operator=(const StringRef&) = delete;
+
+  explicit operator absl::string_view() const { return src_; }
+
+  void DumpStructure(std::ostream& out) const;
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const StringRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.src_);
+  }
+
+  const std::string& src() const& { return src_; }
+  std::string&& src() && { return std::move(src_); }
+
+ private:
+  std::string src_;
+};
+
+void StringRef::DumpStructure(std::ostream& out) const {
+  out << "[string] { capacity: " << src_.capacity() << " }";
+}
+
+// Stores an `absl::Cord` which must be flat, i.e.
+// `src.TryFlat() != absl::nullopt`.
+//
+// This design relies on the fact that moving a flat `absl::Cord` results in a
+// flat `absl::Cord`.
+class FlatCordRef {
+ public:
+  explicit FlatCordRef(const absl::Cord& src);
+  explicit FlatCordRef(absl::Cord&& src);
+  explicit FlatCordRef(absl::Cord::CharIterator& iter, size_t length);
+
+  FlatCordRef(const FlatCordRef&) = delete;
+  FlatCordRef& operator=(const FlatCordRef&) = delete;
+
+  explicit operator absl::string_view() const;
+
+  void DumpStructure(std::ostream& out) const;
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const FlatCordRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.src_);
+  }
+
+  // Appends the `absl::Cord` to `dest`.
+  void AppendTo(absl::Cord& dest) const;
+
+  // Appends [`data`..`data + length`) to `dest`.
+  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
+
+  // Prepends the `absl::Cord` to `dest`.
+  void PrependTo(absl::Cord& dest) const;
+
+  // Prepends [`data`..`data + length`) to `dest`.
+  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
+  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
+
+ private:
+  // Invariant: `src_.TryFlat() != absl::nullopt`
+  absl::Cord src_;
+};
+
+inline FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
+
+inline FlatCordRef::FlatCordRef(absl::Cord&& src) : src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
+
+inline FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter, size_t length)
+    : src_(absl::Cord::AdvanceAndRead(&iter, length)) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
+
+inline FlatCordRef::operator absl::string_view() const {
+  {
+    const absl::optional<absl::string_view> flat = src_.TryFlat();
+    if (flat != absl::nullopt) {
+      return *flat;
+    }
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Failed invariant of FlatCordRef: Cord is not flat";
+}
+
+void FlatCordRef::DumpStructure(std::ostream& out) const {
+  out << "[cord] { }";
+}
+
+inline void FlatCordRef::AppendTo(absl::Cord& dest) const {
+  RIEGELI_ASSERT_LE(src_.size(),
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of FlatCordRef::AppendTo(): "
+         "Cord size overflow";
+  dest.Append(src_);
+}
+
+inline void FlatCordRef::AppendSubstrTo(const char* data, size_t length,
+                                        absl::Cord& dest) const {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
+         "Cord size overflow";
+  if (length == src_.size()) {
+    dest.Append(src_);
+    return;
+  }
+  const absl::string_view fragment(*this);
+  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
+      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
+         "substring not contained in data";
+  RIEGELI_ASSERT(
+      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
+      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
+         "substring not contained in data";
+  dest.Append(src_.Subcord(PtrDistance(fragment.data(), data), length));
+}
+
+inline void FlatCordRef::PrependTo(absl::Cord& dest) const {
+  RIEGELI_ASSERT_LE(src_.size(),
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of FlatCordRef::PrependTo(): "
+         "Cord size overflow";
+  dest.Prepend(src_);
+}
+
+inline void FlatCordRef::PrependSubstrTo(const char* data, size_t length,
+                                         absl::Cord& dest) const {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
+         "Cord size overflow";
+  if (length == src_.size()) {
+    dest.Prepend(src_);
+    return;
+  }
+  const absl::string_view fragment(*this);
+  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
+      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
+         "substring not contained in data";
+  RIEGELI_ASSERT(
+      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
+      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
+         "substring not contained in data";
+  dest.Prepend(src_.Subcord(PtrDistance(fragment.data(), data), length));
+}
+
 class ZeroRef {
  public:
   ZeroRef() = default;
@@ -101,6 +262,7 @@ class Chain::BlockRef {
   BlockRef& operator=(const BlockRef&) = delete;
 
   void DumpStructure(absl::string_view data, std::ostream& out) const;
+
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const BlockRef& self,
                                         MemoryEstimator& memory_estimator) {
@@ -128,170 +290,12 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
   block_.reset(block);
 }
 
-inline void Chain::BlockRef::DumpStructure(absl::string_view data,
-                                           std::ostream& out) const {
+void Chain::BlockRef::DumpStructure(absl::string_view data,
+                                    std::ostream& out) const {
   out << "[block] { offset: " << PtrDistance(block_->data_begin(), data.data())
       << " ";
   block_->DumpStructure(out);
   out << " }";
-}
-
-class Chain::StringRef {
- public:
-  explicit StringRef(std::string&& src) : src_(std::move(src)) {}
-
-  StringRef(const StringRef&) = delete;
-  StringRef& operator=(const StringRef&) = delete;
-
-  explicit operator absl::string_view() const { return src_; }
-  void DumpStructure(std::ostream& out) const;
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StringRef& self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.src_);
-  }
-
- private:
-  friend class Chain;
-
-  std::string src_;
-};
-
-inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
-  out << "[string] { capacity: " << src_.capacity() << " }";
-}
-
-// Stores an `absl::Cord` which must be flat, i.e.
-// `src.TryFlat() != absl::nullopt`.
-//
-// This design relies on the fact that moving a flat `absl::Cord` results in a
-// flat `absl::Cord`.
-class Chain::FlatCordRef {
- public:
-  explicit FlatCordRef(const absl::Cord& src);
-  explicit FlatCordRef(absl::Cord&& src);
-  explicit FlatCordRef(absl::Cord::CharIterator& iter, size_t length);
-
-  FlatCordRef(const FlatCordRef&) = delete;
-  FlatCordRef& operator=(const FlatCordRef&) = delete;
-
-  explicit operator absl::string_view() const;
-  void DumpStructure(std::ostream& out) const;
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const FlatCordRef& self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.src_);
-  }
-
-  // Appends the `absl::Cord` to `dest`.
-  void AppendTo(absl::Cord& dest) const;
-
-  // Appends [`data`..`data + length`) to `dest`.
-  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
-
-  // Prepends the `absl::Cord` to `dest`.
-  void PrependTo(absl::Cord& dest) const;
-
-  // Prepends [`data`..`data + length`) to `dest`.
-  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
-  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
-
- private:
-  // Invariant: `src_.TryFlat() != absl::nullopt`
-  absl::Cord src_;
-};
-
-inline Chain::FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
-         "Cord is not flat";
-}
-
-inline Chain::FlatCordRef::FlatCordRef(absl::Cord&& src)
-    : src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
-         "Cord is not flat";
-}
-
-inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter,
-                                       size_t length)
-    : src_(absl::Cord::AdvanceAndRead(&iter, length)) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
-         "Cord is not flat";
-}
-
-inline Chain::FlatCordRef::operator absl::string_view() const {
-  {
-    const absl::optional<absl::string_view> flat = src_.TryFlat();
-    if (flat != absl::nullopt) {
-      return *flat;
-    }
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Failed invariant of FlatCordRef: Cord is not flat";
-}
-
-inline void Chain::FlatCordRef::DumpStructure(std::ostream& out) const {
-  out << "[cord] { }";
-}
-
-inline void Chain::FlatCordRef::AppendTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::FlatCordRef::AppendTo(): "
-         "Cord size overflow";
-  dest.Append(src_);
-}
-
-inline void Chain::FlatCordRef::AppendSubstrTo(const char* data, size_t length,
-                                               absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::FlatCordRef::AppendSubstrTo(): "
-         "Cord size overflow";
-  if (length == src_.size()) {
-    dest.Append(src_);
-    return;
-  }
-  const absl::string_view fragment(*this);
-  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
-      << "Failed precondition of Chain::FlatCordRef::AppendSubstrTo(): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
-      << "Failed precondition of Chain::FlatCordRef::AppendSubstrTo(): "
-         "substring not contained in data";
-  dest.Append(src_.Subcord(PtrDistance(fragment.data(), data), length));
-}
-
-inline void Chain::FlatCordRef::PrependTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::FlatCordRef::PrependTo(): "
-         "Cord size overflow";
-  dest.Prepend(src_);
-}
-
-inline void Chain::FlatCordRef::PrependSubstrTo(const char* data, size_t length,
-                                                absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::FlatCordRef::PrependSubstrTo(): "
-         "Cord size overflow";
-  if (length == src_.size()) {
-    dest.Prepend(src_);
-    return;
-  }
-  const absl::string_view fragment(*this);
-  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
-      << "Failed precondition of Chain::FlatCordRef::PrependSubstrTo(): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
-      << "Failed precondition of Chain::FlatCordRef::PrependSubstrTo(): "
-         "substring not contained in data";
-  dest.Prepend(src_.Subcord(PtrDistance(fragment.data(), data), length));
 }
 
 inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
@@ -1022,8 +1026,8 @@ void Chain::AppendTo(std::string& dest) && {
       RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      if (dest.capacity() <= string_ref->src_.capacity()) {
-        dest = std::move(string_ref->src_);
+      if (dest.capacity() <= string_ref->src().capacity()) {
+        dest = std::move(*string_ref).src();
         block->Unref();
         end_ = begin_;
         size_ = 0;
@@ -1109,7 +1113,7 @@ Chain::operator std::string() && {
       RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      const std::string dest = std::move(string_ref->src_);
+      const std::string dest = std::move(*string_ref).src();
       block->Unref();
       end_ = begin_;
       size_ = 0;

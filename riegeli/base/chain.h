@@ -462,8 +462,6 @@ class Chain {
   class RawBlock;
   class BlockPtrPtr;
   class BlockRef;
-  class StringRef;
-  class FlatCordRef;
 
   struct Empty {};
 
