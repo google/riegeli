@@ -160,6 +160,7 @@ cc_library(
     deps = [
         ":arithmetic",
         ":estimated_allocated_size",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:node_hash_map",

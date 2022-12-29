@@ -37,7 +37,6 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/estimated_allocated_size.h"
 
 namespace google {
 namespace protobuf {
@@ -213,23 +212,6 @@ struct RegisterSubobjectsIsTrivial;
 
 inline void MemoryEstimator::RegisterMemory(size_t memory) {
   total_memory_ = SaturatingAdd(total_memory_, memory);
-}
-
-inline void MemoryEstimator::RegisterDynamicMemory(const void* ptr,
-                                                   size_t memory) {
-  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
-                     ? EstimatedAllocatedSizeForTesting(memory)
-                     : EstimatedAllocatedSize(ptr, memory));
-}
-
-inline void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
-  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
-                     ? EstimatedAllocatedSizeForTesting(memory)
-                     : EstimatedAllocatedSize(memory));
-}
-
-inline bool MemoryEstimator::RegisterNode(const void* ptr) {
-  return ptr != nullptr && objects_seen_.insert(ptr).second;
 }
 
 template <typename T>

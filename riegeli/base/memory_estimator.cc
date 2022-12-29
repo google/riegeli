@@ -14,6 +14,9 @@
 
 #include "riegeli/base/memory_estimator.h"
 
+#include "absl/base/optimization.h"
+#include "riegeli/base/estimated_allocated_size.h"
+
 #ifdef __GXX_RTTI
 #include <cxxabi.h>
 #endif
@@ -68,6 +71,22 @@ MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
   unknown_types_ = std::exchange(that.unknown_types_,
                                  absl::flat_hash_set<std::type_index>());
   return *this;
+}
+
+void MemoryEstimator::RegisterDynamicMemory(const void* ptr, size_t memory) {
+  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
+                     ? EstimatedAllocatedSizeForTesting(memory)
+                     : EstimatedAllocatedSize(ptr, memory));
+}
+
+void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
+  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
+                     ? EstimatedAllocatedSizeForTesting(memory)
+                     : EstimatedAllocatedSize(memory));
+}
+
+bool MemoryEstimator::RegisterNode(const void* ptr) {
+  return ptr != nullptr && objects_seen_.insert(ptr).second;
 }
 
 std::vector<std::string> MemoryEstimator::UnknownTypes() const {
