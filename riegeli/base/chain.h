@@ -1839,23 +1839,23 @@ inline Chain::Blocks::reference Chain::Blocks::back() const {
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(ChainBlock::FromExternal(std::forward<T>(object)));
+  return Chain(ChainBlock::FromExternal<T>(std::forward<T>(object)));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
-  return Chain(ChainBlock::FromExternal(std::forward<T>(object), data));
+  return Chain(ChainBlock::FromExternal<T>(std::forward<T>(object), data));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args) {
-  return Chain(ChainBlock::FromExternal(std::move(args)));
+  return Chain(ChainBlock::FromExternal<T>(std::move(args)));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args,
                                  absl::string_view data) {
-  return Chain(ChainBlock::FromExternal(std::move(args), data));
+  return Chain(ChainBlock::FromExternal<T>(std::move(args), data));
 }
 
 // In converting constructors below, `set_size_hint(src.size())` optimizes
