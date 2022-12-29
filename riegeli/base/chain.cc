@@ -224,8 +224,11 @@ inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter,
 }
 
 inline Chain::FlatCordRef::operator absl::string_view() const {
-  if (const absl::optional<absl::string_view> flat = src_.TryFlat()) {
-    return *flat;
+  {
+    const absl::optional<absl::string_view> flat = src_.TryFlat();
+    if (flat != absl::nullopt) {
+      return *flat;
+    }
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Failed invariant of FlatCordRef: Cord is not flat";
@@ -1979,15 +1982,18 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Cord): "
          "Chain size overflow";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopy) {
-      Append(*flat, options);
-    } else {
-      Append(ChainBlock::FromExternal<FlatCordRef>(
-                 std::forward_as_tuple(std::forward<CordRef>(src))),
-             options);
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      if (flat->size() <= kMaxBytesToCopy) {
+        Append(*flat, options);
+      } else {
+        Append(ChainBlock::FromExternal<FlatCordRef>(
+                   std::forward_as_tuple(std::forward<CordRef>(src))),
+               options);
+      }
+      return;
     }
-    return;
   }
   // Avoid creating wasteful blocks and then rewriting them: append copied
   // fragments when their accumulated size is known, tweaking `size_hint` for
@@ -2293,13 +2299,16 @@ inline void Chain::PrependCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Cord): "
          "Chain size overflow";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopy) {
-      Prepend(*flat, options);
-      return;
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      if (flat->size() <= kMaxBytesToCopy) {
+        Prepend(*flat, options);
+        return;
+      }
     }
   }
-  Prepend(Chain(std::move(src)), options);
+  Prepend(Chain(std::forward<CordRef>(src)), options);
 }
 
 void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,

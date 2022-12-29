@@ -209,8 +209,11 @@ bool PushableWriter::WriteBehindScratch(const absl::Cord& src) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord): "
          "scratch used";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    return Write(*flat);
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      return Write(*flat);
+    }
   }
   for (const absl::string_view fragment : src.Chunks()) {
     if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;

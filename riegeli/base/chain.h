@@ -2078,8 +2078,11 @@ extern template void Chain::Prepend(std::string&& src, const Options& options);
 
 template <typename HashState>
 HashState Chain::AbslHashValueImpl(HashState hash_state) const {
-  if (const absl::optional<absl::string_view> flat = TryFlat()) {
-    return HashState::combine(std::move(hash_state), *flat);
+  {
+    const absl::optional<absl::string_view> flat = TryFlat();
+    if (flat != absl::nullopt) {
+      return HashState::combine(std::move(hash_state), *flat);
+    }
   }
   typename HashState::AbslInternalPiecewiseCombiner combiner;
   for (const absl::string_view block : blocks()) {

@@ -214,14 +214,17 @@ absl::Status ParseFromChain(const Chain& src,
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
       src.size() <= kMaxBytesToCopy) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-      // The data are flat. `ParsePartialFromArray()` is faster than
-      // `ParsePartialFromZeroCopyStream()`.
-      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
-              flat->data(), IntCast<int>(flat->size())))) {
-        return ParseError(dest);
+    {
+      const absl::optional<absl::string_view> flat = src.TryFlat();
+      if (flat != absl::nullopt) {
+        // The data are flat. `ParsePartialFromArray()` is faster than
+        // `ParsePartialFromZeroCopyStream()`.
+        if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
+                flat->data(), IntCast<int>(flat->size())))) {
+          return ParseError(dest);
+        }
+        return CheckInitialized(dest, options);
       }
-      return CheckInitialized(dest, options);
     }
   }
   ChainReader<> reader(&src);
@@ -251,14 +254,17 @@ absl::Status ParseFromCord(const absl::Cord& src,
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
       src.size() <= kMaxBytesToCopy) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-      // The data are flat. `ParsePartialFromArray()` is faster than
-      // `ParsePartialFromZeroCopyStream()`.
-      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
-              flat->data(), IntCast<int>(flat->size())))) {
-        return ParseError(dest);
+    {
+      const absl::optional<absl::string_view> flat = src.TryFlat();
+      if (flat != absl::nullopt) {
+        // The data are flat. `ParsePartialFromArray()` is faster than
+        // `ParsePartialFromZeroCopyStream()`.
+        if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
+                flat->data(), IntCast<int>(flat->size())))) {
+          return ParseError(dest);
+        }
+        return CheckInitialized(dest, options);
       }
-      return CheckInitialized(dest, options);
     }
   }
   CordReader<> reader(&src);

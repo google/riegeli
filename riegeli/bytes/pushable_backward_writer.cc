@@ -222,8 +222,11 @@ bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord): "
          "scratch used";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    return Write(*flat);
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      return Write(*flat);
+    }
   }
   if (src.size() <= available()) {
     move_cursor(src.size());
