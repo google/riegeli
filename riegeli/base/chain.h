@@ -1201,12 +1201,15 @@ class Chain::RawBlock {
   bool can_prepend(size_t length) const;
   // If `length` can be appended/prepended while possibly moving existing data,
   // moves existing data if needed, and returns `true`. If not, sets
-  // `space_before_if_not`/`space_after_if_not` to space before/after data
-  // (to be kept unchanged, to avoid repeated moves back and forth), sets
-  // `min_length_if_not` to the new minimum length to append/prepend (for
-  // amortized constant time of a reallocation), and returns `false`.
-  bool CanAppendMovingData(size_t length, size_t& space_before_if_not,
-                           size_t& min_length_if_not);
+  // `min_length_if_not` to the new minimum length to append/prepend
+  // (for amortized constant time of a reallocation), and returns `false`.
+  bool CanAppendMovingData(size_t length, size_t& min_length_if_not);
+  // If `length` can be prepended while possibly moving existing data, moves
+  // existing data if needed, and returns `true`. If not, sets
+  // `space_after_if_not` to space after data (to be kept unchanged, to avoid
+  // repeated moves back and forth), sets `min_length_if_not` to the new minimum
+  // length to prepend (for amortized constant time of a reallocation), and
+  // returns `false`.
   bool CanPrependMovingData(size_t length, size_t& space_after_if_not,
                             size_t& min_length_if_not);
   absl::Span<char> AppendBuffer(size_t max_length);

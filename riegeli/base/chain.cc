@@ -354,8 +354,7 @@ inline bool Chain::RawBlock::tiny(size_t extra_size) const {
         << "Failed precondition of Chain::RawBlock::tiny(): "
            "non-zero extra size of external block";
   }
-  const size_t final_size = size() + extra_size;
-  return final_size < kDefaultMinBlockSize;
+  return size() + extra_size < kDefaultMinBlockSize;
 }
 
 inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
@@ -413,7 +412,6 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
 }
 
 inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
-                                                 size_t& space_before_if_not,
                                                  size_t& min_length_if_not) {
   RIEGELI_ASSERT_LE(length, ChainBlock::kMaxSize - size())
       << "Failed precondition of Chain::RawBlock::CanAppendMovingData(): "
@@ -421,28 +419,22 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
   if (is_mutable()) {
     if (empty()) data_ = allocated_begin_;
     if (space_after() >= length) return true;
-    const size_t final_size = size() + length;
-    if (final_size * 2 <= capacity()) {
-      // Existing array has at least twice more space than necessary: move
-      // contents to the middle of the array, which keeps the amortized cost of
-      // adding one element constant.
-      //
-      // Redundant cast is needed for `-fsanitize=bounds`.
-      char* const new_begin =
-          static_cast<char*>(allocated_begin_) + (capacity() - final_size) / 2;
+    if (size() + length <= capacity() && 2 * size() <= capacity()) {
+      // Existing array has enough capacity and is at most half full: move
+      // contents to the beginning of the array. This is enough to make the
+      // amortized cost of adding one element constant as long as prepending
+      // leaves space at both ends.
+      char* const new_begin = allocated_begin_;
       std::memmove(new_begin, data_, size_);
       data_ = new_begin;
       return true;
     }
-    space_before_if_not = space_before();
+    min_length_if_not = UnsignedMin(
+        UnsignedMax(length, SaturatingAdd(space_after(), capacity() / 2)),
+        ChainBlock::kMaxSize - size());
   } else {
-    space_before_if_not = 0;
+    min_length_if_not = length;
   }
-  min_length_if_not = UnsignedMin(
-      UnsignedMax(length, SaturatingAdd(space_after(), capacity() / 2)),
-      ChainBlock::kMaxSize - size());
-  space_before_if_not = UnsignedMin(
-      space_before_if_not, ChainBlock::kMaxSize - size() - min_length_if_not);
   return false;
 }
 
@@ -455,26 +447,25 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
   if (is_mutable()) {
     if (empty()) data_ = allocated_end_;
     if (space_before() >= length) return true;
-    const size_t final_size = size() + length;
-    if (final_size * 2 <= capacity()) {
-      // Existing array has at least twice more space than necessary: move
-      // contents to the middle of the array, which keeps the amortized cost of
+    if (size() + length <= capacity() && 2 * size() <= capacity()) {
+      // Existing array has enough capacity and is at most half full: move
+      // contents to the middle of the array. This makes the amortized cost of
       // adding one element constant.
       char* const new_begin =
-          allocated_end_ - (capacity() - final_size) / 2 - size_;
+          allocated_begin_ + (capacity() - size() + length) / 2;
       std::memmove(new_begin, data_, size_);
       data_ = new_begin;
       return true;
     }
-    space_after_if_not = space_after();
+    min_length_if_not = UnsignedMin(
+        UnsignedMax(length, SaturatingAdd(space_before(), capacity() / 2)),
+        ChainBlock::kMaxSize - size());
+    space_after_if_not = UnsignedMin(
+        space_after(), ChainBlock::kMaxSize - size() - min_length_if_not);
   } else {
+    min_length_if_not = length;
     space_after_if_not = 0;
   }
-  min_length_if_not = UnsignedMin(
-      UnsignedMax(length, SaturatingAdd(space_before(), capacity() / 2)),
-      ChainBlock::kMaxSize - size());
-  space_after_if_not = UnsignedMin(
-      space_after_if_not, ChainBlock::kMaxSize - size() - min_length_if_not);
   return false;
 }
 
@@ -1361,40 +1352,37 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t size = PtrDistance(begin_, end_);
-  const size_t final_size = size + extra_capacity;
-  if (final_size * 2 <= old_capacity) {
+  if (size + extra_capacity <= old_capacity && 2 * size <= old_capacity) {
     RIEGELI_ASSERT(has_allocated())
-        << "Failed invariant of Chain: "
-           "only two block pointers fit without allocating their array, "
-           "existing array cannot have at least twice more space than "
-           "necessary in the slow path of Chain::ReserveBack()";
-    // Existing array has at least twice more space than necessary: move
-    // contents to the middle of the array, which keeps the amortized cost of
-    // adding one element constant.
-    BlockPtr* const new_begin =
-        old_allocated_begin + (old_capacity - final_size) / 2;
-    BlockPtr* const new_end = new_begin + size;
+        << "The case of has_here() if there is space without reallocation "
+           "was handled in ReserveBack()";
+    // Existing array has enough capacity and is at most half full: move
+    // contents to the beginning of the array. This is enough to make the
+    // amortized cost of adding one element constant as long as prepending
+    // leaves space at both ends.
+    BlockPtr* const new_begin = old_allocated_begin;
     // Moving left, so block pointers must be moved before block offsets.
     std::memmove(new_begin, begin_, size * sizeof(BlockPtr));
     std::memmove(new_begin + old_capacity, begin_ + old_capacity,
                  size * sizeof(BlockPtr));
     begin_ = new_begin;
-    end_ = new_end;
+    end_ = new_begin + size;
     return;
   }
-  // Reallocate the array, keeping space before the contents unchanged.
+  // Reallocate the array, without keeping space before the contents. This is
+  // enough to make the amortized cost of adding one element constant if
+  // prepending leaves space at both ends.
   RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
                                               (2 * sizeof(BlockPtr)) -
                                           old_capacity)
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t new_capacity =
-      UnsignedMax(PtrDistance(old_allocated_begin, end_) + extra_capacity,
+      UnsignedMax(PtrDistance(begin_, end_) + extra_capacity,
                   old_capacity + old_capacity / 2, size_t{16});
   BlockPtr* const new_allocated_begin = NewBlockPtrs(new_capacity);
   BlockPtr* const new_allocated_end = new_allocated_begin + new_capacity;
-  BlockPtr* const new_begin =
-      new_allocated_begin + PtrDistance(old_allocated_begin, begin_);
+  BlockPtr* const new_begin = new_allocated_begin;
   BlockPtr* const new_end = new_begin + size;
   std::memcpy(new_begin, begin_, size * sizeof(BlockPtr));
   if (has_allocated()) {
@@ -1451,28 +1439,25 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t size = PtrDistance(begin_, end_);
-  const size_t final_size = size + extra_capacity;
-  if (final_size * 2 <= old_capacity) {
+  if (size + extra_capacity <= old_capacity && 2 * size <= old_capacity) {
     RIEGELI_ASSERT(has_allocated())
-        << "Failed invariant of Chain: "
-           "only two block pointers fit without allocating their array, "
-           "existing array cannot have at least twice more space than "
-           "necessary in the slow path of Chain::ReserveFront()";
-    // Existing array has at least twice more space than necessary: move
-    // contents to the middle of the array, which keeps the amortized cost of
+        << "The case of has_here() if there is space without reallocation "
+           "was handled above";
+    // Existing array has enough capacity and is at most half full: move
+    // contents to the middle of the array. This makes the amortized cost of
     // adding one element constant.
-    BlockPtr* const new_end =
-        old_allocated_end - (old_capacity - final_size) / 2;
-    BlockPtr* const new_begin = new_end - size;
+    BlockPtr* const new_begin =
+        old_allocated_begin + (old_capacity - size + extra_capacity) / 2;
     // Moving right, so block offsets must be moved before block pointers.
     std::memmove(new_begin + old_capacity, begin_ + old_capacity,
                  size * sizeof(BlockPtr));
     std::memmove(new_begin, begin_, size * sizeof(BlockPtr));
     begin_ = new_begin;
-    end_ = new_end;
+    end_ = new_begin + size;
     return;
   }
-  // Reallocate the array, keeping space after the contents unchanged.
+  // Reallocate the array, keeping space after the contents unchanged. This
+  // makes the amortized cost of adding one element constant.
   RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
                                               (2 * sizeof(BlockPtr)) -
                                           old_capacity)
@@ -2733,14 +2718,15 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
     block_.reset(RawBlock::NewInternal(
         NewBlockCapacity(0, min_length, recommended_length, options)));
   } else {
-    size_t space_before, new_min_length;
-    if (!block_->CanAppendMovingData(min_length, space_before,
-                                     new_min_length)) {
+    size_t new_min_length;
+    if (!block_->CanAppendMovingData(min_length, new_min_length)) {
       if (min_length == 0) return absl::Span<char>();
-      // Reallocate the array, keeping space before the contents unchanged.
-      RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
-          space_before, new_min_length, recommended_length, options));
-      block->Append(absl::string_view(*block_), space_before);
+      // Reallocate the array, without keeping space before the contents. This
+      // is enough to make the amortized cost of adding one element constant if
+      // prepending leaves space at both ends.
+      RawBlock* const block = RawBlock::NewInternal(
+          NewBlockCapacity(0, new_min_length, recommended_length, options));
+      block->Append(absl::string_view(*block_));
       block_.reset(block);
     }
   }
@@ -2769,7 +2755,8 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
     if (!block_->CanPrependMovingData(min_length, space_after,
                                       new_min_length)) {
       if (min_length == 0) return absl::Span<char>();
-      // Reallocate the array, keeping space after the contents unchanged.
+      // Reallocate the array, keeping space after the contents unchanged. This
+      // makes the amortized cost of adding one element constant
       RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
           space_after, new_min_length, recommended_length, options));
       block->Prepend(absl::string_view(*block_), space_after);
