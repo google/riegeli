@@ -136,3 +136,64 @@ python_configure(name = "local_config_python")
 register_toolchains("@local_config_python//:toolchain")
 
 tf_configure(name = "local_config_tf")
+
+
+# START Kotlin Implementation
+RULES_JVM_EXTERNAL_TAG = "4.5"
+RULES_JVM_EXTERNAL_SHA = "b17d7388feb9bfa7f2fa09031b32707df529f26c91ab9e5d909eb1676badd9a6"
+
+http_archive(
+    name = "rules_jvm_external",
+    strip_prefix = "rules_jvm_external-%s" % RULES_JVM_EXTERNAL_TAG,
+    sha256 = RULES_JVM_EXTERNAL_SHA,
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/%s.zip" % RULES_JVM_EXTERNAL_TAG,
+)
+
+load("@rules_jvm_external//:repositories.bzl", "rules_jvm_external_deps")
+
+rules_jvm_external_deps()
+
+load("@rules_jvm_external//:setup.bzl", "rules_jvm_external_setup")
+
+rules_jvm_external_setup()
+
+load("@rules_jvm_external//:defs.bzl", "maven_install")
+
+maven_install(
+    artifacts = [
+        "org.apache.commons:commons-compress:1.22",
+        "org.brotli:dec:0.1.2",
+
+        "org.jetbrains.kotlin:kotlin-test:1.8.0",
+        "junit:junit:4.13",
+
+        "com.google.truth.extensions:truth-java8-extension:1.0.1",
+        "com.google.truth.extensions:truth-proto-extension:1.0.1",
+        "com.google.truth:truth:1.0.1",
+    ],
+    fetch_sources = True,
+    generate_compat_repositories = True,
+    repositories = ["https://repo.maven.apache.org/maven2/"],
+)
+
+rules_kotlin_version = "1.7.1"
+rules_kotlin_sha = "fd92a98bd8a8f0e1cdcb490b93f5acef1f1727ed992571232d33de42395ca9b3"
+http_archive(
+    name = "io_bazel_rules_kotlin",
+    urls = ["https://github.com/bazelbuild/rules_kotlin/releases/download/v%s/rules_kotlin_release.tgz" % rules_kotlin_version],
+    sha256 = rules_kotlin_sha,
+)
+
+load("@io_bazel_rules_kotlin//kotlin:repositories.bzl", "kotlin_repositories")
+kotlin_repositories() # if you want the default. Otherwise see custom kotlinc distribution below
+
+load("@io_bazel_rules_kotlin//kotlin:core.bzl", "kt_register_toolchains")
+kt_register_toolchains() # to use the default toolchain, otherwise see toolchains below
+
+http_archive(
+    name = "io_bazel_rules_kotlin",
+    urls = ["https://github.com/world-federation-of-advertisers/virtual-people-core-serving/archive/refs/tags/v0.2.0.tar.gz"],
+    sha256 = rules_kotlin_sha,
+)
+
+# END Kotlin Implementation
