@@ -92,7 +92,7 @@ class ArrayWriterBase : public PushableWriter {
 // possibly owning the array being written to. `Dest` must support
 // `Dependency<absl::Span<char>, Dest>`, e.g.
 // `absl::Span<char>` (not owned, default), `std::string*` (not owned),
-// `std::string` (owned).
+// `std::string` (owned), `AnyDependency<absl::Span<char>>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument, except that CTAD is deleted if the first

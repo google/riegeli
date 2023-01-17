@@ -220,8 +220,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
-// `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `UnownedFd`
-// (not owned).
+// `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default),
+// `UnownedFd` (not owned), `AnyDependency<int>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value

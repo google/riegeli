@@ -112,7 +112,8 @@ class SnappyWriterBase : public Writer {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
-// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
@@ -195,12 +196,14 @@ explicit SnappyWriter(
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
+//  `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned).
 //
 // The uncompressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with

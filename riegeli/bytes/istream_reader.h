@@ -139,7 +139,8 @@ class IStreamReaderBase : public BufferedReader {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the stream being read from. `Src` must support
 // `Dependency<std::istream*, Src>`, e.g. `std::istream*` (not owned, default),
-// `std::unique_ptr<std::istream>` (owned), `std::ifstream` (owned).
+// `std::ifstream` (owned), `std::unique_ptr<std::istream>` (owned),
+// `AnyDependency<std::istream*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

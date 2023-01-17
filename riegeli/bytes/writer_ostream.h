@@ -169,7 +169,8 @@ class WriterOStreamBase : public std::iostream {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
-// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

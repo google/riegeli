@@ -224,7 +224,8 @@ class FileReaderBase : public Reader {
 // possibly owning the `::tensorflow::RandomAccessFile` being read from. `Src`
 // must support `Dependency<::tensorflow::RandomAccessFile*, Src>`, e.g.
 // `std::unique_ptr<::tensorflow::RandomAccessFile>` (owned, default),
-// `::tensorflow::RandomAccessFile*` (not owned).
+// `::tensorflow::RandomAccessFile*` (not owned),
+// `AnyDependency<::tensorflow::RandomAccessFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

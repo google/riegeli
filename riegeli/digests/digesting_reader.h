@@ -124,7 +124,8 @@ class DigestingReaderBase : public Reader {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 //
 // By relying on CTAD the first template argument can be deduced as the value
 // type of the second constructor argument (there must be two constructor

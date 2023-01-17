@@ -40,7 +40,8 @@ namespace riegeli {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
@@ -65,7 +66,8 @@ absl::Status ReadAll(Src&& src, absl::Cord& dest,
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAndAppendAll(

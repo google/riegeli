@@ -597,12 +597,14 @@ class RecordWriterBase : public Object {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the byte `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
-// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned).
 //
 // `Dest` can also specify a `ChunkWriter` instead of a byte `Writer`. In this
 // case `Dest` must support `Dependency<ChunkWriter*, Dest>`, e.g.
-// `ChunkWriter*` (not owned), `std::unique_ptr<ChunkWriter>` (owned),
-// `DefaultChunkWriter<>` (owned).
+// `ChunkWriter*` (not owned), `DefaultChunkWriter<>` (owned),
+// `std::unique_ptr<ChunkWriter>` (owned),
+// `AnyDependency<ChunkWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

@@ -91,7 +91,8 @@ class TextPrintOptions {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned).
 //
 // With a `dest_args` parameter, writes to a `Dest` constructed from elements of
 // `dest_args`. This avoids constructing a temporary `Dest` and moving from it.

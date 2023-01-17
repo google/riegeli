@@ -509,12 +509,14 @@ class RecordReaderBase : public Object {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the byte `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 //
 // `Src` may also specify a `ChunkReader` instead of a byte `Reader`. In this
 // case `Src` must support `Dependency<ChunkReader*, Src>`, e.g.
-// `ChunkReader*` (not owned), `std::unique_ptr<ChunkReader>` (owned),
-// `DefaultChunkReader<>` (owned).
+// `ChunkReader*` (not owned), `DefaultChunkReader<>` (owned),
+// `std::unique_ptr<ChunkReader>` (owned),
+// `AnyDependency<ChunkReader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

@@ -157,7 +157,8 @@ class OStreamWriterBase : public BufferedWriter {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the stream being written to. `Dest` must support
 // `Dependency<std::ostream*, Dest>`, e.g. `std::ostream*` (not owned, default),
-// `std::unique_ptr<std::ostream>` (owned), `std::ofstream` (owned).
+// `std::ofstream` (owned), `std::unique_ptr<std::ostream>` (owned),
+// `AnyDependency<std::ostream*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

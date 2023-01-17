@@ -65,7 +65,7 @@ class StringReaderBase : public Reader {
 // possibly owning the `std::string` or array being read from. `Src` must
 // support `Dependency<absl::string_view, Src>`, e.g.
 // `absl::string_view` (not owned, default), `const std::string*` (not owned),
-// `std::string` (owned).
+// `std::string` (owned), `AnyDependency<absl::string_view>` (maybe owned).
 //
 // By relying on  the template argument can be deduced as
 // `absl::string_view` if there are no constructor arguments or if the first

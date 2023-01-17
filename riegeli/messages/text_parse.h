@@ -97,7 +97,8 @@ class TextParseOptions {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 //
 // With a `src_args` parameter, reads from a `Src` constructed from elements of
 // `src_args`. This avoids constructing a temporary `Src` and moving from it.

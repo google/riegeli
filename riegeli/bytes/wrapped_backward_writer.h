@@ -92,7 +92,8 @@ class WrappedBackwardWriterBase : public BackwardWriter {
 // possibly owning the original `BackwardWriter`. `Dest` must support
 // `Dependency<BackwardWriter*, Dest>`, e.g.
 // `BackwardWriter*` (not owned, default),
-// `std::unique_ptr<BackwardWriter>` (owned), `ChainBackwardWriter<>` (owned).
+// `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
+// `AnyDependency<BackwardWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

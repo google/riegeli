@@ -175,7 +175,8 @@ class FileWriterBase : public Writer {
 // possibly owning the `::tensorflow::WritableFile` being written to. `Dest`
 // must support `Dependency<::tensorflow::WritableFile*, Dest>`, e.g.
 // `std::unique_ptr<::tensorflow::WritableFile>` (owned, default),
-// `::tensorflow::WritableFile*` (not owned).
+// `::tensorflow::WritableFile*` (not owned),
+// `AnyDependency<::tensorflow::WritableFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

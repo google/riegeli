@@ -248,7 +248,8 @@ using ChunkReader = DefaultChunkReaderBase;
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the byte `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.

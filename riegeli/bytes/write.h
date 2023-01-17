@@ -40,8 +40,8 @@ namespace riegeli {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer` / `BackwardWriter`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned).
-// Analogously for `BackwardWriter`.
+// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
+// `AnyDependency<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 
 template <typename... Args,
           std::enable_if_t<
