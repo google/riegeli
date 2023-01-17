@@ -31,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -71,25 +72,24 @@ inline bool PushableWriter::SyncScratch() {
   set_buffer(scratch_->original_start, scratch_->original_start_to_limit,
              scratch_->original_start_to_cursor);
   set_start_pos(start_pos() - start_to_cursor());
-  ChainBlock buffer = std::move(scratch_->buffer);
+  SizedSharedBuffer buffer = std::move(scratch_->buffer);
   RIEGELI_ASSERT(!scratch_used())
-      << "Moving should have left the source ChainBlock cleared";
+      << "Moving should have left the source SizedSharedBuffer cleared";
+  const char* const data = buffer.data();
   if (length_to_write <= kMaxBytesToCopy || PrefersCopying()) {
-    if (ABSL_PREDICT_FALSE(
-            !Write(absl::string_view(buffer.data(), length_to_write)))) {
+    if (ABSL_PREDICT_FALSE(!Write(absl::string_view(data, length_to_write)))) {
       return false;
     }
-    // Restore buffer allocation.
-    buffer.Clear();
-    scratch_->buffer = std::move(buffer);
-    return true;
-  } else if (length_to_write == buffer.size()) {
-    return Write(Chain(std::move(buffer)));
   } else {
-    Chain data;
-    buffer.AppendSubstrTo(buffer.data(), length_to_write, data);
-    return Write(std::move(data));
+    if (ABSL_PREDICT_FALSE(
+            !Write(Chain(std::move(buffer).Substr(data, length_to_write))))) {
+      return false;
+    }
   }
+  // Restore buffer allocation.
+  buffer.Clear();
+  scratch_->buffer = std::move(buffer);
+  return true;
 }
 
 bool PushableWriter::PushSlow(size_t min_length, size_t recommended_length) {

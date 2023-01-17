@@ -300,6 +300,21 @@ cc_library(
 )
 
 cc_library(
+    name = "sized_shared_buffer",
+    srcs = ["sized_shared_buffer.cc"],
+    hdrs = ["sized_shared_buffer.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":shared_buffer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "chain",
     srcs = ["chain.cc"],
     hdrs = ["chain.h"],
@@ -312,6 +327,8 @@ cc_library(
         ":memory_estimator",
         ":new_aligned",
         ":no_destructor",
+        ":shared_buffer",
+        ":sized_shared_buffer",
         ":string_utils",
         ":types",
         ":zeros",

@@ -23,6 +23,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
@@ -152,7 +153,7 @@ class BufferedReader : public Reader {
   //
   // `SaveBuffer()` is meant to be called in `Done()` to preserve pending data
   // across instances reading from the same source.
-  ChainBlock SaveBuffer();
+  SizedSharedBuffer SaveBuffer();
 
   // Restores available data to the buffer.
   //
@@ -161,7 +162,7 @@ class BufferedReader : public Reader {
   // instances reading from the same source.
   //
   // Precondition: `start_to_limit() == 0`
-  void RestoreBuffer(ChainBlock buffer);
+  void RestoreBuffer(SizedSharedBuffer buffer);
 
  private:
   // Discards buffer contents and sets buffer pointers to `nullptr`.
@@ -179,7 +180,7 @@ class BufferedReader : public Reader {
   ReadBufferSizer buffer_sizer_;
   // Buffered data, read directly before the physical source position which is
   // `limit_pos()`.
-  ChainBlock buffer_;
+  SizedSharedBuffer buffer_;
 
   // Invariants:
   //   if `!buffer_.empty()` then `start() == buffer_.data()`
@@ -208,7 +209,7 @@ inline BufferedReader& BufferedReader::operator=(
 inline void BufferedReader::Reset(Closed) {
   Reader::Reset(kClosed);
   buffer_sizer_.Reset();
-  buffer_ = ChainBlock();
+  buffer_ = SizedSharedBuffer();
 }
 
 inline void BufferedReader::Reset(const BufferOptions& buffer_options) {

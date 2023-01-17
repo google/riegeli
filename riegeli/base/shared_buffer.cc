@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <functional>
+#include <utility>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -26,24 +27,110 @@
 
 namespace riegeli {
 
-absl::Cord SharedBuffer::ToCord(const char* data, size_t length) const {
-  if (length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, const_data()))
+namespace {
+
+// A releasing callback for embedding a `SharedBuffer` in an `absl::Cord`.
+struct Releaser {
+  void operator()() const {
+    // Nothing to do: the destructor does the work.
+  }
+  SharedBuffer buffer;
+};
+
+template <typename SharedBufferRef>
+inline absl::Cord SharedBufferToCord(SharedBufferRef&& src, const char* data,
+                                     size_t length) {
+  if (data != nullptr || length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, src.data()))
         << "Failed precondition of SharedBuffer::ToCord(): "
            "substring not contained in the buffer";
     RIEGELI_ASSERT(
-        std::less_equal<>()(data + length, const_data() + capacity()))
+        std::less_equal<>()(data + length, src.data() + src.capacity()))
         << "Failed precondition of SharedBuffer::ToCord(): "
            "substring not contained in the buffer";
   }
   // `absl::cord_internal::kMaxInline`.
   static constexpr size_t kMaxInline = 15;
-  if (length <= kMaxInline || Wasteful(capacity(), length)) {
+  if (length <= kMaxInline || Wasteful(src.capacity(), length)) {
     return MakeBlockyCord(absl::string_view(data, length));
   }
-  void* ptr = Share();
-  return absl::MakeCordFromExternal(absl::string_view(data, length),
-                                    [ptr] { DeleteShared(ptr); });
+  return absl::MakeCordFromExternal(
+      absl::string_view(data, length),
+      Releaser{std::forward<SharedBufferRef>(src)});
+}
+
+template <typename SharedBufferRef>
+inline void AppendSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
+                                       size_t length, absl::Cord& dest) {
+  if (data != nullptr || length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, src.data()))
+        << "Failed precondition of SharedBuffer::AppendSubstrTo(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(
+        std::less_equal<>()(data + length, src.data() + src.capacity()))
+        << "Failed precondition of SharedBuffer::AppendSubstrTo(): "
+           "substring not contained in the buffer";
+  }
+  if (length <= MaxBytesToCopyToCord(dest) ||
+      Wasteful(src.capacity(), length)) {
+    AppendToBlockyCord(absl::string_view(data, length), dest);
+    return;
+  }
+  dest.Append(
+      absl::MakeCordFromExternal(absl::string_view(data, length),
+                                 Releaser{std::forward<SharedBufferRef>(src)}));
+}
+
+template <typename SharedBufferRef>
+inline void PrependSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
+                                        size_t length, absl::Cord& dest) {
+  if (data != nullptr || length > 0) {
+    RIEGELI_ASSERT(std::greater_equal<>()(data, src.data()))
+        << "Failed precondition of SharedBuffer::PrependSubstrTo(): "
+           "substring not contained in the buffer";
+    RIEGELI_ASSERT(
+        std::less_equal<>()(data + length, src.data() + src.capacity()))
+        << "Failed precondition of SharedBuffer::PrependSubstrTo(): "
+           "substring not contained in the buffer";
+  }
+  if (length <= MaxBytesToCopyToCord(dest) ||
+      Wasteful(src.capacity(), length)) {
+    PrependToBlockyCord(absl::string_view(data, length), dest);
+    return;
+  }
+  dest.Prepend(
+      absl::MakeCordFromExternal(absl::string_view(data, length),
+                                 Releaser{std::forward<SharedBufferRef>(src)}));
+}
+
+}  // namespace
+
+absl::Cord SharedBuffer::ToCord(const char* data, size_t length) const& {
+  return SharedBufferToCord(*this, data, length);
+}
+
+absl::Cord SharedBuffer::ToCord(const char* data, size_t length) && {
+  return SharedBufferToCord(std::move(*this), data, length);
+}
+
+void SharedBuffer::AppendSubstrTo(const char* data, size_t length,
+                                  absl::Cord& dest) const& {
+  return AppendSharedBufferSubstrTo(*this, data, length, dest);
+}
+
+void SharedBuffer::AppendSubstrTo(const char* data, size_t length,
+                                  absl::Cord& dest) && {
+  return AppendSharedBufferSubstrTo(std::move(*this), data, length, dest);
+}
+
+void SharedBuffer::PrependSubstrTo(const char* data, size_t length,
+                                   absl::Cord& dest) const& {
+  return PrependSharedBufferSubstrTo(*this, data, length, dest);
+}
+
+void SharedBuffer::PrependSubstrTo(const char* data, size_t length,
+                                   absl::Cord& dest) && {
+  return PrependSharedBufferSubstrTo(std::move(*this), data, length, dest);
 }
 
 }  // namespace riegeli

@@ -288,10 +288,10 @@ void FdMMapReaderBase::InitializePos(int src,
 
   // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
   // Set it now.
-  ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
+  ChainReader::Reset(Chain::FromExternal<MMapRef>(
       std::forward_as_tuple(static_cast<const char*>(addr)),
       absl::string_view(static_cast<const char*>(addr) + rounding,
-                        IntCast<size_t>(length)))));
+                        IntCast<size_t>(length))));
   if (max_length == absl::nullopt) Seek(initial_pos);
 }
 

@@ -55,7 +55,7 @@ class SharedBuffer {
   char* mutable_data() const;
 
   // Returns the const data pointer.
-  const char* const_data() const;
+  const char* data() const;
 
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const;
@@ -66,16 +66,35 @@ class SharedBuffer {
   //
   // If the returned pointer is `nullptr`, it allowed but not required to call
   // `DeleteShared()`.
-  void* Share() const;
+  void* Share() const&;
+  void* Share() &&;
 
   // Deletes the pointer obtained by `Share()`.
   //
   // Does nothing if `ptr == nullptr`.
   static void DeleteShared(void* ptr);
 
-  // Converts [`data`..`data + length`) to `absl::Cord`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `*this`.
-  absl::Cord ToCord(const char* data, size_t length) const;
+  // Converts [`data`..`data + length`) to `absl::Cord`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  //  contained in `*this`.
+  absl::Cord ToCord(const char* data, size_t length) const&;
+  absl::Cord ToCord(const char* data, size_t length) &&;
+
+  // Appends [`data`..`data + length`) to `dest`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  // contained in `*this`.
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const&;
+  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
+
+  // Prepends [`data`..`data + length`) to `dest`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  // contained in `*this`.
+  void PrependSubstrTo(const char* data, size_t length,
+                       absl::Cord& dest) const&;
+  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBuffer& self,
@@ -130,7 +149,7 @@ inline char* SharedBuffer::mutable_data() const {
   return payload_->buffer.data();
 }
 
-inline const char* SharedBuffer::const_data() const {
+inline const char* SharedBuffer::data() const {
   if (payload_ == nullptr) return nullptr;
   return payload_->buffer.data();
 }
@@ -144,11 +163,13 @@ inline void SharedBuffer::AllocateInternal(size_t min_capacity) {
   payload_ = MakeRefCounted<Payload>(min_capacity);
 }
 
-inline void* SharedBuffer::Share() const {
+inline void* SharedBuffer::Share() const& {
   if (payload_ == nullptr) return nullptr;
   payload_->Ref();
   return payload_.get();
 }
+
+inline void* SharedBuffer::Share() && { return payload_.release(); }
 
 inline void SharedBuffer::DeleteShared(void* ptr) {
   if (ptr != nullptr) static_cast<Payload*>(ptr)->Unref();

@@ -13,6 +13,7 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:object",
+        "//riegeli/base:sized_shared_buffer",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",

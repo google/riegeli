@@ -26,6 +26,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 
@@ -142,7 +143,7 @@ class PushableWriter : public Writer {
 
  private:
   struct Scratch {
-    ChainBlock buffer;
+    SizedSharedBuffer buffer;
     char* original_start = nullptr;
     size_t original_start_to_limit = 0;
     size_t original_start_to_cursor = 0;

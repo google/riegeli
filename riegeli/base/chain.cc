@@ -43,6 +43,8 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/no_destructor.h"
+#include "riegeli/base/shared_buffer.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/string_utils.h"
 #include "riegeli/base/types.h"
 #include "riegeli/base/zeros.h"
@@ -60,9 +62,6 @@ constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::RawBlock::kMaxCapacity;
 constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
 constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
-constexpr ChainBlock::Options ChainBlock::kDefaultOptions;
-constexpr size_t ChainBlock::kMaxSize;
-constexpr size_t ChainBlock::kAnyLength;
 #endif
 
 namespace {
@@ -236,6 +235,40 @@ inline void FlatCordRef::PrependSubstrTo(const char* data, size_t length,
       << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
          "substring not contained in data";
   dest.Prepend(src_.Subcord(PtrDistance(fragment.data(), data), length));
+}
+
+class SharedBufferRef {
+ public:
+  explicit SharedBufferRef(const SharedBuffer& src) : src_(src) {}
+  explicit SharedBufferRef(SharedBuffer&& src) : src_(std::move(src)) {}
+
+  SharedBufferRef(const SharedBufferRef&) = delete;
+  SharedBufferRef& operator=(const SharedBufferRef&) = delete;
+
+  void DumpStructure(absl::string_view data, std::ostream& out) const;
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const SharedBufferRef& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.src_);
+  }
+
+ private:
+  SharedBuffer src_;
+};
+
+void SharedBufferRef::DumpStructure(absl::string_view data,
+                                    std::ostream& out) const {
+  out << "[shared_buffer] {";
+  if (!data.empty()) {
+    if (data.data() != src_.data()) {
+      out << " space_before: " << PtrDistance(src_.data(), data.data());
+    }
+    out << " space_after: "
+        << PtrDistance(data.data() + data.size(),
+                       src_.data() + src_.capacity());
+  }
+  out << " }";
 }
 
 class ZeroRef {
@@ -413,9 +446,9 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
 
 inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
                                                  size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, ChainBlock::kMaxSize - size())
+  RIEGELI_ASSERT_LE(length, RawBlock::kMaxCapacity - size())
       << "Failed precondition of Chain::RawBlock::CanAppendMovingData(): "
-         "ChainBlock size overflow";
+         "RawBlock size overflow";
   if (is_mutable()) {
     if (empty()) data_ = allocated_begin_;
     if (space_after() >= length) return true;
@@ -431,7 +464,7 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
     }
     min_length_if_not = UnsignedMin(
         UnsignedMax(length, SaturatingAdd(space_after(), capacity() / 2)),
-        ChainBlock::kMaxSize - size());
+        RawBlock::kMaxCapacity - size());
   } else {
     min_length_if_not = length;
   }
@@ -441,9 +474,9 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
 inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
                                                   size_t& space_after_if_not,
                                                   size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, ChainBlock::kMaxSize - size())
+  RIEGELI_ASSERT_LE(length, RawBlock::kMaxCapacity - size())
       << "Failed precondition of Chain::RawBlock::CanPrependMovingData(): "
-         "ChainBlock size overflow";
+         "RawBlock size overflow";
   if (is_mutable()) {
     if (empty()) data_ = allocated_end_;
     if (space_before() >= length) return true;
@@ -459,9 +492,9 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
     }
     min_length_if_not = UnsignedMin(
         UnsignedMax(length, SaturatingAdd(space_before(), capacity() / 2)),
-        ChainBlock::kMaxSize - size());
+        RawBlock::kMaxCapacity - size());
     space_after_if_not = UnsignedMin(
-        space_after(), ChainBlock::kMaxSize - size() - min_length_if_not);
+        space_after(), RawBlock::kMaxCapacity - size() - min_length_if_not);
   } else {
     min_length_if_not = length;
     space_after_if_not = 0;
@@ -584,7 +617,7 @@ inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
     return;
   }
   dest.Append(
-      ChainBlock::FromExternal<BlockRef>(
+      Chain::FromExternal<BlockRef>(
           std::forward_as_tuple(
               this, std::integral_constant<Ownership, Ownership::kShare>()),
           absl::string_view(data, length)),
@@ -672,7 +705,7 @@ inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
     return;
   }
   dest.Prepend(
-      ChainBlock::FromExternal<BlockRef>(
+      Chain::FromExternal<BlockRef>(
           std::forward_as_tuple(
               this, std::integral_constant<Ownership, Ownership::kShare>()),
           absl::string_view(data, length)),
@@ -1722,8 +1755,7 @@ void Chain::Append(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Append(ChainBlock::FromExternal<StringRef>(
-             std::forward_as_tuple(std::move(src))),
+  Append(Chain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
          options);
 }
 
@@ -1859,27 +1891,6 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
-void Chain::Append(const ChainBlock& src, const Options& options) {
-  return AppendChainBlock(src, options);
-}
-
-void Chain::Append(ChainBlock&& src, const Options& options) {
-  return AppendChainBlock(std::move(src), options);
-}
-
-template <typename ChainBlockRef>
-inline void Chain::AppendChainBlock(ChainBlockRef&& src,
-                                    const Options& options) {
-  RIEGELI_ASSERT_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::AppendChainBlock(): "
-         "Chain size overflow";
-  if (src.empty()) return;
-  RawBlock* const block = src.block_.get();
-  return AppendRawBlock(block, options, [&] {
-    return std::forward<ChainBlockRef>(src).RefBlock();
-  });
-}
-
 inline void Chain::AppendRawBlock(RawBlock* block, const Options& options) {
   return AppendRawBlock(block, options, [&] { return block->Ref(); });
 }
@@ -1977,7 +1988,7 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
       if (flat->size() <= kMaxBytesToCopy) {
         Append(*flat, options);
       } else {
-        Append(ChainBlock::FromExternal<FlatCordRef>(
+        Append(Chain::FromExternal<FlatCordRef>(
                    std::forward_as_tuple(std::forward<CordRef>(src))),
                options);
       }
@@ -2002,7 +2013,7 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(ChainBlock::FromExternal<FlatCordRef>(
+      Append(Chain::FromExternal<FlatCordRef>(
                  std::forward_as_tuple(iter, fragment.size())),
              options);
       copy_options.set_size_hint(size());
@@ -2011,6 +2022,32 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
   for (const absl::string_view copied_fragment : copied_fragments) {
     Append(copied_fragment, options);
   }
+}
+
+void Chain::Append(const SizedSharedBuffer& src, const Options& options) {
+  AppendSizedSharedBuffer(src, options);
+}
+
+void Chain::Append(SizedSharedBuffer&& src, const Options& options) {
+  AppendSizedSharedBuffer(std::move(src), options);
+}
+
+template <typename SizedSharedBufferRef>
+inline void Chain::AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
+                                           const Options& options) {
+  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size())
+      << "Failed precondition of Chain::Append(): "
+         "Chain size overflow";
+  const absl::string_view data(src);
+  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+    Append(data, options);
+    return;
+  }
+  Append(Chain::FromExternal<SharedBufferRef>(
+             std::forward_as_tuple(
+                 std::forward<SizedSharedBufferRef>(src).storage()),
+             data),
+         options);
 }
 
 void Chain::Prepend(absl::string_view src, const Options& options) {
@@ -2039,8 +2076,7 @@ void Chain::Prepend(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Prepend(ChainBlock::FromExternal<StringRef>(
-              std::forward_as_tuple(std::move(src))),
+  Prepend(Chain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
           options);
 }
 
@@ -2176,26 +2212,6 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
-void Chain::Prepend(const ChainBlock& src, const Options& options) {
-  return PrependChainBlock(src, options);
-}
-
-void Chain::Prepend(ChainBlock&& src, const Options& options) {
-  return PrependChainBlock(std::move(src), options);
-}
-
-template <typename ChainBlockRef>
-void Chain::PrependChainBlock(ChainBlockRef&& src, const Options& options) {
-  RIEGELI_ASSERT_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::PrependChainBlock(): "
-         "Chain size overflow";
-  if (src.empty()) return;
-  RawBlock* const block = src.block_.get();
-  return PrependRawBlock(block, options, [&] {
-    return std::forward<ChainBlockRef>(src).RefBlock();
-  });
-}
-
 inline void Chain::PrependRawBlock(RawBlock* block, const Options& options) {
   return PrependRawBlock(block, options, [&] { return block->Ref(); });
 }
@@ -2300,6 +2316,32 @@ inline void Chain::PrependCord(CordRef&& src, const Options& options) {
   Prepend(Chain(std::forward<CordRef>(src)), options);
 }
 
+void Chain::Prepend(const SizedSharedBuffer& src, const Options& options) {
+  PrependSizedSharedBuffer(src, options);
+}
+
+void Chain::Prepend(SizedSharedBuffer&& src, const Options& options) {
+  PrependSizedSharedBuffer(std::move(src), options);
+}
+
+template <typename SizedSharedBufferRef>
+inline void Chain::PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
+                                            const Options& options) {
+  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size())
+      << "Failed precondition of Chain::Prepend(): "
+         "Chain size overflow";
+  const absl::string_view data(src);
+  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+    Prepend(data, options);
+    return;
+  }
+  Prepend(Chain::FromExternal<SharedBufferRef>(
+              std::forward_as_tuple(
+                  std::forward<SizedSharedBufferRef>(src).storage()),
+              data),
+          options);
+}
+
 void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
                        const Options& options) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - size_)
@@ -2324,7 +2366,7 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(ChainBlock::FromExternal<FlatCordRef>(
+      Append(Chain::FromExternal<FlatCordRef>(
                  std::forward_as_tuple(iter, fragment.size())),
              options);
       copy_options.set_size_hint(size());
@@ -2393,7 +2435,7 @@ void Chain::RemoveSuffix(size_t length, const Options& options) {
     last->Unref();
     return;
   }
-  Append(ChainBlock::FromExternal<BlockRef>(
+  Append(Chain::FromExternal<BlockRef>(
              std::forward_as_tuple(
                  last, std::integral_constant<Ownership, Ownership::kSteal>()),
              data),
@@ -2495,7 +2537,7 @@ void Chain::RemovePrefix(size_t length, const Options& options) {
     return;
   }
   Prepend(
-      ChainBlock::FromExternal<BlockRef>(
+      Chain::FromExternal<BlockRef>(
           std::forward_as_tuple(
               first, std::integral_constant<Ownership, Ownership::kSteal>()),
           data),
@@ -2656,202 +2698,11 @@ void Chain::VerifyInvariants() const {
 #endif
 }
 
-inline Chain::RawBlock* ChainBlock::RefBlock() const& { return block_->Ref(); }
-
-inline Chain::RawBlock* ChainBlock::RefBlock() && { return block_.release(); }
-
-void ChainBlock::DumpStructure(std::ostream& out) const {
-  out << "chain_block {\n  size: " << size() << " memory: " << EstimateMemory();
-  if (block_ != nullptr) {
-    out << "\n  ";
-    block_->DumpStructure(out);
-  }
-  out << "\n}\n";
-}
-
-size_t ChainBlock::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(ChainBlock));
-  memory_estimator.RegisterSubobjects(*this);
-  return memory_estimator.TotalMemory();
-}
-
-void ChainBlock::RegisterSubobjectsImpl(
-    MemoryEstimator& memory_estimator) const {
-  if (memory_estimator.RegisterNode(block_.get())) {
-    memory_estimator.RegisterDynamicObject(*block_);
-  }
-}
-
-inline size_t ChainBlock::NewBlockCapacity(size_t extra_space,
-                                           size_t min_length,
-                                           size_t recommended_length,
-                                           const Options& options) const {
-  RIEGELI_ASSERT_LE(extra_space, kMaxSize - size())
-      << "Failed precondition of ChainBlock::NewBlockCapacity(): "
-         "ChainBlock size overflow";
-  const size_t existing_space = size() + extra_space;
-  RIEGELI_ASSERT_LE(min_length, kMaxSize - existing_space)
-      << "Failed precondition of ChainBlock::NewBlockCapacity(): "
-         "ChainBlock size overflow";
-  return existing_space +
-         UnsignedClamp(UnsignedMax(ApplyWriteSizeHint(
-                                       SaturatingSub(options.min_block_size(),
-                                                     existing_space),
-                                       options.size_hint(), size()),
-                                   recommended_length),
-                       min_length, kMaxSize - existing_space);
-}
-
-absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
-                                          size_t recommended_length,
-                                          size_t max_length,
-                                          const Options& options) {
-  RIEGELI_ASSERT_LE(min_length, max_length)
-      << "Failed precondition of ChainBlock::AppendBuffer(): "
-         "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, kMaxSize - size())
-      << "Failed precondition of ChainBlock::AppendBuffer(): "
-         "ChainBlock size overflow";
-  if (block_ == nullptr) {
-    if (min_length == 0) return absl::Span<char>();
-    block_.reset(RawBlock::NewInternal(
-        NewBlockCapacity(0, min_length, recommended_length, options)));
-  } else {
-    size_t new_min_length;
-    if (!block_->CanAppendMovingData(min_length, new_min_length)) {
-      if (min_length == 0) return absl::Span<char>();
-      // Reallocate the array, without keeping space before the contents. This
-      // is enough to make the amortized cost of adding one element constant if
-      // prepending leaves space at both ends.
-      RawBlock* const block = RawBlock::NewInternal(
-          NewBlockCapacity(0, new_min_length, recommended_length, options));
-      block->Append(absl::string_view(*block_));
-      block_.reset(block);
-    }
-  }
-  const absl::Span<char> buffer = block_->AppendBuffer(max_length);
-  RIEGELI_ASSERT_GE(buffer.size(), min_length)
-      << "Chain::RawBlock::AppendBuffer() returned less than the free space";
-  return buffer;
-}
-
-absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
-                                           size_t recommended_length,
-                                           size_t max_length,
-                                           const Options& options) {
-  RIEGELI_ASSERT_LE(min_length, max_length)
-      << "Failed precondition of ChainBlock::PrependBuffer(): "
-         "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, kMaxSize - size())
-      << "Failed precondition of ChainBlock::PrependBuffer(): "
-         "ChainBlock size overflow";
-  if (block_ == nullptr) {
-    if (min_length == 0) return absl::Span<char>();
-    block_.reset(RawBlock::NewInternal(
-        NewBlockCapacity(0, min_length, recommended_length, options)));
-  } else {
-    size_t space_after, new_min_length;
-    if (!block_->CanPrependMovingData(min_length, space_after,
-                                      new_min_length)) {
-      if (min_length == 0) return absl::Span<char>();
-      // Reallocate the array, keeping space after the contents unchanged. This
-      // makes the amortized cost of adding one element constant
-      RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
-          space_after, new_min_length, recommended_length, options));
-      block->Prepend(absl::string_view(*block_), space_after);
-      block_.reset(block);
-    }
-  }
-  const absl::Span<char> buffer = block_->PrependBuffer(max_length);
-  RIEGELI_ASSERT_GE(buffer.size(), min_length)
-      << "Chain::RawBlock::PrependBuffer() returned less than the free space";
-  return buffer;
-}
-
-void ChainBlock::RemoveSuffixSlow(size_t length, const Options& options) {
-  RIEGELI_ASSERT_GT(length, 0u)
-      << "Failed precondition of ChainBlock::RemoveSuffixSlow(): "
-         "nothing to do, use RemoveSuffix() instead";
-  if (length == block_->size()) {
-    block_.reset();
-    return;
-  }
-  absl::string_view data(*block_);
-  data.remove_suffix(length);
-  RawBlock* const block = RawBlock::NewInternal(
-      UnsignedMax(data.size(), data.size() < options.size_hint()
-                                   ? options.size_hint()
-                                   : options.min_block_size()));
-  block->Append(data);
-  block_.reset(block);
-}
-
-void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
-  RIEGELI_ASSERT_GT(length, 0u)
-      << "Failed precondition of ChainBlock::RemovePrefixSlow(): "
-         "nothing to do, use RemovePrefix() instead";
-  if (length == block_->size()) {
-    block_.reset();
-    return;
-  }
-  absl::string_view data(*block_);
-  data.remove_prefix(length);
-  RawBlock* const block = RawBlock::NewInternal(
-      UnsignedMax(data.size(), data.size() < options.size_hint()
-                                   ? options.size_hint()
-                                   : options.min_block_size()));
-  block->Prepend(data);
-  block_.reset(block);
-}
-
-void ChainBlock::AppendTo(Chain& dest, const Chain::Options& options) const {
-  if (block_ == nullptr) return;
-  RIEGELI_CHECK_LE(block_->size(),
-                   std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of ChainBlock::AppendTo(Chain&): "
-         "Chain size overflow";
-  block_->AppendTo(dest, options);
-}
-
-void ChainBlock::AppendTo(absl::Cord& dest) const {
-  if (block_ == nullptr) return;
-  RIEGELI_CHECK_LE(block_->size(),
-                   std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of ChainBlock::AppendTo(Cord&): "
-         "Cord size overflow";
-  block_->AppendTo<Chain::Ownership::kShare>(dest);
-}
-
-void ChainBlock::AppendSubstrTo(const char* data, size_t length, Chain& dest,
-                                const Chain::Options& options) const {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain&): "
-         "Chain size overflow";
-  RIEGELI_ASSERT(block_ != nullptr)
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain&): "
-         "substring not contained in data";
-  block_->AppendSubstrTo(data, length, dest, options);
-}
-
-void ChainBlock::AppendSubstrTo(const char* data, size_t length,
-                                absl::Cord& dest) const {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord&): "
-         "Cord size overflow";
-  RIEGELI_ASSERT(block_ != nullptr)
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord&): "
-         "substring not contained in data";
-  block_->AppendSubstrTo(data, length, dest);
-}
-
 Chain ChainOfZeros(size_t length) {
   Chain result;
   while (length >= kArrayOfZeros.size()) {
-    static const NoDestructor<ChainBlock> kChainBlockOfZeros(
-        ChainBlock::FromExternal<ZeroRef>(
+    static const NoDestructor<Chain> kChainBlockOfZeros(
+        Chain::FromExternal<ZeroRef>(
             std::forward_as_tuple(),
             absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size())));
     result.Append(*kChainBlockOfZeros);
@@ -2862,7 +2713,7 @@ Chain ChainOfZeros(size_t length) {
       const absl::Span<char> buffer = result.AppendFixedBuffer(length);
       std::memset(buffer.data(), '\0', buffer.size());
     } else {
-      result.Append(ChainBlock::FromExternal<ZeroRef>(
+      result.Append(Chain::FromExternal<ZeroRef>(
           std::forward_as_tuple(),
           absl::string_view(kArrayOfZeros.data(), length)));
     }

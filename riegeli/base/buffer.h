@@ -64,20 +64,26 @@ class
   // Does nothing if `ptr == nullptr`.
   static void DeleteReleased(void* ptr);
 
-  // Converts [`data`..`data + length`) to `absl::Cord`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `*this`.
+  // Converts [`data`..`data + length`) to `absl::Cord`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  // contained in `*this`.
   //
   // `*this` is left unchanged or deallocated.
   absl::Cord ToCord(const char* data, size_t length) &&;
 
-  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `*this`.
+  // Appends [`data`..`data + length`) to `dest`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  // contained in `*this`.
   //
   // `*this` is left unchanged or deallocated.
   void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
-  // Prepends [`data`..`data + length`) to `dest`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `*this`.
+  // Prepends [`data`..`data + length`) to `dest`.
+  //
+  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
+  // contained in `*this`.
   //
   // `*this` is left unchanged or deallocated.
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;

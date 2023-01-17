@@ -17,8 +17,8 @@
 #include <utility>
 
 #include "riegeli/base/assert.h"
-#include "riegeli/base/chain.h"
 #include "riegeli/base/no_destructor.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 
@@ -30,21 +30,21 @@ int std_in_fd = 0;
 int std_out_fd = 1;
 int std_err_fd = 2;
 
-ChainBlock& StdInPending() {
-  static NoDestructor<ChainBlock> pending;
+SizedSharedBuffer& StdInPending() {
+  static NoDestructor<SizedSharedBuffer> pending;
   return *pending;
 }
 
 }  // namespace
 
 StdIn::StdIn(Options options) : FdReader(std_in_fd, std::move(options)) {
-  ChainBlock& pending = StdInPending();
+  SizedSharedBuffer& pending = StdInPending();
   if (!pending.empty()) RestoreBuffer(std::move(pending));
 }
 
 void StdIn::Reset(Options options) {
   FdReader::Reset(std_in_fd, std::move(options));
-  ChainBlock& pending = StdInPending();
+  SizedSharedBuffer& pending = StdInPending();
   if (!pending.empty()) RestoreBuffer(std::move(pending));
 }
 

@@ -16,8 +16,8 @@
 #define RIEGELI_BYTES_STD_IO_H_
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 
@@ -162,7 +162,7 @@ class InjectedStdInFd {
 
  private:
   int old_fd_;
-  ChainBlock old_pending_;
+  SizedSharedBuffer old_pending_;
 };
 
 class InjectedStdOutFd {

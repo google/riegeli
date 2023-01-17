@@ -102,7 +102,7 @@ void FileReaderBase::InitializePos(Position initial_pos) {
 
 void FileReaderBase::Done() {
   Reader::Done();
-  buffer_ = ChainBlock();
+  buffer_ = SizedSharedBuffer();
 }
 
 inline bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
@@ -353,7 +353,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
-        buffer_.AppendSubstrTo(cursor(), available_length, dest);
+        dest.Append(std::move(buffer_).Substr(cursor(), available_length));
         length -= available_length;
         buffer_.Clear();
         cursor_index = 0;
@@ -373,7 +373,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
   } else {
-    buffer_.AppendSubstrTo(cursor(), length, dest);
+    dest.Append(buffer_.Substr(cursor(), length));
   }
   move_cursor(length);
   return enough_read;
@@ -416,7 +416,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
-        buffer_.AppendSubstrTo(cursor(), available_length, dest);
+        std::move(buffer_).Substr(cursor(), available_length).AppendTo(dest);
         length -= available_length;
         buffer_.Clear();
         cursor_index = 0;
@@ -436,7 +436,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   if (buffer_.empty()) {
     dest.Append(absl::string_view(cursor(), length));
   } else {
-    buffer_.AppendSubstrTo(cursor(), length, dest);
+    buffer_.Substr(cursor(), length).AppendTo(dest);
   }
   move_cursor(length);
   return enough_read;
@@ -500,19 +500,14 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
         if (available_length > 0) {
-          bool write_ok;
-          if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-            write_ok =
-                dest.Write(absl::string_view(cursor(), available_length));
-          } else {
-            Chain data;
-            buffer_.AppendSubstrTo(
-                cursor(), available_length, data,
-                Chain::Options().set_size_hint(available_length));
-            write_ok = dest.Write(std::move(data));
-          }
+          const bool write_ok =
+              available_length <= kMaxBytesToCopy || dest.PrefersCopying()
+                  ? dest.Write(absl::string_view(cursor(), available_length))
+                  : dest.Write(Chain(
+                        std::move(buffer_).Substr(cursor(), available_length)));
           if (ABSL_PREDICT_FALSE(!write_ok)) {
-            move_cursor(available_length);
+            buffer_.Clear();
+            set_buffer();
             return false;
           }
           length -= available_length;
@@ -536,21 +531,13 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       break;
     }
   }
-  bool write_ok = true;
-  if (length > 0) {
-    if (buffer_.empty() || IntCast<size_t>(length) <= kMaxBytesToCopy ||
-        dest.PrefersCopying()) {
-      write_ok =
-          dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)));
-    } else {
-      Chain data;
-      buffer_.AppendSubstrTo(
-          cursor(), IntCast<size_t>(length), data,
-          Chain::Options().set_size_hint(IntCast<size_t>(length)));
-      write_ok = dest.Write(std::move(data));
-    }
-    move_cursor(IntCast<size_t>(length));
-  }
+  const bool write_ok =
+      buffer_.empty() || IntCast<size_t>(length) <= kMaxBytesToCopy ||
+              dest.PrefersCopying()
+          ? dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)))
+          : dest.Write(
+                Chain(buffer_.Substr(cursor(), IntCast<size_t>(length))));
+  move_cursor(IntCast<size_t>(length));
   return write_ok && enough_read;
 }
 

@@ -40,7 +40,7 @@ struct Releaser {
 }  // namespace
 
 absl::Cord Buffer::ToCord(const char* data, size_t length) && {
-  if (length > 0) {
+  if (data != nullptr || length > 0) {
     RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
         << "Failed precondition of Buffer::ToCord(): "
            "substring not contained in the buffer";
@@ -59,7 +59,7 @@ absl::Cord Buffer::ToCord(const char* data, size_t length) && {
 
 void Buffer::AppendSubstrTo(const char* data, size_t length,
                             absl::Cord& dest) && {
-  if (length > 0) {
+  if (data != nullptr || length > 0) {
     RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
         << "Failed precondition of Buffer::AppendSubstrTo(): "
            "substring not contained in the buffer";
@@ -77,7 +77,7 @@ void Buffer::AppendSubstrTo(const char* data, size_t length,
 
 void Buffer::PrependSubstrTo(const char* data, size_t length,
                              absl::Cord& dest) && {
-  if (length > 0) {
+  if (data != nullptr || length > 0) {
     RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
         << "Failed precondition of Buffer::PrependSubstrTo(): "
            "substring not contained in the buffer";

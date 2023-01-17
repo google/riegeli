@@ -43,6 +43,7 @@
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/sized_shared_buffer.h"
 
 namespace riegeli {
 
@@ -106,48 +107,7 @@ class ChainOptions {
   uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
 };
 
-// `ChainBlock::Options` is defined at the namespace scope because clang has
-// problems with using nested classes in `constexpr` context.
-class ChainBlockOptions {
- public:
-  constexpr ChainBlockOptions() noexcept {}
-
-  // Expected final size, or 0 if unknown. This may improve performance and
-  // memory usage.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  ChainBlockOptions& set_size_hint(size_t size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  ChainBlockOptions&& set_size_hint(size_t size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-  size_t size_hint() const { return size_hint_; }
-
-  // Minimal size of a block of allocated data.
-  //
-  // This is used initially, while the destination is small.
-  //
-  // Default: `kDefaultMinBlockSize` (256).
-  ChainBlockOptions& set_min_block_size(size_t min_block_size) & {
-    min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
-    return *this;
-  }
-  ChainBlockOptions&& set_min_block_size(size_t min_block_size) && {
-    return std::move(set_min_block_size(min_block_size));
-  }
-  size_t min_block_size() const { return min_block_size_; }
-
- private:
-  size_t size_hint_ = 0;
-  // Use `uint32_t` instead of `size_t` for consistency with `ChainOptions`.
-  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-};
-
 }  // namespace chain_internal
-
-class ChainBlock;
 
 // A `Chain` represents a sequence of bytes. It supports efficient appending and
 // prepending, and sharing memory with other `Chain`s and other types. It does
@@ -166,6 +126,7 @@ class Chain {
   static constexpr Options kDefaultOptions = Options();
 
   class Blocks;
+  class PinnedBlock;
   class BlockIterator;
   struct BlockAndChar;
 
@@ -237,10 +198,10 @@ class Chain {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   explicit Chain(Src&& src);
-  explicit Chain(const ChainBlock& src);
-  explicit Chain(ChainBlock&& src);
   explicit Chain(const absl::Cord& src);
   explicit Chain(absl::Cord&& src);
+  explicit Chain(const SizedSharedBuffer& src);
+  explicit Chain(SizedSharedBuffer&& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -261,11 +222,10 @@ class Chain {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const ChainBlock& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(ChainBlock&& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
 
+  // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
   // A container of `absl::string_view` blocks comprising data of the `Chain`.
@@ -353,26 +313,33 @@ class Chain {
   void Append(Src&& src, const Options& options = kDefaultOptions);
   void Append(const Chain& src, const Options& options = kDefaultOptions);
   void Append(Chain&& src, const Options& options = kDefaultOptions);
-  void Append(const ChainBlock& src, const Options& options = kDefaultOptions);
-  void Append(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Append(const absl::Cord& src, const Options& options = kDefaultOptions);
   void Append(absl::Cord&& src, const Options& options = kDefaultOptions);
+  void Append(const SizedSharedBuffer& src,
+              const Options& options = kDefaultOptions);
+  void Append(SizedSharedBuffer&& src,
+              const Options& options = kDefaultOptions);
   void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   void Prepend(Src&& src, const Options& options = kDefaultOptions);
   void Prepend(const Chain& src, const Options& options = kDefaultOptions);
   void Prepend(Chain&& src, const Options& options = kDefaultOptions);
-  void Prepend(const ChainBlock& src, const Options& options = kDefaultOptions);
-  void Prepend(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
   void Prepend(absl::Cord&& src, const Options& options = kDefaultOptions);
+  void Prepend(const SizedSharedBuffer& src,
+               const Options& options = kDefaultOptions);
+  void Prepend(SizedSharedBuffer&& src,
+               const Options& options = kDefaultOptions);
 
   // `AppendFrom(iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
   void AppendFrom(absl::Cord::CharIterator& iter, size_t length,
                   const Options& options = kDefaultOptions);
 
+  // Removes suffix/prefix of the given length.
+  //
+  // Precondition: `length <= size()`
   void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
   void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
 
@@ -454,8 +421,6 @@ class Chain {
   void VerifyInvariants() const;
 
  private:
-  friend class ChainBlock;
-
   struct ExternalMethods;
   template <typename T>
   struct ExternalMethodsFor;
@@ -523,6 +488,8 @@ class Chain {
   // When deciding whether to copy an array of bytes or perform a small memory
   // allocation, prefer copying up to this length.
   static constexpr size_t kAllocationCost = 256;
+
+  explicit Chain(RawBlock* block);
 
   void ClearSlow();
   absl::string_view FlattenSlow();
@@ -603,13 +570,6 @@ class Chain {
   template <Ownership ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, const Options& options);
 
-  // This template is defined and used only in chain.cc.
-  template <typename ChainBlockRef>
-  void AppendChainBlock(ChainBlockRef&& src, const Options& options);
-  // This template is defined and used only in chain.cc.
-  template <typename ChainBlockRef>
-  void PrependChainBlock(ChainBlockRef&& src, const Options& options);
-
   // If `ref_block` is present, it should be a functor equivalent to
   // `[&] { return block->Ref(); }`, but it can achieve that by stealing
   // a reference to `block` from elsewhere instead.
@@ -628,6 +588,15 @@ class Chain {
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
   void PrependCord(CordRef&& src, const Options& options);
+
+  // This template is defined and used only in chain.cc.
+  template <typename SizedSharedBufferRef>
+  void AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
+                               const Options& options);
+  // This template is defined and used only in chain.cc.
+  template <typename SizedSharedBufferRef>
+  void PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
+                                const Options& options);
 
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
   template <typename HashState>
@@ -749,6 +718,7 @@ class Chain::BlockIterator {
 
    private:
     friend class BlockIterator;
+    friend class PinnedBlock;
     explicit pointer(reference ref) : ref_(ref) {}
     reference ref_;
   };
@@ -827,51 +797,56 @@ class Chain::BlockIterator {
     return a + n;
   }
 
-  // Returns a `ChainBlock` which pins the block pointed to by this iterator,
-  // keeping it alive and unchanged, until either the `ChainBlock` is destroyed
-  // or `ChainBlock::Release()` and `ChainBlock::DeleteReleased()` are called.
+  // Returns a `PinnedBlock` which pins the block pointed to by this iterator,
+  // keeping it alive and unchanged until the `PinnedBlock` is destroyed or
+  // reassigned, or `PinnedBlock::Share() &&` and `PinnedBlock::DeleteShared()`
+  // are called.
   //
-  // Warning: the data pointer of the returned `ChainBlock` is not necessarily
+  // Warning: the data pointer of the returned `PinnedBlock` is not necessarily
   // the same as the data pointer of this `BlockIterator` (because of short
-  // `Chain` optimization). Convert the `ChainBlock` to `absl::string_view` or
-  // use `ChainBlock::data()` for a data pointer valid for the pinned block.
+  // `Chain` optimization). Dereference the `PinnedBlock` for a data pointer
+  // valid for the pinned block.
   //
-  // Precondition: this is not past the end iterator.
-  ChainBlock Pin();
+  // Precondition: this is not past the end iterator
+  PinnedBlock Pin();
 
   // Returns a pointer to the external object if this points to an external
   // block holding an object of type `T`, otherwise returns `nullptr`.
   //
-  // Precondition: this is not past the end iterator.
+  // Precondition: this is not past the end iterator
   template <typename T>
   const T* external_object() const;
 
   // Appends `**this` to `dest`.
   //
-  // Precondition: this is not past the end iterator.
+  // Precondition: this is not past the end iterator
   void AppendTo(Chain& dest, const Options& options = kDefaultOptions) const;
   void AppendTo(absl::Cord& dest) const;
 
-  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `**this`.
+  // Appends [`data`..`data + length`) to `dest`.
+  //
+  // If `length > 0` then [`data`..`data + length`) must be contained in
+  // `**this`.
   //
   // Precondition:
-  //   if `length > 0` then this is not past the end iterator.
+  //   if `length > 0` then this is not past the end iterator
   void AppendSubstrTo(const char* data, size_t length, Chain& dest,
                       const Options& options = kDefaultOptions) const;
   void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
   // Prepends `**this` to `dest`.
   //
-  // Precondition: this is not past the end iterator.
+  // Precondition: this is not past the end iterator
   void PrependTo(Chain& dest, const Options& options = kDefaultOptions) const;
   void PrependTo(absl::Cord& dest) const;
 
-  // Prepends [`data`..`data + length`) to `dest`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `**this`.
+  // Prepends [`data`..`data + length`) to `dest`.
+  //
+  // If `length > 0` then [`data`..`data + length`) must be contained in
+  // `**this`.
   //
   // Precondition:
-  //   if `length > 0` then this is not past the end iterator.
+  //   if `length > 0` then this is not past the end iterator
   void PrependSubstrTo(const char* data, size_t length, Chain& dest,
                        const Options& options = kDefaultOptions) const;
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
@@ -894,6 +869,36 @@ class Chain::BlockIterator {
   // If `*chain_` has short data, `kBeginShortData` or `kEndShortData`.
   // If `*chain_` has block pointers, a pointer to the block pointer array.
   BlockPtrPtr ptr_ = kBeginShortData;
+};
+
+class Chain::PinnedBlock {
+ public:
+  using pointer = BlockIterator::pointer;
+
+  PinnedBlock() = default;
+
+  PinnedBlock(const PinnedBlock& that) = default;
+  PinnedBlock& operator=(const PinnedBlock& that) = default;
+
+  PinnedBlock(PinnedBlock&& that) = default;
+  PinnedBlock& operator=(PinnedBlock&& that) = default;
+
+  absl::string_view operator*() const;
+  pointer operator->() const;
+
+  // Returns an opaque pointer, which represents a share of ownership of the
+  // data; an active share keeps the data alive. The returned pointer must be
+  // deleted using `DeleteShared()`.
+  void* Share() const&;
+  void* Share() &&;
+
+  // Deletes the pointer obtained by `Share()`.
+  static void DeleteShared(void* ptr);
+
+ private:
+  friend class BlockIterator;
+  explicit PinnedBlock(RawBlock* block) : block_(block) {}
+  RefCountedPtr<RawBlock> block_;
 };
 
 class Chain::Blocks {
@@ -952,148 +957,6 @@ struct Chain::BlockAndChar {
   size_t char_index;
 };
 
-// A simplified variant of `Chain` constrained to have at most one block.
-//
-// `ChainBlock` uses the same block representation as `Chain` and thus can be
-// efficiently appended to a `Chain`.
-//
-// `ChainBlock` uses no short data optimization.
-class ChainBlock {
- public:
-  using Options = chain_internal::ChainBlockOptions;
-
-  static constexpr Options kDefaultOptions = Options();
-
-  // Maximum size of a `ChainBlock`.
-  static constexpr size_t kMaxSize =
-      size_t{std::numeric_limits<ptrdiff_t>::max()};
-
-  // A sentinel value for the `max_length` parameter of
-  // `AppendBuffer()`/`PrependBuffer()`.
-  static constexpr size_t kAnyLength = Chain::kAnyLength;
-
-  // Given an object which owns a byte array, converts it to a `ChainBlock` by
-  // attaching the object, avoiding copying the bytes.
-  //
-  // See `Chain::FromExternal()` for details.
-  template <typename T>
-  static ChainBlock FromExternal(T&& object);
-  template <typename T>
-  static ChainBlock FromExternal(T&& object, absl::string_view data);
-  template <typename T, typename... Args>
-  static ChainBlock FromExternal(std::tuple<Args...> args);
-  template <typename T, typename... Args>
-  static ChainBlock FromExternal(std::tuple<Args...> args,
-                                 absl::string_view data);
-
-  constexpr ChainBlock() = default;
-
-  ChainBlock(const ChainBlock& that) = default;
-  ChainBlock& operator=(const ChainBlock& that) = default;
-
-  // The source `ChainBlock` is left cleared.
-  //
-  // Moving a `ChainBlock` keeps its data pointers unchanged.
-  ChainBlock(ChainBlock&& that) = default;
-  ChainBlock& operator=(ChainBlock&& that) = default;
-
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear();
-
-  explicit operator absl::string_view() const;
-  const char* data() const;
-  size_t size() const;
-  bool empty() const;
-
-  // Shows internal structure in a human-readable way, for debugging.
-  void DumpStructure(std::ostream& out) const;
-  // Estimates the amount of memory used by this `ChainBlock`.
-  size_t EstimateMemory() const;
-  // Registers this `ChainBlock` with `MemoryEstimator`.
-  friend void RiegeliRegisterSubobjects(const ChainBlock& self,
-                                        MemoryEstimator& memory_estimator) {
-    self.RegisterSubobjectsImpl(memory_estimator);
-  }
-
-  // Appends/prepends some uninitialized space. The buffer will have length at
-  // least `min_length`, preferably `recommended_length`, and at most
-  // `max_length`.
-  //
-  // If `min_length == 0`, returns whatever space was already allocated
-  // (possibly an empty buffer) without invalidating existing pointers. If the
-  // `ChainBlock` was empty then the empty contents can be moved.
-  //
-  // If `recommended_length < min_length`, `recommended_length` is assumed to be
-  // `min_length`.
-  //
-  // If `max_length == kAnyLength`, there is no maximum.
-  //
-  // Precondition: `min_length <= max_length`
-  absl::Span<char> AppendBuffer(size_t min_length,
-                                size_t recommended_length = 0,
-                                size_t max_length = kAnyLength,
-                                const Options& options = kDefaultOptions);
-  absl::Span<char> PrependBuffer(size_t min_length,
-                                 size_t recommended_length = 0,
-                                 size_t max_length = kAnyLength,
-                                 const Options& options = kDefaultOptions);
-
-  // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
-  // `min_length == max_length`.
-  absl::Span<char> AppendFixedBuffer(size_t length,
-                                     const Options& options = kDefaultOptions);
-  absl::Span<char> PrependFixedBuffer(size_t length,
-                                      const Options& options = kDefaultOptions);
-
-  void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
-  void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
-
-  // Appends `*this` to `dest`.
-  void AppendTo(Chain& dest,
-                const Chain::Options& options = Chain::kDefaultOptions) const;
-  void AppendTo(absl::Cord& dest) const;
-
-  // Appends [`data`..`data + length`) to `dest`. If `length > 0` then
-  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
-  void AppendSubstrTo(
-      const char* data, size_t length, Chain& dest,
-      const Chain::Options& options = Chain::kDefaultOptions) const;
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
-
-  // Releases the ownership of the block, which must be deleted using
-  // `DeleteReleased()` if not `nullptr`.
-  void* Release();
-
-  // Deletes the pointer obtained by `Release()`.
-  static void DeleteReleased(void* ptr);
-
- private:
-  friend class Chain;
-
-  using RawBlock = Chain::RawBlock;
-
-  explicit ChainBlock(RawBlock* block) : block_(block) {}
-
-  RawBlock* RefBlock() const&;
-  RawBlock* RefBlock() &&;
-
-  // Decides about the capacity of a new block to replace the existing block for
-  // appending/prepending of new space.
-  //
-  // `extra_space` is the amount of existing free space to keep. In addition to
-  // `size() + extra_space`, the block requires the capacity of at least
-  // `min_length`, preferably `recommended_length`.
-  size_t NewBlockCapacity(size_t extra_space, size_t min_length,
-                          size_t recommended_length,
-                          const Options& options) const;
-
-  void RemoveSuffixSlow(size_t length, const Options& options);
-  void RemovePrefixSlow(size_t length, const Options& options);
-
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
-
-  RefCountedPtr<RawBlock> block_;
-};
-
 // Returns the given number of zero bytes.
 Chain ChainOfZeros(size_t length);
 
@@ -1123,7 +986,8 @@ class Chain::RawBlock {
   struct ExternalType {};
 
   static constexpr size_t kInternalAllocatedOffset();
-  static constexpr size_t kMaxCapacity = ChainBlock::kMaxSize;
+  static constexpr size_t kMaxCapacity =
+      size_t{std::numeric_limits<ptrdiff_t>::max()};
 
   // Creates an internal block.
   static RawBlock* NewInternal(size_t min_capacity);
@@ -1769,7 +1633,37 @@ inline const T* Chain::BlockIterator::external_object() const {
   }
 }
 
-inline ChainBlock Chain::BlockIterator::Pin() { return ChainBlock(PinImpl()); }
+inline Chain::PinnedBlock Chain::BlockIterator::Pin() {
+  return PinnedBlock(PinImpl());
+}
+
+inline absl::string_view Chain::PinnedBlock::operator*() const {
+  RIEGELI_ASSERT(block_ != nullptr)
+      << "Failed precondition of Chain::PinnedBlock::operator*: null pointer";
+  return absl::string_view(*block_);
+}
+
+inline Chain::PinnedBlock::pointer Chain::PinnedBlock::operator->() const {
+  RIEGELI_ASSERT(block_ != nullptr)
+      << "Failed precondition of Chain::PinnedBlock::operator->: null pointer";
+  return pointer(**this);
+}
+
+inline void* Chain::PinnedBlock::Share() const& {
+  RIEGELI_ASSERT(block_ != nullptr)
+      << "Failed precondition of Chain::PinnedBlock::Share(): null pointer";
+  return block_->Ref();
+}
+
+inline void* Chain::PinnedBlock::Share() && {
+  RIEGELI_ASSERT(block_ != nullptr)
+      << "Failed precondition of Chain::PinnedBlock::Share(): null pointer";
+  return block_.release();
+}
+
+inline void Chain::PinnedBlock::DeleteShared(void* ptr) {
+  static_cast<RawBlock*>(ptr)->Unref();
+}
 
 inline Chain::Blocks::iterator Chain::Blocks::begin() const {
   return BlockIterator(chain_,
@@ -1840,23 +1734,30 @@ inline Chain::Blocks::reference Chain::Blocks::back() const {
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(ChainBlock::FromExternal<T>(std::forward<T>(object)));
+  return Chain(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
+      std::forward_as_tuple(std::forward<T>(object))));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
-  return Chain(ChainBlock::FromExternal<T>(std::forward<T>(object), data));
+  return Chain(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
+      std::forward_as_tuple(std::forward<T>(object)), data));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args) {
-  return Chain(ChainBlock::FromExternal<T>(std::move(args)));
+  return Chain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args,
                                  absl::string_view data) {
-  return Chain(ChainBlock::FromExternal<T>(std::move(args), data));
+  return Chain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
+}
+
+inline Chain::Chain(RawBlock* block) {
+  (end_++)->block_ptr = block;
+  size_ = block->size();
 }
 
 // In converting constructors below, `set_size_hint(src.size())` optimizes
@@ -1876,27 +1777,20 @@ inline Chain::Chain(Src&& src) {
   Append(std::move(src), Options().set_size_hint(size));
 }
 
-inline Chain::Chain(const ChainBlock& src) {
-  if (src.block_ != nullptr) {
-    RawBlock* const block = src.block_->Ref();
-    (end_++)->block_ptr = block;
-    size_ = block->size();
-  }
-}
-
-inline Chain::Chain(ChainBlock&& src) {
-  if (src.block_ != nullptr) {
-    RawBlock* const block = src.block_.release();
-    (end_++)->block_ptr = block;
-    size_ = block->size();
-  }
-}
-
 inline Chain::Chain(const absl::Cord& src) {
   Append(src, Options().set_size_hint(src.size()));
 }
 
 inline Chain::Chain(absl::Cord&& src) {
+  const size_t size = src.size();
+  Append(std::move(src), Options().set_size_hint(size));
+}
+
+inline Chain::Chain(const SizedSharedBuffer& src) {
+  Append(src, Options().set_size_hint(src.size()));
+}
+
+inline Chain::Chain(SizedSharedBuffer&& src) {
   const size_t size = src.size();
   Append(std::move(src), Options().set_size_hint(size));
 }
@@ -1967,16 +1861,6 @@ inline void Chain::Reset(Src&& src) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   Append(std::move(src), Options().set_size_hint(size));
-}
-
-inline void Chain::Reset(const ChainBlock& src) {
-  Clear();
-  Append(src, Options().set_size_hint(src.size()));
-}
-
-inline void Chain::Reset(ChainBlock&& src) {
-  Clear();
-  Append(std::move(src), Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Reset(const absl::Cord& src) {
@@ -2098,84 +1982,6 @@ void Chain::AbslStringifyImpl(Sink& sink) const {
   for (const absl::string_view block : blocks()) {
     sink.Append(block);
   }
-}
-
-template <typename T>
-inline ChainBlock ChainBlock::FromExternal(T&& object) {
-  return ChainBlock(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
-      std::forward_as_tuple(std::forward<T>(object))));
-}
-
-template <typename T>
-inline ChainBlock ChainBlock::FromExternal(T&& object, absl::string_view data) {
-  return ChainBlock(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
-      std::forward_as_tuple(std::forward<T>(object)), data));
-}
-
-template <typename T, typename... Args>
-inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args) {
-  return ChainBlock(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
-}
-
-template <typename T, typename... Args>
-inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args,
-                                           absl::string_view data) {
-  return ChainBlock(
-      Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
-}
-
-inline void ChainBlock::Clear() {
-  if (block_ != nullptr && !block_->TryClear()) block_.reset();
-}
-
-inline ChainBlock::operator absl::string_view() const {
-  return block_ == nullptr ? absl::string_view() : absl::string_view(*block_);
-}
-
-inline const char* ChainBlock::data() const {
-  return block_ == nullptr ? nullptr : block_->data_begin();
-}
-
-inline size_t ChainBlock::size() const {
-  return block_ == nullptr ? size_t{0} : block_->size();
-}
-
-inline bool ChainBlock::empty() const {
-  return block_ == nullptr || block_->empty();
-}
-
-inline absl::Span<char> ChainBlock::AppendFixedBuffer(size_t length,
-                                                      const Options& options) {
-  return AppendBuffer(length, length, length, options);
-}
-
-inline absl::Span<char> ChainBlock::PrependFixedBuffer(size_t length,
-                                                       const Options& options) {
-  return PrependBuffer(length, length, length, options);
-}
-
-inline void ChainBlock::RemoveSuffix(size_t length, const Options& options) {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of ChainBlock::RemoveSuffix(): "
-      << "length to remove greater than current size";
-  if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) return;
-  RemoveSuffixSlow(length, options);
-}
-
-inline void ChainBlock::RemovePrefix(size_t length, const Options& options) {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of ChainBlock::RemovePrefix(): "
-      << "length to remove greater than current size";
-  if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) return;
-  RemovePrefixSlow(length, options);
-}
-
-inline void* ChainBlock::Release() { return block_.release(); }
-
-inline void ChainBlock::DeleteReleased(void* ptr) {
-  if (ptr != nullptr) static_cast<RawBlock*>(ptr)->Unref();
 }
 
 }  // namespace riegeli

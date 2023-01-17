@@ -32,6 +32,7 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -413,7 +414,7 @@ bool PullableReader::ReadSlow(size_t length, Chain& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_read = UnsignedMin(length, available());
-      scratch_->buffer.AppendSubstrTo(cursor(), length_to_read, dest);
+      dest.Append(scratch_->buffer.Substr(cursor(), length_to_read));
       move_cursor(length_to_read);
       length -= length_to_read;
       if (length == 0) return true;
@@ -438,7 +439,7 @@ bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_read = UnsignedMin(length, available());
-      scratch_->buffer.AppendSubstrTo(cursor(), length_to_read, dest);
+      scratch_->buffer.Substr(cursor(), length_to_read).AppendTo(dest);
       move_cursor(length_to_read);
       length -= length_to_read;
       if (length == 0) return true;
@@ -460,14 +461,11 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       const size_t length_to_copy = UnsignedMin(length, available());
-      bool write_ok;
-      if (length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()) {
-        write_ok = dest.Write(absl::string_view(cursor(), length_to_copy));
-      } else {
-        Chain data;
-        scratch_->buffer.AppendSubstrTo(cursor(), length_to_copy, data);
-        write_ok = dest.Write(std::move(data));
-      }
+      const bool write_ok =
+          length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()
+              ? dest.Write(absl::string_view(cursor(), length_to_copy))
+              : dest.Write(
+                    Chain(scratch_->buffer.Substr(cursor(), length_to_copy)));
       move_cursor(length_to_copy);
       if (ABSL_PREDICT_FALSE(!write_ok)) return false;
       length -= length_to_copy;
@@ -491,18 +489,14 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     Chain from_scratch;
     if (!ScratchEnds()) {
       if (available() >= length) {
-        bool write_ok;
-        if (length <= kMaxBytesToCopy || dest.PrefersCopying()) {
-          write_ok = dest.Write(absl::string_view(cursor(), length));
-        } else {
-          Chain data;
-          scratch_->buffer.AppendSubstrTo(cursor(), length, data);
-          write_ok = dest.Write(std::move(data));
-        }
+        const bool write_ok =
+            length <= kMaxBytesToCopy || dest.PrefersCopying()
+                ? dest.Write(absl::string_view(cursor(), length))
+                : dest.Write(Chain(scratch_->buffer.Substr(cursor(), length)));
         move_cursor(length);
         return write_ok;
       }
-      scratch_->buffer.AppendSubstrTo(cursor(), available(), from_scratch);
+      from_scratch = Chain(scratch_->buffer.Substr(cursor(), available()));
       length -= available();
       SyncScratch();
     }

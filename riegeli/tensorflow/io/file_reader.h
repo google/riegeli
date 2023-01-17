@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
@@ -207,7 +208,7 @@ class FileReaderBase : public Reader {
   // the physical source position which is `limit_pos()`. Otherwise buffered
   // data are in memory managed by the `::tensorflow::RandomAccessFile`. In any
   // case `start()` points to them.
-  ChainBlock buffer_;
+  SizedSharedBuffer buffer_;
 
   // Invariants if `!buffer_.empty()`:
   //   `start() == buffer_.data()`
@@ -350,7 +351,7 @@ inline void FileReaderBase::Reset(Closed) {
   file_system_ = nullptr;
   growing_source_ = false;
   buffer_sizer_.Reset();
-  buffer_ = ChainBlock();
+  buffer_ = SizedSharedBuffer();
 }
 
 inline void FileReaderBase::Reset(const BufferOptions& buffer_options,

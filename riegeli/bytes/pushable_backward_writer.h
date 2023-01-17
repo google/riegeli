@@ -25,6 +25,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 
@@ -134,7 +135,7 @@ class PushableBackwardWriter : public BackwardWriter {
 
  private:
   struct Scratch {
-    ChainBlock buffer;
+    SizedSharedBuffer buffer;
     char* original_limit = nullptr;
     size_t original_start_to_limit = 0;
     size_t original_start_to_cursor = 0;
