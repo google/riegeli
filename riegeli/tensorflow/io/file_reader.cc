@@ -170,6 +170,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
       buffer_.RemoveSuffix(flat_buffer.size());
       buffer_.RemovePrefix(cursor_index);
+      buffer_.Shrink(buffer_length);
       cursor_index = 0;
       flat_buffer = buffer_.AppendBuffer(
           buffer_length - available_length, buffer_length - available_length,
@@ -355,7 +356,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
         // a new buffer.
         dest.Append(std::move(buffer_).Substr(cursor(), available_length));
         length -= available_length;
-        buffer_.Clear();
+        buffer_.ClearAndShrink(buffer_length);
         cursor_index = 0;
         flat_buffer =
             buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -418,7 +419,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
         // a new buffer.
         std::move(buffer_).Substr(cursor(), available_length).AppendTo(dest);
         length -= available_length;
-        buffer_.Clear();
+        buffer_.ClearAndShrink(buffer_length);
         cursor_index = 0;
         flat_buffer =
             buffer_.AppendBuffer(buffer_length, buffer_length,
@@ -506,13 +507,13 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
                   : dest.Write(Chain(
                         std::move(buffer_).Substr(cursor(), available_length)));
           if (ABSL_PREDICT_FALSE(!write_ok)) {
-            buffer_.Clear();
+            buffer_.ClearAndShrink(buffer_length);
             set_buffer();
             return false;
           }
           length -= available_length;
         }
-        buffer_.Clear();
+        buffer_.ClearAndShrink(buffer_length);
         if (read_directly) {
           set_buffer();
           return CopyUsingPush(length, src, dest);

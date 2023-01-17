@@ -133,6 +133,7 @@ class PullableReader : public Reader {
   };
 
   void SyncScratch();
+  void ClearScratch();
 
   // Stops using scratch and returns `true` if all remaining data in scratch
   // come from a single fragment of the original source.

@@ -44,7 +44,10 @@ class SharedBuffer {
 
   // Ensures at least `min_capacity` of space and unique ownership of the data.
   // Existing contents are lost.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity);
+  //
+  // Drops the allocation if the resulting capacity would be wasteful for
+  // `min_capacity`.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity = 0);
 
   // Returns `true` if this `SharedBuffer` is the only owner of the data.
   bool has_unique_owner() const;
@@ -128,8 +131,8 @@ inline SharedBuffer::SharedBuffer(size_t min_capacity) {
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
   if (payload_ != nullptr) {
-    if (payload_->has_unique_owner() &&
-        payload_->buffer.capacity() >= min_capacity) {
+    if (payload_->has_unique_owner()) {
+      payload_->buffer.Reset(min_capacity);
       return;
     }
     payload_.reset();
@@ -160,7 +163,7 @@ inline size_t SharedBuffer::capacity() const {
 }
 
 inline void SharedBuffer::AllocateInternal(size_t min_capacity) {
-  payload_ = MakeRefCounted<Payload>(min_capacity);
+  if (min_capacity > 0) payload_ = MakeRefCounted<Payload>(min_capacity);
 }
 
 inline void* SharedBuffer::Share() const& {

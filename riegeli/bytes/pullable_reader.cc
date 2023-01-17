@@ -74,7 +74,11 @@ inline void PullableReader::SyncScratch() {
   RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
-  scratch_->buffer.Clear();
+  ClearScratch();
+}
+
+inline void PullableReader::ClearScratch() {
+  scratch_->buffer.ClearAndShrink();
   set_buffer(scratch_->original_start, scratch_->original_start_to_limit,
              scratch_->original_start_to_cursor);
   move_limit_pos(available());
@@ -115,7 +119,6 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
   }
   size_t remaining_min_length = min_length;
   recommended_length = UnsignedMax(min_length, recommended_length);
-  size_t max_length = SaturatingAdd(recommended_length, recommended_length);
   std::unique_ptr<Scratch> new_scratch;
   if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
     new_scratch = std::make_unique<Scratch>();
@@ -124,9 +127,9 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
     if (!new_scratch->buffer.empty()) {
       // Scratch is used but it does not have enough data after the cursor.
       new_scratch->buffer.RemovePrefix(start_to_cursor());
+      new_scratch->buffer.Shrink(recommended_length);
       remaining_min_length -= new_scratch->buffer.size();
       recommended_length -= new_scratch->buffer.size();
-      max_length -= new_scratch->buffer.size();
       set_buffer(new_scratch->original_start,
                  new_scratch->original_start_to_limit,
                  new_scratch->original_start_to_cursor);
@@ -134,7 +137,7 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
     }
   }
   const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
-      remaining_min_length, recommended_length, max_length);
+      remaining_min_length, recommended_length);
   char* dest = flat_buffer.data();
   char* const min_limit = flat_buffer.data() + remaining_min_length;
   char* const recommended_limit = flat_buffer.data() + recommended_length;
@@ -413,12 +416,14 @@ bool PullableReader::ReadSlow(size_t length, Chain& dest) {
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
-      const size_t length_to_read = UnsignedMin(length, available());
-      dest.Append(scratch_->buffer.Substr(cursor(), length_to_read));
-      move_cursor(length_to_read);
-      length -= length_to_read;
-      if (length == 0) return true;
-      SyncScratch();
+      if (available() >= length) {
+        dest.Append(scratch_->buffer.Substr(cursor(), length));
+        move_cursor(length);
+        return true;
+      }
+      length -= available();
+      dest.Append(std::move(scratch_->buffer).Substr(cursor(), available()));
+      ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
       dest.Append(absl::string_view(cursor(), length));
@@ -438,12 +443,14 @@ bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
-      const size_t length_to_read = UnsignedMin(length, available());
-      scratch_->buffer.Substr(cursor(), length_to_read).AppendTo(dest);
-      move_cursor(length_to_read);
-      length -= length_to_read;
-      if (length == 0) return true;
-      SyncScratch();
+      if (available() >= length) {
+        scratch_->buffer.Substr(cursor(), length).AppendTo(dest);
+        move_cursor(length);
+        return true;
+      }
+      length -= available();
+      std::move(scratch_->buffer).Substr(cursor(), available()).AppendTo(dest);
+      ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
       dest.Append(absl::string_view(cursor(), length));
@@ -460,17 +467,22 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
          "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
-      const size_t length_to_copy = UnsignedMin(length, available());
+      if (available() >= length) {
+        const bool write_ok =
+            length <= kMaxBytesToCopy || dest.PrefersCopying()
+                ? dest.Write(absl::string_view(cursor(), length))
+                : dest.Write(Chain(scratch_->buffer.Substr(cursor(), length)));
+        move_cursor(length);
+        return write_ok;
+      }
+      length -= available();
       const bool write_ok =
-          length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()
-              ? dest.Write(absl::string_view(cursor(), length_to_copy))
-              : dest.Write(
-                    Chain(scratch_->buffer.Substr(cursor(), length_to_copy)));
-      move_cursor(length_to_copy);
+          available() <= kMaxBytesToCopy || dest.PrefersCopying()
+              ? dest.Write(absl::string_view(cursor(), available()))
+              : dest.Write(Chain(
+                    std::move(scratch_->buffer).Substr(cursor(), available())));
+      ClearScratch();
       if (ABSL_PREDICT_FALSE(!write_ok)) return false;
-      length -= length_to_copy;
-      if (length == 0) return true;
-      SyncScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
       const absl::string_view data(cursor(), IntCast<size_t>(length));
@@ -496,9 +508,10 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
         move_cursor(length);
         return write_ok;
       }
-      from_scratch = Chain(scratch_->buffer.Substr(cursor(), available()));
       length -= available();
-      SyncScratch();
+      from_scratch =
+          Chain(std::move(scratch_->buffer).Substr(cursor(), available()));
+      ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
       const absl::string_view data(cursor(), length);

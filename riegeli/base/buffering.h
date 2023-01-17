@@ -19,6 +19,7 @@
 
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 
@@ -87,7 +88,11 @@ inline Position ApplyWriteSizeHint(Position length,
 }
 
 // Heuristics for whether a partially filled buffer is wasteful.
+//
+// Precondition: `used <= total`
 inline bool Wasteful(size_t total, size_t used) {
+  RIEGELI_ASSERT_LE(used, total) << "Failed precondition of Wasteful(): "
+                                    "used size larger than total size";
   return total - used > UnsignedMax(used, kDefaultMinBlockSize);
 }
 

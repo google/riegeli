@@ -87,7 +87,7 @@ inline bool PushableBackwardWriter::SyncScratch() {
     }
   }
   // Restore buffer allocation.
-  buffer.Clear();
+  buffer.ClearAndShrink();
   scratch_->buffer = std::move(buffer);
   return true;
 }

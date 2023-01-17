@@ -21,6 +21,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
@@ -44,7 +45,10 @@ class
   ~Buffer() { DeleteInternal(); }
 
   // Ensures at least `min_capacity` of space. Existing contents are lost.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity);
+  //
+  // Drops the allocation if the resulting capacity would be wasteful for
+  // `min_capacity`.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity = 0);
 
   // Returns the data pointer.
   char* data() const { return data_; }
@@ -122,16 +126,20 @@ inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
 
 inline void Buffer::Reset(size_t min_capacity) {
   if (data_ != nullptr) {
-    if (capacity_ >= min_capacity) return;
+    if (capacity_ >= min_capacity && !Wasteful(capacity_, min_capacity)) {
+      return;
+    }
     DeleteInternal();
   }
   AllocateInternal(min_capacity);
 }
 
 inline void Buffer::AllocateInternal(size_t min_capacity) {
-  const size_t capacity = EstimatedAllocatedSize(min_capacity);
-  data_ = static_cast<char*>(operator new(capacity));
-  capacity_ = capacity;
+  if (min_capacity > 0) {
+    const size_t capacity = EstimatedAllocatedSize(min_capacity);
+    data_ = static_cast<char*>(operator new(capacity));
+    capacity_ = capacity;
+  }
 }
 
 inline void Buffer::DeleteInternal() {

@@ -35,6 +35,22 @@ namespace riegeli {
 constexpr size_t SizedSharedBuffer::kAnyLength;
 #endif
 
+void SizedSharedBuffer::ShrinkSlow(size_t max_size) {
+  RIEGELI_ASSERT_GE(max_size, size_)
+      << "Failed precondition of SizedSharedBuffer::ShrinkSlow(): "
+         "max_size less than current size";
+  if (size_ == 0) {
+    buffer_ = SharedBuffer();
+    data_ = nullptr;
+    return;
+  }
+  SharedBuffer new_buffer(max_size);
+  char* const new_data = new_buffer.mutable_data();
+  std::memcpy(new_data, data_, size_);
+  data_ = new_data;
+  buffer_ = std::move(new_buffer);
+}
+
 inline size_t SizedSharedBuffer::space_before() const {
   RIEGELI_ASSERT(data_ != nullptr || buffer_.data() == nullptr)
       << "Failed precondition of SizedSharedBuffer::space_before(): null data_";

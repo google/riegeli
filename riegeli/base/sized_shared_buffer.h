@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/shared_buffer.h"
 
 namespace riegeli {
@@ -74,6 +75,15 @@ class
   // Returns the allocated size, to which the `SizedSharedBuffer` can be resized
   // without reallocation.
   size_t capacity() const { return buffer_.capacity(); }
+
+  // Reduces the allocation if the capacity would be wasteful for
+  // `max(size(), max_size)`, assuming that `max_size` will be needed later.
+  void Shrink(size_t max_size = 0);
+
+  // Removes all data.
+  //
+  // Drops the allocation if the capacity would be wasteful for `max_size`.
+  ABSL_ATTRIBUTE_REINITIALIZES void ClearAndShrink(size_t max_size = 0);
 
   // Appends/prepends some uninitialized space. The buffer will have length at
   // least `min_length`, preferably `recommended_length`, and at most
@@ -143,6 +153,8 @@ class
   explicit SizedSharedBuffer(SharedBuffer buffer, char* data, size_t size)
       : buffer_(std::move(buffer)), data_(data), size_(size) {}
 
+  void ShrinkSlow(size_t max_size);
+
   size_t space_before() const;
   size_t space_after() const;
   bool CanAppendMovingData(size_t length, size_t& min_length_if_not);
@@ -180,6 +192,21 @@ inline SizedSharedBuffer& SizedSharedBuffer::operator=(
 }
 
 inline void SizedSharedBuffer::Clear() { size_ = 0; }
+
+inline void SizedSharedBuffer::Shrink(size_t max_size) {
+  max_size = UnsignedMax(max_size, size_);
+  if (capacity() > max_size && Wasteful(capacity(), max_size)) {
+    ShrinkSlow(max_size);
+  }
+}
+
+inline void SizedSharedBuffer::ClearAndShrink(size_t max_size) {
+  size_ = 0;
+  if (capacity() > max_size && Wasteful(capacity(), max_size)) {
+    buffer_ = SharedBuffer();
+    data_ = nullptr;
+  }
+}
 
 inline absl::Span<char> SizedSharedBuffer::AppendFixedBuffer(size_t length) {
   return AppendBuffer(length, length, length);
