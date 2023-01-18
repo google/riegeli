@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -224,14 +225,20 @@ class Object {
   //
   // Then, to actually cast:
   // ```
-  //   if (object->GetTypeId() == riegeli::TypeId::For<A>()) {
-  //     A* a = static_cast<A*>(object);
+  //   if (A* const a = object->GetIf<A>(); a != nullptr) {
   //     ...
   //   }
   // ```
   //
   // This solution is more limited but faster than `typeid` or `dynamic_cast`.
   virtual TypeId GetTypeId() const;
+
+  // Casts the runtime type of `this`, as determined by `GetTypeId()`, down to
+  // `Target*`. Returns `nullptr` if the type does not match.
+  template <typename Target>
+  Target* GetIf();
+  template <typename Target>
+  const Target* GetIf() const;
 
  protected:
   // Creates a closed `Object`.
@@ -363,6 +370,22 @@ inline bool Object::Close() {
 
 inline absl::Status Object::AnnotateStatus(absl::Status status) {
   return AnnotateStatusImpl(std::move(status));
+}
+
+template <typename Target>
+inline Target* Object::GetIf() {
+  static_assert(std::is_base_of<Object, Target>::value,
+                "GetIf() supports only downcasts");
+  if (GetTypeId() != TypeId::For<Target>()) return nullptr;
+  return static_cast<Target*>(this);
+}
+
+template <typename Target>
+inline const Target* Object::GetIf() const {
+  static_assert(std::is_base_of<Object, Target>::value,
+                "GetIf() supports only downcasts");
+  if (GetTypeId() != TypeId::For<Target>()) return nullptr;
+  return static_cast<const Target*>(this);
 }
 
 }  // namespace riegeli
