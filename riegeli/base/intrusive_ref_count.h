@@ -63,7 +63,7 @@ class
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   RefCountedPtr& operator=(const RefCountedPtr<Other>& that) noexcept;
 
-  // The source `RefCountedPtr` is left as nullptr.
+  // The source `RefCountedPtr` is left as `nullptr`.
   template <typename Other,
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   /*implicit*/ RefCountedPtr(RefCountedPtr<Other>&& that) noexcept;
@@ -74,7 +74,7 @@ class
   RefCountedPtr(const RefCountedPtr& that) noexcept;
   RefCountedPtr& operator=(const RefCountedPtr& that) noexcept;
 
-  // The source `RefCountedPtr` is left as nullptr.
+  // The source `RefCountedPtr` is left as `nullptr`.
   RefCountedPtr(RefCountedPtr&& that) noexcept;
   RefCountedPtr& operator=(RefCountedPtr&& that) noexcept;
 
@@ -143,6 +143,33 @@ inline RefCountedPtr<T> MakeRefCounted(Args&&... args) {
   return RefCountedPtr<T>(new T(std::forward<Args>(args)...));
 }
 
+// Provides operations on a reference count.
+class RefCount {
+ public:
+  RefCount() = default;
+
+  RefCount(const RefCount&) = delete;
+  RefCount& operator=(const RefCount&) = delete;
+
+  void Ref() { ref_count_.fetch_add(1, std::memory_order_relaxed); }
+
+  // Returns `true` if this was the last reference.
+  bool Unref() {
+    // Optimization: avoid an expensive atomic read-modify-write operation
+    // if the reference count is 1.
+    return ref_count_.load(std::memory_order_acquire) == 1 ||
+           ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1;
+  }
+
+  // Returns `true` if there is only one owner of the object.
+  bool has_unique_owner() const {
+    return ref_count_.load(std::memory_order_acquire) == 1;
+  }
+
+ private:
+  std::atomic<size_t> ref_count_{1};
+};
+
 // Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
 // needed by `RefCountedPtr<T>`.
 //
@@ -161,17 +188,22 @@ class RefCountedBase {
                   "must be the class derived from RefCountedBase<T>");
   }
 
-  void Ref() const;
-  void Unref() const;
+  void Ref() const { ref_count_.Ref(); }
+
+  void Unref() const {
+    if (ref_count_.Unref()) {
+      delete static_cast<T*>(const_cast<RefCountedBase*>(this));
+    }
+  }
 
   // Returns `true` if there is only one owner of the object.
-  bool has_unique_owner() const;
+  bool has_unique_owner() const { return ref_count_.has_unique_owner(); }
 
  protected:
   ~RefCountedBase() = default;
 
  private:
-  mutable std::atomic<size_t> ref_count_{1};
+  mutable RefCount ref_count_;
 };
 
 // Implementation details follow.
@@ -250,26 +282,6 @@ template <typename T>
 inline void RefCountedPtr<T>::reset(T* ptr) {
   if (ptr_ != nullptr) ptr_->Unref();
   ptr_ = ptr;
-}
-
-template <typename T>
-inline void RefCountedBase<T>::Ref() const {
-  ref_count_.fetch_add(1, std::memory_order_relaxed);
-}
-
-template <typename T>
-inline void RefCountedBase<T>::Unref() const {
-  // Optimization: avoid an expensive atomic read-modify-write operation if the
-  // reference count is 1.
-  if (ref_count_.load(std::memory_order_acquire) == 1 ||
-      ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    delete static_cast<T*>(const_cast<RefCountedBase*>(this));
-  }
-}
-
-template <typename T>
-inline bool RefCountedBase<T>::has_unique_owner() const {
-  return ref_count_.load(std::memory_order_acquire) == 1;
 }
 
 }  // namespace riegeli
