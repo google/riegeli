@@ -214,6 +214,36 @@ class FdWriterBase : public BufferedWriter {
 #endif
     }
 
+    // If `false`, the file will be opened if it exists (truncated to empty by
+    // default, or left unchanged if `set_existing(true)` or `set_append(true)`
+    // was used).
+    //
+    // If `true`, opening fails if the file exists.
+    //
+    // If `FdWriter` writes to an already open fd, `exclusive()` has no effect.
+    //
+    // `set_exclusive()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_exclusive(bool exclusive) & {
+#ifndef _WIN32
+      mode_ = (mode_ & ~O_EXCL) | (exclusive ? O_EXCL : 0);
+#else
+      mode_ = (mode_ & ~_O_EXCL) | (exclusive ? _O_EXCL : 0);
+#endif
+      return *this;
+    }
+    Options&& set_exclusive(bool exclusive) && {
+      return std::move(set_exclusive(exclusive));
+    }
+    bool exclusive() const {
+#ifndef _WIN32
+      return (mode_ & O_EXCL) == 0;
+#else
+      return (mode_ & _O_EXCL) == 0;
+#endif
+    }
+
     // If `false`, data will be written directly to the file. This is called the
     // binary mode.
     //
