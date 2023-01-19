@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -190,6 +191,25 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   MakeBuffer(src);
   if (ABSL_PREDICT_FALSE(!copy_ok)) return CheckEnough();
   return true;
+}
+
+bool LimitingReaderBase::ReadSomeDirectlySlow(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Reader& src = *SrcReader();
+  SyncBuffer(src);
+  const Position remaining = max_pos_ - pos();
+  const bool read_directly =
+      src.ReadSomeDirectly(UnsignedMin(max_length, remaining), get_dest);
+  MakeBuffer(src);
+  if (ABSL_PREDICT_FALSE(remaining == 0)) return CheckEnough();
+  return read_directly;
 }
 
 void LimitingReaderBase::ReadHintSlow(size_t min_length,

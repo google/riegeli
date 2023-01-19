@@ -167,37 +167,36 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       --record_index_;
       if (header == options.required_header()->names()) {
         header_ = *std::move(options.required_header());
+      } else if (const absl::Status status =
+                     header_.TryReset(options.required_header()->normalizer(),
+                                      std::move(header));
+                 ABSL_PREDICT_FALSE(!status.ok())) {
+        FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
       } else {
-        const absl::Status status = header_.TryReset(
-            options.required_header()->normalizer(), std::move(header));
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
-        } else {
-          std::vector<absl::string_view> missing_names;
-          for (const absl::string_view field :
-               options.required_header()->names()) {
-            if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
-              missing_names.push_back(field);
-            }
+        std::vector<absl::string_view> missing_names;
+        for (const absl::string_view field :
+             options.required_header()->names()) {
+          if (ABSL_PREDICT_FALSE(!header_.contains(field))) {
+            missing_names.push_back(field);
           }
-          if (ABSL_PREDICT_FALSE(!missing_names.empty())) {
-            StringWriter<std::string> message;
-            message.Write("Missing field names: ");
-            for (std::vector<absl::string_view>::const_iterator iter =
-                     missing_names.cbegin();
-                 iter != missing_names.cend(); ++iter) {
-              if (iter != missing_names.cbegin()) message.Write(',');
-              csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
-            }
-            message.Write("; existing field names: ");
-            for (CsvHeader::const_iterator iter = header_.cbegin();
-                 iter != header_.cend(); ++iter) {
-              if (iter != header_.cbegin()) message.Write(',');
-              csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
-            }
-            message.Close();
-            FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
+        }
+        if (ABSL_PREDICT_FALSE(!missing_names.empty())) {
+          StringWriter<std::string> message;
+          message.Write("Missing field names: ");
+          for (std::vector<absl::string_view>::const_iterator iter =
+                   missing_names.cbegin();
+               iter != missing_names.cend(); ++iter) {
+            if (iter != missing_names.cbegin()) message.Write(',');
+            csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
           }
+          message.Write("; existing field names: ");
+          for (CsvHeader::const_iterator iter = header_.cbegin();
+               iter != header_.cend(); ++iter) {
+            if (iter != header_.cbegin()) message.Write(',');
+            csv_internal::WriteDebugQuotedIfNeeded(*iter, message);
+          }
+          message.Close();
+          FailAtPreviousRecord(absl::InvalidArgumentError(message.dest()));
         }
       }
     }

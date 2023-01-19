@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -78,6 +79,9 @@ class DigestingReaderBase : public Reader {
   bool ReadSlow(size_t length, char* dest) override;
   bool ReadSlow(size_t length, Chain& dest) override;
   bool ReadSlow(size_t length, absl::Cord& dest) override;
+  using Reader::ReadSomeDirectlySlow;
+  bool ReadSomeDirectlySlow(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;

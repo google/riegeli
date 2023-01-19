@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -67,26 +68,22 @@ bool FileReaderBase::InitializeFilename(absl::string_view filename) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
-  {
-    const ::tensorflow::Status status =
-        env_->GetFileSystemForFile(filename_, &file_system_);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "Env::GetFileSystemForFile()");
-    }
+  if (const ::tensorflow::Status status =
+          env_->GetFileSystemForFile(filename_, &file_system_);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return FailOperation(status, "Env::GetFileSystemForFile()");
   }
   return true;
 }
 
 std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
   std::unique_ptr<::tensorflow::RandomAccessFile> src;
-  {
-    const ::tensorflow::Status status =
-        file_system_->NewRandomAccessFile(filename_, &src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      Reader::Reset(kClosed);
-      FailOperation(status, "FileSystem::NewRandomAccessFile()");
-      return nullptr;
-    }
+  if (const ::tensorflow::Status status =
+          file_system_->NewRandomAccessFile(filename_, &src);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    Reader::Reset(kClosed);
+    FailOperation(status, "FileSystem::NewRandomAccessFile()");
+    return nullptr;
   }
   return src;
 }
@@ -271,7 +268,6 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
          "enough data available, use Read(char*) instead";
   if (length >= buffer_sizer_.BufferLength(pos())) {
     // Read directly to `dest`.
-    ::tensorflow::RandomAccessFile* const src = SrcFile();
     const size_t available_length = available();
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
@@ -282,6 +278,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
     }
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
+    ::tensorflow::RandomAccessFile* const src = SrcFile();
     size_t length_to_read = length;
     if (exact_size() != absl::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
@@ -576,6 +573,32 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
+bool FileReaderBase::ReadSomeDirectlySlow(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
+    // Read directly to `get_dest(max_length)`.
+    SyncBuffer();
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    ::tensorflow::RandomAccessFile* const src = SrcFile();
+    if (exact_size() != absl::nullopt) {
+      if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
+      max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
+    }
+    char* const dest = get_dest(max_length);
+    if (ABSL_PREDICT_FALSE(max_length == 0)) return true;
+    ReadToDest(max_length, src, dest);
+    return true;
+  }
+  PullSlow(1, max_length);
+  return false;
+}
+
 bool FileReaderBase::SyncImpl(SyncType sync_type) {
   const Position new_pos = pos();
   buffer_sizer_.EndRun(new_pos);
@@ -606,12 +629,10 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
     if (exact_size() != absl::nullopt) {
       file_size = IntCast<uint64_t>(*exact_size());
     } else {
-      {
-        const ::tensorflow::Status status =
-            file_system_->GetFileSize(filename_, &file_size);
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          return FailOperation(status, "FileSystem::GetFileSize()");
-        }
+      if (const ::tensorflow::Status status =
+              file_system_->GetFileSize(filename_, &file_size);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "FileSystem::GetFileSize()");
       }
       if (!growing_source_) set_exact_size(Position{file_size});
     }
@@ -635,13 +656,11 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
   uint64_t file_size;
-  {
-    const ::tensorflow::Status status =
-        file_system_->GetFileSize(filename_, &file_size);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailOperation(status, "FileSystem::GetFileSize()");
-      return absl::nullopt;
-    }
+  if (const ::tensorflow::Status status =
+          file_system_->GetFileSize(filename_, &file_size);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    FailOperation(status, "FileSystem::GetFileSize()");
+    return absl::nullopt;
   }
   if (!growing_source_) set_exact_size(Position{file_size});
   return Position{file_size};

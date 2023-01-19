@@ -22,6 +22,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/arithmetic.h"
@@ -137,11 +138,15 @@ class JoiningReaderBase : public PullableReader {
   void MakeBuffer(Reader& shard);
 
   bool PullBehindScratch(size_t recommended_length) override;
+  using PullableReader::ReadBehindScratch;
   bool ReadBehindScratch(size_t length, char* dest) override;
   bool ReadBehindScratch(size_t length, Chain& dest) override;
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
+  using PullableReader::ReadSomeDirectlyBehindScratch;
+  bool ReadSomeDirectlyBehindScratch(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;
 

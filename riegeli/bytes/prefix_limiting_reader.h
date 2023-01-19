@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
@@ -107,6 +108,9 @@ class PrefixLimitingReaderBase : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
+  using Reader::ReadSomeDirectlySlow;
+  bool ReadSomeDirectlySlow(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;

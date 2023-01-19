@@ -298,13 +298,11 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   if (options_arg != nullptr) {
     StrOrBytes options;
     if (ABSL_PREDICT_FALSE(!options.FromPython(options_arg))) return -1;
-    {
-      const absl::Status status =
-          record_writer_options.FromString(absl::string_view(options));
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        SetRiegeliError(status);
-        return -1;
-      }
+    if (const absl::Status status =
+            record_writer_options.FromString(absl::string_view(options));
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      SetRiegeliError(status);
+      return -1;
     }
   }
   if (metadata_arg != nullptr && metadata_arg != Py_None) {

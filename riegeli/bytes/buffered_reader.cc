@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -468,6 +469,34 @@ bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {
   Chain data;
   if (ABSL_PREDICT_FALSE(!ReadSlow(length, data))) return false;
   return dest.Write(std::move(data));
+}
+
+bool BufferedReader::ReadSomeDirectlySlow(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
+    // Read directly to `get_dest(max_length)`.
+    SyncBuffer();
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    if (exact_size() != absl::nullopt) {
+      if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
+        ExactSizeReached();
+        return false;
+      }
+      max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
+    }
+    char* const dest = get_dest(max_length);
+    if (ABSL_PREDICT_FALSE(max_length == 0)) return true;
+    ReadInternal(ToleratesReadingAhead() ? max_length : 1, max_length, dest);
+    return true;
+  }
+  PullSlow(1, max_length);
+  return false;
 }
 
 void BufferedReader::ReadHintSlow(size_t min_length,

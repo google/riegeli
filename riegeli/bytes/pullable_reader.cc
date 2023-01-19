@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -341,6 +342,24 @@ bool PullableReader::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
+bool PullableReader::ReadSomeDirectlyBehindScratch(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of "
+         "PullableReader::ReadSomeDirectlyBehindScratch(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of "
+         "PullableReader::ReadSomeDirectlyBehindScratch(): "
+         "some data available, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PullableReader::ReadSomeDirectlyBehindScratch(): "
+         "scratch used";
+  PullBehindScratch(max_length);
+  return false;
+}
+
 void PullableReader::ReadHintBehindScratch(size_t min_length,
                                            size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
@@ -523,6 +542,21 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     return dest.Write(std::move(from_scratch));
   }
   return CopyBehindScratch(length, dest);
+}
+
+bool PullableReader::ReadSomeDirectlySlow(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    SyncScratch();
+    if (available() > 0) return false;
+  }
+  return ReadSomeDirectlyBehindScratch(max_length, get_dest);
 }
 
 void PullableReader::ReadHintSlow(size_t min_length,

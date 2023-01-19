@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -349,6 +350,261 @@ bool Reader::CopySlow(size_t length, BackwardWriter& dest) {
   Chain data;
   if (ABSL_PREDICT_FALSE(!ReadSlow(length, data))) return false;
   return dest.Write(std::move(data));
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, char* dest) {
+  RIEGELI_ASSERT_LT(available(), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "enough data available, use ReadSome(char*) instead";
+  size_t length_read;
+  if (ReadSomeDirectly(
+          max_length, [dest](size_t& length) { return dest; }, &length_read)) {
+    return length_read > 0;
+  }
+  if (ABSL_PREDICT_FALSE(available() == 0)) return false;
+  max_length = UnsignedMin(max_length, available());
+  std::memcpy(dest, cursor(), max_length);
+  move_cursor(max_length);
+  return true;
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, char* dest, size_t* length_read) {
+  RIEGELI_ASSERT_LT(available(), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "enough data available, use ReadSome(char*) instead";
+  if (length_read == nullptr) return ReadSomeSlow(max_length, dest);
+  const Position pos_before = pos();
+  const bool read_ok = ReadSomeSlow(max_length, dest);
+  RIEGELI_ASSERT_GE(pos(), pos_before)
+      << "Reader::ReadSomeSlow(char*) decreased pos()";
+  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
+      << "Reader::ReadSomeSlow(char*) read more than requested";
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
+    RIEGELI_ASSERT_EQ(pos(), pos_before)
+        << "Reader::ReadSomeSlow(char*) failed but read some";
+    *length_read = 0;
+    return false;
+  }
+  RIEGELI_ASSERT_GT(pos(), pos_before)
+      << "Reader::ReadSomeSlow(char*) succeeded but read none";
+  *length_read = IntCast<size_t>(pos() - pos_before);
+  return true;
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, std::string& dest) {
+  RIEGELI_ASSERT_LT(available(), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
+         "enough data available, use ReadSome(string&) instead";
+  const size_t dest_size_before = dest.size();
+  const size_t remaining = dest.max_size() - dest_size_before;
+  RIEGELI_CHECK_GT(remaining, 0u)
+      << "Failed precondition of Reader::ReadSome(string&): "
+         "string size overflow";
+  max_length = UnsignedMin(max_length, remaining);
+  size_t length_read;
+  const bool read_directly = ReadSomeDirectly(
+      max_length,
+      [&dest, dest_size_before](size_t& length) {
+        ResizeStringAmortized(dest, dest_size_before + length);
+        return &dest[dest_size_before];
+      },
+      &length_read);
+  dest.erase(dest_size_before + length_read);
+  if (read_directly) return length_read > 0;
+  if (ABSL_PREDICT_FALSE(available() == 0)) return false;
+  max_length = UnsignedMin(max_length, available());
+  dest.append(cursor(), max_length);
+  move_cursor(max_length);
+  return true;
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, std::string& dest,
+                          size_t* length_read) {
+  RIEGELI_ASSERT_LT(available(), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
+         "enough data available, use ReadSome(string&) instead";
+  if (length_read == nullptr) return ReadSomeSlow(max_length, dest);
+  const Position pos_before = pos();
+  const bool read_ok = ReadSomeSlow(max_length, dest);
+  RIEGELI_ASSERT_GE(pos(), pos_before)
+      << "Reader::ReadSomeSlow(string&) decreased pos()";
+  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
+      << "Reader::ReadSomeSlow(string&) read more than requested";
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
+    RIEGELI_ASSERT_EQ(pos(), pos_before)
+        << "Reader::ReadSomeSlow(string&) failed but read some";
+    *length_read = 0;
+    return false;
+  }
+  RIEGELI_ASSERT_GT(pos(), pos_before)
+      << "Reader::ReadSomeSlow(string&) succeeded but read none";
+  *length_read = IntCast<size_t>(pos() - pos_before);
+  return true;
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, Chain& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
+         "enough data available, use ReadSome(Chain&) instead";
+  const size_t remaining = std::numeric_limits<size_t>::max() - dest.size();
+  RIEGELI_CHECK_GT(remaining, 0u)
+      << "Failed precondition of Reader::ReadSome(Chain&): "
+         "Chain size overflow";
+  max_length = UnsignedMin(max_length, remaining);
+  if (ABSL_PREDICT_FALSE(!Pull(1, max_length))) return false;
+  // Should always succeed.
+  return ReadAndAppend(UnsignedMin(max_length, available()), dest);
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, Chain& dest, size_t* length_read) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
+         "enough data available, use ReadSome(Chain&) instead";
+  if (length_read == nullptr) return ReadSomeSlow(max_length, dest);
+  const Position pos_before = pos();
+  const bool read_ok = ReadSomeSlow(max_length, dest);
+  RIEGELI_ASSERT_GE(pos(), pos_before)
+      << "Reader::ReadSomeSlow(Chain&) decreased pos()";
+  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
+      << "Reader::ReadSomeSlow(Chain&) read more than requested";
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
+    RIEGELI_ASSERT_EQ(pos(), pos_before)
+        << "Reader::ReadSomeSlow(Chain&) failed but read some";
+    *length_read = 0;
+    return false;
+  }
+  RIEGELI_ASSERT_GT(pos(), pos_before)
+      << "Reader::ReadSomeSlow(Chain&) succeeded but read none";
+  *length_read = IntCast<size_t>(pos() - pos_before);
+  return true;
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, absl::Cord& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
+         "enough data available, use ReadSome(Cord&) instead";
+  const size_t remaining = std::numeric_limits<size_t>::max() - dest.size();
+  RIEGELI_CHECK_GT(remaining, 0u)
+      << "Failed precondition of Reader::ReadSome(Cord&): "
+         "Cord size overflow";
+  max_length = UnsignedMin(max_length, remaining);
+  if (ABSL_PREDICT_FALSE(!Pull(1, max_length))) return false;
+  // Should always succeed.
+  return ReadAndAppend(UnsignedMin(max_length, available()), dest);
+}
+
+bool Reader::ReadSomeSlow(size_t max_length, absl::Cord& dest,
+                          size_t* length_read) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
+         "enough data available, use ReadSome(Cord&) instead";
+  if (length_read == nullptr) return ReadSomeSlow(max_length, dest);
+  const Position pos_before = pos();
+  const bool read_ok = ReadSomeSlow(max_length, dest);
+  RIEGELI_ASSERT_GE(pos(), pos_before)
+      << "Reader::ReadSomeSlow(Cord&) decreased pos()";
+  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
+      << "Reader::ReadSomeSlow(Cord&) read more than requested";
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
+    RIEGELI_ASSERT_EQ(pos(), pos_before)
+        << "Reader::ReadSomeSlow(Cord&) failed but read some";
+    *length_read = 0;
+    return false;
+  }
+  RIEGELI_ASSERT_GT(pos(), pos_before)
+      << "Reader::ReadSomeSlow(Cord&) succeeded but read none";
+  *length_read = IntCast<size_t>(pos() - pos_before);
+  return true;
+}
+
+bool Reader::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "enough data available, use CopySome(Writer&) instead";
+  size_t length_read;
+  if (ReadSomeDirectly(
+          max_length,
+          [&dest](size_t& length) {
+            dest.Push(1, length);
+            length = UnsignedMin(length, dest.available());
+            return dest.cursor();
+          },
+          &length_read)) {
+    dest.move_cursor(length_read);
+    return length_read > 0;
+  }
+  if (ABSL_PREDICT_FALSE(available() == 0)) return false;
+  // Should succeed unless `dest` fails.
+  return Copy(UnsignedMin(max_length, available()), dest);
+}
+
+bool Reader::CopySomeSlow(size_t max_length, Writer& dest,
+                          size_t* length_read) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "enough data available, use CopySome(Writer&) instead";
+  if (length_read == nullptr) return CopySomeSlow(max_length, dest);
+  const Position pos_before = pos();
+  const bool copy_ok = CopySomeSlow(max_length, dest);
+  RIEGELI_ASSERT_GE(pos(), pos_before)
+      << "Reader::CopySomeSlow(Writer&) decreased pos()";
+  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
+      << "Reader::CopySomeSlow(Writer&) read more than requested";
+  if (!copy_ok) {
+    if (dest.ok()) {
+      RIEGELI_ASSERT_EQ(pos(), pos_before)
+          << "Reader::CopySomeSlow(Writer&) failed but read some";
+    }
+  } else {
+    RIEGELI_ASSERT_GT(pos(), pos_before)
+        << "Reader::CopySomeSlow(Writer&) succeeded but read none";
+  }
+  *length_read = IntCast<size_t>(pos() - pos_before);
+  return copy_ok;
+}
+
+bool Reader::ReadSomeDirectlySlow(size_t max_length,
+                                  absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  PullSlow(1, max_length);
+  return false;
+}
+
+bool Reader::ReadSomeDirectlySlow(size_t max_length,
+                                  absl::FunctionRef<char*(size_t&)> get_dest,
+                                  size_t* length_read) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
+         "some data available, use ReadSomeDirectly() instead";
+  if (length_read == nullptr) {
+    return ReadSomeDirectlySlow(max_length, get_dest);
+  }
+  const Position pos_before = limit_pos();
+  if (ReadSomeDirectlySlow(max_length, get_dest)) {
+    RIEGELI_ASSERT_EQ(available(), 0u)
+        << "Reader::ReadSomeDirectlySlow() read directly but "
+           "left data in the buffer";
+    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+        << "Reader::ReadSomeDirectlySlow() decreased pos()";
+    RIEGELI_ASSERT_LE(limit_pos() - pos_before, max_length)
+        << "Reader::ReadSomeDirectlySlow() read more than requested";
+    *length_read = IntCast<size_t>(limit_pos() - pos_before);
+    return true;
+  } else {
+    RIEGELI_ASSERT_EQ(pos(), pos_before)
+        << "Reader::ReadSomeDirectlySlow() did not read directly but "
+           "changed the current position";
+    *length_read = 0;
+    return false;
+  }
 }
 
 void Reader::ReadHintSlow(size_t min_length, size_t recommended_length) {

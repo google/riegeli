@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -318,6 +319,50 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   }
   MakeBuffer(*shard);
   return true;
+}
+
+bool JoiningReaderBase::ReadSomeDirectlyBehindScratch(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "some data available, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "scratch used";
+  Reader* shard = ShardReader();
+  if (shard_is_open(shard)) {
+    SyncBuffer(*shard);
+  } else {
+    if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
+    shard = ShardReader();
+  }
+  const Position remaining = std::numeric_limits<Position>::max() - limit_pos();
+  if (ABSL_PREDICT_FALSE(remaining == 0)) return FailOverflow();
+  max_length = UnsignedMin(max_length, remaining);
+  bool read_directly;
+  for (;;) {
+    size_t length_read;
+    read_directly = shard->ReadSomeDirectly(max_length, get_dest, &length_read);
+    if (read_directly) {
+      if (ABSL_PREDICT_TRUE(length_read > 0)) {
+        move_limit_pos(length_read);
+        break;
+      }
+    } else {
+      if (ABSL_PREDICT_TRUE(shard->available() > 0)) break;
+    }
+    if (ABSL_PREDICT_FALSE(!shard->ok())) {
+      return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
+    }
+    if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
+    if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
+    shard = ShardReader();
+  }
+  MakeBuffer(*shard);
+  return read_directly;
 }
 
 void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,

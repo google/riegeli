@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -91,8 +92,9 @@ class PullableReader : public Reader {
   //   `!scratch_used()`
   virtual bool PullBehindScratch(size_t recommended_length) = 0;
 
-  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadHintSlow()`,
-  // `SyncImpl()`, and `SeekSlow()`, called while scratch is not used.
+  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadSomeDirectlySlow()`,
+  // `ReadHintSlow()`, `SyncImpl()`, and `SeekSlow()`, called while scratch is
+  // not used.
   //
   // Regarding `SyncBehindScratch()`, if scratch was used but not all data from
   // scratch were read and `!SupportsRandomAccess()`, seeking back is not
@@ -109,17 +111,24 @@ class PullableReader : public Reader {
   virtual bool ReadBehindScratch(size_t length, absl::Cord& dest);
   virtual bool CopyBehindScratch(Position length, Writer& dest);
   virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
+  virtual bool ReadSomeDirectlyBehindScratch(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest);
   virtual void ReadHintBehindScratch(size_t min_length,
                                      size_t recommended_length);
   virtual bool SyncBehindScratch(SyncType sync_type);
   virtual bool SeekBehindScratch(Position new_pos);
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
+  using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
   bool ReadSlow(size_t length, Chain& dest) override;
   bool ReadSlow(size_t length, absl::Cord& dest) override;
+  using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
+  using Reader::ReadSomeDirectlySlow;
+  bool ReadSomeDirectlySlow(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;

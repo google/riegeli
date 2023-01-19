@@ -24,6 +24,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -64,6 +65,9 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
+  using PullableReader::ReadSomeDirectlyBehindScratch;
+  bool ReadSomeDirectlyBehindScratch(
+      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;
   bool SyncBehindScratch(SyncType sync_type) override;
@@ -127,18 +131,12 @@ inline bool ReaderFactoryBase::ConcurrentReader::SyncPos() {
 }
 
 inline bool ReaderFactoryBase::ConcurrentReader::ReadSome() {
-  if (ABSL_PREDICT_FALSE(!shared_->reader->Pull())) {
+  if (!shared_->reader->ReadSome(buffer_sizer_.BufferLength(limit_pos()),
+                                 secondary_buffer_)) {
     if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
       return FailWithoutAnnotation(shared_->reader->status());
     }
     return false;
-  }
-  const size_t length = UnsignedMin(shared_->reader->available(),
-                                    buffer_sizer_.BufferLength(limit_pos()));
-  if (!shared_->reader->Read(length, secondary_buffer_)) {
-    RIEGELI_ASSERT_UNREACHABLE() << "Reader::Read() returned false "
-                                    "even though enough data are available: "
-                                 << shared_->reader->status();
   }
   iter_ = secondary_buffer_.blocks().cbegin();
   return true;
@@ -168,6 +166,7 @@ bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
       }
       ++iter_;
     }
+
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
@@ -415,6 +414,51 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       }
       move_limit_pos(length);
       return true;
+    }
+    if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
+  }
+}
+
+bool ReaderFactoryBase::ConcurrentReader::ReadSomeDirectlyBehindScratch(
+    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "nothing to read, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "some data available, use ReadSomeDirectly() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+         "scratch used";
+  if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
+  set_buffer();
+  for (;;) {
+    while (iter_ != secondary_buffer_.blocks().cend()) {
+      if (ABSL_PREDICT_TRUE(!iter_->empty())) {
+        set_buffer(iter_->data(), iter_->size());
+        move_limit_pos(available());
+        return false;
+      }
+      ++iter_;
+    }
+
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    secondary_buffer_.Clear();
+    iter_ = secondary_buffer_.blocks().cend();
+    absl::MutexLock l(&shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (max_length >= buffer_sizer_.BufferLength(pos())) {
+      // Read directly to `get_dest(max_length)`.
+      size_t length_read;
+      if (shared_->reader->ReadSomeDirectly(max_length, get_dest,
+                                            &length_read)) {
+        if (ABSL_PREDICT_FALSE(length_read == 0 && !shared_->reader->ok())) {
+          FailWithoutAnnotation(shared_->reader->status());
+          return true;
+        }
+        move_limit_pos(length_read);
+        return true;
+      }
     }
     if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
   }
