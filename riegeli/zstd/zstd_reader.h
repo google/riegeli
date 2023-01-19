@@ -97,7 +97,6 @@ class ZstdReaderBase : public BufferedReader {
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
-  bool SupportsSize() override { return exact_size() != absl::nullopt; }
   bool SupportsNewReader() override;
 
  protected:
@@ -118,10 +117,9 @@ class ZstdReaderBase : public BufferedReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  void ExactSizeReached() override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -143,8 +141,8 @@ class ZstdReaderBase : public BufferedReader {
   ZstdDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
-  // decompressed. In this case `ZSTD_decompressStream()` must not be called
-  // again.
+  // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
+  // be called again.
   RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
 };
 

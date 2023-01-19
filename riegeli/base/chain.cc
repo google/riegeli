@@ -1533,14 +1533,12 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
   RIEGELI_ASSERT_LE(min_length, RawBlock::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
   return replaced_length +
-         UnsignedClamp(
-             UnsignedMax(
-                 ApplyWriteSizeHint(
-                     UnsignedMax(size_, SaturatingSub(options.min_block_size(),
-                                                      replaced_length)),
-                     options.size_hint(), size_),
-                 recommended_length),
-             min_length,
+         ApplyBufferConstraints(
+             ApplySizeHint(
+                 UnsignedMax(size_, SaturatingSub(options.min_block_size(),
+                                                  replaced_length)),
+                 options.size_hint(), size_),
+             min_length, recommended_length,
              SaturatingSub(options.max_block_size(), replaced_length));
 }
 

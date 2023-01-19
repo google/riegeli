@@ -132,16 +132,6 @@ absl::Status Bzip2ReaderBase::AnnotateOverSrc(absl::Status status) {
   return status;
 }
 
-bool Bzip2ReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Reader::PullSlow(): "
-         "enough data available, use Pull() instead";
-  // After all data have been decompressed, skip `BufferedReader::PullSlow()`
-  // to avoid allocating the buffer in case it was not allocated yet.
-  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  return BufferedReader::PullSlow(min_length, recommended_length);
-}
-
 bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                    char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
@@ -152,7 +142,6 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *SrcReader();
   truncated_ = false;
   max_length = UnsignedMin(max_length,
@@ -214,7 +203,10 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
           continue;
         }
         decompressor_.reset();
-        break;
+        move_limit_pos(length_read);
+        // Avoid `BufferedReader` allocating another buffer.
+        set_exact_size(limit_pos());
+        return length_read >= min_length;
       case BZ_DATA_ERROR:
       case BZ_DATA_ERROR_MAGIC:
         FailOperation(absl::StatusCode::kInvalidArgument, "BZ2_bzDecompress()",
@@ -227,6 +219,18 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
     }
     move_limit_pos(length_read);
     return length_read >= min_length;
+  }
+}
+
+void Bzip2ReaderBase::ExactSizeReached() {
+  if (decompressor_ == nullptr) return;
+  char buffer[1];
+  if (ABSL_PREDICT_FALSE(Bzip2ReaderBase::ReadInternal(1, 1, buffer))) {
+    decompressor_.reset();
+    Fail(absl::FailedPreconditionError(
+        "Uncompressed size reached but more data can be decompressed, "
+        "which implies that seeking back and reading again encountered "
+        "changed Bzip2-compressed data"));
   }
 }
 

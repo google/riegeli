@@ -16,6 +16,8 @@
 
 #include <stddef.h>
 
+#include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -23,6 +25,42 @@
 #include "riegeli/base/types.h"
 
 namespace riegeli {
+
+namespace {
+
+// Recommends the length of a buffer.
+//
+// The following constraints are applied, in the order of weakest to strongest:
+//  * If `single_run` and `pos` did not reach `size_hint` yet, the remaining
+//    length, otherwise the base recommendation of `length`.
+//  * At least `max(min_length, recommended_length)`.
+//  * At most `max_length`.
+//  * Aligned so that the next position is a multiple of the length so far
+//    rounded up to the nearest power of 2, but at least `min_length`.
+inline size_t ApplySizeHintAndRoundPos(Position base_length, size_t min_length,
+                                       size_t recommended_length,
+                                       size_t max_length,
+                                       absl::optional<Position> size_hint,
+                                       Position pos, bool single_run) {
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of ApplySizeHintAndRoundPos(): zero min_length";
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of ApplySizeHintAndRoundPos(): zero max_length";
+  if (single_run) base_length = ApplySizeHint(base_length, size_hint, pos);
+  const size_t length_for_rounding = UnsignedMin(
+      UnsignedMax(base_length, min_length, recommended_length), max_length);
+  const size_t rounding_mask = absl::bit_ceil(length_for_rounding) - 1;
+  const size_t rounded_length = (~pos & rounding_mask) + 1;
+  if (rounded_length < min_length) {
+    // Return at least `min_length`, keeping the same remainder modulo
+    // `rounding_mask + 1` as `rounded_length`.
+    return ((min_length - rounded_length + rounding_mask) & ~rounding_mask) +
+           rounded_length;
+  }
+  return rounded_length;
+}
+
+}  // namespace
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
 // namespace scope is required. Since C++17 these definitions are deprecated:
@@ -40,45 +78,15 @@ size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
   RIEGELI_ASSERT_GE(pos, base_pos_)
       << "Failed precondition of ReadBufferSizer::ReadBufferLength(): "
       << "position earlier than base position of the run";
-  return BufferLengthImpl<ApplyReadSizeHint>(pos, min_length,
-                                             recommended_length);
-}
-
-size_t ReadBufferSizer::LengthToReadDirectly(Position pos,
-                                             size_t start_to_limit,
-                                             size_t available) const {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
-      << "Failed precondition of ReadBufferSizer::LengthToReadDirectly(): "
-      << "position earlier than base position of the run";
-  RIEGELI_ASSERT_LE(available, start_to_limit)
-      << "Failed precondition of ReadBufferSizer::LengthToReadDirectly(): "
-         "length out of range";
-  // Use `ApplyWriteSizeHint` and not `ApplyReadSizeHint` because reading one
-  // byte past the size hint is not needed in this context.
-  const size_t length = BufferLengthImpl<ApplyWriteSizeHint>(pos, 1, 0);
-  if (start_to_limit > 0) {
-    // The buffer is already filled. Under the assumption that `start_to_limit`
-    // is a reasonable buffer size, after appending all the data currently
-    // available in the buffer to the destination, any amount of data read
-    // directly to the destination leads to every other pull from the source
-    // having the length of at least a reasonable buffer length.
-    return UnsignedMin(length, available);
+  const size_t length = ApplySizeHintAndRoundPos(
+      UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
+                  buffer_options_.min_buffer_size()),
+      min_length, recommended_length, buffer_options_.max_buffer_size(),
+      exact_size(), pos, read_all_hint_);
+  if (exact_size() != absl::nullopt) {
+    return UnsignedMin(length, SaturatingSub(*exact_size(), pos));
   }
   return length;
-}
-
-template <Position (*ApplySizeHint)(Position recommended_length,
-                                    absl::optional<Position> size_hint,
-                                    Position pos, bool multiple_runs)>
-inline size_t ReadBufferSizer::BufferLengthImpl(
-    Position pos, size_t min_length, size_t recommended_length) const {
-  return UnsignedClamp(
-      UnsignedMax(ApplySizeHint(
-                      UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
-                                  buffer_options_.min_buffer_size()),
-                      exact_size(), pos, !read_all_hint_),
-                  recommended_length),
-      min_length, buffer_options_.max_buffer_size());
 }
 
 size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
@@ -89,32 +97,13 @@ size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
   RIEGELI_ASSERT_GE(pos, base_pos_)
       << "Failed precondition of WriteBufferSizer::WriteBufferLength(): "
       << "position earlier than base position of the run";
-  return UnsignedClamp(
-      UnsignedMax(ApplyWriteSizeHint(
-                      UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
-                                  buffer_options_.min_buffer_size()),
-                      size_hint(), pos, buffer_length_from_last_run_ > 0),
-                  recommended_length),
-      min_length, buffer_options_.max_buffer_size());
-}
-
-size_t WriteBufferSizer::LengthToWriteDirectly(Position pos,
-                                               size_t start_to_limit,
-                                               size_t available) const {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
-      << "Failed precondition of WriteBufferSizer::LengthToWriteDirectly(): "
-      << "position earlier than base position of the run";
-  RIEGELI_ASSERT_LE(available, start_to_limit)
-      << "Failed precondition of WriteBufferSizer::LengthToWriteDirectly(): "
-         "length out of range";
-  const size_t length = BufferLength(pos, 1, 0);
-  if (start_to_limit > available) {
-    // The buffer already contains some data. Under the assumption that
-    // `start_to_limit` is a reasonable buffer size, if the source is at least
-    // as large as the remaining space in the buffer, pushing buffered data to
-    // the destination and then writing directly from the source leads to as
-    // many pushes as writing through the buffer.
-    return UnsignedMin(length, available);
+  const size_t length = ApplySizeHintAndRoundPos(
+      UnsignedMax(pos - base_pos_, buffer_length_from_last_run_,
+                  buffer_options_.min_buffer_size()),
+      min_length, recommended_length, buffer_options_.max_buffer_size(),
+      size_hint(), pos, buffer_length_from_last_run_ == 0);
+  if (size_hint() != absl::nullopt && pos < *size_hint()) {
+    return UnsignedClamp(length, min_length, *size_hint() - pos);
   }
   return length;
 }

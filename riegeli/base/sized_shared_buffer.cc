@@ -20,6 +20,7 @@
 #include <limits>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -202,6 +203,30 @@ absl::Span<char> SizedSharedBuffer::PrependBuffer(size_t min_length,
     data_ = new_data;
   }
   const size_t length = UnsignedMin(space_before(), max_length);
+  data_ -= length;
+  size_ += length;
+  return absl::Span<char>(data_, length);
+}
+
+absl::Span<char> SizedSharedBuffer::AppendBufferIfExisting(size_t length) {
+  size_t new_min_length;
+  if (ABSL_PREDICT_FALSE(length >
+                         std::numeric_limits<size_t>::max() - size()) ||
+      !CanAppendMovingData(length, new_min_length)) {
+    return absl::Span<char>();
+  }
+  const absl::Span<char> buffer(data_ + size_, length);
+  size_ += length;
+  return buffer;
+}
+
+absl::Span<char> SizedSharedBuffer::PrependBufferIfExisting(size_t length) {
+  size_t space_after, new_min_length;
+  if (ABSL_PREDICT_FALSE(length >
+                         std::numeric_limits<size_t>::max() - size()) ||
+      !CanPrependMovingData(length, space_after, new_min_length)) {
+    return absl::Span<char>();
+  }
   data_ -= length;
   size_ += length;
   return absl::Span<char>(data_, length);

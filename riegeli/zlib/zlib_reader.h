@@ -182,8 +182,8 @@ class ZlibReaderBase : public BufferedReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  void ExactSizeReached() override;
   bool SeekBehindBuffer(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
@@ -212,6 +212,9 @@ class ZlibReaderBase : public BufferedReader {
   bool stream_had_data_ = false;
   ZlibDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
+  // If `ok()` but `decompressor_ == nullptr` then all data have been
+  // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
+  // be called again.
   RecyclingPool<z_stream_s, ZStreamDeleter>::Handle decompressor_;
 };
 

@@ -37,54 +37,28 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMaxBlockSize, size_t{64} << 10);
 // performs better.
 RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 
-// Recommends the length of a read buffer by modifying the base recommendation
-// if a size hint is known.
+// Recommends the length of a buffer by modifying the base recommendation.
 //
-// The base recommendation is `length`. If `pos` did not pass `size_hint` yet,
-// returns the remaining length instead, increased by 1 which can be helpful to
-// verify that there are indeed no more data.
-//
-// If `multiple_runs` are predicted, it is assumed that reading might not reach
-// the size hint, and thus a size hint may decrease but not increase the
-// returned length.
-inline Position ApplyReadSizeHint(Position length,
-                                  absl::optional<Position> size_hint,
-                                  Position pos, bool multiple_runs = false) {
-  if (size_hint != absl::nullopt && pos <= *size_hint) {
-    const Position remaining_plus_1 =
-        SaturatingAdd(*size_hint - pos, Position{1});
-    if (multiple_runs) {
-      return UnsignedMin(length, remaining_plus_1);
-    } else {
-      return remaining_plus_1;
-    }
-  } else {
-    return length;
-  }
+// If `pos` did not reach `size_hint` yet, returns the remaining length instead
+// of `base_length`.
+inline Position ApplySizeHint(Position base_length,
+                              absl::optional<Position> size_hint,
+                              Position pos) {
+  if (size_hint != absl::nullopt && pos < *size_hint) return *size_hint - pos;
+  return base_length;
 }
 
-// Recommends the length of a write buffer by modifying the base recommendation
-// if a size hint is known.
+// Recommends the length of a buffer by modifying the base recommendation.
 //
-// The base recommendation is `length`. If `pos` did not reach `size_hint` yet,
-// returns the remaining length instead.
-//
-// If `multiple_runs` are predicted, it is assumed that writing might not reach
-// the size hint, and thus a size hint may decrease but not increase the
-// returned length.
-inline Position ApplyWriteSizeHint(Position length,
-                                   absl::optional<Position> size_hint,
-                                   Position pos, bool multiple_runs = false) {
-  if (size_hint != absl::nullopt && pos < *size_hint) {
-    const Position remaining = *size_hint - pos;
-    if (multiple_runs) {
-      return UnsignedMin(length, remaining);
-    } else {
-      return remaining;
-    }
-  } else {
-    return length;
-  }
+// The following constraints are applied, in the order of weakest to strongest:
+//  * At least `recommended_length`.
+//  * At most `max_length`.
+//  * At least `min_length`.
+inline size_t ApplyBufferConstraints(Position base_length, size_t min_length,
+                                     size_t recommended_length,
+                                     size_t max_length) {
+  return UnsignedClamp(UnsignedMax(base_length, recommended_length), min_length,
+                       max_length);
 }
 
 // Heuristics for whether a partially filled buffer is wasteful.

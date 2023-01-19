@@ -46,6 +46,8 @@ class BufferedReader : public Reader {
   // other cases.
   bool ToleratesReadingAhead() override { return read_all_hint(); }
 
+  bool SupportsSize() override { return exact_size() != absl::nullopt; }
+
  protected:
   // Creates a closed `BufferedReader`.
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
@@ -123,6 +125,13 @@ class BufferedReader : public Reader {
   virtual bool ReadInternal(size_t min_length, size_t max_length,
                             char* dest) = 0;
 
+  // Called when `exact_size()` was reached but reading more is requested.
+  // In this case `ReadInternal()` was not called.
+  //
+  // By default does nothing. This can be overridden e.g. to ensure that a
+  // compressed stream is fully consumed after decompressing all data.
+  virtual void ExactSizeReached();
+
   // Implementation of `SeekSlow()`, called while no data are buffered.
   //
   // By default it is implemented analogously to the corresponding `Reader`
@@ -145,6 +154,7 @@ class BufferedReader : public Reader {
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
 
   // Reuses `buffer_` as `reader.buffer_` if `reader.pos()` falls inside.
   void ShareBufferTo(BufferedReader& reader) const;

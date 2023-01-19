@@ -94,9 +94,8 @@ bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
     return FailOverflow();
   }
   const size_t length = UnsignedMin(
-      UnsignedMax(
-          ApplyWriteSizeHint(snappy::kBlockSize, size_hint_, start_pos()),
-          recommended_length),
+      UnsignedMax(ApplySizeHint(snappy::kBlockSize, size_hint_, start_pos()),
+                  recommended_length),
       snappy::kBlockSize, std::numeric_limits<Position>::max() - start_pos());
   uncompressed_.Reset(length);
   set_buffer(uncompressed_.data(), length);

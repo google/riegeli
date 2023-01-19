@@ -213,13 +213,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     absl::MutexLock l(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
-    if (length >=
-        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+    if (length >= buffer_sizer_.BufferLength(pos())) {
+      // Read directly to `dest`.
       if (ABSL_PREDICT_FALSE(!shared_->reader->Read(length, dest))) {
         set_limit_pos(shared_->reader->pos());
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
@@ -270,13 +269,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     absl::MutexLock l(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
-    if (length >=
-        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+    if (length >= buffer_sizer_.BufferLength(pos())) {
+      // Read directly to `dest`.
       if (ABSL_PREDICT_FALSE(!shared_->reader->ReadAndAppend(length, dest))) {
         set_limit_pos(shared_->reader->pos());
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
@@ -327,13 +325,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     absl::MutexLock l(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
-    if (length >=
-        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+    if (length >= buffer_sizer_.BufferLength(pos())) {
+      // Read directly to `dest`.
       if (ABSL_PREDICT_FALSE(!shared_->reader->ReadAndAppend(length, dest))) {
         set_limit_pos(shared_->reader->pos());
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
@@ -402,14 +399,13 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
     }
 
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    const size_t previous_buffer_length = secondary_buffer_.size();
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     set_buffer();
     absl::MutexLock l(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
-    if (length >=
-        buffer_sizer_.LengthToReadDirectly(pos(), previous_buffer_length, 0)) {
+    if (length >= buffer_sizer_.BufferLength(pos())) {
+      // Read directly to `dest`.
       if (ABSL_PREDICT_FALSE(!shared_->reader->Copy(length, dest))) {
         set_limit_pos(shared_->reader->pos());
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {

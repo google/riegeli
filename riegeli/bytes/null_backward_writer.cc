@@ -45,16 +45,14 @@ inline void NullBackwardWriter::SyncBuffer() {
 inline bool NullBackwardWriter::MakeBuffer(size_t min_length,
                                            size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length =
-      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
+  const size_t buffer_length = UnsignedMin(
+      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length),
+      std::numeric_limits<Position>::max() - start_pos());
   buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(),
-             UnsignedMin(buffer_.capacity(),
-                         SaturatingAdd(buffer_length, buffer_length),
-                         std::numeric_limits<Position>::max() - start_pos()));
+  set_buffer(buffer_.data(), buffer_length);
   return true;
 }
 

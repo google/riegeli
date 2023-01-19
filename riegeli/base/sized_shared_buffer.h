@@ -111,6 +111,16 @@ class
   absl::Span<char> AppendFixedBuffer(size_t length);
   absl::Span<char> PrependFixedBuffer(size_t length);
 
+  // Appends/prepends some uninitialized space with the given `length` if this
+  // is possible without invalidating existing pointers, otherwise returns an
+  // empty buffer. If the `SizedSharedBuffer` was empty then the empty contents
+  // can be moved.
+  //
+  // In contrast to `AppendBuffer(0, length, length)`, the returned buffer has
+  // size either 0 or `length`, nothing between.
+  absl::Span<char> AppendBufferIfExisting(size_t length);
+  absl::Span<char> PrependBufferIfExisting(size_t length);
+
   // Removes suffix/prefix of the given length.
   //
   // Precondition: `length <= size()`

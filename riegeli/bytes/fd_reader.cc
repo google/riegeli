@@ -322,18 +322,16 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   const int src = SrcFd();
   for (;;) {
-    Position max_pos;
-    if (exact_size() != absl::nullopt) {
-      max_pos = *exact_size();
-      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
-    } else {
-      max_pos = Position{std::numeric_limits<fd_internal::Offset>::max()};
-      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
+    if (ABSL_PREDICT_FALSE(
+            limit_pos() >=
+            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+      return FailOverflow();
     }
 #ifndef _WIN32
-    const size_t length_to_read =
-        UnsignedMin(max_length, max_pos - limit_pos(),
-                    size_t{std::numeric_limits<ssize_t>::max()});
+    const size_t length_to_read = UnsignedMin(
+        max_length,
+        Position{std::numeric_limits<fd_internal::Offset>::max()} - limit_pos(),
+        size_t{std::numeric_limits<ssize_t>::max()});
   again:
     const ssize_t length_read =
         has_independent_pos_ ? pread(src, dest, length_to_read,
@@ -351,9 +349,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                              file_handle == reinterpret_cast<HANDLE>(-2))) {
         return FailWindowsOperation("_get_osfhandle()");
       }
-      const DWORD length_to_read =
-          IntCast<DWORD>(UnsignedMin(max_length, max_pos - limit_pos(),
-                                     std::numeric_limits<DWORD>::max()));
+      const DWORD length_to_read = IntCast<DWORD>(UnsignedMin(
+          max_length,
+          Position{std::numeric_limits<fd_internal::Offset>::max()} -
+              limit_pos(),
+          std::numeric_limits<DWORD>::max()));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(limit_pos() & 0xffffffff);
       overlapped.OffsetHigh = IntCast<DWORD>(limit_pos() >> 32);
@@ -363,9 +363,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
         return FailWindowsOperation("ReadFile()");
       }
     } else {
-      const unsigned length_to_read =
-          UnsignedMin(max_length, max_pos - limit_pos(),
-                      unsigned{std::numeric_limits<int>::max()});
+      const unsigned length_to_read = UnsignedMin(
+          max_length,
+          Position{std::numeric_limits<fd_internal::Offset>::max()} -
+              limit_pos(),
+          unsigned{std::numeric_limits<int>::max()});
       const int length_read_int = _read(src, dest, length_to_read);
       if (ABSL_PREDICT_FALSE(length_read_int < 0)) {
         return FailOperation("_read()");

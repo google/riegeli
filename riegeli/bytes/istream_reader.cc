@@ -138,20 +138,20 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   std::istream& src = *SrcStream();
   errno = 0;
   for (;;) {
-    Position max_pos;
-    if (exact_size() != absl::nullopt) {
-      max_pos = *exact_size();
-      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return false;
-    } else {
-      max_pos = Position{std::numeric_limits<std::streamoff>::max()};
-      if (ABSL_PREDICT_FALSE(limit_pos() >= max_pos)) return FailOverflow();
+    if (ABSL_PREDICT_FALSE(
+            limit_pos() >=
+            Position{std::numeric_limits<std::streamoff>::max()})) {
+      return FailOverflow();
     }
-    std::streamsize length_to_read = IntCast<std::streamsize>(
-        UnsignedMin(min_length, max_pos - limit_pos(),
-                    UnsignedCast(std::numeric_limits<std::streamsize>::max())));
-    const std::streamsize max_length_to_read = IntCast<std::streamsize>(
-        UnsignedMin(max_length, max_pos - limit_pos(),
-                    UnsignedCast(std::numeric_limits<std::streamsize>::max())));
+    std::streamsize length_to_read = IntCast<std::streamsize>(UnsignedMin(
+        min_length,
+        Position{std::numeric_limits<std::streamoff>::max()} - limit_pos(),
+        UnsignedCast(std::numeric_limits<std::streamsize>::max())));
+    const std::streamsize max_length_to_read =
+        IntCast<std::streamsize>(UnsignedMin(
+            max_length,
+            Position{std::numeric_limits<std::streamoff>::max()} - limit_pos(),
+            UnsignedCast(std::numeric_limits<std::streamsize>::max())));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
       // Use `std::istream::readsome()` to read as much data as is available,

@@ -175,11 +175,11 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   }
   if (start_to_cursor() >= min_block_size_) SyncBuffer(dest);
   const size_t cursor_index = start_to_cursor();
-  const size_t buffer_length = UnsignedClamp(
-      UnsignedMax(ApplyWriteSizeHint(UnsignedMax(start_pos(), min_block_size_),
-                                     size_hint_, start_pos()),
-                  SaturatingAdd(cursor_index, recommended_length)),
-      cursor_index + min_length, max_block_size_);
+  const size_t buffer_length = ApplyBufferConstraints(
+      ApplySizeHint(UnsignedMax(start_pos(), min_block_size_), size_hint_,
+                    start_pos()),
+      cursor_index + min_length,
+      SaturatingAdd(cursor_index, recommended_length), max_block_size_);
   if (buffer_length <= kCordBufferMaxSize) {
     RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
                    start() != cord_buffer_.data())

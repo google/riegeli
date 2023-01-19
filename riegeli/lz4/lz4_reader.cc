@@ -160,16 +160,6 @@ absl::Status Lz4ReaderBase::AnnotateOverSrc(absl::Status status) {
   return status;
 }
 
-bool Lz4ReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Reader::PullSlow(): "
-         "enough data available, use Pull() instead";
-  // After all data have been decompressed, skip `BufferedReader::PullSlow()`
-  // to avoid allocating the buffer in case it was not allocated yet.
-  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  return BufferedReader::PullSlow(min_length, recommended_length);
-}
-
 bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                  char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
@@ -180,7 +170,6 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
          "max_length < min_length";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *SrcReader();
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(!header_read_)) {
@@ -208,6 +197,8 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
     move_limit_pos(dest_length);
     if (result == 0) {
       decompressor_.reset();
+      // Avoid `BufferedReader` allocating another buffer.
+      set_exact_size(limit_pos());
       return dest_length >= min_length;
     }
     if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) {
@@ -246,6 +237,18 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
+void Lz4ReaderBase::ExactSizeReached() {
+  if (decompressor_ == nullptr) return;
+  char buffer[1];
+  if (ABSL_PREDICT_FALSE(Lz4ReaderBase::ReadInternal(1, 1, buffer))) {
+    decompressor_.reset();
+    Fail(absl::FailedPreconditionError(
+        "Uncompressed size reached but more data can be decompressed, "
+        "which implies that seeking back and reading again encountered "
+        "changed Lz4-compressed data"));
+  }
+}
+
 bool Lz4ReaderBase::ToleratesReadingAhead() {
   Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
@@ -280,16 +283,6 @@ bool Lz4ReaderBase::SeekBehindBuffer(Position new_pos) {
     if (new_pos == 0) return true;
   }
   return BufferedReader::SeekBehindBuffer(new_pos);
-}
-
-absl::optional<Position> Lz4ReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(exact_size() == absl::nullopt)) {
-    Fail(absl::UnimplementedError(
-        "Uncompressed size was not stored in the Lz4-compressed stream"));
-    return absl::nullopt;
-  }
-  return *exact_size();
 }
 
 bool Lz4ReaderBase::SupportsNewReader() {

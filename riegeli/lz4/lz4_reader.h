@@ -104,7 +104,6 @@ class Lz4ReaderBase : public BufferedReader {
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
-  bool SupportsSize() override { return exact_size() != absl::nullopt; }
   bool SupportsNewReader() override;
 
  protected:
@@ -125,10 +124,9 @@ class Lz4ReaderBase : public BufferedReader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  void ExactSizeReached() override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -160,8 +158,8 @@ class Lz4ReaderBase : public BufferedReader {
   Lz4Dictionary dictionary_;
   Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
-  // decompressed. In this case `LZ4F_decompress_usingDict()` must not be called
-  // again.
+  // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
+  // be called again.
   RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
 };
 

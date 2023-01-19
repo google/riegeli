@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -59,6 +60,9 @@ class BufferOptions {
   // Default: `kDefaultMaxBufferSize` (64K).
   static constexpr size_t kDefaultMaxBufferSize = size_t{64} << 10;
   BufferOptions& set_max_buffer_size(size_t max_buffer_size) & {
+    RIEGELI_ASSERT_GT(max_buffer_size, 0u)
+        << "Failed precondition of BufferOptions::set_max_buffer_size(): "
+           "zero buffer size";
     max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
     return *this;
   }
@@ -160,6 +164,11 @@ class BufferOptionsBase {
 // (`Reader::Seek()` or `Reader::Sync()`). The buffer length for the new run is
 // optimized for the case when the new run will have a similar length to the
 // previous non-empty run.
+//
+// The lengths aim at letting absolute positions be multiples of sufficiently
+// large powers of 2. Aligned positions might make reading from the source more
+// efficient. This is also important for filling the remaining part of the
+// buffer if the source returned less data than asked for.
 class ReadBufferSizer {
  public:
   ReadBufferSizer() = default;
@@ -214,7 +223,11 @@ class ReadBufferSizer {
 
   // Proposed a buffer length for reading at `pos`.
   //
-  // The length will be at least `min_length`, preferably `recommended_length`.
+  // The length will not let the next position exceed `exact_size()`,
+  // in particular it is 0 if `exact_size() != nullptr && pos >= *exact_size()`.
+  //
+  // It will be at least `min_length` unless `exact_size()` is reached,
+  // preferably `recommended_length`.
   //
   // Preconditions:
   //   `min_length > 0`
@@ -223,32 +236,7 @@ class ReadBufferSizer {
   size_t BufferLength(Position pos, size_t min_length = 1,
                       size_t recommended_length = 0) const;
 
-  // Minimum read length, for which it is better to append the data currently
-  // available in the buffer to the destination and then read directly to the
-  // destination, than to read through the buffer.
-  //
-  // Reading directly is preferred if at least every other pull from the source
-  // has the length of at least a reasonable buffer size, or if the number of
-  // pulls is at most as large as if this was true.
-  //
-  // `pos` is the current position. `start_to_limit` is the current size of the
-  // buffer. `available` is the length of the final part of the buffer, with
-  // data pulled from the source but not yet returned to the callers.
-  //
-  // Preconditions:
-  //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
-  //       `BeginRun()`, if `BeginRun()` has been called
-  //   `available <= start_to_limit`
-  size_t LengthToReadDirectly(Position pos, size_t start_to_limit,
-                              size_t available) const;
-
  private:
-  template <Position (*ApplySizeHint)(Position recommended_length,
-                                      absl::optional<Position> size_hint,
-                                      Position pos, bool multiple_runs)>
-  size_t BufferLengthImpl(Position pos, size_t min_length,
-                          size_t recommended_length) const;
-
   BufferOptions buffer_options_;
   // Position where the current run started.
   Position base_pos_ = 0;
@@ -268,6 +256,10 @@ class ReadBufferSizer {
 // `Writer::Seek()` or `Writer::Flush()`). The buffer length for the new run is
 // optimized for the case when the new run will have a similar length to the
 // previous non-empty run.
+//
+// The lengths aim at letting absolute positions be multiples of sufficiently
+// large powers of 2. Aligned positions might make writing to the destination
+// more efficient.
 class WriteBufferSizer {
  public:
   WriteBufferSizer() = default;
@@ -288,7 +280,7 @@ class WriteBufferSizer {
   //
   // If not `absl::nullptr`, this causes larger buffer sizes to be used before
   // reaching `*size_hint()`, and a smaller buffer size to be used when reaching
-  // `*exact_size()`.
+  // `*size_hint()`.
   void set_write_size_hint(Position pos,
                            absl::optional<Position> write_size_hint) {
     size_hint_ =
@@ -325,25 +317,6 @@ class WriteBufferSizer {
   //       `BeginRun()`, if `BeginRun()` has been called
   size_t BufferLength(Position pos, size_t min_length = 1,
                       size_t recommended_length = 0) const;
-
-  // Minimum write length, for which it is better to push buffered data from the
-  // buffer to the destination and then write directly from the source, than to
-  // write through the buffer.
-  //
-  // Writing directly is preferred if at least every other push to the
-  // destination has the length of at least a reasonable buffer size, or if the
-  // number of pushes is at most a large as if this was true.
-  //
-  // `pos` is the current position. `start_to_limit` is the current size of the
-  // buffer. `available` is the length of the final part of the buffer, with
-  // space not yet filled by the callers.
-  //
-  // Preconditions:
-  //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
-  //       `BeginRun()`, if `BeginRun()` has been called
-  //   `available <= start_to_limit`
-  size_t LengthToWriteDirectly(Position pos, size_t start_to_limit,
-                               size_t available) const;
 
  private:
   BufferOptions buffer_options_;
@@ -391,7 +364,10 @@ inline void ReadBufferSizer::EndRun(Position pos) {
       << "position earlier than base position of the run";
   if (pos == base_pos_) return;
   const size_t length = SaturatingIntCast<size_t>(pos - base_pos_);
-  buffer_length_from_last_run_ = SaturatingAdd(length, length / 4);
+  // Increase the length to compensate for variability of the lengths, and for
+  // rounding the positions so that even after rounding the length down to a
+  // power of 2 the last length is covered.
+  buffer_length_from_last_run_ = SaturatingAdd(length, length - 1);
 }
 
 inline WriteBufferSizer::WriteBufferSizer(const BufferOptions& buffer_options)
@@ -417,7 +393,10 @@ inline void WriteBufferSizer::EndRun(Position pos) {
       << "position earlier than base position of the run";
   if (pos == base_pos_) return;
   const size_t length = SaturatingIntCast<size_t>(pos - base_pos_);
-  buffer_length_from_last_run_ = SaturatingAdd(length, length / 4);
+  // Increase the length to compensate for variability of the lengths, and for
+  // rounding the positions so that even after rounding the length down to a
+  // power of 2 the last length is covered.
+  buffer_length_from_last_run_ = SaturatingAdd(length, length - 1);
 }
 
 }  // namespace riegeli

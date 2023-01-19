@@ -161,13 +161,11 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length =
-      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length);
+  const size_t buffer_length = UnsignedMin(
+      buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length),
+      std::numeric_limits<Position>::max() - start_pos());
   buffer_.Reset(buffer_length);
-  set_buffer(buffer_.mutable_data(),
-             UnsignedMin(buffer_.capacity(),
-                         SaturatingAdd(buffer_length, buffer_length),
-                         std::numeric_limits<Position>::max() - start_pos()));
+  set_buffer(buffer_.mutable_data(), buffer_length);
   return true;
 }
 
@@ -196,8 +194,8 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
-  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
-                                                        available())) {
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `src`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
@@ -209,8 +207,8 @@ bool FileWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
-  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
-                                                        available())) {
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `src`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(src));
@@ -222,8 +220,8 @@ bool FileWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
-                                                        available())) {
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `src`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(absl::Cord(std::move(src)));
@@ -238,8 +236,8 @@ bool FileWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (src.size() >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
-                                                        available())) {
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `src`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     return WriteInternal(src);
@@ -251,8 +249,8 @@ bool FileWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (length >= buffer_sizer_.LengthToWriteDirectly(pos(), start_to_limit(),
-                                                    available())) {
+  if (length >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `CordOfZeros()`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     while (length > std::numeric_limits<size_t>::max()) {

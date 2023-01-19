@@ -238,6 +238,7 @@ cc_library(
         "//riegeli/base:buffering",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/types:optional",
     ],
 )
