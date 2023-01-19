@@ -68,22 +68,26 @@ bool FileReaderBase::InitializeFilename(absl::string_view filename) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
-  if (const ::tensorflow::Status status =
-          env_->GetFileSystemForFile(filename_, &file_system_);
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return FailOperation(status, "Env::GetFileSystemForFile()");
+  {
+    const ::tensorflow::Status status =
+        env_->GetFileSystemForFile(filename_, &file_system_);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return FailOperation(status, "Env::GetFileSystemForFile()");
+    }
   }
   return true;
 }
 
 std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
   std::unique_ptr<::tensorflow::RandomAccessFile> src;
-  if (const ::tensorflow::Status status =
-          file_system_->NewRandomAccessFile(filename_, &src);
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    Reader::Reset(kClosed);
-    FailOperation(status, "FileSystem::NewRandomAccessFile()");
-    return nullptr;
+  {
+    const ::tensorflow::Status status =
+        file_system_->NewRandomAccessFile(filename_, &src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      Reader::Reset(kClosed);
+      FailOperation(status, "FileSystem::NewRandomAccessFile()");
+      return nullptr;
+    }
   }
   return src;
 }
@@ -629,10 +633,12 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
     if (exact_size() != absl::nullopt) {
       file_size = IntCast<uint64_t>(*exact_size());
     } else {
-      if (const ::tensorflow::Status status =
-              file_system_->GetFileSize(filename_, &file_size);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation(status, "FileSystem::GetFileSize()");
+      {
+        const ::tensorflow::Status status =
+            file_system_->GetFileSize(filename_, &file_size);
+        if (ABSL_PREDICT_FALSE(!status.ok())) {
+          return FailOperation(status, "FileSystem::GetFileSize()");
+        }
       }
       if (!growing_source_) set_exact_size(Position{file_size});
     }
@@ -656,11 +662,13 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
   uint64_t file_size;
-  if (const ::tensorflow::Status status =
-          file_system_->GetFileSize(filename_, &file_size);
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    FailOperation(status, "FileSystem::GetFileSize()");
-    return absl::nullopt;
+  {
+    const ::tensorflow::Status status =
+        file_system_->GetFileSize(filename_, &file_size);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailOperation(status, "FileSystem::GetFileSize()");
+      return absl::nullopt;
+    }
   }
   if (!growing_source_) set_exact_size(Position{file_size});
   return Position{file_size};

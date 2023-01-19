@@ -42,9 +42,7 @@ inline size_t EstimatedAllocatedSize(ABSL_ATTRIBUTE_UNUSED const void* ptr,
 
 // A deterministic variant of `EstimatedAllocatedSize()`, useful for testing.
 inline size_t EstimatedAllocatedSizeForTesting(size_t requested_size) {
-  // Round to the next power of 2.
-  return size_t{1} << (sizeof(size_t) * 8 - absl::countl_zero(SaturatingSub(
-                                                requested_size, size_t{1})));
+  return absl::bit_ceil(requested_size);
 }
 
 }  // namespace riegeli

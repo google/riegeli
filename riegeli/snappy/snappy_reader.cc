@@ -46,11 +46,12 @@ void SnappyReaderBase::Initialize(Reader* src) {
     return;
   }
   Chain decompressed;
-  if (absl::Status status =
-          SnappyDecompress(*src, ChainWriter<>(&decompressed));
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    FailWithoutAnnotation(std::move(status));
-    return;
+  {
+    absl::Status status = SnappyDecompress(*src, ChainWriter<>(&decompressed));
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailWithoutAnnotation(std::move(status));
+      return;
+    }
   }
   // `SnappyReaderBase` derives from `ChainReader<Chain>` but the `Chain` to
   // read from was not known in `SnappyReaderBase` constructor. This sets the

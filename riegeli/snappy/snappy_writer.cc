@@ -54,10 +54,11 @@ void SnappyWriterBase::Done() {
   Writer::Done();
   if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *DestWriter();
-    if (absl::Status status =
-            SnappyCompress(ChainReader<>(&uncompressed_), dest);
-        ABSL_PREDICT_FALSE(!status.ok())) {
-      FailWithoutAnnotation(std::move(status));
+    {
+      absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        FailWithoutAnnotation(std::move(status));
+      }
     }
   }
   uncompressed_ = Chain();

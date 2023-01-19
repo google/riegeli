@@ -190,11 +190,12 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       if (ABSL_PREDICT_FALSE(!records_decompressor.ok())) {
         return records_decompressor.status();
       }
-      if (absl::Status status =
-              ReadRecords(records_decompressor.reader(), limits,
-                          *simple_chunk.mutable_records());
-          !status.ok()) {
-        return status;
+      {
+        absl::Status status = ReadRecords(records_decompressor.reader(), limits,
+                                          *simple_chunk.mutable_records());
+        if (!status.ok()) {
+          return status;
+        }
       }
       if (ABSL_PREDICT_FALSE(!records_decompressor.VerifyEndAndClose())) {
         return records_decompressor.status();
