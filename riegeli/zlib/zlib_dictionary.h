@@ -15,12 +15,12 @@
 #ifndef RIEGELI_ZLIB_ZLIB_DICTIONARY_H_
 #define RIEGELI_ZLIB_ZLIB_DICTIONARY_H_
 
-#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "riegeli/base/intrusive_ref_count.h"
 
 namespace riegeli {
 
@@ -86,7 +86,24 @@ class ZlibDictionary {
   absl::string_view data() const { return data_; }
 
  private:
-  std::shared_ptr<const std::string> owned_data_;
+  class Owned : public RefCountedBase<Owned> {
+   public:
+    explicit Owned(absl::string_view data) : data_(data) {}
+
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    explicit Owned(Src&& data)
+        // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+        // necessary: `Src` is always `std::string`, never an lvalue reference.
+        : data_(std::move(data)) {}
+
+    absl::string_view data() const { return data_; }
+
+   private:
+    std::string data_;
+  };
+
+  RefCountedPtr<const Owned> owned_data_;
   absl::string_view data_;
 };
 
@@ -99,8 +116,8 @@ inline ZlibDictionary& ZlibDictionary::Reset() & {
 }
 
 inline ZlibDictionary& ZlibDictionary::set_data(absl::string_view data) & {
-  owned_data_ = std::make_shared<const std::string>(data);
-  data_ = *owned_data_;
+  owned_data_ = MakeRefCounted<const Owned>(data);
+  data_ = owned_data_->data();
   return *this;
 }
 
@@ -109,8 +126,8 @@ template <typename Src,
 inline ZlibDictionary& ZlibDictionary::set_data(Src&& data) & {
   // `std::move(data)` is correct and `std::forward<Src>(data)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  owned_data_ = std::make_shared<const std::string>(std::move(data));
-  data_ = *owned_data_;
+  owned_data_ = MakeRefCounted<const Owned>(std::move(data));
+  data_ = owned_data_->data();
   return *this;
 }
 
