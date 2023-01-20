@@ -71,18 +71,11 @@ class Lz4ReaderBase : public BufferedReader {
     // was used for compression.
     //
     // Default: `Lz4Dictionary()`.
-    Options& set_dictionary(const Lz4Dictionary& dictionary) & {
-      dictionary_ = dictionary;
-      return *this;
-    }
-    Options& set_dictionary(Lz4Dictionary&& dictionary) & {
+    Options& set_dictionary(Lz4Dictionary dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const Lz4Dictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    Options&& set_dictionary(Lz4Dictionary&& dictionary) && {
+    Options&& set_dictionary(Lz4Dictionary dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
     Lz4Dictionary& dictionary() { return dictionary_; }

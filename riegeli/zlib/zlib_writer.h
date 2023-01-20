@@ -125,18 +125,11 @@ class ZlibWriterBase : public BufferedWriter {
     // Zlib dictionary. The same dictionary must be used for decompression.
     //
     // Default: `ZlibDictionary()`.
-    Options& set_dictionary(const ZlibDictionary& dictionary) & {
-      dictionary_ = dictionary;
-      return *this;
-    }
-    Options& set_dictionary(ZlibDictionary&& dictionary) & {
+    Options& set_dictionary(ZlibDictionary dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const ZlibDictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    Options&& set_dictionary(ZlibDictionary&& dictionary) && {
+    Options&& set_dictionary(ZlibDictionary dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
     ZlibDictionary& dictionary() { return dictionary_; }

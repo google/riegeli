@@ -64,18 +64,11 @@ class ZstdReaderBase : public BufferedReader {
     // if no dictionary was used for compression.
     //
     // Default: `ZstdDictionary()`.
-    Options& set_dictionary(const ZstdDictionary& dictionary) & {
-      dictionary_ = dictionary;
-      return *this;
-    }
-    Options& set_dictionary(ZstdDictionary&& dictionary) & {
+    Options& set_dictionary(ZstdDictionary dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const ZstdDictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    Options&& set_dictionary(ZstdDictionary&& dictionary) && {
+    Options&& set_dictionary(ZstdDictionary dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
     ZstdDictionary& dictionary() { return dictionary_; }

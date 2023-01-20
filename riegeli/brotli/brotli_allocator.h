@@ -44,6 +44,12 @@ class BrotliAllocator {
   // Specifies the default allocator chosen by the Brotli engine.
   BrotliAllocator() = default;
 
+  BrotliAllocator(const BrotliAllocator& that) = default;
+  BrotliAllocator& operator=(const BrotliAllocator& that) = default;
+
+  BrotliAllocator(BrotliAllocator&& that) = default;
+  BrotliAllocator& operator=(BrotliAllocator&& that) = default;
+
   // Specifies functions to allocate and free a block of memory.
   //
   // Arguments should be functions of the following types, or equivalent

@@ -48,18 +48,11 @@ class BrotliReaderBase : public PullableReader {
     // dictionary must be supplied for decompression.
     //
     // Default: `BrotliDictionary()`.
-    Options& set_dictionary(const BrotliDictionary& dictionary) & {
-      dictionary_ = dictionary;
-      return *this;
-    }
-    Options& set_dictionary(BrotliDictionary&& dictionary) & {
+    Options& set_dictionary(BrotliDictionary dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const BrotliDictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    Options&& set_dictionary(BrotliDictionary&& dictionary) && {
+    Options&& set_dictionary(BrotliDictionary dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
     BrotliDictionary& dictionary() { return dictionary_; }
@@ -68,18 +61,11 @@ class BrotliReaderBase : public PullableReader {
     // Memory allocator used by the Brotli engine.
     //
     // Default: `BrotliAllocator()`.
-    Options& set_allocator(const BrotliAllocator& allocator) & {
-      allocator_ = allocator;
-      return *this;
-    }
-    Options& set_allocator(BrotliAllocator&& allocator) & {
+    Options& set_allocator(BrotliAllocator allocator) & {
       allocator_ = std::move(allocator);
       return *this;
     }
-    Options&& set_allocator(const BrotliAllocator& allocator) && {
-      return std::move(set_allocator(allocator));
-    }
-    Options&& set_allocator(BrotliAllocator&& allocator) && {
+    Options&& set_allocator(BrotliAllocator allocator) && {
       return std::move(set_allocator(std::move(allocator)));
     }
     BrotliAllocator& allocator() { return allocator_; }

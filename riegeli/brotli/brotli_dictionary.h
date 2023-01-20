@@ -87,12 +87,12 @@ class BrotliDictionary {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   BrotliDictionary& add_raw(absl::string_view data) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary& add_raw(Src&& data) &;
   BrotliDictionary&& add_raw(absl::string_view data) && {
     return std::move(add_raw(data));
   }
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  BrotliDictionary& add_raw(Src&& data) &;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   BrotliDictionary&& add_raw(Src&& data) && {
@@ -115,12 +115,12 @@ class BrotliDictionary {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   BrotliDictionary& set_serialized(absl::string_view data) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary& set_serialized(Src&& data) &;
   BrotliDictionary&& set_serialized(absl::string_view data) && {
     return std::move(set_serialized(data));
   }
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  BrotliDictionary& set_serialized(Src&& data) &;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   BrotliDictionary&& set_serialized(Src&& data) && {

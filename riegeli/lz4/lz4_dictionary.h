@@ -70,12 +70,12 @@ class Lz4Dictionary {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   Lz4Dictionary& set_data(absl::string_view data, uint32_t dict_id = 0) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  Lz4Dictionary& set_data(Src&& data, uint32_t dict_id = 0) &;
   Lz4Dictionary&& set_data(absl::string_view data, uint32_t dict_id = 0) && {
     return std::move(set_data(data, dict_id));
   }
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  Lz4Dictionary& set_data(Src&& data, uint32_t dict_id = 0) &;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   Lz4Dictionary&& set_data(Src&& data, uint32_t dict_id = 0) && {

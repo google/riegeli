@@ -64,11 +64,11 @@ class LimitingWriterBase : public Writer {
     absl::optional<Position> max_pos() const { return max_pos_; }
 
     // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
-    Options& set_exact_pos(Position pos) & {
-      return set_max_pos(pos).set_exact(true);
+    Options& set_exact_pos(Position exact_pos) & {
+      return set_max_pos(exact_pos).set_exact(true);
     }
-    Options&& set_exact_pos(Position pos) && {
-      return std::move(set_exact_pos(pos));
+    Options&& set_exact_pos(Position exact_pos) && {
+      return std::move(set_exact_pos(exact_pos));
     }
 
     // The limit expressed as a length relative to the current position.
@@ -88,11 +88,11 @@ class LimitingWriterBase : public Writer {
     absl::optional<Position> max_length() const { return max_length_; }
 
     // A shortcut for `set_max_length(length)` with `set_exact(true)`.
-    Options& set_exact_length(Position length) & {
-      return set_max_length(length).set_exact(true);
+    Options& set_exact_length(Position exact_length) & {
+      return set_max_length(exact_length).set_exact(true);
     }
-    Options&& set_exact_length(Position length) && {
-      return std::move(set_exact_length(length));
+    Options&& set_exact_length(Position exact_length) && {
+      return std::move(set_exact_length(exact_length));
     }
 
     // If `false`, `LimitingWriter` will write data at most up to the limit.

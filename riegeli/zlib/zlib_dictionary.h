@@ -57,12 +57,12 @@ class ZlibDictionary {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   ZlibDictionary& set_data(absl::string_view data) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  ZlibDictionary& set_data(Src&& data) &;
   ZlibDictionary&& set_data(absl::string_view data) && {
     return std::move(set_data(data));
   }
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  ZlibDictionary& set_data(Src&& data) &;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   ZlibDictionary&& set_data(Src&& data) && {

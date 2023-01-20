@@ -110,18 +110,11 @@ class Lz4WriterBase : public BufferedWriter {
     // Lz4 dictionary. The same dictionary must be used for decompression.
     //
     // Default: `Lz4Dictionary()`.
-    Options& set_dictionary(const Lz4Dictionary& dictionary) & {
-      dictionary_ = dictionary;
-      return *this;
-    }
-    Options& set_dictionary(Lz4Dictionary&& dictionary) & {
+    Options& set_dictionary(Lz4Dictionary dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const Lz4Dictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    Options&& set_dictionary(Lz4Dictionary&& dictionary) && {
+    Options&& set_dictionary(Lz4Dictionary dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
     Lz4Dictionary& dictionary() { return dictionary_; }

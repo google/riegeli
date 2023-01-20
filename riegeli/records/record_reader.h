@@ -93,12 +93,12 @@ class RecordReaderBase : public Object {
       field_projection_ = field_projection;
       return *this;
     }
+    Options&& set_field_projection(const FieldProjection& field_projection) && {
+      return std::move(set_field_projection(field_projection));
+    }
     Options& set_field_projection(FieldProjection&& field_projection) & {
       field_projection_ = std::move(field_projection);
       return *this;
-    }
-    Options&& set_field_projection(const FieldProjection& field_projection) && {
-      return std::move(set_field_projection(field_projection));
     }
     Options&& set_field_projection(FieldProjection&& field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
@@ -139,14 +139,14 @@ class RecordReaderBase : public Object {
       recovery_ = recovery;
       return *this;
     }
+    Options&& set_recovery(
+        const std::function<bool(const SkippedRegion&)>& recovery) && {
+      return std::move(set_recovery(recovery));
+    }
     Options& set_recovery(
         std::function<bool(const SkippedRegion&)>&& recovery) & {
       recovery_ = std::move(recovery);
       return *this;
-    }
-    Options&& set_recovery(
-        const std::function<bool(const SkippedRegion&)>& recovery) && {
-      return std::move(set_recovery(recovery));
     }
     Options&& set_recovery(
         std::function<bool(const SkippedRegion&)>&& recovery) && {

@@ -248,14 +248,14 @@ class CsvReaderBase : public Object {
       recovery_ = recovery;
       return *this;
     }
+    Options&& set_recovery(
+        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) && {
+      return std::move(set_recovery(recovery));
+    }
     Options& set_recovery(
         std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) & {
       recovery_ = std::move(recovery);
       return *this;
-    }
-    Options&& set_recovery(
-        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) && {
-      return std::move(set_recovery(recovery));
     }
     Options&& set_recovery(
         std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) && {
