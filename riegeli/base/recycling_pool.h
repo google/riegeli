@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -244,25 +245,42 @@ class KeyedRecyclingPool {
 // Implementation details follow.
 
 template <typename T, typename Deleter>
-class RecyclingPool<T, Deleter>::Recycler : private Deleter {
+class RecyclingPool<T, Deleter>::Recycler
+#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+    : private Deleter
+#endif
+{
  public:
   Recycler() {}
 
   explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
-      : Deleter(std::move(deleter)), pool_(pool) {
+      :
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+        deleter_
+#else
+        Deleter
+#endif
+        (std::move(deleter)),
+        pool_(pool) {
     RIEGELI_ASSERT(pool_ != nullptr)
         << "Failed precondition of Recycler: null RecyclingPool pointer";
   }
 
   void operator()(T* ptr) const;
 
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+  Deleter& original_deleter() { return deleter_; }
+  const Deleter& original_deleter() const { return deleter_; }
+#else
   Deleter& original_deleter() { return *this; }
   const Deleter& original_deleter() const { return *this; }
+#endif
 
  private:
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+  Deleter deleter_;
+#endif
   RecyclingPool* pool_ = nullptr;
-  // TODO: Use `[[no_unique_address]]` when available instead of
-  // relying on empty base optimization.
 };
 
 template <typename T, typename Deleter>
@@ -364,26 +382,44 @@ void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
 }
 
 template <typename T, typename Key, typename Deleter>
-class KeyedRecyclingPool<T, Key, Deleter>::Recycler : private Deleter {
+class KeyedRecyclingPool<T, Key, Deleter>::Recycler
+#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+    : private Deleter
+#endif
+{
  public:
   Recycler() {}
 
   explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
-      : Deleter(std::move(deleter)), pool_(pool), key_(std::move(key)) {
+      :
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+        deleter_
+#else
+        Deleter
+#endif
+        (std::move(deleter)),
+        pool_(pool),
+        key_(std::move(key)) {
     RIEGELI_ASSERT(pool_ != nullptr)
         << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
   }
 
   void operator()(T* ptr) const;
 
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+  Deleter& original_deleter() { return deleter_; }
+  const Deleter& original_deleter() const { return deleter_; }
+#else
   Deleter& original_deleter() { return *this; }
   const Deleter& original_deleter() const { return *this; }
+#endif
 
  private:
+#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+  [[no_unique_address]] Deleter deleter_;
+#endif
   KeyedRecyclingPool* pool_ = nullptr;
   Key key_;
-  // TODO: Use `[[no_unique_address]]` when available instead of
-  // relying on empty base optimization.
 };
 
 template <typename T, typename Key, typename Deleter>
