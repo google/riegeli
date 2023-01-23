@@ -143,7 +143,7 @@ inline RefCountedPtr<T> MakeRefCounted(Args&&... args) {
   return RefCountedPtr<T>(new T(std::forward<Args>(args)...));
 }
 
-// Provides operations on a reference count.
+// Provides operations on an atomic reference count.
 class RefCount {
  public:
   RefCount() = default;
@@ -151,10 +151,10 @@ class RefCount {
   RefCount(const RefCount&) = delete;
   RefCount& operator=(const RefCount&) = delete;
 
-  void Ref() { ref_count_.fetch_add(1, std::memory_order_relaxed); }
+  void Ref() const { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
   // Returns `true` if this was the last reference.
-  bool Unref() {
+  bool Unref() const {
     // Optimization: avoid an expensive atomic read-modify-write operation
     // if the reference count is 1.
     return ref_count_.load(std::memory_order_acquire) == 1 ||
@@ -167,7 +167,7 @@ class RefCount {
   }
 
  private:
-  std::atomic<size_t> ref_count_{1};
+  mutable std::atomic<size_t> ref_count_ = 1;
 };
 
 // Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
@@ -192,7 +192,7 @@ class RefCountedBase {
 
   void Unref() const {
     if (ref_count_.Unref()) {
-      delete static_cast<T*>(const_cast<RefCountedBase*>(this));
+      delete static_cast<const T*>(this);
     }
   }
 
@@ -203,7 +203,7 @@ class RefCountedBase {
   ~RefCountedBase() = default;
 
  private:
-  mutable RefCount ref_count_;
+  RefCount ref_count_;
 };
 
 // Implementation details follow.
