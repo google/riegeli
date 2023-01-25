@@ -68,11 +68,6 @@ class RecordsMetadataDescriptors::ErrorCollector
                      ": ", message)));
   }
 
-  void AddWarning(const std::string& filename, const std::string& element_name,
-                  const google::protobuf::Message* descriptor,
-                  ErrorLocation location, const std::string& message) override {
-  }
-
  private:
   friend class RecordsMetadataDescriptors;
 
