@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -408,7 +407,7 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
 
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   out << "block {";
-  const size_t ref_count = ref_count_.load(std::memory_order_relaxed);
+  const size_t ref_count = ref_count_.get_count();
   if (ref_count != 1) out << " ref_count: " << ref_count;
   out << " size: " << size();
   if (is_internal()) {

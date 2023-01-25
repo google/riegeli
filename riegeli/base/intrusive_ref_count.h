@@ -166,6 +166,16 @@ class RefCount {
     return ref_count_.load(std::memory_order_acquire) == 1;
   }
 
+  // Returns the current count.
+  //
+  // If the `RefCount` is accessed by multiple threads, this is a snapshot of
+  // the count which may change asynchronously, hence usage of `get_count()`
+  // should be limited to cases not important for correctness like producing
+  // debugging output.
+  size_t get_count() const {
+    return ref_count_.load(std::memory_order_relaxed);
+  }
+
  private:
   mutable std::atomic<size_t> ref_count_ = 1;
 };

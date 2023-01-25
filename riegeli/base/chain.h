@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <cstring>
 #include <iosfwd>
 #include <iterator>
@@ -1142,7 +1141,7 @@ class Chain::RawBlock {
   size_t DynamicSizeOfImpl() const;
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
 
-  std::atomic<size_t> ref_count_{1};
+  RefCount ref_count_;
   const char* data_;
   size_t size_;
   // If `is_internal()`, end of allocated space. If `is_external()`, `nullptr`.
@@ -1380,9 +1379,7 @@ constexpr size_t Chain::RawBlock::kExternalObjectOffset() {
 
 template <Chain::Ownership ownership>
 inline Chain::RawBlock* Chain::RawBlock::Ref() {
-  if (ownership == Ownership::kShare) {
-    ref_count_.fetch_add(1, std::memory_order_relaxed);
-  }
+  if (ownership == Ownership::kShare) ref_count_.Ref();
   return this;
 }
 
@@ -1390,9 +1387,7 @@ template <Chain::Ownership ownership>
 void Chain::RawBlock::Unref() {
   // Optimization: avoid an expensive atomic read-modify-write operation if the
   // reference count is 1.
-  if (ownership == Ownership::kSteal &&
-      (has_unique_owner() ||
-       ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1)) {
+  if (ownership == Ownership::kSteal && ref_count_.Unref()) {
     if (is_internal()) {
       DeleteAligned<RawBlock>(this, kInternalAllocatedOffset() + capacity());
     } else {
@@ -1413,7 +1408,7 @@ inline void Chain::RawBlock::ConstructExternal(
 #endif
 
 inline bool Chain::RawBlock::has_unique_owner() const {
-  return ref_count_.load(std::memory_order_acquire) == 1;
+  return ref_count_.has_unique_owner();
 }
 
 inline size_t Chain::RawBlock::capacity() const {
