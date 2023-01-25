@@ -20,6 +20,7 @@
 #include <atomic>
 #include <list>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -27,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/meta/type_traits.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
@@ -244,52 +246,82 @@ class KeyedRecyclingPool {
 
 // Implementation details follow.
 
-template <typename T, typename Deleter>
-class RecyclingPool<T, Deleter>::Recycler
-#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-    : private Deleter
-#endif
-{
+namespace recycling_pool_internal {
+
+template <typename RecyclingPool, typename Deleter, typename Enable = void>
+class RecyclerRepr {
  public:
-  Recycler() {}
+  RecyclerRepr() = default;
 
-  explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
-      :
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-        deleter_
-#else
-        Deleter
-#endif
-        (std::move(deleter)),
-        pool_(pool) {
-    RIEGELI_ASSERT(pool_ != nullptr)
-        << "Failed precondition of Recycler: null RecyclingPool pointer";
-  }
+  explicit RecyclerRepr(RecyclingPool* pool, Deleter&& deleter)
+      : deleter_(std::move(deleter)), pool_(pool) {}
 
-  void operator()(T* ptr) const;
+  RecyclingPool* pool() const { return pool_; }
 
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  Deleter& original_deleter() { return deleter_; }
-  const Deleter& original_deleter() const { return deleter_; }
-#else
-  Deleter& original_deleter() { return *this; }
-  const Deleter& original_deleter() const { return *this; }
-#endif
+  Deleter& deleter() { return deleter_; }
+  const Deleter& deleter() const { return deleter_; }
 
  private:
 #if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  Deleter deleter_;
+  [[no_unique_address]]
 #endif
+  Deleter deleter_;
   RecyclingPool* pool_ = nullptr;
 };
 
+#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
+
+// If `[[no_unique_address]]` is not available, use empty base optimization for
+// non-final classes.
+template <typename RecyclingPool, typename Deleter>
+class RecyclerRepr<
+    RecyclingPool, Deleter,
+    std::enable_if_t<absl::conjunction<
+        std::is_class<Deleter>, absl::negation<std::is_final<Deleter>>>::value>>
+    : private Deleter {
+ public:
+  RecyclerRepr() = default;
+
+  explicit RecyclerRepr(RecyclingPool* pool, Deleter&& deleter)
+      : Deleter(std::move(deleter)), pool_(pool) {}
+
+  RecyclingPool* pool() const { return pool_; }
+
+  Deleter& deleter() { return *this; }
+  const Deleter& deleter() const { return *this; }
+
+ private:
+  RecyclingPool* pool_ = nullptr;
+};
+
+#endif
+
+}  // namespace recycling_pool_internal
+
 template <typename T, typename Deleter>
-inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
-  RIEGELI_ASSERT(pool_ != nullptr)
-      << "Failed precondition of RecyclingPool::Recycler: "
-         "default-constructed recycler used with an object";
-  pool_->RawPut(RawHandle(ptr, original_deleter()));
-}
+class RecyclingPool<T, Deleter>::Recycler {
+ public:
+  Recycler() = default;
+
+  explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
+      : repr_(pool, std::move(deleter)) {
+    RIEGELI_ASSERT(repr_.pool() != nullptr)
+        << "Failed precondition of Recycler: null RecyclingPool pointer";
+  }
+
+  void operator()(T* ptr) const {
+    RIEGELI_ASSERT(repr_.pool() != nullptr)
+        << "Failed precondition of RecyclingPool::Recycler: "
+           "default-constructed recycler used with an object";
+    repr_.pool()->RawPut(RawHandle(ptr, original_deleter()));
+  }
+
+  Deleter& original_deleter() { return repr_.deleter(); }
+  const Deleter& original_deleter() const { return repr_.deleter(); }
+
+ private:
+  recycling_pool_internal::RecyclerRepr<RecyclingPool, Deleter> repr_;
+};
 
 template <typename T, typename Deleter>
 inline size_t RecyclingPool<T, Deleter>::DefaultGlobalMaxSize() {
@@ -382,54 +414,30 @@ void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
 }
 
 template <typename T, typename Key, typename Deleter>
-class KeyedRecyclingPool<T, Key, Deleter>::Recycler
-#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-    : private Deleter
-#endif
-{
+class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
  public:
-  Recycler() {}
+  Recycler() = default;
 
   explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
-      :
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-        deleter_
-#else
-        Deleter
-#endif
-        (std::move(deleter)),
-        pool_(pool),
-        key_(std::move(key)) {
-    RIEGELI_ASSERT(pool_ != nullptr)
+      : repr_(pool, std::move(deleter)), key_(std::move(key)) {
+    RIEGELI_ASSERT(repr_.pool() != nullptr)
         << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
   }
 
-  void operator()(T* ptr) const;
+  void operator()(T* ptr) const {
+    RIEGELI_ASSERT(repr_.pool() != nullptr)
+        << "Failed precondition of KeyedRecyclingPool::Recycler: "
+           "default-constructed recycler used with an object";
+    repr_.pool()->RawPut(key_, RawHandle(ptr, original_deleter()));
+  }
 
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  Deleter& original_deleter() { return deleter_; }
-  const Deleter& original_deleter() const { return deleter_; }
-#else
-  Deleter& original_deleter() { return *this; }
-  const Deleter& original_deleter() const { return *this; }
-#endif
+  Deleter& original_deleter() { return repr_.deleter(); }
+  const Deleter& original_deleter() const { return repr_.deleter(); }
 
  private:
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  [[no_unique_address]] Deleter deleter_;
-#endif
-  KeyedRecyclingPool* pool_ = nullptr;
+  recycling_pool_internal::RecyclerRepr<KeyedRecyclingPool, Deleter> repr_;
   Key key_;
 };
-
-template <typename T, typename Key, typename Deleter>
-inline void KeyedRecyclingPool<T, Key, Deleter>::Recycler::operator()(
-    T* ptr) const {
-  RIEGELI_ASSERT(pool_ != nullptr)
-      << "Failed precondition of KeyedRecyclingPool::Recycler: "
-         "default-constructed recycler used with an object";
-  pool_->RawPut(key_, RawHandle(ptr, original_deleter()));
-}
 
 template <typename T, typename Key, typename Deleter>
 inline size_t KeyedRecyclingPool<T, Key, Deleter>::DefaultGlobalMaxSize() {
