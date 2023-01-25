@@ -27,7 +27,7 @@
 namespace riegeli {
 
 // `RefCountedPtr<T>` implements shared ownership of an object of type `T`.
-// It can also be `nullptr`.
+// It can also be empty, with the pointer being `nullptr`.
 //
 // `RefCountedPtr<T>` has a smaller overhead than `std::shared_ptr<T>`, but
 // requires cooperation from `T`.
@@ -37,11 +37,11 @@ namespace riegeli {
 // should support:
 //
 // ```
-//   // Increments the reference count.
+//   // Increments the reference count of `*this`.
 //   void Ref() const;
 //
-//   // Decrements the reference count. Deletes `this` when the reference count
-//   // reaches 0.
+//   // Decrements the reference count of `*this`. Deletes `this` when the
+//   // reference count reaches 0.
 //   void Unref() const;
 // ```
 template <typename T>
@@ -51,11 +51,14 @@ class
 #endif
         RefCountedPtr {
  public:
+  // Creates an empty `RefCountedPtr`.
   constexpr RefCountedPtr() = default;
   /*implicit*/ constexpr RefCountedPtr(nullptr_t) noexcept {}
 
+  // Creates a `RefCountedPtr` taking ownership of `ptr`.
   explicit RefCountedPtr(T* ptr) noexcept : ptr_(ptr) {}
 
+  // Converts from a `RefCountedPtr` with a compatible pointer type.
   template <typename Other,
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   /*implicit*/ RefCountedPtr(const RefCountedPtr<Other>& that) noexcept;
@@ -74,17 +77,21 @@ class
   RefCountedPtr(const RefCountedPtr& that) noexcept;
   RefCountedPtr& operator=(const RefCountedPtr& that) noexcept;
 
-  // The source `RefCountedPtr` is left as `nullptr`.
+  // The source `RefCountedPtr` is left empty.
   RefCountedPtr(RefCountedPtr&& that) noexcept;
   RefCountedPtr& operator=(RefCountedPtr&& that) noexcept;
 
   ~RefCountedPtr();
 
+  // Replaces the pointer.
   ABSL_ATTRIBUTE_REINITIALIZES void reset();
   ABSL_ATTRIBUTE_REINITIALIZES void reset(nullptr_t) { reset(); }
   ABSL_ATTRIBUTE_REINITIALIZES void reset(T* ptr);
 
+  // Returns the pointer.
   T* get() const { return ptr_; }
+
+  // Dereferences the pointer.
   T& operator*() const {
     RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of RefCountedPtr::operator*: null pointer";
@@ -95,8 +102,11 @@ class
         << "Failed precondition of RefCountedPtr::operator->: null pointer";
     return ptr_;
   }
+
+  // Returns the pointer. This `RefCountedPtr` is left empty.
   T* release() { return std::exchange(ptr_, nullptr); }
 
+  // Replaces `*this` with `that`, returning the previous value of `*this`.
   template <typename Other,
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   RefCountedPtr exchange(RefCountedPtr<Other> that) {
@@ -134,7 +144,7 @@ class
   T* ptr_ = nullptr;
 };
 
-// Create an object with `new` and wrap it in `RefCountedPtr`.
+// Creates an object with `new` and wraps it in `RefCountedPtr`.
 //
 // `MakeRefCounted()` is to `RefCountedPtr` like `std::make_unique()` is to
 // `std::unique_ptr`.
@@ -151,9 +161,11 @@ class RefCount {
   RefCount(const RefCount&) = delete;
   RefCount& operator=(const RefCount&) = delete;
 
+  // Increments the reference count.
   void Ref() const { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
-  // Returns `true` if this was the last reference.
+  // Decrements the reference count. Returns `true` when the reference count
+  // reaches 0.
   bool Unref() const {
     // Optimization: avoid an expensive atomic read-modify-write operation
     // if the reference count is 1.
@@ -198,8 +210,11 @@ class RefCountedBase {
                   "must be the class derived from RefCountedBase<T>");
   }
 
+  // Increments the reference count of `*this`.
   void Ref() const { ref_count_.Ref(); }
 
+  // Decrements the reference count of `*this`. Deletes `this` when the
+  // reference count reaches 0.
   void Unref() const {
     if (ref_count_.Unref()) {
       delete static_cast<const T*>(this);
