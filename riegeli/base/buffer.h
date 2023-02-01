@@ -126,9 +126,7 @@ inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
 
 inline void Buffer::Reset(size_t min_capacity) {
   if (data_ != nullptr) {
-    if (capacity_ >= min_capacity && !Wasteful(capacity_, min_capacity)) {
-      return;
-    }
+    if (capacity_ >= min_capacity && !Wasteful(capacity_, min_capacity)) return;
     DeleteInternal();
   }
   AllocateInternal(min_capacity);

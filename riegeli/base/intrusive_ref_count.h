@@ -216,9 +216,7 @@ class RefCountedBase {
   // Decrements the reference count of `*this`. Deletes `this` when the
   // reference count reaches 0.
   void Unref() const {
-    if (ref_count_.Unref()) {
-      delete static_cast<const T*>(this);
-    }
+    if (ref_count_.Unref()) delete static_cast<const T*>(this);
   }
 
   // Returns `true` if there is only one owner of the object.

@@ -631,18 +631,18 @@ void RecordWriterBase::ParallelWorker::Done() {
 }
 
 inline bool RecordWriterBase::ParallelWorker::ok() const {
-  absl::MutexLock l(&mutex_);
+  absl::MutexLock lock(&mutex_);
   return state_.ok();
 }
 
 inline absl::Status RecordWriterBase::ParallelWorker::status() const {
-  absl::MutexLock l(&mutex_);
+  absl::MutexLock lock(&mutex_);
   return state_.status();
 }
 
 bool RecordWriterBase::ParallelWorker::FailWithoutAnnotation(
     absl::Status status) {
-  absl::MutexLock l(&mutex_);
+  absl::MutexLock lock(&mutex_);
   return state_.Fail(std::move(status));
 }
 

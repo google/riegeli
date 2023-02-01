@@ -584,9 +584,7 @@ bool Reader::ReadSomeDirectlySlow(size_t max_length,
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
          "some data available, use ReadSomeDirectly() instead";
-  if (length_read == nullptr) {
-    return ReadSomeDirectlySlow(max_length, get_dest);
-  }
+  if (length_read == nullptr) return ReadSomeDirectlySlow(max_length, get_dest);
   const Position pos_before = limit_pos();
   if (ReadSomeDirectlySlow(max_length, get_dest)) {
     RIEGELI_ASSERT_EQ(available(), 0u)

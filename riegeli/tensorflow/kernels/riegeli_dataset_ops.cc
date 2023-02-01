@@ -151,7 +151,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           ::tensorflow::data::IteratorContext* ctx,
           std::vector<::tensorflow::Tensor>* out_tensors,
           bool* end_of_sequence) override ABSL_LOCKS_EXCLUDED(mu_) {
-        absl::MutexLock l(&mu_);
+        absl::MutexLock lock(&mu_);
         for (;;) {
           if (reader_ != absl::nullopt) {
             // We are currently processing a file, so try to read the next
@@ -210,7 +210,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           ::tensorflow::data::SerializationContext* ctx,
           ::tensorflow::data::IteratorStateWriter* writer) override
           ABSL_LOCKS_EXCLUDED(mu_) {
-        absl::MutexLock l(&mu_);
+        absl::MutexLock lock(&mu_);
         TF_RETURN_IF_ERROR(
             writer->WriteScalar(full_name("current_file_index"),
                                 IntCast<int64_t>(current_file_index_)));
@@ -225,7 +225,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           ::tensorflow::data::IteratorContext* ctx,
           ::tensorflow::data::IteratorStateReader* reader) override
           ABSL_LOCKS_EXCLUDED(mu_) {
-        absl::MutexLock l(&mu_);
+        absl::MutexLock lock(&mu_);
         current_file_index_ = 0;
         reader_.reset();
 

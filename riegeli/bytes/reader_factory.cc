@@ -113,7 +113,7 @@ void ReaderFactoryBase::ConcurrentReader::Done() {
 absl::Status ReaderFactoryBase::ConcurrentReader::AnnotateStatusImpl(
     absl::Status status) {
   if (is_open()) {
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     shared_->reader->Seek(pos());
     return shared_->reader->AnnotateStatus(std::move(status));
   }
@@ -170,7 +170,7 @@ bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
   }
@@ -214,7 +214,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `dest`.
@@ -270,7 +270,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `dest`.
@@ -326,7 +326,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `dest`.
@@ -401,7 +401,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
     set_buffer();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `dest`.
@@ -445,7 +445,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadSomeDirectlyBehindScratch(
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     secondary_buffer_.Clear();
     iter_ = secondary_buffer_.blocks().cend();
-    absl::MutexLock l(&shared_->mutex);
+    absl::MutexLock lock(&shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (max_length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `get_dest(max_length)`.
@@ -484,7 +484,7 @@ void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(
     const size_t recommended_length_to_read =
         UnsignedMax(recommended_length, min_length) - secondary_buffered_length;
     {
-      absl::MutexLock l(&shared_->mutex);
+      absl::MutexLock lock(&shared_->mutex);
       if (ABSL_PREDICT_FALSE(!shared_->reader->Seek(
               limit_pos() + secondary_buffered_length))) {
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
@@ -522,14 +522,14 @@ bool ReaderFactoryBase::ConcurrentReader::SyncBehindScratch(
   set_limit_pos(new_pos);
   buffer_sizer_.BeginRun(limit_pos());
   if (sync_type == SyncType::kFromObject) return true;
-  absl::MutexLock l(&shared_->mutex);
+  absl::MutexLock lock(&shared_->mutex);
   return shared_->reader->Sync(sync_type);
 }
 
 bool ReaderFactoryBase::ConcurrentReader::ToleratesReadingAhead() {
   if (buffer_sizer_.read_all_hint()) return true;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  absl::MutexLock l(&shared_->mutex);
+  absl::MutexLock lock(&shared_->mutex);
   return shared_->reader->ToleratesReadingAhead();
 }
 
@@ -571,7 +571,7 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
     // Seeking forwards.
     absl::optional<Position> size;
     {
-      absl::MutexLock l(&shared_->mutex);
+      absl::MutexLock lock(&shared_->mutex);
       size = shared_->reader->Size();
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         return FailWithoutAnnotation(shared_->reader->status());
@@ -591,7 +591,7 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
 
 absl::optional<Position> ReaderFactoryBase::ConcurrentReader::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  absl::MutexLock l(&shared_->mutex);
+  absl::MutexLock lock(&shared_->mutex);
   const absl::optional<Position> size = shared_->reader->Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
     FailWithoutAnnotation(shared_->reader->status());
@@ -626,7 +626,7 @@ absl::Status ReaderFactoryBase::AnnotateStatusImpl(absl::Status status) {
       Reader& src = *SrcReader();
       return src.AnnotateStatus(std::move(status));
     } else {
-      absl::MutexLock l(&shared_->mutex);
+      absl::MutexLock lock(&shared_->mutex);
       return shared_->reader->AnnotateStatus(std::move(status));
     }
   }
