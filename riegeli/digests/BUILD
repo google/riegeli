@@ -70,3 +70,14 @@ cc_library(
         "@crc32c",
     ],
 )
+
+cc_library(
+    name = "crc32_digester",
+    srcs = ["crc32_digester.cc"],
+    hdrs = ["crc32_digester.h"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "@com_google_absl//absl/strings",
+        "@zlib",
+    ],
+)
