@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/types/optional.h"
@@ -243,9 +244,9 @@ explicit CordBackwardWriter(
     Dest&& dest,
     CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
     -> CordBackwardWriter<std::conditional_t<
-        std::is_lvalue_reference<Dest>::value &&
-            std::is_convertible<std::remove_reference_t<Dest>*,
-                                const absl::Cord*>::value,
+        absl::conjunction<std::is_lvalue_reference<Dest>,
+                          std::is_convertible<std::remove_reference_t<Dest>*,
+                                              const absl::Cord*>>::value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit CordBackwardWriter(

@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -144,17 +145,20 @@ explicit ArrayBackwardWriter(Closed) -> ArrayBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(const Dest& dest)
     -> ArrayBackwardWriter<std::conditional_t<
-        !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
-            std::is_constructible<absl::Span<char>, const Dest&>::value &&
-            !std::is_pointer<Dest>::value,
+        absl::conjunction<
+            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
+            std::is_constructible<absl::Span<char>, const Dest&>,
+            absl::negation<std::is_pointer<Dest>>>::value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(Dest&& dest)
     -> ArrayBackwardWriter<std::conditional_t<
-        !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
-            std::is_lvalue_reference<Dest>::value &&
-            std::is_constructible<absl::Span<char>, Dest>::value &&
-            !std::is_pointer<std::remove_reference_t<Dest>>::value,
+        absl::conjunction<
+            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
+            std::is_lvalue_reference<Dest>,
+            std::is_constructible<absl::Span<char>, Dest>,
+            absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::
+            value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)

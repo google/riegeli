@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -392,15 +393,17 @@ template <typename Dest>
 explicit CFileWriter(const Dest& dest, CFileWriterBase::Options options =
                                            CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
-        std::is_convertible<const Dest&, FILE*>::value ||
-            std::is_convertible<const Dest&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<const Dest&, FILE*>,
+            std::is_convertible<const Dest&, absl::string_view>>::value,
         OwnedCFile, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
-        std::is_convertible<Dest&&, FILE*>::value ||
-            std::is_convertible<Dest&&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<Dest&&, FILE*>,
+            std::is_convertible<Dest&&, absl::string_view>>::value,
         OwnedCFile, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit CFileWriter(

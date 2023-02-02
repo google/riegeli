@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
@@ -285,9 +286,9 @@ template <typename Dest>
 explicit ChainWriter(
     Dest&& dest, ChainWriterBase::Options options = ChainWriterBase::Options())
     -> ChainWriter<std::conditional_t<
-        std::is_lvalue_reference<Dest>::value &&
-            std::is_convertible<std::remove_reference_t<Dest>*,
-                                const Chain*>::value,
+        absl::conjunction<std::is_lvalue_reference<Dest>,
+                          std::is_convertible<std::remove_reference_t<Dest>*,
+                                              const Chain*>>::value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit ChainWriter(

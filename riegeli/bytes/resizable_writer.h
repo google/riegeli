@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -292,9 +293,10 @@ class ResizableWriter : public ResizableWriterBase {
   // default-constructible.
   template <
       typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Resizable>::value &&
-                           std::is_default_constructible<Resizable>::value,
-                       int> = 0>
+      std::enable_if_t<
+          absl::conjunction<std::is_same<DependentDest, Resizable>,
+                            std::is_default_constructible<Resizable>>::value,
+          int> = 0>
   explicit ResizableWriter(Options options = Options());
 
   // Will append to the `Resizable` provided by `dest`.
@@ -316,9 +318,10 @@ class ResizableWriter : public ResizableWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   template <
       typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Resizable>::value &&
-                           std::is_default_constructible<Resizable>::value,
-                       int> = 0>
+      std::enable_if_t<
+          absl::conjunction<std::is_same<DependentDest, Resizable>,
+                            std::is_default_constructible<Resizable>>::value,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
                                           Options options = Options());
@@ -478,11 +481,12 @@ inline size_t ResizableWriterBase::used_dest_size() const {
 template <typename ResizableTraits, typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest,
-                                  typename ResizableTraits::Resizable>::value &&
-                         std::is_default_constructible<
-                             typename ResizableTraits::Resizable>::value,
-                     int>>
+    std::enable_if_t<
+        absl::conjunction<
+            std::is_same<DependentDest, typename ResizableTraits::Resizable>,
+            std::is_default_constructible<
+                typename ResizableTraits::Resizable>>::value,
+        int>>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
     : ResizableWriter(std::forward_as_tuple(), std::move(options)) {}
 
@@ -536,11 +540,12 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(Closed) {
 template <typename ResizableTraits, typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest,
-                                  typename ResizableTraits::Resizable>::value &&
-                         std::is_default_constructible<
-                             typename ResizableTraits::Resizable>::value,
-                     int>>
+    std::enable_if_t<
+        absl::conjunction<
+            std::is_same<DependentDest, typename ResizableTraits::Resizable>,
+            std::is_default_constructible<
+                typename ResizableTraits::Resizable>>::value,
+        int>>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
   Reset(std::forward_as_tuple(), std::move(options));
 }

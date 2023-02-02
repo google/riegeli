@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
@@ -148,16 +149,17 @@ class StringReader : public StringReaderBase {
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit StringReader(const Src& src) -> StringReader<std::conditional_t<
-    std::is_convertible<const Src*, const std::string*>::value ||
-        std::is_convertible<const Src&, const char*>::value,
+    absl::disjunction<std::is_convertible<const Src*, const std::string*>,
+                      std::is_convertible<const Src&, const char*>>::value,
     absl::string_view, std::decay_t<Src>>>;
 template <typename Src>
-explicit StringReader(Src&& src) -> StringReader<
-    std::conditional_t<(std::is_lvalue_reference<Src>::value &&
-                        std::is_convertible<std::remove_reference_t<Src>*,
-                                            const std::string*>::value) ||
-                           std::is_convertible<Src&&, const char*>::value,
-                       absl::string_view, std::decay_t<Src>>>;
+explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
+    absl::disjunction<
+        absl::conjunction<std::is_lvalue_reference<Src>,
+                          std::is_convertible<std::remove_reference_t<Src>*,
+                                              const std::string*>>,
+        std::is_convertible<Src&&, const char*>>::value,
+    absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit StringReader(std::tuple<SrcArgs...> src_args)
     -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;

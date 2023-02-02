@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
@@ -236,9 +237,9 @@ explicit ChainBackwardWriter(Dest&& dest,
                              ChainBackwardWriterBase::Options options =
                                  ChainBackwardWriterBase::Options())
     -> ChainBackwardWriter<std::conditional_t<
-        std::is_lvalue_reference<Dest>::value &&
-            std::is_convertible<std::remove_reference_t<Dest>*,
-                                const Chain*>::value,
+        absl::conjunction<std::is_lvalue_reference<Dest>,
+                          std::is_convertible<std::remove_reference_t<Dest>*,
+                                              const Chain*>>::value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,

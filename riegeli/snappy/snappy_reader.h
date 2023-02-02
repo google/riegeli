@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
@@ -171,9 +172,10 @@ explicit SnappyReader(
 // size, the `Reader` can be wrapped in a `LimitingReader` with
 // `LimitingReaderBase::Options().set_exact_length(size)`.
 template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int> = 0>
+          std::enable_if_t<
+              absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                                IsValidDependency<Writer*, Dest&&>>::value,
+              int> = 0>
 absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 
 // Returns the claimed uncompressed size of Snappy-compressed data.
@@ -292,9 +294,10 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest);
 }  // namespace snappy_internal
 
 template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int>>
+          std::enable_if_t<
+              absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                                IsValidDependency<Writer*, Dest&&>>::value,
+              int>>
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));

@@ -26,6 +26,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -337,15 +338,16 @@ template <typename Src>
 explicit FdMMapReader(const Src& src, FdMMapReaderBase::Options options =
                                           FdMMapReaderBase::Options())
     -> FdMMapReader<std::conditional_t<
-        std::is_convertible<const Src&, int>::value ||
-            std::is_convertible<const Src&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<const Src&, int>,
+            std::is_convertible<const Src&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Src>>>;
 template <typename Src>
 explicit FdMMapReader(
     Src&& src, FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
     -> FdMMapReader<std::conditional_t<
-        std::is_convertible<Src&&, int>::value ||
-            std::is_convertible<Src&&, absl::string_view>::value,
+        absl::disjunction<std::is_convertible<Src&&, int>,
+                          std::is_convertible<Src&&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit FdMMapReader(

@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -315,15 +316,16 @@ template <typename Src>
 explicit CFileReader(const Src& src, CFileReaderBase::Options options =
                                          CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
-        std::is_convertible<const Src&, FILE*>::value ||
-            std::is_convertible<const Src&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<const Src&, FILE*>,
+            std::is_convertible<const Src&, absl::string_view>>::value,
         OwnedCFile, std::decay_t<Src>>>;
 template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
-        std::is_convertible<Src&&, FILE*>::value ||
-            std::is_convertible<Src&&, absl::string_view>::value,
+        absl::disjunction<std::is_convertible<Src&&, FILE*>,
+                          std::is_convertible<Src&&, absl::string_view>>::value,
         OwnedCFile, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit CFileReader(

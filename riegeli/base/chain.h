@@ -1187,17 +1187,21 @@ inline void CallOperator(const T& object, absl::string_view data) {
   object(data);
 }
 
-template <typename T, std::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                                           HasCallOperatorWithoutData<T>::value,
-                                       int> = 0>
+template <typename T,
+          std::enable_if_t<
+              absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
+                                HasCallOperatorWithoutData<T>>::value,
+              int> = 0>
 inline void CallOperator(const T& object, absl::string_view data) {
   object();
 }
 
-template <typename T,
-          std::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                               !HasCallOperatorWithoutData<T>::value,
-                           int> = 0>
+template <
+    typename T,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
+                          absl::negation<HasCallOperatorWithoutData<T>>>::value,
+        int> = 0>
 inline void CallOperator(T& object, absl::string_view data) {}
 
 template <typename T, typename Enable = void>
@@ -1225,18 +1229,21 @@ inline void DumpStructure(T& object, absl::string_view data,
 }
 
 template <typename T,
-          std::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                               HasDumpStructureWithoutData<T>::value,
-                           int> = 0>
+          std::enable_if_t<
+              absl::conjunction<absl::negation<HasDumpStructureWithData<T>>,
+                                HasDumpStructureWithoutData<T>>::value,
+              int> = 0>
 inline void DumpStructure(T& object, absl::string_view data,
                           std::ostream& out) {
   object.DumpStructure(out);
 }
 
-template <typename T,
-          std::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                               !HasDumpStructureWithoutData<T>::value,
-                           int> = 0>
+template <
+    typename T,
+    std::enable_if_t<absl::conjunction<
+                         absl::negation<HasDumpStructureWithData<T>>,
+                         absl::negation<HasDumpStructureWithoutData<T>>>::value,
+                     int> = 0>
 inline void DumpStructure(T& object, absl::string_view data,
                           std::ostream& out) {
   out << "[external] { }";

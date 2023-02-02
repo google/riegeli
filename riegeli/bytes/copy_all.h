@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/types.h"
@@ -57,17 +58,19 @@ namespace riegeli {
 // `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int> = 0>
+          std::enable_if_t<
+              absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                                IsValidDependency<Writer*, Dest&&>>::value,
+              int> = 0>
 absl::Status CopyAll(
     Src&& src, Dest&& dest,
     Position max_length = std::numeric_limits<Position>::max());
 template <
     typename Src, typename Dest,
-    std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int> = 0>
+    std::enable_if_t<
+        absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                          IsValidDependency<BackwardWriter*, Dest&&>>::value,
+        int> = 0>
 absl::Status CopyAll(Src&& src, Dest&& dest,
                      size_t max_length = std::numeric_limits<size_t>::max());
 
@@ -104,9 +107,10 @@ inline absl::Status CopyAllInternal(Src&& src, Dest&& dest,
 }  // namespace copy_all_internal
 
 template <typename Src, typename Dest,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                               IsValidDependency<Writer*, Dest&&>::value,
-                           int>>
+          std::enable_if_t<
+              absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                                IsValidDependency<Writer*, Dest&&>>::value,
+              int>>
 absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length) {
   return copy_all_internal::CopyAllInternal<Writer>(
       std::forward<Src>(src), std::forward<Dest>(dest), max_length);
@@ -114,9 +118,10 @@ absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length) {
 
 template <
     typename Src, typename Dest,
-    std::enable_if_t<IsValidDependency<Reader*, Src&&>::value &&
-                         IsValidDependency<BackwardWriter*, Dest&&>::value,
-                     int>>
+    std::enable_if_t<
+        absl::conjunction<IsValidDependency<Reader*, Src&&>,
+                          IsValidDependency<BackwardWriter*, Dest&&>>::value,
+        int>>
 absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
   return copy_all_internal::CopyAllInternal<BackwardWriter>(
       std::forward<Src>(src), std::forward<Dest>(dest), max_length);

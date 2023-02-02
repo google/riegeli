@@ -26,6 +26,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -615,15 +616,17 @@ template <typename Dest>
 explicit FdWriter(const Dest& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<
-        std::is_convertible<const Dest&, int>::value ||
-            std::is_convertible<const Dest&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<const Dest&, int>,
+            std::is_convertible<const Dest&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit FdWriter(Dest&& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<
-        std::is_convertible<Dest&&, int>::value ||
-            std::is_convertible<Dest&&, absl::string_view>::value,
+        absl::disjunction<
+            std::is_convertible<Dest&&, int>,
+            std::is_convertible<Dest&&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit FdWriter(std::tuple<DestArgs...> dest_args,

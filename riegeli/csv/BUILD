@@ -80,5 +80,8 @@ cc_library(
     name = "containers",
     hdrs = ["containers.h"],
     visibility = ["//visibility:private"],
-    deps = ["@com_google_absl//absl/strings"],
+    deps = [
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
 )

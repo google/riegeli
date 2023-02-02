@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 
 namespace riegeli {
@@ -81,13 +82,12 @@ struct IsIterableOfPairsWithAssignableValues : std::false_type {};
 template <typename Iterable, typename Key, typename Value>
 struct IsIterableOfPairsWithAssignableValues<
     Iterable, Key, Value,
-    std::enable_if_t<
+    std::enable_if_t<absl::conjunction<
         std::is_convertible<
-            adl_begin_sandbox::DereferenceIterableFirstT<Iterable>,
-            Key>::value &&
+            adl_begin_sandbox::DereferenceIterableFirstT<Iterable>, Key>,
         std::is_assignable<
             adl_begin_sandbox::DereferenceIterableSecondT<Iterable>,
-            Value>::value>> : std::true_type {};
+            Value>>::value>> : std::true_type {};
 
 // `HasMovableElements<Iterable>::value` is `true` if moving (rather than
 // copying) out of elements of `Iterable` is safe.
@@ -102,12 +102,12 @@ struct HasMovableElements : std::false_type {};
 template <typename Iterable>
 struct HasMovableElements<
     Iterable,
-    std::enable_if_t<!std::is_lvalue_reference<Iterable>::value &&
-                     !std::is_same<adl_begin_sandbox::DereferenceIterableT<
-                                       std::decay_t<Iterable>>,
-                                   adl_begin_sandbox::DereferenceIterableT<
-                                       const std::decay_t<Iterable>>>::value>>
-    : std::true_type {};
+    std::enable_if_t<absl::conjunction<
+        absl::negation<std::is_lvalue_reference<Iterable>>,
+        absl::negation<std::is_same<
+            adl_begin_sandbox::DereferenceIterableT<std::decay_t<Iterable>>,
+            adl_begin_sandbox::DereferenceIterableT<
+                const std::decay_t<Iterable>>>>>::value>> : std::true_type {};
 
 // `MaybeMoveElement<Src>(element)` is `std::move(element)` or `element`,
 // depending on whether moving out of elements of `Src` is safe.

@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -298,9 +299,9 @@ template <typename Dest>
 explicit StringWriter(Dest&& dest, StringWriterBase::Options options =
                                        StringWriterBase::Options())
     -> StringWriter<std::conditional_t<
-        std::is_lvalue_reference<Dest>::value &&
-            std::is_convertible<std::remove_reference_t<Dest>*,
-                                const std::string*>::value,
+        absl::conjunction<std::is_lvalue_reference<Dest>,
+                          std::is_convertible<std::remove_reference_t<Dest>*,
+                                              const std::string*>>::value,
         DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit StringWriter(

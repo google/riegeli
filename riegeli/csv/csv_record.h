@@ -60,18 +60,21 @@ class ReferencePair : public std::pair<T1, T2> {
   using ReferencePair::pair::pair;
 
   template <class U1, class U2,
-            std::enable_if_t<std::is_constructible<T1, U1&>::value &&
-                                 std::is_constructible<T2, U2&>::value &&
-                                 !(std::is_convertible<U1&, T1>::value &&
-                                   std::is_convertible<U2&, T2>::value),
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<std::is_constructible<T1, U1&>,
+                                  std::is_constructible<T2, U2&>,
+                                  absl::negation<absl::conjunction<
+                                      std::is_convertible<U1&, T1>,
+                                      std::is_convertible<U2&, T2>>>>::value,
+                int> = 0>
   explicit constexpr ReferencePair(std::pair<U1, U2>& p)
       : ReferencePair::pair(p.first, p.second) {}
 
-  template <class U1, class U2,
-            std::enable_if_t<std::is_convertible<U1&, T1>::value &&
-                                 std::is_convertible<U2&, T2>::value,
-                             int> = 0>
+  template <
+      class U1, class U2,
+      std::enable_if_t<absl::conjunction<std::is_convertible<U1&, T1>,
+                                         std::is_convertible<U2&, T2>>::value,
+                       int> = 0>
   /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
       : ReferencePair::pair(p.first, p.second) {}
 };
@@ -220,11 +223,13 @@ class CsvHeader {
   // e.g. `std::vector<std::string>`.
   //
   // Precondition: `names` have no duplicates
-  template <typename Names,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                    !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-                int> = 0>
+  template <
+      typename Names,
+      std::enable_if_t<absl::conjunction<
+                           csv_internal::IsIterableOf<Names, absl::string_view>,
+                           absl::negation<std::is_same<std::decay_t<Names>,
+                                                       CsvHeader>>>::value,
+                       int> = 0>
   explicit CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
 
@@ -261,11 +266,13 @@ class CsvHeader {
   //
   // Precondition: like for the corresponding constructor
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  template <typename Names,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                    !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-                int> = 0>
+  template <
+      typename Names,
+      std::enable_if_t<absl::conjunction<
+                           csv_internal::IsIterableOf<Names, absl::string_view>,
+                           absl::negation<std::is_same<std::decay_t<Names>,
+                                                       CsvHeader>>>::value,
+                       int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Names&& names);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::initializer_list<absl::string_view> names);
@@ -288,11 +295,13 @@ class CsvHeader {
   //  * `absl::OkStatus()`                 - `CsvHeader` is set to `names`
   //  * `absl::FailedPreconditionError(_)` - `names` had duplicates,
   //                                         `CsvHeader` is empty
-  template <typename Names,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                    !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-                int> = 0>
+  template <
+      typename Names,
+      std::enable_if_t<absl::conjunction<
+                           csv_internal::IsIterableOf<Names, absl::string_view>,
+                           absl::negation<std::is_same<std::decay_t<Names>,
+                                                       CsvHeader>>>::value,
+                       int> = 0>
   absl::Status TryReset(Names&& names);
   absl::Status TryReset(std::initializer_list<absl::string_view> names);
   template <
@@ -324,9 +333,11 @@ class CsvHeader {
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
   void Add(absl::string_view name, Names&&... names);
   template <typename Name, typename... Names,
-            std::enable_if_t<std::is_same<Name, std::string>::value &&
-                                 (sizeof...(Names) > 0),
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<std::is_same<Name, std::string>,
+                                  std::integral_constant<
+                                      bool, (sizeof...(Names) > 0)>>::value,
+                int> = 0>
   void Add(Name&& name, Names&&... names);
 
   // Adds the given field `name`, ordered at the end, reporting whether this was
@@ -352,9 +363,11 @@ class CsvHeader {
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
   absl::Status TryAdd(absl::string_view name, Names&&... names);
   template <typename Name, typename... Names,
-            std::enable_if_t<std::is_same<Name, std::string>::value &&
-                                 (sizeof...(Names) > 0),
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<std::is_same<Name, std::string>,
+                                  std::integral_constant<
+                                      bool, (sizeof...(Names) > 0)>>::value,
+                int> = 0>
   absl::Status TryAdd(Name&& name, Names&&... names);
 
   // Returns the sequence of field names, in the order in which they have been
@@ -511,11 +524,13 @@ class CsvHeaderConstant {
   //
   // The number of `fields` must be `num_fields`, and all `fields` must have
   // static storage duration.
-  template <typename... Fields,
-            std::enable_if_t<sizeof...(Fields) == num_fields &&
-                                 absl::conjunction<std::is_convertible<
-                                     Fields, absl::string_view>...>::value,
-                             int> = 0>
+  template <
+      typename... Fields,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<bool, sizeof...(Fields) == num_fields>,
+              std::is_convertible<Fields&&, absl::string_view>...>::value,
+          int> = 0>
   /*implicit*/ constexpr CsvHeaderConstant(Fields&&... fields)
       : fields_{std::forward<Fields>(fields)...} {}
 
@@ -526,11 +541,13 @@ class CsvHeaderConstant {
   //
   // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
-  template <typename... Fields,
-            std::enable_if_t<sizeof...(Fields) == num_fields &&
-                                 absl::conjunction<std::is_convertible<
-                                     Fields, absl::string_view>...>::value,
-                             int> = 0>
+  template <
+      typename... Fields,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<bool, sizeof...(Fields) == num_fields>,
+              std::is_convertible<Fields&&, absl::string_view>...>::value,
+          int> = 0>
   explicit constexpr CsvHeaderConstant(
       std::string (*normalizer)(absl::string_view), Fields&&... fields)
       : normalizer_(normalizer), fields_{std::forward<Fields>(fields)...} {}
@@ -553,13 +570,13 @@ class CsvHeaderConstant {
 #if __cpp_deduction_guides
 template <typename... Fields,
           std::enable_if_t<absl::conjunction<std::is_convertible<
-                               Fields, absl::string_view>...>::value,
+                               Fields&&, absl::string_view>...>::value,
                            int> = 0>
 /*implicit*/ CsvHeaderConstant(Fields&&... fields)
     -> CsvHeaderConstant<sizeof...(Fields)>;
 template <typename... Fields,
           std::enable_if_t<absl::conjunction<std::is_convertible<
-                               Fields, absl::string_view>...>::value,
+                               Fields&&, absl::string_view>...>::value,
                            int> = 0>
 explicit CsvHeaderConstant(std::string (*normalizer)(absl::string_view),
                            Fields&&... fields)
@@ -601,12 +618,13 @@ class CsvRecord {
     IteratorImpl() = default;
 
     // Conversion from `iterator` to `const_iterator`.
-    template <
-        typename ThatFieldIterator,
-        std::enable_if_t<
-            std::is_convertible<ThatFieldIterator, FieldIterator>::value &&
-                !std::is_same<ThatFieldIterator, FieldIterator>::value,
-            int> = 0>
+    template <typename ThatFieldIterator,
+              std::enable_if_t<
+                  absl::conjunction<
+                      std::is_convertible<ThatFieldIterator, FieldIterator>,
+                      absl::negation<std::is_same<ThatFieldIterator,
+                                                  FieldIterator>>>::value,
+                  int> = 0>
     /*implicit*/ IteratorImpl(IteratorImpl<ThatFieldIterator> that) noexcept;
 
     IteratorImpl(const IteratorImpl& that) = default;
@@ -973,11 +991,13 @@ inline typename CsvHeader::iterator::reference CsvHeader::iterator::operator[](
   return *(*this + n);
 }
 
-template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                  !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-              int>>
+template <
+    typename Names,
+    std::enable_if_t<
+        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
+                          absl::negation<std::is_same<std::decay_t<Names>,
+                                                      CsvHeader>>>::value,
+        int>>
 CsvHeader::CsvHeader(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
@@ -996,11 +1016,13 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
       << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
 }
 
-template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                  !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-              int>>
+template <
+    typename Names,
+    std::enable_if_t<
+        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
+                          absl::negation<std::is_same<std::decay_t<Names>,
+                                                      CsvHeader>>>::value,
+        int>>
 void CsvHeader::Reset(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
@@ -1019,11 +1041,13 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
       << "Failed precondition of CsvHeader::Reset(): " << status.message();
 }
 
-template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value &&
-                  !std::is_same<std::decay_t<Names>, CsvHeader>::value,
-              int>>
+template <
+    typename Names,
+    std::enable_if_t<
+        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
+                          absl::negation<std::is_same<std::decay_t<Names>,
+                                                      CsvHeader>>>::value,
+        int>>
 absl::Status CsvHeader::TryReset(Names&& names) {
   return TryResetInternal(nullptr, std::forward<Names>(names));
 }
@@ -1106,10 +1130,12 @@ inline void CsvHeader::Add(absl::string_view name, Names&&... names) {
   Add(std::forward<Names>(names)...);
 }
 
-template <
-    typename Name, typename... Names,
-    std::enable_if_t<
-        std::is_same<Name, std::string>::value && (sizeof...(Names) > 0), int>>
+template <typename Name, typename... Names,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_same<Name, std::string>,
+                  std::integral_constant<bool, (sizeof...(Names) > 0)>>::value,
+              int>>
 inline void CsvHeader::Add(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
@@ -1129,10 +1155,12 @@ inline absl::Status CsvHeader::TryAdd(absl::string_view name,
   return TryAdd(std::forward<Names>(names)...);
 }
 
-template <
-    typename Name, typename... Names,
-    std::enable_if_t<
-        std::is_same<Name, std::string>::value && (sizeof...(Names) > 0), int>>
+template <typename Name, typename... Names,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_same<Name, std::string>,
+                  std::integral_constant<bool, (sizeof...(Names) > 0)>>::value,
+              int>>
 inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
@@ -1191,11 +1219,13 @@ inline CsvRecord::IteratorImpl<FieldIterator>::IteratorImpl(
     : name_iter_(name_iter), field_iter_(field_iter) {}
 
 template <typename FieldIterator>
-template <typename ThatFieldIterator,
-          std::enable_if_t<
-              std::is_convertible<ThatFieldIterator, FieldIterator>::value &&
-                  !std::is_same<ThatFieldIterator, FieldIterator>::value,
-              int>>
+template <
+    typename ThatFieldIterator,
+    std::enable_if_t<
+        absl::conjunction<std::is_convertible<ThatFieldIterator, FieldIterator>,
+                          absl::negation<std::is_same<ThatFieldIterator,
+                                                      FieldIterator>>>::value,
+        int>>
 inline CsvRecord::IteratorImpl<FieldIterator>::IteratorImpl(
     IteratorImpl<ThatFieldIterator> that) noexcept
     : name_iter_(that.name_iter_), field_iter_(that.field_iter_) {}

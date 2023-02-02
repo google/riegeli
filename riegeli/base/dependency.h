@@ -788,8 +788,9 @@ class DependencyImpl<absl::string_view, char*> : public DependencyBase<char*> {
 template <typename M>
 class DependencyImpl<
     absl::string_view, M*,
-    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
-                     std::is_convertible<M, absl::Span<const char>>::value>>
+    std::enable_if_t<absl::disjunction<
+        std::is_convertible<M, absl::string_view>,
+        std::is_convertible<M, absl::Span<const char>>>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
@@ -804,8 +805,9 @@ class DependencyImpl<
 template <typename M>
 class DependencyImpl<
     absl::string_view, M,
-    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
-                     std::is_convertible<M, absl::Span<const char>>::value>>
+    std::enable_if_t<absl::disjunction<
+        std::is_convertible<M, absl::string_view>,
+        std::is_convertible<M, absl::Span<const char>>>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
@@ -820,8 +822,9 @@ class DependencyImpl<
 template <typename M, typename Deleter>
 class DependencyImpl<
     absl::string_view, std::unique_ptr<M, Deleter>,
-    std::enable_if_t<std::is_convertible<M, absl::string_view>::value ||
-                     std::is_convertible<M, absl::Span<const char>>::value>>
+    std::enable_if_t<absl::disjunction<
+        std::is_convertible<M, absl::string_view>,
+        std::is_convertible<M, absl::Span<const char>>>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
@@ -849,10 +852,11 @@ class DependencyImpl<absl::Span<char>, absl::Span<char>>
 };
 
 template <typename M>
-class DependencyImpl<
-    absl::Span<char>, M*,
-    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>> : public DependencyBase<M*> {
+class DependencyImpl<absl::Span<char>, M*,
+                     std::enable_if_t<absl::conjunction<
+                         std::is_constructible<absl::Span<char>, M&>,
+                         absl::negation<std::is_pointer<M>>>::value>>
+    : public DependencyBase<M*> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
@@ -862,10 +866,11 @@ class DependencyImpl<
 };
 
 template <typename M>
-class DependencyImpl<
-    absl::Span<char>, M,
-    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>> : public DependencyBase<M> {
+class DependencyImpl<absl::Span<char>, M,
+                     std::enable_if_t<absl::conjunction<
+                         std::is_constructible<absl::Span<char>, M&>,
+                         absl::negation<std::is_pointer<M>>>::value>>
+    : public DependencyBase<M> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
@@ -878,10 +883,10 @@ class DependencyImpl<
 };
 
 template <typename M, typename Deleter>
-class DependencyImpl<
-    absl::Span<char>, std::unique_ptr<M, Deleter>,
-    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>>
+class DependencyImpl<absl::Span<char>, std::unique_ptr<M, Deleter>,
+                     std::enable_if_t<absl::conjunction<
+                         std::is_constructible<absl::Span<char>, M&>,
+                         absl::negation<std::is_pointer<M>>>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;

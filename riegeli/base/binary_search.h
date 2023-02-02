@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/compare.h"
@@ -79,11 +80,11 @@ struct TestReturnsOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<
+    std::enable_if_t<absl::disjunction<
         std::is_convertible<decltype(std::declval<Test>()(std::declval<Pos>())),
-                            absl::partial_ordering>::value ||
+                            absl::partial_ordering>,
         std::is_convertible<decltype(std::declval<Test>()(std::declval<Pos>())),
-                            SearchGuide<Pos>>::value>> : std::true_type {};
+                            SearchGuide<Pos>>>::value>> : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
 struct TestReturnsOptionalOrderingOrSearchGuide : std::false_type {};
@@ -91,18 +92,21 @@ struct TestReturnsOptionalOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsOptionalOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<(std::is_convertible<
-                          decltype(std::declval<Test>()(std::declval<Pos>())),
-                          absl::optional<absl::partial_ordering>>::value &&
-                      !std::is_convertible<decltype(std::declval<Test>()(
-                                               std::declval<Pos>())),
-                                           absl::partial_ordering>::value) ||
-                     (std::is_convertible<
-                          decltype(std::declval<Test>()(std::declval<Pos>())),
-                          absl::optional<SearchGuide<Pos>>>::value &&
-                      !std::is_convertible<decltype(std::declval<Test>()(
-                                               std::declval<Pos>())),
-                                           SearchGuide<Pos>>::value)>>
+    std::enable_if_t<absl::disjunction<
+        absl::conjunction<
+            std::is_convertible<decltype(std::declval<Test>()(
+                                    std::declval<Pos>())),
+                                absl::optional<absl::partial_ordering>>,
+            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
+                                                   std::declval<Pos>())),
+                                               absl::partial_ordering>>>,
+        absl::conjunction<
+            std::is_convertible<decltype(std::declval<Test>()(
+                                    std::declval<Pos>())),
+                                absl::optional<SearchGuide<Pos>>>,
+            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
+                                                   std::declval<Pos>())),
+                                               SearchGuide<Pos>>>>>::value>>
     : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
@@ -111,18 +115,21 @@ struct TestReturnsStatusOrOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsStatusOrOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<(std::is_convertible<
-                          decltype(std::declval<Test>()(std::declval<Pos>())),
-                          absl::StatusOr<absl::partial_ordering>>::value &&
-                      !std::is_convertible<decltype(std::declval<Test>()(
-                                               std::declval<Pos>())),
-                                           absl::partial_ordering>::value) ||
-                     (std::is_convertible<
-                          decltype(std::declval<Test>()(std::declval<Pos>())),
-                          absl::StatusOr<SearchGuide<Pos>>>::value &&
-                      !std::is_convertible<decltype(std::declval<Test>()(
-                                               std::declval<Pos>())),
-                                           SearchGuide<Pos>>::value)>>
+    std::enable_if_t<absl::disjunction<
+        absl::conjunction<
+            std::is_convertible<decltype(std::declval<Test>()(
+                                    std::declval<Pos>())),
+                                absl::StatusOr<absl::partial_ordering>>,
+            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
+                                                   std::declval<Pos>())),
+                                               absl::partial_ordering>>>,
+        absl::conjunction<
+            std::is_convertible<decltype(std::declval<Test>()(
+                                    std::declval<Pos>())),
+                                absl::StatusOr<SearchGuide<Pos>>>,
+            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
+                                                   std::declval<Pos>())),
+                                               SearchGuide<Pos>>>>>::value>>
     : std::true_type {};
 
 }  // namespace binary_search_internal
