@@ -245,36 +245,6 @@ class FdWriterBase : public BufferedWriter {
 #endif
     }
 
-    // If `false`, the fd will remain open across `execve()` (`CreateProcess()`
-    // on Windows).
-    //
-    // If `true`, `execve()` (`CreateProcess()` on Windows) will close the fd.
-    //
-    // If `FdWriter` writes to an already open fd, `close_on_exec()` has no
-    // effect.
-    //
-    // `set_close_on_exec()` affects `mode()`.
-    //
-    // Default: `false`.
-    Options& set_close_on_exec(bool close_on_exec) & {
-#ifndef _WIN32
-      mode_ = (mode_ & ~O_CLOEXEC) | (close_on_exec ? O_CLOEXEC : 0);
-#else
-      mode_ = (mode_ & ~_O_NOINHERIT) | (close_on_exec ? _O_NOINHERIT : 0);
-#endif
-      return *this;
-    }
-    Options&& set_close_on_exec(bool close_on_exec) && {
-      return std::move(set_close_on_exec(close_on_exec));
-    }
-    bool close_on_exec() const {
-#ifndef _WIN32
-      return (mode_ & O_CLOEXEC) != 0;
-#else
-      return (mode_ & _O_NOINHERIT) != 0;
-#endif
-    }
-
     // If `false`, data will be written directly to the file. This is called the
     // binary mode.
     //
