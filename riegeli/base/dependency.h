@@ -266,8 +266,7 @@ class DependencyMaybeRef<
     Ptr, M&,
     std::enable_if_t<
         absl::conjunction<absl::negation<IsValidDependencyImpl<Ptr, M&>>,
-                          IsValidDependencyImpl<Ptr, std::decay_t<M>>,
-                          std::is_constructible<std::decay_t<M>, M&>>::value>>
+                          IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
   explicit DependencyMaybeRef(M& manager) noexcept
@@ -285,8 +284,7 @@ class DependencyMaybeRef<
     Ptr, M&&,
     std::enable_if_t<
         absl::conjunction<absl::negation<IsValidDependencyImpl<Ptr, M&&>>,
-                          IsValidDependencyImpl<Ptr, std::decay_t<M>>,
-                          std::is_constructible<std::decay_t<M>, M&&>>::value>>
+                          IsValidDependencyImpl<Ptr, std::decay_t<M>>>::value>>
     : public DependencyImpl<Ptr, std::decay_t<M>> {
  public:
   explicit DependencyMaybeRef(M&& manager) noexcept
@@ -307,17 +305,13 @@ struct IsValidDependency : IsValidDependencyImpl<Ptr, Manager> {};
 template <typename Ptr, typename M>
 struct IsValidDependency<
     Ptr, M&,
-    std::enable_if_t<
-        absl::conjunction<IsValidDependencyImpl<Ptr, std::decay_t<M>>,
-                          std::is_constructible<std::decay_t<M>, M&>>::value>>
+    std::enable_if_t<IsValidDependencyImpl<Ptr, std::decay_t<M>>::value>>
     : std::true_type {};
 
 template <typename Ptr, typename M>
 struct IsValidDependency<
     Ptr, M&&,
-    std::enable_if_t<
-        absl::conjunction<IsValidDependencyImpl<Ptr, std::decay_t<M>>,
-                          std::is_constructible<std::decay_t<M>, M&&>>::value>>
+    std::enable_if_t<IsValidDependencyImpl<Ptr, std::decay_t<M>>::value>>
     : std::true_type {};
 
 // Implementation shared between most specializations of `DependencyImpl`.
