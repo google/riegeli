@@ -107,7 +107,7 @@ class FdWriterBase : public BufferedWriter {
     // `_O_RDWR`).
     //
     // `mode()` can also be changed with `set_existing()`, `set_read()`,
-    // `set_append()`, and `set_text()`.
+    // `set_append()`, `set_exclusive()`, `set_inheritable()`, and `set_text()`.
     //
     // Default: `O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC`
     // (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY |

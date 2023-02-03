@@ -93,6 +93,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     //
     // If `FdMMapReader` reads from an already open fd, `mode()` has no effect.
     //
+    // `mode()` can also be changed with `set_inheritable()`.
+    //
     // Default: `O_RDONLY | O_CLOEXEC`
     // (on Windows: `_O_RDONLY | _O_BINARY | _O_NOINHERIT`).
     Options& set_mode(int mode) & {

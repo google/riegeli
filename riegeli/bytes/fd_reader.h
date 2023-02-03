@@ -91,7 +91,7 @@ class FdReaderBase : public BufferedReader {
     // It must include either `O_RDONLY` or `O_RDWR` (on Windows: `_O_RDONLY` or
     // `_O_RDWR`).
     //
-    // `mode()` can also be changed with `set_text()`.
+    // `mode()` can also be changed with `set_inheritable()` and `set_text()`.
     //
     // Default: `O_RDONLY | O_CLOEXEC`
     // (on Windows: `_O_RDONLY | _O_BINARY | _O_NOINHERIT`).
