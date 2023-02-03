@@ -863,8 +863,8 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
-        ":fd_close",
         ":fd_internal",
+        ":fd_internal_for_headers",
         ":reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
@@ -898,8 +898,8 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":chain_reader",
-        ":fd_close",
         ":fd_internal",
+        ":fd_internal_for_headers",
         ":reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
@@ -937,8 +937,8 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_writer",
-        ":fd_close",
         ":fd_internal",
+        ":fd_internal_for_headers",
         ":fd_reader",
         ":reader",
         ":writer",
@@ -963,17 +963,6 @@ cc_library(
 )
 
 cc_library(
-    name = "fd_close",
-    srcs = ["fd_close.cc"],
-    hdrs = ["fd_close.h"],
-    visibility = ["//visibility:private"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_library(
     name = "fd_internal",
     srcs = ["fd_internal.cc"],
     hdrs = ["fd_internal.h"],
@@ -982,6 +971,21 @@ cc_library(
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "fd_internal_for_headers",
+    srcs = ["fd_internal_for_headers.cc"],
+    hdrs = ["fd_internal_for_headers.h"],
+    # fd_internal_for_headers.cc has #define before #include to influence what
+    # the included files provide.
+    features = ["-use_header_modules"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base:constexpr",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
     ],
 )
 

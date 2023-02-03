@@ -12,8 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/bytes/fd_close.h"
+// Make `O_CLOEXEC` available on Darwin.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 700
+#undef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
 
+#include "riegeli/bytes/fd_internal_for_headers.h"
+
+#ifdef __APPLE__
+#include <fcntl.h>
+#endif
 #ifdef _WIN32
 #include <io.h>
 #else
@@ -28,11 +37,17 @@
 namespace riegeli {
 namespace fd_internal {
 
+#ifdef __APPLE__
+// On Darwin `O_CLOEXEC` is available conditionally, so `kCloseOnExec` is
+// defined out of line.
+extern const int kCloseOnExec = O_CLOEXEC;
+#endif
+
 int Close(int fd) {
 #ifndef _WIN32
   // http://austingroupbugs.net/view.php?id=529 explains this mess.
 #ifdef POSIX_CLOSE_RESTART
-  // Avoid EINTR by using posix_close(_, 0) if available.
+  // Avoid `EINTR` by using `posix_close(_, 0)` if available.
   if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
     if (errno == EINPROGRESS) return 0;
     return -1;
@@ -52,13 +67,13 @@ int Close(int fd) {
 }
 
 #ifndef _WIN32
+// Not on Windows `posix_close()` is available conditionally, so
+// `kFStatFunctionName` is defined out of line.
 #ifdef POSIX_CLOSE_RESTART
 extern const absl::string_view kCloseFunctionName = "posix_close()";
 #else
 extern const absl::string_view kCloseFunctionName = "close()";
 #endif
-#else
-extern const absl::string_view kCloseFunctionName = "_close()";
 #endif
 
 }  // namespace fd_internal

@@ -36,8 +36,8 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/fd_close.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_internal_for_headers.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -93,13 +93,37 @@ class FdReaderBase : public BufferedReader {
     //
     // `mode()` can also be changed with `set_text()`.
     //
-    // Default: `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
+    // Default: `O_RDONLY | O_CLOEXEC`
+    // (on Windows: `_O_RDONLY | _O_BINARY | _O_NOINHERIT`).
     Options& set_mode(int mode) & {
       mode_ = mode;
       return *this;
     }
     Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
     int mode() const { return mode_; }
+
+    // If `false`, `execve()` (`CreateProcess()` on Windows) will close the fd.
+    //
+    // If `true`, the fd will remain open across `execve()` (`CreateProcess()`
+    // on Windows).
+    //
+    // If `FdReader` reads from an already open fd, `inheritable()` has no
+    // effect.
+    //
+    // `set_inheritable()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_inheritable(bool inheritable) & {
+      mode_ = (mode_ & ~fd_internal::kCloseOnExec) |
+              (inheritable ? 0 : fd_internal::kCloseOnExec);
+      return *this;
+    }
+    Options&& set_inheritable(bool inheritable) && {
+      return std::move(set_inheritable(inheritable));
+    }
+    bool inheritable() const {
+      return (mode_ & fd_internal::kCloseOnExec) == 0;
+    }
 
     // If `false`, data will be read directly from the file. This is called the
     // binary mode.
@@ -190,9 +214,9 @@ class FdReaderBase : public BufferedReader {
    private:
     absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
-    int mode_ = O_RDONLY;
+    int mode_ = O_RDONLY | fd_internal::kCloseOnExec;
 #else
-    int mode_ = _O_RDONLY | _O_BINARY;
+    int mode_ = _O_RDONLY | _O_BINARY | fd_internal::kCloseOnExec;
 #endif
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;

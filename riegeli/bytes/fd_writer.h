@@ -36,8 +36,8 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/fd_close.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_internal_for_headers.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -109,8 +109,9 @@ class FdWriterBase : public BufferedWriter {
     // `mode()` can also be changed with `set_existing()`, `set_read()`,
     // `set_append()`, and `set_text()`.
     //
-    // Default: `O_WRONLY | O_CREAT | O_TRUNC`
-    //          (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY`).
+    // Default: `O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC`
+    // (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY |
+    //               _O_NOINHERIT`).
     Options& set_mode(int mode) & {
       mode_ = mode;
       return *this;
@@ -245,6 +246,29 @@ class FdWriterBase : public BufferedWriter {
 #endif
     }
 
+    // If `false`, `execve()` (`CreateProcess()` on Windows) will close the fd.
+    //
+    // If `true`, the fd will remain open across `execve()` (`CreateProcess()`
+    // on Windows).
+    //
+    // If `FdWriter` writes to an already open fd, `inheritable()` has no
+    // effect.
+    //
+    // `set_inheritable()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_inheritable(bool inheritable) & {
+      mode_ = (mode_ & ~fd_internal::kCloseOnExec) |
+              (inheritable ? 0 : fd_internal::kCloseOnExec);
+      return *this;
+    }
+    Options&& set_inheritable(bool inheritable) && {
+      return std::move(set_inheritable(inheritable));
+    }
+    bool inheritable() const {
+      return (mode_ & fd_internal::kCloseOnExec) == 0;
+    }
+
     // If `false`, data will be written directly to the file. This is called the
     // binary mode.
     //
@@ -337,10 +361,11 @@ class FdWriterBase : public BufferedWriter {
    private:
     absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
-    int mode_ = O_WRONLY | O_CREAT | O_TRUNC;
+    int mode_ = O_WRONLY | O_CREAT | O_TRUNC | fd_internal::kCloseOnExec;
     Permissions permissions_ = 0666;
 #else
-    int mode_ = _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY;
+    int mode_ =
+        _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY | fd_internal::kCloseOnExec;
     Permissions permissions_ = _S_IREAD | _S_IWRITE;
 #endif
     absl::optional<Position> assumed_pos_;
