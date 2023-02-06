@@ -32,9 +32,9 @@ namespace riegeli {
 // `RefCountedPtr<T>` has a smaller overhead than `std::shared_ptr<T>`, but
 // requires cooperation from `T`.
 //
-// `T` maintains its own reference count (as a mutable atomic member which can
-// be thought of as conceptually being owned by the `RefCountedPtr<T>`), and `T`
-// should support:
+// `T` maintains its own reference count, e.g. as a mutable atomic member.
+// Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
+// needed by `RefCountedPtr<T>`. `T` should support:
 //
 // ```
 //   // Increments the reference count of `*this`.
@@ -84,9 +84,7 @@ class
   ~RefCountedPtr();
 
   // Replaces the pointer.
-  ABSL_ATTRIBUTE_REINITIALIZES void reset();
-  ABSL_ATTRIBUTE_REINITIALIZES void reset(nullptr_t) { reset(); }
-  ABSL_ATTRIBUTE_REINITIALIZES void reset(T* ptr);
+  ABSL_ATTRIBUTE_REINITIALIZES void reset(T* ptr = nullptr);
 
   // Returns the pointer.
   T* get() const { return ptr_; }
@@ -294,17 +292,9 @@ inline RefCountedPtr<T>::~RefCountedPtr() {
 }
 
 template <typename T>
-inline void RefCountedPtr<T>::reset() {
-  if (ptr_ != nullptr) {
-    ptr_->Unref();
-    ptr_ = nullptr;
-  }
-}
-
-template <typename T>
 inline void RefCountedPtr<T>::reset(T* ptr) {
-  if (ptr_ != nullptr) ptr_->Unref();
-  ptr_ = ptr;
+  T* const old_ptr = std::exchange(ptr_, ptr);
+  if (old_ptr != nullptr) old_ptr->Unref();
 }
 
 }  // namespace riegeli
