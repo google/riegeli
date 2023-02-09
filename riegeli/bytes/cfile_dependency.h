@@ -15,6 +15,11 @@
 #ifndef RIEGELI_BYTES_CFILE_DEPENDENCY_H_
 #define RIEGELI_BYTES_CFILE_DEPENDENCY_H_
 
+// IWYU pragma: private, include "riegeli/bytes/cfile_reader.h"
+// IWYU pragma: private, include "riegeli/bytes/cfile_writer.h"
+// IWYU pragma: private, include "riegeli/bytes/reader_cfile.h"
+// IWYU pragma: private, include "riegeli/bytes/writer_cfile.h"
+
 #include <stdio.h>
 
 #include <memory>

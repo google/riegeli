@@ -23,7 +23,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/varint/varint_internal.h"
+#include "riegeli/varint/varint_internal.h"  // IWYU pragma: export
 
 namespace riegeli {
 

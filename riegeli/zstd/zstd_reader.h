@@ -33,7 +33,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/zstd/zstd_dictionary.h"
+#include "riegeli/zstd/zstd_dictionary.h"  // IWYU pragma: export
 #include "zstd.h"
 
 namespace riegeli {

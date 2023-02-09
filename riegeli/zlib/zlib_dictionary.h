@@ -15,6 +15,9 @@
 #ifndef RIEGELI_ZLIB_ZLIB_DICTIONARY_H_
 #define RIEGELI_ZLIB_ZLIB_DICTIONARY_H_
 
+// IWYU pragma: private, include "riegeli/zlib/zlib_reader.h"
+// IWYU pragma: private, include "riegeli/zlib/zlib_writer.h"
+
 #include <string>
 #include <type_traits>
 #include <utility>

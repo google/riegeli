@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <ostream>
+#include <ostream>  // IWYU pragma: export
 #include <sstream>
 #include <string>
 #include <utility>

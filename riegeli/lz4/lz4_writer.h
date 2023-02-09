@@ -36,7 +36,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/lz4/lz4_dictionary.h"
+#include "riegeli/lz4/lz4_dictionary.h"  // IWYU pragma: export
 
 namespace riegeli {
 

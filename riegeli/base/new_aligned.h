@@ -17,14 +17,14 @@
 
 #include <stddef.h>
 
-#include <limits>
+#include <limits>  // IWYU pragma: keep
 #include <new>
 #include <utility>
 
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
-#include "riegeli/base/estimated_allocated_size.h"
+#include "riegeli/base/assert.h"                    // IWYU pragma: keep
+#include "riegeli/base/estimated_allocated_size.h"  // IWYU pragma: keep
 
 namespace riegeli {
 

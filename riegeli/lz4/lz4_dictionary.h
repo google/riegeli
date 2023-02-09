@@ -15,6 +15,9 @@
 #ifndef RIEGELI_LZ4_LZ4_DICTIONARY_H_
 #define RIEGELI_LZ4_LZ4_DICTIONARY_H_
 
+// IWYU pragma: private, include "riegeli/lz4/lz4_reader.h"
+// IWYU pragma: private, include "riegeli/lz4/lz4_writer.h"
+
 #include <stdint.h>
 
 #include <memory>

@@ -15,6 +15,10 @@
 #ifndef RIEGELI_BYTES_FD_DEPENDENCY_H_
 #define RIEGELI_BYTES_FD_DEPENDENCY_H_
 
+// IWYU pragma: private, include "riegeli/bytes/fd_reader.h"
+// IWYU pragma: private, include "riegeli/bytes/fd_mmap_reader.h"
+// IWYU pragma: private, include "riegeli/bytes/fd_writer.h"
+
 #include <utility>
 
 #include "absl/base/attributes.h"

@@ -65,8 +65,8 @@ cc_library(
     name = "lz4_dictionary",
     srcs = ["lz4_dictionary.cc"],
     hdrs = ["lz4_dictionary.h"],
-    # lz4_dictionary.cc has #define before #include to influence what the included
-    # files provide.
+    # lz4_dictionary.cc has #define before #include to influence what the
+    # included files provide.
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [

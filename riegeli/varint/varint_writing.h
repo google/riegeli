@@ -24,7 +24,7 @@
 #include "riegeli/base/constexpr.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/varint/varint_internal.h"
+#include "riegeli/varint/varint_internal.h"  // IWYU pragma: export
 
 namespace riegeli {
 

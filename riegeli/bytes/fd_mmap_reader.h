@@ -36,7 +36,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_dependency.h"  // IWYU pragma: export
 #include "riegeli/bytes/fd_internal_for_headers.h"
 #include "riegeli/bytes/reader.h"
 

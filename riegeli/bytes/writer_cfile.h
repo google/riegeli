@@ -29,7 +29,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/types.h"
-#include "riegeli/bytes/cfile_dependency.h"
+#include "riegeli/bytes/cfile_dependency.h"  // IWYU pragma: export
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

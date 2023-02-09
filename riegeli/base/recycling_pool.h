@@ -20,7 +20,7 @@
 #include <atomic>
 #include <list>
 #include <memory>
-#include <type_traits>
+#include <type_traits>  // IWYU pragma: keep
 #include <utility>
 #include <vector>
 
@@ -28,7 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/meta/type_traits.h"
+#include "absl/meta/type_traits.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"

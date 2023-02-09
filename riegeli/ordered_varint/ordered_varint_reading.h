@@ -19,7 +19,7 @@
 
 #include "absl/base/optimization.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/ordered_varint/ordered_varint_internal.h"
+#include "riegeli/ordered_varint/ordered_varint_internal.h"  // IWYU pragma: export
 
 namespace riegeli {
 

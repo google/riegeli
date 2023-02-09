@@ -29,8 +29,8 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
-#include "riegeli/brotli/brotli_allocator.h"
-#include "riegeli/brotli/brotli_dictionary.h"
+#include "riegeli/brotli/brotli_allocator.h"   // IWYU pragma: export
+#include "riegeli/brotli/brotli_dictionary.h"  // IWYU pragma: export
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 

@@ -30,8 +30,8 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
-#include "riegeli/brotli/brotli_allocator.h"
-#include "riegeli/brotli/brotli_dictionary.h"
+#include "riegeli/brotli/brotli_allocator.h"   // IWYU pragma: export
+#include "riegeli/brotli/brotli_dictionary.h"  // IWYU pragma: export
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"

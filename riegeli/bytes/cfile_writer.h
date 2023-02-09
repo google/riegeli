@@ -35,7 +35,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/cfile_dependency.h"
+#include "riegeli/bytes/cfile_dependency.h"  // IWYU pragma: export
 #include "riegeli/bytes/file_mode_string.h"
 #include "riegeli/bytes/writer.h"
 

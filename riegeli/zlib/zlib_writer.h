@@ -31,7 +31,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/zlib/zlib_dictionary.h"
+#include "riegeli/zlib/zlib_dictionary.h"  // IWYU pragma: export
 
 struct z_stream_s;  // `zlib.h` has `typedef struct z_stream_s z_stream`.
 

@@ -15,6 +15,9 @@
 #ifndef RIEGELI_VARINT_VARINT_INTERNAL_H_
 #define RIEGELI_VARINT_VARINT_INTERNAL_H_
 
+// IWYU pragma: private, include "riegeli/varint/varint_reading.h"
+// IWYU pragma: private, include "riegeli/varint/varint_writing.h"
+
 #include <stddef.h>
 
 #include "riegeli/base/constexpr.h"

@@ -15,6 +15,9 @@
 #ifndef RIEGELI_ZSTD_ZSTD_DICTIONARY_H_
 #define RIEGELI_ZSTD_ZSTD_DICTIONARY_H_
 
+// IWYU pragma: private, include "riegeli/zstd/zstd_reader.h"
+// IWYU pragma: private, include "riegeli/zstd/zstd_writer.h"
+
 #include <memory>
 #include <string>
 #include <type_traits>

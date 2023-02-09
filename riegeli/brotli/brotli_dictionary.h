@@ -15,6 +15,9 @@
 #ifndef RIEGELI_BROTLI_BROTLI_DICTIONARY_H_
 #define RIEGELI_BROTLI_BROTLI_DICTIONARY_H_
 
+// IWYU pragma: private, include "riegeli/brotli/brotli_reader.h"
+// IWYU pragma: private, include "riegeli/brotli/brotli_writer.h"
+
 #include <stddef.h>
 
 #include <memory>
