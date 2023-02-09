@@ -24,6 +24,14 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 
+// Syntax of a file mode for `fopen()`:
+//  * 'r', 'w', or 'a'.
+//  * Single character modifiers, in any order. Some modifiers are standard:
+//    '+', 'b', 'x' (since C++17 / C11), while others are OS-specific.
+//  * ',ccs=<encoding>'. This is not standard but it is understood by glibc and
+//    on Windows. To avoid breaking the encoding name which may use characters
+//    ordinarily used as modifiers, functions below stop parsing at ','.
+
 namespace riegeli {
 namespace file_internal {
 
@@ -84,6 +92,43 @@ bool GetRead(absl::string_view mode) {
   return false;
 }
 
+void SetExclusive(bool exclusive, std::string& mode) {
+  if (ABSL_PREDICT_FALSE(mode.empty())) mode = "w";
+  if (exclusive) {
+    // Add 'x' to modifiers unless it already exists there.
+    for (size_t i = 1; i < mode.size(); ++i) {
+      if (mode[i] == 'x') return;
+      if (mode[i] == ',') break;
+    }
+    size_t position = 1;
+    while (mode.size() > position &&
+           (mode[position] == '+' || mode[position] == 'b' ||
+            mode[position] == 't')) {
+      ++position;
+    }
+    mode.insert(position, "x");
+  } else {
+    // Remove 'x' from modifiers.
+    for (size_t i = 1; i < mode.size(); ++i) {
+      if (mode[i] == 'x') {
+        mode.erase(i, 1);
+        --i;
+        continue;
+      }
+      if (mode[i] == ',') break;
+    }
+  }
+}
+
+bool GetExclusive(absl::string_view mode) {
+  if (ABSL_PREDICT_FALSE(mode.empty())) return false;
+  for (size_t i = 1; i < mode.size(); ++i) {
+    if (mode[i] == 'x') return true;
+    if (mode[i] == ',') break;
+  }
+  return false;
+}
+
 namespace {
 
 inline void SetTextImpl(bool text, std::string& mode) {
@@ -109,7 +154,9 @@ inline void SetTextImpl(bool text, std::string& mode) {
     if (mode[i] == ',') break;
   }
   if (need_to_add) {
-    mode.insert(mode.size() > 1 && mode[1] == '+' ? 2 : 1, to_add);
+    size_t position = 1;
+    while (mode.size() > position && mode[position] == '+') ++position;
+    mode.insert(position, to_add);
   }
 #endif
 }

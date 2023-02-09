@@ -51,6 +51,15 @@ bool GetRead(absl::string_view mode);
 void SetAppend(bool append, std::string& mode);
 bool GetAppend(absl::string_view mode);
 
+// If `false`, the file will be created if it does not exist, or it will be
+// opened if it exists (truncated to empty by default, or left unchanged if
+// `SetExisting(true)` or `SetAppend(true)` was used).
+//
+// If `true`, the file will be created if it does not exist, or opening will
+// fail if it exists.
+void SetExclusive(bool exclusive, std::string& mode);
+bool GetExclusive(absl::string_view mode);
+
 // If `false`, data will be read/written directly from/to the file. This is
 // called the binary mode.
 //

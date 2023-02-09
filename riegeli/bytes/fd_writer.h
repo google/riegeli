@@ -216,11 +216,12 @@ class FdWriterBase : public BufferedWriter {
 #endif
     }
 
-    // If `false`, the file will be opened if it exists (truncated to empty by
-    // default, or left unchanged if `set_existing(true)` or `set_append(true)`
-    // was used).
+    // If `false`, the file will be created if it does not exist, or it will be
+    // opened if it exists (truncated to empty by default, or left unchanged if
+    // `set_existing(true)` or `set_append(true)` was used).
     //
-    // If `true`, opening fails if the file exists.
+    // If `true`, the file will be created if it does not exist, or opening will
+    // fail if it exists.
     //
     // If `FdWriter` writes to an already open fd, `exclusive()` has no effect.
     //

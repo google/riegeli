@@ -78,7 +78,7 @@ class CFileWriterBase : public BufferedWriter {
     // (on Windows: "wb" or "ab").
     //
     // `mode()` can also be changed with `set_existing(), `set_read()`,
-    // `set_append()`, and `set_text()`.
+    // `set_append()`, `set_exclusive()`, and `set_text()`.
     //
     // Default: "w" (on Windows: "wb").
     Options& set_mode(absl::string_view mode) & {
@@ -158,6 +158,29 @@ class CFileWriterBase : public BufferedWriter {
       return std::move(set_append(append));
     }
     bool append() const { return file_internal::GetAppend(mode_); }
+
+    // If `false`, the file will be created if it does not exist, or it will be
+    // opened if it exists (truncated to empty by default, or left unchanged if
+    // `set_existing(true)` or `set_append(true)` was used).
+    //
+    // If `true`, the file will be created if it does not exist, or opening will
+    // fail if it exists. This is not supported by all systems, but it is
+    // specified by C++17 and supported on Linux and Windows.
+    //
+    // If `CFileWriter` writes to an already open `FILE`, `exclusive()` has no
+    // effect.
+    //
+    // `set_exclusive()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_exclusive(bool exclusive) & {
+      file_internal::SetExclusive(exclusive, mode_);
+      return *this;
+    }
+    Options&& set_exclusive(bool exclusive) && {
+      return std::move(set_exclusive(exclusive));
+    }
+    bool exclusive() const { return file_internal::GetExclusive(mode_); }
 
     // If `false`, data will be written directly to the file. This is called the
     // binary mode.
