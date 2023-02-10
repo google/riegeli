@@ -359,6 +359,14 @@ class CsvReaderBase : public Object {
   //  * `false` (when `!ok()`) - failure (`record` is empty)
   bool ReadRecord(std::vector<std::string>& record);
 
+  // Determines if a record follows without reading it, but skipps intevening
+  // comments.
+  //
+  // Return values:
+  //  * `true`  - `ReadRecord()` would read the next record or fail
+  //  * `false` - `ReadRecord()` would report that source ends or fail
+  bool HasNextRecord();
+
   // The index of the most recently read record, starting from 0.
   //
   // The record count does not include any header read with

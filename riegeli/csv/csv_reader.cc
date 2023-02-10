@@ -635,6 +635,25 @@ try_again:
   return true;
 }
 
+bool CsvReaderBase::HasNextRecord() {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Reader& src = *SrcReader();
+  for (;;) {
+    last_line_number_ = line_number_;
+    if (ABSL_PREDICT_FALSE(!src.Pull())) {
+      // End of file at the beginning of a record.
+      if (ABSL_PREDICT_FALSE(!src.ok())) {
+        return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+      }
+      return false;
+    }
+    const CharClass char_class =
+        char_classes_[static_cast<unsigned char>(*src.cursor())];
+    if (ABSL_PREDICT_TRUE(char_class != CharClass::kComment)) return true;
+    SkipLine(src);
+  }
+}
+
 absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
