@@ -37,6 +37,7 @@
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/csv/csv_record.h"
+#include "riegeli/lines/line_reading.h"
 
 namespace riegeli {
 
@@ -130,10 +131,6 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       return;
     }
   }
-  if (ABSL_PREDICT_FALSE(!src->ok())) {
-    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
-    return;
-  }
 
   char_classes_['\n'] = CharClass::kLf;
   char_classes_['\r'] = CharClass::kCr;
@@ -156,6 +153,12 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                                 std::vector<std::string>().max_size());
   max_field_length_ =
       UnsignedMin(options.max_field_length(), std::string().max_size());
+
+  if (ABSL_PREDICT_FALSE(!src->ok())) {
+    FailWithoutAnnotation(AnnotateOverSrc(src->status()));
+    return;
+  }
+  if (!options.preserve_utf8_bom()) SkipUtf8Bom(*src);
 
   // Recovery is not applicable to reading the header. Hence `recovery_` is set
   // after reading the header.

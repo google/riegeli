@@ -80,6 +80,9 @@ template <typename... Args,
               int> = 0>
 bool WriteLine(Args&&... args);
 
+// Writes UTF-8 BOM.
+void WriteUtf8Bom(Writer& dest);
+
 // Implementation details follow.
 
 namespace write_line_internal {
@@ -136,6 +139,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
       GetFromEnd<1>(std::forward<Args>(args)...),
       std::make_index_sequence<sizeof...(Args) - 2>());
 }
+
+inline void WriteUtf8Bom(Writer& dest) { dest.Write(kUtf8Bom); }
 
 }  // namespace riegeli
 

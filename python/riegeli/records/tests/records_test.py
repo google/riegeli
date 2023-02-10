@@ -50,7 +50,6 @@ class RandomAccess(Enum):
 
 
 class FakeFile:
-
   __slots__ = ('_random_access',)
 
   def __init__(self, random_access):
@@ -69,7 +68,6 @@ class FakeFile:
 
 
 class UnseekableWrapper:
-
   __slots__ = ('_wrapped',)
 
   def __init__(self, wrapped):
@@ -89,7 +87,6 @@ class UnseekableWrapper:
 
 
 class FileSpecBase(metaclass=abc.ABCMeta):
-
   __slots__ = ('_random_access', '_file')
 
   def __init__(self, create_tempfile, random_access):
@@ -145,7 +142,6 @@ class FileSpecBase(metaclass=abc.ABCMeta):
 
 
 class BytesIOSpec(FileSpecBase):
-
   __slots__ = ()
 
   def _open_for_writing(self):
@@ -161,7 +157,6 @@ class BytesIOSpec(FileSpecBase):
 
 
 class LocalFileSpecBase(FileSpecBase):
-
   __slots__ = ('_filename',)
 
   def __init__(self, create_tempfile, random_access):
@@ -170,7 +165,6 @@ class LocalFileSpecBase(FileSpecBase):
 
 
 class FileIOSpec(LocalFileSpecBase):
-
   __slots__ = ()
 
   def _open_for_writing(self):
@@ -181,7 +175,6 @@ class FileIOSpec(LocalFileSpecBase):
 
 
 class BufferedIOSpec(LocalFileSpecBase):
-
   __slots__ = ()
 
   def _open_for_writing(self):
@@ -192,7 +185,6 @@ class BufferedIOSpec(LocalFileSpecBase):
 
 
 class BuiltinFileSpec(LocalFileSpecBase):
-
   __slots__ = ()
 
   def _open_for_writing(self):
@@ -203,7 +195,6 @@ class BuiltinFileSpec(LocalFileSpecBase):
 
 
 class TensorFlowGFileSpec(LocalFileSpecBase):
-
   __slots__ = ()
 
   def _open_for_writing(self):
@@ -228,8 +219,10 @@ def sample_message_id_only(i):
 
 
 def record_writer_options(parallelism, transpose=False):
-  return (f'{"transpose," if transpose else ""}uncompressed,chunk_size:35000,'
-          f'parallelism:{parallelism}')
+  return (
+      f'{"transpose," if transpose else ""}uncompressed,chunk_size:35000,'
+      f'parallelism:{parallelism}'
+  )
 
 
 # pyformat: disable
@@ -248,24 +241,27 @@ _PARALLELISM_VALUES = (('serial', 0),
                        ('parallel', 10))
 # pyformat: enable
 
-_PARAMETERIZE_BY_FILE_SPEC = (
-    parameterized.named_parameters(*_FILE_SPEC_VALUES))
+_PARAMETERIZE_BY_FILE_SPEC = parameterized.named_parameters(*_FILE_SPEC_VALUES)
 
-_PARAMETERIZE_BY_RANDOM_ACCESS = (
-    parameterized.named_parameters(*_RANDOM_ACCESS_VALUES))
+_PARAMETERIZE_BY_RANDOM_ACCESS = parameterized.named_parameters(
+    *_RANDOM_ACCESS_VALUES
+)
 
-_PARAMETERIZE_BY_RANDOM_ACCESS_AND_PARALLELISM = (
-    parameterized.named_parameters(
-        combine_named_parameters(_RANDOM_ACCESS_VALUES, _PARALLELISM_VALUES)))
+_PARAMETERIZE_BY_RANDOM_ACCESS_AND_PARALLELISM = parameterized.named_parameters(
+    combine_named_parameters(_RANDOM_ACCESS_VALUES, _PARALLELISM_VALUES)
+)
 
-_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM = (
-    parameterized.named_parameters(
-        combine_named_parameters(_FILE_SPEC_VALUES, _PARALLELISM_VALUES)))
+_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM = parameterized.named_parameters(
+    combine_named_parameters(_FILE_SPEC_VALUES, _PARALLELISM_VALUES)
+)
 
 _PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM = (
     parameterized.named_parameters(
-        combine_named_parameters(_FILE_SPEC_VALUES, _RANDOM_ACCESS_VALUES,
-                                 _PARALLELISM_VALUES)))
+        combine_named_parameters(
+            _FILE_SPEC_VALUES, _RANDOM_ACCESS_VALUES, _PARALLELISM_VALUES
+        )
+    )
+)
 
 
 class RecordsTest(parameterized.TestCase):
@@ -291,10 +287,13 @@ class RecordsTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordWriter(
           byte_writer,
-          assumed_pos=(0 if
-                       random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
-                       else None),
-          options=record_writer_options(parallelism)) as writer:
+          assumed_pos=(
+              0
+              if random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
+              else None
+          ),
+          options=record_writer_options(parallelism),
+      ) as writer:
         writer.write_record(sample_string(0, 10000))
 
   @_PARAMETERIZE_BY_RANDOM_ACCESS
@@ -304,21 +303,26 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           byte_reader,
           owns_src=False,
-          assumed_pos=(0 if
-                       random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
-                       else None)) as reader:
+          assumed_pos=(
+              0
+              if random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
+              else None
+          ),
+      ) as reader:
         reader.read_record()
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_record(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           pos = writer.pos
           writer.write_record(sample_string(i, 10000))
@@ -332,7 +336,8 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         for i in range(23):
           pos = reader.pos
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
@@ -346,14 +351,16 @@ class RecordsTest(parameterized.TestCase):
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_message(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           pos = writer.pos
           writer.write_message(sample_message(i, 10000))
@@ -367,12 +374,14 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         for i in range(23):
           pos = reader.pos
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              sample_message(i, 10000))
+              sample_message(i, 10000),
+          )
           canonical_pos = reader.last_pos
           self.assertEqual(canonical_pos, positions[i])
           self.assertLessEqual(pos, canonical_pos)
@@ -383,104 +392,132 @@ class RecordsTest(parameterized.TestCase):
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_records(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         writer.write_records(sample_string(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         self.assertEqual(
             list(reader.read_records()),
-            [sample_string(i, 10000) for i in range(23)])
+            [sample_string(i, 10000) for i in range(23)],
+        )
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_messages(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
-        writer.write_messages(sample_message(i, 10000) for i in range(23))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
-        self.assertEqual(
-            list(reader.read_messages(records_test_pb2.SimpleMessage)),
-            [sample_message(i, 10000) for i in range(23)])
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_write_read_messages_with_field_projection(self, file_spec,
-                                                     random_access,
-                                                     parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism, transpose=True)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         writer.write_messages(sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          field_projection=[[
-              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
-              .number
-          ]]) as reader:
+      ) as reader:
         self.assertEqual(
             list(reader.read_messages(records_test_pb2.SimpleMessage)),
-            [sample_message_id_only(i) for i in range(23)])
+            [sample_message(i, 10000) for i in range(23)],
+        )
 
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
-  def test_write_read_messages_with_field_projection_later(
-      self, file_spec, parallelism):
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_write_read_messages_with_field_projection(
+      self, file_spec, random_access, parallelism
+  ):
     with contextlib.closing(
-        file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism, transpose=True)) as writer:
+          options=record_writer_options(parallelism, transpose=True),
+      ) as writer:
         writer.write_messages(sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+          field_projection=[
+              [
+                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                      'id'
+                  ].number
+              ]
+          ],
+      ) as reader:
+        self.assertEqual(
+            list(reader.read_messages(records_test_pb2.SimpleMessage)),
+            [sample_message_id_only(i) for i in range(23)],
+        )
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
+  def test_write_read_messages_with_field_projection_later(
+      self, file_spec, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism, transpose=True),
+      ) as writer:
+        writer.write_messages(sample_message(i, 10000) for i in range(23))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         for i in range(4):
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              sample_message(i, 10000))
-        reader.set_field_projection([[
-            records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
-            .number
-        ]])
+              sample_message(i, 10000),
+          )
+        reader.set_field_projection(
+            [
+                [
+                    records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                        'id'
+                    ].number
+                ]
+            ]
+        )
         for i in range(4, 14):
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              sample_message_id_only(i))
+              sample_message_id_only(i),
+          )
         reader.set_field_projection(None)
         for i in range(14, 23):
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              sample_message(i, 10000))
+              sample_message(i, 10000),
+          )
         self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_metadata(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       metadata_written = riegeli.RecordsMetadata()
       metadata_written.file_comment = 'Comment'
       riegeli.set_record_type(metadata_written, records_test_pb2.SimpleMessage)
@@ -490,61 +527,43 @@ class RecordsTest(parameterized.TestCase):
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism),
-          metadata=metadata_written) as writer:
+          metadata=metadata_written,
+      ) as writer:
         writer.write_message(message_written)
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         metadata_read = reader.read_metadata()
         self.assertEqual(metadata_read, metadata_written)
         record_type = riegeli.get_record_type(metadata_read)
         assert record_type is not None
-        self.assertEqual(record_type.DESCRIPTOR.full_name,
-                         'riegeli.tests.SimpleMessage')
+        self.assertEqual(
+            record_type.DESCRIPTOR.full_name, 'riegeli.tests.SimpleMessage'
+        )
         message_read = reader.read_message(record_type)
         assert message_read is not None
         # Serialize and deserialize because messages have descriptors of
         # different origins.
         self.assertEqual(
             records_test_pb2.SimpleMessage.FromString(
-                message_read.SerializeToString()), message_written)
+                message_read.SerializeToString()
+            ),
+            message_written,
+        )
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_field_projection(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=f'{record_writer_options(parallelism)},transpose') as writer:
-        for i in range(23):
-          writer.write_message(sample_message(i, 10000))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos,
-          field_projection=[[
-              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
-              .number
-          ]]) as reader:
-        for i in range(23):
-          self.assertEqual(
-              reader.read_message(records_test_pb2.SimpleMessage),
-              records_test_pb2.SimpleMessage(id=i))
-        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_field_projection_existence_only(self, file_spec, random_access,
-                                           parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=f'{record_writer_options(parallelism)},transpose') as writer:
+          options=f'{record_writer_options(parallelism)},transpose',
+      ) as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(
@@ -553,33 +572,73 @@ class RecordsTest(parameterized.TestCase):
           assumed_pos=files.reading_assumed_pos,
           field_projection=[
               [
-                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
-                  .number
-              ],
-              [
-                  records_test_pb2.SimpleMessage.DESCRIPTOR
-                  .fields_by_name['payload'].number,
-                  riegeli.EXISTENCE_ONLY,
-              ],
-          ]) as reader:
+                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                      'id'
+                  ].number
+              ]
+          ],
+      ) as reader:
         for i in range(23):
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              records_test_pb2.SimpleMessage(id=i, payload=b''))
+              records_test_pb2.SimpleMessage(id=i),
+          )
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_field_projection_existence_only(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=f'{record_writer_options(parallelism)},transpose',
+      ) as writer:
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          field_projection=[
+              [
+                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                      'id'
+                  ].number
+              ],
+              [
+                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                      'payload'
+                  ].number,
+                  riegeli.EXISTENCE_ONLY,
+              ],
+          ],
+      ) as reader:
+        for i in range(23):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              records_test_pb2.SimpleMessage(id=i, payload=b''),
+          )
         self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
   def test_seek(self, file_spec, parallelism):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           pos = writer.pos
           writer.write_record(sample_string(i, 10000))
@@ -593,7 +652,8 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         reader.seek(positions[9])
         self.assertGreater(reader.pos, positions[8])
         self.assertLessEqual(reader.pos, positions[9])
@@ -633,14 +693,16 @@ class RecordsTest(parameterized.TestCase):
   def test_seek_numeric(self, file_spec, parallelism):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           pos = writer.pos
           writer.write_record(sample_string(i, 10000))
@@ -654,7 +716,8 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         reader.seek_numeric(positions[9].numeric)
         self.assertGreater(reader.pos, positions[8])
         self.assertLessEqual(reader.pos, positions[9])
@@ -694,19 +757,22 @@ class RecordsTest(parameterized.TestCase):
   def test_seek_back(self, file_spec):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism=0)) as writer:
+          options=record_writer_options(parallelism=0),
+      ) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
         reader.seek_numeric(reader.size())
         for i in reversed(range(23)):
           self.assertTrue(reader.seek_back())
@@ -718,13 +784,15 @@ class RecordsTest(parameterized.TestCase):
   def test_search(self, file_spec):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism=0)) as writer:
+          options=record_writer_options(parallelism=0),
+      ) as writer:
         positions = []
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
@@ -734,10 +802,10 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
 
         def test_function(search_target):
-
           def test(record_reader):
             message = record_reader.read_message(records_test_pb2.SimpleMessage)
             return (message.id > search_target) - (message.id < search_target)
@@ -757,13 +825,15 @@ class RecordsTest(parameterized.TestCase):
   def test_search_for_record(self, file_spec):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism=0)) as writer:
+          options=record_writer_options(parallelism=0),
+      ) as writer:
         positions = []
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
@@ -773,10 +843,10 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
 
         def test_function(search_target):
-
           def test(record):
             message = records_test_pb2.SimpleMessage.FromString(record)
             return (message.id > search_target) - (message.id < search_target)
@@ -796,13 +866,15 @@ class RecordsTest(parameterized.TestCase):
   def test_search_for_message(self, file_spec):
     with contextlib.closing(
         file_spec(
-            self.create_tempfile,
-            random_access=RandomAccess.RANDOM_ACCESS)) as files:
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism=0)) as writer:
+          options=record_writer_options(parallelism=0),
+      ) as writer:
         positions = []
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
@@ -812,42 +884,56 @@ class RecordsTest(parameterized.TestCase):
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
 
         def test_function(search_target):
-
           def test(message):
             return (message.id > search_target) - (message.id < search_target)
 
           return test
 
         self.assertEqual(
-            reader.search_for_message(records_test_pb2.SimpleMessage,
-                                      test_function(7)), 0)
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(7)
+            ),
+            0,
+        )
         self.assertEqual(reader.pos, positions[7])
         self.assertEqual(
-            reader.search_for_message(records_test_pb2.SimpleMessage,
-                                      test_function(0)), 0)
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(0)
+            ),
+            0,
+        )
         self.assertEqual(reader.pos, positions[0])
         self.assertEqual(
-            reader.search_for_message(records_test_pb2.SimpleMessage,
-                                      test_function(22)), 0)
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(22)
+            ),
+            0,
+        )
         self.assertEqual(reader.pos, positions[22])
         self.assertEqual(
-            reader.search_for_message(records_test_pb2.SimpleMessage,
-                                      test_function(23)), -1)
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(23)
+            ),
+            -1,
+        )
         self.assertEqual(reader.pos, end_pos)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_exception(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
@@ -857,7 +943,8 @@ class RecordsTest(parameterized.TestCase):
       reader = riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos)
+          assumed_pos=files.reading_assumed_pos,
+      )
       for i in range(9):
         self.assertEqual(reader.read_record(), sample_string(i, 10000))
       with self.assertRaises(riegeli.RiegeliError):
@@ -867,14 +954,16 @@ class RecordsTest(parameterized.TestCase):
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_recovery(self, file_spec, random_access, parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
@@ -887,7 +976,8 @@ class RecordsTest(parameterized.TestCase):
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          recovery=skipped_regions.append) as reader:
+          recovery=skipped_regions.append,
+      ) as reader:
         for i in range(9):
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
         for i in range(15, 23):
@@ -899,16 +989,19 @@ class RecordsTest(parameterized.TestCase):
       self.assertEqual(skipped_region.end, positions[15].numeric)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_corruption_recovery_stop_iteration(self, file_spec, random_access,
-                                              parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+  def test_corruption_recovery_stop_iteration(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
@@ -925,7 +1018,8 @@ class RecordsTest(parameterized.TestCase):
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          recovery=recovery) as reader:
+          recovery=recovery,
+      ) as reader:
         for i in range(9):
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
         self.assertIsNone(reader.read_record())
@@ -935,16 +1029,19 @@ class RecordsTest(parameterized.TestCase):
       self.assertEqual(skipped_region.end, positions[15].numeric)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_corruption_recovery_exception(self, file_spec, random_access,
-                                         parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+  def test_corruption_recovery_exception(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
       positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
+          options=record_writer_options(parallelism),
+      ) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
@@ -959,7 +1056,8 @@ class RecordsTest(parameterized.TestCase):
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          recovery=recovery) as reader:
+          recovery=recovery,
+      ) as reader:
         for i in range(9):
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
         with self.assertRaises(KeyboardInterrupt):

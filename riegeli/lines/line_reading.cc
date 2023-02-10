@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -307,13 +308,11 @@ bool ReadLine(Reader& src, absl::Cord& dest, ReadLineOptions options) {
   return ReadLineInternal(src, dest, options);
 }
 
-void SkipBOM(Reader& src) {
-  if (src.pos() != 0) return;
-  src.Pull(3);
-  if (src.available() >= 3 && src.cursor()[0] == static_cast<char>(0xef) &&
-      src.cursor()[1] == static_cast<char>(0xbb) &&
-      src.cursor()[2] == static_cast<char>(0xbf)) {
-    src.move_cursor(3);
+void SkipUtf8Bom(Reader& src) {
+  src.Pull(kUtf8Bom.size());
+  if (absl::StartsWith(absl::string_view(src.cursor(), src.available()),
+                       kUtf8Bom)) {
+    src.move_cursor(kUtf8Bom.size());
   }
 }
 

@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -33,6 +34,8 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/csv_record.h"
+#include "riegeli/lines/line_writing.h"
+#include "riegeli/lines/newline.h"
 
 namespace riegeli {
 
@@ -95,10 +98,6 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
       return;
     }
   }
-  if (ABSL_PREDICT_FALSE(!dest->ok())) {
-    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
-    return;
-  }
 
   quotes_needed_['\n'] = true;
   quotes_needed_['\r'] = true;
@@ -112,6 +111,12 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   newline_ = options.newline();
   field_separator_ = options.field_separator();
   quote_ = options.quote();
+
+  if (ABSL_PREDICT_FALSE(!dest->ok())) {
+    FailWithoutAnnotation(AnnotateOverDest(dest->status()));
+    return;
+  }
+  if (options.write_utf8_bom()) WriteUtf8Bom(*dest);
 
   if (has_header_) {
     if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) --record_index_;
@@ -169,6 +174,9 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
 }
 
 bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(field, kUtf8Bom))) {
+    return WriteQuoted(dest, field, 0);
+  }
   for (size_t i = 0; i < field.size(); ++i) {
     if (quotes_needed_[static_cast<unsigned char>(field[i])]) {
       return WriteQuoted(dest, field, i);

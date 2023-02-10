@@ -121,6 +121,22 @@ class CsvReaderBase : public Object {
       return assumed_header_;
     }
 
+    // If `false`, skips an initial UTF-8 BOM if present.
+    //
+    // If `true`, an initial UTF-8 BOM if present is treated as a part of the
+    // first field in the first record. This is unlikely to be the intent, but
+    // this conforms to RFC4180.
+    //
+    // Default: `false`.
+    Options& set_preserve_utf8_bom(bool preserve_utf8_bom) & {
+      preserve_utf8_bom_ = preserve_utf8_bom;
+      return *this;
+    }
+    Options&& set_preserve_utf8_bom(bool preserve_utf8_bom) && {
+      return std::move(set_preserve_utf8_bom(preserve_utf8_bom));
+    }
+    bool preserve_utf8_bom() const { return preserve_utf8_bom_; }
+
     // Comment character.
     //
     // If not `absl::nullopt`, a line beginning with this character is skipped.
@@ -271,6 +287,7 @@ class CsvReaderBase : public Object {
    private:
     absl::optional<CsvHeader> required_header_;
     absl::optional<CsvHeader> assumed_header_;
+    bool preserve_utf8_bom_ = false;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';

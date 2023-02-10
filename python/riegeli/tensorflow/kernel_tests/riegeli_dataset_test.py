@@ -69,7 +69,6 @@ class DatasetTestBase(test.TestCase):
     """
 
     def ta_wrapper(gn):
-
       def _wrapper():
         r = gn()
         if isinstance(r, tensor_array_ops.TensorArray):
@@ -91,26 +90,30 @@ class DatasetTestBase(test.TestCase):
       get_next = iterator.get_next()
       return ta_wrapper(lambda: get_next)
 
-  def _compareOutputToExpected(self, result_values, expected_values,
-                               assert_items_equal):
+  def _compareOutputToExpected(
+      self, result_values, expected_values, assert_items_equal
+  ):
     if assert_items_equal:
       self.assertItemsEqual(result_values, expected_values)
       return
     for i in range(len(result_values)):
       nest.assert_same_structure(result_values[i], expected_values[i])
       for result_value, expected_value in zip(
-          nest.flatten(result_values[i]), nest.flatten(expected_values[i])):
+          nest.flatten(result_values[i]), nest.flatten(expected_values[i])
+      ):
         self.assertValuesEqual(expected_value, result_value)
 
-  def assertDatasetProduces(self,
-                            dataset,
-                            expected_output=None,
-                            expected_shapes=None,
-                            expected_error=None,
-                            requires_initialization=False,
-                            num_test_iterations=1,
-                            assert_items_equal=False,
-                            expected_error_iter=1):
+  def assertDatasetProduces(
+      self,
+      dataset,
+      expected_output=None,
+      expected_shapes=None,
+      expected_error=None,
+      requires_initialization=False,
+      num_test_iterations=1,
+      assert_items_equal=False,
+      expected_error_iter=1,
+  ):
     """Asserts that a dataset produces the expected output / error.
 
     Args:
@@ -137,26 +140,34 @@ class DatasetTestBase(test.TestCase):
     """
     self.assertTrue(
         expected_error is not None or expected_output is not None,
-        'Exactly one of expected_output or expected error should be provided.')
+        'Exactly one of expected_output or expected error should be provided.',
+    )
     if expected_error:
       self.assertTrue(
           expected_output is None,
-          'Exactly one of expected_output or expected error should be provided.'
+          (
+              'Exactly one of expected_output or expected error should be'
+              ' provided.'
+          ),
       )
-      with self.assertRaisesWithPredicateMatch(expected_error[0],
-                                               expected_error[1]):
+      with self.assertRaisesWithPredicateMatch(
+          expected_error[0], expected_error[1]
+      ):
         get_next = self.getNext(
-            dataset, requires_initialization=requires_initialization)
+            dataset, requires_initialization=requires_initialization
+        )
         for _ in range(expected_error_iter):
           self.evaluate(get_next())
       return
     if expected_shapes:
-      self.assertEqual(expected_shapes,
-                       dataset_ops.get_legacy_output_shapes(dataset))
+      self.assertEqual(
+          expected_shapes, dataset_ops.get_legacy_output_shapes(dataset)
+      )
     self.assertGreater(num_test_iterations, 0)
     for _ in range(num_test_iterations):
       get_next = self.getNext(
-          dataset, requires_initialization=requires_initialization)
+          dataset, requires_initialization=requires_initialization
+      )
       result = []
       for _ in range(len(expected_output)):
         result.append(self.evaluate(get_next()))
@@ -179,7 +190,8 @@ class RiegeliDatasetTest(DatasetTestBase):
 
   def dataset_fn(self, filenames, num_epochs=1, batch_size=None):
     repeat_dataset = riegeli_dataset_ops.RiegeliDataset(filenames).repeat(
-        num_epochs)
+        num_epochs
+    )
     if batch_size:
       return repeat_dataset.batch(batch_size)
     return repeat_dataset
@@ -205,20 +217,23 @@ class RiegeliDatasetTest(DatasetTestBase):
     dataset = self.dataset_fn(self.test_filenames[0])
     self.assertDatasetProduces(
         dataset,
-        expected_output=[self._record(0, i) for i in range(self._num_records)])
+        expected_output=[self._record(0, i) for i in range(self._num_records)],
+    )
 
     # Basic test: read from file 1.
     dataset = self.dataset_fn(self.test_filenames[1])
     self.assertDatasetProduces(
         dataset,
-        expected_output=[self._record(1, i) for i in range(self._num_records)])
+        expected_output=[self._record(1, i) for i in range(self._num_records)],
+    )
 
     # Basic test: read from both files.
     dataset = self.dataset_fn(self.test_filenames)
     expected_output = []
     for j in range(self._num_files):
       expected_output.extend(
-          [self._record(j, i) for i in range(self._num_records)])
+          [self._record(j, i) for i in range(self._num_records)]
+      )
     self.assertDatasetProduces(dataset, expected_output=expected_output)
 
   def test_read_ten_epochs(self):
@@ -226,16 +241,19 @@ class RiegeliDatasetTest(DatasetTestBase):
     expected_output = []
     for j in range(self._num_files):
       expected_output.extend(
-          [self._record(j, i) for i in range(self._num_records)])
+          [self._record(j, i) for i in range(self._num_records)]
+      )
     self.assertDatasetProduces(dataset, expected_output=expected_output * 10)
 
   def test_read_ten_epochs_of_batches(self):
     dataset = self.dataset_fn(
-        self.test_filenames, num_epochs=10, batch_size=self._num_records)
+        self.test_filenames, num_epochs=10, batch_size=self._num_records
+    )
     expected_output = []
     for j in range(self._num_files):
       expected_output.append(
-          [self._record(j, i) for i in range(self._num_records)])
+          [self._record(j, i) for i in range(self._num_records)]
+      )
     self.assertDatasetProduces(dataset, expected_output=expected_output * 10)
 
 

@@ -21,7 +21,8 @@ from tensorflow.python.framework import load_library
 from tensorflow.python.platform import resource_loader
 
 gen_riegeli_dataset_ops = load_library.load_op_library(
-    resource_loader.get_path_to_datafile('_riegeli_dataset_ops.so'))
+    resource_loader.get_path_to_datafile('_riegeli_dataset_ops.so')
+)
 
 __all__ = ('RiegeliDataset',)
 
@@ -34,11 +35,13 @@ class RiegeliDataset(dataset_ops.DatasetSource):
 
   __slots__ = ('_filenames', '_min_buffer_size', '_max_buffer_size')
 
-  def __init__(self,
-               filenames,
-               min_buffer_size=None,
-               max_buffer_size=None,
-               buffer_size=None):
+  def __init__(
+      self,
+      filenames,
+      min_buffer_size=None,
+      max_buffer_size=None,
+      buffer_size=None,
+  ):
     """Creates a `RiegeliDataset`.
 
     Args:
@@ -61,13 +64,16 @@ class RiegeliDataset(dataset_ops.DatasetSource):
     self._min_buffer_size = convert.optional_param_to_tensor(
         'min_buffer_size',
         min_buffer_size,
-        argument_default=_DEFAULT_MIN_BUFFER_SIZE)
+        argument_default=_DEFAULT_MIN_BUFFER_SIZE,
+    )
     self._max_buffer_size = convert.optional_param_to_tensor(
         'max_buffer_size',
         max_buffer_size,
-        argument_default=_DEFAULT_MAX_BUFFER_SIZE)
+        argument_default=_DEFAULT_MAX_BUFFER_SIZE,
+    )
     variant_tensor = gen_riegeli_dataset_ops.riegeli_dataset(
-        self._filenames, self._min_buffer_size, self._max_buffer_size)
+        self._filenames, self._min_buffer_size, self._max_buffer_size
+    )
     super(RiegeliDataset, self).__init__(variant_tensor)
 
   @property

@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
@@ -106,10 +107,13 @@ bool ReadLine(Reader& src, Chain& dest,
 bool ReadLine(Reader& src, absl::Cord& dest,
               ReadLineOptions options = ReadLineOptions());
 
-// Skips an initial UTF-8 BOM if it is present.
-//
-// Does nothing unless `src.pos() == 0`.
-void SkipBOM(Reader& src);
+// Skips UTF-8 BOM if it is present.
+void SkipUtf8Bom(Reader& src);
+
+ABSL_DEPRECATED("Use SkipBom() instead.")
+inline void SkipBOM(Reader& src) {
+  if (src.pos() == 0) SkipUtf8Bom(src);
+}
 
 }  // namespace riegeli
 

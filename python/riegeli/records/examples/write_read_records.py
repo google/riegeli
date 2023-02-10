@@ -35,8 +35,8 @@ def write_records(filename):
   metadata = riegeli.RecordsMetadata()
   riegeli.set_record_type(metadata, records_test_pb2.SimpleMessage)
   with riegeli.RecordWriter(
-      io.FileIO(filename, mode='wb'), options='transpose',
-      metadata=metadata) as writer:
+      io.FileIO(filename, mode='wb'), options='transpose', metadata=metadata
+  ) as writer:
     writer.write_messages(sample_message(i, 100) for i in range(100))
 
 
@@ -44,12 +44,20 @@ def read_records(filename):
   print('Reading', filename)
   with riegeli.RecordReader(
       io.FileIO(filename, mode='rb'),
-      field_projection=[[
-          records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id'].number
-      ]]) as reader:
-    print(' '.join(
-        str(record.id)
-        for record in reader.read_messages(records_test_pb2.SimpleMessage)))
+      field_projection=[
+          [
+              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                  'id'
+              ].number
+          ]
+      ],
+  ) as reader:
+    print(
+        ' '.join(
+            str(record.id)
+            for record in reader.read_messages(records_test_pb2.SimpleMessage)
+        )
+    )
 
 
 def main():

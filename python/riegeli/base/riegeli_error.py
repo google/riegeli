@@ -12,13 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ('RiegeliError', 'CancelledError', 'UnknownError',
-           'InvalidArgumentError', 'DeadlineExceededError', 'NotFoundError',
-           'AlreadyExistsError', 'PermissionDeniedError',
-           'UnauthenticatedError', 'ResourceExhaustedError',
-           'FailedPreconditionError', 'AbortedError', 'OutOfRangeError',
-           'UnimplementedError', 'InternalError', 'UnavailableError',
-           'DataLossError')
+__all__ = (
+    'RiegeliError',
+    'CancelledError',
+    'UnknownError',
+    'InvalidArgumentError',
+    'DeadlineExceededError',
+    'NotFoundError',
+    'AlreadyExistsError',
+    'PermissionDeniedError',
+    'UnauthenticatedError',
+    'ResourceExhaustedError',
+    'FailedPreconditionError',
+    'AbortedError',
+    'OutOfRangeError',
+    'UnimplementedError',
+    'InternalError',
+    'UnavailableError',
+    'DataLossError',
+)
 
 
 class RiegeliError(Exception):
@@ -36,6 +48,7 @@ class RiegeliError(Exception):
 
 class CancelledError(RiegeliError):
   """The operation was cancelled, typically by the caller."""
+
   code = 1
 
 
@@ -47,6 +60,7 @@ class UnknownError(RiegeliError):
   address space. Also errors raised by APIs that do not return enough error
   information may be converted to this error.
   """
+
   code = 2
 
 
@@ -57,6 +71,7 @@ class InvalidArgumentError(RiegeliError):
   indicates arguments that are problematic regardless of the state of the system
   (e.g., a malformed file name).
   """
+
   code = 3
 
 
@@ -68,6 +83,7 @@ class DeadlineExceededError(RiegeliError):
   response from a server could have been delayed long enough for the deadline to
   expire.
   """
+
   code = 4
 
 
@@ -80,11 +96,13 @@ class NotFoundError(RiegeliError):
   class of users, such as user-based access control, `PermissionDeniedError`
   must be used.
   """
+
   code = 5
 
 
 class AlreadyExistsError(RiegeliError):
   """The entity that a client attempted to create already exists."""
+
   code = 6
 
 
@@ -98,11 +116,13 @@ class PermissionDeniedError(RiegeliError):
   not imply the request is valid or the requested entity exists or satisfies
   other pre-conditions.
   """
+
   code = 7
 
 
 class UnauthenticatedError(RiegeliError):
   """No valid authentication credentials for the operation."""
+
   code = 16
 
 
@@ -112,6 +132,7 @@ class ResourceExhaustedError(RiegeliError):
   Perhaps a per-user quota, or perhaps the entire file system is out of
   space.
   """
+
   code = 8
 
 
@@ -134,6 +155,7 @@ class FailedPreconditionError(RiegeliError):
        since the client should not retry unless the files are deleted from the
        directory.
   """
+
   code = 9
 
 
@@ -146,6 +168,7 @@ class AbortedError(RiegeliError):
   See litmus test at `FailedPreconditionError` for deciding between
   `FailedPreconditionError`, `AbortedError`, and `UnavailableError`.
   """
+
   code = 10
 
 
@@ -165,6 +188,7 @@ class OutOfRangeError(RiegeliError):
   error) when it applies so that callers who are iterating through a space can
   easily look for an `OutOfRangeError` error to detect when they are done.
   """
+
   code = 11
 
 
@@ -173,6 +197,7 @@ class UnimplementedError(RiegeliError):
 
   Or is not supported/enabled in this service.
   """
+
   code = 12
 
 
@@ -182,6 +207,7 @@ class InternalError(RiegeliError):
   This means that some invariants expected by the underlying system have been
   broken. This error code is reserved for serious errors.
   """
+
   code = 13
 
 
@@ -194,9 +220,11 @@ class UnavailableError(RiegeliError):
   See litmus test at `FailedPreconditionError` for deciding between
   `FailedPreconditionError`, `AbortedError`, and `UnavailableError`.
   """
+
   code = 14
 
 
 class DataLossError(RiegeliError):
   """Unrecoverable data loss or corruption."""
+
   code = 15

@@ -21,15 +21,34 @@ from riegeli.records import skipped_region
 
 from riegeli.records import records_metadata_pb2
 
-__all__ = ('RiegeliError', 'CancelledError', 'UnknownError',
-           'InvalidArgumentError', 'DeadlineExceededError', 'NotFoundError',
-           'AlreadyExistsError', 'PermissionDeniedError',
-           'UnauthenticatedError', 'ResourceExhaustedError',
-           'FailedPreconditionError', 'AbortedError', 'OutOfRangeError',
-           'UnimplementedError', 'InternalError', 'UnavailableError',
-           'DataLossError', 'FlushType', 'RecordPosition', 'SkippedRegion',
-           'RecordsMetadata', 'set_record_type', 'RecordWriter',
-           'EXISTENCE_ONLY', 'get_record_type', 'RecordReader')
+__all__ = (
+    'RiegeliError',
+    'CancelledError',
+    'UnknownError',
+    'InvalidArgumentError',
+    'DeadlineExceededError',
+    'NotFoundError',
+    'AlreadyExistsError',
+    'PermissionDeniedError',
+    'UnauthenticatedError',
+    'ResourceExhaustedError',
+    'FailedPreconditionError',
+    'AbortedError',
+    'OutOfRangeError',
+    'UnimplementedError',
+    'InternalError',
+    'UnavailableError',
+    'DataLossError',
+    'FlushType',
+    'RecordPosition',
+    'SkippedRegion',
+    'RecordsMetadata',
+    'set_record_type',
+    'RecordWriter',
+    'EXISTENCE_ONLY',
+    'get_record_type',
+    'RecordReader',
+)
 
 # pylint: disable=invalid-name
 RiegeliError = riegeli_error.RiegeliError

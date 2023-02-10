@@ -56,6 +56,9 @@ RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\n");
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\r\n");
 #endif
 
+// UTF-8 BOM representation as a string.
+RIEGELI_INLINE_CONSTEXPR(absl::string_view, kUtf8Bom, "\xef\xbb\xbf");
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_LINES_NEWLINE_H_

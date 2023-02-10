@@ -88,7 +88,29 @@ class CsvWriterBase : public Object {
     absl::optional<CsvHeader>& header() { return header_; }
     const absl::optional<CsvHeader>& header() const { return header_; }
 
+    // If `false`, does not write initial UTF-8 BOM. This conforms to RFC4180
+    // and UTF-8 BOM is normally not used on Unix.
+    //
+    // If `true`, writes initial UTF-8 BOM. Microsoft Excel by default expects
+    // UTF-8 BOM in order to recognize UTF-8 contents without prompting for the
+    // encoding.
+    //
+    // `CsvReader` will understand files written with any option.
+    //
+    // Default: `false`.
+    Options& set_write_utf8_bom(bool write_utf8_bom) & {
+      write_utf8_bom_ = write_utf8_bom;
+      return *this;
+    }
+    Options&& set_write_utf8_bom(bool write_utf8_bom) && {
+      return std::move(set_write_utf8_bom(write_utf8_bom));
+    }
+    bool write_utf8_bom() const { return write_utf8_bom_; }
+
     // Record terminator.
+    //
+    // RFC4180 requires `WriteNewline::kCrLf` but Unix normally uses `kLf`.
+    // `CsvReader` will understand files written with any option.
     //
     // Default: `WriteNewline::kNative`.
     Options& set_newline(WriteNewline newline) & {
@@ -131,8 +153,8 @@ class CsvWriterBase : public Object {
     // Quote character.
     //
     // Quotes around a field allow expressing special characters inside the
-    // field: LF, CR, comment character, field separator, or quote character
-    // itself.
+    // field: UTF-8 BOM, LF, CR, comment character, field separator, or quote
+    // character itself.
     //
     // To express a quote inside a quoted field, it must be written twice or
     // preceded by an escape character.
@@ -152,6 +174,7 @@ class CsvWriterBase : public Object {
 
    private:
     absl::optional<CsvHeader> header_;
+    bool write_utf8_bom_ = false;
     WriteNewline newline_ = WriteNewline::kNative;
     absl::optional<char> comment_;
     char field_separator_ = ',';
