@@ -24,6 +24,11 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
+// Make `copy_file_range()` available on Linux.
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #else
 
 #define WIN32_LEAN_AND_MEAN
@@ -49,9 +54,15 @@
 #include <limits>
 #include <memory>
 #include <string>
+#ifndef _WIN32
+#include <type_traits>
+#endif
 #include <utility>
 
 #include "absl/base/optimization.h"
+#ifndef _WIN32
+#include "absl/meta/type_traits.h"
+#endif
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/strings/match.h"
@@ -73,9 +84,54 @@
 #endif
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_internal.h"
+#ifndef _WIN32
+#include "riegeli/bytes/fd_writer.h"
+#endif
 #include "riegeli/bytes/reader.h"
+#ifndef _WIN32
+#include "riegeli/bytes/writer.h"
+#endif
 
 namespace riegeli {
+
+#ifndef _WIN32
+
+namespace {
+
+// `copy_file_range()` is supported by Linux and FreeBSD.
+
+template <typename FirstArg, typename Enable = void>
+struct HaveCopyFileRange : std::false_type {};
+
+template <typename FirstArg>
+struct HaveCopyFileRange<
+    FirstArg,
+    absl::void_t<decltype(copy_file_range(
+        std::declval<FirstArg>(), std::declval<fd_internal::Offset*>(),
+        std::declval<int>(), std::declval<fd_internal::Offset*>(),
+        std::declval<size_t>(), std::declval<unsigned>()))>> : std::true_type {
+};
+
+template <typename FirstArg,
+          std::enable_if_t<HaveCopyFileRange<FirstArg>::value, int> = 0>
+inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
+                             int dest, fd_internal::Offset* dest_offset,
+                             size_t length, unsigned flags) {
+  return copy_file_range(src, src_offset, dest, dest_offset, length, flags);
+}
+
+template <typename FirstArg,
+          std::enable_if_t<!HaveCopyFileRange<FirstArg>::value, int> = 0>
+inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
+                             int dest, fd_internal::Offset* dest_offset,
+                             size_t length, unsigned flags) {
+  errno = EOPNOTSUPP;
+  return -1;
+}
+
+}  // namespace
+
+#endif
 
 void FdReaderBase::Initialize(int src,
 #ifdef _WIN32
@@ -393,6 +449,74 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     max_length -= IntCast<size_t>(length_read);
   }
 }
+
+#ifndef _WIN32
+
+bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of BufferedReader::CopyInternal(): "
+         "nothing to copy";
+  RIEGELI_ASSERT(ok())
+      << "Failed precondition of BufferedReader::CopyInternal(): " << status();
+  if (HaveCopyFileRange<int>::value) {
+    {
+      FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>();
+      if (fd_writer != nullptr) {
+        const int src = SrcFd();
+        for (;;) {
+          if (ABSL_PREDICT_FALSE(!fd_writer->Flush(FlushType::kFromObject))) {
+            return false;
+          }
+          const int dest_fd = fd_writer->DestFd();
+          fd_internal::Offset src_offset = limit_pos();
+          fd_internal::Offset dest_offset = fd_writer->start_pos();
+          if (ABSL_PREDICT_FALSE(
+                  limit_pos() >=
+                  Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+            return FailOverflow();
+          }
+          const size_t length_to_copy = UnsignedMin(
+              length,
+              Position{std::numeric_limits<fd_internal::Offset>::max()} -
+                  limit_pos(),
+              size_t{std::numeric_limits<ssize_t>::max()});
+          if (ABSL_PREDICT_FALSE(
+                  length_to_copy >
+                  Position{std::numeric_limits<fd_internal::Offset>::max()} -
+                      fd_writer->start_pos())) {
+            return fd_writer->FailOverflow();
+          }
+        again:
+          const ssize_t length_copied = CopyFileRange(
+              src, has_independent_pos_ ? &src_offset : nullptr, dest_fd,
+              fd_writer->has_independent_pos_ ? &dest_offset : nullptr,
+              length_to_copy, 0);
+          if (ABSL_PREDICT_FALSE(length_copied < 0)) {
+            if (errno == EINTR) goto again;
+            // File descriptors might not support `copy_file_range()` for a
+            // variety of reasons, e.g. append mode, not regular files,
+            // unsupported filesystem, or cross filesystem copy. Fall back to
+            // `read()` and `write()`.
+            break;
+          }
+          if (ABSL_PREDICT_FALSE(length_copied == 0)) {
+            if (!growing_source_) set_exact_size(limit_pos());
+            return false;
+          }
+          RIEGELI_ASSERT_LE(IntCast<size_t>(length_copied), length_to_copy)
+              << "copy_file_range() copied more than requested";
+          move_limit_pos(IntCast<size_t>(length_copied));
+          fd_writer->move_start_pos(IntCast<size_t>(length_copied));
+          length -= IntCast<size_t>(length_copied);
+          if (length == 0) return true;
+        }
+      }
+    }
+  }
+  return BufferedReader::CopyInternal(length, dest);
+}
+
+#endif
 
 inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
   RIEGELI_ASSERT_EQ(available(), 0u)

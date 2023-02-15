@@ -855,7 +855,10 @@ cc_library(
     srcs = [
         "fd_dependency.h",
         "fd_reader.cc",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["fd_writer.h"],
+    }),
     hdrs = ["fd_reader.h"],
     # fd_reader.cc has #define before #include to influence what the included
     # files provide.
@@ -882,7 +885,11 @@ cc_library(
         "@platforms//os:windows": [
             "//riegeli/base:unicode",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            ":buffered_writer",
+            ":writer",
+            "//riegeli/base:type_id",
+        ],
     }),
 )
 
@@ -953,6 +960,7 @@ cc_library(
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
         "//riegeli/base:status",
+        "//riegeli/base:type_id",
         "//riegeli/base:types",
     ] + select({
         "@platforms//os:windows": [

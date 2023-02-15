@@ -33,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -377,6 +378,8 @@ class FdWriterBase : public BufferedWriter {
   // `Close()`, otherwise unchanged.
   virtual int DestFd() const = 0;
 
+  TypeId GetTypeId() const override;
+
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
   absl::string_view filename() const { return filename_; }
@@ -428,6 +431,8 @@ class FdWriterBase : public BufferedWriter {
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
+  friend class FdReaderBase;  // For `has_independent_pos_`.
+
   // Encodes a `bool` or a marker that the value is not resolved yet.
   enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
 

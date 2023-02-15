@@ -419,15 +419,29 @@ inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyUsingPush(): "
          "nothing to copy";
-  do {
-    size_t length_to_read = SaturatingIntCast<size_t>(length);
-    if (exact_size() != absl::nullopt) {
-      if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
-        ExactSizeReached();
-        return false;
-      }
-      length_to_read = UnsignedMin(length_to_read, *exact_size() - limit_pos());
+  RIEGELI_ASSERT(ok())
+      << "Failed precondition of BufferedReader::CopyUsingPush(): " << status();
+  Position length_to_read = length;
+  if (exact_size() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
+      ExactSizeReached();
+      return false;
     }
+    length_to_read = UnsignedMin(length_to_read, *exact_size() - limit_pos());
+  }
+  return CopyInternal(length_to_read, dest) && length_to_read == length;
+}
+
+bool BufferedReader::CopyInternal(Position length, Writer& dest) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of BufferedReader::CopyInternal(): "
+         "nothing to copy";
+  RIEGELI_ASSERT(ok())
+      << "Failed precondition of BufferedReader::CopyInternal(): " << status();
+  size_t length_to_read = SaturatingIntCast<size_t>(length);
+  // In the first iteration `exact_size()` was taken into account by
+  // `CopyUsingPush()`, so that `CopyInternal()` overrides do not need to.
+  for (;;) {
     if (ABSL_PREDICT_FALSE(!dest.Push(1, length_to_read))) return false;
     const size_t length_to_copy = UnsignedMin(length_to_read, dest.available());
     const Position pos_before = limit_pos();
@@ -448,9 +462,20 @@ inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
     }
     dest.move_cursor(IntCast<size_t>(length_read));
     if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    length -= length_read;
-  } while (length > 0);
-  return true;
+    length -= IntCast<size_t>(length_read);
+    if (length == 0) return true;
+    // `ReadInternal()` might have set `exact_size()`, so this implementation of
+    // `CopyInternal()` needs to take `exact_size()` into account for remaining
+    // iterations.
+    length_to_read = SaturatingIntCast<size_t>(length);
+    if (exact_size() != absl::nullopt) {
+      if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
+        ExactSizeReached();
+        return false;
+      }
+      length_to_read = UnsignedMin(length_to_read, *exact_size() - limit_pos());
+    }
+  }
 }
 
 bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {

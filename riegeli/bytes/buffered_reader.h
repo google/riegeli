@@ -126,6 +126,19 @@ class BufferedReader : public Reader {
   virtual bool ReadInternal(size_t min_length, size_t max_length,
                             char* dest) = 0;
 
+  // Copies data from the source, from the physical source position which is
+  // `limit_pos()`, to `dest`.
+  //
+  // Does not use buffer pointers of `*this`. Increments `limit_pos()` by the
+  // length read, which must be `length` on success. Returns `true` on success.
+  //
+  // By default uses `Writer::Push()` and `ReadInternal()`.
+  //
+  // Preconditions:
+  //   `length > 0`
+  //   `ok()`
+  virtual bool CopyInternal(Position length, Writer& dest);
+
   // Called when `exact_size()` was reached but reading more is requested.
   // In this case `ReadInternal()` was not called.
   //

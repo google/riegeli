@@ -39,6 +39,9 @@
 #include "riegeli/bytes/fd_dependency.h"  // IWYU pragma: export
 #include "riegeli/bytes/fd_internal_for_headers.h"
 #include "riegeli/bytes/reader.h"
+#ifndef _WIN32
+#include "riegeli/bytes/writer.h"
+#endif
 
 namespace riegeli {
 
@@ -276,6 +279,9 @@ class FdReaderBase : public BufferedReader {
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+#ifndef _WIN32
+  bool CopyInternal(Position length, Writer& dest) override;
+#endif
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;

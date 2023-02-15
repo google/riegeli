@@ -1,3 +1,4 @@
+#include "riegeli/base/type_id.h"
 // Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,6 +78,8 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 
 void FdWriterBase::Initialize(int dest,
                               absl::optional<std::string>&& assumed_filename,
