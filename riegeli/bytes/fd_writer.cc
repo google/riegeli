@@ -1,4 +1,3 @@
-#include "riegeli/base/type_id.h"
 // Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,6 +66,7 @@
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
+#include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
