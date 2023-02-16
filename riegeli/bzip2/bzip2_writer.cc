@@ -32,6 +32,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/bzip2/bzip2_error.h"
 
 namespace riegeli {
 
@@ -77,42 +78,14 @@ void Bzip2WriterBase::Done() {
 
 bool Bzip2WriterBase::FailOperation(absl::string_view operation,
                                     int bzlib_code) {
+  RIEGELI_ASSERT(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
+                 bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
+      << "Failed precondition of Bzip2WriterBase::FailOperation(): "
+         "bzlib error code not failed";
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of Bzip2WriterBase::FailOperation(): "
          "Object closed";
-  std::string message = absl::StrCat(operation, " failed");
-  const char* details = nullptr;
-  switch (bzlib_code) {
-    case BZ_SEQUENCE_ERROR:
-      details = "sequence error";
-      break;
-    case BZ_PARAM_ERROR:
-      details = "parameter error";
-      break;
-    case BZ_MEM_ERROR:
-      details = "memory error";
-      break;
-    case BZ_DATA_ERROR:
-      details = "data error";
-      break;
-    case BZ_DATA_ERROR_MAGIC:
-      details = "data error (magic)";
-      break;
-    case BZ_IO_ERROR:
-      details = "I/O error";
-      break;
-    case BZ_UNEXPECTED_EOF:
-      details = "unexpected EOF";
-      break;
-    case BZ_OUTBUFF_FULL:
-      details = "output buffer full";
-      break;
-    case BZ_CONFIG_ERROR:
-      details = "config error";
-      break;
-  }
-  if (details != nullptr) absl::StrAppend(&message, ": ", details);
-  return Fail(absl::InternalError(message));
+  return Fail(bzip2_internal::Bzip2ErrorToStatus(operation, bzlib_code));
 }
 
 absl::Status Bzip2WriterBase::AnnotateStatusImpl(absl::Status status) {

@@ -10,6 +10,7 @@ cc_library(
     srcs = ["bzip2_reader.cc"],
     hdrs = ["bzip2_reader.h"],
     deps = [
+        ":bzip2_error",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
@@ -31,6 +32,7 @@ cc_library(
     srcs = ["bzip2_writer.cc"],
     hdrs = ["bzip2_writer.h"],
     deps = [
+        ":bzip2_error",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
@@ -42,6 +44,19 @@ cc_library(
         "//riegeli/bytes:writer",
         "@bzip2//:bz2lib",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "bzip2_error",
+    srcs = ["bzip2_error.cc"],
+    hdrs = ["bzip2_error.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base:assert",
+        "@bzip2//:bz2lib",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],

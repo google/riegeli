@@ -58,6 +58,19 @@ class ZlibWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    // What format of header to write.
+    //
+    // Default: `Header::kZlib`.
+    static constexpr Header kDefaultHeader = Header::kZlib;
+    Options& set_header(Header header) & {
+      header_ = header;
+      return *this;
+    }
+    Options&& set_header(Header header) && {
+      return std::move(set_header(header));
+    }
+    Header header() const { return header_; }
+
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
@@ -109,19 +122,6 @@ class ZlibWriterBase : public BufferedWriter {
     }
     int window_log() const { return window_log_; }
 
-    // What format of header to write.
-    //
-    // Default: `Header::kZlib`.
-    static constexpr Header kDefaultHeader = Header::kZlib;
-    Options& set_header(Header header) & {
-      header_ = header;
-      return *this;
-    }
-    Options&& set_header(Header header) && {
-      return std::move(set_header(header));
-    }
-    Header header() const { return header_; }
-
     // Zlib dictionary. The same dictionary must be used for decompression.
     //
     // Default: `ZlibDictionary()`.
@@ -136,9 +136,9 @@ class ZlibWriterBase : public BufferedWriter {
     const ZlibDictionary& dictionary() const { return dictionary_; }
 
    private:
+    Header header_ = kDefaultHeader;
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
-    Header header_ = kDefaultHeader;
     ZlibDictionary dictionary_;
   };
 

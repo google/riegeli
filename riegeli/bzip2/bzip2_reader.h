@@ -117,8 +117,7 @@ class Bzip2ReaderBase : public BufferedReader {
   };
 
   void InitializeDecompressor();
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::StatusCode code,
-                                         absl::string_view operation,
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int bzlib_code);
 
   bool concatenate_ = false;

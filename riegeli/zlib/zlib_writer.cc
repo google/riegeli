@@ -33,8 +33,8 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/zlib/zlib_error.h"
 #include "riegeli/zlib/zlib_reader.h"
-#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
@@ -125,41 +125,14 @@ void ZlibWriterBase::Done() {
 }
 
 bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
+  RIEGELI_ASSERT_NE(zlib_code, Z_OK)
+      << "Failed precondition of ZlibWriterBase::FailOperation(): "
+         "zlib error code not failed";
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
-  std::string message = absl::StrCat(operation, " failed");
-  const char* details = compressor_->msg;
-  if (details == nullptr) {
-    switch (zlib_code) {
-      case Z_STREAM_END:
-        details = "stream end";
-        break;
-      case Z_NEED_DICT:
-        details = "need dictionary";
-        break;
-      case Z_ERRNO:
-        details = "file error";
-        break;
-      case Z_STREAM_ERROR:
-        details = "stream error";
-        break;
-      case Z_DATA_ERROR:
-        details = "data error";
-        break;
-      case Z_MEM_ERROR:
-        details = "insufficient memory";
-        break;
-      case Z_BUF_ERROR:
-        details = "buffer error";
-        break;
-      case Z_VERSION_ERROR:
-        details = "incompatible version";
-        break;
-    }
-  }
-  if (details != nullptr) absl::StrAppend(&message, ": ", details);
-  return Fail(absl::InternalError(message));
+  return Fail(
+      zlib_internal::ZlibErrorToStatus(operation, zlib_code, compressor_->msg));
 }
 
 absl::Status ZlibWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -277,10 +250,10 @@ Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   ZlibReader<>* const reader = associated_reader_.ResetReader(
       compressed_reader,
       ZlibReaderBase::Options()
-          .set_window_log(window_bits_ < 0 ? -window_bits_ : window_bits_ & 15)
           .set_header(window_bits_ < 0 ? ZlibReaderBase::Header::kRaw
                                        : static_cast<ZlibReaderBase::Header>(
                                              window_bits_ & ~15))
+          .set_window_log(window_bits_ < 0 ? -window_bits_ : window_bits_ & 15)
           .set_dictionary(dictionary_)
           .set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);

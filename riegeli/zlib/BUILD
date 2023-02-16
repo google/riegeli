@@ -13,6 +13,7 @@ cc_library(
     ],
     hdrs = ["zlib_reader.h"],
     deps = [
+        ":zlib_error",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
@@ -41,6 +42,7 @@ cc_library(
     ],
     hdrs = ["zlib_writer.h"],
     deps = [
+        ":zlib_error",
         ":zlib_reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -55,6 +57,19 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@zlib",
+    ],
+)
+
+cc_library(
+    name = "zlib_error",
+    srcs = ["zlib_error.cc"],
+    hdrs = ["zlib_error.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base:assert",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@zlib",

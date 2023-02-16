@@ -36,7 +36,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
-#include "zconf.h"
+#include "riegeli/zlib/zlib_error.h"
 #include "zlib.h"
 
 namespace riegeli {
@@ -79,16 +79,14 @@ inline void ZlibReaderBase::InitializeDecompressor() {
         std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
         const int zlib_code = inflateInit2(ptr.get(), window_bits_);
         if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-          FailOperation(absl::StatusCode::kInternal, "inflateInit2()",
-                        zlib_code);
+          FailOperation("inflateInit2()", zlib_code);
         }
         return ptr;
       },
       [&](z_stream* ptr) {
         const int zlib_code = inflateReset2(ptr, window_bits_);
         if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-          FailOperation(absl::StatusCode::kInternal, "inflateReset2()",
-                        zlib_code);
+          FailOperation("inflateReset2()", zlib_code);
         }
       });
 }
@@ -97,60 +95,29 @@ void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
-        absl::InvalidArgumentError("Truncated zlib-compressed stream"))));
+        absl::InvalidArgumentError("Truncated Zlib-compressed stream"))));
   }
   BufferedReader::Done();
   decompressor_.reset();
   dictionary_ = ZlibDictionary();
 }
 
-inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
-                                          absl::string_view operation,
+inline bool ZlibReaderBase::FailOperation(absl::string_view operation,
                                           int zlib_code) {
-  RIEGELI_ASSERT_NE(code, absl::StatusCode::kOk)
+  RIEGELI_ASSERT_NE(zlib_code, Z_OK)
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
-         "status code not failed";
+         "zlib error code not failed";
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "Object closed";
-  std::string message = absl::StrCat(operation, " failed");
-  const char* details = decompressor_->msg;
-  if (details == nullptr) {
-    switch (zlib_code) {
-      case Z_STREAM_END:
-        details = "stream end";
-        break;
-      case Z_NEED_DICT:
-        details = "need dictionary";
-        break;
-      case Z_ERRNO:
-        details = "file error";
-        break;
-      case Z_STREAM_ERROR:
-        details = "stream error";
-        break;
-      case Z_DATA_ERROR:
-        details = "data error";
-        break;
-      case Z_MEM_ERROR:
-        details = "insufficient memory";
-        break;
-      case Z_BUF_ERROR:
-        details = "buffer error";
-        break;
-      case Z_VERSION_ERROR:
-        details = "incompatible version";
-        break;
-    }
-  }
-  if (details != nullptr) absl::StrAppend(&message, ": ", details);
-  return Fail(absl::Status(code, message));
+  return Fail(zlib_internal::ZlibErrorToStatus(operation, zlib_code,
+                                               decompressor_->msg));
 }
 
 absl::Status ZlibReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
-      status = Annotate(status, "reading truncated zlib-compressed stream");
+      status = Annotate(status, "reading truncated Zlib-compressed stream");
     }
     Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
@@ -227,8 +194,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         if (concatenate_) {
           const int zlib_code = inflateReset(decompressor_.get());
           if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-            FailOperation(absl::StatusCode::kInternal, "inflateReset()",
-                          zlib_code);
+            FailOperation("inflateReset()", zlib_code);
             break;
           }
           stream_had_data_ = false;
@@ -248,19 +214,14 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
                   reinterpret_cast<const Bytef*>(dictionary_.data().data())),
               SaturatingIntCast<uInt>(dictionary_.data().size()));
           if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-            FailOperation(absl::StatusCode::kInvalidArgument,
-                          "inflateSetDictionary()", zlib_code);
+            FailOperation("inflateSetDictionary()", zlib_code);
             break;
           }
           continue;
         }
         ABSL_FALLTHROUGH_INTENDED;
-      case Z_DATA_ERROR:
-        FailOperation(absl::StatusCode::kInvalidArgument, "inflate()",
-                      zlib_code);
-        break;
       default:
-        FailOperation(absl::StatusCode::kInternal, "inflate()", zlib_code);
+        FailOperation("inflate()", zlib_code);
         break;
     }
     move_limit_pos(length_read);
@@ -337,11 +298,11 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
       std::make_unique<ZlibReader<std::unique_ptr<Reader>>>(
           std::move(compressed_reader),
           ZlibReaderBase::Options()
-              .set_window_log(window_bits_ < 0 ? -window_bits_
-                                               : window_bits_ & 15)
               .set_header(window_bits_ < 0
                               ? Header::kRaw
                               : static_cast<Header>(window_bits_ & ~15))
+              .set_window_log(window_bits_ < 0 ? -window_bits_
+                                               : window_bits_ & 15)
               .set_dictionary(dictionary_)
               .set_concatenate(concatenate_)
               .set_buffer_options(buffer_options()));

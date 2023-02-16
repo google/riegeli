@@ -61,6 +61,19 @@ class ZlibReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    // What format of header to expect.
+    //
+    // Default: `Header::kZlibOrGzip`.
+    static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
+    Options& set_header(Header header) & {
+      header_ = header;
+      return *this;
+    }
+    Options&& set_header(Header header) && {
+      return std::move(set_header(header));
+    }
+    Header header() const { return header_; }
+
     // Maximum acceptable logarithm of the LZ77 sliding window size.
     //
     // `window_log` must be between `kMinWindowLog` (9) and
@@ -84,19 +97,6 @@ class ZlibReaderBase : public BufferedReader {
       return std::move(set_window_log(window_log));
     }
     int window_log() const { return window_log_; }
-
-    // What format of header to expect.
-    //
-    // Default: `Header::kZlibOrGzip`.
-    static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
-    Options& set_header(Header header) & {
-      header_ = header;
-      return *this;
-    }
-    Options&& set_header(Header header) && {
-      return std::move(set_header(header));
-    }
-    Header header() const { return header_; }
 
     // Zlib dictionary. The same dictionary must have been used for compression,
     // except that it is allowed to supply a dictionary for decompression even
@@ -130,8 +130,8 @@ class ZlibReaderBase : public BufferedReader {
     bool concatenate() const { return concatenate_; }
 
    private:
-    int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
+    int window_log_ = kDefaultWindowLog;
     ZlibDictionary dictionary_;
     bool concatenate_ = false;
   };
@@ -189,8 +189,7 @@ class ZlibReaderBase : public BufferedReader {
   };
 
   void InitializeDecompressor();
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::StatusCode code,
-                                         absl::string_view operation,
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int zlib_code);
 
   int window_bits_ = 0;

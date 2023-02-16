@@ -33,6 +33,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bzip2/bzip2_error.h"
 
 namespace riegeli {
 
@@ -52,8 +53,7 @@ inline void Bzip2ReaderBase::InitializeDecompressor() {
   const int bzlib_code = BZ2_bzDecompressInit(decompressor_.get(), 0, 0);
   if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {
     delete decompressor_.release();  // Skip `BZ2_bzDecompressEnd()`.
-    FailOperation(absl::StatusCode::kInternal, "BZ2_bzDecompressInit()",
-                  bzlib_code);
+    FailOperation("BZ2_bzDecompressInit()", bzlib_code);
   }
 }
 
@@ -61,60 +61,28 @@ void Bzip2ReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *SrcReader();
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
-        absl::InvalidArgumentError("Truncated bzip2-compressed stream"))));
+        absl::InvalidArgumentError("Truncated Bzip2-compressed stream"))));
   }
   BufferedReader::Done();
   decompressor_.reset();
 }
 
-inline bool Bzip2ReaderBase::FailOperation(absl::StatusCode code,
-                                           absl::string_view operation,
+inline bool Bzip2ReaderBase::FailOperation(absl::string_view operation,
                                            int bzlib_code) {
-  RIEGELI_ASSERT_NE(code, absl::StatusCode::kOk)
+  RIEGELI_ASSERT(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
+                 bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
       << "Failed precondition of Bzip2ReaderBase::FailOperation(): "
-         "status code not failed";
+         "bzlib error code not failed";
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of Bzip2ReaderBase::FailOperation(): "
          "Object closed";
-  std::string message = absl::StrCat(operation, " failed");
-  const char* details = nullptr;
-  switch (bzlib_code) {
-    case BZ_SEQUENCE_ERROR:
-      details = "sequence error";
-      break;
-    case BZ_PARAM_ERROR:
-      details = "parameter error";
-      break;
-    case BZ_MEM_ERROR:
-      details = "memory error";
-      break;
-    case BZ_DATA_ERROR:
-      details = "data error";
-      break;
-    case BZ_DATA_ERROR_MAGIC:
-      details = "data error (magic)";
-      break;
-    case BZ_IO_ERROR:
-      details = "I/O error";
-      break;
-    case BZ_UNEXPECTED_EOF:
-      details = "unexpected EOF";
-      break;
-    case BZ_OUTBUFF_FULL:
-      details = "output buffer full";
-      break;
-    case BZ_CONFIG_ERROR:
-      details = "config error";
-      break;
-  }
-  if (details != nullptr) absl::StrAppend(&message, ": ", details);
-  return Fail(absl::Status(code, message));
+  return Fail(bzip2_internal::Bzip2ErrorToStatus(operation, bzlib_code));
 }
 
 absl::Status Bzip2ReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
     if (ABSL_PREDICT_FALSE(truncated_)) {
-      status = Annotate(status, "reading truncated bzip2-compressed stream");
+      status = Annotate(status, "reading truncated Bzip2-compressed stream");
     }
     Reader& src = *SrcReader();
     status = src.AnnotateStatus(std::move(status));
@@ -187,15 +155,13 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
         if (concatenate_) {
           bzlib_code = BZ2_bzDecompressEnd(decompressor_.get());
           if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {
-            FailOperation(absl::StatusCode::kInternal, "BZ2_bzDecompressEnd()",
-                          bzlib_code);
+            FailOperation("BZ2_bzDecompressEnd()", bzlib_code);
             break;
           }
           bzlib_code = BZ2_bzDecompressInit(decompressor_.get(), 0, 0);
           if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {
             delete decompressor_.release();  // Skip `BZ2_bzDecompressEnd()`.
-            FailOperation(absl::StatusCode::kInternal, "BZ2_bzDecompressInit()",
-                          bzlib_code);
+            FailOperation("BZ2_bzDecompressInit()", bzlib_code);
             break;
           }
           stream_had_data_ = false;
@@ -207,14 +173,8 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
         // Avoid `BufferedReader` allocating another buffer.
         set_exact_size(limit_pos());
         return length_read >= min_length;
-      case BZ_DATA_ERROR:
-      case BZ_DATA_ERROR_MAGIC:
-        FailOperation(absl::StatusCode::kInvalidArgument, "BZ2_bzDecompress()",
-                      bzlib_code);
-        break;
       default:
-        FailOperation(absl::StatusCode::kInternal, "BZ2_bzDecompress()",
-                      bzlib_code);
+        FailOperation("BZ2_bzDecompress()", bzlib_code);
         break;
     }
     move_limit_pos(length_read);
