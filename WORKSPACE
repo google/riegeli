@@ -67,6 +67,14 @@ http_archive(
 )
 
 http_archive(
+    name = "xz",
+    build_file = "//third_party:xz.BUILD",
+    sha256 = "e4b0f81582efa155ccf27bb88275254a429d44968e488fc94b806f2a61cd3e22",
+    strip_prefix = "xz-5.4.1",
+    urls = ["https://tukaani.org/xz/xz-5.4.1.tar.gz"],  # 2023-01-11
+)
+
+http_archive(
     name = "highwayhash",
     build_file = "//third_party:highwayhash.BUILD",
     sha256 = "cf891e024699c82aabce528a024adbe16e529f2b4e57f954455e0bf53efae585",
