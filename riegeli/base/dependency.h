@@ -512,7 +512,7 @@ class Dependency<Ptr, Manager,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<
       decltype(std::declval<
-                   dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+                   dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
                    .get())>&
   operator*() {
     return *this->get();
@@ -521,14 +521,15 @@ class Dependency<Ptr, Manager,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<
       decltype(std::declval<const dependency_internal::DependencyMaybeRef<
-                   Ptr, Manager>>()
+                   Ptr, Manager>&>()
                    .get())>&
   operator*() const {
     return *this->get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+  decltype(std::declval<
+               dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
                .get())
   operator->() {
     return this->get();
@@ -536,7 +537,7 @@ class Dependency<Ptr, Manager,
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   decltype(std::declval<
-               const dependency_internal::DependencyMaybeRef<Ptr, Manager>>()
+               const dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
                .get())
   operator->() const {
     return this->get();

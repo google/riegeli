@@ -198,6 +198,7 @@ cc_library(
     deps = [
         ":assert",
         ":dependency",
+        ":reset",
         "@com_google_absl//absl/base:core_headers",
     ],
 )
