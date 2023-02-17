@@ -346,6 +346,8 @@ class FdReaderBase : public BufferedReader {
 // possibly owning the fd being read from. `Src` must support
 // `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default),
 // `UnownedFd` (not owned), `AnyDependency<int>` (maybe owned).
+// The only supported owning `Src` is `OwnedFd`, possibly wrapped in
+// `AnyDependency`.
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value
@@ -639,15 +641,15 @@ template <typename Src>
 void FdReader<Src>::Done() {
   FdReaderBase::Done();
   {
-    const int src = src_.Release();
-    if (src >= 0) {
-      if (ABSL_PREDICT_FALSE(fd_internal::Close(src) < 0) &&
+    OwnedFd* const src = src_.template GetIf<OwnedFd>();
+    if (src != nullptr) {
+      if (ABSL_PREDICT_FALSE(fd_internal::Close(src->Release()) < 0) &&
           ABSL_PREDICT_TRUE(ok())) {
         FailOperation(fd_internal::kCloseFunctionName);
       }
-    } else {
-      RIEGELI_ASSERT(!src_.is_owning())
-          << "The dependency type does not support closing the fd";
+    } else if (src_.is_owning()) {
+      Fail(absl::InvalidArgumentError(
+          "FdReader dependency owns the fd but does not contain OwnedFd"));
     }
   }
 }

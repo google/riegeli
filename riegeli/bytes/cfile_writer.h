@@ -331,6 +331,8 @@ class CFileWriterBase : public BufferedWriter {
 // possibly owning the `FILE` being written to. `Dest` must support
 // `Dependency<FILE*, Dest>`, e.g. `OwnedCFile` (owned, default),
 // `UnownedCFile` (not owned), `AnyDependency<FILE*>` (maybe owned).
+// The only supported owning `Dest` is `OwnedCFile`, possibly wrapped in
+// `AnyDependency`.
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as the
@@ -611,14 +613,16 @@ template <typename Dest>
 void CFileWriter<Dest>::Done() {
   CFileWriterBase::Done();
   {
-    FILE* const dest = dest_.Release();
+    OwnedCFile* const dest = dest_.template GetIf<OwnedCFile>();
     if (dest != nullptr) {
-      if (ABSL_PREDICT_FALSE((fclose(dest)) != 0) && ABSL_PREDICT_TRUE(ok())) {
+      if (ABSL_PREDICT_FALSE((fclose(dest->Release())) != 0) &&
+          ABSL_PREDICT_TRUE(ok())) {
         FailOperation("fclose()");
       }
-    } else {
-      RIEGELI_ASSERT(!dest_.is_owning())
-          << "The dependency type does not support closing the FILE";
+    } else if (dest_.is_owning()) {
+      Fail(
+          absl::InvalidArgumentError("CFileWriter dependency owns the FILE "
+                                     "but does not contain OwnedCFile"));
     }
   }
 }

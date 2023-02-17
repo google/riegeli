@@ -93,9 +93,9 @@ class DependencyImpl<int, OwnedFd> : public DependencyBase<OwnedFd> {
   using DependencyImpl::DependencyBase::DependencyBase;
 
   int get() const { return this->manager().get(); }
-  int Release() { return this->manager().Release(); }
 
   bool is_owning() const { return get() >= 0; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -105,9 +105,9 @@ class DependencyImpl<int, UnownedFd> : public DependencyBase<UnownedFd> {
   using DependencyImpl::DependencyBase::DependencyBase;
 
   int get() const { return this->manager().get(); }
-  int Release() { return -1; }
 
   bool is_owning() const { return false; }
+
   static constexpr bool kIsStable = true;
 };
 

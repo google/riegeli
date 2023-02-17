@@ -533,6 +533,8 @@ class FdWriterBase : public BufferedWriter {
 // possibly owning the fd being written to. `Dest` must support
 // `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default),
 // `UnownedFd` (not owned), `AnyDependency<int>` (maybe owned).
+// The only supported owning `Dest` is `OwnedFd`, possibly wrapped in
+// `AnyDependency`.
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value
@@ -831,15 +833,15 @@ template <typename Dest>
 void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
   {
-    const int dest = dest_.Release();
-    if (dest >= 0) {
-      if (ABSL_PREDICT_FALSE(fd_internal::Close(dest) < 0) &&
+    OwnedFd* const dest = dest_.template GetIf<OwnedFd>();
+    if (dest != nullptr) {
+      if (ABSL_PREDICT_FALSE(fd_internal::Close(dest->Release()) < 0) &&
           ABSL_PREDICT_TRUE(ok())) {
         FailOperation(fd_internal::kCloseFunctionName);
       }
-    } else {
-      RIEGELI_ASSERT(!dest_.is_owning())
-          << "The dependency type does not support closing the fd";
+    } else if (dest_.is_owning()) {
+      Fail(absl::InvalidArgumentError(
+          "FdWriter dependency owns the fd but does not contain OwnedFd"));
     }
   }
 }

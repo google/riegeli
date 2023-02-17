@@ -232,6 +232,8 @@ class CFileReaderBase : public BufferedReader {
 // possibly owning the `FILE` being read from. `Src` must support
 // `Dependency<FILE*, Src>`, e.g. `OwnedCFile` (owned, default),
 // `UnownedCFile` (not owned), `AnyDependency<FILE*>` (maybe owned).
+// The only supported owning `Src` is `OwnedCFile`, possibly wrapped in
+// `AnyDependency`.
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as the
@@ -523,14 +525,16 @@ template <typename Src>
 void CFileReader<Src>::Done() {
   CFileReaderBase::Done();
   {
-    FILE* const src = src_.Release();
+    OwnedCFile* const src = src_.template GetIf<OwnedCFile>();
     if (src != nullptr) {
-      if (ABSL_PREDICT_FALSE((fclose(src)) != 0) && ABSL_PREDICT_TRUE(ok())) {
+      if (ABSL_PREDICT_FALSE((fclose(src->Release())) != 0) &&
+          ABSL_PREDICT_TRUE(ok())) {
         FailOperation("fclose()");
       }
-    } else {
-      RIEGELI_ASSERT(!src_.is_owning())
-          << "The dependency type does not support closing the FILE";
+    } else if (src_.is_owning()) {
+      Fail(
+          absl::InvalidArgumentError("CFileReader dependency owns the FILE "
+                                     "but does not contain OwnedCFile"));
     }
   }
 }

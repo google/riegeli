@@ -168,11 +168,11 @@ struct Methods {
   // Constructs `self` and `*self_ptr` by moving from `that`, and destroys
   // `that`.
   void (*move)(Storage self, Ptr* self_ptr, Storage that);
-  Ptr (*release)(Storage self);
   bool (*is_owning)(const Storage self);
   // Returns the `const std::remove_reference_t<Manager>*` if `type_id` matches
   // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
-  const void* (*get_if)(const Storage self, TypeId type_id);
+  void* (*mutable_get_if)(Storage self, TypeId type_id);
+  const void* (*const_get_if)(const Storage self, TypeId type_id);
   void (*register_subobjects)(const Storage self,
                               MemoryEstimator& memory_estimator);
 };
@@ -331,12 +331,6 @@ class
     return ptr_;
   }
 
-  // If the `Dependency` owns the dependent object and can release it,
-  // `Release()` returns the released pointer, otherwise returns a sentinel
-  // `Ptr` constructed from
-  // `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
-  Ptr Release() { return methods_->release(repr_.storage); }
-
   // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be compared against
   // `nullptr`.
   template <typename DependentPtr = Ptr,
@@ -367,18 +361,20 @@ class
   // If `true`, `get()` stays unchanged when an `AnyDependencyImpl` is moved.
   static constexpr bool kIsStable = inline_size == 0;
 
-  // If the contained `Manager` has exactly this type or a reference to it,
-  // returns a pointer to the contained `Manager`. Otherwise returns `nullptr`.
-  //
-  // If an `AnyDependencyImpl` gets moved to an `AnyDependencyImpl` with
-  // different template arguments, it is unspecified whether `GetIf()`
-  // responds to the original type or to the source `AnyDependencyImpl`.
+  // If the `Manager` has exactly this type or a reference to it, returns a
+  // pointer to the `Manager`. If the `Manager` is an `AnyDependency` (possibly
+  // wrapped in an rvalue reference or `std::unique_ptr`), propagates `GetIf()`
+  // to it. Otherwise returns `nullptr`.
   template <typename Manager,
             std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
   Manager* GetIf();
   template <typename Manager,
             std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
   const Manager* GetIf() const;
+
+  // A variant of `GetIf()` with the expected type passed as a `TypeId`.
+  void* GetIf(TypeId type_id);
+  const void* GetIf(TypeId type_id) const;
 
   friend void RiegeliRegisterSubobjects(const AnyDependencyImpl& self,
                                         MemoryEstimator& memory_estimator) {
@@ -458,11 +454,57 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
   using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
-  Ptr Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
+
   static constexpr bool kIsStable =
       AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
+
+  template <typename Manager>
+  Manager* GetIf() {
+    return this->manager().template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    return this->manager().template GetIf<Manager>();
+  }
+
+  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
+  const void* GetIf(TypeId type_id) const {
+    return this->manager().GetIf(type_id);
+  }
+};
+
+// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>&&>`.
+//
+// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
+// better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
+    : public DependencyBase<
+          AnyDependencyImpl<Ptr, inline_size, inline_align>&&> {
+ public:
+  using DependencyImpl::DependencyBase::DependencyBase;
+
+  Ptr get() const { return this->manager().get(); }
+
+  bool is_owning() const { return this->manager().is_owning(); }
+
+  static constexpr bool kIsStable = true;
+
+  template <typename Manager>
+  Manager* GetIf() {
+    return this->manager().template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    return this->manager().template GetIf<Manager>();
+  }
+
+  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
+  const void* GetIf(TypeId type_id) const {
+    return this->manager().GetIf(type_id);
+  }
 };
 
 // Specialization of
@@ -480,30 +522,32 @@ class DependencyImpl<
   using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager()->get(); }
-  Ptr Release() { return this->manager()->Release(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
   }
+
   static constexpr bool kIsStable = true;
-};
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>&&>`.
-//
-// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
-// better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
-    : public DependencyBase<
-          AnyDependencyImpl<Ptr, inline_size, inline_align>&&> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
+  template <typename Manager>
+  Manager* GetIf() {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->template GetIf<Manager>();
+  }
 
-  Ptr get() const { return this->manager().get(); }
-  Ptr Release() { return this->manager().Release(); }
-
-  bool is_owning() const { return this->manager().is_owning(); }
-  static constexpr bool kIsStable = true;
+  void* GetIf(TypeId type_id) {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->GetIf(type_id);
+  }
+  const void* GetIf(TypeId type_id) const {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->GetIf(type_id);
+  }
 };
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
@@ -592,11 +636,58 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
   using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager().get(); }
-  Ptr Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
+
   static constexpr bool kIsStable =
       AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
+
+  template <typename Manager>
+  Manager* GetIf() {
+    return this->manager().template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    return this->manager().template GetIf<Manager>();
+  }
+
+  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
+  const void* GetIf(TypeId type_id) const {
+    return this->manager().GetIf(type_id);
+  }
+};
+
+// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>&&>`.
+//
+// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
+// is better kept by reference.
+template <typename Ptr, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr,
+                     AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>
+    : public DependencyBase<
+          AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&> {
+ public:
+  using DependencyImpl::DependencyBase::DependencyBase;
+
+  Ptr get() const { return this->manager().get(); }
+
+  bool is_owning() const { return this->manager().is_owning(); }
+
+  static constexpr bool kIsStable = true;
+
+  template <typename Manager>
+  Manager* GetIf() {
+    return this->manager().template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    return this->manager().template GetIf<Manager>();
+  }
+
+  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
+  const void* GetIf(TypeId type_id) const {
+    return this->manager().GetIf(type_id);
+  }
 };
 
 // Specialization of
@@ -614,31 +705,32 @@ class DependencyImpl<
   using DependencyImpl::DependencyBase::DependencyBase;
 
   Ptr get() const { return this->manager()->get(); }
-  Ptr Release() { return this->manager()->Release(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
   }
+
   static constexpr bool kIsStable = true;
-};
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>&&>`.
-//
-// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
-// is better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr,
-                     AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>
-    : public DependencyBase<
-          AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
+  template <typename Manager>
+  Manager* GetIf() {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->template GetIf<Manager>();
+  }
+  template <typename Manager>
+  const Manager* GetIf() const {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->template GetIf<Manager>();
+  }
 
-  Ptr get() const { return this->manager().get(); }
-  Ptr Release() { return this->manager().Release(); }
-
-  bool is_owning() const { return this->manager().is_owning(); }
-  static constexpr bool kIsStable = true;
+  void* GetIf(TypeId type_id) {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->GetIf(type_id);
+  }
+  const void* GetIf(TypeId type_id) const {
+    if (this->manager() == nullptr) return nullptr;
+    return this->manager()->GetIf(type_id);
+  }
 };
 
 // Implementation details follow.
@@ -685,29 +777,6 @@ inline Ptr SentinelPtr() {
       RiegeliDependencySentinel(static_cast<Ptr*>(nullptr)));
 }
 
-// `any_dependency_internal::Release(dep)` calls `dep.Release()` if that is
-// defined, otherwise returns a sentinel `Ptr` constructed from
-// `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
-
-template <typename T, typename Enable = void>
-struct HasRelease : std::false_type {};
-template <typename T>
-struct HasRelease<T, absl::void_t<decltype(std::declval<T>().Release())>>
-    : std::true_type {};
-
-template <
-    typename Ptr, typename Manager,
-    std::enable_if_t<HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
-Ptr Release(Dependency<Ptr, Manager>& dep) {
-  return dep.Release();
-}
-template <
-    typename Ptr, typename Manager,
-    std::enable_if_t<!HasRelease<Dependency<Ptr, Manager>>::value, int> = 0>
-Ptr Release(Dependency<Ptr, Manager>& dep) {
-  return SentinelPtr<Ptr>();
-}
-
 // `any_dependency_internal::IsOwning(dep)` calls `dep.is_owning()` if that is
 // defined, otherwise returns `false`.
 
@@ -740,9 +809,9 @@ struct NullMethods {
   static void Move(Storage self, Ptr* self_ptr, Storage that) {
     new (self_ptr) Ptr(SentinelPtr<Ptr>());
   }
-  static Ptr Release(Storage self) { return SentinelPtr<Ptr>(); }
   static bool IsOwning(const Storage self) { return false; }
-  static const void* GetIf(const Storage self, TypeId type_id) {
+  static void* MutableGetIf(Storage self, TypeId type_id) { return nullptr; }
+  static const void* ConstGetIf(const Storage self, TypeId type_id) {
     return nullptr;
   }
   static void RegisterSubobjects(const Storage self,
@@ -751,7 +820,8 @@ struct NullMethods {
 
 template <typename Ptr>
 const Methods<Ptr> NullMethods<Ptr>::methods = {
-    Destroy, 0, 0, Move, Release, IsOwning, GetIf, RegisterSubobjects};
+    Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
+    RegisterSubobjects};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
@@ -794,18 +864,15 @@ struct MethodsFor {
     new (self) Dependency<Ptr, Manager>*(dep_ptr(that));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
-  static Ptr Release(Storage self) {
-    return any_dependency_internal::Release(*dep_ptr(self));
-  }
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(*dep_ptr(self));
   }
-  static const void* GetIf(const Storage self, TypeId type_id) {
-    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
-      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
-          &dep_ptr(self)->manager());
-    }
-    return nullptr;
+  static void* MutableGetIf(Storage self, TypeId type_id) {
+    return dep_ptr(self)->GetIf(type_id);
+  }
+  static const void* ConstGetIf(const Storage self, TypeId type_id) {
+    return absl::implicit_cast<const Dependency<Ptr, Manager>*>(dep_ptr(self))
+        ->GetIf(type_id);
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {
@@ -817,7 +884,8 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 const Methods<Ptr>
     MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
-        Destroy, 0, 0, Move, Release, IsOwning, GetIf, RegisterSubobjects};
+        Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
+        RegisterSubobjects};
 
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Manager>
@@ -868,18 +936,14 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
     dep(that).~Dependency<Ptr, Manager>();
     new (self_ptr) Ptr(dep(self).get());
   }
-  static Ptr Release(Storage self) {
-    return any_dependency_internal::Release(dep(self));
-  }
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(dep(self));
   }
-  static const void* GetIf(const Storage self, TypeId type_id) {
-    if (type_id == TypeId::For<std::remove_reference_t<Manager>>()) {
-      return absl::implicit_cast<const std::remove_reference_t<Manager>*>(
-          &dep(self).manager());
-    }
-    return nullptr;
+  static void* MutableGetIf(Storage self, TypeId type_id) {
+    return dep(self).GetIf(type_id);
+  }
+  static const void* ConstGetIf(const Storage self, TypeId type_id) {
+    return dep(self).GetIf(type_id);
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {
@@ -897,9 +961,9 @@ const Methods<Ptr>
         sizeof(Dependency<Ptr, Manager>),
         alignof(Dependency<Ptr, Manager>),
         Move,
-        Release,
         IsOwning,
-        GetIf,
+        MutableGetIf,
+        ConstGetIf,
         RegisterSubobjects};
 
 }  // namespace any_dependency_internal
@@ -1128,8 +1192,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
 Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf() {
-  return const_cast<Manager*>(static_cast<const Manager*>(
-      methods_->get_if(repr_.storage, TypeId::For<Manager>())));
+  return static_cast<Manager*>(GetIf(TypeId::For<Manager>()));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -1137,8 +1200,19 @@ template <typename Manager,
           std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
 const Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf()
     const {
-  return static_cast<const Manager*>(
-      methods_->get_if(repr_.storage, TypeId::For<Manager>()));
+  return static_cast<const Manager*>(GetIf(TypeId::For<Manager>()));
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+inline void* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf(
+    TypeId type_id) {
+  return methods_->mutable_get_if(repr_.storage, type_id);
+}
+
+template <typename Ptr, size_t inline_size, size_t inline_align>
+inline const void* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf(
+    TypeId type_id) const {
+  return methods_->const_get_if(repr_.storage, type_id);
 }
 
 }  // namespace riegeli

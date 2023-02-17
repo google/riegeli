@@ -57,7 +57,8 @@ class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable>>
 // Specialization when `Dependency<P*, M>` is not stable: allocates the
 // dependency dynamically.
 template <typename P, typename M>
-class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
+class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>
+    : public DependencyGetIfBase<StableDependency<P*, M>> {
  private:
   using DerivedP =
       std::remove_pointer_t<decltype(std::declval<Dependency<P*, M>>().get())>;
@@ -175,10 +176,6 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>> {
     RIEGELI_ASSERT(ptr != nullptr)
         << "Failed precondition of StableDependency::operator->: null pointer";
     return ptr;
-  }
-  DerivedP* Release() {
-    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return nullptr;
-    return dep_->Release();
   }
 
   friend bool operator==(const StableDependency& a, nullptr_t) {

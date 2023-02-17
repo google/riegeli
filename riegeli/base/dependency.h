@@ -27,6 +27,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 
@@ -68,10 +69,9 @@ namespace riegeli {
 // function returns.
 //
 // `Manager` being `M&&` is similar to `std::unique_ptr<M, NullDeleter>`
-// returned by `ClosingPtr()` (except that `Release()` returns `nullptr`). In
-// contrast to a host class, a host function does not decay `M&&` to `M` and
-// avoids moving `m`, because the dependent object can be expected to be valid
-// for the duration of the function call.
+// returned by `ClosingPtr()`. In contrast to a host class, a host function does
+// not decay `M&&` to `M` and avoids moving `m`, because the dependent object
+// can be expected to be valid for the duration of the function call.
 
 // `RiegeliDependencySentinel(T*)` specifies how to initialize a default
 // `Manager` (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.
@@ -166,16 +166,6 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //   P* operator->() { return get(); }
 //   const P* operator->() const { return get(); }
 //
-//   // If `Ptr` is `P*`, or possibly another applicable type, the `Release()`
-//   // function is present.
-//   //
-//   // If the `Dependency` owns the dependent object and can release it,
-//   // `Release()` returns the released pointer, otherwise returns `nullptr`
-//   // or another sentinel `Ptr` value.
-//   //
-//   // This method might return a pointer to a derived class.
-//   Ptr Release();
-//
 //   // If `Ptr` is `P*`, the dependency can be compared against `nullptr`.
 //   //
 //   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
@@ -200,6 +190,19 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //
 //   // If `true`, `get()` stays unchanged when a `Dependency` is moved.
 //   static constexpr bool kIsStable;
+//
+//   // If the `Manager` has exactly this type or a reference to it, returns a
+//   // pointer to the `Manager`. If the `Manager` is an `AnyDependency`
+//   // (possibly wrapped in an rvalue reference or `std::unique_ptr`),
+//   // propagates `GetIf()` to it. Otherwise returns `nullptr`.
+//   template <typename OtherManager>
+//   OtherManager* GetIf();
+//   template <typename OtherManager>
+//   const OtherManager* GetIf() const;
+//
+//   // A variant of `GetIf()` with the expected type passed as a `TypeId`.
+//   void* GetIf(TypeId type_id);
+//   const void* GetIf(TypeId type_id) const;
 // ```
 
 // This template is specialized but does not have a primary definition.
@@ -315,8 +318,91 @@ struct IsValidDependency<
     : std::true_type {};
 
 // Implementation shared between most specializations of `DependencyImpl`.
+//
+// Implements `GetIf()` in terms of `manager()`.
+template <typename T>
+class DependencyGetIfBase {
+ public:
+  template <typename OtherManager>
+  OtherManager* GetIf() {
+    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>,
+                     OtherManager>();
+  }
+  template <typename OtherManager>
+  const OtherManager* GetIf() const {
+    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>,
+                     OtherManager>();
+  }
+
+  void* GetIf(TypeId type_id) {
+    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>>(
+        type_id);
+  }
+  const void* GetIf(TypeId type_id) const {
+    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>>(
+        type_id);
+  }
+
+ protected:
+  DependencyGetIfBase() noexcept {
+    static_assert(std::is_base_of<DependencyGetIfBase<T>, T>::value,
+                  "The template argument T in DependencyGetIfBase<T> "
+                  "must be the class derived from DependencyGetIfBase<T>");
+  }
+
+  DependencyGetIfBase(DependencyGetIfBase&& that) = default;
+  DependencyGetIfBase& operator=(DependencyGetIfBase&& that) = default;
+
+  ~DependencyGetIfBase() = default;
+
+ private:
+  template <
+      typename Manager, typename OtherManager,
+      std::enable_if_t<std::is_same<Manager, OtherManager>::value, int> = 0>
+  OtherManager* GetIfImpl() {
+    return &(static_cast<T*>(this)->manager());
+  }
+  template <
+      typename Manager, typename OtherManager,
+      std::enable_if_t<!std::is_same<Manager, OtherManager>::value, int> = 0>
+  OtherManager* GetIfImpl() {
+    return nullptr;
+  }
+  template <
+      typename Manager, typename OtherManager,
+      std::enable_if_t<std::is_same<Manager, OtherManager>::value, int> = 0>
+  const OtherManager* GetIfImpl() const {
+    return &(static_cast<const T*>(this)->manager());
+  }
+  template <
+      typename Manager, typename OtherManager,
+      std::enable_if_t<!std::is_same<Manager, OtherManager>::value, int> = 0>
+  const OtherManager* GetIfImpl() const {
+    return nullptr;
+  }
+
+  template <typename Manager>
+  void* GetIfImpl(TypeId type_id) {
+    if (TypeId::For<Manager>() == type_id) {
+      return &(static_cast<T*>(this)->manager());
+    }
+    return nullptr;
+  }
+  template <typename Manager>
+  const void* GetIfImpl(TypeId type_id) const {
+    if (TypeId::For<Manager>() == type_id) {
+      return &(static_cast<const T*>(this)->manager());
+    }
+    return nullptr;
+  }
+};
+
+// Implementation shared between most specializations of `DependencyImpl` which
+// store `manager()` in a member variable.
+//
+// Provides constructors, `Reset()`, `manager()`, and `GetIf()`.
 template <typename Manager>
-class DependencyBase {
+class DependencyBase : public DependencyGetIfBase<DependencyBase<Manager>> {
  public:
   DependencyBase() noexcept
       : DependencyBase(
@@ -484,7 +570,8 @@ class Dependency<Ptr, Manager,
 // assignment is not supported, and initialization from a tuple of constructor
 // arguments is not supported.
 template <typename Manager>
-class DependencyBase<Manager&> {
+class DependencyBase<Manager&>
+    : public DependencyGetIfBase<DependencyBase<Manager&>> {
  public:
   explicit DependencyBase(Manager& manager) noexcept : manager_(manager) {}
 
@@ -506,7 +593,8 @@ class DependencyBase<Manager&> {
 // assignment is not supported, and initialization from a tuple of constructor
 // arguments is not supported.
 template <typename Manager>
-class DependencyBase<Manager&&> {
+class DependencyBase<Manager&&>
+    : public DependencyGetIfBase<DependencyBase<Manager&&>> {
  public:
   explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 
@@ -532,9 +620,9 @@ class DependencyImpl<P*, M*,
   using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return this->manager(); }
-  M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -547,9 +635,9 @@ class DependencyImpl<P*, nullptr_t> : public DependencyBase<nullptr_t> {
   using DependencyImpl::DependencyBase::DependencyBase;
 
   nullptr_t get() const { return nullptr; }
-  nullptr_t Release() { return nullptr; }
 
   bool is_owning() const { return false; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -587,9 +675,9 @@ class DependencyImpl<
 
   M* get() { return &this->manager(); }
   const M* get() const { return &this->manager(); }
-  M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
+
   static constexpr bool kIsStable = false;
 };
 
@@ -628,9 +716,9 @@ class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
   using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return this->manager().get(); }
-  M* Release() { return this->manager().release(); }
 
   bool is_owning() const { return this->manager() != nullptr; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -644,9 +732,9 @@ class DependencyImpl<P*, M&,
   using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager(); }
-  M* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -660,9 +748,9 @@ class DependencyImpl<P*, M&&,
   using DependencyImpl::DependencyBase::DependencyBase;
 
   M* get() const { return &this->manager(); }
-  M* Release() { return nullptr; }
 
   bool is_owning() const { return true; }
+
   static constexpr bool kIsStable = true;
 };
 

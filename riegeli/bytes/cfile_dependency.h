@@ -114,9 +114,9 @@ class DependencyImpl<FILE*, OwnedCFile> : public DependencyBase<OwnedCFile> {
   using DependencyImpl::DependencyBase::DependencyBase;
 
   FILE* get() const { return this->manager().get(); }
-  FILE* Release() { return this->manager().Release(); }
 
   bool is_owning() const { return this->manager() != nullptr; }
+
   static constexpr bool kIsStable = true;
 };
 
@@ -127,9 +127,9 @@ class DependencyImpl<FILE*, UnownedCFile>
   using DependencyImpl::DependencyBase::DependencyBase;
 
   FILE* get() const { return this->manager().get(); }
-  FILE* Release() { return nullptr; }
 
   bool is_owning() const { return false; }
+
   static constexpr bool kIsStable = true;
 };
 
