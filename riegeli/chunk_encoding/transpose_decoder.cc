@@ -37,7 +37,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_backward_writer.h"
@@ -1006,88 +1005,101 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 }
 
 // Copy tag from `*node` to `dest`.
-#define COPY_TAG_CALLBACK(tag_length)                               \
-  do {                                                              \
-    if (ABSL_PREDICT_FALSE(!dest.Write(                             \
-            absl::string_view(node->tag_data.data, tag_length)))) { \
-      return Fail(dest.status());                                   \
-    }                                                               \
-  } while (false)
+template <size_t tag_length, class Node>
+ABSL_ATTRIBUTE_ALWAYS_INLINE bool CopyTagCallback(Node* node,
+                                                  BackwardWriter& dest,
+                                                  TransposeDecoder& decoder) {
+  if (ABSL_PREDICT_FALSE(
+          !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
+    return decoder.Fail(dest.status());
+  }
+  return true;
+}
 
 // Decode varint value from `*node` to `dest`.
-#define VARINT_CALLBACK(tag_length, data_length)                       \
-  do {                                                                 \
-    if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {    \
-      return Fail(dest.status());                                      \
-    }                                                                  \
-    dest.move_cursor(tag_length + data_length);                        \
-    char* const buffer = dest.cursor();                                \
-    if (ABSL_PREDICT_FALSE(                                            \
-            !node->buffer->Read(data_length, buffer + tag_length))) {  \
-      return Fail(node->buffer->StatusOrAnnotate(                      \
-          absl::InvalidArgumentError("Reading varint field failed"))); \
-    }                                                                  \
-    for (size_t i = 0; i < data_length - 1; ++i) {                     \
-      buffer[tag_length + i] |= 0x80;                                  \
-    }                                                                  \
-    std::memcpy(buffer, node->tag_data.data, tag_length);              \
-  } while (false)
+template <size_t tag_length, size_t data_length, class Node>
+ABSL_ATTRIBUTE_ALWAYS_INLINE bool VarintCallback(Node* node,
+                                                 BackwardWriter& dest,
+                                                 TransposeDecoder& decoder) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
+    return decoder.Fail(dest.status());
+  }
+  dest.move_cursor(tag_length + data_length);
+  char* const buffer = dest.cursor();
+  if (ABSL_PREDICT_FALSE(
+          !node->buffer->Read(data_length, buffer + tag_length))) {
+    return decoder.Fail(node->buffer->StatusOrAnnotate(
+        absl::InvalidArgumentError("Reading varint field failed")));
+  }
+  for (size_t i = 0; i < data_length - 1; ++i) {
+    buffer[tag_length + i] |= 0x80;
+  }
+  std::memcpy(buffer, node->tag_data.data, tag_length);
+  return true;
+}
 
 // Decode fixed32 or fixed64 value from `*node` to `dest`.
-#define FIXED_CALLBACK(tag_length, data_length)                       \
-  do {                                                                \
-    if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {   \
-      return Fail(dest.status());                                     \
-    }                                                                 \
-    dest.move_cursor(tag_length + data_length);                       \
-    char* const buffer = dest.cursor();                               \
-    if (ABSL_PREDICT_FALSE(                                           \
-            !node->buffer->Read(data_length, buffer + tag_length))) { \
-      return Fail(node->buffer->StatusOrAnnotate(                     \
-          absl::InvalidArgumentError("Reading fixed field failed"))); \
-    }                                                                 \
-    std::memcpy(buffer, node->tag_data.data, tag_length);             \
-  } while (false)
+template <size_t tag_length, size_t data_length, class Node>
+ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedCallback(Node* node,
+                                                BackwardWriter& dest,
+                                                TransposeDecoder& decoder) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
+    return decoder.Fail(dest.status());
+  }
+  dest.move_cursor(tag_length + data_length);
+  char* const buffer = dest.cursor();
+  if (ABSL_PREDICT_FALSE(
+          !node->buffer->Read(data_length, buffer + tag_length))) {
+    return decoder.Fail(node->buffer->StatusOrAnnotate(
+        absl::InvalidArgumentError("Reading fixed field failed")));
+  }
+  std::memcpy(buffer, node->tag_data.data, tag_length);
+  return true;
+}
 
 // Create zero fixed32 or fixed64 value in `dest`.
-#define FIXED_EXISTENCE_CALLBACK(tag_length, data_length)           \
-  do {                                                              \
-    if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) { \
-      return Fail(dest.status());                                   \
-    }                                                               \
-    dest.move_cursor(tag_length + data_length);                     \
-    char* const buffer = dest.cursor();                             \
-    std::memset(buffer + tag_length, '\0', data_length);            \
-    std::memcpy(buffer, node->tag_data.data, tag_length);           \
-  } while (false)
+template <size_t tag_length, size_t data_length, class Node>
+ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedExistenceCallback(
+    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
+    return decoder.Fail(dest.status());
+  }
+  dest.move_cursor(tag_length + data_length);
+  char* const buffer = dest.cursor();
+  std::memset(buffer + tag_length, '\0', data_length);
+  std::memcpy(buffer, node->tag_data.data, tag_length);
+  return true;
+}
 
 // Decode string value from `*node` to `dest`.
-#define STRING_CALLBACK(tag_length)                                            \
-  do {                                                                         \
-    node->buffer->Pull(kMaxLengthVarint32);                                    \
-    uint32_t length;                                                           \
-    const absl::optional<const char*> cursor =                                 \
-        ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);   \
-    if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {                         \
-      return Fail(node->buffer->StatusOrAnnotate(                              \
-          absl::InvalidArgumentError("Reading string length failed")));        \
-    }                                                                          \
-    const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor); \
-    if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -     \
-                                        length_length)) {                      \
-      return Fail(absl::InvalidArgumentError("String length overflow"));       \
-    }                                                                          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            !node->buffer->Copy(length_length + length, dest))) {              \
-      if (!dest.ok()) return Fail(dest.status());                              \
-      return Fail(node->buffer->StatusOrAnnotate(                              \
-          absl::InvalidArgumentError("Reading string field failed")));         \
-    }                                                                          \
-    if (ABSL_PREDICT_FALSE(!dest.Write(                                        \
-            absl::string_view(node->tag_data.data, tag_length)))) {            \
-      return Fail(dest.status());                                              \
-    }                                                                          \
-  } while (false)
+template <size_t tag_length, class Node>
+ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback(Node* node,
+                                                 BackwardWriter& dest,
+                                                 TransposeDecoder& decoder) {
+  node->buffer->Pull(kMaxLengthVarint32);
+  uint32_t length;
+  const absl::optional<const char*> cursor =
+      ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
+  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {
+    return decoder.Fail(node->buffer->StatusOrAnnotate(
+        absl::InvalidArgumentError("Reading string length failed")));
+  }
+  const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor);
+  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -
+                                      length_length)) {
+    return decoder.Fail(absl::InvalidArgumentError("String length overflow"));
+  }
+  if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length_length + length, dest))) {
+    if (!dest.ok()) return decoder.Fail(dest.status());
+    return decoder.Fail(node->buffer->StatusOrAnnotate(
+        absl::InvalidArgumentError("Reading string field failed")));
+  }
+  if (ABSL_PREDICT_FALSE(
+          !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
+    return decoder.Fail(dest.status());
+  }
+  return true;
+}
 
 inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                                      BackwardWriter& dest,
@@ -1167,52 +1179,98 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
 #define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
   case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:           \
-    COPY_TAG_CALLBACK(tag_length);                                             \
+    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 1);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 1>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 2);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 2>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 3);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 3>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 4);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 4>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 5);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 5>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 6);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 6>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 7);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 7>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 8);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 8>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:          \
-    VARINT_CALLBACK(tag_length, 9);                                            \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 9>(node, dest, *this)))) {            \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:         \
-    VARINT_CALLBACK(tag_length, 10);                                           \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!VarintCallback<tag_length, 10>(node, dest, *this)))) {           \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:           \
-    FIXED_CALLBACK(tag_length, 4);                                             \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!FixedCallback<tag_length, 4>(node, dest, *this)))) {             \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:           \
-    FIXED_CALLBACK(tag_length, 8);                                             \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!FixedCallback<tag_length, 8>(node, dest, *this)))) {             \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length:  \
-    FIXED_EXISTENCE_CALLBACK(tag_length, 4);                                   \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!FixedExistenceCallback<tag_length, 4>(node, dest, *this)))) {    \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length:  \
-    FIXED_EXISTENCE_CALLBACK(tag_length, 8);                                   \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            (!FixedExistenceCallback<tag_length, 8>(node, dest, *this)))) {    \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::kString_##tag_length:            \
-    STRING_CALLBACK(tag_length);                                               \
+    if (ABSL_PREDICT_FALSE(!StringCallback<tag_length>(node, dest, *this))) {  \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::                                 \
       kStartProjectionGroup_##tag_length:                                      \
@@ -1220,12 +1278,16 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       return Fail(absl::InvalidArgumentError("Submessage stack underflow"));   \
     }                                                                          \
     submessage_stack.pop_back();                                               \
-    COPY_TAG_CALLBACK(tag_length);                                             \
+    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition;                                                        \
   case chunk_encoding_internal::CallbackType::                                 \
       kEndProjectionGroup_##tag_length:                                        \
     submessage_stack.push_back({IntCast<size_t>(dest.pos()), node->tag_data}); \
-    COPY_TAG_CALLBACK(tag_length);                                             \
+    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+      return false;                                                            \
+    }                                                                          \
     goto do_transition
 
         ACTIONS_FOR_TAG_LEN(1);
@@ -1236,7 +1298,9 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 #undef ACTIONS_FOR_TAG_LEN
 
       case chunk_encoding_internal::CallbackType::kCopyTag_6:
-        COPY_TAG_CALLBACK(6);
+        if (ABSL_PREDICT_FALSE(!CopyTagCallback<6>(node, dest, *this))) {
+          return false;
+        }
         goto do_transition;
 
       case chunk_encoding_internal::CallbackType::kUnknown:
