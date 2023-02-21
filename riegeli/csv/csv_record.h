@@ -24,6 +24,7 @@
 #include <iterator>
 #include <new>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -515,8 +516,8 @@ class CsvHeader {
 //
 // It should be used as the type of a variable with static storage duration.
 //
-// By relying on CTAD the template argument can be deduced as the number of
-// constructor arguments. This requires C++17.
+// By relying on CTAD the template argument can be deduced from constructor
+// arguments. This requires C++17.
 template <size_t num_fields>
 class CsvHeaderConstant {
  public:
@@ -552,6 +553,28 @@ class CsvHeaderConstant {
       std::string (*normalizer)(absl::string_view), Fields&&... fields)
       : normalizer_(normalizer), fields_{std::forward<Fields>(fields)...} {}
 
+  // Will create a `CsvHeader` consisting of field names from `base_header`
+  // followed by the given sequence of field names.
+  //
+  // The number of fields in `base_header` plus the number of `fields` must be
+  // `num_fields`, and `base_header` and all `fields` must have static storage
+  // duration.
+  //
+  // The normalizer is the same as in `base_header`.
+  template <
+      size_t base_num_fields, typename... Fields,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<
+                  bool, base_num_fields + sizeof...(Fields) == num_fields>,
+              std::is_convertible<Fields&&, absl::string_view>...>::value,
+          int> = 0>
+  explicit constexpr CsvHeaderConstant(
+      const CsvHeaderConstant<base_num_fields>& base_header, Fields&&... fields)
+      : CsvHeaderConstant(base_header,
+                          std::make_index_sequence<base_num_fields>(),
+                          std::forward<Fields>(fields)...) {}
+
   CsvHeaderConstant(const CsvHeaderConstant&) = delete;
   CsvHeaderConstant& operator=(const CsvHeaderConstant&) = delete;
 
@@ -560,6 +583,18 @@ class CsvHeaderConstant {
   const CsvHeader* operator->() const { return get(); }
 
  private:
+  // For `normalizer_` and `fields_`.
+  template <size_t other_num_fields>
+  friend class CsvHeaderConstant;
+
+  template <size_t base_num_fields, size_t... base_indices, typename... Fields>
+  explicit constexpr CsvHeaderConstant(
+      const CsvHeaderConstant<base_num_fields>& base_header,
+      std::index_sequence<base_indices...>, Fields&&... fields)
+      : normalizer_(base_header.normalizer_),
+        fields_{base_header.fields_[base_indices]...,
+                std::forward<Fields>(fields)...} {}
+
   std::string (*const normalizer_)(absl::string_view) = nullptr;
   const absl::string_view fields_[num_fields];
   mutable absl::once_flag once_;
@@ -581,6 +616,13 @@ template <typename... Fields,
 explicit CsvHeaderConstant(std::string (*normalizer)(absl::string_view),
                            Fields&&... fields)
     -> CsvHeaderConstant<sizeof...(Fields)>;
+template <size_t base_num_fields, typename... Fields,
+          std::enable_if_t<absl::conjunction<std::is_convertible<
+                               Fields&&, absl::string_view>...>::value,
+                           int> = 0>
+explicit CsvHeaderConstant(
+    const CsvHeaderConstant<base_num_fields>& base_header, Fields&&... fields)
+    -> CsvHeaderConstant<base_num_fields + sizeof...(Fields)>;
 #endif
 
 // A row of a CSV file, with fields accessed by name.
