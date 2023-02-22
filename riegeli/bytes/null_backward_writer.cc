@@ -117,14 +117,13 @@ bool NullBackwardWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-    set_cursor(start() - (new_size - start_pos()));
+    set_cursor(start() - IntCast<size_t>(new_size - start_pos()));
     return true;
   }
   buffer_sizer_.EndRun(pos());
   set_start_pos(new_size);
-  set_cursor(start());
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return MakeBuffer();
 }
 
 }  // namespace riegeli
