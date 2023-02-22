@@ -166,6 +166,7 @@ absl::Status CsvHeader::TryResetUncached(
   EnsureUniqueOwner();
   payload_->normalizer = std::move(normalizer);
   payload_->name_to_index.clear();
+  payload_->name_to_index.reserve(names.size());
   std::vector<absl::string_view> duplicate_names;
   for (size_t index = 0; index < names.size(); ++index) {
     const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
@@ -201,6 +202,12 @@ absl::Status CsvHeader::TryResetUncached(
     // Destroy `old_payload_cache` after releasing `payload_cache_mutex_`.
   }
   return absl::OkStatus();
+}
+
+void CsvHeader::Reserve(size_t size) {
+  EnsureUniqueOwner();
+  payload_->index_to_name.reserve(size);
+  payload_->name_to_index.reserve(size);
 }
 
 void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }

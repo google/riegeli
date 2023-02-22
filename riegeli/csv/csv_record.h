@@ -315,6 +315,10 @@ class CsvHeader {
       std::function<std::string(absl::string_view)> normalizer,
       std::initializer_list<absl::string_view> names);
 
+  // Reserve space for future calls to `Add()` or `TryAdd()` if the expected
+  // final number of fields is known. This improves performance.
+  void Reserve(size_t size);
+
   // Adds the given field `name`, ordered at the end.
   //
   // Precondition: `name` was not already present
@@ -1237,7 +1241,9 @@ inline CsvHeader::iterator CsvHeader::end() const {
                   payload_->index_to_name.size());
 }
 
-inline bool CsvHeader::empty() const { return payload_ == nullptr; }
+inline bool CsvHeader::empty() const {
+  return payload_ == nullptr || payload_->index_to_name.empty();
+}
 
 inline size_t CsvHeader::size() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return 0;
