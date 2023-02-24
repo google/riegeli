@@ -81,10 +81,12 @@ FILE* CFileWriterBase::OpenFile(absl::string_view filename,
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
 #ifndef _WIN32
-  FILE* const dest = fopen(filename_.c_str(), mode.c_str());
+  absl::string_view failed_function_name;
+  FILE* const dest = cfile_internal::FOpen(filename_.c_str(), mode.c_str(),
+                                           failed_function_name);
   if (ABSL_PREDICT_FALSE(dest == nullptr)) {
     BufferedWriter::Reset(kClosed);
-    FailOperation("fopen()");
+    FailOperation(failed_function_name);
     return nullptr;
   }
 #else

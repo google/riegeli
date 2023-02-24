@@ -78,9 +78,9 @@ class CFileWriterBase : public BufferedWriter {
     // (on Windows: "wb" or "ab").
     //
     // `mode()` can also be changed with `set_existing(), `set_read()`,
-    // `set_append()`, `set_exclusive()`, and `set_text()`.
+    // `set_append()`, `set_exclusive()`, `set_inheritable()`, and `set_text()`.
     //
-    // Default: "w" (on Windows: "wb").
+    // Default: "we" (on Windows: "wbN").
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -165,7 +165,8 @@ class CFileWriterBase : public BufferedWriter {
     //
     // If `true`, the file will be created if it does not exist, or opening will
     // fail if it exists. This is not supported by all systems, but it is
-    // specified by C++17 and supported on Linux and Windows.
+    // specified by C++17 and supported at least on Linux, Windows, FreeBSD,
+    // OpenBSD, NetBSD, and MacOS X.
     //
     // If `CFileWriter` writes to an already open `FILE`, `exclusive()` has no
     // effect.
@@ -181,6 +182,30 @@ class CFileWriterBase : public BufferedWriter {
       return std::move(set_exclusive(exclusive));
     }
     bool exclusive() const { return file_internal::GetExclusive(mode_); }
+
+    // If `false`, `execve()` (`CreateProcess()` on Windows) will close the
+    // file. This is not supported by all systems, but it is supported at least
+    // on Linux, Windows, FreeBSD, OpenBSD, NetBSD, and it is planned for POSIX
+    // (https://www.austingroupbugs.net/view.php?id=411). For MacOS X this is
+    // emulated by `CFileWriter`.
+    //
+    // If `true`, the file will remain open across `execve()` (`CreateProcess()`
+    // on Windows).
+    //
+    // If `CFileWriter` writes to an already open file, `inheritable()` has no
+    // effect.
+    //
+    // `set_inheritable()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_inheritable(bool inheritable) & {
+      file_internal::SetInheritableWriting(inheritable, mode_);
+      return *this;
+    }
+    Options&& set_inheritable(bool inheritable) && {
+      return std::move(set_inheritable(inheritable));
+    }
+    bool inheritable() const { return file_internal::GetInheritable(mode_); }
 
     // If `false`, data will be written directly to the file. This is called the
     // binary mode.
@@ -229,9 +254,9 @@ class CFileWriterBase : public BufferedWriter {
    private:
     std::string assumed_filename_;
 #ifndef _WIN32
-    std::string mode_ = "w";
+    std::string mode_ = "we";
 #else
-    std::string mode_ = "wb";
+    std::string mode_ = "wbN";
 #endif
     absl::optional<Position> assumed_pos_;
   };

@@ -36,6 +36,24 @@ namespace cfile_internal {
 
 #ifndef _WIN32
 
+#ifdef __APPLE__
+
+// Emulate `fopen()` with `open()` + `fdopen()`, adding support for 'e'
+// (`O_CLOEXEC`).
+FILE* FOpen(const char* filename, const char* mode,
+            absl::string_view& failed_function_name);
+
+#else
+
+inline FILE* FOpen(const char* filename, const char* mode,
+                   absl::string_view& failed_function_name) {
+  FILE* file = ::fopen(filename, mode);
+  if (ABSL_PREDICT_FALSE(file == nullptr)) failed_function_name = "fopen()";
+  return file;
+}
+
+#endif
+
 // Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
 // `ftell()`.
 

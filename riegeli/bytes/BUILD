@@ -1103,7 +1103,6 @@ cc_library(
     name = "cfile_reader",
     srcs = [
         "cfile_dependency.h",
-        "cfile_internal.h",
         "cfile_reader.cc",
     ],
     hdrs = ["cfile_reader.h"],
@@ -1116,6 +1115,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
+        ":cfile_internal",
         ":file_mode_string",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
@@ -1125,7 +1125,6 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:constexpr",
         "//riegeli/base:dependency",
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
@@ -1143,7 +1142,6 @@ cc_library(
     name = "cfile_writer",
     srcs = [
         "cfile_dependency.h",
-        "cfile_internal.h",
         "cfile_writer.cc",
     ],
     hdrs = ["cfile_writer.h"],
@@ -1156,6 +1154,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_writer",
+        ":cfile_internal",
         ":cfile_reader",
         ":file_mode_string",
         ":reader",
@@ -1167,7 +1166,6 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:constexpr",
         "//riegeli/base:dependency",
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
@@ -1179,6 +1177,22 @@ cc_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+cc_library(
+    name = "cfile_internal",
+    srcs = ["cfile_internal.cc"],
+    hdrs = ["cfile_internal.h"],
+    # cfile_internal.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base:constexpr",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(

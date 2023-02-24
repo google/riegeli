@@ -72,9 +72,9 @@ class CFileReaderBase : public BufferedReader {
     // argument of `fopen()` and specifies the open mode, typically "r" (on
     // Windows: "rb").
     //
-    // `mode()` can also be changed with `set_text()`.
+    // `mode()` can also be changed with `set_inheritable()` and `set_text()`.
     //
-    // Default: "r" (on Windows: "rb").
+    // Default: "re" (on Windows: "rbN").
     Options& set_mode(absl::string_view mode) & {
       // TODO: When `absl::string_view` becomes C++17
       // `std::string_view`: `mode_ = mode`
@@ -85,6 +85,30 @@ class CFileReaderBase : public BufferedReader {
       return std::move(set_mode(mode));
     }
     const std::string& mode() const { return mode_; }
+
+    // If `false`, `execve()` (`CreateProcess()` on Windows) will close the
+    // file. This is not supported by all systems, but it is supported at least
+    // on Linux, Windows, FreeBSD, OpenBSD, NetBSD, and it is planned for POSIX
+    // (https://www.austingroupbugs.net/view.php?id=411). For MacOS X this is
+    // emulated by `CFileReader`.
+    //
+    // If `true`, the file will remain open across `execve()` (`CreateProcess()`
+    // on Windows).
+    //
+    // If `CFileReader` reads from an already open file, `inheritable()` has no
+    // effect.
+    //
+    // `set_inheritable()` affects `mode()`.
+    //
+    // Default: `false`.
+    Options& set_inheritable(bool inheritable) & {
+      file_internal::SetInheritableReading(inheritable, mode_);
+      return *this;
+    }
+    Options&& set_inheritable(bool inheritable) && {
+      return std::move(set_inheritable(inheritable));
+    }
+    bool inheritable() const { return file_internal::GetInheritable(mode_); }
 
     // If `false`, data will be read directly from the file. This is called the
     // binary mode.
@@ -147,9 +171,9 @@ class CFileReaderBase : public BufferedReader {
    private:
     std::string assumed_filename_;
 #ifndef _WIN32
-    std::string mode_ = "r";
+    std::string mode_ = "re";
 #else
-    std::string mode_ = "rb";
+    std::string mode_ = "rbN";
 #endif
     absl::optional<Position> assumed_pos_;
     bool growing_source_ = false;

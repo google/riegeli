@@ -60,6 +60,14 @@ bool GetAppend(absl::string_view mode);
 void SetExclusive(bool exclusive, std::string& mode);
 bool GetExclusive(absl::string_view mode);
 
+// If `false`, `execve()` (`CreateProcess()` on Windows) will close the file.
+//
+// If `true`, the file will remain open across `execve()` (`CreateProcess()` on
+// Windows).
+void SetInheritableReading(bool inheritable, std::string& mode);
+void SetInheritableWriting(bool inheritable, std::string& mode);
+bool GetInheritable(absl::string_view mode);
+
 // If `false`, data will be read/written directly from/to the file. This is
 // called the binary mode.
 //

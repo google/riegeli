@@ -131,6 +131,67 @@ bool GetExclusive(absl::string_view mode) {
 
 namespace {
 
+void SetInheritableImpl(bool inheritable, std::string& mode) {
+#ifndef _WIN32
+  static constexpr char kModifier = 'e';
+#else
+  static constexpr char kModifier = 'N';
+#endif
+  static constexpr const char kModifierStr[2] = {kModifier, '\0'};
+  if (inheritable) {
+    // Remove `kModifier` from modifiers.
+    for (size_t i = 1; i < mode.size(); ++i) {
+      if (mode[i] == kModifier) {
+        mode.erase(i, 1);
+        --i;
+        continue;
+      }
+      if (mode[i] == ',') break;
+    }
+  } else {
+    // Add `kModifier` to modifiers unless it already exists there.
+    for (size_t i = 1; i < mode.size(); ++i) {
+      if (mode[i] == kModifier) return;
+      if (mode[i] == ',') break;
+    }
+    size_t position = 1;
+    while (mode.size() > position &&
+           (mode[position] == '+' || mode[position] == 'b' ||
+            mode[position] == 't' || mode[position] == 'x')) {
+      ++position;
+    }
+    mode.insert(position, kModifierStr);
+  }
+}
+
+}  // namespace
+
+void SetInheritableReading(bool inheritable, std::string& mode) {
+  if (ABSL_PREDICT_FALSE(mode.empty())) mode = "r";
+  SetInheritableImpl(inheritable, mode);
+}
+
+void SetInheritableWriting(bool inheritable, std::string& mode) {
+  if (ABSL_PREDICT_FALSE(mode.empty())) mode = "w";
+  SetInheritableImpl(inheritable, mode);
+}
+
+bool GetInheritable(absl::string_view mode) {
+#ifndef _WIN32
+  static constexpr char kModifier = 'e';
+#else
+  static constexpr char kModifier = 'N';
+#endif
+  if (ABSL_PREDICT_FALSE(mode.empty())) return true;
+  for (size_t i = 1; i < mode.size(); ++i) {
+    if (mode[i] == kModifier) return false;
+    if (mode[i] == ',') break;
+  }
+  return true;
+}
+
+namespace {
+
 inline void SetTextImpl(bool text, std::string& mode) {
 #ifdef _WIN32
   const char to_remove = text ? 'b' : 't';
