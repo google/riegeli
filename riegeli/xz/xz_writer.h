@@ -47,10 +47,16 @@ class XzWriterBase : public BufferedWriter {
  public:
   // Specifies what container format to write.
   enum class Container {
-    // Xz container (recommended).
-    kXz,
-    // Lzma container (legacy file format).
-    kLzma,
+    kXz,    // Xz container (recommended).
+    kLzma,  // Lzma container (legacy file format).
+  };
+
+  // Specifies what integrity check to use.
+  enum class Check {
+    kNone = LZMA_CHECK_NONE,      // No check.
+    kCrc32 = LZMA_CHECK_CRC32,    // CRC32 (IEEE 802.3)
+    kCrc64 = LZMA_CHECK_CRC64,    // CRC64 (ECMA-182; default)
+    kSha256 = LZMA_CHECK_SHA256,  // SHA-256
   };
 
   class Options : public BufferOptionsBase<Options> {
@@ -116,6 +122,19 @@ class XzWriterBase : public BufferedWriter {
     }
     bool extreme() const { return (preset_ & LZMA_PRESET_EXTREME) != 0; }
 
+    // Integrity check to use.
+    //
+    // This is effective only with `Container::kXz`.
+    //
+    // Default: `Check::kCrc64`.
+    static constexpr Check kDefaultCheck = Check::kCrc64;
+    Options& set_check(Check check) & {
+      check_ = check;
+      return *this;
+    }
+    Options&& set_check(Check check) && { return std::move(set_check(check)); }
+    Check check() const { return check_; }
+
     // Number of background threads to use. Larger parallelism can increase
     // throughput, up to a point where it no longer matters; smaller parallelism
     // reduces memory usage. `parallelism() == 0` disables background threads.
@@ -144,6 +163,7 @@ class XzWriterBase : public BufferedWriter {
 
     Container container_ = kDefaultContainer;
     uint32_t preset_ = kDefaultCompressionLevel;
+    Check check_ = kDefaultCheck;
     int parallelism_ = 0;
   };
 
@@ -164,7 +184,7 @@ class XzWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, Container container);
-  void Initialize(Writer* dest, uint32_t preset, int parallelism);
+  void Initialize(Writer* dest, uint32_t preset, Check check, int parallelism);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void DoneBehindBuffer(absl::string_view src) override;
@@ -318,14 +338,16 @@ inline void XzWriterBase::Reset(const BufferOptions& buffer_options,
 template <typename Dest>
 inline XzWriter<Dest>::XzWriter(const Dest& dest, Options options)
     : XzWriterBase(options.buffer_options(), options.container()), dest_(dest) {
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>
 inline XzWriter<Dest>::XzWriter(Dest&& dest, Options options)
     : XzWriterBase(options.buffer_options(), options.container()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>
@@ -334,7 +356,8 @@ inline XzWriter<Dest>::XzWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : XzWriterBase(options.buffer_options(), options.container()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>
@@ -359,14 +382,16 @@ template <typename Dest>
 inline void XzWriter<Dest>::Reset(const Dest& dest, Options options) {
   XzWriterBase::Reset(options.buffer_options(), options.container());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>
 inline void XzWriter<Dest>::Reset(Dest&& dest, Options options) {
   XzWriterBase::Reset(options.buffer_options(), options.container());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>
@@ -375,7 +400,8 @@ inline void XzWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   XzWriterBase::Reset(options.buffer_options(), options.container());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.preset_, options.parallelism());
+  Initialize(dest_.get(), options.preset_, options.check(),
+             options.parallelism());
 }
 
 template <typename Dest>

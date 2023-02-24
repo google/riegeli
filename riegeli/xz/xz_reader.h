@@ -44,12 +44,9 @@ class XzReaderBase : public BufferedReader {
  public:
   // Specifies what container format to expect.
   enum class Container {
-    // Xz container (recommended).
-    kXz,
-    // Lzma container (legacy file format).
-    kLzma,
-    // Xz or Lzma container.
-    kXzOrLzma,
+    kXz,        // Xz container (recommended).
+    kLzma,      // Lzma container (legacy file format).
+    kXzOrLzma,  // Xz or Lzma container.
   };
 
   class Options : public BufferOptionsBase<Options> {

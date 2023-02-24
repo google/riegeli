@@ -47,14 +47,10 @@ class ZlibReaderBase : public BufferedReader {
  public:
   // Specifies what format of header to expect.
   enum class Header {
-    // Zlib header.
-    kZlib = 0,
-    // Gzip header.
-    kGzip = 16,
-    // Zlib or Gzip header.
-    kZlibOrGzip = 32,
-    // No header; compressor must write no header too.
-    kRaw = -1,
+    kZlib = 0,         // Zlib header.
+    kGzip = 16,        // Gzip header.
+    kZlibOrGzip = 32,  // Zlib or Gzip header.
+    kRaw = -1,         // No header; compressor must write no header too.
   };
 
   class Options : public BufferOptionsBase<Options> {

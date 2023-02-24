@@ -48,6 +48,7 @@ constexpr int XzWriterBase::Options::kMinCompressionLevel;
 constexpr int XzWriterBase::Options::kMaxCompressionLevel;
 constexpr int XzWriterBase::Options::kDefaultCompressionLevel;
 constexpr XzWriterBase::Container XzWriterBase::Options::kDefaultContainer;
+constexpr XzWriterBase::Check XzWriterBase::Options::kDefaultCheck;
 #endif
 
 static_assert(static_cast<int>(XzWriterBase::Container::kXz) ==
@@ -57,7 +58,8 @@ static_assert(static_cast<int>(XzWriterBase::Container::kLzma) ==
                   static_cast<int>(XzReaderBase::Container::kLzma),
               "Mismatched Container enums");
 
-void XzWriterBase::Initialize(Writer* dest, uint32_t preset, int parallelism) {
+void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
+                              int parallelism) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of XzWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
@@ -72,8 +74,8 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, int parallelism) {
     case Container::kXz: {
       if (parallelism == 0) {
         flush_action_ = LZMA_SYNC_FLUSH;
-        const lzma_ret liblzma_code =
-            lzma_easy_encoder(compressor_.get(), preset, LZMA_CHECK_CRC64);
+        const lzma_ret liblzma_code = lzma_easy_encoder(
+            compressor_.get(), preset, static_cast<lzma_check>(check));
         if (ABSL_PREDICT_FALSE(liblzma_code != LZMA_OK)) {
           FailOperation("lzma_easy_encoder()", liblzma_code);
         }
@@ -83,7 +85,7 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, int parallelism) {
         lzma_mt mt_options{};
         mt_options.threads = SaturatingIntCast<uint32_t>(parallelism);
         mt_options.preset = preset;
-        mt_options.check = LZMA_CHECK_CRC64;
+        mt_options.check = static_cast<lzma_check>(check);
         const lzma_ret liblzma_code =
             lzma_stream_encoder_mt(compressor_.get(), &mt_options);
         if (ABSL_PREDICT_FALSE(liblzma_code != LZMA_OK)) {

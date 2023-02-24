@@ -46,12 +46,9 @@ class ZlibWriterBase : public BufferedWriter {
  public:
   // Specifies what format of header to write.
   enum class Header {
-    // Zlib header.
-    kZlib = 0,
-    // Gzip header.
-    kGzip = 16,
-    // No header; decompressor must expect no header too.
-    kRaw = -1,
+    kZlib = 0,   // Zlib header.
+    kGzip = 16,  // Gzip header.
+    kRaw = -1,   // No header; decompressor must expect no header too.
   };
 
   class Options : public BufferOptionsBase<Options> {
