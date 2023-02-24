@@ -52,9 +52,9 @@ namespace riegeli {
 // using CTAD (since C++17), which is usually done by removing any toplevel
 // references and `const` qualifiers using `std::decay`.
 //
-// As an alternative to passing `std::move(m)`, passing `ClosingPtr(&m)` i.e.
-// `std::unique_ptr<M, NullDeleter>(&m)` avoids moving `m`, but the caller must
-// ensure that the dependent object is valid while the host object needs it.
+// As an alternative to passing `std::move(m)`, passing `ClosingPtr(&m)` avoids
+// moving `m`, but the caller must ensure that the dependent object is valid
+// while the host object needs it.
 //
 // `Manager` can also be `M&` (not owned) or `M&&` (owned). They are primarily
 // meant to be used with a host function rather than a host object, because such
@@ -68,10 +68,10 @@ namespace riegeli {
 // idiomatic API for passing an object which does not need to be valid after the
 // function returns.
 //
-// `Manager` being `M&&` is similar to `std::unique_ptr<M, NullDeleter>`
-// returned by `ClosingPtr()`. In contrast to a host class, a host function does
-// not decay `M&&` to `M` and avoids moving `m`, because the dependent object
-// can be expected to be valid for the duration of the function call.
+// `Manager` being `M&&` is similar to `ClosingPtrType<M>`. In contrast to a
+// host class, a host function does not decay `M&&` to `M` and avoids moving
+// `m`, because the dependent object can be expected to be valid for the
+// duration of the function call.
 
 // `RiegeliDependencySentinel(T*)` specifies how to initialize a default
 // `Manager` (for `Dependency`) or `Ptr` (for `AnyDependency`) of type `T`.

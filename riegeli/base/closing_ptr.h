@@ -32,9 +32,13 @@ struct NullDeleter {
 // In the context of `Dependency` and `AnyDependency`, passing `ClosingPtr(&m)`
 // instead of `std::move(m)` avoids moving `m`, but the caller must ensure that
 // the dependent object is valid while the host object needs it.
+
 template <typename T>
-std::unique_ptr<T, NullDeleter> ClosingPtr(T* ptr) {
-  return std::unique_ptr<T, NullDeleter>(ptr);
+using ClosingPtrType = std::unique_ptr<T, NullDeleter>;
+
+template <typename T>
+inline ClosingPtrType<T> ClosingPtr(T* ptr) {
+  return ClosingPtrType<T>(ptr);
 }
 
 }  // namespace riegeli

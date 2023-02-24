@@ -510,7 +510,7 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
 // Specialization of
 // `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyImpl<Ptr>, Deleter>>`.
 //
-// It covers `ClosingPtr(AnyDependency*)`.
+// It covers `ClosingPtrType<AnyDependency>`.
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
@@ -693,7 +693,7 @@ class DependencyImpl<Ptr,
 // Specialization of
 // `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyRefImpl<Ptr>, Deleter>>`.
 //
-// It covers `ClosingPtr(AnyDependencyRef*)`.
+// It covers `ClosingPtrType<AnyDependencyRef>`.
 template <typename Ptr, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
