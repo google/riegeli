@@ -36,6 +36,9 @@
 #include <io.h>
 #endif
 #include <fcntl.h>
+#ifdef _WIN32
+#include <share.h>
+#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/types.h>
