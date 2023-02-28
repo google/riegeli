@@ -23,7 +23,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -309,9 +308,8 @@ bool ReadLine(Reader& src, absl::Cord& dest, ReadLineOptions options) {
 }
 
 void SkipUtf8Bom(Reader& src) {
-  src.Pull(kUtf8Bom.size());
-  if (absl::StartsWith(absl::string_view(src.cursor(), src.available()),
-                       kUtf8Bom)) {
+  if (src.Pull(kUtf8Bom.size()) &&
+      absl::string_view(src.cursor(), kUtf8Bom.size()) == kUtf8Bom) {
     src.move_cursor(kUtf8Bom.size());
   }
 }

@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "lzma.h"
@@ -305,9 +304,9 @@ std::unique_ptr<Reader> XzReaderBase::NewReaderImpl(Position initial_pos) {
 
 bool RecognizeXz(Reader& src) {
   static constexpr char kMagic[] = {'\xfd', '7', 'z', 'X', 'Z', '\x00'};
-  src.Pull(sizeof(kMagic));
-  return absl::StartsWith(absl::string_view(src.cursor(), src.available()),
-                          absl::string_view(kMagic, sizeof(kMagic)));
+  return src.Pull(sizeof(kMagic)) &&
+         absl::string_view(src.cursor(), sizeof(kMagic)) ==
+             absl::string_view(kMagic, sizeof(kMagic));
 }
 
 }  // namespace riegeli
