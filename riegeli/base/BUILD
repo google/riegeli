@@ -111,7 +111,6 @@ cc_library(
     srcs = ["zeros.cc"],
     hdrs = ["zeros.h"],
     deps = [
-        ":constexpr",
         ":cord_utils",
         ":no_destructor",
         "@com_google_absl//absl/strings",

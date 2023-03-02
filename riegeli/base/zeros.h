@@ -17,20 +17,25 @@
 
 #include <stddef.h>
 
-#include <array>
-
 #include "absl/strings/cord.h"
-#include "riegeli/base/constexpr.h"
+#include "absl/strings/string_view.h"
 
 namespace riegeli {
 
-RIEGELI_INLINE_CONSTEXPR(size_t, kArrayOfZerosSize, size_t{64} << 10);
-
-// 64K zero bytes.
-const std::array<char, kArrayOfZerosSize>& ArrayOfZeros();
+// Returns some fixed number of lazily allocated zero bytes (64 KB).
+absl::string_view ArrayOfZeros();
 
 // Returns the given number of zero bytes.
 absl::Cord CordOfZeros(size_t length);
+
+// Implementation details follow.
+
+// Inlined so that the compiler can see the fixed size of the result.
+inline absl::string_view ArrayOfZeros() {
+  static constexpr size_t kArrayOfZerosSize = size_t{64} << 10;
+  static const char* const kArrayOfZeros = new char[kArrayOfZerosSize]();
+  return absl::string_view(kArrayOfZeros, kArrayOfZerosSize);
+}
 
 }  // namespace riegeli
 

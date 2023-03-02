@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <array>
 #include <type_traits>
 #include <utility>
 
@@ -87,14 +86,12 @@ inline void WriteZeros(Digester& digester, Position length) {
 template <typename Digester,
           std::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
-  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
+  const absl::string_view kArrayOfZeros = ArrayOfZeros();
   while (length > kArrayOfZeros.size()) {
-    digester.Write(
-        absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size()));
+    digester.Write(kArrayOfZeros);
     length -= kArrayOfZeros.size();
   }
-  digester.Write(
-      absl::string_view(kArrayOfZeros.data(), IntCast<size_t>(length)));
+  digester.Write(kArrayOfZeros.substr(0, IntCast<size_t>(length)));
 }
 
 // `digester_internal::Close()` calls `Digester::Close()`, or does nothing if

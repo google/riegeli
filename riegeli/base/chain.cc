@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -2696,13 +2695,11 @@ void Chain::VerifyInvariants() const {
 }
 
 Chain ChainOfZeros(size_t length) {
-  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
+  const absl::string_view kArrayOfZeros = ArrayOfZeros();
   Chain result;
   while (length >= kArrayOfZeros.size()) {
     static const NoDestructor<Chain> kChainBlockOfZeros(
-        Chain::FromExternal<ZeroRef>(
-            std::forward_as_tuple(),
-            absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size())));
+        Chain::FromExternal<ZeroRef>(std::forward_as_tuple(), kArrayOfZeros));
     result.Append(*kChainBlockOfZeros);
     length -= kArrayOfZeros.size();
   }
@@ -2712,8 +2709,7 @@ Chain ChainOfZeros(size_t length) {
       std::memset(buffer.data(), '\0', buffer.size());
     } else {
       result.Append(Chain::FromExternal<ZeroRef>(
-          std::forward_as_tuple(),
-          absl::string_view(kArrayOfZeros.data(), length)));
+          std::forward_as_tuple(), kArrayOfZeros.substr(0, length)));
     }
   }
   return result;

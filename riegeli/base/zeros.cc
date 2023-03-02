@@ -16,8 +16,6 @@
 
 #include <stddef.h>
 
-#include <array>
-
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/cord_utils.h"
@@ -25,25 +23,17 @@
 
 namespace riegeli {
 
-const std::array<char, kArrayOfZerosSize>& ArrayOfZeros() {
-  static const std::array<char, kArrayOfZerosSize>* const kArrayOfZeros =
-      new std::array<char, kArrayOfZerosSize>();
-  return *kArrayOfZeros;
-}
-
 absl::Cord CordOfZeros(size_t length) {
-  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
+  const absl::string_view kArrayOfZeros = ArrayOfZeros();
   absl::Cord result;
   while (length >= kArrayOfZeros.size()) {
     static const NoDestructor<absl::Cord> kCordOfZeros(
-        absl::MakeCordFromExternal(
-            absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size()),
-            [] {}));
+        absl::MakeCordFromExternal(kArrayOfZeros, [] {}));
     result.Append(*kCordOfZeros);
     length -= kArrayOfZeros.size();
   }
   if (length > 0) {
-    const absl::string_view zeros(kArrayOfZeros.data(), length);
+    const absl::string_view zeros = kArrayOfZeros.substr(0, length);
     if (length <= MaxBytesToCopyToCord(result)) {
       result.Append(zeros);
     } else {
