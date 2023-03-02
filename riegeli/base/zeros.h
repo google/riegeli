@@ -20,11 +20,14 @@
 #include <array>
 
 #include "absl/strings/cord.h"
+#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 
+RIEGELI_INLINE_CONSTEXPR(size_t, kArrayOfZerosSize, size_t{64} << 10);
+
 // 64K zero bytes.
-extern const std::array<char, (size_t{64} << 10)> kArrayOfZeros;
+const std::array<char, kArrayOfZerosSize>& ArrayOfZeros();
 
 // Returns the given number of zero bytes.
 absl::Cord CordOfZeros(size_t length);

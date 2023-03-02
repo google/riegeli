@@ -2696,6 +2696,7 @@ void Chain::VerifyInvariants() const {
 }
 
 Chain ChainOfZeros(size_t length) {
+  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
   Chain result;
   while (length >= kArrayOfZeros.size()) {
     static const NoDestructor<Chain> kChainBlockOfZeros(

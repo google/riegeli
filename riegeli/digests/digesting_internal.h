@@ -87,6 +87,7 @@ inline void WriteZeros(Digester& digester, Position length) {
 template <typename Digester,
           std::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
+  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
   while (length > kArrayOfZeros.size()) {
     digester.Write(
         absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size()));

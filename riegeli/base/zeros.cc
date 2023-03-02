@@ -25,9 +25,14 @@
 
 namespace riegeli {
 
-extern const std::array<char, (size_t{64} << 10)> kArrayOfZeros = {0};
+const std::array<char, kArrayOfZerosSize>& ArrayOfZeros() {
+  static const std::array<char, kArrayOfZerosSize>* const kArrayOfZeros =
+      new std::array<char, kArrayOfZerosSize>();
+  return *kArrayOfZeros;
+}
 
 absl::Cord CordOfZeros(size_t length) {
+  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
   absl::Cord result;
   while (length >= kArrayOfZeros.size()) {
     static const NoDestructor<absl::Cord> kCordOfZeros(

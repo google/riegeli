@@ -141,6 +141,7 @@ bool BufferedWriter::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
+  const std::array<char, kArrayOfZerosSize>& kArrayOfZeros = ArrayOfZeros();
   while (length > kArrayOfZeros.size()) {
     const absl::string_view zeros(kArrayOfZeros.data(), kArrayOfZeros.size());
     if (ABSL_PREDICT_FALSE(!Write(zeros))) return false;
