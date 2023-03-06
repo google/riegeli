@@ -197,7 +197,10 @@ class XzWriterBase : public BufferedWriter {
 
  private:
   struct LzmaStreamDeleter {
-    void operator()(lzma_stream* ptr) const { lzma_end(ptr); }
+    void operator()(lzma_stream* ptr) const {
+      lzma_end(ptr);
+      delete ptr;
+    }
   };
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,

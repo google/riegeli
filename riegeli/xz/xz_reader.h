@@ -136,7 +136,10 @@ class XzReaderBase : public BufferedReader {
 
  private:
   struct LzmaStreamDeleter {
-    void operator()(lzma_stream* ptr) const { lzma_end(ptr); }
+    void operator()(lzma_stream* ptr) const {
+      lzma_end(ptr);
+      delete ptr;
+    }
   };
 
   void InitializeDecompressor();
