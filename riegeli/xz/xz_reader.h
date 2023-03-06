@@ -142,6 +142,21 @@ class XzReaderBase : public BufferedReader {
     }
   };
 
+  struct LzmaStreamKey {
+    friend bool operator==(LzmaStreamKey a, LzmaStreamKey b) {
+      return a.container == b.container;
+    }
+    friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
+      return a.container != b.container;
+    }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {
+      return HashState::combine(std::move(hash_state), self.container);
+    }
+
+    Container container;
+  };
+
   void InitializeDecompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          lzma_ret liblzma_code);
@@ -156,7 +171,8 @@ class XzReaderBase : public BufferedReader {
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
-  RecyclingPool<lzma_stream, LzmaStreamDeleter>::Handle decompressor_;
+  KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::Handle
+      decompressor_;
 };
 
 // A `Reader` which decompresses data with Xz (LZMA) after getting it from

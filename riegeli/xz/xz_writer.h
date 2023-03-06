@@ -203,6 +203,26 @@ class XzWriterBase : public BufferedWriter {
     }
   };
 
+  struct LzmaStreamKey {
+    friend bool operator==(LzmaStreamKey a, LzmaStreamKey b) {
+      return a.container == b.container &&
+             a.with_parallelism == b.with_parallelism && a.preset == b.preset;
+    }
+    friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
+      return a.container != b.container ||
+             a.with_parallelism != b.with_parallelism || a.preset != b.preset;
+    }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {
+      return HashState::combine(std::move(hash_state), self.container,
+                                self.with_parallelism, self.preset);
+    }
+
+    Container container;
+    bool with_parallelism;
+    uint32_t preset;
+  };
+
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          lzma_ret liblzma_code);
   bool WriteInternal(absl::string_view src, Writer& dest, lzma_action flush);
@@ -210,7 +230,8 @@ class XzWriterBase : public BufferedWriter {
   Container container_ = Container::kXz;
   lzma_action flush_action_ = LZMA_SYNC_FLUSH;
   Position initial_compressed_pos_ = 0;
-  RecyclingPool<lzma_stream, LzmaStreamDeleter>::Handle compressor_;
+  KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::Handle
+      compressor_;
 
   AssociatedReader<XzReader<Reader*>> associated_reader_;
 };

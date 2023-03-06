@@ -67,9 +67,16 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  compressor_ = RecyclingPool<lzma_stream, LzmaStreamDeleter>::global().Get([] {
-    return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(new lzma_stream());
-  });
+  compressor_ =
+      KeyedRecyclingPool<lzma_stream, LzmaStreamKey,
+                         LzmaStreamDeleter>::global()
+          .Get(LzmaStreamKey{container_,
+                             container_ == Container::kXz && parallelism > 0,
+                             preset},
+               [] {
+                 return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
+                     new lzma_stream());
+               });
   switch (container_) {
     case Container::kXz: {
       if (parallelism == 0) {
