@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <atomic>
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -159,16 +160,16 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>
     return ptr;
   }
 
-  friend bool operator==(const StableDependency& a, nullptr_t) {
+  friend bool operator==(const StableDependency& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
-  friend bool operator!=(const StableDependency& a, nullptr_t) {
+  friend bool operator!=(const StableDependency& a, std::nullptr_t) {
     return a.get() != nullptr;
   }
-  friend bool operator==(nullptr_t, const StableDependency& a) {
+  friend bool operator==(std::nullptr_t, const StableDependency& a) {
     return nullptr == a.get();
   }
-  friend bool operator!=(nullptr_t, const StableDependency& a) {
+  friend bool operator!=(std::nullptr_t, const StableDependency& a) {
     return nullptr != a.get();
   }
 

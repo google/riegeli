@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <cstddef>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -169,16 +170,16 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //   // If `Ptr` is `P*`, the dependency can be compared against `nullptr`.
 //   //
 //   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
-//   friend bool operator==(const Dependency& a, nullptr_t) {
+//   friend bool operator==(const Dependency& a, std::nullptr_t) {
 //     return a.get() == nullptr;
 //   }
-//   friend bool operator!=(const Dependency& a, nullptr_t) {
+//   friend bool operator!=(const Dependency& a, std::nullptr_t) {
 //     return a.get() != nullptr;
 //   }
-//   friend bool operator==(nullptr_t, const Dependency& b) {
+//   friend bool operator==(std::nullptr_t, const Dependency& b) {
 //     return nullptr == b.get();
 //   }
-//   friend bool operator!=(nullptr_t, const Dependency& b) {
+//   friend bool operator!=(std::nullptr_t, const Dependency& b) {
 //     return nullptr != b.get();
 //   }
 //
@@ -545,22 +546,22 @@ class Dependency<Ptr, Manager,
 
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(const Dependency& a, nullptr_t) {
+  friend bool operator==(const Dependency& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(const Dependency& a, nullptr_t) {
+  friend bool operator!=(const Dependency& a, std::nullptr_t) {
     return a.get() != nullptr;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(nullptr_t, const Dependency& b) {
+  friend bool operator==(std::nullptr_t, const Dependency& b) {
     return nullptr == b.get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(nullptr_t, const Dependency& b) {
+  friend bool operator!=(std::nullptr_t, const Dependency& b) {
     return nullptr != b.get();
   }
 };
@@ -627,15 +628,16 @@ class DependencyImpl<P*, M*,
   static constexpr bool kIsStable = true;
 };
 
-// Specialization of `DependencyImpl<P*, nullptr_t>`: an unowned dependency
+// Specialization of `DependencyImpl<P*, std::nullptr_t>`: an unowned dependency
 // passed by pointer, always missing. This is useful for `AnyDependency` and
 // `AnyDependencyRef`.
 template <typename P>
-class DependencyImpl<P*, nullptr_t> : public DependencyBase<nullptr_t> {
+class DependencyImpl<P*, std::nullptr_t>
+    : public DependencyBase<std::nullptr_t> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  nullptr_t get() const { return nullptr; }
+  std::nullptr_t get() const { return nullptr; }
 
   bool is_owning() const { return false; }
 
@@ -649,7 +651,7 @@ struct DereferencedForVoidPtr : std::false_type {};
 template <typename M>
 struct DereferencedForVoidPtr<M*> : std::true_type {};
 template <>
-struct DereferencedForVoidPtr<nullptr_t> : std::true_type {};
+struct DereferencedForVoidPtr<std::nullptr_t> : std::true_type {};
 template <typename M, typename Deleter>
 struct DereferencedForVoidPtr<std::unique_ptr<M, Deleter>> : std::true_type {};
 
@@ -659,9 +661,10 @@ struct DereferencedForVoidPtr<std::unique_ptr<M, Deleter>> : std::true_type {};
 // an owned dependency stored by value.
 //
 // If `P` is possibly cv-qualified `void`, then `Dependency<P*, Manager>`
-// has an ambiguous interpretation for `Manager` being `M*`, `nullptr_t`, or
-// `std::unique_ptr<M, Deleter>`. The ambiguity is resolved in favor of pointing
-// the `void*` to the dereferenced `M`, not to the `Manager` object itself.
+// has an ambiguous interpretation for `Manager` being `M*`, `std::nullptr_t`,
+// or `std::unique_ptr<M, Deleter>`. The ambiguity is resolved in favor of
+// pointing the `void*` to the dereferenced `M`, not to the `Manager` object
+// itself.
 template <typename P, typename M>
 class DependencyImpl<
     P*, M,

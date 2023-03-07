@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <atomic>
+#include <cstddef>
 #include <type_traits>
 #include <utility>
 
@@ -53,7 +54,7 @@ class
  public:
   // Creates an empty `RefCountedPtr`.
   constexpr RefCountedPtr() = default;
-  /*implicit*/ constexpr RefCountedPtr(nullptr_t) noexcept {}
+  /*implicit*/ constexpr RefCountedPtr(std::nullptr_t) noexcept {}
 
   // Creates a `RefCountedPtr` taking ownership of `ptr`.
   explicit RefCountedPtr(T* ptr) noexcept : ptr_(ptr) {}
@@ -117,16 +118,16 @@ class
   friend bool operator!=(const RefCountedPtr& a, const RefCountedPtr& b) {
     return a.get() != b.get();
   }
-  friend bool operator==(const RefCountedPtr& a, nullptr_t) {
+  friend bool operator==(const RefCountedPtr& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
-  friend bool operator!=(const RefCountedPtr& a, nullptr_t) {
+  friend bool operator!=(const RefCountedPtr& a, std::nullptr_t) {
     return a.get() != nullptr;
   }
-  friend bool operator==(nullptr_t, const RefCountedPtr& b) {
+  friend bool operator==(std::nullptr_t, const RefCountedPtr& b) {
     return nullptr == b.get();
   }
-  friend bool operator!=(nullptr_t, const RefCountedPtr& b) {
+  friend bool operator!=(std::nullptr_t, const RefCountedPtr& b) {
     return nullptr != b.get();
   }
 

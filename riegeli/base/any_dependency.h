@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <cstddef>
 #include <new>
 #include <tuple>
 #include <type_traits>
@@ -335,22 +336,22 @@ class
   // `nullptr`.
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(const AnyDependencyImpl& a, nullptr_t) {
+  friend bool operator==(const AnyDependencyImpl& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(const AnyDependencyImpl& a, nullptr_t) {
+  friend bool operator!=(const AnyDependencyImpl& a, std::nullptr_t) {
     return a.get() != nullptr;
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(nullptr_t, const AnyDependencyImpl& b) {
+  friend bool operator==(std::nullptr_t, const AnyDependencyImpl& b) {
     return nullptr == b.get();
   }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(nullptr_t, const AnyDependencyImpl& b) {
+  friend bool operator!=(std::nullptr_t, const AnyDependencyImpl& b) {
     return nullptr != b.get();
   }
 
