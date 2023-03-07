@@ -17,6 +17,9 @@
 
 #include <fcntl.h>
 #include <stdint.h>
+#ifdef _WIN32
+#include <sys/stat.h>
+#endif
 #include <sys/types.h>
 
 #include <string>
