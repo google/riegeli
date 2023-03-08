@@ -1006,9 +1006,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 
 // Copy tag from `*node` to `dest`.
 template <size_t tag_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool CopyTagCallback(Node* node,
-                                                  BackwardWriter& dest,
-                                                  TransposeDecoder& decoder) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback(
+    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
   if (ABSL_PREDICT_FALSE(
           !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
     return decoder.Fail(dest.status());
@@ -1018,9 +1017,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE bool CopyTagCallback(Node* node,
 
 // Decode varint value from `*node` to `dest`.
 template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool VarintCallback(Node* node,
-                                                 BackwardWriter& dest,
-                                                 TransposeDecoder& decoder) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback(
+    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
   if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
     return decoder.Fail(dest.status());
   }
@@ -1040,9 +1038,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE bool VarintCallback(Node* node,
 
 // Decode fixed32 or fixed64 value from `*node` to `dest`.
 template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedCallback(Node* node,
-                                                BackwardWriter& dest,
-                                                TransposeDecoder& decoder) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedCallback(
+    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
   if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
     return decoder.Fail(dest.status());
   }
@@ -1059,7 +1056,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedCallback(Node* node,
 
 // Create zero fixed32 or fixed64 value in `dest`.
 template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedExistenceCallback(
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedExistenceCallback(
     Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
   if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
     return decoder.Fail(dest.status());
@@ -1073,9 +1070,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedExistenceCallback(
 
 // Decode string value from `*node` to `dest`.
 template <size_t tag_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback(Node* node,
-                                                 BackwardWriter& dest,
-                                                 TransposeDecoder& decoder) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StringCallback(
+    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
   node->buffer->Pull(kMaxLengthVarint32);
   uint32_t length;
   const absl::optional<const char*> cursor =
