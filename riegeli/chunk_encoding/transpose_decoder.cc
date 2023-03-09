@@ -1134,7 +1134,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
       case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
         ++skipped_submessage_level;
-        goto do_transition;
+        break;
 
       case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
         if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
@@ -1142,12 +1142,12 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
               absl::InvalidArgumentError("Skipped submessage stack underflow"));
         }
         --skipped_submessage_level;
-        goto do_transition;
+        break;
 
       case chunk_encoding_internal::CallbackType::kSubmessageEnd:
         submessage_stack.push_back(
             {IntCast<size_t>(dest.pos()), node->tag_data});
-        goto do_transition;
+        break;
 
       case chunk_encoding_internal::CallbackType::kSubmessageStart: {
         if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
@@ -1170,104 +1170,103 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
           return Fail(dest.status());
         }
         submessage_stack.pop_back();
-      }
-        goto do_transition;
+      } break;
 
 #define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
   case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:           \
     if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 1>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 2>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 3>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 4>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 5>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 6>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 7>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 8>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:          \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 9>(node, dest, *this)))) {            \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:         \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!VarintCallback<tag_length, 10>(node, dest, *this)))) {           \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:           \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!FixedCallback<tag_length, 4>(node, dest, *this)))) {             \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:           \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!FixedCallback<tag_length, 8>(node, dest, *this)))) {             \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length:  \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!FixedExistenceCallback<tag_length, 4>(node, dest, *this)))) {    \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length:  \
     if (ABSL_PREDICT_FALSE(                                                    \
             (!FixedExistenceCallback<tag_length, 8>(node, dest, *this)))) {    \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::kString_##tag_length:            \
     if (ABSL_PREDICT_FALSE(!StringCallback<tag_length>(node, dest, *this))) {  \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::                                 \
       kStartProjectionGroup_##tag_length:                                      \
     if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                        \
@@ -1277,14 +1276,14 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
     if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
       return false;                                                            \
     }                                                                          \
-    goto do_transition;                                                        \
+    break;                                                                     \
   case chunk_encoding_internal::CallbackType::                                 \
       kEndProjectionGroup_##tag_length:                                        \
     submessage_stack.push_back({IntCast<size_t>(dest.pos()), node->tag_data}); \
     if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
       return false;                                                            \
     }                                                                          \
-    goto do_transition
+    break
 
         ACTIONS_FOR_TAG_LEN(1);
         ACTIONS_FOR_TAG_LEN(2);
@@ -1297,7 +1296,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         if (ABSL_PREDICT_FALSE(!CopyTagCallback<6>(node, dest, *this))) {
           return false;
         }
-        goto do_transition;
+        break;
 
       case chunk_encoding_internal::CallbackType::kUnknown:
       case chunk_encoding_internal::CallbackType::kFailure:
@@ -1327,37 +1326,34 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
           return Fail(absl::InvalidArgumentError("Too many records"));
         }
         limits.push_back(IntCast<size_t>(dest.pos()));
-        ABSL_FALLTHROUGH_INTENDED;
+        break;
 
       case chunk_encoding_internal::CallbackType::kNoOp:
-      do_transition:
-        node = node->next_node;
-        if (num_iters == 0) {
-          uint8_t transition_byte;
-          if (ABSL_PREDICT_FALSE(
-                  !transitions_reader.ReadByte(transition_byte))) {
-            goto done;
-          }
-          node += (transition_byte >> 2);
-          num_iters = transition_byte & 3;
-          if (chunk_encoding_internal::IsImplicit(node->callback_type)) {
-            ++num_iters;
-          }
-        } else {
-          if (!chunk_encoding_internal::IsImplicit(node->callback_type)) {
-            --num_iters;
-          }
-        }
-        continue;
+        break;
 
       // `chunk_encoding_internal::CallbackType::kImplicit` is masked out.
       default:
         RIEGELI_ASSERT_UNREACHABLE() << "Unknown callback type: "
                                      << static_cast<int>(node->callback_type);
     }
+    node = node->next_node;
+    if (num_iters == 0) {
+      uint8_t transition_byte;
+      if (ABSL_PREDICT_FALSE(!transitions_reader.ReadByte(transition_byte))) {
+        break;
+      }
+      node += (transition_byte >> 2);
+      num_iters = transition_byte & 3;
+      if (chunk_encoding_internal::IsImplicit(node->callback_type)) {
+        ++num_iters;
+      }
+    } else {
+      if (!chunk_encoding_internal::IsImplicit(node->callback_type)) {
+        --num_iters;
+      }
+    }
   }
 
-done:
   if (ABSL_PREDICT_FALSE(!context.transitions.VerifyEndAndClose())) {
     return Fail(context.transitions.status());
   }

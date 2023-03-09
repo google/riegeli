@@ -250,7 +250,6 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
-        "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:limiting_backward_writer",
