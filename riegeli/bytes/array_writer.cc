@@ -69,7 +69,7 @@ bool ArrayWriterBase::SeekBehindScratch(Position new_pos) {
     return false;
   }
   written_ = absl::MakeSpan(start(), size);
-  set_cursor(start() + new_pos);
+  set_cursor(start() + IntCast<size_t>(new_pos));
   return true;
 }
 
@@ -91,8 +91,8 @@ bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
     set_cursor(start() + size);
     return false;
   }
-  written_ = absl::MakeSpan(start(), new_size);
-  set_cursor(start() + new_size);
+  written_ = absl::MakeSpan(start(), IntCast<size_t>(new_size));
+  set_cursor(start() + IntCast<size_t>(new_size));
   return true;
 }
 

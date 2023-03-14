@@ -18,6 +18,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 
@@ -49,7 +50,7 @@ bool ArrayBackwardWriterBase::TruncateBehindScratch(Position new_size) {
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(new_size > start_to_cursor())) return false;
-  set_cursor(start() - new_size);
+  set_cursor(start() - IntCast<size_t>(new_size));
   return true;
 }
 

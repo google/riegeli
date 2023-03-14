@@ -35,9 +35,15 @@
 namespace riegeli {
 
 void BufferedWriter::Done() {
-  const absl::string_view src(start(), start_to_cursor());
+  const absl::string_view src(start(),
+                              UnsignedMax(start_to_cursor(), written_));
+  const Position new_pos = pos();
   set_buffer();
+  written_ = 0;
   DoneBehindBuffer(src);
+  if (ABSL_PREDICT_FALSE(start_pos() != new_pos) && ABSL_PREDICT_TRUE(ok())) {
+    SeekBehindBuffer(new_pos);
+  }
   Writer::Done();
   buffer_ = Buffer();
 }
@@ -50,11 +56,18 @@ void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
 }
 
 inline bool BufferedWriter::SyncBuffer() {
-  const absl::string_view data(start(), start_to_cursor());
+  const absl::string_view data(start(),
+                               UnsignedMax(start_to_cursor(), written_));
+  const Position new_pos = pos();
   set_buffer();
+  written_ = 0;
   if (data.empty()) return true;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  return WriteInternal(data);
+  if (ABSL_PREDICT_FALSE(!WriteInternal(data))) return false;
+  if (ABSL_PREDICT_FALSE(start_pos() != new_pos)) {
+    return SeekBehindBuffer(new_pos);
+  }
+  return true;
 }
 
 void BufferedWriter::SetWriteSizeHintImpl(
@@ -149,10 +162,16 @@ bool BufferedWriter::WriteZerosSlow(Position length) {
 }
 
 bool BufferedWriter::FlushImpl(FlushType flush_type) {
-  buffer_sizer_.EndRun(pos());
-  const absl::string_view src(start(), start_to_cursor());
+  buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
+  const absl::string_view src(start(),
+                              UnsignedMax(start_to_cursor(), written_));
+  const Position new_pos = pos();
   set_buffer();
+  written_ = 0;
   if (ABSL_PREDICT_FALSE(!FlushBehindBuffer(src, flush_type))) return false;
+  if (ABSL_PREDICT_FALSE(start_pos() != new_pos)) {
+    if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
+  }
   buffer_sizer_.BeginRun(start_pos());
   return true;
 }
@@ -161,7 +180,14 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
-  buffer_sizer_.EndRun(pos());
+  if (ABSL_PREDICT_TRUE(
+          SupportsRandomAccess() && new_pos >= start_pos() &&
+          new_pos <= start_pos() + UnsignedMax(start_to_cursor(), written_))) {
+    written_ = UnsignedMax(start_to_cursor(), written_);
+    set_cursor(start() + IntCast<size_t>(new_pos - start_pos()));
+    return true;
+  }
+  buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
   buffer_sizer_.BeginRun(start_pos());
@@ -169,7 +195,7 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> BufferedWriter::SizeImpl() {
-  buffer_sizer_.EndRun(pos());
+  buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return absl::nullopt;
   const absl::optional<Position> size = SizeBehindBuffer();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
@@ -178,7 +204,7 @@ absl::optional<Position> BufferedWriter::SizeImpl() {
 }
 
 bool BufferedWriter::TruncateImpl(Position new_size) {
-  buffer_sizer_.EndRun(pos());
+  buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   if (ABSL_PREDICT_FALSE(!TruncateBehindBuffer(new_size))) return false;
   buffer_sizer_.BeginRun(start_pos());
@@ -186,7 +212,7 @@ bool BufferedWriter::TruncateImpl(Position new_size) {
 }
 
 Reader* BufferedWriter::ReadModeImpl(Position initial_pos) {
-  buffer_sizer_.EndRun(pos());
+  buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return nullptr;
   Reader* const reader = ReadModeBehindBuffer(initial_pos);
   if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;

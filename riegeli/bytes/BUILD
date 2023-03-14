@@ -621,6 +621,7 @@ cc_library(
     hdrs = ["array_backward_writer.h"],
     deps = [
         ":pushable_backward_writer",
+        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:object",

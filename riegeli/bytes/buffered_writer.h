@@ -137,6 +137,8 @@ class BufferedWriter : public Writer {
   // Contains buffered data, to be written directly after the physical
   // destination position which is `start_pos()`.
   Buffer buffer_;
+  // Size of buffered data is `UnsignedMax(start_to_cursor(), written_)`.
+  size_t written_ = 0;
 };
 
 // Implementation details follow.
@@ -148,13 +150,15 @@ inline BufferedWriter::BufferedWriter(
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       buffer_sizer_(that.buffer_sizer_),
-      buffer_(std::move(that.buffer_)) {}
+      buffer_(std::move(that.buffer_)),
+      written_(that.written_) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   buffer_sizer_ = that.buffer_sizer_;
   buffer_ = std::move(that.buffer_);
+  written_ = that.written_;
   return *this;
 }
 
@@ -162,11 +166,13 @@ inline void BufferedWriter::Reset(Closed) {
   Writer::Reset(kClosed);
   buffer_sizer_.Reset();
   buffer_ = Buffer();
+  written_ = 0;
 }
 
 inline void BufferedWriter::Reset(const BufferOptions& buffer_options) {
   Writer::Reset();
   buffer_sizer_.Reset(buffer_options);
+  written_ = 0;
 }
 
 }  // namespace riegeli
