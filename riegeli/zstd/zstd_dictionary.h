@@ -18,6 +18,8 @@
 // IWYU pragma: private, include "riegeli/zstd/zstd_reader.h"
 // IWYU pragma: private, include "riegeli/zstd/zstd_writer.h"
 
+#include <stdint.h>
+
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -128,6 +130,9 @@ class ZstdDictionary {
   //
   // The dictionary is owned by `*this`.
   const ZSTD_DDict* PrepareDecompressionDictionary() const;
+
+  // Returns the dictionary ID, or 0 is no dictionary is present.
+  uint32_t DictId() const;
 
  private:
   enum class Ownership { kCopied, kUnowned };

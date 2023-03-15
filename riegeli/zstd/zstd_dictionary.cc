@@ -21,12 +21,15 @@
 
 #include "riegeli/zstd/zstd_dictionary.h"
 
+#include <stdint.h>
+
 #include <memory>
 #include <utility>
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "zstd.h"
 
@@ -87,6 +90,12 @@ ZstdDictionary::ZSTD_CDictHandle ZstdDictionary::PrepareCompressionDictionary(
 const ZSTD_DDict* ZstdDictionary::PrepareDecompressionDictionary() const {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareDecompressionDictionary();
+}
+
+uint32_t ZstdDictionary::DictId() const {
+  if (repr_ == nullptr) return 0;
+  return IntCast<uint32_t>(
+      ZSTD_getDictID_fromDict(repr_->data().data(), repr_->data().size()));
 }
 
 }  // namespace riegeli

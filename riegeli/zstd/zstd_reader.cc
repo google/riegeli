@@ -25,6 +25,7 @@
 #include "riegeli/zstd/zstd_reader.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 #include <memory>
@@ -339,6 +340,12 @@ absl::optional<Position> ZstdUncompressedSize(Reader& src) {
   if (header.frameType == ZSTD_skippableFrame) return 0;
   if (header.frameContentSize == ZSTD_CONTENTSIZE_UNKNOWN) return absl::nullopt;
   return IntCast<Position>(header.frameContentSize);
+}
+
+absl::optional<uint32_t> ZstdDictId(Reader& src) {
+  ZSTD_frameHeader header;
+  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return absl::nullopt;
+  return IntCast<uint32_t>(header.dictID);
 }
 
 }  // namespace riegeli

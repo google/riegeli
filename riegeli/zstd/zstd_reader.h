@@ -16,6 +16,7 @@
 #define RIEGELI_ZSTD_ZSTD_READER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <memory>
 #include <tuple>
@@ -230,6 +231,13 @@ bool RecognizeZstd(Reader& src);
 //
 // The current position of `src` is unchanged.
 absl::optional<Position> ZstdUncompressedSize(Reader& src);
+
+// Returns the dictionary ID needed to read `src`, or 0 if none is needed.
+//
+// Returns `absl::nullopt` on failure.
+//
+// The current position of `src` is unchanged.
+absl::optional<uint32_t> ZstdDictId(Reader& src);
 
 // Implementation details follow.
 
