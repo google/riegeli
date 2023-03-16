@@ -18,16 +18,22 @@
 
 #include <thread>
 
+#include "absl/time/time.h"  // IWYU pragma: keep
 #include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
-namespace recycling_pool_internal {
 
-size_t DefaultGlobalMaxSize() {
-  static const size_t kDefaultGlobalMaxSize = UnsignedMax(
-      kDefaultMaxSize, IntCast<size_t>(std::thread::hardware_concurrency()));
-  return kDefaultGlobalMaxSize;
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr size_t RecyclingPoolOptions::kDefaultMaxSize;
+constexpr absl::Duration RecyclingPoolOptions::kDefaultTimeout;
+#endif
+
+size_t RecyclingPoolOptions::DefaultMaxSizeSlow() {
+  return UnsignedMax(size_t{16},
+                     IntCast<size_t>(std::thread::hardware_concurrency()));
 }
 
-}  // namespace recycling_pool_internal
 }  // namespace riegeli

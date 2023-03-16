@@ -361,22 +361,6 @@ cc_library(
 )
 
 cc_library(
-    name = "recycling_pool",
-    srcs = ["recycling_pool.cc"],
-    hdrs = ["recycling_pool.h"],
-    deps = [
-        ":arithmetic",
-        ":assert",
-        ":constexpr",
-        ":no_destructor",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/synchronization",
-    ],
-)
-
-cc_library(
     name = "parallelism",
     srcs = ["parallelism.cc"],
     hdrs = ["parallelism.h"],
@@ -385,6 +369,39 @@ cc_library(
         ":assert",
         ":no_destructor",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "background_cleaning",
+    srcs = ["background_cleaning.cc"],
+    hdrs = ["background_cleaning.h"],
+    deps = [
+        ":assert",
+        ":no_destructor",
+        ":parallelism",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "recycling_pool",
+    srcs = ["recycling_pool.cc"],
+    hdrs = ["recycling_pool.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":background_cleaning",
+        ":no_destructor",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],

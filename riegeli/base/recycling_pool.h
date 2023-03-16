@@ -28,18 +28,81 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/meta/type_traits.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/constexpr.h"
+#include "riegeli/base/background_cleaning.h"
 #include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
 
-namespace recycling_pool_internal {
-RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMaxSize, 16);
-size_t DefaultGlobalMaxSize();
-}  // namespace recycling_pool_internal
+// Options for `RecyclingPool` and `KeyedRecyclingPool`.
+class RecyclingPoolOptions {
+ public:
+  RecyclingPoolOptions() = default;
+
+  // Maximum number of objects to keep in a pool.
+  //
+  // 0 effectively disables the pool: objects are destroyed immediately.
+  //
+  // Default: `DefaultMaxSize()`,
+  //          which is the maximum of 16 and hardware concurrency.
+  static size_t DefaultMaxSize();
+  RecyclingPoolOptions& set_max_size(size_t max_size) & {
+    max_size_ = max_size;
+    return *this;
+  }
+  RecyclingPoolOptions&& set_max_size(size_t max_size) && {
+    return std::move(set_max_size(max_size));
+  }
+  size_t max_size() const { return max_size_; }
+
+  // Maximum time for keeping an object in a pool. Objects idling for more than
+  // this will be evicted in a background thread.
+  //
+  // `absl::InfiniteDuration()` disables time-based eviction.
+  //
+  // `absl::ZeroDuration()` lets objects be destroyed right after they are no
+  // longer needed, but asynchronously, i.e. without blocking the calling
+  // thread.
+  //
+  // Default: `absl::InfiniteDuration()`.
+  // TODO: Change the default to `absl::Minutes(1)`.
+  static constexpr absl::Duration kDefaultMaxAge = absl::InfiniteDuration();
+  RecyclingPoolOptions& set_max_age(absl::Duration max_age) & {
+    max_age_ = max_age;
+    return *this;
+  }
+  RecyclingPoolOptions&& set_max_age(absl::Duration max_age) && {
+    return std::move(set_max_age(max_age));
+  }
+  absl::Duration max_age() const { return max_age_; }
+
+  friend bool operator==(const RecyclingPoolOptions& a,
+                         const RecyclingPoolOptions& b) {
+    return a.max_size_ == b.max_size_ && a.max_age_ == b.max_age_;
+  }
+  friend bool operator!=(const RecyclingPoolOptions& a,
+                         const RecyclingPoolOptions& b) {
+    return !(a == b);
+  }
+
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state,
+                                 const RecyclingPoolOptions& self) {
+    return HashState::combine(std::move(hash_state), self.max_size_,
+                              self.max_age_);
+  }
+
+ private:
+  static size_t DefaultMaxSizeSlow();
+
+  size_t max_size_ = DefaultMaxSize();
+  absl::Duration max_age_ = kDefaultMaxAge;
+};
 
 // `RecyclingPool<T, Deleter>` keeps a pool of idle objects of type `T`, so that
 // instead of creating a new object of type `T`, an existing object can be
@@ -51,7 +114,7 @@ size_t DefaultGlobalMaxSize();
 //
 // `RecyclingPool` is thread-safe.
 template <typename T, typename Deleter = std::default_delete<T>>
-class RecyclingPool {
+class RecyclingPool : public BackgroundCleanee {
  public:
   // A deleter which puts the object back into the pool.
   class Recycler;
@@ -71,28 +134,28 @@ class RecyclingPool {
     void operator()(T* ptr) const {}
   };
 
-  // The default value of the constructor argument (16).
-  static constexpr size_t kDefaultMaxSize =
-      recycling_pool_internal::kDefaultMaxSize;
+  explicit RecyclingPool(RecyclingPoolOptions options = RecyclingPoolOptions())
+      : options_(options), ring_buffer_by_age_(options.max_size()) {}
 
-  // The default value of the argument of `global()`.
-  //
-  // This is the maximum of 16 and the number of available threads.
-  static size_t DefaultGlobalMaxSize();
-
-  // Creates a pool with the given maximum number of objects to keep.
-  explicit RecyclingPool(size_t max_size = kDefaultMaxSize)
-      : max_size_(max_size), ring_buffer_by_freshness_(max_size) {}
+  ABSL_DEPRECATED("Use RecyclingPoolOptions instead")
+  explicit RecyclingPool(size_t max_size)
+      : RecyclingPool(RecyclingPoolOptions().set_max_size(max_size)) {}
 
   RecyclingPool(const RecyclingPool&) = delete;
   RecyclingPool& operator=(const RecyclingPool&) = delete;
 
+  ~RecyclingPool();
+
   // Returns a default global pool specific to template parameters of
-  // `RecyclingPool`.
+  // `RecyclingPool` and `options`.
+  static RecyclingPool& global(
+      RecyclingPoolOptions options = RecyclingPoolOptions());
+
+  // Uses a different `BackgroundCleaner` than `BackgroundCleaner::global()` for
+  // scheduling background cleaning. This is useful for testing.
   //
-  // If called multiple times with different `max_size` arguments, the largest
-  // `max_size` is in effect.
-  static RecyclingPool& global(size_t max_size = DefaultGlobalMaxSize());
+  // Precondition: `BackgroundCleaner` was not used yet.
+  void SetBackgroundCleaner(BackgroundCleaner* cleaner);
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
@@ -115,19 +178,25 @@ class RecyclingPool {
   // Puts an idle object into the pool for recycling.
   void RawPut(RawHandle object);
 
- private:
-  void EnsureMaxSize(size_t max_size) ABSL_LOCKS_EXCLUDED(mutex_);
+ protected:
+  void Clean(absl::Time now) override;
 
+ private:
+  struct Entry {
+    RawHandle object;
+    absl::Time deadline;
+  };
+
+  RecyclingPoolOptions options_;
+  // If not `nullptr` then `this` has been registered at `*cleaner_`.
+  BackgroundCleaner* cleaner_ = nullptr;
+  BackgroundCleaner::Token cleaner_token_;
   absl::Mutex mutex_;
-  // May be read without holding `mutex_`.
-  std::atomic<size_t> max_size_;
-  // All objects, ordered by freshness (older to newer).
+  // All objects, ordered by age (older to newer).
   size_t ring_buffer_end_ ABSL_GUARDED_BY(mutex_) = 0;
   size_t ring_buffer_size_ ABSL_GUARDED_BY(mutex_) = 0;
-  // Invariant:
-  //   `ring_buffer_by_freshness_.size() ==
-  //        max_size_.load(std::memory_order_relaxed)`
-  std::vector<RawHandle> ring_buffer_by_freshness_ ABSL_GUARDED_BY(mutex_);
+  // Invariant: `ring_buffer_by_age_.size() == options_.max_size()`
+  std::vector<Entry> ring_buffer_by_age_ ABSL_GUARDED_BY(mutex_);
 };
 
 // `KeyedRecyclingPool<T, Key, Deleter>` keeps a pool of idle objects of type
@@ -145,7 +214,7 @@ class RecyclingPool {
 //
 // `KeyedRecyclingPool` is thread-safe.
 template <typename T, typename Key, typename Deleter = std::default_delete<T>>
-class KeyedRecyclingPool {
+class KeyedRecyclingPool : public BackgroundCleanee {
  public:
   // A deleter which puts the object back into the pool.
   class Recycler;
@@ -165,28 +234,25 @@ class KeyedRecyclingPool {
     void operator()(T* ptr) const {}
   };
 
-  // The default value of the constructor argument (16).
-  static constexpr size_t kDefaultMaxSize =
-      recycling_pool_internal::kDefaultMaxSize;
-
-  // The default value of the argument of `global()`.
-  //
-  // This is the maximum of 16 and the number of available threads.
-  static size_t DefaultGlobalMaxSize();
-
-  // Creates a pool with the given maximum number of objects to keep.
-  explicit KeyedRecyclingPool(size_t max_size = kDefaultMaxSize)
-      : max_size_(max_size), cache_(by_key_.end()) {}
+  explicit KeyedRecyclingPool(
+      RecyclingPoolOptions options = RecyclingPoolOptions())
+      : options_(options) {}
 
   KeyedRecyclingPool(const KeyedRecyclingPool&) = delete;
   KeyedRecyclingPool& operator=(const KeyedRecyclingPool&) = delete;
 
+  ~KeyedRecyclingPool();
+
   // Returns a default global pool specific to template parameters of
-  // `KeyedRecyclingPool`.
+  // `KeyedRecyclingPool` and `options`.
+  static KeyedRecyclingPool& global(
+      RecyclingPoolOptions options = RecyclingPoolOptions());
+
+  // Uses a different `BackgroundCleaner` than `BackgroundCleaner::global()` for
+  // scheduling background cleaning. This is useful for testing.
   //
-  // If called multiple times with different `max_size` arguments, the largest
-  // `max_size` is in effect.
-  static KeyedRecyclingPool& global(size_t max_size = DefaultGlobalMaxSize());
+  // Precondition: `BackgroundCleaner` was not used yet.
+  void SetBackgroundCleaner(BackgroundCleaner* cleaner);
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
@@ -209,42 +275,59 @@ class KeyedRecyclingPool {
   // Puts an idle object into the pool for recycling.
   void RawPut(const Key& key, RawHandle object);
 
- private:
-  // Adding or removing elements in `ByFreshness` must not invalidate other
-  // iterators.
-  using ByFreshness = std::list<Key>;
+ protected:
+  void Clean(absl::Time now) override;
 
-  struct Entry {
-    Entry(RawHandle object, typename ByFreshness::iterator by_freshness_iter)
-        : object(std::move(object)), by_freshness_iter(by_freshness_iter) {}
+ private:
+  struct ByAgeEntry {
+    explicit ByAgeEntry(const Key& key, absl::Time deadline)
+        : key(key), deadline(deadline) {}
+
+    Key key;
+    absl::Time deadline;
+  };
+
+  // Adding or removing elements in `ByAge` must not invalidate other iterators.
+  using ByAge = std::list<ByAgeEntry>;
+
+  struct ByKeyEntry {
+    ByKeyEntry(RawHandle object, typename ByAge::iterator by_age_iter)
+        : object(std::move(object)), by_age_iter(by_age_iter) {}
 
     RawHandle object;
-    typename ByFreshness::iterator by_freshness_iter;
+    typename ByAge::iterator by_age_iter;
   };
 
   // `std::list` has a smaller overhead than `std::deque` for short sequences.
-  using Entries = std::list<Entry>;
+  using ByKeyEntries = std::list<ByKeyEntry>;
 
-  using ByKey = absl::flat_hash_map<Key, Entries>;
+  using ByKey = absl::flat_hash_map<Key, ByKeyEntries>;
 
-  void EnsureMaxSize(size_t max_size);
-
-  std::atomic<size_t> max_size_;
+  RecyclingPoolOptions options_;
+  // If not `nullptr` then `this` has been registered at `*cleaner_`.
+  BackgroundCleaner* cleaner_ = nullptr;
+  BackgroundCleaner::Token cleaner_token_;
   absl::Mutex mutex_;
-  // The key of each object, ordered by the freshness of the object (older to
+  // The key of each object, ordered by the age of the object (older to
   // newer).
-  ByFreshness by_freshness_ ABSL_GUARDED_BY(mutex_);
+  ByAge by_age_ ABSL_GUARDED_BY(mutex_);
   // Objects grouped by their keys. Within each map value the list of objects is
-  // non-empty and is ordered by their freshness (older to newer). Each object
-  // is associated with the matching `by_freshness_` iterator.
+  // non-empty and is ordered by their age (older to newer). Each object is
+  // associated with the matching `by_age_` iterator.
   ByKey by_key_ ABSL_GUARDED_BY(mutex_);
   // Optimization for `Get()` followed by `Put()` with a matching key.
-  // If `cache_ != by_key_.end()`, then `cache_->second.back().object` is
-  // replaced with `nullptr` instead of erasing its entries.
-  typename ByKey::iterator cache_ ABSL_GUARDED_BY(mutex_);
+  // If `cache_ != by_key_.end()`, then `cache_->second.back().object` was
+  // replaced with `nullptr` instead of erasing the corresponding entries,
+  // to avoid allocating them again if a matching objects is put again.
+  typename ByKey::iterator cache_ ABSL_GUARDED_BY(mutex_) = by_key_.end();
 };
 
 // Implementation details follow.
+
+inline size_t RecyclingPoolOptions::DefaultMaxSize() {
+  static const size_t kDefaultMaxSize = DefaultMaxSizeSlow();
+  return kDefaultMaxSize;
+}
 
 namespace recycling_pool_internal {
 
@@ -324,40 +407,51 @@ class RecyclingPool<T, Deleter>::Recycler {
 };
 
 template <typename T, typename Deleter>
-inline size_t RecyclingPool<T, Deleter>::DefaultGlobalMaxSize() {
-  return recycling_pool_internal::DefaultGlobalMaxSize();
+RecyclingPool<T, Deleter>::~RecyclingPool() {
+  if (cleaner_ != nullptr) cleaner_->Unregister(cleaner_token_);
 }
 
 template <typename T, typename Deleter>
-RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(size_t max_size) {
-  static NoDestructor<RecyclingPool> kStaticRecyclingPool(max_size);
-  kStaticRecyclingPool->EnsureMaxSize(max_size);
-  return *kStaticRecyclingPool;
+RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
+    RecyclingPoolOptions options) {
+  class Pools {
+   public:
+    RecyclingPool& GetPool(RecyclingPoolOptions options) {
+      std::pair<const RecyclingPoolOptions, RecyclingPool>* cached =
+          cache_.load(std::memory_order_acquire);
+      if (ABSL_PREDICT_FALSE(cached == nullptr || cached->first != options)) {
+        absl::MutexLock lock(&mutex_);
+        const auto iter = pools_.try_emplace(options, options).first;
+        cached = &*iter;
+        cache_.store(cached, std::memory_order_release);
+      }
+      return cached->second;
+    }
+
+   private:
+    // If not `nullptr`, points to the most recently returned node from
+    // `pools_`.
+    std::atomic<std::pair<const RecyclingPoolOptions, RecyclingPool>*> cache_{
+        nullptr};
+    absl::Mutex mutex_;
+    // Pointer stability required for `GetPool()`, node stability required for
+    // `cache_`.
+    absl::node_hash_map<RecyclingPoolOptions, RecyclingPool> pools_
+        ABSL_GUARDED_BY(mutex_);
+  };
+
+  static NoDestructor<Pools> kPools;
+  return kPools->GetPool(options);
 }
 
 template <typename T, typename Deleter>
-inline void RecyclingPool<T, Deleter>::EnsureMaxSize(size_t max_size) {
-  if (ABSL_PREDICT_FALSE(max_size_.load(std::memory_order_relaxed) >=
-                         max_size)) {
-    return;
-  }
-  absl::MutexLock lock(&mutex_);
-  if (ABSL_PREDICT_FALSE(max_size_.load(std::memory_order_relaxed) >=
-                         max_size)) {
-    return;
-  }
-  const size_t old_size =
-      max_size_.exchange(max_size, std::memory_order_relaxed);
-  std::vector<RawHandle> new_ring_buffer(max_size);
-  size_t old_idx = ring_buffer_end_;
-  ring_buffer_end_ = ring_buffer_size_;
-  size_t new_idx = ring_buffer_end_;
-  while (new_idx > 0) {
-    old_idx = old_idx == 0 ? old_size - 1 : old_idx - 1;
-    --new_idx;
-    new_ring_buffer[new_idx] = std::move(ring_buffer_by_freshness_[old_idx]);
-  }
-  ring_buffer_by_freshness_ = std::move(new_ring_buffer);
+void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
+    BackgroundCleaner* cleaner) {
+  RIEGELI_ASSERT(cleaner_ == nullptr)
+      << "Failed precondition of RecyclingPool::SetBackgroundCleaner(): "
+         "BackgroundCleaner was already used";
+  cleaner_ = cleaner;
+  cleaner_token_ = cleaner_->Register(this);
 }
 
 template <typename T, typename Deleter>
@@ -378,12 +472,11 @@ typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
   {
     absl::MutexLock lock(&mutex_);
     if (ABSL_PREDICT_TRUE(ring_buffer_size_ > 0)) {
-      ring_buffer_end_ = ring_buffer_end_ == 0
-                             ? max_size_.load(std::memory_order_relaxed) - 1
-                             : ring_buffer_end_ - 1;
-      // Return the newest entry.
-      returned = std::move(ring_buffer_by_freshness_[ring_buffer_end_]);
+      if (ring_buffer_end_ == 0) ring_buffer_end_ = options_.max_size();
+      --ring_buffer_end_;
       --ring_buffer_size_;
+      // Return the newest entry.
+      returned = std::move(ring_buffer_by_age_[ring_buffer_end_].object);
     }
   }
   if (ABSL_PREDICT_TRUE(returned != nullptr)) {
@@ -396,19 +489,52 @@ typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
 
 template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
+  if (ABSL_PREDICT_FALSE(options_.max_size() == 0)) return;
   RawHandle evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry. Evict the oldest entry if the pool is full.
-  if (ABSL_PREDICT_FALSE(ring_buffer_by_freshness_.empty())) return;
-  evicted = std::exchange(ring_buffer_by_freshness_[ring_buffer_end_],
-                          std::move(object));
-  ring_buffer_end_ =
-      ring_buffer_end_ + 1 == max_size_.load(std::memory_order_relaxed)
-          ? 0
-          : ring_buffer_end_ + 1;
-  if (ABSL_PREDICT_TRUE(ring_buffer_size_ <
-                        max_size_.load(std::memory_order_relaxed))) {
+  absl::Time deadline = absl::InfiniteFuture();
+  if (options_.max_age() != absl::InfiniteDuration()) {
+    if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
+      cleaner_ = &BackgroundCleaner::global();
+      cleaner_token_ = cleaner_->Register(this);
+    }
+    deadline = cleaner_->TimeNow() + options_.max_age();
+  }
+  Entry& entry = ring_buffer_by_age_[ring_buffer_end_];
+  evicted = std::exchange(entry.object, std::move(object));
+  entry.deadline = deadline;
+  ++ring_buffer_end_;
+  if (ring_buffer_end_ == options_.max_size()) ring_buffer_end_ = 0;
+  if (ABSL_PREDICT_TRUE(ring_buffer_size_ < options_.max_size())) {
     ++ring_buffer_size_;
+  }
+  // If `deadline == absl::InfiniteFuture()` then `cleaner_` might be
+  // `nullptr`.
+  if (ring_buffer_size_ == 1 && deadline != absl::InfiniteFuture()) {
+    cleaner_->ScheduleCleaning(cleaner_token_, deadline);
+  }
+  // Destroy `evicted` after releasing `mutex_`.
+}
+
+template <typename T, typename Deleter>
+void RecyclingPool<T, Deleter>::Clean(absl::Time now) {
+  absl::InlinedVector<RawHandle, 16> evicted;
+  absl::MutexLock lock(&mutex_);
+  size_t index = ring_buffer_end_;
+  if (index < ring_buffer_size_) index += options_.max_size();
+  index -= ring_buffer_size_;
+  while (ring_buffer_size_ > 0) {
+    Entry& entry = ring_buffer_by_age_[index];
+    if (entry.deadline > now) {
+      cleaner_->ScheduleCleaning(cleaner_token_, entry.deadline);
+      break;
+    }
+    // Evict the oldest entry.
+    evicted.push_back(std::move(entry.object));
+    ++index;
+    if (index == options_.max_size()) index = 0;
+    --ring_buffer_size_;
   }
   // Destroy `evicted` after releasing `mutex_`.
 }
@@ -440,27 +566,51 @@ class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
 };
 
 template <typename T, typename Key, typename Deleter>
-inline size_t KeyedRecyclingPool<T, Key, Deleter>::DefaultGlobalMaxSize() {
-  return recycling_pool_internal::DefaultGlobalMaxSize();
+KeyedRecyclingPool<T, Key, Deleter>::~KeyedRecyclingPool() {
+  if (cleaner_ != nullptr) cleaner_->Unregister(cleaner_token_);
 }
 
 template <typename T, typename Key, typename Deleter>
 KeyedRecyclingPool<T, Key, Deleter>&
-KeyedRecyclingPool<T, Key, Deleter>::global(size_t max_size) {
-  static NoDestructor<KeyedRecyclingPool> kStaticKeyedRecyclingPool(max_size);
-  kStaticKeyedRecyclingPool->EnsureMaxSize(max_size);
-  return *kStaticKeyedRecyclingPool;
+KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
+  class Pools {
+   public:
+    KeyedRecyclingPool& GetPool(RecyclingPoolOptions options) {
+      std::pair<const RecyclingPoolOptions, KeyedRecyclingPool>* cached =
+          cache_.load(std::memory_order_acquire);
+      if (ABSL_PREDICT_FALSE(cached == nullptr || cached->first != options)) {
+        absl::MutexLock lock(&mutex_);
+        const auto iter = pools_.try_emplace(options, options).first;
+        cached = &*iter;
+        cache_.store(cached, std::memory_order_release);
+      }
+      return cached->second;
+    }
+
+   private:
+    // If not `nullptr`, points to the most recently returned node from
+    // `pools_`.
+    std::atomic<std::pair<const RecyclingPoolOptions, KeyedRecyclingPool>*>
+        cache_{nullptr};
+    absl::Mutex mutex_;
+    // Pointer stability required for `GetPool()`, node stability required for
+    // `cache_`.
+    absl::node_hash_map<RecyclingPoolOptions, KeyedRecyclingPool> pools_
+        ABSL_GUARDED_BY(mutex_);
+  };
+
+  static NoDestructor<Pools> kPools;
+  return kPools->GetPool(options);
 }
 
 template <typename T, typename Key, typename Deleter>
-inline void KeyedRecyclingPool<T, Key, Deleter>::EnsureMaxSize(
-    size_t max_size) {
-  size_t previous_size = max_size_.load(std::memory_order_relaxed);
-  while (ABSL_PREDICT_FALSE(previous_size < max_size)) {
-    if (max_size_.compare_exchange_weak(previous_size, max_size,
-                                        std::memory_order_relaxed))
-      break;
-  }
+void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
+    BackgroundCleaner* cleaner) {
+  RIEGELI_ASSERT(cleaner_ == nullptr)
+      << "Failed precondition of KeyedRecyclingPool::SetBackgroundCleaner(): "
+         "BackgroundCleaner was already used";
+  cleaner_ = cleaner;
+  cleaner_token_ = cleaner_->Register(this);
 }
 
 template <typename T, typename Key, typename Deleter>
@@ -485,28 +635,28 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
     absl::MutexLock lock(&mutex_);
     if (cache_ != by_key_.end()) {
       // Finish erasing the cached entry.
-      Entries& entries = cache_->second;
-      RIEGELI_ASSERT(!entries.empty())
+      ByKeyEntries& by_key_entries = cache_->second;
+      RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(entries.back().object == nullptr)
+      RIEGELI_ASSERT(by_key_entries.back().object == nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "non-nullptr object pointed to by cache_";
-      by_freshness_.erase(entries.back().by_freshness_iter);
-      entries.pop_back();
-      if (entries.empty()) by_key_.erase(cache_);
+      by_age_.erase(by_key_entries.back().by_age_iter);
+      by_key_entries.pop_back();
+      if (by_key_entries.empty()) by_key_.erase(cache_);
     }
     const typename ByKey::iterator by_key_iter = by_key_.find(key);
     if (ABSL_PREDICT_TRUE(by_key_iter != by_key_.end())) {
       // Return the newest entry with this key.
-      Entries& entries = by_key_iter->second;
-      RIEGELI_ASSERT(!entries.empty())
+      ByKeyEntries& by_key_entries = by_key_iter->second;
+      RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(entries.back().object != nullptr)
+      RIEGELI_ASSERT(by_key_entries.back().object != nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "nullptr object not pointed to by cache_";
-      returned = std::move(entries.back().object);
+      returned = std::move(by_key_entries.back().object);
     }
     cache_ = by_key_iter;
   }
@@ -521,54 +671,131 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
 template <typename T, typename Key, typename Deleter>
 void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
                                                  RawHandle object) {
+  if (ABSL_PREDICT_FALSE(options_.max_size() == 0)) return;
   RawHandle evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry with this key.
+  absl::Time deadline = absl::InfiniteFuture();
+  if (options_.max_age() != absl::InfiniteDuration()) {
+    if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
+      cleaner_ = &BackgroundCleaner::global();
+      cleaner_token_ = cleaner_->Register(this);
+    }
+    deadline = cleaner_->TimeNow() + options_.max_age();
+  }
   if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
-    Entries& entries = cache_->second;
-    RIEGELI_ASSERT(!entries.empty())
+    ByKeyEntries& by_key_entries = cache_->second;
+    RIEGELI_ASSERT(!by_key_entries.empty())
         << "Failed invariant of KeyedRecyclingPool: "
            "empty by_key_ value";
+    RIEGELI_ASSERT(by_key_entries.back().object == nullptr)
+        << "Failed invariant of KeyedRecyclingPool: "
+           "non-nullptr object pointed to by cache_";
     if (ABSL_PREDICT_TRUE(cache_->first == key)) {
-      // `cache_` hit. Set the object pointer again.
-      RIEGELI_ASSERT(entries.back().object == nullptr)
-          << "Failed invariant of KeyedRecyclingPool: "
-             "non-nullptr object pointed to by cache_";
-      entries.back().object = std::move(object);
-      cache_ = by_key_.end();
-      return;
+      // `cache_` hit. Set the object pointer again, move the entry to the end
+      // of `by_age_`, and update its deadline.
+      ByKeyEntry& by_key_entry = by_key_entries.back();
+      by_key_entry.object = std::move(object);
+      by_age_.splice(by_age_.end(), by_age_, by_key_entry.by_age_iter);
+      by_key_entry.by_age_iter->deadline = deadline;
+      goto done;
     }
     // `cache_` miss. Finish erasing the cached entry.
-    by_freshness_.erase(entries.back().by_freshness_iter);
-    entries.pop_back();
-    if (entries.empty()) by_key_.erase(cache_);
+    by_age_.erase(by_key_entries.back().by_age_iter);
+    by_key_entries.pop_back();
+    if (by_key_entries.empty()) by_key_.erase(cache_);
   }
-  by_freshness_.push_back(key);
-  typename ByFreshness::iterator by_freshness_iter = by_freshness_.end();
-  --by_freshness_iter;
-  // This invalidates `by_key_` iterators, including `cache_`.
-  by_key_[key].emplace_back(std::move(object), by_freshness_iter);
-  if (ABSL_PREDICT_FALSE(by_freshness_.size() >
-                         max_size_.load(std::memory_order_relaxed))) {
+  by_age_.emplace_back(key, deadline);
+  // Local scope so that `goto done` does not jump into the scope of
+  // `by_age_iter`.
+  {
+    typename ByAge::iterator by_age_iter = by_age_.end();
+    --by_age_iter;
+    // This invalidates `by_key_` iterators, including `cache_`.
+    by_key_[key].emplace_back(std::move(object), by_age_iter);
+  }
+  if (ABSL_PREDICT_FALSE(by_age_.size() > options_.max_size())) {
     // Evict the oldest entry.
-    const Key& evicted_key = by_freshness_.front();
-    const typename ByKey::iterator by_key_iter = by_key_.find(evicted_key);
+    const typename ByKey::iterator by_key_iter =
+        by_key_.find(by_age_.front().key);
     RIEGELI_ASSERT(by_key_iter != by_key_.end())
         << "Failed invariant of KeyedRecyclingPool: "
-           "a key from by_freshness_ absent in by_key_";
-    Entries& entries = by_key_iter->second;
-    RIEGELI_ASSERT(!entries.empty())
+           "a key from by_age_ absent in by_key_";
+    ByKeyEntries& by_key_entries = by_key_iter->second;
+    RIEGELI_ASSERT(!by_key_entries.empty())
         << "Failed invariant of KeyedRecyclingPool: "
            "empty by_key_ value";
-    RIEGELI_ASSERT(entries.back().object != nullptr)
+    RIEGELI_ASSERT(by_key_entries.front().object != nullptr)
         << "Failed invariant of KeyedRecyclingPool: "
            "nullptr object not pointed to by cache_";
-    evicted = std::move(entries.front().object);
-    entries.pop_front();
-    if (entries.empty()) by_key_.erase(by_key_iter);
-    by_freshness_.pop_front();
+    evicted = std::move(by_key_entries.front().object);
+    by_key_entries.pop_front();
+    if (by_key_entries.empty()) by_key_.erase(by_key_iter);
+    by_age_.pop_front();
   }
+done:
   cache_ = by_key_.end();
+  // If `deadline == absl::InfiniteFuture()` then `cleaner_` might be
+  // `nullptr`.
+  if (by_age_.size() == 1 && deadline != absl::InfiniteFuture()) {
+    cleaner_->ScheduleCleaning(cleaner_token_, deadline);
+  }
+  // Destroy `evicted` after releasing `mutex_`.
+}
+
+template <typename T, typename Key, typename Deleter>
+void KeyedRecyclingPool<T, Key, Deleter>::Clean(absl::Time now) {
+  absl::InlinedVector<RawHandle, 16> evicted;
+  absl::MutexLock lock(&mutex_);
+  for (; !by_age_.empty(); by_age_.pop_front()) {
+    const ByAgeEntry& by_age_entry = by_age_.front();
+    if (by_age_entry.deadline > now) {
+      if (cache_ != by_key_.end() && cache_->first == by_age_entry.key) {
+        const ByKeyEntries& by_key_entries = cache_->second;
+        RIEGELI_ASSERT(!by_key_entries.empty())
+            << "Failed invariant of KeyedRecyclingPool: "
+               "empty by_key_ value";
+        if (by_key_entries.front().object == nullptr) {
+          // Finish erasing the cached entry.
+          RIEGELI_ASSERT_EQ(by_key_entries.size(), 1u)
+              << "Failed invariant of KeyedRecyclingPool: "
+                 "nullptr object not at the end of by_key_ value";
+          by_key_.erase(cache_);
+          cache_ = by_key_.end();
+          continue;
+        }
+      }
+      cleaner_->ScheduleCleaning(cleaner_token_, by_age_entry.deadline);
+      break;
+    }
+    // Evict the oldest entry.
+    const typename ByKey::iterator by_key_iter = by_key_.find(by_age_entry.key);
+    RIEGELI_ASSERT(by_key_iter != by_key_.end())
+        << "Failed invariant of KeyedRecyclingPool: "
+           "a key from by_age_ absent in by_key_";
+    ByKeyEntries& by_key_entries = by_key_iter->second;
+    RIEGELI_ASSERT(!by_key_entries.empty())
+        << "Failed invariant of KeyedRecyclingPool: "
+           "empty by_key_ value";
+    if (by_key_entries.front().object == nullptr) {
+      // Finish erasing the cached entry.
+      RIEGELI_ASSERT(cache_ == by_key_iter)
+          << "Failed invariant of KeyedRecyclingPool: "
+             "nullptr object not pointed to by cache_";
+      RIEGELI_ASSERT(cache_->first == by_age_entry.key)
+          << "Failed invariant of KeyedRecyclingPool: "
+             "nullptr object not pointed to by cache_";
+      RIEGELI_ASSERT_EQ(by_key_entries.size(), 1u)
+          << "Failed invariant of KeyedRecyclingPool: "
+             "nullptr object not at the end of by_key_ value";
+      by_key_.erase(by_key_iter);
+      cache_ = by_key_.end();
+      continue;
+    }
+    evicted.push_back(std::move(by_key_entries.front().object));
+    by_key_entries.pop_front();
+    if (by_key_entries.empty()) by_key_.erase(by_key_iter);
+  }
   // Destroy `evicted` after releasing `mutex_`.
 }
 
