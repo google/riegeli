@@ -185,7 +185,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
               *end_of_sequence =
                   current_file_index_ == dataset()->filenames_.size();
               return ::tensorflow::Status(
-                  static_cast<::tensorflow::error::Code>(status.code()),
+                  static_cast<::tensorflow::errors::Code>(status.code()),
                   status.message());
             }
             // We have reached the end of the current file, so move on to the
