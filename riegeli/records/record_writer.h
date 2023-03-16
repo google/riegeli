@@ -425,7 +425,7 @@ class RecordWriterBase : public Object {
   };
 
   // `get()` returns the resolved value. Can block.
-  using FutureBool = std::shared_future<bool>;
+  using FutureStatus = std::shared_future<absl::Status>;
 
   ~RecordWriterBase();
 
@@ -486,15 +486,16 @@ class RecordWriterBase : public Object {
   bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Like `Flush()`, but if `Options::parallelism() > 0`, does not wait for
-  // background writing to complete. Returns a `FutureBool` which can be used to
-  // wait for background writing to complete.
+  // background writing to complete. Returns a `FutureStatus` which can be used
+  // to wait for background writing to complete.
   //
   // Like any member function, `FutureFlush()` must not be called concurrently
   // with other member functions, but there are no concurrency restrictions on
   // calling `get()` on the result.
   //
-  // `Flush()` is equivalent to `FutureFlush().get()`.
-  FutureBool FutureFlush(FlushType flush_type = FlushType::kFromProcess);
+  // `Flush()` is similar to `FutureFlush().get().ok()`, except that `Flush()`
+  // also propagates the status to the `RecordWriter`.
+  FutureStatus FutureFlush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the canonical position of the last record written.
   //

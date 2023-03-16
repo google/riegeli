@@ -184,7 +184,7 @@ class RecordWriterBase::Worker {
   virtual bool Flush(FlushType flush_type) = 0;
 
   // Precondition: chunk is not open.
-  virtual std::future<bool> FutureFlush(FlushType flush_type) = 0;
+  virtual FutureStatus FutureFlush(FlushType flush_type) = 0;
 
   virtual FutureRecordPosition LastPos() const = 0;
 
@@ -366,7 +366,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   void OpenChunk() override { chunk_encoder_->Clear(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
-  std::future<bool> FutureFlush(FlushType flush_type) override;
+  FutureStatus FutureFlush(FlushType flush_type) override;
   FutureRecordPosition LastPos() const override;
   FutureRecordPosition Pos() const override;
   Position EstimatedSize() const override;
@@ -452,10 +452,11 @@ bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
   return true;
 }
 
-std::future<bool> RecordWriterBase::SerialWorker::FutureFlush(
+RecordWriterBase::FutureStatus RecordWriterBase::SerialWorker::FutureFlush(
     FlushType flush_type) {
-  std::promise<bool> promise;
-  promise.set_value(Flush(flush_type));
+  std::promise<absl::Status> promise;
+  promise.set_value(ABSL_PREDICT_TRUE(Flush(flush_type)) ? absl::OkStatus()
+                                                         : status());
   return promise.get_future();
 }
 
@@ -489,7 +490,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
-  std::future<bool> FutureFlush(FlushType flush_type) override;
+  FutureStatus FutureFlush(FlushType flush_type) override;
   FutureRecordPosition LastPos() const override;
   FutureRecordPosition Pos() const override;
   Position EstimatedSize() const override;
@@ -524,7 +525,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   struct PadToBlockBoundaryRequest {};
   struct FlushRequest {
     FlushType flush_type;
-    std::promise<bool> done;
+    std::promise<absl::Status> done;
   };
   using ChunkWriterRequest =
       absl::variant<DoneRequest, AnnotateStatusRequest, WriteChunkRequest,
@@ -578,16 +579,16 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
 
       bool operator()(FlushRequest& request) const {
         if (ABSL_PREDICT_FALSE(!self->ok())) {
-          request.done.set_value(false);
+          request.done.set_value(self->status());
           return true;
         }
         if (ABSL_PREDICT_FALSE(
                 !self->chunk_writer_->Flush(request.flush_type))) {
           self->FailWithoutAnnotation(self->chunk_writer_->status());
-          request.done.set_value(false);
+          request.done.set_value(self->status());
           return true;
         }
-        request.done.set_value(true);
+        request.done.set_value(absl::OkStatus());
         return true;
       }
 
@@ -734,13 +735,13 @@ bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
 }
 
 bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
-  return FutureFlush(flush_type).get();
+  return FutureFlush(flush_type).get().ok();
 }
 
-std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
+RecordWriterBase::FutureStatus RecordWriterBase::ParallelWorker::FutureFlush(
     FlushType flush_type) {
-  std::promise<bool> done_promise;
-  std::future<bool> done_future = done_promise.get_future();
+  std::promise<absl::Status> done_promise;
+  FutureStatus done_future = done_promise.get_future();
   mutex_.LockWhen(
       absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
   chunk_writer_requests_.emplace_back(
@@ -1005,32 +1006,32 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
   return true;
 }
 
-RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
+RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
     FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) {
-    std::promise<bool> promise;
-    promise.set_value(false);
+    std::promise<absl::Status> promise;
+    promise.set_value(status());
     return promise.get_future();
   }
   last_record_is_valid_ = false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       FailWithoutAnnotation(worker_->status());
-      std::promise<bool> promise;
-      promise.set_value(false);
+      std::promise<absl::Status> promise;
+      promise.set_value(status());
       return promise.get_future();
     }
   }
   if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
     FailWithoutAnnotation(worker_->status());
-    std::promise<bool> promise;
-    promise.set_value(false);
+    std::promise<absl::Status> promise;
+    promise.set_value(status());
     return promise.get_future();
   }
-  FutureBool result;
+  FutureStatus result;
   if (flush_type == FlushType::kFromObject && !is_owning()) {
-    std::promise<bool> promise;
-    promise.set_value(true);
+    std::promise<absl::Status> promise;
+    promise.set_value(absl::OkStatus());
     result = promise.get_future();
   } else {
     result = worker_->FutureFlush(flush_type);
