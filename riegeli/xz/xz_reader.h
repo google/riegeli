@@ -147,7 +147,7 @@ class XzReaderBase : public BufferedReader {
       return a.container == b.container;
     }
     friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
-      return a.container != b.container;
+      return !(a == b);
     }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {

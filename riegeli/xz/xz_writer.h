@@ -209,8 +209,7 @@ class XzWriterBase : public BufferedWriter {
              a.with_parallelism == b.with_parallelism && a.preset == b.preset;
     }
     friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
-      return a.container != b.container ||
-             a.with_parallelism != b.with_parallelism || a.preset != b.preset;
+      return !(a == b);
     }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {

@@ -84,8 +84,7 @@ class RecordPosition {
            a.record_index() == b.record_index();
   }
   friend bool operator!=(RecordPosition a, RecordPosition b) {
-    return a.chunk_begin() != b.chunk_begin() ||
-           a.record_index() != b.record_index();
+    return !(a == b);
   }
   friend bool operator<(RecordPosition a, RecordPosition b) {
     if (a.chunk_begin() != b.chunk_begin()) {

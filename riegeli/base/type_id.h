@@ -34,9 +34,7 @@ class TypeId {
   friend constexpr bool operator==(TypeId a, TypeId b) {
     return a.ptr_ == b.ptr_;
   }
-  friend constexpr bool operator!=(TypeId a, TypeId b) {
-    return a.ptr_ != b.ptr_;
-  }
+  friend constexpr bool operator!=(TypeId a, TypeId b) { return !(a == b); }
 
  private:
   template <typename T>

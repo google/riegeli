@@ -1344,9 +1344,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       }
       node += (transition_byte >> 2);
       num_iters = transition_byte & 3;
-      if (chunk_encoding_internal::IsImplicit(node->callback_type)) {
-        ++num_iters;
-      }
+      if (chunk_encoding_internal::IsImplicit(node->callback_type)) ++num_iters;
     } else {
       if (!chunk_encoding_internal::IsImplicit(node->callback_type)) {
         --num_iters;

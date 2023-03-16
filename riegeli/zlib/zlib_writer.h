@@ -179,10 +179,7 @@ class ZlibWriterBase : public BufferedWriter {
       return a.compression_level == b.compression_level &&
              a.window_bits == b.window_bits;
     }
-    friend bool operator!=(ZStreamKey a, ZStreamKey b) {
-      return a.compression_level != b.compression_level ||
-             a.window_bits != b.window_bits;
-    }
+    friend bool operator!=(ZStreamKey a, ZStreamKey b) { return !(a == b); }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, ZStreamKey self) {
       return HashState::combine(std::move(hash_state), self.compression_level,
