@@ -378,7 +378,7 @@ void CsvRecord::Clear() {
 std::string& CsvRecord::operator[](absl::string_view name) {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): missing field name: "
+      << "Failed precondition of CsvRecord::operator[]: missing field name: "
       << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
 }
@@ -386,7 +386,7 @@ std::string& CsvRecord::operator[](absl::string_view name) {
 const std::string& CsvRecord::operator[](absl::string_view name) const {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): missing field name: "
+      << "Failed precondition of CsvRecord::operator[]: missing field name: "
       << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
 }

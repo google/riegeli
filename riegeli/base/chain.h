@@ -1561,7 +1561,7 @@ inline size_t Chain::BlockIterator::CharIndexInChain(
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::operator*(): "
+      << "Failed precondition of Chain::BlockIterator::operator*: "
          "iterator is end()";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return chain_->short_data();
@@ -1695,7 +1695,7 @@ inline bool Chain::Blocks::empty() const {
 
 inline Chain::Blocks::reference Chain::Blocks::operator[](size_type n) const {
   RIEGELI_ASSERT_LT(n, size())
-      << "Failed precondition of Chain::Blocks::operator[](): "
+      << "Failed precondition of Chain::Blocks::operator[]: "
          "block index out of range";
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
