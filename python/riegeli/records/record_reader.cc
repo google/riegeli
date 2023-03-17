@@ -51,8 +51,8 @@ constexpr ImportedCapsule<RecordPositionApi> kRecordPositionApi(
     kRecordPositionCapsuleName);
 
 // `extern "C"` sets the C calling convention for compatibility with the Python
-// API. Functions are marked `static` to avoid making their symbols public, as
-// `extern "C"` trumps anonymous namespace.
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static PyObject* GetRecordType(PyObject* self, PyObject* args,
@@ -215,6 +215,9 @@ absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
   return field_projection;
 }
 
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static void RecordReaderDestructor(PyRecordReaderObject* self) {
@@ -1290,6 +1293,9 @@ unpredictable amount of extra data consumed because of buffering.
     nullptr,                                               // tp_finalize
 };
 
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static void RecordIterDestructor(PyRecordIterObject* self) {

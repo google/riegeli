@@ -30,7 +30,8 @@ namespace riegeli {
 
 namespace brotli_internal {
 
-// Set the C calling convention for compatibility with the Brotli API.
+// `extern "C"` sets the C calling convention for compatibility with the Brotli
+// API.
 extern "C" {
 void* RiegeliBrotliAllocFunc(void* opaque, size_t size);
 void RiegeliBrotliFreeFunc(void* opaque, void* ptr);

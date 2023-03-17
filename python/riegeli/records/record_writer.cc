@@ -128,8 +128,8 @@ class FileDescriptorCollector {
 };
 
 // `extern "C"` sets the C calling convention for compatibility with the Python
-// API. Functions are marked `static` to avoid making their symbols public, as
-// `extern "C"` trumps anonymous namespace.
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static PyObject* SetRecordType(PyObject* self, PyObject* args,
@@ -211,6 +211,9 @@ void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
   SetRiegeliError(self->record_writer->status());
 }
 
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static void RecordWriterDestructor(PyRecordWriterObject* self) {

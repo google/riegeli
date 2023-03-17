@@ -172,8 +172,8 @@ void FreeStaticObjectsImpl() {
 }
 
 // `extern "C"` sets the C calling convention for compatibility with the Python
-// API. Function is marked `static` to avoid making its symbol public, as
-// `extern "C"` would trump anonymous namespace.
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 static void FreeStaticObjects() { FreeStaticObjectsImpl(); }
 }  // extern "C"

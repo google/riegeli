@@ -132,6 +132,9 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
   return IntCast<int64_t>(new_pos);
 }
 
+// `extern "C"` sets the C calling convention for compatibility with
+// `fopencookie()`. `static` avoids making symbols public, as `extern "C"`
+// trumps anonymous namespace.
 extern "C" {
 
 static ssize_t ReaderCFileRead(void* cookie, char* buf, size_t size) {

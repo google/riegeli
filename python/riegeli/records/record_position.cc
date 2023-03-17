@@ -56,8 +56,8 @@ struct PyRecordPositionObject {
 extern PyTypeObject PyRecordPosition_Type;
 
 // `extern "C"` sets the C calling convention for compatibility with the Python
-// API. Functions are marked `static` to avoid making their symbols public, as
-// `extern "C"` trumps anonymous namespace.
+// API. `static` avoids making symbols public, as `extern "C"` trumps anonymous
+// namespace.
 extern "C" {
 
 static void RecordPositionDestructor(PyRecordPositionObject* self) {
