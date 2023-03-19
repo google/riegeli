@@ -1015,6 +1015,13 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback(
   return true;
 }
 
+// InvalidArgumentError that is not inlined. This reduces register pressure for
+// the Decode loop.
+ABSL_ATTRIBUTE_NOINLINE absl::Status InvalidArgumentError(
+    absl::string_view msg) {
+  return absl::InvalidArgumentError(msg);
+}
+
 // Decode varint value from `*node` to `dest`.
 template <size_t tag_length, size_t data_length, class Node>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback(
@@ -1027,7 +1034,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback(
   if (ABSL_PREDICT_FALSE(
           !node->buffer->Read(data_length, buffer + tag_length))) {
     return decoder.Fail(node->buffer->StatusOrAnnotate(
-        absl::InvalidArgumentError("Reading varint field failed")));
+        InvalidArgumentError("Reading varint field failed")));
   }
   for (size_t i = 0; i < data_length - 1; ++i) {
     buffer[tag_length + i] |= 0x80;
@@ -1048,7 +1055,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedCallback(
   if (ABSL_PREDICT_FALSE(
           !node->buffer->Read(data_length, buffer + tag_length))) {
     return decoder.Fail(node->buffer->StatusOrAnnotate(
-        absl::InvalidArgumentError("Reading fixed field failed")));
+        InvalidArgumentError("Reading fixed field failed")));
   }
   std::memcpy(buffer, node->tag_data.data, tag_length);
   return true;
@@ -1078,17 +1085,17 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StringCallback(
       ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
   if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {
     return decoder.Fail(node->buffer->StatusOrAnnotate(
-        absl::InvalidArgumentError("Reading string length failed")));
+        InvalidArgumentError("Reading string length failed")));
   }
   const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor);
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -
                                       length_length)) {
-    return decoder.Fail(absl::InvalidArgumentError("String length overflow"));
+    return decoder.Fail(InvalidArgumentError("String length overflow"));
   }
   if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length_length + length, dest))) {
     if (!dest.ok()) return decoder.Fail(dest.status());
     return decoder.Fail(node->buffer->StatusOrAnnotate(
-        absl::InvalidArgumentError("Reading string field failed")));
+        InvalidArgumentError("Reading string field failed")));
   }
   if (ABSL_PREDICT_FALSE(
           !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
@@ -1139,7 +1146,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
         if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
           return Fail(
-              absl::InvalidArgumentError("Skipped submessage stack underflow"));
+              InvalidArgumentError("Skipped submessage stack underflow"));
         }
         --skipped_submessage_level;
         break;
@@ -1151,7 +1158,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
       case chunk_encoding_internal::CallbackType::kSubmessageStart: {
         if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
-          return Fail(absl::InvalidArgumentError("Submessage stack underflow"));
+          return Fail(InvalidArgumentError("Submessage stack underflow"));
         }
         const SubmessageStackElement& elem = submessage_stack.back();
         RIEGELI_ASSERT_GE(dest.pos(), elem.end_of_submessage)
@@ -1159,7 +1166,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         const size_t length =
             IntCast<size_t>(dest.pos()) - elem.end_of_submessage;
         if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
-          return Fail(absl::InvalidArgumentError("Message too large"));
+          return Fail(InvalidArgumentError("Message too large"));
         }
         if (ABSL_PREDICT_FALSE(
                 !WriteVarint32(IntCast<uint32_t>(length), dest))) {
@@ -1270,7 +1277,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
   case chunk_encoding_internal::CallbackType::                                 \
       kStartProjectionGroup_##tag_length:                                      \
     if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                        \
-      return Fail(absl::InvalidArgumentError("Submessage stack underflow"));   \
+      return Fail(InvalidArgumentError("Submessage stack underflow"));         \
     }                                                                          \
     submessage_stack.pop_back();                                               \
     if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
@@ -1300,30 +1307,29 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
       case chunk_encoding_internal::CallbackType::kUnknown:
       case chunk_encoding_internal::CallbackType::kFailure:
-        return Fail(absl::InvalidArgumentError("Invalid node index"));
+        return Fail(InvalidArgumentError("Invalid node index"));
 
       case chunk_encoding_internal::CallbackType::kNonProto: {
         uint32_t length;
         if (ABSL_PREDICT_FALSE(
                 !ReadVarint32(*context.nonproto_lengths, length))) {
           return Fail(context.nonproto_lengths->StatusOrAnnotate(
-              absl::InvalidArgumentError(
-                  "Reading non-proto record length failed")));
+              InvalidArgumentError("Reading non-proto record length failed")));
         }
         if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, dest))) {
           if (!dest.ok()) return Fail(dest.status());
           return Fail(node->buffer->StatusOrAnnotate(
-              absl::InvalidArgumentError("Reading non-proto record failed")));
+              InvalidArgumentError("Reading non-proto record failed")));
         }
       }
         ABSL_FALLTHROUGH_INTENDED;
 
       case chunk_encoding_internal::CallbackType::kMessageStart:
         if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-          return Fail(absl::InvalidArgumentError("Submessages still open"));
+          return Fail(InvalidArgumentError("Submessages still open"));
         }
         if (ABSL_PREDICT_FALSE(limits.size() == num_records)) {
-          return Fail(absl::InvalidArgumentError("Too many records"));
+          return Fail(InvalidArgumentError("Too many records"));
         }
         limits.push_back(IntCast<size_t>(dest.pos()));
         break;
@@ -1356,17 +1362,17 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
     return Fail(context.transitions.status());
   }
   if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-    return Fail(absl::InvalidArgumentError("Submessages still open"));
+    return Fail(InvalidArgumentError("Submessages still open"));
   }
   if (ABSL_PREDICT_FALSE(skipped_submessage_level != 0)) {
-    return Fail(absl::InvalidArgumentError("Skipped submessages still open"));
+    return Fail(InvalidArgumentError("Skipped submessages still open"));
   }
   if (ABSL_PREDICT_FALSE(limits.size() != num_records)) {
-    return Fail(absl::InvalidArgumentError("Too few records"));
+    return Fail(InvalidArgumentError("Too few records"));
   }
   const size_t size = limits.empty() ? size_t{0} : limits.back();
   if (ABSL_PREDICT_FALSE(size != dest.pos())) {
-    return Fail(absl::InvalidArgumentError("Unfinished message"));
+    return Fail(InvalidArgumentError("Unfinished message"));
   }
 
   // Reverse `limits` and complement them, but keep the last limit unchanged
