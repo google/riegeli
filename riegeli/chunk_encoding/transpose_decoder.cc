@@ -138,11 +138,10 @@ enum class CallbackType : uint8_t {
   // `TYPES_FOR_TAG_LEN` for `GetCopyTagCallbackType()` to work.
   kCopyTag_6,
   kUnknown,
-  // Implicit callback type is added to any of the above types if the transition
-  // from the node should go to `node->next_node` without reading the transition
-  // byte.
-  kImplicit = 0x80,
 };
+
+static_assert(static_cast<uint8_t>(CallbackType::kUnknown) < (1 << 7),
+              "CallbackType has too many cases to fit in 7 bits.");
 
 constexpr CallbackType operator+(CallbackType a, uint8_t b) {
   return static_cast<CallbackType>(static_cast<uint8_t>(a) + b);
@@ -150,20 +149,6 @@ constexpr CallbackType operator+(CallbackType a, uint8_t b) {
 
 constexpr uint8_t operator-(CallbackType a, CallbackType b) {
   return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
-}
-
-constexpr CallbackType operator|(CallbackType a, CallbackType b) {
-  return static_cast<CallbackType>(static_cast<uint8_t>(a) |
-                                   static_cast<uint8_t>(b));
-}
-
-constexpr CallbackType operator&(CallbackType a, CallbackType b) {
-  return static_cast<CallbackType>(static_cast<uint8_t>(a) &
-                                   static_cast<uint8_t>(b));
-}
-
-inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
-  return a = a | b;
 }
 
 // Returns copy tag callback type for `tag_length`.
@@ -357,10 +342,6 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
-}
-
-inline bool IsImplicit(CallbackType callback_type) {
-  return (callback_type & CallbackType::kImplicit) == CallbackType::kImplicit;
 }
 
 }  // namespace chunk_encoding_internal
@@ -703,9 +684,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     if (next_node_id >= state_machine_size) {
       // Callback is implicit.
       next_node_id -= state_machine_size;
-      state_machine_node.callback_type =
-          state_machine_node.callback_type |
-          chunk_encoding_internal::CallbackType::kImplicit;
+      state_machine_node.is_implicit = true;
+    } else {
+      state_machine_node.is_implicit = false;
     }
     if (ABSL_PREDICT_FALSE(next_node_id >= state_machine_size)) {
       return Fail(absl::InvalidArgumentError("Node index too large"));
@@ -992,7 +973,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (implicit_loop_ids[i] != 0) continue;
     StateMachineNode* node = &(*state_machine_nodes)[i];
     implicit_loop_ids[i] = next_loop_id;
-    while (chunk_encoding_internal::IsImplicit(node->callback_type)) {
+    while (node->is_implicit) {
       node = node->next_node;
       const size_t j = node - state_machine_nodes->data();
       if (implicit_loop_ids[j] == next_loop_id) return true;
@@ -1126,12 +1107,9 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
   // without reading transition byte.
   int num_iters = 0;
 
-  if (chunk_encoding_internal::IsImplicit(node->callback_type)) ++num_iters;
+  if (node->is_implicit) ++num_iters;
   for (;;) {
-    switch (static_cast<chunk_encoding_internal::CallbackType>(
-        static_cast<uint8_t>(node->callback_type) &
-        ~static_cast<uint8_t>(
-            chunk_encoding_internal::CallbackType::kImplicit))) {
+    switch (node->callback_type) {
       case chunk_encoding_internal::CallbackType::kSelectCallback:
         if (ABSL_PREDICT_FALSE(!SetCallbackType(
                 context, skipped_submessage_level, submessage_stack, *node))) {
@@ -1337,7 +1315,6 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       case chunk_encoding_internal::CallbackType::kNoOp:
         break;
 
-      // `chunk_encoding_internal::CallbackType::kImplicit` is masked out.
       default:
         RIEGELI_ASSERT_UNREACHABLE() << "Unknown callback type: "
                                      << static_cast<int>(node->callback_type);
@@ -1350,9 +1327,9 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       }
       node += (transition_byte >> 2);
       num_iters = transition_byte & 3;
-      if (chunk_encoding_internal::IsImplicit(node->callback_type)) ++num_iters;
+      if (node->is_implicit) ++num_iters;
     } else {
-      if (!chunk_encoding_internal::IsImplicit(node->callback_type)) {
+      if (!node->is_implicit) {
         --num_iters;
       }
     }
@@ -1400,8 +1377,6 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     Context& context, int skipped_submessage_level,
     absl::Span<const SubmessageStackElement> submessage_stack,
     StateMachineNode& node) {
-  const bool is_implicit =
-      chunk_encoding_internal::IsImplicit(node.callback_type);
   StateMachineNodeTemplate* node_template = node.node_template;
   if (node_template->tag ==
       static_cast<uint32_t>(
@@ -1495,9 +1470,6 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       // zero now.
       node.tag_data.data[node_template->tag_length] = 0;
     }
-  }
-  if (is_implicit) {
-    node.callback_type |= chunk_encoding_internal::CallbackType::kImplicit;
   }
   return true;
 }

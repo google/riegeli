@@ -98,7 +98,9 @@ class TransposeDecoder : public Object {
     TagData tag_data;
     // Note: `callback_type` is after `tag_data` which is 7 bytes and may
     // benefit from being aligned.
-    chunk_encoding_internal::CallbackType callback_type;
+    chunk_encoding_internal::CallbackType callback_type : 7;
+    // Whether the callback is implicit.
+    bool is_implicit : 1;
     union {
       // Buffer to read data from.
       Reader* buffer;
