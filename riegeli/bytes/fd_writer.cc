@@ -529,7 +529,11 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
 #ifndef _WIN32
   again:
     const size_t length_to_write =
-        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()});
+        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()},
+                    // Darwin and FreeBSD cannot write more than 2 GB - 1
+                    // at a time. Limit to 1 GB for better alignment of writes.
+                    // https://codereview.appspot.com/89900044#msg9
+                    size_t{1} << 30);
     const ssize_t length_written =
         has_independent_pos_ ? pwrite(dest, src.data(), length_to_write,
                                       IntCast<fd_internal::Offset>(start_pos()))

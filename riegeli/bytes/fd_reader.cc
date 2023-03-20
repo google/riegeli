@@ -388,7 +388,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     const size_t length_to_read = UnsignedMin(
         max_length,
         Position{std::numeric_limits<fd_internal::Offset>::max()} - limit_pos(),
-        size_t{std::numeric_limits<ssize_t>::max()});
+        size_t{std::numeric_limits<ssize_t>::max()},
+        // Darwin and FreeBSD cannot read more than 2 GB - 1 at a time.
+        // Limit to 1 GB for better alignment of reads.
+        // https://codereview.appspot.com/89900044#msg9
+        size_t{1} << 30);
   again:
     const ssize_t length_read =
         has_independent_pos_ ? pread(src, dest, length_to_read,
