@@ -114,7 +114,8 @@ class PythonReader : public BufferedReader {
   const Exception& exception() const { return exception_; }
 
   bool ToleratesReadingAhead() override {
-    return PythonReader::SupportsRandomAccess();
+    return BufferedReader::ToleratesReadingAhead() ||
+           PythonReader::SupportsRandomAccess();
   }
   bool SupportsRandomAccess() override { return supports_random_access_; }
 

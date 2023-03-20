@@ -43,8 +43,8 @@ class Writer;
 class BufferedReader : public Reader {
  public:
   // Derived classes which override `ToleratesReadingAhead()` further should
-  // return `true` when `read_all_hint()` is `true`, and possibly also in some
-  // other cases.
+  // return `true` when `BufferedReader::ToleratesReadingAhead()`, and possibly
+  // also in some other cases.
   bool ToleratesReadingAhead() override { return read_all_hint(); }
 
   bool SupportsSize() override { return exact_size() != absl::nullopt; }

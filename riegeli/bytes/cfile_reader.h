@@ -188,7 +188,8 @@ class CFileReaderBase : public BufferedReader {
   absl::string_view filename() const { return filename_; }
 
   bool ToleratesReadingAhead() override {
-    return read_all_hint() || CFileReaderBase::SupportsRandomAccess();
+    return BufferedReader::ToleratesReadingAhead() ||
+           CFileReaderBase::SupportsRandomAccess();
   }
   bool SupportsRandomAccess() override { return supports_random_access_; }
 
