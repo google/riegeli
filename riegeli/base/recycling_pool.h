@@ -69,9 +69,8 @@ class RecyclingPoolOptions {
   // longer needed, but asynchronously, i.e. without blocking the calling
   // thread.
   //
-  // Default: `absl::InfiniteDuration()`.
-  // TODO: Change the default to `absl::Minutes(1)`.
-  static constexpr absl::Duration kDefaultMaxAge = absl::InfiniteDuration();
+  // Default: `absl::Minutes(1)`.
+  static constexpr absl::Duration kDefaultMaxAge = absl::Minutes(1);
   RecyclingPoolOptions& set_max_age(absl::Duration max_age) & {
     max_age_ = max_age;
     return *this;
@@ -136,10 +135,6 @@ class RecyclingPool : public BackgroundCleanee {
 
   explicit RecyclingPool(RecyclingPoolOptions options = RecyclingPoolOptions())
       : options_(options), ring_buffer_by_age_(options.max_size()) {}
-
-  ABSL_DEPRECATED("Use RecyclingPoolOptions instead")
-  explicit RecyclingPool(size_t max_size)
-      : RecyclingPool(RecyclingPoolOptions().set_max_size(max_size)) {}
 
   RecyclingPool(const RecyclingPool&) = delete;
   RecyclingPool& operator=(const RecyclingPool&) = delete;

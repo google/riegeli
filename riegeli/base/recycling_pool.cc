@@ -27,8 +27,7 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
-constexpr size_t RecyclingPoolOptions::kDefaultMaxSize;
-constexpr absl::Duration RecyclingPoolOptions::kDefaultTimeout;
+constexpr absl::Duration RecyclingPoolOptions::kDefaultMaxAge;
 #endif
 
 size_t RecyclingPoolOptions::DefaultMaxSizeSlow() {
