@@ -135,31 +135,75 @@ class RecordReaderBase : public Object {
     //
     // Default: `nullptr`.
     Options& set_recovery(
-        const std::function<bool(const SkippedRegion&)>& recovery) & {
+        const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
+            recovery) & {
       recovery_ = recovery;
       return *this;
     }
     Options&& set_recovery(
-        const std::function<bool(const SkippedRegion&)>& recovery) && {
+        const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
+            recovery) && {
       return std::move(set_recovery(recovery));
     }
-    Options& set_recovery(
-        std::function<bool(const SkippedRegion&)>&& recovery) & {
+    Options& set_recovery(std::function<bool(const SkippedRegion&,
+                                             RecordReaderBase&)>&& recovery) & {
       recovery_ = std::move(recovery);
       return *this;
     }
     Options&& set_recovery(
-        std::function<bool(const SkippedRegion&)>&& recovery) && {
+        std::function<bool(const SkippedRegion&, RecordReaderBase&)>&&
+            recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
-    std::function<bool(const SkippedRegion&)>& recovery() { return recovery_; }
-    const std::function<bool(const SkippedRegion&)>& recovery() const {
+    std::function<bool(const SkippedRegion&, RecordReaderBase&)>& recovery() {
       return recovery_;
+    }
+    const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
+    recovery() const {
+      return recovery_;
+    }
+
+    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
+    Options& set_recovery(
+        const std::function<bool(const SkippedRegion&)>& recovery) & {
+      if (recovery == nullptr) {
+        recovery_ = nullptr;
+      } else {
+        recovery_ = [recovery](const SkippedRegion& skipped_region,
+                               RecordReaderBase& record_reader) {
+          return recovery(skipped_region);
+        };
+      }
+      return *this;
+    }
+    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
+    Options&& set_recovery(
+        const std::function<bool(const SkippedRegion&)>& recovery) && {
+      return std::move(set_recovery(recovery));
+    }
+    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
+    Options& set_recovery(
+        std::function<bool(const SkippedRegion&)>&& recovery) & {
+      if (recovery == nullptr) {
+        recovery_ = nullptr;
+      } else {
+        recovery_ = [recovery = std::move(recovery)](
+                        const SkippedRegion& skipped_region,
+                        RecordReaderBase& record_reader) {
+          return recovery(skipped_region);
+        };
+      }
+      return *this;
+    }
+    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
+    Options&& set_recovery(
+        std::function<bool(const SkippedRegion&)>&& recovery) && {
+      return std::move(set_recovery(std::move(recovery)));
     }
 
    private:
     FieldProjection field_projection_ = FieldProjection::All();
-    std::function<bool(const SkippedRegion&)> recovery_;
+    std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery_;
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
@@ -224,6 +268,16 @@ class RecordReaderBase : public Object {
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
   bool SetFieldProjection(FieldProjection field_projection);
+
+  // Like `Options::set_recovery()`, but can be done at any time.
+  void set_recovery(const std::function<bool(const SkippedRegion&,
+                                             RecordReaderBase&)>& recovery) {
+    recovery_ = recovery;
+  }
+  void set_recovery(
+      std::function<bool(const SkippedRegion&, RecordReaderBase&)>&& recovery) {
+    recovery_ = std::move(recovery);
+  }
 
   // If `!ok()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
@@ -435,7 +489,7 @@ class RecordReaderBase : public Object {
   //                         recoverable_ == Recoverable::kRecoverChunkReader`
   Recoverable recoverable_ = Recoverable::kNo;
 
-  std::function<bool(const SkippedRegion&)> recovery_;
+  std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery_;
 
  private:
   class ChunkSearchTraits;
@@ -610,7 +664,7 @@ inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
 inline bool RecordReaderBase::TryRecovery() {
   if (recovery_ == nullptr) return false;
   SkippedRegion skipped_region;
-  return Recover(&skipped_region) && recovery_(skipped_region);
+  return Recover(&skipped_region) && recovery_(skipped_region, *this);
 }
 
 inline RecordPosition RecordReaderBase::last_pos() const {

@@ -321,51 +321,50 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     Py_INCREF(recovery_arg);
     Py_XDECREF(self->recovery);
     self->recovery = recovery_arg;
-    record_reader_options.set_recovery(
-        [self](const SkippedRegion& skipped_region) {
-          PythonLock lock;
-          const PythonPtr begin_object =
-              PositionToPython(skipped_region.begin());
-          if (ABSL_PREDICT_FALSE(begin_object == nullptr)) {
-            self->recovery_exception.emplace(Exception::Fetch());
-            return false;
-          }
-          const PythonPtr end_object = PositionToPython(skipped_region.end());
-          if (ABSL_PREDICT_FALSE(end_object == nullptr)) {
-            self->recovery_exception.emplace(Exception::Fetch());
-            return false;
-          }
-          const PythonPtr message_object =
-              StringToPython(skipped_region.message());
-          if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
-            self->recovery_exception.emplace(Exception::Fetch());
-            return false;
-          }
-          static constexpr ImportedConstant kSkippedRegion(
-              "riegeli.records.skipped_region", "SkippedRegion");
-          if (ABSL_PREDICT_FALSE(!kSkippedRegion.Verify())) {
-            self->recovery_exception.emplace(Exception::Fetch());
-            return false;
-          }
-          const PythonPtr skipped_region_object(PyObject_CallFunctionObjArgs(
-              kSkippedRegion.get(), begin_object.get(), end_object.get(),
-              message_object.get(), nullptr));
-          if (ABSL_PREDICT_FALSE(skipped_region_object == nullptr)) {
-            self->recovery_exception.emplace(Exception::Fetch());
-            return false;
-          }
-          const PythonPtr recovery_result(PyObject_CallFunctionObjArgs(
-              self->recovery, skipped_region_object.get(), nullptr));
-          if (ABSL_PREDICT_FALSE(recovery_result == nullptr)) {
-            if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
-              PyErr_Clear();
-            } else {
-              self->recovery_exception.emplace(Exception::Fetch());
-            }
-            return false;
-          }
-          return true;
-        });
+    record_reader_options.set_recovery([self](
+                                           const SkippedRegion& skipped_region,
+                                           RecordReaderBase& record_reader) {
+      PythonLock lock;
+      const PythonPtr begin_object = PositionToPython(skipped_region.begin());
+      if (ABSL_PREDICT_FALSE(begin_object == nullptr)) {
+        self->recovery_exception.emplace(Exception::Fetch());
+        return false;
+      }
+      const PythonPtr end_object = PositionToPython(skipped_region.end());
+      if (ABSL_PREDICT_FALSE(end_object == nullptr)) {
+        self->recovery_exception.emplace(Exception::Fetch());
+        return false;
+      }
+      const PythonPtr message_object = StringToPython(skipped_region.message());
+      if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
+        self->recovery_exception.emplace(Exception::Fetch());
+        return false;
+      }
+      static constexpr ImportedConstant kSkippedRegion(
+          "riegeli.records.skipped_region", "SkippedRegion");
+      if (ABSL_PREDICT_FALSE(!kSkippedRegion.Verify())) {
+        self->recovery_exception.emplace(Exception::Fetch());
+        return false;
+      }
+      const PythonPtr skipped_region_object(PyObject_CallFunctionObjArgs(
+          kSkippedRegion.get(), begin_object.get(), end_object.get(),
+          message_object.get(), nullptr));
+      if (ABSL_PREDICT_FALSE(skipped_region_object == nullptr)) {
+        self->recovery_exception.emplace(Exception::Fetch());
+        return false;
+      }
+      const PythonPtr recovery_result(PyObject_CallFunctionObjArgs(
+          self->recovery, skipped_region_object.get(), nullptr));
+      if (ABSL_PREDICT_FALSE(recovery_result == nullptr)) {
+        if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
+          PyErr_Clear();
+        } else {
+          self->recovery_exception.emplace(Exception::Fetch());
+        }
+        return false;
+      }
+      return true;
+    });
   }
 
   PythonReader python_reader(src_arg, std::move(python_reader_options));
