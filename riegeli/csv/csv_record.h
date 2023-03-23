@@ -24,7 +24,6 @@
 #include <iterator>
 #include <new>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -42,6 +41,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/no_destructor.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/containers.h"
@@ -381,7 +381,7 @@ class CsvHeader {
 
   // Returns the normalizer used to match field names, or `nullptr` which is the
   // same as the identity function.
-  std::function<std::string(absl::string_view)> normalizer() const;
+  const std::function<std::string(absl::string_view)>& normalizer() const;
 
   // Iterates over field names, in the order in which they have been added.
   iterator begin() const;
@@ -1224,9 +1224,13 @@ inline absl::Span<const std::string> CsvHeader::names() const {
   return payload_->index_to_name;
 }
 
-inline std::function<std::string(absl::string_view)> CsvHeader::normalizer()
-    const {
-  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return nullptr;
+inline const std::function<std::string(absl::string_view)>&
+CsvHeader::normalizer() const {
+  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) {
+    static const NoDestructor<std::function<std::string(absl::string_view)>>
+        kNullFunction(nullptr);
+    return *kNullFunction;
+  }
   return payload_->normalizer;
 }
 

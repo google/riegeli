@@ -61,6 +61,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:intrusive_ref_count",
+        "//riegeli/base:no_destructor",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:string_writer",
