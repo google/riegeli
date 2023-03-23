@@ -985,17 +985,6 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   return false;
 }
 
-// Copy tag from `*node` to `dest`.
-template <size_t tag_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback(
-    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
-  if (ABSL_PREDICT_FALSE(
-          !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
-    return decoder.Fail(dest.status());
-  }
-  return true;
-}
-
 // InvalidArgumentError that is not inlined. This reduces register pressure for
 // the Decode loop.
 ABSL_ATTRIBUTE_NOINLINE absl::Status InvalidArgumentError(
@@ -1003,269 +992,388 @@ ABSL_ATTRIBUTE_NOINLINE absl::Status InvalidArgumentError(
   return absl::InvalidArgumentError(msg);
 }
 
-// Decode varint value from `*node` to `dest`.
-template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback(
-    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
-    return decoder.Fail(dest.status());
+struct TransposeDecoder::DecodingState {
+  // All pointers are non-null and owned elsewhere.
+  explicit DecodingState(TransposeDecoder* decoder, Context* context,
+                         uint64_t num_records, BackwardWriter* dest,
+                         std::vector<size_t>* limits)
+      : decoder(decoder),
+        context(context),
+        num_records(num_records),
+        dest(dest),
+        limits(limits),
+        transitions_reader(&context->transitions.reader()),
+        node(&context->state_machine_nodes[context->first_node]),
+        num_iters(node->is_implicit ? 1 : 0) {
+    // For now positions reported by `dest` are pushed to `limits` directly.
+    // Later `limits` will be reversed and complemented.
+    limits->clear();
+    limits->reserve(num_records);
+    submessage_stack.reserve(16);
   }
-  dest.move_cursor(tag_length + data_length);
-  char* const buffer = dest.cursor();
-  if (ABSL_PREDICT_FALSE(
-          !node->buffer->Read(data_length, buffer + tag_length))) {
-    return decoder.Fail(node->buffer->StatusOrAnnotate(
-        InvalidArgumentError("Reading varint field failed")));
-  }
-  for (size_t i = 0; i < data_length - 1; ++i) {
-    buffer[tag_length + i] |= 0x80;
-  }
-  std::memcpy(buffer, node->tag_data.data, tag_length);
-  return true;
-}
 
-// Decode fixed32 or fixed64 value from `*node` to `dest`.
-template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedCallback(
-    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
-    return decoder.Fail(dest.status());
-  }
-  dest.move_cursor(tag_length + data_length);
-  char* const buffer = dest.cursor();
-  if (ABSL_PREDICT_FALSE(
-          !node->buffer->Read(data_length, buffer + tag_length))) {
-    return decoder.Fail(node->buffer->StatusOrAnnotate(
-        InvalidArgumentError("Reading fixed field failed")));
-  }
-  std::memcpy(buffer, node->tag_data.data, tag_length);
-  return true;
-}
+  DecodingState(const DecodingState&) = delete;
+  DecodingState& operator=(const DecodingState&) = delete;
 
-// Create zero fixed32 or fixed64 value in `dest`.
-template <size_t tag_length, size_t data_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedExistenceCallback(
-    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(tag_length + data_length))) {
-    return decoder.Fail(dest.status());
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SetCallbackType() {
+    return decoder->SetCallbackType(*context, skipped_submessage_level,
+                                    submessage_stack, *node);
   }
-  dest.move_cursor(tag_length + data_length);
-  char* const buffer = dest.cursor();
-  std::memset(buffer + tag_length, '\0', data_length);
-  std::memcpy(buffer, node->tag_data.data, tag_length);
-  return true;
-}
 
-// Decode string value from `*node` to `dest`.
-template <size_t tag_length, class Node>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StringCallback(
-    Node* node, BackwardWriter& dest, TransposeDecoder& decoder) {
-  node->buffer->Pull(kMaxLengthVarint32);
-  uint32_t length;
-  const absl::optional<const char*> cursor =
-      ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {
-    return decoder.Fail(node->buffer->StatusOrAnnotate(
-        InvalidArgumentError("Reading string length failed")));
+  // Copy tag from `*node` to `dest`.
+  template <size_t tag_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback() {
+    if (ABSL_PREDICT_FALSE(
+            !dest->Write(absl::string_view(node->tag_data.data, tag_length)))) {
+      return decoder->Fail(dest->status());
+    }
+    return true;
   }
-  const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor);
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -
-                                      length_length)) {
-    return decoder.Fail(InvalidArgumentError("String length overflow"));
+
+  // Decode varint value from `*node` to `dest`.
+  template <size_t tag_length, size_t data_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback() {
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
+      return decoder->Fail(dest->status());
+    }
+    dest->move_cursor(tag_length + data_length);
+    char* const buffer = dest->cursor();
+    if (ABSL_PREDICT_FALSE(
+            !node->buffer->Read(data_length, buffer + tag_length))) {
+      return decoder->Fail(node->buffer->StatusOrAnnotate(
+          InvalidArgumentError("Reading varint field failed")));
+    }
+    for (size_t i = 0; i < data_length - 1; ++i) {
+      buffer[tag_length + i] |= 0x80;
+    }
+    std::memcpy(buffer, node->tag_data.data, tag_length);
+    return true;
   }
-  if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length_length + length, dest))) {
-    if (!dest.ok()) return decoder.Fail(dest.status());
-    return decoder.Fail(node->buffer->StatusOrAnnotate(
-        InvalidArgumentError("Reading string field failed")));
+
+  // Decode fixed32 or fixed64 value from `*node` to `dest`.
+  template <size_t tag_length, size_t data_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedCallback() {
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
+      return decoder->Fail(dest->status());
+    }
+    dest->move_cursor(tag_length + data_length);
+    char* const buffer = dest->cursor();
+    if (ABSL_PREDICT_FALSE(
+            !node->buffer->Read(data_length, buffer + tag_length))) {
+      return decoder->Fail(node->buffer->StatusOrAnnotate(
+          InvalidArgumentError("Reading fixed field failed")));
+    }
+    std::memcpy(buffer, node->tag_data.data, tag_length);
+    return true;
   }
-  if (ABSL_PREDICT_FALSE(
-          !dest.Write(absl::string_view(node->tag_data.data, tag_length)))) {
-    return decoder.Fail(dest.status());
+
+  // Create zero fixed32 or fixed64 value in `dest`.
+  template <size_t tag_length, size_t data_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedExistenceCallback() {
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
+      return decoder->Fail(dest->status());
+    }
+    dest->move_cursor(tag_length + data_length);
+    char* const buffer = dest->cursor();
+    std::memset(buffer + tag_length, '\0', data_length);
+    std::memcpy(buffer, node->tag_data.data, tag_length);
+    return true;
   }
-  return true;
-}
+
+  // Decode string value from `*node` to `dest`.
+  template <size_t tag_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StringCallback() {
+    node->buffer->Pull(kMaxLengthVarint32);
+    uint32_t length;
+    const absl::optional<const char*> cursor =
+        ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
+    if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {
+      return decoder->Fail(node->buffer->StatusOrAnnotate(
+          InvalidArgumentError("Reading string length failed")));
+    }
+    const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor);
+    if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -
+                                        length_length)) {
+      return decoder->Fail(InvalidArgumentError("String length overflow"));
+    }
+    if (ABSL_PREDICT_FALSE(
+            !node->buffer->Copy(length_length + length, *dest))) {
+      if (!dest->ok()) return decoder->Fail(dest->status());
+      return decoder->Fail(node->buffer->StatusOrAnnotate(
+          InvalidArgumentError("Reading string field failed")));
+    }
+    if (ABSL_PREDICT_FALSE(
+            !dest->Write(absl::string_view(node->tag_data.data, tag_length)))) {
+      return decoder->Fail(dest->status());
+    }
+    return true;
+  }
+
+  template <size_t tag_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StartProjectionGroupCallback() {
+    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
+      return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
+    }
+    submessage_stack.pop_back();
+    return CopyTagCallback<tag_length>();
+  }
+
+  template <size_t tag_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool EndProjectionGroupCallback() {
+    submessage_stack.push_back({IntCast<size_t>(dest->pos()), node->tag_data});
+    return CopyTagCallback<tag_length>();
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SubmessageStartCallback() {
+    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
+      return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
+    }
+    const SubmessageStackElement& elem = submessage_stack.back();
+    RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
+        << "Destination position decreased";
+    const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
+    if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
+      return decoder->Fail(InvalidArgumentError("Message too large"));
+    }
+    if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(length), *dest))) {
+      return decoder->Fail(dest->status());
+    }
+    if (ABSL_PREDICT_FALSE(!dest->Write(
+            absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
+      return decoder->Fail(dest->status());
+    }
+    submessage_stack.pop_back();
+    return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool MessageStartCallback() {
+    if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
+      return decoder->Fail(InvalidArgumentError("Submessages still open"));
+    }
+    if (ABSL_PREDICT_FALSE(limits->size() == num_records)) {
+      return decoder->Fail(InvalidArgumentError("Too many records"));
+    }
+    limits->push_back(IntCast<size_t>(dest->pos()));
+    return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool NonprotoCallback() {
+    uint32_t length;
+    if (ABSL_PREDICT_FALSE(!ReadVarint32(*context->nonproto_lengths, length))) {
+      return decoder->Fail(context->nonproto_lengths->StatusOrAnnotate(
+          InvalidArgumentError("Reading non-proto record length failed")));
+    }
+    if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, *dest))) {
+      if (!dest->ok()) return decoder->Fail(dest->status());
+      return decoder->Fail(node->buffer->StatusOrAnnotate(
+          InvalidArgumentError("Reading non-proto record failed")));
+    }
+    return MessageStartCallback();
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool TransitionNode() {
+    node = node->next_node;
+    if (num_iters == 0) {
+      uint8_t transition_byte;
+      if (ABSL_PREDICT_FALSE(!transitions_reader->ReadByte(transition_byte))) {
+        return false;
+      }
+      node += (transition_byte >> 2);
+      num_iters = transition_byte & 3;
+      if (node->is_implicit) ++num_iters;
+    } else {
+      if (!node->is_implicit) --num_iters;
+    }
+    return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Finish() {
+    if (ABSL_PREDICT_FALSE(!context->transitions.VerifyEndAndClose())) {
+      return decoder->Fail(context->transitions.status());
+    }
+    if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
+      return decoder->Fail(InvalidArgumentError("Submessages still open"));
+    }
+    if (ABSL_PREDICT_FALSE(skipped_submessage_level != 0)) {
+      return decoder->Fail(
+          InvalidArgumentError("Skipped submessages still open"));
+    }
+    if (ABSL_PREDICT_FALSE(limits->size() != num_records)) {
+      return decoder->Fail(InvalidArgumentError("Too few records"));
+    }
+    const size_t size = limits->empty() ? size_t{0} : limits->back();
+    if (ABSL_PREDICT_FALSE(size != dest->pos())) {
+      return decoder->Fail(InvalidArgumentError("Unfinished message"));
+    }
+    // Reverse `limits` and complement them, but keep the last limit unchanged
+    // (because both old and new limits exclude 0 at the beginning and include
+    // size at the end), e.g. for records of sizes {10, 20, 30, 40}:
+    // {40, 70, 90, 100} -> {10, 30, 60, 100}.
+    std::vector<size_t>::iterator first = limits->begin();
+    std::vector<size_t>::iterator last = limits->end();
+    if (first != last) {
+      --last;
+      while (first < last) {
+        --last;
+        const size_t tmp = size - *first;
+        *first = size - *last;
+        *last = tmp;
+        ++first;
+      }
+    }
+    return true;
+  }
+
+  // Initial state
+  TransposeDecoder* decoder;
+  Context* context;
+  uint64_t num_records;
+  BackwardWriter* dest;
+  std::vector<size_t>* limits;
+  Reader* transitions_reader;
+
+  // Variable state
+
+  // The current node.
+  StateMachineNode* node;
+  // The depth of the current field relative to the parent submessage that
+  // was excluded in projection.
+  int skipped_submessage_level = 0;
+  // Stack of all open sub-messages.
+  std::vector<SubmessageStackElement> submessage_stack;
+  // Number of following iteration that go directly to `node->next_node`
+  // without reading transition byte.
+  int num_iters;
+};
 
 inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                                      BackwardWriter& dest,
                                      std::vector<size_t>& limits) {
-  // For now positions reported by `dest` are pushed to `limits` directly.
-  // Later `limits` will be reversed and complemented.
-  limits.clear();
-  limits.reserve(num_records);
-
-  // Set current node to the initial node.
-  StateMachineNode* node = &context.state_machine_nodes[context.first_node];
-  // The depth of the current field relative to the parent submessage that
-  // was excluded in projection.
-  int skipped_submessage_level = 0;
-
-  Reader& transitions_reader = context.transitions.reader();
-  // Stack of all open sub-messages.
-  std::vector<SubmessageStackElement> submessage_stack;
-  submessage_stack.reserve(16);
-  // Number of following iteration that go directly to `node->next_node`
-  // without reading transition byte.
-  int num_iters = 0;
-
-  if (node->is_implicit) ++num_iters;
+  DecodingState state(this, &context, num_records, &dest, &limits);
   for (;;) {
-    switch (node->callback_type) {
+    switch (state.node->callback_type) {
       case chunk_encoding_internal::CallbackType::kSelectCallback:
-        if (ABSL_PREDICT_FALSE(!SetCallbackType(
-                context, skipped_submessage_level, submessage_stack, *node))) {
+        if (ABSL_PREDICT_FALSE(!state.SetCallbackType())) {
           return false;
         }
         continue;
 
       case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
-        ++skipped_submessage_level;
+        ++state.skipped_submessage_level;
         break;
 
       case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
-        if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
+        if (ABSL_PREDICT_FALSE(state.skipped_submessage_level == 0)) {
           return Fail(
               InvalidArgumentError("Skipped submessage stack underflow"));
         }
-        --skipped_submessage_level;
+        --state.skipped_submessage_level;
         break;
 
       case chunk_encoding_internal::CallbackType::kSubmessageEnd:
-        submessage_stack.push_back(
-            {IntCast<size_t>(dest.pos()), node->tag_data});
+        state.submessage_stack.push_back(
+            {IntCast<size_t>(dest.pos()), state.node->tag_data});
         break;
 
-      case chunk_encoding_internal::CallbackType::kSubmessageStart: {
-        if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
-          return Fail(InvalidArgumentError("Submessage stack underflow"));
+      case chunk_encoding_internal::CallbackType::kSubmessageStart:
+        if (ABSL_PREDICT_FALSE(!state.SubmessageStartCallback())) {
+          return false;
         }
-        const SubmessageStackElement& elem = submessage_stack.back();
-        RIEGELI_ASSERT_GE(dest.pos(), elem.end_of_submessage)
-            << "Destination position decreased";
-        const size_t length =
-            IntCast<size_t>(dest.pos()) - elem.end_of_submessage;
-        if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
-          return Fail(InvalidArgumentError("Message too large"));
-        }
-        if (ABSL_PREDICT_FALSE(
-                !WriteVarint32(IntCast<uint32_t>(length), dest))) {
-          return Fail(dest.status());
-        }
-        if (ABSL_PREDICT_FALSE(!dest.Write(
-                absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
-          return Fail(dest.status());
-        }
-        submessage_stack.pop_back();
-      } break;
+        break;
 
 #define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
   case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:           \
-    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+    if (ABSL_PREDICT_FALSE(!state.CopyTagCallback<tag_length>())) {            \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 1>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 1>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 2>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 2>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 3>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 3>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 4>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 4>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 5>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 5>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 6>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 6>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 7>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 7>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 8>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 8>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:          \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 9>(node, dest, *this)))) {            \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 9>()))) {        \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:         \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!VarintCallback<tag_length, 10>(node, dest, *this)))) {           \
+    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 10>()))) {       \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:           \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!FixedCallback<tag_length, 4>(node, dest, *this)))) {             \
+    if (ABSL_PREDICT_FALSE((!state.FixedCallback<tag_length, 4>()))) {         \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:           \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!FixedCallback<tag_length, 8>(node, dest, *this)))) {             \
+    if (ABSL_PREDICT_FALSE((!state.FixedCallback<tag_length, 8>()))) {         \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length:  \
     if (ABSL_PREDICT_FALSE(                                                    \
-            (!FixedExistenceCallback<tag_length, 4>(node, dest, *this)))) {    \
+            (!state.FixedExistenceCallback<tag_length, 4>()))) {               \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length:  \
     if (ABSL_PREDICT_FALSE(                                                    \
-            (!FixedExistenceCallback<tag_length, 8>(node, dest, *this)))) {    \
+            (!state.FixedExistenceCallback<tag_length, 8>()))) {               \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::kString_##tag_length:            \
-    if (ABSL_PREDICT_FALSE(!StringCallback<tag_length>(node, dest, *this))) {  \
+    if (ABSL_PREDICT_FALSE(!state.StringCallback<tag_length>())) {             \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::                                 \
       kStartProjectionGroup_##tag_length:                                      \
-    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                        \
-      return Fail(InvalidArgumentError("Submessage stack underflow"));         \
-    }                                                                          \
-    submessage_stack.pop_back();                                               \
-    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            !state.StartProjectionGroupCallback<tag_length>())) {              \
       return false;                                                            \
     }                                                                          \
     break;                                                                     \
   case chunk_encoding_internal::CallbackType::                                 \
       kEndProjectionGroup_##tag_length:                                        \
-    submessage_stack.push_back({IntCast<size_t>(dest.pos()), node->tag_data}); \
-    if (ABSL_PREDICT_FALSE(!CopyTagCallback<tag_length>(node, dest, *this))) { \
+    if (ABSL_PREDICT_FALSE(!state.EndProjectionGroupCallback<tag_length>())) { \
       return false;                                                            \
     }                                                                          \
     break
@@ -1278,7 +1386,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 #undef ACTIONS_FOR_TAG_LEN
 
       case chunk_encoding_internal::CallbackType::kCopyTag_6:
-        if (ABSL_PREDICT_FALSE(!CopyTagCallback<6>(node, dest, *this))) {
+        if (ABSL_PREDICT_FALSE(!state.CopyTagCallback<6>())) {
           return false;
         }
         break;
@@ -1287,88 +1395,31 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
       case chunk_encoding_internal::CallbackType::kFailure:
         return Fail(InvalidArgumentError("Invalid node index"));
 
-      case chunk_encoding_internal::CallbackType::kNonProto: {
-        uint32_t length;
-        if (ABSL_PREDICT_FALSE(
-                !ReadVarint32(*context.nonproto_lengths, length))) {
-          return Fail(context.nonproto_lengths->StatusOrAnnotate(
-              InvalidArgumentError("Reading non-proto record length failed")));
+      case chunk_encoding_internal::CallbackType::kNonProto:
+        if (ABSL_PREDICT_FALSE(!state.NonprotoCallback())) {
+          return false;
         }
-        if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, dest))) {
-          if (!dest.ok()) return Fail(dest.status());
-          return Fail(node->buffer->StatusOrAnnotate(
-              InvalidArgumentError("Reading non-proto record failed")));
-        }
-      }
-        ABSL_FALLTHROUGH_INTENDED;
+        break;
 
       case chunk_encoding_internal::CallbackType::kMessageStart:
-        if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-          return Fail(InvalidArgumentError("Submessages still open"));
+        if (ABSL_PREDICT_FALSE(!state.MessageStartCallback())) {
+          return false;
         }
-        if (ABSL_PREDICT_FALSE(limits.size() == num_records)) {
-          return Fail(InvalidArgumentError("Too many records"));
-        }
-        limits.push_back(IntCast<size_t>(dest.pos()));
         break;
 
       case chunk_encoding_internal::CallbackType::kNoOp:
         break;
 
       default:
-        RIEGELI_ASSERT_UNREACHABLE() << "Unknown callback type: "
-                                     << static_cast<int>(node->callback_type);
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Unknown callback type: "
+            << static_cast<int>(state.node->callback_type);
     }
-    node = node->next_node;
-    if (num_iters == 0) {
-      uint8_t transition_byte;
-      if (ABSL_PREDICT_FALSE(!transitions_reader.ReadByte(transition_byte))) {
-        break;
-      }
-      node += (transition_byte >> 2);
-      num_iters = transition_byte & 3;
-      if (node->is_implicit) ++num_iters;
-    } else {
-      if (!node->is_implicit) {
-        --num_iters;
-      }
+    if (ABSL_PREDICT_FALSE(!state.TransitionNode())) {
+      break;
     }
   }
-
-  if (ABSL_PREDICT_FALSE(!context.transitions.VerifyEndAndClose())) {
-    return Fail(context.transitions.status());
-  }
-  if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-    return Fail(InvalidArgumentError("Submessages still open"));
-  }
-  if (ABSL_PREDICT_FALSE(skipped_submessage_level != 0)) {
-    return Fail(InvalidArgumentError("Skipped submessages still open"));
-  }
-  if (ABSL_PREDICT_FALSE(limits.size() != num_records)) {
-    return Fail(InvalidArgumentError("Too few records"));
-  }
-  const size_t size = limits.empty() ? size_t{0} : limits.back();
-  if (ABSL_PREDICT_FALSE(size != dest.pos())) {
-    return Fail(InvalidArgumentError("Unfinished message"));
-  }
-
-  // Reverse `limits` and complement them, but keep the last limit unchanged
-  // (because both old and new limits exclude 0 at the beginning and include
-  // size at the end), e.g. for records of sizes {10, 20, 30, 40}:
-  // {40, 70, 90, 100} -> {10, 30, 60, 100}.
-  std::vector<size_t>::iterator first = limits.begin();
-  std::vector<size_t>::iterator last = limits.end();
-  if (first != last) {
-    --last;
-    while (first < last) {
-      --last;
-      const size_t tmp = size - *first;
-      *first = size - *last;
-      *last = tmp;
-      ++first;
-    }
-  }
-  return true;
+  return state.Finish();
 }
 
 // Do not inline this function. This helps Clang to generate better code for

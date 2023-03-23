@@ -118,6 +118,7 @@ class TransposeDecoder : public Object {
                 "Unexpected padding in StateMachineNode.");
 
   struct Context;
+  struct DecodingState;
 
   bool Parse(Context& context, Reader& src,
              const FieldProjection& field_projection);
