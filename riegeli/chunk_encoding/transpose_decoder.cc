@@ -51,7 +51,6 @@
 #include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
-
 namespace {
 
 Reader* kEmptyReader() {
@@ -98,10 +97,6 @@ bool ValidTag(uint32_t tag) {
       return false;
   }
 }
-
-}  // namespace
-
-namespace chunk_encoding_internal {
 
 // The types of callbacks in state machine states.
 enum class CallbackType : uint8_t {
@@ -162,15 +157,17 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
 }
 
 // Returns varint callback type for `subtype` and `tag_length`.
-inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
+inline CallbackType GetVarintCallbackType(
+    chunk_encoding_internal::Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
-  if (subtype > Subtype::kVarintInlineMax) return CallbackType::kUnknown;
-  if (subtype >= Subtype::kVarintInline0) {
+  if (subtype > chunk_encoding_internal::Subtype::kVarintInlineMax)
+    return CallbackType::kUnknown;
+  if (subtype >= chunk_encoding_internal::Subtype::kVarintInline0) {
     return GetCopyTagCallbackType(tag_length + 1);
   }
   return CallbackType::kVarint_1_1 +
-         (subtype - Subtype::kVarint1) *
+         (subtype - chunk_encoding_internal::Subtype::kVarint1) *
              (CallbackType::kVarint_2_1 - CallbackType::kVarint_1_1) +
          (tag_length - 1) *
              (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1);
@@ -213,15 +210,16 @@ inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
 }
 
 // Returns string callback type for `subtype` and `tag_length`.
-inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
+inline CallbackType GetStringCallbackType(
+    chunk_encoding_internal::Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
-    case Subtype::kLengthDelimitedString:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       return CallbackType::kString_1 +
              (tag_length - 1) *
                  (CallbackType::kString_2 - CallbackType::kString_1);
-    case Subtype::kLengthDelimitedEndOfSubmessage:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
       // Note: Nodes with `kLengthDelimitedStartOfSubmessage` are not created.
@@ -232,14 +230,14 @@ inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
 }
 
 // Returns string callback type for `subtype` and `tag_length` to exclude field.
-inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
-                                                 size_t tag_length) {
+inline CallbackType GetStringExcludeCallbackType(
+    chunk_encoding_internal::Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
-    case Subtype::kLengthDelimitedString:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       return CallbackType::kNoOp;
-    case Subtype::kLengthDelimitedEndOfSubmessage:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSkippedSubmessageEnd;
     default:
       return CallbackType::kUnknown;
@@ -247,16 +245,16 @@ inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
 }
 
 // Returns string existence callback type for `subtype` and `tag_length`.
-inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
-                                                   size_t tag_length) {
+inline CallbackType GetStringExistenceCallbackType(
+    chunk_encoding_internal::Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
-    case Subtype::kLengthDelimitedString:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
       // an empty string in proto decoder.
       return GetCopyTagCallbackType(tag_length + 1);
-    case Subtype::kLengthDelimitedEndOfSubmessage:
+    case chunk_encoding_internal::Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
       return CallbackType::kUnknown;
@@ -281,7 +279,8 @@ inline CallbackType GetEndProjectionGroupCallbackType(size_t tag_length) {
 
 // Get callback for node.
 inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
-                                    Subtype subtype, size_t tag_length,
+                                    chunk_encoding_internal::Subtype subtype,
+                                    size_t tag_length,
                                     bool projection_enabled) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -344,9 +343,65 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
-}  // namespace chunk_encoding_internal
+// Information about one proto tag.
+struct TagData {
+  // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
+  // numeric (if any) or zero otherwise.
+  char data[kMaxLengthVarint32 + 1];
+  // Length of the varint encoded tag.
+  uint8_t size;
+};
+
+// Node template that can be used to resolve the `CallbackType` of the node in
+// decoding phase.
+struct StateMachineNodeTemplate {
+  // `bucket_index` and `buffer_within_bucket_index` identify the decoder
+  // to read data from.
+  uint32_t bucket_index;
+  uint32_t buffer_within_bucket_index;
+  // Proto tag of the node.
+  uint32_t tag;
+  // Tag subtype.
+  chunk_encoding_internal::Subtype subtype;
+  // Length of the varint encoded tag.
+  uint8_t tag_length;
+};
+
+}  // namespace
+
+// `SubmessageStackElement` is used to keep information about started nested
+// submessages. Decoding works in non-recursive loop and this class keeps the
+// information needed to finalize one submessage.
+struct TransposeDecoder::SubmessageStackElement {
+  // The position of the end of submessage.
+  size_t end_of_submessage;
+  // Tag of this submessage.
+  TagData tag_data;
+};
+
+// Node of the state machine read from input.
+struct TransposeDecoder::StateMachineNode {
+  // Tag for the field decoded by this node.
+  TagData tag_data;
+  // Note: `callback_type` is after `tag_data` which is 7 bytes and may
+  // benefit from being aligned.
+  CallbackType callback_type : 7;
+  // Whether the callback is implicit.
+  bool is_implicit : 1;
+  union {
+    // Buffer to read data from.
+    Reader* buffer;
+    // In projection mode, the node is updated in decoding phase based on the
+    // current submessage stack and this template.
+    StateMachineNodeTemplate* node_template;
+  };
+  // Node to move to after finishing the callback for this node.
+  StateMachineNode* next_node;
+};
 
 struct TransposeDecoder::Context {
+  static_assert(sizeof(StateMachineNode) == 8 + 2 * sizeof(void*),
+                "Unexpected padding in StateMachineNode.");
   // Compression type of the input.
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
@@ -552,12 +607,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     state_machine_node.buffer = nullptr;
     switch (static_cast<chunk_encoding_internal::MessageId>(tag)) {
       case chunk_encoding_internal::MessageId::kNoOp:
-        state_machine_node.callback_type =
-            chunk_encoding_internal::CallbackType::kNoOp;
+        state_machine_node.callback_type = CallbackType::kNoOp;
         break;
       case chunk_encoding_internal::MessageId::kNonProto: {
-        state_machine_node.callback_type =
-            chunk_encoding_internal::CallbackType::kNonProto;
+        state_machine_node.callback_type = CallbackType::kNonProto;
         uint32_t buffer_index;
         if (ABSL_PREDICT_FALSE(
                 !ReadVarint32(header_decompressor.reader(), buffer_index))) {
@@ -580,19 +633,16 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         has_nonproto_op = true;
       } break;
       case chunk_encoding_internal::MessageId::kStartOfMessage:
-        state_machine_node.callback_type =
-            chunk_encoding_internal::CallbackType::kMessageStart;
+        state_machine_node.callback_type = CallbackType::kMessageStart;
         break;
       case chunk_encoding_internal::MessageId::kStartOfSubmessage:
         if (projection_enabled) {
           context.node_templates[i].tag = static_cast<uint32_t>(
               chunk_encoding_internal::MessageId::kStartOfSubmessage);
           state_machine_node.node_template = &context.node_templates[i];
-          state_machine_node.callback_type =
-              chunk_encoding_internal::CallbackType::kSelectCallback;
+          state_machine_node.callback_type = CallbackType::kSelectCallback;
         } else {
-          state_machine_node.callback_type =
-              chunk_encoding_internal::CallbackType::kSubmessageStart;
+          state_machine_node.callback_type = CallbackType::kSubmessageStart;
         }
         break;
       default: {
@@ -601,7 +651,8 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         static_assert(
             chunk_encoding_internal::Subtype::kLengthDelimitedString ==
                 chunk_encoding_internal::Subtype::kTrivial,
-            "Subtypes kLengthDelimitedString and kTrivial must be equal");
+            "chunk_encoding_internal::Subtypes kLengthDelimitedString and "
+            "kTrivial must be equal");
         // End of submessage is encoded as `kSubmessageWireType`.
         if (GetTagWireType(tag) ==
             chunk_encoding_internal::kSubmessageWireType) {
@@ -644,8 +695,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           context.node_templates[i].subtype = subtype;
           context.node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
           state_machine_node.node_template = &context.node_templates[i];
-          state_machine_node.callback_type =
-              chunk_encoding_internal::CallbackType::kSelectCallback;
+          state_machine_node.callback_type = CallbackType::kSelectCallback;
         } else {
           if (chunk_encoding_internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
@@ -660,12 +710,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
             state_machine_node.buffer = &context.buffers[buffer_index];
           }
           state_machine_node.callback_type =
-              chunk_encoding_internal::GetCallbackType(FieldIncluded::kYes, tag,
-                                                       subtype, tag_length,
-                                                       projection_enabled);
-          if (ABSL_PREDICT_FALSE(
-                  state_machine_node.callback_type ==
-                  chunk_encoding_internal::CallbackType::kUnknown)) {
+              GetCallbackType(FieldIncluded::kYes, tag, subtype, tag_length,
+                              projection_enabled);
+          if (ABSL_PREDICT_FALSE(state_machine_node.callback_type ==
+                                 CallbackType::kUnknown)) {
             return Fail(absl::InvalidArgumentError("Invalid node"));
           }
         }
@@ -723,8 +771,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
 
   // Add `0xff` failure nodes so we never overflow this array.
   for (uint64_t i = state_machine_size; i < state_machine_size + 0xff; ++i) {
-    state_machine_nodes[i].callback_type =
-        chunk_encoding_internal::CallbackType::kFailure;
+    state_machine_nodes[i].callback_type = CallbackType::kFailure;
   }
 
   if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(&state_machine_nodes))) {
@@ -1176,15 +1223,15 @@ struct TransposeDecoder::DecodingState {
     // for loop is only executed more than once in the case of kSelectCallback.
     for (;;) {
       switch (node->callback_type) {
-        case chunk_encoding_internal::CallbackType::kSelectCallback:
+        case CallbackType::kSelectCallback:
           if (ABSL_PREDICT_FALSE(!SetCallbackType())) return false;
           continue;
 
-        case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
+        case CallbackType::kSkippedSubmessageEnd:
           ++skipped_submessage_level;
           return true;
 
-        case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
+        case CallbackType::kSkippedSubmessageStart:
           if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
             return decoder->Fail(
                 InvalidArgumentError("Skipped submessage stack underflow"));
@@ -1192,52 +1239,50 @@ struct TransposeDecoder::DecodingState {
           --skipped_submessage_level;
           return true;
 
-        case chunk_encoding_internal::CallbackType::kSubmessageEnd:
+        case CallbackType::kSubmessageEnd:
           submessage_stack.push_back(
               {IntCast<size_t>(dest->pos()), node->tag_data});
           return true;
 
-        case chunk_encoding_internal::CallbackType::kSubmessageStart:
+        case CallbackType::kSubmessageStart:
           return SubmessageStartCallback();
 
-#define ACTIONS_FOR_TAG_LEN(tag_length)                                       \
-  case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:          \
-    return CopyTagCallback<tag_length>();                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:         \
-    return VarintCallback<tag_length, 1>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:         \
-    return VarintCallback<tag_length, 2>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:         \
-    return VarintCallback<tag_length, 3>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:         \
-    return VarintCallback<tag_length, 4>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:         \
-    return VarintCallback<tag_length, 5>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:         \
-    return VarintCallback<tag_length, 6>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:         \
-    return VarintCallback<tag_length, 7>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:         \
-    return VarintCallback<tag_length, 8>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:         \
-    return VarintCallback<tag_length, 9>();                                   \
-  case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:        \
-    return VarintCallback<tag_length, 10>();                                  \
-  case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:          \
-    return FixedCallback<tag_length, 4>();                                    \
-  case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:          \
-    return FixedCallback<tag_length, 8>();                                    \
-  case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length: \
-    return FixedExistenceCallback<tag_length, 4>();                           \
-  case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length: \
-    return FixedExistenceCallback<tag_length, 8>();                           \
-  case chunk_encoding_internal::CallbackType::kString_##tag_length:           \
-    return StringCallback<tag_length>();                                      \
-  case chunk_encoding_internal::CallbackType::                                \
-      kStartProjectionGroup_##tag_length:                                     \
-    return StartProjectionGroupCallback<tag_length>();                        \
-  case chunk_encoding_internal::CallbackType::                                \
-      kEndProjectionGroup_##tag_length:                                       \
+#define ACTIONS_FOR_TAG_LEN(tag_length)                  \
+  case CallbackType::kCopyTag_##tag_length:              \
+    return CopyTagCallback<tag_length>();                \
+  case CallbackType::kVarint_1_##tag_length:             \
+    return VarintCallback<tag_length, 1>();              \
+  case CallbackType::kVarint_2_##tag_length:             \
+    return VarintCallback<tag_length, 2>();              \
+  case CallbackType::kVarint_3_##tag_length:             \
+    return VarintCallback<tag_length, 3>();              \
+  case CallbackType::kVarint_4_##tag_length:             \
+    return VarintCallback<tag_length, 4>();              \
+  case CallbackType::kVarint_5_##tag_length:             \
+    return VarintCallback<tag_length, 5>();              \
+  case CallbackType::kVarint_6_##tag_length:             \
+    return VarintCallback<tag_length, 6>();              \
+  case CallbackType::kVarint_7_##tag_length:             \
+    return VarintCallback<tag_length, 7>();              \
+  case CallbackType::kVarint_8_##tag_length:             \
+    return VarintCallback<tag_length, 8>();              \
+  case CallbackType::kVarint_9_##tag_length:             \
+    return VarintCallback<tag_length, 9>();              \
+  case CallbackType::kVarint_10_##tag_length:            \
+    return VarintCallback<tag_length, 10>();             \
+  case CallbackType::kFixed32_##tag_length:              \
+    return FixedCallback<tag_length, 4>();               \
+  case CallbackType::kFixed64_##tag_length:              \
+    return FixedCallback<tag_length, 8>();               \
+  case CallbackType::kFixed32Existence_##tag_length:     \
+    return FixedExistenceCallback<tag_length, 4>();      \
+  case CallbackType::kFixed64Existence_##tag_length:     \
+    return FixedExistenceCallback<tag_length, 8>();      \
+  case CallbackType::kString_##tag_length:               \
+    return StringCallback<tag_length>();                 \
+  case CallbackType::kStartProjectionGroup_##tag_length: \
+    return StartProjectionGroupCallback<tag_length>();   \
+  case CallbackType::kEndProjectionGroup_##tag_length:   \
     return EndProjectionGroupCallback<tag_length>()
 
           ACTIONS_FOR_TAG_LEN(1);
@@ -1247,20 +1292,20 @@ struct TransposeDecoder::DecodingState {
           ACTIONS_FOR_TAG_LEN(5);
 #undef ACTIONS_FOR_TAG_LEN
 
-        case chunk_encoding_internal::CallbackType::kCopyTag_6:
+        case CallbackType::kCopyTag_6:
           return CopyTagCallback<6>();
 
-        case chunk_encoding_internal::CallbackType::kUnknown:
-        case chunk_encoding_internal::CallbackType::kFailure:
+        case CallbackType::kUnknown:
+        case CallbackType::kFailure:
           return decoder->Fail(InvalidArgumentError("Invalid node index"));
 
-        case chunk_encoding_internal::CallbackType::kNonProto:
+        case CallbackType::kNonProto:
           return NonprotoCallback();
 
-        case chunk_encoding_internal::CallbackType::kMessageStart:
+        case CallbackType::kMessageStart:
           return MessageStartCallback();
 
-        case chunk_encoding_internal::CallbackType::kNoOp:
+        case CallbackType::kNoOp:
           return true;
       }
       RIEGELI_ASSERT_UNREACHABLE()
@@ -1364,11 +1409,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       static_cast<uint32_t>(
           chunk_encoding_internal::MessageId::kStartOfSubmessage)) {
     if (skipped_submessage_level > 0) {
-      node.callback_type =
-          chunk_encoding_internal::CallbackType::kSkippedSubmessageStart;
+      node.callback_type = CallbackType::kSkippedSubmessageStart;
     } else {
-      node.callback_type =
-          chunk_encoding_internal::CallbackType::kSubmessageStart;
+      node.callback_type = CallbackType::kSubmessageStart;
     }
   } else {
     FieldIncluded field_included = FieldIncluded::kNo;
