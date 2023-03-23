@@ -17,11 +17,11 @@
 #include <stddef.h>
 
 #include <deque>
-#include <functional>
 #include <thread>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "riegeli/base/assert.h"
@@ -37,7 +37,7 @@ ThreadPool::~ThreadPool() {
       +[](size_t* num_threads) { return *num_threads == 0; }, &num_threads_));
 }
 
-void ThreadPool::Schedule(std::function<void()> task) {
+void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
   {
     absl::MutexLock lock(&mutex_);
     RIEGELI_ASSERT(!exiting_)
@@ -64,10 +64,10 @@ void ThreadPool::Schedule(std::function<void()> task) {
         --num_threads_;
         return;
       }
-      const std::function<void()> task = std::move(tasks_.front());
+      absl::AnyInvocable<void()&&> task = std::move(tasks_.front());
       tasks_.pop_front();
       lock.Release();
-      task();
+      std::move(task)();
     }
   }).detach();
 }

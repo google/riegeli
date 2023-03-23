@@ -18,13 +18,13 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <functional>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
@@ -42,7 +42,7 @@ class ValueParser : public Object {
   //              been called)
   //  * `false` - failure (`InvalidValue()`, `FailIfSeen()`, or
   //              `FailIfAnySeen()` may have been called)
-  using Function = std::function<bool(ValueParser&)>;
+  using Function = absl::AnyInvocable<bool(ValueParser&) const>;
 
   ValueParser(const ValueParser&) = delete;
   ValueParser& operator=(const ValueParser&) = delete;

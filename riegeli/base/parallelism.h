@@ -18,10 +18,10 @@
 #include <stddef.h>
 
 #include <deque>
-#include <functional>
 
 #include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 
 namespace riegeli {
@@ -40,14 +40,14 @@ class ThreadPool {
 
   static ThreadPool& global();
 
-  void Schedule(std::function<void()> task);
+  void Schedule(absl::AnyInvocable<void() &&> task);
 
  private:
   absl::Mutex mutex_;
   bool exiting_ ABSL_GUARDED_BY(mutex_) = false;
   size_t num_threads_ ABSL_GUARDED_BY(mutex_) = 0;
   size_t num_idle_threads_ ABSL_GUARDED_BY(mutex_) = 0;
-  std::deque<std::function<void()>> tasks_ ABSL_GUARDED_BY(mutex_);
+  std::deque<absl::AnyInvocable<void() &&>> tasks_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace internal
