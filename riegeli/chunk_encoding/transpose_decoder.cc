@@ -1171,6 +1171,103 @@ struct TransposeDecoder::DecodingState {
     return MessageStartCallback();
   }
 
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool HandleNode() {
+    // Use a loop instead of recursion to avoid unbounded stack growth.
+    // for loop is only executed more than once in the case of kSelectCallback.
+    for (;;) {
+      switch (node->callback_type) {
+        case chunk_encoding_internal::CallbackType::kSelectCallback:
+          if (ABSL_PREDICT_FALSE(!SetCallbackType())) return false;
+          continue;
+
+        case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
+          ++skipped_submessage_level;
+          return true;
+
+        case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
+          if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
+            return decoder->Fail(
+                InvalidArgumentError("Skipped submessage stack underflow"));
+          }
+          --skipped_submessage_level;
+          return true;
+
+        case chunk_encoding_internal::CallbackType::kSubmessageEnd:
+          submessage_stack.push_back(
+              {IntCast<size_t>(dest->pos()), node->tag_data});
+          return true;
+
+        case chunk_encoding_internal::CallbackType::kSubmessageStart:
+          return SubmessageStartCallback();
+
+#define ACTIONS_FOR_TAG_LEN(tag_length)                                       \
+  case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:          \
+    return CopyTagCallback<tag_length>();                                     \
+  case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:         \
+    return VarintCallback<tag_length, 1>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:         \
+    return VarintCallback<tag_length, 2>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:         \
+    return VarintCallback<tag_length, 3>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:         \
+    return VarintCallback<tag_length, 4>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:         \
+    return VarintCallback<tag_length, 5>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:         \
+    return VarintCallback<tag_length, 6>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:         \
+    return VarintCallback<tag_length, 7>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:         \
+    return VarintCallback<tag_length, 8>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:         \
+    return VarintCallback<tag_length, 9>();                                   \
+  case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:        \
+    return VarintCallback<tag_length, 10>();                                  \
+  case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:          \
+    return FixedCallback<tag_length, 4>();                                    \
+  case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:          \
+    return FixedCallback<tag_length, 8>();                                    \
+  case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length: \
+    return FixedExistenceCallback<tag_length, 4>();                           \
+  case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length: \
+    return FixedExistenceCallback<tag_length, 8>();                           \
+  case chunk_encoding_internal::CallbackType::kString_##tag_length:           \
+    return StringCallback<tag_length>();                                      \
+  case chunk_encoding_internal::CallbackType::                                \
+      kStartProjectionGroup_##tag_length:                                     \
+    return StartProjectionGroupCallback<tag_length>();                        \
+  case chunk_encoding_internal::CallbackType::                                \
+      kEndProjectionGroup_##tag_length:                                       \
+    return EndProjectionGroupCallback<tag_length>()
+
+          ACTIONS_FOR_TAG_LEN(1);
+          ACTIONS_FOR_TAG_LEN(2);
+          ACTIONS_FOR_TAG_LEN(3);
+          ACTIONS_FOR_TAG_LEN(4);
+          ACTIONS_FOR_TAG_LEN(5);
+#undef ACTIONS_FOR_TAG_LEN
+
+        case chunk_encoding_internal::CallbackType::kCopyTag_6:
+          return CopyTagCallback<6>();
+
+        case chunk_encoding_internal::CallbackType::kUnknown:
+        case chunk_encoding_internal::CallbackType::kFailure:
+          return decoder->Fail(InvalidArgumentError("Invalid node index"));
+
+        case chunk_encoding_internal::CallbackType::kNonProto:
+          return NonprotoCallback();
+
+        case chunk_encoding_internal::CallbackType::kMessageStart:
+          return MessageStartCallback();
+
+        case chunk_encoding_internal::CallbackType::kNoOp:
+          return true;
+      }
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Unknown callback type: " << static_cast<int>(node->callback_type);
+    }
+  }
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool TransitionNode() {
     node = node->next_node;
     if (num_iters == 0) {
@@ -1250,175 +1347,9 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                                      BackwardWriter& dest,
                                      std::vector<size_t>& limits) {
   DecodingState state(this, &context, num_records, &dest, &limits);
-  for (;;) {
-    switch (state.node->callback_type) {
-      case chunk_encoding_internal::CallbackType::kSelectCallback:
-        if (ABSL_PREDICT_FALSE(!state.SetCallbackType())) {
-          return false;
-        }
-        continue;
-
-      case chunk_encoding_internal::CallbackType::kSkippedSubmessageEnd:
-        ++state.skipped_submessage_level;
-        break;
-
-      case chunk_encoding_internal::CallbackType::kSkippedSubmessageStart:
-        if (ABSL_PREDICT_FALSE(state.skipped_submessage_level == 0)) {
-          return Fail(
-              InvalidArgumentError("Skipped submessage stack underflow"));
-        }
-        --state.skipped_submessage_level;
-        break;
-
-      case chunk_encoding_internal::CallbackType::kSubmessageEnd:
-        state.submessage_stack.push_back(
-            {IntCast<size_t>(dest.pos()), state.node->tag_data});
-        break;
-
-      case chunk_encoding_internal::CallbackType::kSubmessageStart:
-        if (ABSL_PREDICT_FALSE(!state.SubmessageStartCallback())) {
-          return false;
-        }
-        break;
-
-#define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
-  case chunk_encoding_internal::CallbackType::kCopyTag_##tag_length:           \
-    if (ABSL_PREDICT_FALSE(!state.CopyTagCallback<tag_length>())) {            \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_1_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 1>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_2_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 2>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_3_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 3>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_4_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 4>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_5_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 5>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_6_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 6>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_7_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 7>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_8_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 8>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_9_##tag_length:          \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 9>()))) {        \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kVarint_10_##tag_length:         \
-    if (ABSL_PREDICT_FALSE((!state.VarintCallback<tag_length, 10>()))) {       \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kFixed32_##tag_length:           \
-    if (ABSL_PREDICT_FALSE((!state.FixedCallback<tag_length, 4>()))) {         \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kFixed64_##tag_length:           \
-    if (ABSL_PREDICT_FALSE((!state.FixedCallback<tag_length, 8>()))) {         \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kFixed32Existence_##tag_length:  \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!state.FixedExistenceCallback<tag_length, 4>()))) {               \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kFixed64Existence_##tag_length:  \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            (!state.FixedExistenceCallback<tag_length, 8>()))) {               \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::kString_##tag_length:            \
-    if (ABSL_PREDICT_FALSE(!state.StringCallback<tag_length>())) {             \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::                                 \
-      kStartProjectionGroup_##tag_length:                                      \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            !state.StartProjectionGroupCallback<tag_length>())) {              \
-      return false;                                                            \
-    }                                                                          \
-    break;                                                                     \
-  case chunk_encoding_internal::CallbackType::                                 \
-      kEndProjectionGroup_##tag_length:                                        \
-    if (ABSL_PREDICT_FALSE(!state.EndProjectionGroupCallback<tag_length>())) { \
-      return false;                                                            \
-    }                                                                          \
-    break
-
-        ACTIONS_FOR_TAG_LEN(1);
-        ACTIONS_FOR_TAG_LEN(2);
-        ACTIONS_FOR_TAG_LEN(3);
-        ACTIONS_FOR_TAG_LEN(4);
-        ACTIONS_FOR_TAG_LEN(5);
-#undef ACTIONS_FOR_TAG_LEN
-
-      case chunk_encoding_internal::CallbackType::kCopyTag_6:
-        if (ABSL_PREDICT_FALSE(!state.CopyTagCallback<6>())) {
-          return false;
-        }
-        break;
-
-      case chunk_encoding_internal::CallbackType::kUnknown:
-      case chunk_encoding_internal::CallbackType::kFailure:
-        return Fail(InvalidArgumentError("Invalid node index"));
-
-      case chunk_encoding_internal::CallbackType::kNonProto:
-        if (ABSL_PREDICT_FALSE(!state.NonprotoCallback())) {
-          return false;
-        }
-        break;
-
-      case chunk_encoding_internal::CallbackType::kMessageStart:
-        if (ABSL_PREDICT_FALSE(!state.MessageStartCallback())) {
-          return false;
-        }
-        break;
-
-      case chunk_encoding_internal::CallbackType::kNoOp:
-        break;
-
-      default:
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Unknown callback type: "
-            << static_cast<int>(state.node->callback_type);
-    }
-    if (ABSL_PREDICT_FALSE(!state.TransitionNode())) {
-      break;
-    }
-  }
+  do {
+    if (ABSL_PREDICT_FALSE(!state.HandleNode())) return false;
+  } while (ABSL_PREDICT_TRUE(state.TransitionNode()));
   return state.Finish();
 }
 
