@@ -62,7 +62,7 @@ struct SearchResult {
 // If the earliest interesting position after `current` can be more easily found
 // as a side effect of `test(current)`, `test(current)` can return
 // `SearchGuide<Pos>`. If `ordering >= 0` (i.e. `ordering` is `equivalent` or
-// `greater`), the associated `next` should be be `current` (or another position
+// `greater`), the associated `next` should be `current` (or another position
 // to replace `current` with). Otherwise (i.e. `ordering` is `less` or
 // `unordered`), the associated `next` should be the earliest interesting
 // position after `current`.

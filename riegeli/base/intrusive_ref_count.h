@@ -67,7 +67,7 @@ class
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   RefCountedPtr& operator=(const RefCountedPtr<Other>& that) noexcept;
 
-  // The source `RefCountedPtr` is left as `nullptr`.
+  // The source `RefCountedPtr` is left empty.
   template <typename Other,
             std::enable_if_t<std::is_convertible<Other*, T*>::value, int> = 0>
   /*implicit*/ RefCountedPtr(RefCountedPtr<Other>&& that) noexcept;
