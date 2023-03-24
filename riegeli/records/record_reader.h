@@ -163,44 +163,6 @@ class RecordReaderBase : public Object {
       return recovery_;
     }
 
-    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
-    Options& set_recovery(
-        const std::function<bool(const SkippedRegion&)>& recovery) & {
-      if (recovery == nullptr) {
-        recovery_ = nullptr;
-      } else {
-        recovery_ = [recovery](const SkippedRegion& skipped_region,
-                               RecordReaderBase& record_reader) {
-          return recovery(skipped_region);
-        };
-      }
-      return *this;
-    }
-    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
-    Options&& set_recovery(
-        const std::function<bool(const SkippedRegion&)>& recovery) && {
-      return std::move(set_recovery(recovery));
-    }
-    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
-    Options& set_recovery(
-        std::function<bool(const SkippedRegion&)>&& recovery) & {
-      if (recovery == nullptr) {
-        recovery_ = nullptr;
-      } else {
-        recovery_ = [recovery = std::move(recovery)](
-                        const SkippedRegion& skipped_region,
-                        RecordReaderBase& record_reader) {
-          return recovery(skipped_region);
-        };
-      }
-      return *this;
-    }
-    ABSL_DEPRECATED("Add RecordReaderBase& parameter")
-    Options&& set_recovery(
-        std::function<bool(const SkippedRegion&)>&& recovery) && {
-      return std::move(set_recovery(std::move(recovery)));
-    }
-
    private:
     FieldProjection field_projection_ = FieldProjection::All();
     std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery_;
@@ -529,7 +491,8 @@ class RecordReaderBase : public Object {
 // For reading records while skipping errors, pass options like these:
 // ```
 //       riegeli::RecordReaderBase::Options().set_recovery(
-//           [&skipped_bytes](const riegeli::SkippedRegion& skipped_region) {
+//           [&skipped_bytes](const riegeli::SkippedRegion& skipped_region,
+//                            riegeli::RecordWriterBase& record_writer) {
 //             skipped_bytes += skipped_region.length();
 //             return true;
 //           })
