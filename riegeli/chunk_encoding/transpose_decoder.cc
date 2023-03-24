@@ -348,8 +348,6 @@ struct TagData {
   // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
   // numeric (if any) or zero otherwise.
   char data[kMaxLengthVarint32 + 1];
-  // Length of the varint encoded tag.
-  uint8_t size;
 };
 
 // Node template that can be used to resolve the `CallbackType` of the node in
@@ -375,19 +373,22 @@ struct StateMachineNodeTemplate {
 struct TransposeDecoder::SubmessageStackElement {
   // The position of the end of submessage.
   size_t end_of_submessage;
-  // Tag of this submessage.
+  // Tag of this submessage. Not inlined to allow copying.
   TagData tag_data;
+  // Size of the tag data.
+  uint8_t tag_data_size;
 };
 
 // Node of the state machine read from input.
 struct TransposeDecoder::StateMachineNode {
   // Tag for the field decoded by this node.
+  // 6 bytes and may benefit from being aligned.
   TagData tag_data;
-  // Note: `callback_type` is after `tag_data` which is 7 bytes and may
-  // benefit from being aligned.
-  CallbackType callback_type : 7;
+  // Size of the tag data. Must be in the range [0,6]
+  uint8_t tag_data_size : 7;
   // Whether the callback is implicit.
   bool is_implicit : 1;
+  CallbackType callback_type;
   union {
     // Buffer to read data from.
     Reader* buffer;
@@ -725,7 +726,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         } else {
           state_machine_node.tag_data.data[tag_length] = 0;
         }
-        state_machine_node.tag_data.size = IntCast<uint8_t>(tag_length);
+        state_machine_node.tag_data_size = IntCast<uint8_t>(tag_length);
       }
     }
     uint32_t next_node_id = next_node_indices[i];
@@ -1167,7 +1168,8 @@ struct TransposeDecoder::DecodingState {
 
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool EndProjectionGroupCallback() {
-    submessage_stack.push_back({IntCast<size_t>(dest->pos()), node->tag_data});
+    submessage_stack.push_back(
+        {IntCast<size_t>(dest->pos()), node->tag_data, node->tag_data_size});
     return CopyTagCallback<tag_length>();
   }
 
@@ -1186,7 +1188,7 @@ struct TransposeDecoder::DecodingState {
       return decoder->Fail(dest->status());
     }
     if (ABSL_PREDICT_FALSE(!dest->Write(
-            absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
+            absl::string_view(elem.tag_data.data, elem.tag_data_size)))) {
       return decoder->Fail(dest->status());
     }
     submessage_stack.pop_back();
@@ -1240,8 +1242,8 @@ struct TransposeDecoder::DecodingState {
           return true;
 
         case CallbackType::kSubmessageEnd:
-          submessage_stack.push_back(
-              {IntCast<size_t>(dest->pos()), node->tag_data});
+          submessage_stack.push_back({IntCast<size_t>(dest->pos()),
+                                      node->tag_data, node->tag_data_size});
           return true;
 
         case CallbackType::kSubmessageStart:
