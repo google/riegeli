@@ -146,6 +146,28 @@ constexpr uint8_t operator-(CallbackType a, CallbackType b) {
   return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
 }
 
+// Information about one proto tag.
+struct TagData {
+  // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
+  // numeric (if any) or zero otherwise.
+  char data[kMaxLengthVarint32 + 1];
+};
+
+// Node template that can be used to resolve the `CallbackType` of the node in
+// decoding phase.
+struct StateMachineNodeTemplate {
+  // `bucket_index` and `buffer_within_bucket_index` identify the decoder
+  // to read data from.
+  uint32_t bucket_index;
+  uint32_t buffer_within_bucket_index;
+  // Proto tag of the node.
+  uint32_t tag;
+  // Tag subtype.
+  chunk_encoding_internal::Subtype subtype;
+  // Length of the varint encoded tag.
+  uint8_t tag_length;
+};
+
 // Returns copy tag callback type for `tag_length`.
 inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
@@ -343,41 +365,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
-// Information about one proto tag.
-struct TagData {
-  // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
-  // numeric (if any) or zero otherwise.
-  char data[kMaxLengthVarint32 + 1];
-};
-
-// Node template that can be used to resolve the `CallbackType` of the node in
-// decoding phase.
-struct StateMachineNodeTemplate {
-  // `bucket_index` and `buffer_within_bucket_index` identify the decoder
-  // to read data from.
-  uint32_t bucket_index;
-  uint32_t buffer_within_bucket_index;
-  // Proto tag of the node.
-  uint32_t tag;
-  // Tag subtype.
-  chunk_encoding_internal::Subtype subtype;
-  // Length of the varint encoded tag.
-  uint8_t tag_length;
-};
-
 }  // namespace
-
-// `SubmessageStackElement` is used to keep information about started nested
-// submessages. Decoding works in non-recursive loop and this class keeps the
-// information needed to finalize one submessage.
-struct TransposeDecoder::SubmessageStackElement {
-  // The position of the end of submessage.
-  size_t end_of_submessage;
-  // Tag of this submessage. Not inlined to allow copying.
-  TagData tag_data;
-  // Size of the tag data.
-  uint8_t tag_data_size;
-};
 
 // Node of the state machine read from input.
 struct TransposeDecoder::StateMachineNode {
@@ -398,6 +386,18 @@ struct TransposeDecoder::StateMachineNode {
   };
   // Node to move to after finishing the callback for this node.
   StateMachineNode* next_node;
+};
+
+// `SubmessageStackElement` is used to keep information about started nested
+// submessages. Decoding works in non-recursive loop and this class keeps the
+// information needed to finalize one submessage.
+struct TransposeDecoder::SubmessageStackElement {
+  // The position of the end of submessage.
+  size_t end_of_submessage;
+  // Tag of this submessage. Not inlined to allow copying.
+  TagData tag_data;
+  // Size of the tag data.
+  uint8_t tag_data_size;
 };
 
 struct TransposeDecoder::Context {
