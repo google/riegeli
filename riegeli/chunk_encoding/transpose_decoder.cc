@@ -1184,14 +1184,17 @@ struct TransposeDecoder::DecodingState {
     if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
       return decoder->Fail(InvalidArgumentError("Message too large"));
     }
-    if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(length), *dest))) {
-      return decoder->Fail(dest->status());
-    }
-    if (ABSL_PREDICT_FALSE(!dest->Write(
-            absl::string_view(elem.tag_data.data, elem.tag_data_size)))) {
+    const size_t varint_length = LengthVarint32(IntCast<uint32_t>(length));
+    uint8_t tag_data_size = elem.tag_data_size;
+    size_t header_length = varint_length + tag_data_size;
+    if (ABSL_PREDICT_FALSE(!dest->Push(header_length))) {
       return decoder->Fail(dest->status());
     }
     submessage_stack.pop_back();
+    dest->move_cursor(header_length);
+    char* cursor = dest->cursor();
+    std::memcpy(cursor, elem.tag_data.data, tag_data_size);
+    WriteVarint32(IntCast<uint32_t>(length), cursor + tag_data_size);
     return true;
   }
 
