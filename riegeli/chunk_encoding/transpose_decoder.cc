@@ -1239,11 +1239,11 @@ struct TransposeDecoder::DecodingState {
     if (ABSL_PREDICT_FALSE(!dest->Push(header_length))) {
       return decoder->Fail(dest->status());
     }
-    submessage_stack.pop_back();
     dest->move_cursor(header_length);
     char* cursor = dest->cursor();
     std::memcpy(cursor, elem.tag_data.data, tag_data_size);
     WriteVarint32(IntCast<uint32_t>(length), cursor + tag_data_size);
+    submessage_stack.pop_back();
     return true;
   }
 
