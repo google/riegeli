@@ -22,6 +22,7 @@
 #include <limits>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -1078,8 +1079,58 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
+  template <uint8_t data_length, uint8_t low, uint8_t high>
+  using EnableIfBetween =
+      std::enable_if_t<(data_length >= low && data_length <= high), int>;
+
+  template <uint8_t data_length>
+  using Uint8Constant = std::integral_constant<uint8_t, data_length>;
+
+  // Masks the first `data_length - 1` elements in `buffer` with 0x80.
+  //
+  // TODO: Replace with `if constexpr` in C++17.
+  template <uint8_t data_length, EnableIfBetween<data_length, 9, 10> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+      char* buffer, std::integral_constant<uint8_t, data_length>) {
+    uint64_t val;
+    std::memcpy(&val, buffer, 8);
+    val |= uint64_t{0x8080808080808080};
+    std::memcpy(buffer, &val, 8);
+    return MaskBuffer(buffer + 8, Uint8Constant<data_length - 8>());
+  }
+
+  template <uint8_t data_length, EnableIfBetween<data_length, 5, 8> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+      char* buffer, std::integral_constant<uint8_t, data_length>) {
+    uint32_t val;
+    std::memcpy(&val, buffer, 4);
+    val |= uint32_t{0x80808080};
+    std::memcpy(buffer, &val, 4);
+    return MaskBuffer(buffer + 4, Uint8Constant<data_length - 4>());
+  }
+
+  template <uint8_t data_length, EnableIfBetween<data_length, 3, 4> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+      char* buffer, std::integral_constant<uint8_t, data_length>) {
+    uint16_t val;
+    std::memcpy(&val, buffer, 2);
+    val |= uint16_t{0x8080};
+    std::memcpy(buffer, &val, 2);
+    return MaskBuffer(buffer + 2, Uint8Constant<data_length - 2>());
+  }
+
+  template <uint8_t data_length, EnableIfBetween<data_length, 2, 2> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+      char* buffer, std::integral_constant<uint8_t, data_length>) {
+    *buffer = static_cast<char>(static_cast<uint8_t>(*buffer) | uint8_t{0x80});
+  }
+
+  template <uint8_t data_length, EnableIfBetween<data_length, 0, 1> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+      char* buffer, std::integral_constant<uint8_t, data_length>) {}
+
   // Decode varint value from `*node` to `dest`.
-  template <size_t tag_length, size_t data_length>
+  template <size_t tag_length, uint8_t data_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback() {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
@@ -1091,9 +1142,7 @@ struct TransposeDecoder::DecodingState {
       return decoder->Fail(node->buffer->StatusOrAnnotate(
           InvalidArgumentError("Reading varint field failed")));
     }
-    for (size_t i = 0; i < data_length - 1; ++i) {
-      buffer[tag_length + i] |= 0x80;
-    }
+    MaskBuffer(buffer + tag_length, Uint8Constant<data_length>());
     std::memcpy(buffer, node->tag_data.data, tag_length);
     return true;
   }
