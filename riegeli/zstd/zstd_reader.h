@@ -75,9 +75,29 @@ class ZstdReaderBase : public BufferedReader {
     ZstdDictionary& dictionary() { return dictionary_; }
     const ZstdDictionary& dictionary() const { return dictionary_; }
 
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     bool growing_source_ = false;
     ZstdDictionary dictionary_;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -97,14 +117,16 @@ class ZstdReaderBase : public BufferedReader {
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZstdReaderBase(const BufferOptions& buffer_options,
-                          bool growing_source, ZstdDictionary&& dictionary);
+                          bool growing_source, ZstdDictionary&& dictionary,
+                          const RecyclingPoolOptions& recycling_pool_options);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, bool growing_source,
-             ZstdDictionary&& dictionary);
+             ZstdDictionary&& dictionary,
+             const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -133,6 +155,7 @@ class ZstdReaderBase : public BufferedReader {
   // If `true`, calling `ZSTD_DCtx_setParameter()` is valid.
   bool just_initialized_ = false;
   ZstdDictionary dictionary_;
+  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
@@ -241,12 +264,14 @@ absl::optional<uint32_t> ZstdDictId(Reader& src);
 
 // Implementation details follow.
 
-inline ZstdReaderBase::ZstdReaderBase(const BufferOptions& buffer_options,
-                                      bool growing_source,
-                                      ZstdDictionary&& dictionary)
+inline ZstdReaderBase::ZstdReaderBase(
+    const BufferOptions& buffer_options, bool growing_source,
+    ZstdDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
-      dictionary_(std::move(dictionary)) {}
+      dictionary_(std::move(dictionary)),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
@@ -254,6 +279,7 @@ inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
       truncated_(that.truncated_),
       just_initialized_(that.just_initialized_),
       dictionary_(std::move(that.dictionary_)),
+      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
@@ -264,6 +290,7 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   truncated_ = that.truncated_;
   just_initialized_ = that.just_initialized_;
   dictionary_ = std::move(that.dictionary_);
+  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
@@ -274,18 +301,21 @@ inline void ZstdReaderBase::Reset(Closed) {
   growing_source_ = false;
   truncated_ = false;
   just_initialized_ = false;
+  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = ZstdDictionary();
 }
 
-inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
-                                  bool growing_source,
-                                  ZstdDictionary&& dictionary) {
+inline void ZstdReaderBase::Reset(
+    const BufferOptions& buffer_options, bool growing_source,
+    ZstdDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
   truncated_ = false;
   just_initialized_ = false;
+  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = std::move(dictionary);
@@ -294,7 +324,8 @@ inline void ZstdReaderBase::Reset(const BufferOptions& buffer_options,
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
     : ZstdReaderBase(options.buffer_options(), options.growing_source(),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       src_(src) {
   Initialize(src_.get());
 }
@@ -302,7 +333,8 @@ inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
     : ZstdReaderBase(options.buffer_options(), options.growing_source(),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -312,7 +344,8 @@ template <typename... SrcArgs>
 inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
     : ZstdReaderBase(options.buffer_options(), options.growing_source(),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -338,7 +371,8 @@ inline void ZstdReader<Src>::Reset(Closed) {
 template <typename Src>
 inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
   ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   src_.Reset(src);
   Initialize(src_.get());
 }
@@ -346,7 +380,8 @@ inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
   ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -356,7 +391,8 @@ template <typename... SrcArgs>
 inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
   ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

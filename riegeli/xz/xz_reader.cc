@@ -58,12 +58,13 @@ void XzReaderBase::Initialize(Reader* src) {
 }
 
 inline void XzReaderBase::InitializeDecompressor() {
-  decompressor_ = KeyedRecyclingPool<lzma_stream, LzmaStreamKey,
-                                     LzmaStreamDeleter>::global()
-                      .Get(LzmaStreamKey{container_}, [] {
-                        return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
-                            new lzma_stream());
-                      });
+  decompressor_ =
+      KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::global(
+          recycling_pool_options_)
+          .Get(LzmaStreamKey{container_}, [] {
+            return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
+                new lzma_stream());
+          });
   switch (container_) {
     case Container::kXz: {
       const lzma_ret liblzma_code = lzma_stream_decoder(
@@ -298,7 +299,8 @@ std::unique_ptr<Reader> XzReaderBase::NewReaderImpl(Position initial_pos) {
           XzReaderBase::Options()
               .set_container(container_)
               .set_concatenate((flags_ & LZMA_CONCATENATED) != 0)
-              .set_buffer_options(buffer_options()));
+              .set_buffer_options(buffer_options())
+              .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }

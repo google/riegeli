@@ -64,16 +64,20 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  compressor_ = RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global().Get(
-      [] {
-        return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(ZSTD_createCCtx());
-      },
-      [](ZSTD_CCtx* compressor) {
-        const size_t result =
-            ZSTD_CCtx_reset(compressor, ZSTD_reset_session_and_parameters);
-        RIEGELI_ASSERT(!ZSTD_isError(result))
-            << "ZSTD_CCtx_reset() failed: " << ZSTD_getErrorName(result);
-      });
+  compressor_ = RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global(
+                    recycling_pool_options_)
+                    .Get(
+                        [] {
+                          return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(
+                              ZSTD_createCCtx());
+                        },
+                        [](ZSTD_CCtx* compressor) {
+                          const size_t result = ZSTD_CCtx_reset(
+                              compressor, ZSTD_reset_session_and_parameters);
+                          RIEGELI_ASSERT(!ZSTD_isError(result))
+                              << "ZSTD_CCtx_reset() failed: "
+                              << ZSTD_getErrorName(result);
+                        });
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     Fail(absl::InternalError("ZSTD_createCCtx() failed"));
     return;
@@ -287,9 +291,11 @@ Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return nullptr;
   }
   ZstdReader<>* const reader = associated_reader_.ResetReader(
-      compressed_reader, ZstdReaderBase::Options()
-                             .set_dictionary(dictionary_)
-                             .set_buffer_options(buffer_options()));
+      compressed_reader,
+      ZstdReaderBase::Options()
+          .set_dictionary(dictionary_)
+          .set_buffer_options(buffer_options())
+          .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }

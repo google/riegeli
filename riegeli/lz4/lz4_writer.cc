@@ -78,11 +78,13 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
   {
     LZ4F_errorCode_t result = 0;
     compressor_ =
-        RecyclingPool<LZ4F_cctx, LZ4F_cctxDeleter>::global().Get([&result] {
-          LZ4F_cctx* compressor = nullptr;
-          result = LZ4F_createCompressionContext(&compressor, LZ4F_VERSION);
-          return std::unique_ptr<LZ4F_cctx, LZ4F_cctxDeleter>(compressor);
-        });
+        RecyclingPool<LZ4F_cctx, LZ4F_cctxDeleter>::global(
+            recycling_pool_options_)
+            .Get([&result] {
+              LZ4F_cctx* compressor = nullptr;
+              result = LZ4F_createCompressionContext(&compressor, LZ4F_VERSION);
+              return std::unique_ptr<LZ4F_cctx, LZ4F_cctxDeleter>(compressor);
+            });
     if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("LZ4F_createCompressionContext() failed: ",
@@ -286,9 +288,11 @@ Reader* Lz4WriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return nullptr;
   }
   Lz4Reader<>* const reader = associated_reader_.ResetReader(
-      compressed_reader, Lz4ReaderBase::Options()
-                             .set_dictionary(dictionary_)
-                             .set_buffer_options(buffer_options()));
+      compressed_reader,
+      Lz4ReaderBase::Options()
+          .set_dictionary(dictionary_)
+          .set_buffer_options(buffer_options())
+          .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }

@@ -125,11 +125,31 @@ class ZlibReaderBase : public BufferedReader {
     }
     bool concatenate() const { return concatenate_; }
 
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     Header header_ = kDefaultHeader;
     int window_log_ = kDefaultWindowLog;
     ZlibDictionary dictionary_;
     bool concatenate_ = false;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -156,14 +176,16 @@ class ZlibReaderBase : public BufferedReader {
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZlibReaderBase(const BufferOptions& buffer_options, int window_bits,
-                          ZlibDictionary&& dictionary, bool concatenate);
+                          ZlibDictionary&& dictionary, bool concatenate,
+                          const RecyclingPoolOptions& recycling_pool_options);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, int window_bits,
-             ZlibDictionary&& dictionary, bool concatenate);
+             ZlibDictionary&& dictionary, bool concatenate,
+             const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -178,7 +200,8 @@ class ZlibReaderBase : public BufferedReader {
 
  private:
   // For `ZStreamDeleter`.
-  friend bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header);
+  friend bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
+                            const RecyclingPoolOptions& recycling_pool_options);
 
   struct ZStreamDeleter {
     void operator()(z_stream_s* ptr) const;
@@ -199,6 +222,7 @@ class ZlibReaderBase : public BufferedReader {
   // legitimate, it does not imply that the source is truncated.
   bool stream_had_data_ = false;
   ZlibDictionary dictionary_;
+  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
@@ -290,8 +314,13 @@ explicit ZlibReader(std::tuple<SrcArgs...> src_args,
 // The current position of `src` is unchanged.
 //
 // Precondition: `header != ZlibReaderBase::Header::kRaw`
-bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header =
-                                    ZlibReaderBase::Header::kZlibOrGzip);
+bool RecognizeZlib(
+    Reader& src,
+    ZlibReaderBase::Header header = ZlibReaderBase::Header::kZlibOrGzip,
+    const RecyclingPoolOptions& recycling_pool_options =
+        RecyclingPoolOptions());
+bool RecognizeZlib(Reader& src,
+                   const RecyclingPoolOptions& recycling_pool_options);
 
 // Returns the claimed uncompressed size of Gzip-compressed data (with
 // `ZlibWriterBase::Header::kGzip`) modulo 4G. The compressed stream must not
@@ -309,14 +338,15 @@ absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 
 // Implementation details follow.
 
-inline ZlibReaderBase::ZlibReaderBase(const BufferOptions& buffer_options,
-                                      int window_bits,
-                                      ZlibDictionary&& dictionary,
-                                      bool concatenate)
+inline ZlibReaderBase::ZlibReaderBase(
+    const BufferOptions& buffer_options, int window_bits,
+    ZlibDictionary&& dictionary, bool concatenate,
+    const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       window_bits_(window_bits),
       concatenate_(concatenate),
-      dictionary_(std::move(dictionary)) {}
+      dictionary_(std::move(dictionary)),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
@@ -325,6 +355,7 @@ inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
       truncated_(that.truncated_),
       stream_had_data_(that.stream_had_data_),
       dictionary_(std::move(that.dictionary_)),
+      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
@@ -336,6 +367,7 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   truncated_ = that.truncated_;
   stream_had_data_ = that.stream_had_data_;
   dictionary_ = std::move(that.dictionary_);
+  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
@@ -347,14 +379,16 @@ inline void ZlibReaderBase::Reset(Closed) {
   concatenate_ = false;
   truncated_ = false;
   stream_had_data_ = false;
+  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = ZlibDictionary();
 }
 
-inline void ZlibReaderBase::Reset(const BufferOptions& buffer_options,
-                                  int window_bits, ZlibDictionary&& dictionary,
-                                  bool concatenate) {
+inline void ZlibReaderBase::Reset(
+    const BufferOptions& buffer_options, int window_bits,
+    ZlibDictionary&& dictionary, bool concatenate,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   window_bits_ = window_bits;
   concatenate_ = concatenate;
@@ -374,7 +408,8 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
     : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate()),
+                     std::move(options.dictionary()), options.concatenate(),
+                     options.recycling_pool_options()),
       src_(src) {
   Initialize(src_.get());
 }
@@ -382,7 +417,8 @@ inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
     : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate()),
+                     std::move(options.dictionary()), options.concatenate(),
+                     options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -392,7 +428,8 @@ template <typename... SrcArgs>
 inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
     : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate()),
+                     std::move(options.dictionary()), options.concatenate(),
+                     options.recycling_pool_options()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -418,7 +455,8 @@ inline void ZlibReader<Src>::Reset(Closed) {
 template <typename Src>
 inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
   ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate());
+                        std::move(options.dictionary()), options.concatenate(),
+                        options.recycling_pool_options());
   src_.Reset(src);
   Initialize(src_.get());
 }
@@ -426,7 +464,8 @@ inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
   ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate());
+                        std::move(options.dictionary()), options.concatenate(),
+                        options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -436,7 +475,8 @@ template <typename... SrcArgs>
 inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
   ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate());
+                        std::move(options.dictionary()), options.concatenate(),
+                        options.recycling_pool_options());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
@@ -461,6 +501,12 @@ template <typename Src>
 void ZlibReader<Src>::VerifyEndImpl() {
   ZlibReaderBase::VerifyEndImpl();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+}
+
+inline bool RecognizeZlib(Reader& src,
+                          const RecyclingPoolOptions& recycling_pool_options) {
+  return RecognizeZlib(src, ZlibReaderBase::Header::kZlibOrGzip,
+                       recycling_pool_options);
 }
 
 }  // namespace riegeli

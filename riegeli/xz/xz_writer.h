@@ -157,6 +157,25 @@ class XzWriterBase : public BufferedWriter {
     }
     int parallelism() const { return parallelism_; }
 
+    // Options for a global `KeyedRecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     template <typename Dest>
     friend class XzWriter;  // For `preset_`.
@@ -165,6 +184,7 @@ class XzWriterBase : public BufferedWriter {
     uint32_t preset_ = kDefaultCompressionLevel;
     Check check_ = kDefaultCheck;
     int parallelism_ = 0;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
@@ -177,13 +197,15 @@ class XzWriterBase : public BufferedWriter {
   explicit XzWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit XzWriterBase(const BufferOptions& buffer_options,
-                        Container container);
+                        Container container,
+                        const RecyclingPoolOptions& recycling_pool_options);
 
   XzWriterBase(XzWriterBase&& that) noexcept;
   XzWriterBase& operator=(XzWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, Container container);
+  void Reset(const BufferOptions& buffer_options, Container container,
+             const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Writer* dest, uint32_t preset, Check check, int parallelism);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -228,6 +250,7 @@ class XzWriterBase : public BufferedWriter {
 
   Container container_ = Container::kXz;
   lzma_action flush_action_ = LZMA_SYNC_FLUSH;
+  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::Handle
       compressor_;
@@ -317,14 +340,18 @@ explicit XzWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline XzWriterBase::XzWriterBase(const BufferOptions& buffer_options,
-                                  Container container)
-    : BufferedWriter(buffer_options), container_(container) {}
+inline XzWriterBase::XzWriterBase(
+    const BufferOptions& buffer_options, Container container,
+    const RecyclingPoolOptions& recycling_pool_options)
+    : BufferedWriter(buffer_options),
+      container_(container),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline XzWriterBase::XzWriterBase(XzWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       container_(that.container_),
       flush_action_(that.flush_action_),
+      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       compressor_(std::move(that.compressor_)),
       associated_reader_(std::move(that.associated_reader_)) {}
@@ -333,6 +360,7 @@ inline XzWriterBase& XzWriterBase::operator=(XzWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   container_ = that.container_;
   flush_action_ = that.flush_action_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   compressor_ = std::move(that.compressor_);
   associated_reader_ = std::move(that.associated_reader_);
@@ -343,16 +371,19 @@ inline void XzWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   container_ = Options::kDefaultContainer;
   flush_action_ = LZMA_SYNC_FLUSH;
+  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   compressor_.reset();
   associated_reader_.Reset();
 }
 
-inline void XzWriterBase::Reset(const BufferOptions& buffer_options,
-                                Container container) {
+inline void XzWriterBase::Reset(
+    const BufferOptions& buffer_options, Container container,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   container_ = container;
   flush_action_ = LZMA_SYNC_FLUSH;
+  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   compressor_.reset();
   associated_reader_.Reset();
@@ -360,14 +391,17 @@ inline void XzWriterBase::Reset(const BufferOptions& buffer_options,
 
 template <typename Dest>
 inline XzWriter<Dest>::XzWriter(const Dest& dest, Options options)
-    : XzWriterBase(options.buffer_options(), options.container()), dest_(dest) {
+    : XzWriterBase(options.buffer_options(), options.container(),
+                   options.recycling_pool_options()),
+      dest_(dest) {
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
 }
 
 template <typename Dest>
 inline XzWriter<Dest>::XzWriter(Dest&& dest, Options options)
-    : XzWriterBase(options.buffer_options(), options.container()),
+    : XzWriterBase(options.buffer_options(), options.container(),
+                   options.recycling_pool_options()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
@@ -377,7 +411,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline XzWriter<Dest>::XzWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
-    : XzWriterBase(options.buffer_options(), options.container()),
+    : XzWriterBase(options.buffer_options(), options.container(),
+                   options.recycling_pool_options()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
@@ -403,7 +438,8 @@ inline void XzWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void XzWriter<Dest>::Reset(const Dest& dest, Options options) {
-  XzWriterBase::Reset(options.buffer_options(), options.container());
+  XzWriterBase::Reset(options.buffer_options(), options.container(),
+                      options.recycling_pool_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
@@ -411,7 +447,8 @@ inline void XzWriter<Dest>::Reset(const Dest& dest, Options options) {
 
 template <typename Dest>
 inline void XzWriter<Dest>::Reset(Dest&& dest, Options options) {
-  XzWriterBase::Reset(options.buffer_options(), options.container());
+  XzWriterBase::Reset(options.buffer_options(), options.container(),
+                      options.recycling_pool_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
@@ -421,7 +458,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void XzWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
-  XzWriterBase::Reset(options.buffer_options(), options.container());
+  XzWriterBase::Reset(options.buffer_options(), options.container(),
+                      options.recycling_pool_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());

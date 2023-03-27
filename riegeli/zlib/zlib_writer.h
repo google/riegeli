@@ -132,11 +132,31 @@ class ZlibWriterBase : public BufferedWriter {
     ZlibDictionary& dictionary() { return dictionary_; }
     const ZlibDictionary& dictionary() const { return dictionary_; }
 
+    // Options for a global `KeyedRecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     Header header_ = kDefaultHeader;
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     ZlibDictionary dictionary_;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
@@ -149,14 +169,16 @@ class ZlibWriterBase : public BufferedWriter {
   explicit ZlibWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit ZlibWriterBase(const BufferOptions& buffer_options, int window_bits,
-                          ZlibDictionary&& dictionary);
+                          ZlibDictionary&& dictionary,
+                          const RecyclingPoolOptions& recycling_pool_options);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, int window_bits,
-             ZlibDictionary&& dictionary);
+             ZlibDictionary&& dictionary,
+             const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -196,6 +218,7 @@ class ZlibWriterBase : public BufferedWriter {
 
   int window_bits_ = 0;
   ZlibDictionary dictionary_;
+  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   KeyedRecyclingPool<z_stream_s, ZStreamKey, ZStreamDeleter>::Handle
       compressor_;
@@ -284,17 +307,20 @@ explicit ZlibWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline ZlibWriterBase::ZlibWriterBase(const BufferOptions& buffer_options,
-                                      int window_bits,
-                                      ZlibDictionary&& dictionary)
+inline ZlibWriterBase::ZlibWriterBase(
+    const BufferOptions& buffer_options, int window_bits,
+    ZlibDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options)
     : BufferedWriter(buffer_options),
       window_bits_(window_bits),
-      dictionary_(std::move(dictionary)) {}
+      dictionary_(std::move(dictionary)),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       window_bits_(that.window_bits_),
       dictionary_(std::move(that.dictionary_)),
+      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       compressor_(std::move(that.compressor_)),
       associated_reader_(std::move(that.associated_reader_)) {}
@@ -304,6 +330,7 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
   window_bits_ = that.window_bits_;
   dictionary_ = std::move(that.dictionary_);
+  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   compressor_ = std::move(that.compressor_);
   associated_reader_ = std::move(that.associated_reader_);
@@ -313,17 +340,20 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
 inline void ZlibWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   window_bits_ = 0;
+  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = ZlibDictionary();
   associated_reader_.Reset();
 }
 
-inline void ZlibWriterBase::Reset(const BufferOptions& buffer_options,
-                                  int window_bits,
-                                  ZlibDictionary&& dictionary) {
+inline void ZlibWriterBase::Reset(
+    const BufferOptions& buffer_options, int window_bits,
+    ZlibDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   window_bits_ = window_bits;
+  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = std::move(dictionary);
@@ -339,7 +369,8 @@ inline int ZlibWriterBase::GetWindowBits(const Options& options) {
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(const Dest& dest, Options options)
     : ZlibWriterBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       dest_(dest) {
   Initialize(dest_.get(), options.compression_level());
 }
@@ -347,7 +378,8 @@ inline ZlibWriter<Dest>::ZlibWriter(const Dest& dest, Options options)
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest&& dest, Options options)
     : ZlibWriterBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
 }
@@ -357,7 +389,8 @@ template <typename... DestArgs>
 inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
     : ZlibWriterBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary())),
+                     std::move(options.dictionary()),
+                     options.recycling_pool_options()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level());
 }
@@ -384,7 +417,8 @@ inline void ZlibWriter<Dest>::Reset(Closed) {
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(const Dest& dest, Options options) {
   ZlibWriterBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level());
 }
@@ -392,7 +426,8 @@ inline void ZlibWriter<Dest>::Reset(const Dest& dest, Options options) {
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(Dest&& dest, Options options) {
   ZlibWriterBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level());
 }
@@ -402,7 +437,8 @@ template <typename... DestArgs>
 inline void ZlibWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
   ZlibWriterBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()));
+                        std::move(options.dictionary()),
+                        options.recycling_pool_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level());
 }

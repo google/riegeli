@@ -68,8 +68,8 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
   }
   initial_compressed_pos_ = dest->pos();
   compressor_ =
-      KeyedRecyclingPool<lzma_stream, LzmaStreamKey,
-                         LzmaStreamDeleter>::global()
+      KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::global(
+          recycling_pool_options_)
           .Get(LzmaStreamKey{container_,
                              container_ == Container::kXz && parallelism > 0,
                              preset},
@@ -262,7 +262,8 @@ Reader* XzWriterBase::ReadModeBehindBuffer(Position initial_pos) {
       compressed_reader,
       XzReaderBase::Options()
           .set_container(static_cast<XzReaderBase::Container>(container_))
-          .set_buffer_options(buffer_options()));
+          .set_buffer_options(buffer_options())
+          .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }

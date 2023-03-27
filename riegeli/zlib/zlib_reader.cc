@@ -74,21 +74,23 @@ void ZlibReaderBase::Initialize(Reader* src) {
 }
 
 inline void ZlibReaderBase::InitializeDecompressor() {
-  decompressor_ = RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
-      [&] {
-        std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-        const int zlib_code = inflateInit2(ptr.get(), window_bits_);
-        if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-          FailOperation("inflateInit2()", zlib_code);
-        }
-        return ptr;
-      },
-      [&](z_stream* ptr) {
-        const int zlib_code = inflateReset2(ptr, window_bits_);
-        if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-          FailOperation("inflateReset2()", zlib_code);
-        }
-      });
+  decompressor_ =
+      RecyclingPool<z_stream, ZStreamDeleter>::global(recycling_pool_options_)
+          .Get(
+              [&] {
+                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                const int zlib_code = inflateInit2(ptr.get(), window_bits_);
+                if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+                  FailOperation("inflateInit2()", zlib_code);
+                }
+                return ptr;
+              },
+              [&](z_stream* ptr) {
+                const int zlib_code = inflateReset2(ptr, window_bits_);
+                if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+                  FailOperation("inflateReset2()", zlib_code);
+                }
+              });
 }
 
 void ZlibReaderBase::Done() {
@@ -305,12 +307,14 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
                                                : window_bits_ & 15)
               .set_dictionary(dictionary_)
               .set_concatenate(concatenate_)
-              .set_buffer_options(buffer_options()));
+              .set_buffer_options(buffer_options())
+              .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }
 
-bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header) {
+bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
+                   const RecyclingPoolOptions& recycling_pool_options) {
   RIEGELI_ASSERT(header != ZlibReaderBase::Header::kRaw)
       << "Failed precondition of RecognizeZlib(): "
          "Header::kRaw cannot be reliably detected";
@@ -320,13 +324,16 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header) {
   const int window_bits = static_cast<int>(header);
   int zlib_code;
   const RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor =
-      RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
-          [&] {
-            std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-            zlib_code = inflateInit2(ptr.get(), window_bits);
-            return ptr;
-          },
-          [&](z_stream* ptr) { zlib_code = inflateReset2(ptr, window_bits); });
+      RecyclingPool<z_stream, ZStreamDeleter>::global(recycling_pool_options)
+          .Get(
+              [&] {
+                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                zlib_code = inflateInit2(ptr.get(), window_bits);
+                return ptr;
+              },
+              [&](z_stream* ptr) {
+                zlib_code = inflateReset2(ptr, window_bits);
+              });
   if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) return false;
 
   char dest[1];

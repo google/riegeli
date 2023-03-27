@@ -85,9 +85,29 @@ class XzReaderBase : public BufferedReader {
     }
     bool concatenate() const { return concatenate_; }
 
+    // Options for a global `KeyedRecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     Container container_ = kDefaultContainer;
     bool concatenate_ = false;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -114,14 +134,16 @@ class XzReaderBase : public BufferedReader {
   explicit XzReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit XzReaderBase(const BufferOptions& buffer_options,
-                        Container container, uint32_t flags);
+                        Container container, uint32_t flags,
+                        const RecyclingPoolOptions& recycling_pool_options);
 
   XzReaderBase(XzReaderBase&& that) noexcept;
   XzReaderBase& operator=(XzReaderBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, Container container,
-             uint32_t flags);
+             uint32_t flags,
+             const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -163,6 +185,7 @@ class XzReaderBase : public BufferedReader {
 
   Container container_ = Options::kDefaultContainer;
   uint32_t flags_ = 0;
+  RecyclingPoolOptions recycling_pool_options_;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
@@ -262,14 +285,19 @@ bool RecognizeXz(Reader& src);
 
 // Implementation details follow.
 
-inline XzReaderBase::XzReaderBase(const BufferOptions& buffer_options,
-                                  Container container, uint32_t flags)
-    : BufferedReader(buffer_options), container_(container), flags_(flags) {}
+inline XzReaderBase::XzReaderBase(
+    const BufferOptions& buffer_options, Container container, uint32_t flags,
+    const RecyclingPoolOptions& recycling_pool_options)
+    : BufferedReader(buffer_options),
+      container_(container),
+      flags_(flags),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline XzReaderBase::XzReaderBase(XzReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       container_(that.container_),
       flags_(that.flags_),
+      recycling_pool_options_(that.recycling_pool_options_),
       truncated_(that.truncated_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
@@ -278,6 +306,7 @@ inline XzReaderBase& XzReaderBase::operator=(XzReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   container_ = that.container_;
   flags_ = that.flags_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   truncated_ = that.truncated_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
@@ -288,16 +317,19 @@ inline void XzReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   container_ = Options::kDefaultContainer;
   flags_ = 0;
+  recycling_pool_options_ = RecyclingPoolOptions();
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
 }
 
-inline void XzReaderBase::Reset(const BufferOptions& buffer_options,
-                                Container container, uint32_t flags) {
+inline void XzReaderBase::Reset(
+    const BufferOptions& buffer_options, Container container, uint32_t flags,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   container_ = container;
   flags_ = flags;
+  recycling_pool_options_ = recycling_pool_options;
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
@@ -306,7 +338,8 @@ inline void XzReaderBase::Reset(const BufferOptions& buffer_options,
 template <typename Src>
 inline XzReader<Src>::XzReader(const Src& src, Options options)
     : XzReaderBase(options.buffer_options(), options.container(),
-                   options.concatenate() ? LZMA_CONCATENATED : 0),
+                   options.concatenate() ? LZMA_CONCATENATED : 0,
+                   options.recycling_pool_options()),
       src_(src) {
   Initialize(src_.get());
 }
@@ -314,7 +347,8 @@ inline XzReader<Src>::XzReader(const Src& src, Options options)
 template <typename Src>
 inline XzReader<Src>::XzReader(Src&& src, Options options)
     : XzReaderBase(options.buffer_options(), options.container(),
-                   options.concatenate() ? LZMA_CONCATENATED : 0),
+                   options.concatenate() ? LZMA_CONCATENATED : 0,
+                   options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -323,7 +357,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline XzReader<Src>::XzReader(std::tuple<SrcArgs...> src_args, Options options)
     : XzReaderBase(options.buffer_options(), options.container(),
-                   options.concatenate() ? LZMA_CONCATENATED : 0),
+                   options.concatenate() ? LZMA_CONCATENATED : 0,
+                   options.recycling_pool_options()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -349,7 +384,8 @@ inline void XzReader<Src>::Reset(Closed) {
 template <typename Src>
 inline void XzReader<Src>::Reset(const Src& src, Options options) {
   XzReaderBase::Reset(options.buffer_options(), options.container(),
-                      options.concatenate() ? LZMA_CONCATENATED : 0);
+                      options.concatenate() ? LZMA_CONCATENATED : 0,
+                      options.recycling_pool_options());
   src_.Reset(src);
   Initialize(src_.get());
 }
@@ -357,7 +393,8 @@ inline void XzReader<Src>::Reset(const Src& src, Options options) {
 template <typename Src>
 inline void XzReader<Src>::Reset(Src&& src, Options options) {
   XzReaderBase::Reset(options.buffer_options(), options.container(),
-                      options.concatenate() ? LZMA_CONCATENATED : 0);
+                      options.concatenate() ? LZMA_CONCATENATED : 0,
+                      options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -367,7 +404,8 @@ template <typename... SrcArgs>
 inline void XzReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
   XzReaderBase::Reset(options.buffer_options(), options.container(),
-                      options.concatenate() ? LZMA_CONCATENATED : 0);
+                      options.concatenate() ? LZMA_CONCATENATED : 0,
+                      options.recycling_pool_options());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

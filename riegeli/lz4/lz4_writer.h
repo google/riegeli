@@ -198,6 +198,25 @@ class Lz4WriterBase : public BufferedWriter {
       return options;
     }
 
+    // Options for a global `RecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
@@ -206,6 +225,7 @@ class Lz4WriterBase : public BufferedWriter {
     bool store_block_checksum_ = false;
     absl::optional<Position> pledged_size_;
     bool reserve_max_size_ = false;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
@@ -220,14 +240,16 @@ class Lz4WriterBase : public BufferedWriter {
   explicit Lz4WriterBase(const BufferOptions& buffer_options,
                          Lz4Dictionary&& dictionary,
                          absl::optional<Position> pledged_size,
-                         bool reserve_max_size);
+                         bool reserve_max_size,
+                         const RecyclingPoolOptions& recycling_pool_options);
 
   Lz4WriterBase(Lz4WriterBase&& that) noexcept;
   Lz4WriterBase& operator=(Lz4WriterBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
-             absl::optional<Position> pledged_size, bool reserve_max_size);
+             absl::optional<Position> pledged_size, bool reserve_max_size,
+             const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   bool store_content_checksum, bool store_block_checksum);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -254,6 +276,7 @@ class Lz4WriterBase : public BufferedWriter {
   Lz4Dictionary dictionary_;
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
+  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   LZ4F_preferences_t preferences_{};
   // If `ok()` but `compressor_ == nullptr` then `LZ4F_compressEnd()` was
@@ -350,20 +373,22 @@ explicit Lz4Writer(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline Lz4WriterBase::Lz4WriterBase(const BufferOptions& buffer_options,
-                                    Lz4Dictionary&& dictionary,
-                                    absl::optional<Position> pledged_size,
-                                    bool reserve_max_size)
+inline Lz4WriterBase::Lz4WriterBase(
+    const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
+    absl::optional<Position> pledged_size, bool reserve_max_size,
+    const RecyclingPoolOptions& recycling_pool_options)
     : BufferedWriter(buffer_options),
       dictionary_(std::move(dictionary)),
       pledged_size_(pledged_size),
-      reserve_max_size_(reserve_max_size) {}
+      reserve_max_size_(reserve_max_size),
+      recycling_pool_options_(recycling_pool_options) {}
 
 inline Lz4WriterBase::Lz4WriterBase(Lz4WriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
       dictionary_(std::move(that.dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
+      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       preferences_(that.preferences_),
       compressor_(std::move(that.compressor_)),
@@ -376,6 +401,7 @@ inline Lz4WriterBase& Lz4WriterBase::operator=(Lz4WriterBase&& that) noexcept {
   dictionary_ = std::move(that.dictionary_);
   pledged_size_ = that.pledged_size_;
   reserve_max_size_ = that.reserve_max_size_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   preferences_ = that.preferences_;
   compressor_ = std::move(that.compressor_);
@@ -389,6 +415,7 @@ inline void Lz4WriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   pledged_size_ = absl::nullopt;
   reserve_max_size_ = false;
+  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   preferences_ = {};
   compressor_.reset();
@@ -398,13 +425,14 @@ inline void Lz4WriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void Lz4WriterBase::Reset(const BufferOptions& buffer_options,
-                                 Lz4Dictionary&& dictionary,
-                                 absl::optional<Position> pledged_size,
-                                 bool reserve_max_size) {
+inline void Lz4WriterBase::Reset(
+    const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
+    absl::optional<Position> pledged_size, bool reserve_max_size,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;
+  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   preferences_ = {};
   compressor_.reset();
@@ -418,7 +446,8 @@ template <typename Dest>
 inline Lz4Writer<Dest>::Lz4Writer(const Dest& dest, Options options)
     : Lz4WriterBase(options.effective_buffer_options(),
                     std::move(options.dictionary()), options.pledged_size(),
-                    options.reserve_max_size()),
+                    options.reserve_max_size(),
+                    options.recycling_pool_options()),
       dest_(dest) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
@@ -428,7 +457,8 @@ template <typename Dest>
 inline Lz4Writer<Dest>::Lz4Writer(Dest&& dest, Options options)
     : Lz4WriterBase(options.effective_buffer_options(),
                     std::move(options.dictionary()), options.pledged_size(),
-                    options.reserve_max_size()),
+                    options.reserve_max_size(),
+                    options.recycling_pool_options()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
@@ -440,7 +470,8 @@ inline Lz4Writer<Dest>::Lz4Writer(std::tuple<DestArgs...> dest_args,
                                   Options options)
     : Lz4WriterBase(options.effective_buffer_options(),
                     std::move(options.dictionary()), options.pledged_size(),
-                    options.reserve_max_size()),
+                    options.reserve_max_size(),
+                    options.recycling_pool_options()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
@@ -468,7 +499,8 @@ template <typename Dest>
 inline void Lz4Writer<Dest>::Reset(const Dest& dest, Options options) {
   Lz4WriterBase::Reset(options.effective_buffer_options(),
                        std::move(options.dictionary()), options.pledged_size(),
-                       options.reserve_max_size());
+                       options.reserve_max_size(),
+                       options.recycling_pool_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
@@ -478,7 +510,8 @@ template <typename Dest>
 inline void Lz4Writer<Dest>::Reset(Dest&& dest, Options options) {
   Lz4WriterBase::Reset(options.effective_buffer_options(),
                        std::move(options.dictionary()), options.pledged_size(),
-                       options.reserve_max_size());
+                       options.reserve_max_size(),
+                       options.recycling_pool_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
@@ -490,7 +523,8 @@ inline void Lz4Writer<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                    Options options) {
   Lz4WriterBase::Reset(options.effective_buffer_options(),
                        std::move(options.dictionary()), options.pledged_size(),
-                       options.reserve_max_size());
+                       options.reserve_max_size(),
+                       options.recycling_pool_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());

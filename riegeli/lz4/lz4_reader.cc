@@ -54,15 +54,19 @@ void Lz4ReaderBase::Initialize(Reader* src) {
 
 inline void Lz4ReaderBase::InitializeDecompressor(Reader& src) {
   LZ4F_errorCode_t result = 0;
-  decompressor_ = RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global().Get(
-      [&result] {
-        LZ4F_dctx* decompressor = nullptr;
-        result = LZ4F_createDecompressionContext(&decompressor, LZ4F_VERSION);
-        return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(decompressor);
-      },
-      [](LZ4F_dctx* decompressor) {
-        LZ4F_resetDecompressionContext(decompressor);
-      });
+  decompressor_ = RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
+                      recycling_pool_options_)
+                      .Get(
+                          [&result] {
+                            LZ4F_dctx* decompressor = nullptr;
+                            result = LZ4F_createDecompressionContext(
+                                &decompressor, LZ4F_VERSION);
+                            return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
+                                decompressor);
+                          },
+                          [](LZ4F_dctx* decompressor) {
+                            LZ4F_resetDecompressionContext(decompressor);
+                          });
   if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) {
     Fail(absl::InternalError(
         absl::StrCat("LZ4F_createDecompressionContext() failed: ",
@@ -307,27 +311,34 @@ std::unique_ptr<Reader> Lz4ReaderBase::NewReaderImpl(Position initial_pos) {
           Lz4ReaderBase::Options()
               .set_growing_source(growing_source_)
               .set_dictionary(dictionary_)
-              .set_buffer_options(buffer_options()));
+              .set_buffer_options(buffer_options())
+              .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }
 
 namespace lz4_internal {
 
-inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info) {
+inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info,
+                         const RecyclingPoolOptions& recycling_pool_options) {
   using LZ4F_dctxDeleter = Lz4ReaderBase::LZ4F_dctxDeleter;
   RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor;
   {
     LZ4F_errorCode_t result = 0;
-    decompressor = RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global().Get(
-        [&result] {
-          LZ4F_dctx* decompressor = nullptr;
-          result = LZ4F_createDecompressionContext(&decompressor, LZ4F_VERSION);
-          return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(decompressor);
-        },
-        [](LZ4F_dctx* decompressor) {
-          LZ4F_resetDecompressionContext(decompressor);
-        });
+    decompressor =
+        RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
+            recycling_pool_options)
+            .Get(
+                [&result] {
+                  LZ4F_dctx* decompressor = nullptr;
+                  result = LZ4F_createDecompressionContext(&decompressor,
+                                                           LZ4F_VERSION);
+                  return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
+                      decompressor);
+                },
+                [](LZ4F_dctx* decompressor) {
+                  LZ4F_resetDecompressionContext(decompressor);
+                });
     if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) return false;
   }
   if (ABSL_PREDICT_FALSE(!src.Pull(LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH,
@@ -345,14 +356,18 @@ inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info) {
 
 }  // namespace lz4_internal
 
-bool RecognizeLz4(Reader& src) {
+bool RecognizeLz4(Reader& src,
+                  const RecyclingPoolOptions& recycling_pool_options) {
   LZ4F_frameInfo_t frame_info;
-  return lz4_internal::GetFrameInfo(src, frame_info);
+  return lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options);
 }
 
-absl::optional<Position> Lz4UncompressedSize(Reader& src) {
+absl::optional<Position> Lz4UncompressedSize(
+    Reader& src, const RecyclingPoolOptions& recycling_pool_options) {
   LZ4F_frameInfo_t frame_info;
-  if (!lz4_internal::GetFrameInfo(src, frame_info)) return absl::nullopt;
+  if (!lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options)) {
+    return absl::nullopt;
+  }
   if (frame_info.contentSize > 0) return frame_info.contentSize;
   return absl::nullopt;
 }

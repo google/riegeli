@@ -78,24 +78,26 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
   }
   initial_compressed_pos_ = dest->pos();
   compressor_ =
-      KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global().Get(
-          ZStreamKey{compression_level, window_bits_},
-          [&] {
-            std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-            const int zlib_code =
-                deflateInit2(ptr.get(), compression_level, Z_DEFLATED,
-                             window_bits_, 8, Z_DEFAULT_STRATEGY);
-            if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-              FailOperation("deflateInit2()", zlib_code);
-            }
-            return ptr;
-          },
-          [&](z_stream* ptr) {
-            const int zlib_code = deflateReset(ptr);
-            if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-              FailOperation("deflateReset()", zlib_code);
-            }
-          });
+      KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global(
+          recycling_pool_options_)
+          .Get(
+              ZStreamKey{compression_level, window_bits_},
+              [&] {
+                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                const int zlib_code =
+                    deflateInit2(ptr.get(), compression_level, Z_DEFLATED,
+                                 window_bits_, 8, Z_DEFAULT_STRATEGY);
+                if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+                  FailOperation("deflateInit2()", zlib_code);
+                }
+                return ptr;
+              },
+              [&](z_stream* ptr) {
+                const int zlib_code = deflateReset(ptr);
+                if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+                  FailOperation("deflateReset()", zlib_code);
+                }
+              });
   if (!dictionary_.empty()) {
     const int zlib_code = deflateSetDictionary(
         compressor_.get(),
@@ -255,7 +257,8 @@ Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                                              window_bits_ & ~15))
           .set_window_log(window_bits_ < 0 ? -window_bits_ : window_bits_ & 15)
           .set_dictionary(dictionary_)
-          .set_buffer_options(buffer_options()));
+          .set_buffer_options(buffer_options())
+          .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);
   return reader;
 }
