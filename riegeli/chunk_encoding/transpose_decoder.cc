@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -147,13 +148,6 @@ constexpr uint8_t operator-(CallbackType a, CallbackType b) {
   return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
 }
 
-// Information about one proto tag.
-struct TagData {
-  // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
-  // numeric (if any) or zero otherwise.
-  char data[kMaxLengthVarint32 + 1];
-};
-
 // Node template that can be used to resolve the `CallbackType` of the node in
 // decoding phase.
 struct StateMachineNodeTemplate {
@@ -274,8 +268,8 @@ inline CallbackType GetStringExistenceCallbackType(
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case chunk_encoding_internal::Subtype::kLengthDelimitedString:
-      // We use the fact that there is a zero stored in TagData. This decodes as
-      // an empty string in proto decoder.
+      // We use the fact that there is a zero stored in `tag_data`. This decodes
+      // as an empty string in proto decoder.
       return GetCopyTagCallbackType(tag_length + 1);
     case chunk_encoding_internal::Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
@@ -370,10 +364,12 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
 
 // Node of the state machine read from input.
 struct TransposeDecoder::StateMachineNode {
-  // Tag for the field decoded by this node.
-  // 6 bytes and may benefit from being aligned.
-  TagData tag_data;
-  // Size of the tag data. Must be in the range [0,6]
+  // Tag for the field decoded by this node, may benefit from being aligned.
+  //
+  // `tag_data` contains varint encoded tag (1 to 5 bytes) followed by inline
+  // numeric (if any) or zero otherwise.
+  char tag_data[kMaxLengthVarint32 + 1];
+  // Size of the tag data. Must be in the range [1..5].
   uint8_t tag_data_size : 7;
   // Whether the callback is implicit.
   bool is_implicit : 1;
@@ -387,18 +383,6 @@ struct TransposeDecoder::StateMachineNode {
   };
   // Node to move to after finishing the callback for this node.
   StateMachineNode* next_node;
-};
-
-// `SubmessageStackElement` is used to keep information about started nested
-// submessages. Decoding works in non-recursive loop and this class keeps the
-// information needed to finalize one submessage.
-struct TransposeDecoder::SubmessageStackElement {
-  // The position of the end of submessage.
-  size_t end_of_submessage;
-  // Tag of this submessage. Not inlined to allow copying.
-  TagData tag_data;
-  // Size of the tag data.
-  uint8_t tag_data_size;
 };
 
 struct TransposeDecoder::Context {
@@ -667,10 +651,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         if (ABSL_PREDICT_FALSE(!ValidTag(tag))) {
           return Fail(absl::InvalidArgumentError("Invalid tag"));
         }
-        char* const tag_end =
-            WriteVarint32(tag, state_machine_node.tag_data.data);
+        char* const tag_end = WriteVarint32(tag, state_machine_node.tag_data);
         const size_t tag_length =
-            PtrDistance(state_machine_node.tag_data.data, tag_end);
+            PtrDistance(state_machine_node.tag_data, tag_end);
         if (chunk_encoding_internal::HasSubtype(tag)) {
           subtype = static_cast<chunk_encoding_internal::Subtype>(
               subtypes[subtype_index++]);
@@ -722,10 +705,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         // Store subtype right past tag in case this is inline numeric.
         if (GetTagWireType(tag) == WireType::kVarint &&
             subtype >= chunk_encoding_internal::Subtype::kVarintInline0) {
-          state_machine_node.tag_data.data[tag_length] =
+          state_machine_node.tag_data[tag_length] =
               subtype - chunk_encoding_internal::Subtype::kVarintInline0;
         } else {
-          state_machine_node.tag_data.data[tag_length] = 0;
+          state_machine_node.tag_data[tag_length] = 0;
         }
         state_machine_node.tag_data_size = IntCast<uint8_t>(tag_length);
       }
@@ -1042,6 +1025,69 @@ ABSL_ATTRIBUTE_NOINLINE absl::Status InvalidArgumentError(
 }
 
 struct TransposeDecoder::DecodingState {
+  // `SubmessageStack` is used to keep information about started nested
+  // submessages. Decoding works in non-recursive loop and this class keeps the
+  // information needed to finalize one submessages.
+  //
+  // A manual structure is used instead of `std::vector` to avoid unnecessary
+  // zeroing or object construction in the submessage hot path.
+  class SubmessageStack {
+   public:
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Push(size_t position,
+                                           StateMachineNode* node) {
+      EnsureSpaceForOne();
+      positions_[size_] = position;
+      nodes_[size_] = node;
+      ++size_;
+    }
+
+    struct SubmessageStackElement {
+      size_t end_of_submessage;
+      StateMachineNode* submessage_node;
+    };
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE SubmessageStackElement Pop() {
+      RIEGELI_ASSERT(!Empty());
+      --size_;
+      return SubmessageStackElement{positions_[size_], nodes_[size_]};
+    }
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE bool Empty() const { return size_ == 0; }
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Span<const StateMachineNode* const>
+    NodeSpan() const {
+      return absl::MakeConstSpan(nodes_.get(), size_);
+    }
+
+   private:
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void EnsureSpaceForOne() {
+      if (ABSL_PREDICT_FALSE(size_ == capacity_)) {
+        if (ABSL_PREDICT_TRUE(capacity_ == 0)) {
+          capacity_ = 16;
+          positions_ = std::unique_ptr<size_t[]>(new size_t[capacity_]);
+          nodes_ = std::unique_ptr<StateMachineNode*[]>(
+              new StateMachineNode*[capacity_]);
+        } else {
+          capacity_ *= 2;
+          std::unique_ptr<size_t[]> new_positions(new size_t[capacity_]);
+          std::unique_ptr<StateMachineNode*[]> new_nodes(
+              new StateMachineNode*[capacity_]);
+          std::memcpy(new_positions.get(), positions_.get(),
+                      size_ * sizeof(size_t));
+          std::memcpy(new_nodes.get(), nodes_.get(),
+                      size_ * sizeof(StateMachineNode*));
+          positions_ = std::move(new_positions);
+          nodes_ = std::move(new_nodes);
+        }
+      }
+    }
+
+    std::unique_ptr<size_t[]> positions_;
+    std::unique_ptr<StateMachineNode*[]> nodes_;
+    size_t size_ = 0;
+    size_t capacity_ = 0;
+  };
+
   // All pointers are non-null and owned elsewhere.
   explicit DecodingState(TransposeDecoder* decoder, Context* context,
                          uint64_t num_records, BackwardWriter* dest,
@@ -1058,7 +1104,6 @@ struct TransposeDecoder::DecodingState {
     // Later `limits` will be reversed and complemented.
     limits->clear();
     limits->reserve(num_records);
-    submessage_stack.reserve(16);
   }
 
   DecodingState(const DecodingState&) = delete;
@@ -1066,14 +1111,14 @@ struct TransposeDecoder::DecodingState {
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SetCallbackType() {
     return decoder->SetCallbackType(*context, skipped_submessage_level,
-                                    submessage_stack, *node);
+                                    submessage_stack.NodeSpan(), *node);
   }
 
   // Copy tag from `*node` to `dest`.
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback() {
     if (ABSL_PREDICT_FALSE(
-            !dest->Write(absl::string_view(node->tag_data.data, tag_length)))) {
+            !dest->Write(absl::string_view(node->tag_data, tag_length)))) {
       return decoder->Fail(dest->status());
     }
     return true;
@@ -1143,7 +1188,7 @@ struct TransposeDecoder::DecodingState {
           InvalidArgumentError("Reading varint field failed")));
     }
     MaskBuffer(buffer + tag_length, Uint8Constant<data_length>());
-    std::memcpy(buffer, node->tag_data.data, tag_length);
+    std::memcpy(buffer, node->tag_data, tag_length);
     return true;
   }
 
@@ -1160,7 +1205,7 @@ struct TransposeDecoder::DecodingState {
       return decoder->Fail(node->buffer->StatusOrAnnotate(
           InvalidArgumentError("Reading fixed field failed")));
     }
-    std::memcpy(buffer, node->tag_data.data, tag_length);
+    std::memcpy(buffer, node->tag_data, tag_length);
     return true;
   }
 
@@ -1173,7 +1218,7 @@ struct TransposeDecoder::DecodingState {
     dest->move_cursor(tag_length + data_length);
     char* const buffer = dest->cursor();
     std::memset(buffer + tag_length, '\0', data_length);
-    std::memcpy(buffer, node->tag_data.data, tag_length);
+    std::memcpy(buffer, node->tag_data, tag_length);
     return true;
   }
 
@@ -1200,7 +1245,7 @@ struct TransposeDecoder::DecodingState {
           InvalidArgumentError("Reading string field failed")));
     }
     if (ABSL_PREDICT_FALSE(
-            !dest->Write(absl::string_view(node->tag_data.data, tag_length)))) {
+            !dest->Write(absl::string_view(node->tag_data, tag_length)))) {
       return decoder->Fail(dest->status());
     }
     return true;
@@ -1208,25 +1253,24 @@ struct TransposeDecoder::DecodingState {
 
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StartProjectionGroupCallback() {
-    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
+    if (ABSL_PREDICT_FALSE(submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
     }
-    submessage_stack.pop_back();
+    submessage_stack.Pop();
     return CopyTagCallback<tag_length>();
   }
 
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool EndProjectionGroupCallback() {
-    submessage_stack.push_back(
-        {IntCast<size_t>(dest->pos()), node->tag_data, node->tag_data_size});
+    submessage_stack.Push(IntCast<size_t>(dest->pos()), node);
     return CopyTagCallback<tag_length>();
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SubmessageStartCallback() {
-    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
+    if (ABSL_PREDICT_FALSE(submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
     }
-    const SubmessageStackElement& elem = submessage_stack.back();
+    auto elem = submessage_stack.Pop();
     RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
         << "Destination position decreased";
     const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
@@ -1234,21 +1278,20 @@ struct TransposeDecoder::DecodingState {
       return decoder->Fail(InvalidArgumentError("Message too large"));
     }
     const size_t varint_length = LengthVarint32(IntCast<uint32_t>(length));
-    uint8_t tag_data_size = elem.tag_data_size;
+    uint8_t tag_data_size = elem.submessage_node->tag_data_size;
     size_t header_length = varint_length + tag_data_size;
     if (ABSL_PREDICT_FALSE(!dest->Push(header_length))) {
       return decoder->Fail(dest->status());
     }
     dest->move_cursor(header_length);
     char* cursor = dest->cursor();
-    std::memcpy(cursor, elem.tag_data.data, tag_data_size);
+    std::memcpy(cursor, elem.submessage_node->tag_data, tag_data_size);
     WriteVarint32(IntCast<uint32_t>(length), cursor + tag_data_size);
-    submessage_stack.pop_back();
     return true;
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool MessageStartCallback() {
-    if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
+    if (ABSL_PREDICT_FALSE(!submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessages still open"));
     }
     if (ABSL_PREDICT_FALSE(limits->size() == num_records)) {
@@ -1294,8 +1337,7 @@ struct TransposeDecoder::DecodingState {
           return true;
 
         case CallbackType::kSubmessageEnd:
-          submessage_stack.push_back({IntCast<size_t>(dest->pos()),
-                                      node->tag_data, node->tag_data_size});
+          submessage_stack.Push(IntCast<size_t>(dest->pos()), node);
           return true;
 
         case CallbackType::kSubmessageStart:
@@ -1387,7 +1429,7 @@ struct TransposeDecoder::DecodingState {
     if (ABSL_PREDICT_FALSE(!context->transitions.VerifyEndAndClose())) {
       return decoder->Fail(context->transitions.status());
     }
-    if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
+    if (ABSL_PREDICT_FALSE(!submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessages still open"));
     }
     if (ABSL_PREDICT_FALSE(skipped_submessage_level != 0)) {
@@ -1436,7 +1478,7 @@ struct TransposeDecoder::DecodingState {
   // was excluded in projection.
   int skipped_submessage_level = 0;
   // Stack of all open sub-messages.
-  std::vector<SubmessageStackElement> submessage_stack;
+  SubmessageStack submessage_stack;
   // Number of following iteration that go directly to `node->next_node`
   // without reading transition byte.
   int num_iters;
@@ -1456,7 +1498,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 // the main loop in `Decode()`.
 ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     Context& context, int skipped_submessage_level,
-    absl::Span<const SubmessageStackElement> submessage_stack,
+    absl::Span<const StateMachineNode* const> submessage_stack,
     StateMachineNode& node) {
   StateMachineNodeTemplate* node_template = node.node_template;
   if (node_template->tag ==
@@ -1472,10 +1514,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     uint32_t field_id = kInvalidPos;
     if (skipped_submessage_level == 0) {
       field_included = FieldIncluded::kExistenceOnly;
-      for (const SubmessageStackElement& elem : submessage_stack) {
+      for (const StateMachineNode* elem : submessage_stack) {
         uint32_t tag;
-        if (ReadVarint32(elem.tag_data.data,
-                         elem.tag_data.data + kMaxLengthVarint32,
+        if (ReadVarint32(elem->tag_data, elem->tag_data + kMaxLengthVarint32,
                          tag) == absl::nullopt) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         }
@@ -1505,8 +1546,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         GetTagWireType(node_template->tag) == WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
-      if (ReadVarint32(node.tag_data.data,
-                       node.tag_data.data + kMaxLengthVarint32,
+      if (ReadVarint32(node.tag_data, node.tag_data + kMaxLengthVarint32,
                        tag) == absl::nullopt) {
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       }
@@ -1545,9 +1585,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
                                          node_template->tag_length, true);
     if (field_included == FieldIncluded::kExistenceOnly &&
         GetTagWireType(node_template->tag) == WireType::kVarint) {
-      // The tag in `TagData` was followed by a subtype but must be followed by
+      // The tag in `tag_data` was followed by a subtype but must be followed by
       // zero now.
-      node.tag_data.data[node_template->tag_length] = 0;
+      node.tag_data[node_template->tag_length] = 0;
     }
   }
   return true;

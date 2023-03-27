@@ -54,7 +54,6 @@ class TransposeDecoder : public Object {
               BackwardWriter& dest, std::vector<size_t>& limits);
 
  private:
-  struct SubmessageStackElement;
   struct StateMachineNode;
   struct Context;
   struct DecodingState;
@@ -90,7 +89,7 @@ class TransposeDecoder : public Object {
   // `submessage_stack`, and `node.node_template`.
   bool SetCallbackType(
       Context& context, int skipped_submessage_level,
-      absl::Span<const SubmessageStackElement> submessage_stack,
+      absl::Span<const StateMachineNode* const> submessage_stack,
       StateMachineNode& node);
 };
 
