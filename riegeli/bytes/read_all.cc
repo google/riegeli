@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstddef>
 #include <limits>
 #include <string>
 #include <utility>
@@ -40,33 +41,6 @@ ABSL_ATTRIBUTE_COLD
 absl::Status MaxLengthExceeded(Reader& src, Position max_length) {
   return src.AnnotateStatus(absl::ResourceExhaustedError(
       absl::StrCat("Maximum length exceeded: ", max_length)));
-}
-
-}  // namespace
-
-absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
-                         size_t* length_read) {
-  if (!src.Read(max_length, dest, length_read)) {
-    if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
-    return absl::OkStatus();
-  }
-  if (ABSL_PREDICT_FALSE(src.Pull())) return MaxLengthExceeded(src, max_length);
-  return absl::OkStatus();
-}
-
-absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length) {
-  dest.clear();
-  return ReadAndAppendAllImpl(src, dest, max_length);
-}
-
-absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length) {
-  dest.Clear();
-  return ReadAndAppendAllImpl(src, dest, max_length);
-}
-
-absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length) {
-  dest.Clear();
-  return ReadAndAppendAllImpl(src, dest, max_length);
 }
 
 absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
@@ -189,6 +163,81 @@ absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
     if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   }
   return absl::OkStatus();
+}
+
+}  // namespace
+
+absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
+                         size_t* length_read) {
+  if (!src.Read(max_length, dest, length_read)) {
+    if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+    return absl::OkStatus();
+  }
+  if (ABSL_PREDICT_FALSE(src.Pull())) return MaxLengthExceeded(src, max_length);
+  return absl::OkStatus();
+}
+
+absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length,
+                         size_t* length_read) {
+  dest.clear();
+  return ReadAndAppendAllImpl(src, dest, max_length, length_read);
+}
+
+absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length,
+                         size_t* length_read) {
+  dest.Clear();
+  return ReadAndAppendAllImpl(src, dest, max_length, length_read);
+}
+
+absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length,
+                         size_t* length_read) {
+  dest.Clear();
+  return ReadAndAppendAllImpl(src, dest, max_length, length_read);
+}
+
+absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
+                                  size_t max_length, size_t* length_read) {
+  if (length_read == nullptr) {
+    return ReadAndAppendAllImpl(src, dest, max_length);
+  }
+  const Position pos_before = src.pos();
+  const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
+  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+      << "ReadAndAppendAllImpl(std::string&) decreased src.pos()";
+  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+      << "ReadAndAppendAllImpl(std::string&) read more than requested";
+  *length_read = IntCast<size_t>(src.pos() - pos_before);
+  return status;
+}
+
+absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length,
+                                  size_t* length_read) {
+  if (length_read == nullptr) {
+    return ReadAndAppendAllImpl(src, dest, max_length);
+  }
+  const Position pos_before = src.pos();
+  const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
+  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+      << "ReadAndAppendAllImpl(Chain&) decreased src.pos()";
+  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+      << "ReadAndAppendAllImpl(Chain&) read more than requested";
+  *length_read = IntCast<size_t>(src.pos() - pos_before);
+  return status;
+}
+
+absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
+                                  size_t max_length, size_t* length_read) {
+  if (length_read == nullptr) {
+    return ReadAndAppendAllImpl(src, dest, max_length);
+  }
+  const Position pos_before = src.pos();
+  const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
+  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+      << "ReadAndAppendAllImpl(absl::Cord&) decreased src.pos()";
+  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+      << "ReadAndAppendAllImpl(absl::Cord&) read more than requested";
+  *length_read = IntCast<size_t>(src.pos() - pos_before);
+  return status;
 }
 
 }  // namespace read_all_internal

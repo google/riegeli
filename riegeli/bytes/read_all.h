@@ -35,7 +35,9 @@ namespace riegeli {
 // `dest` (clearing any existing data in `dest`), and `VerifyEndAndClose()`
 // (if the `Reader` is owned).
 //
-// `ReadAll(char*)` sets `*length_read` to the length read.
+// If `length_read != nullptr` then sets `*length_read` to the length read.
+// This is equal to the difference between `src.pos()` after and before the
+// call.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
@@ -49,19 +51,34 @@ absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, std::string& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
+                     size_t max_length = std::numeric_limits<size_t>::max(),
+                     size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAll(Src&& src, std::string& dest, size_t* length_read);
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, Chain& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
+                     size_t max_length = std::numeric_limits<size_t>::max(),
+                     size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAll(Src&& src, Chain& dest, size_t* length_read);
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, absl::Cord& dest,
-                     size_t max_length = std::numeric_limits<size_t>::max());
+                     size_t max_length = std::numeric_limits<size_t>::max(),
+                     size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t* length_read);
 
 // Combines creating a `Reader` (optionally), reading all remaining data to
 // `dest` (appending to any existing data in `dest`), and `VerifyEndAndClose()`
 // (if the `Reader` is owned).
+//
+// If `length_read != nullptr` then sets `*length_read` to the length read.
+// This is equal to the difference between `pos()` after and before the call.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
@@ -72,17 +89,30 @@ template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAndAppendAll(
     Src&& src, std::string& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
+    size_t max_length = std::numeric_limits<size_t>::max(),
+    size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAndAppendAll(Src&& src, std::string& dest,
+                              size_t* length_read);
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAndAppendAll(
     Src&& src, Chain& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
+    size_t max_length = std::numeric_limits<size_t>::max(),
+    size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAndAppendAll(Src&& src, Chain& dest, size_t* length_read);
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAndAppendAll(
     Src&& src, absl::Cord& dest,
-    size_t max_length = std::numeric_limits<size_t>::max());
+    size_t max_length = std::numeric_limits<size_t>::max(),
+    size_t* length_read = nullptr);
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+absl::Status ReadAndAppendAll(Src&& src, absl::Cord& dest, size_t* length_read);
 
 // Implementation details follow.
 
@@ -90,20 +120,25 @@ namespace read_all_internal {
 
 absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
                          size_t* length_read);
-absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length);
-absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length);
-absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length);
+absl::Status ReadAllImpl(Reader& src, std::string& dest, size_t max_length,
+                         size_t* length_read);
+absl::Status ReadAllImpl(Reader& src, Chain& dest, size_t max_length,
+                         size_t* length_read);
+absl::Status ReadAllImpl(Reader& src, absl::Cord& dest, size_t max_length,
+                         size_t* length_read);
 absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
-                                  size_t max_length);
-absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length);
+                                  size_t max_length, size_t* length_read);
+absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length,
+                                  size_t* length_read);
 absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
-                                  size_t max_length);
+                                  size_t max_length, size_t* length_read);
 
 template <typename Src, typename Dest>
-inline absl::Status ReadAllInternal(Src&& src, Dest& dest, size_t max_length) {
+inline absl::Status ReadAllInternal(Src&& src, Dest& dest, size_t max_length,
+                                    size_t* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status = ReadAllImpl(*src_dep, dest, max_length);
+  absl::Status status = ReadAllImpl(*src_dep, dest, max_length, length_read);
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
       status.Update(src_dep->status());
@@ -114,10 +149,12 @@ inline absl::Status ReadAllInternal(Src&& src, Dest& dest, size_t max_length) {
 
 template <typename Src, typename Dest>
 inline absl::Status ReadAndAppendAllInternal(Src&& src, Dest& dest,
-                                             size_t max_length) {
+                                             size_t max_length,
+                                             size_t* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  absl::Status status = ReadAndAppendAllImpl(*src_dep, dest, max_length);
+  absl::Status status =
+      ReadAndAppendAllImpl(*src_dep, dest, max_length, length_read);
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
       status.Update(src_dep->status());
@@ -146,47 +183,95 @@ absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, std::string& dest, size_t max_length) {
+inline absl::Status ReadAll(Src&& src, std::string& dest, size_t max_length,
+                            size_t* length_read) {
   return read_all_internal::ReadAllInternal(std::forward<Src>(src), dest,
-                                            max_length);
+                                            max_length, length_read);
 }
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, Chain& dest, size_t max_length) {
-  return read_all_internal::ReadAllInternal(std::forward<Src>(src), dest,
-                                            max_length);
+inline absl::Status ReadAll(Src&& src, std::string& dest, size_t* length_read) {
+  return ReadAll(std::forward<Src>(src), dest,
+                 std::numeric_limits<size_t>::max(), length_read);
 }
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t max_length) {
+inline absl::Status ReadAll(Src&& src, Chain& dest, size_t max_length,
+                            size_t* length_read) {
   return read_all_internal::ReadAllInternal(std::forward<Src>(src), dest,
-                                            max_length);
+                                            max_length, length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAll(Src&& src, Chain& dest, size_t* length_read) {
+  return ReadAll(std::forward<Src>(src), dest,
+                 std::numeric_limits<size_t>::max(), length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t max_length,
+                            size_t* length_read) {
+  return read_all_internal::ReadAllInternal(std::forward<Src>(src), dest,
+                                            max_length, length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t* length_read) {
+  return ReadAll(std::forward<Src>(src), dest,
+                 std::numeric_limits<size_t>::max(), length_read);
 }
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
 inline absl::Status ReadAndAppendAll(Src&& src, std::string& dest,
-                                     size_t max_length) {
-  return read_all_internal::ReadAndAppendAllInternal(std::forward<Src>(src),
-                                                     dest, max_length);
+                                     size_t max_length, size_t* length_read) {
+  return read_all_internal::ReadAndAppendAllInternal(
+      std::forward<Src>(src), dest, max_length, length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAndAppendAll(Src&& src, std::string& dest,
+                                     size_t* length_read) {
+  return ReadAndAppendAll(std::forward<Src>(src), dest,
+                          std::numeric_limits<size_t>::max(), length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAndAppendAll(Src&& src, Chain& dest, size_t max_length,
+                                     size_t* length_read) {
+  return read_all_internal::ReadAndAppendAllInternal(
+      std::forward<Src>(src), dest, max_length, length_read);
 }
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
 inline absl::Status ReadAndAppendAll(Src&& src, Chain& dest,
-                                     size_t max_length) {
-  return read_all_internal::ReadAndAppendAllInternal(std::forward<Src>(src),
-                                                     dest, max_length);
+                                     size_t* length_read) {
+  return ReadAndAppendAll(std::forward<Src>(src), dest,
+                          std::numeric_limits<size_t>::max(), length_read);
 }
 
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
 inline absl::Status ReadAndAppendAll(Src&& src, absl::Cord& dest,
-                                     size_t max_length) {
-  return read_all_internal::ReadAndAppendAllInternal(std::forward<Src>(src),
-                                                     dest, max_length);
+                                     size_t max_length, size_t* length_read) {
+  return read_all_internal::ReadAndAppendAllInternal(
+      std::forward<Src>(src), dest, max_length, length_read);
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ReadAndAppendAll(Src&& src, absl::Cord& dest,
+                                     size_t* length_read) {
+  return ReadAndAppendAll(std::forward<Src>(src), dest,
+                          std::numeric_limits<size_t>::max(), length_read);
 }
 
 }  // namespace riegeli

@@ -42,8 +42,6 @@ absl::Status MaxLengthExceeded(Reader& src, Position max_length) {
       absl::StrCat("Maximum length exceeded: ", max_length)));
 }
 
-}  // namespace
-
 absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
                          bool set_write_size_hint) {
   if (src.SupportsSize()) {
@@ -81,6 +79,24 @@ absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
     if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   }
   return absl::OkStatus();
+}
+
+}  // namespace
+
+absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
+                         Position* length_read, bool set_write_size_hint) {
+  if (length_read == nullptr) {
+    return CopyAllImpl(src, dest, max_length, set_write_size_hint);
+  }
+  const Position pos_before = src.pos();
+  const absl::Status status =
+      CopyAllImpl(src, dest, max_length, set_write_size_hint);
+  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+      << "CopyAllImpl(Writer&) decreased src.pos()";
+  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+      << "CopyAllImpl(Writer&) read more than requested";
+  *length_read = src.pos() - pos_before;
+  return status;
 }
 
 absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
