@@ -67,9 +67,10 @@ class CsvWriterBase : public Object {
     // particular header is assumed, and only `WriteRecord()` from a sequence of
     // fields is supported.
     //
-    // The CSV format does not support empty records: writing a header with no
-    // fields has the same effect as writing a header containing one empty
-    // field.
+    // The CSV format does not support empty records. A header with no fields
+    // will be written as an empty line, which will be read as a header
+    // consisting of one empty field, or will be skipped if
+    // `CsvReaderBase::Options::skip_empty_lines()`.
     //
     // Default: `absl::nullopt`.
     Options& set_header(absl::optional<CsvHeader> header) & {
@@ -95,7 +96,7 @@ class CsvWriterBase : public Object {
     // UTF-8 BOM in order to recognize UTF-8 contents without prompting for the
     // encoding.
     //
-    // `CsvReader` will understand files written with any option.
+    // By default `CsvReader` will understand files written with any option.
     //
     // Default: `false`.
     Options& set_write_utf8_bom(bool write_utf8_bom) & {
@@ -125,6 +126,7 @@ class CsvWriterBase : public Object {
     // Comment character.
     //
     // If not `absl::nullopt`, fields containing this character will be quoted.
+    // This is not covered by RFC4180.
     //
     // Often used: '#'.
     //
@@ -153,14 +155,21 @@ class CsvWriterBase : public Object {
     // Quote character.
     //
     // Quotes around a field allow expressing special characters inside the
-    // field: UTF-8 BOM, LF, CR, comment character, field separator, or quote
-    // character itself.
+    // field: LF, CR, comment character, field separator, or quote character
+    // itself.
     //
-    // To express a quote inside a quoted field, it must be written twice or
-    // preceded by an escape character.
+    // To express a quote inside a quoted field, it must be written twice.
+    //
+    // Quotes are also used for unambiguous interpretation of a record
+    // consisting of a single empty field or beginning with UTF-8 BOM.
     //
     // If `absl::nullopt`, special characters inside fields are not expressible,
-    // and `CsvWriter` fails if they are encountered.
+    // and `CsvWriter` fails if they are encountered, except that potential
+    // ambiguities above skip quoting instead. In this case, reading a record
+    // consisting of a single empty field is incompatible with
+    // `CsvReaderBase::Options::skip_empty_lines()`, and reading the first
+    // record beginning with UTF-8 BOM requires
+    // `CsvReaderBase::Options::set_preserve_utf8_bom()`.
     //
     // Default: '"'.
     Options& set_quote(absl::optional<char> quote) & {
@@ -201,8 +210,10 @@ class CsvWriterBase : public Object {
 
   // Writes the next record expressed as `CsvRecord`, with named fields.
   //
-  // The CSV format does not support empty records: writing a record with no
-  // fields has the same effect as writing a record containing one empty field.
+  // The CSV format does not support empty records. A record with no fields will
+  // be written as an empty line, which will be read as a record consisting of
+  // one empty field, or will be skipped if
+  // `CsvReaderBase::Options::skip_empty_lines()`.
   //
   // Preconditions:
   //  * `has_header()`, i.e. `Options::header() != absl::nullopt`
@@ -222,8 +233,10 @@ class CsvWriterBase : public Object {
   // By a common convention each record should consist of the same number of
   // fields, but this is not enforced.
   //
-  // The CSV format does not support empty records: writing a record with no
-  // fields has the same effect as writing a record containing one empty field.
+  // The CSV format does not support empty records. A record with no fields will
+  // be written as an empty line, which will be read as a record consisting of
+  // one empty field, or will be skipped if
+  // `CsvReaderBase::Options::skip_empty_lines()`.
   //
   // Return values:
   //  * `true`  - success (`ok()`)
@@ -274,6 +287,8 @@ class CsvWriterBase : public Object {
 
   bool WriteQuoted(Writer& dest, absl::string_view field,
                    size_t already_scanned);
+  bool WriteQuotes(Writer& dest);
+  bool WriteFirstField(Writer& dest, absl::string_view field);
   bool WriteField(Writer& dest, absl::string_view field);
   template <typename Record>
   bool WriteRecordInternal(const Record& record);
@@ -319,8 +334,16 @@ class CsvWriterBase : public Object {
 //
 // To express a quote inside a quoted field, it must be written twice.
 //
+// Quotes are also used for unambiguous interpretation of a record consisting of
+// a single empty field or beginning with UTF-8 BOM.
+//
 // If quoting is turned off, special characters inside fields are not
-// expressible, and `CsvWriter` fails if they are encountered.
+// expressible, and `CsvWriter` fails if they are encountered, except that
+// potential ambiguities above skip quoting instead. In this case, reading
+// a record consisting of a single empty field is incompatible with
+// `CsvReaderBase::Options::skip_empty_lines()`, and reading the first record
+// beginning with UTF-8 BOM requires
+// `CsvReaderBase::Options::set_preserve_utf8_bom()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the byte `Writer`. `Dest` must support
@@ -499,14 +522,20 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
   using std::end;
   auto end_iter = end(record);
   if (iter != end_iter) {
-    for (;;) {
-      const absl::string_view field = *iter;
-      if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
-      ++iter;
-      if (iter == end_iter) break;
-      if (ABSL_PREDICT_FALSE(!dest.Write(field_separator_))) {
-        return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
-      }
+    const absl::string_view field = *iter;
+    if (ABSL_PREDICT_FALSE(!WriteFirstField(dest, field))) return false;
+    if (++iter != end_iter) {
+      do {
+        if (ABSL_PREDICT_FALSE(!dest.Write(field_separator_))) {
+          return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+        }
+        const absl::string_view field = *iter;
+        if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
+      } while (++iter != end_iter);
+    } else if (field.empty()) {
+      // Quote a single empty field to avoid writing an empty line which might
+      // be skipped by some readers.
+      if (ABSL_PREDICT_FALSE(!WriteQuotes(dest))) return false;
     }
   }
   if (!standalone_record_) {

@@ -140,12 +140,9 @@ absl::Status CsvWriterBase::AnnotateOverDest(absl::Status status) {
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
                                        size_t already_scanned) {
-  if (ABSL_PREDICT_FALSE(quote_ == absl::nullopt)) {
-    return Fail(absl::InvalidArgumentError(absl::StrCat(
-        "If quoting is turned off, special characters inside fields are not "
-        "expressible: ",
-        ShowEscaped(field[already_scanned]))));
-  }
+  RIEGELI_ASSERT(quote_ != absl::nullopt)
+      << "Failed precondition of CsvWriterBase::WriteQuoted(): "
+         "quote character not available";
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
@@ -173,12 +170,32 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
   return true;
 }
 
-bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(field, kUtf8Bom))) {
+bool CsvWriterBase::WriteQuotes(Writer& dest) {
+  if (quote_ == absl::nullopt) return true;
+  if (ABSL_PREDICT_FALSE(!dest.Write(*quote_) || !dest.Write(*quote_))) {
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+  }
+  return true;
+}
+
+bool CsvWriterBase::WriteFirstField(Writer& dest, absl::string_view field) {
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(field, kUtf8Bom)) &&
+      quote_ != absl::nullopt) {
     return WriteQuoted(dest, field, 0);
   }
+  return WriteField(dest, field);
+}
+
+bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
   for (size_t i = 0; i < field.size(); ++i) {
     if (quotes_needed_[static_cast<unsigned char>(field[i])]) {
+      if (ABSL_PREDICT_FALSE(quote_ == absl::nullopt)) {
+        return Fail(absl::InvalidArgumentError(
+            absl::StrCat("If quoting is turned off, special characters inside "
+                         "fields are not "
+                         "expressible: ",
+                         ShowEscaped(field[i]))));
+      }
       return WriteQuoted(dest, field, i);
     }
   }

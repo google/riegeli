@@ -148,6 +148,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     char_classes_[static_cast<unsigned char>(*options.escape())] =
         CharClass::kEscape;
   }
+  skip_empty_lines_ = options.skip_empty_lines();
   quote_ = options.quote().value_or('\0');
   max_num_fields_ = UnsignedMin(options.max_num_fields(),
                                 std::vector<std::string>().max_size());
@@ -456,12 +457,26 @@ next_field:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
+        if (skip_empty_lines_ && field_index == 0 && field.empty()) {
+          goto next_record;
+        }
         if (ABSL_PREDICT_FALSE(standalone_record_)) {
           return Fail(absl::InvalidArgumentError("Unexpected newline"));
         }
         return true;
       case CharClass::kCr:
         ++line_number_;
+        if (skip_empty_lines_ && field_index == 0 && field.empty()) {
+          if (ABSL_PREDICT_FALSE(!src.Pull())) {
+            last_line_number_ = line_number_;
+            if (ABSL_PREDICT_FALSE(!src.ok())) {
+              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+            }
+            return standalone_record_;
+          }
+          if (*src.cursor() == '\n') src.move_cursor(1);
+          goto next_record;
+        }
         if (ABSL_PREDICT_FALSE(standalone_record_)) {
           return Fail(absl::InvalidArgumentError("Unexpected newline"));
         }
@@ -649,8 +664,35 @@ bool CsvReaderBase::HasNextRecord() {
     }
     const CharClass char_class =
         char_classes_[static_cast<unsigned char>(*src.cursor())];
-    if (ABSL_PREDICT_TRUE(char_class != CharClass::kComment)) return true;
-    SkipLine(src);
+    switch (char_class) {
+      case CharClass::kLf:
+        if (skip_empty_lines_) {
+          ++line_number_;
+          src.move_cursor(1);
+          continue;
+        }
+        return true;
+      case CharClass::kCr:
+        if (skip_empty_lines_) {
+          ++line_number_;
+          src.move_cursor(1);
+          if (ABSL_PREDICT_FALSE(!src.Pull())) {
+            last_line_number_ = line_number_;
+            if (ABSL_PREDICT_FALSE(!src.ok())) {
+              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+            }
+            return false;
+          }
+          if (*src.cursor() == '\n') src.move_cursor(1);
+          continue;
+        }
+        return true;
+      case CharClass::kComment:
+        SkipLine(src);
+        continue;
+      default:
+        return true;
+    }
   }
 }
 

@@ -121,7 +121,7 @@ class CsvReaderBase : public Object {
       return assumed_header_;
     }
 
-    // If `false`, skips an initial UTF-8 BOM if present.
+    // If `false`, an initial UTF-8 BOM is skipped if present.
     //
     // If `true`, an initial UTF-8 BOM if present is treated as a part of the
     // first field in the first record. This is unlikely to be the intent, but
@@ -137,9 +137,25 @@ class CsvReaderBase : public Object {
     }
     bool preserve_utf8_bom() const { return preserve_utf8_bom_; }
 
+    // If `false`, an empty line is interpreted as a record with one empty
+    // field. This conforms to RFC4180.
+    //
+    // If `true`, empty lines are skipped.
+    //
+    // Default: `false`.
+    Options& set_skip_empty_lines(bool skip_empty_lines) & {
+      skip_empty_lines_ = skip_empty_lines;
+      return *this;
+    }
+    Options&& set_skip_empty_lines(bool skip_empty_lines) && {
+      return std::move(set_skip_empty_lines(skip_empty_lines));
+    }
+    bool skip_empty_lines() const { return skip_empty_lines_; }
+
     // Comment character.
     //
     // If not `absl::nullopt`, a line beginning with this character is skipped.
+    // This is not covered by RFC4180.
     //
     // Often used: '#'.
     //
@@ -192,7 +208,8 @@ class CsvReaderBase : public Object {
     // If not `absl::nullopt`, a character preceded by escape is treated
     // literally instead of possibly having a special meaning. This allows
     // expressing special characters inside a field: LF, CR, comment character,
-    // field separator, or escape character itself.
+    // field separator, or escape character itself. This is not covered by
+    // RFC4180.
     //
     // If `quote()` and `escape()` are both `absl::nullopt`, special characters
     // inside fields are not expressible.
@@ -288,6 +305,7 @@ class CsvReaderBase : public Object {
     absl::optional<CsvHeader> required_header_;
     absl::optional<CsvHeader> assumed_header_;
     bool preserve_utf8_bom_ = false;
+    bool skip_empty_lines_ = false;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
@@ -445,6 +463,7 @@ class CsvReaderBase : public Object {
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
       char_classes_{};
+  bool skip_empty_lines_ = false;
   // Meaningful if `char_classes_` contains `CharClass::kQuote`.
   char quote_ = '\0';
   size_t max_num_fields_ = 0;
@@ -471,13 +490,12 @@ class CsvReaderBase : public Object {
 // A record is terminated by a newline: LF, CR, or CR-LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
 //
-// If a comment character is set (usually it is not), a line beginning with the
-// comment character is skipped.
+// If skipping empty lines is requested (usually it is not), empty lines are
+// skipped. If a comment character is set (usually it is not), a line beginning
+// with the comment character is skipped.
 //
 // A record consists of a sequence of fields separated by a field separator
-// (usually ',' or '\t'). Each record contains at least one field. In particular
-// an empty line is interpreted as one empty field, except that an empty line
-// after the last line terminator is not considered a record.
+// (usually ',' or '\t'). Each record contains at least one field.
 //
 // Quotes (usually '"') around a field allow expressing special characters
 // inside the field: LF, CR, comment character, field separator, or quote
@@ -490,8 +508,14 @@ class CsvReaderBase : public Object {
 // To express a quote itself inside a field, it must be written twice when the
 // field is quoted, or preceded by an escape character.
 //
+// Quotes are also useful for unambiguous interpretation of a record consisting
+// of a single empty field or beginning with UTF-8 BOM.
+//
 // If neither a quote character nor an escape character is set, special
-// characters inside fields are not expressible.
+// characters inside fields are not expressible. In this case, reading a record
+// consisting of a single empty field is incompatible with
+// `Options::skip_empty_lines()`, and reading the first record beginning with
+// UTF-8 BOM requires `Options::set_preserve_utf8_bom()`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the byte `Reader`. `Src` must support
@@ -583,6 +607,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       has_header_(that.has_header_),
       header_(std::move(that.header_)),
       char_classes_(that.char_classes_),
+      skip_empty_lines_(that.skip_empty_lines_),
       quote_(that.quote_),
       max_num_fields_(that.max_num_fields_),
       max_field_length_(that.max_field_length_),
@@ -598,6 +623,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   has_header_ = that.has_header_;
   header_ = std::move(that.header_);
   char_classes_ = that.char_classes_;
+  skip_empty_lines_ = that.skip_empty_lines_;
   quote_ = that.quote_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
