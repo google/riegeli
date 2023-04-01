@@ -112,10 +112,13 @@ cc_library(
     deps = [
         ":reader",
         "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:status",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",

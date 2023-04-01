@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <cstddef>
 #include <limits>
 #include <string>
 #include <utility>
@@ -26,8 +25,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -41,6 +42,41 @@ ABSL_ATTRIBUTE_COLD
 absl::Status MaxLengthExceeded(Reader& src, Position max_length) {
   return src.AnnotateStatus(absl::ResourceExhaustedError(
       absl::StrCat("Maximum length exceeded: ", max_length)));
+}
+
+absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
+                         size_t max_length) {
+  max_length = UnsignedMin(max_length, dest.max_size());
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      dest = absl::string_view();
+      return src.status();
+    }
+    const Position remaining = SaturatingSub(*size, src.pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!src.Read(max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+        return absl::OkStatus();
+      }
+      return MaxLengthExceeded(src, max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+      if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+    }
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(src.available() > max_length)) {
+        dest = absl::string_view(src.cursor(), max_length);
+        src.move_cursor(max_length);
+        return MaxLengthExceeded(src, max_length);
+      }
+    } while (src.Pull(src.available() + 1));
+    dest = absl::string_view(src.cursor(), src.available());
+    src.move_cursor(src.available());
+    if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
+  }
+  return absl::OkStatus();
 }
 
 absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
@@ -166,6 +202,13 @@ absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
 }
 
 }  // namespace
+
+absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
+                         size_t max_length, size_t* length_read) {
+  const absl::Status status = ReadAllImpl(src, dest, max_length);
+  if (length_read != nullptr) *length_read = dest.size();
+  return status;
+}
 
 absl::Status ReadAllImpl(Reader& src, char* dest, size_t max_length,
                          size_t* length_read) {
