@@ -434,12 +434,12 @@ class
                     absl::negation<any_dependency_internal::IsAnyDependency<
                         Ptr, Manager>>>::value,
                 int> = 0>
-  Manager& Initialize(std::tuple<ManagerArgs...> manager_args);
+  void Initialize(std::tuple<ManagerArgs...> manager_args);
   template <typename Manager, typename... ManagerArgs,
             std::enable_if_t<
                 any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
                 int> = 0>
-  Manager& Initialize(std::tuple<ManagerArgs...> manager_args);
+  void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
   // The union disables implicit construction and destruction which is done
@@ -1092,8 +1092,9 @@ Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
   ptr_.~Ptr();
   methods_->destroy(repr_.storage);
-  return Initialize<Manager>(
+  Initialize<Manager>(
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
+  return MethodsFor<Manager>::GetManager(repr_.storage);
 }
 
 #if __cpp_deduction_guides
@@ -1107,11 +1108,13 @@ template <
 inline DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
 AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
+  using Manager =
+      DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>;
   ptr_.~Ptr();
   methods_->destroy(repr_.storage);
-  return Initialize<
-      DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>(
+  Initialize<Manager>(
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
+  return MethodsFor<Manager>::GetManager(repr_.storage);
 }
 #endif
 
@@ -1171,11 +1174,10 @@ template <typename Manager, typename... ManagerArgs,
                   absl::negation<any_dependency_internal::IsAnyDependency<
                       Ptr, Manager>>>::value,
               int>>
-inline Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(repr_.storage, &ptr_, std::move(manager_args));
-  return MethodsFor<Manager>::GetManager(repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
@@ -1183,7 +1185,7 @@ template <
     typename Manager, typename... ManagerArgs,
     std::enable_if_t<
         any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
-inline Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
 #if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
   AnyDependencyImpl<Ptr, inline_size, inline_align> manager =
@@ -1197,7 +1199,6 @@ inline Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
   manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
   methods_ = std::exchange(manager.methods_, &NullMethods::methods);
   methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
-  return MethodsFor<Manager>::GetManager(repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
