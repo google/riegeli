@@ -32,12 +32,12 @@ namespace riegeli {
 // `kMaxLengthVarint{32,64}` bytes or with bits set outside the range of
 // possible values.
 
-// Reads a varint.
+// Reads a varint. This corresponds to protobuf types `{int,uint}{32,64}`
+// (with a cast needed in the case of `int{32,64}`).
 //
-// Warning: the proto library writes values of type `int32` (not `sint32`) by
-// casting them to `uint64`, not `uint32` (negative values take 10 bytes, not
-// 5), hence they must be read with `ReadVarint64()`, not `ReadVarint32()`, if
-// negative values are possible.
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
+// with `ReadVarint64()`, not `ReadVarint32()`, if negative values are possible.
 //
 // Return values:
 //  * `true`                     - success (`dest` is set)
@@ -50,7 +50,8 @@ namespace riegeli {
 bool ReadVarint32(Reader& src, uint32_t& dest);
 bool ReadVarint64(Reader& src, uint64_t& dest);
 
-// Reads a signed varint (zigzag-encoded).
+// Reads a signed varint (zigzag-encoded). This corresponds to protobuf types
+// `sint{32,64}`.
 //
 // Return values:
 //  * `true`                     - success (`dest` is set)
@@ -63,10 +64,16 @@ bool ReadVarint64(Reader& src, uint64_t& dest);
 bool ReadVarintSigned32(Reader& src, uint32_t& dest);
 bool ReadVarintSigned64(Reader& src, uint64_t& dest);
 
-// Reads a varint.
+// Reads a varint. This corresponds to protobuf types `{int,uint}{32,64}`
+// (with a cast needed in the case of `int{32,64}`).
 //
 // Accepts only the canonical representation, i.e. the shortest: rejecting a
 // trailing zero byte, except for 0 itself.
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
+// with `ReadCanonicalVarint64()`, not `ReadCanonicalVarint32()`, if negative
+// values are possible.
 //
 // Return values:
 //  * `true`                     - success (`dest` is set)
@@ -79,7 +86,12 @@ bool ReadVarintSigned64(Reader& src, uint64_t& dest);
 bool ReadCanonicalVarint32(Reader& src, uint32_t& dest);
 bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 
-// Reads a varint from an array.
+// Reads a varint from an array. This corresponds to protobuf types
+// `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
+// with `ReadVarint64()`, not `ReadVarint32()`, if negative values are possible.
 //
 // Return values:
 //  * updated `src`   - success (`dest` is set)
@@ -89,7 +101,8 @@ absl::optional<const char*> ReadVarint32(const char* src, const char* limit,
 absl::optional<const char*> ReadVarint64(const char* src, const char* limit,
                                          uint64_t& dest);
 
-// Reads a signed varint (zigzag-encoded) from an array.
+// Reads a signed varint (zigzag-encoded) from an array. This corresponds to
+// protobuf types `sint{32,64}`.
 //
 // Return values:
 //  * updated `src`   - success (`dest` is set)

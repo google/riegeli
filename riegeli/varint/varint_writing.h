@@ -28,7 +28,13 @@
 
 namespace riegeli {
 
-// Writes a varint.
+// Writes a varint. This corresponds to protobuf types `{int,uint}{32,64}`
+// (with a cast needed in the case of `int{32,64}`).
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be
+// written with `WriteVarint64()`, not `WriteVarint32()`, if negative values are
+// possible.
 //
 // Return values:
 //  * `true`  - success (`dest.ok()`)
@@ -38,7 +44,8 @@ bool WriteVarint64(uint64_t data, Writer& dest);
 bool WriteVarint32(uint32_t data, BackwardWriter& dest);
 bool WriteVarint64(uint64_t data, BackwardWriter& dest);
 
-// Writes a signed varint (zigzag-encoded).
+// Writes a signed varint (zigzag-encoded). This corresponds to protobuf types
+// `sint{32,64}`.
 //
 // Return values:
 //  * `true`  - success (`dest.ok()`)
@@ -48,29 +55,44 @@ bool WriteVarintSigned64(int64_t data, Writer& dest);
 bool WriteVarintSigned32(int32_t data, BackwardWriter& dest);
 bool WriteVarintSigned64(int64_t data, BackwardWriter& dest);
 
-// Returns the length needed to write a given value as a varint, which is at
-// most `kMaxLengthVarint{32,64}`.
+// Returns the length needed to write a given value as a varint.
+// This corresponds to protobuf types `{int,uint}{32,64}` (with a cast needed in
+// the case of `int{32,64}`).
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be
+// measured with `LengthVarint64()`, not `LengthVarint32()`, if negative values
+// are possible.
+//
+// The result is at most `kMaxLengthVarint{32,64}`.
 size_t LengthVarint32(uint32_t data);
 size_t LengthVarint64(uint64_t data);
 
 // Returns the length needed to write a given value as a signed varint
-// (zigzag-encoded), which is at most `kMaxLengthVarint{32,64}`.
+// (zigzag-encoded). This corresponds to protobuf types `sint{32,64}`.
+//
+// The result is at most `kMaxLengthVarint{32,64}`.
 size_t LengthVarintSigned32(int32_t data);
 size_t LengthVarintSigned64(int64_t data);
 
-// Writes a varint.
+// Writes a varint to an array. This corresponds to protobuf types
+// `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
 //
-// Writes `LengthVarint{32,64}(data)` bytes to `dest[]`.
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be
+// written with `WriteVarint64()`, not `WriteVarint32()`, if negative values are
+// possible.
 //
-// Returns the updated `dest` after the written value.
+// Writes at most `LengthVarint{32,64}(data)` bytes to `dest[]`. Returns the
+// updated `dest` after the written value.
 char* WriteVarint32(uint32_t data, char* dest);
 char* WriteVarint64(uint64_t data, char* dest);
 
-// Writes a signed varint (zigzag-encoded).
+// Writes a signed varint (zigzag-encoded) to an array. This corresponds to
+// protobuf types `sint{32,64}`.
 //
-// Writes `LengthVarintSigned{32,64}(data)` bytes to `dest[]`.
-//
-// Returns the updated `dest` after the written value.
+// Writes at most `LengthVarintSigned{32,64}(data)` bytes to `dest[]`. Returns
+// the updated `dest` after the written value.
 char* WriteVarintSigned32(int32_t data, char* dest);
 char* WriteVarintSigned64(int64_t data, char* dest);
 
