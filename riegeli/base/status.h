@@ -15,8 +15,10 @@
 #ifndef RIEGELI_BASE_STATUS_H_
 #define RIEGELI_BASE_STATUS_H_
 
+#include <algorithm>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -45,8 +47,8 @@ absl::Status Annotate(const absl::Status& status, absl::string_view detail);
 
 // Generalizes `absl::StatusOr<T>` for types where that is not applicable:
 //  * `absl::StatusOr<const T>`           -> `absl::StatusOr<T>`
-//  * `absl::StatusOr<T&>`                -> `absl::StatusOr<T>`
-//  * `absl::StatusOr<T&&>`               -> `absl::StatusOr<T>`
+//  * `absl::StatusOr<T&>`                -> `absl::StatusOr<T*>`
+//  * `absl::StatusOr<T&&>`               -> `absl::StatusOr<T*>`
 //  * `absl::StatusOr<void>`              -> `absl::Status`
 //  * `absl::StatusOr<absl::Status>`      -> `absl::Status`
 //  * `absl::StatusOr<absl::StatusOr<T>>` -> `absl::StatusOr<T>`
@@ -55,7 +57,7 @@ absl::Status Annotate(const absl::Status& status, absl::string_view detail);
 // follow.
 
 template <typename T>
-struct WithStatus {
+struct StatusOrMaker {
   // The combined type.
   using type = absl::StatusOr<T>;
 
@@ -66,33 +68,48 @@ struct WithStatus {
     return std::forward<Work>(work)();
   }
 
-  // Returns `status` or `work()`. Calls `work()` no matter whether
-  // `status.ok()`. If `!status.ok()`, returns `status` no matter what `work()`
-  // returned. `status` may be modified, but only after calling `work()`.
-  template <typename Work>
-  static type FromStatusAndWork(absl::Status& status, Work&& work) {
-    type result = std::forward<Work>(work)();
-    if (ABSL_PREDICT_FALSE(!status.ok())) result = std::move(status);
-    return result;
-  }
-
-  // Replaces `result` with `status` if `result` is not failed.
+  // Replaces `result` with `status` if `result` is OK.
   static void Update(type& result, const absl::Status& status) {
     if (result.ok()) result = status;
   }
 };
 
 template <typename T>
-struct WithStatus<const T> : WithStatus<T> {};
+struct StatusOrMaker<const T> : StatusOrMaker<T> {};
 
 template <typename T>
-struct WithStatus<T&> : WithStatus<T> {};
+struct StatusOrMaker<T&> {
+  using type = absl::StatusOr<T*>;
+
+  template <typename Work>
+  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
+    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+    return &std::forward<Work>(work)();
+  }
+
+  static void Update(type& result, const absl::Status& status) {
+    if (result.ok()) result = status;
+  }
+};
 
 template <typename T>
-struct WithStatus<T&&> : WithStatus<T> {};
+struct StatusOrMaker<T&&> {
+  using type = absl::StatusOr<T*>;
+
+  template <typename Work>
+  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
+    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+    T&& result = std::forward<Work>(work)();
+    return &result;
+  }
+
+  static void Update(type& result, const absl::Status& status) {
+    if (result.ok()) result = status;
+  }
+};
 
 template <>
-struct WithStatus<void> {
+struct StatusOrMaker<void> {
   using type = absl::Status;
 
   template <typename Work>
@@ -102,19 +119,13 @@ struct WithStatus<void> {
     return absl::OkStatus();
   }
 
-  template <typename Work>
-  static type FromStatusAndWork(absl::Status& status, Work&& work) {
-    std::forward<Work>(work)();
-    return std::move(status);
-  }
-
   static void Update(type& result, const absl::Status& status) {
-    if (result.ok()) result = status;
+    result.Update(status);
   }
 };
 
 template <>
-struct WithStatus<absl::Status> {
+struct StatusOrMaker<absl::Status> {
   using type = absl::Status;
 
   template <typename Work>
@@ -123,20 +134,13 @@ struct WithStatus<absl::Status> {
     return std::forward<Work>(work)();
   }
 
-  template <typename Work>
-  static type FromStatusAndWork(absl::Status& status, Work&& work) {
-    type result = std::forward<Work>(work)();
-    if (ABSL_PREDICT_FALSE(!status.ok())) result = std::move(status);
-    return result;
-  }
-
   static void Update(type& result, const absl::Status& status) {
-    if (result.ok()) result = status;
+    result.Update(status);
   }
 };
 
 template <typename T>
-struct WithStatus<absl::StatusOr<T>> {
+struct StatusOrMaker<absl::StatusOr<T>> {
   using type = absl::StatusOr<T>;
 
   template <typename Work>
@@ -145,20 +149,59 @@ struct WithStatus<absl::StatusOr<T>> {
     return std::forward<Work>(work)();
   }
 
-  template <typename Work>
-  static type FromStatusAndWork(absl::Status& status, Work&& work) {
-    type result = std::forward<Work>(work)();
-    if (ABSL_PREDICT_FALSE(!status.ok())) result = std::move(status);
-    return result;
-  }
-
   static void Update(type& result, const absl::Status& status) {
     if (result.ok()) result = status;
   }
 };
 
+// Combines the result of a function and the status of preparing data for the
+// function. Even if the status is not OK, the function is called with partial
+// data, hence its result is returned.
 template <typename T>
-using WithStatusT = typename WithStatus<T>::type;
+struct ABSL_MUST_USE_RESULT StatusAnd {
+  T value;
+  absl::Status status;
+};
+
+// Generalizes `StatusAnd<T>` for types where that is not applicable:
+//  * `StatusAnd<void>` -> `absl::Status`
+//
+// The primary template provides the default implementation. Specializations
+// follow.
+
+template <typename T>
+struct StatusAndMaker {
+  // The combined type.
+  using type = StatusAnd<T>;
+
+  // Returns `status` and `work()`.
+  //
+  // `status` may be modified, but only after calling `work()`.
+  template <typename Work>
+  static type FromStatusAndWork(absl::Status& status, Work&& work) {
+    return {std::forward<Work>(work)(), std::move(status)};
+  }
+
+  // Updates the status of `result` with `status` if `result` is OK.
+  static void Update(type& result, const absl::Status& status) {
+    result.status.Update(status);
+  }
+};
+
+template <>
+struct StatusAndMaker<void> {
+  using type = absl::Status;
+
+  template <typename Work>
+  static type FromStatusAndWork(absl::Status& status, Work&& work) {
+    std::forward<Work>(work)();
+    return std::move(status);
+  }
+
+  static void Update(type& result, const absl::Status& status) {
+    result.Update(status);
+  }
+};
 
 }  // namespace riegeli
 
