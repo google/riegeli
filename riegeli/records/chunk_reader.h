@@ -316,8 +316,7 @@ explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args)
 // `DependencyImpl<Reader*, M>` by wrapping `M` in `DefaultChunkReader<M>`.
 template <typename M>
 class DependencyImpl<ChunkReader*, M,
-                     std::enable_if_t<IsValidDependency<Reader*, M>::value>>
-    : public DependencyGetIfBase<DependencyImpl<ChunkReader*, M>> {
+                     std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
  public:
   DependencyImpl() noexcept : chunk_reader_(kClosed) {}
 

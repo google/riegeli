@@ -27,6 +27,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/type_id.h"
 
@@ -196,12 +197,19 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //   // pointer to the `Manager`. If the `Manager` is an `AnyDependency`
 //   // (possibly wrapped in an rvalue reference or `std::unique_ptr`),
 //   // propagates `GetIf()` to it. Otherwise returns `nullptr`.
+//   //
+//   // These methods are provided by `Dependency` itself if `DependencyImpl`
+//   // does not provide them. They are implemented in terms of `GetIf(TypeId)`
+//   // if only those variants are provided.
 //   template <typename OtherManager>
 //   OtherManager* GetIf();
 //   template <typename OtherManager>
 //   const OtherManager* GetIf() const;
 //
 //   // A variant of `GetIf()` with the expected type passed as a `TypeId`.
+//   //
+//   // These methods are provided by `Dependency` itself if `DependencyImpl`
+//   // does not provide them.
 //   void* GetIf(TypeId type_id);
 //   const void* GetIf(TypeId type_id) const;
 // ```
@@ -318,92 +326,251 @@ struct IsValidDependency<
     std::enable_if_t<IsValidDependencyImpl<Ptr, std::decay_t<M>>::value>>
     : std::true_type {};
 
-// Implementation shared between most specializations of `DependencyImpl`.
-//
-// Implements `GetIf()` in terms of `manager()`.
+namespace dependency_internal {
+
+template <typename T, typename OtherManager, typename Enable = void>
+struct HasGetIfStatic : std::false_type {};
+
+template <typename T, typename OtherManager>
+struct HasGetIfStatic<
+    T, OtherManager,
+    std::enable_if_t<absl::disjunction<
+        std::is_convertible<
+            decltype(std::declval<T&>().template GetIf<OtherManager>()),
+            OtherManager*>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().template GetIf<OtherManager>()),
+            const OtherManager*>>::value>> : std::true_type {
+  static_assert(
+      absl::conjunction<
+          std::is_convertible<
+              decltype(std::declval<T&>().template GetIf<OtherManager>()),
+              OtherManager*>,
+          std::is_convertible<
+              decltype(std::declval<const T&>().template GetIf<OtherManager>()),
+              const OtherManager*>>::value,
+      "Either both mutable and const or none GetIf() overloads "
+      "must be provided by DependencyImpl");
+};
+
+template <typename T, typename Enable = void>
+struct HasGetIfDynamic : std::false_type {};
+
 template <typename T>
-class DependencyGetIfBase {
+struct HasGetIfDynamic<
+    T,
+    std::enable_if_t<absl::disjunction<
+        std::is_convertible<
+            decltype(std::declval<T&>().GetIf(std::declval<TypeId>())), void*>,
+        std::is_convertible<decltype(std::declval<const T&>().GetIf(
+                                std::declval<TypeId>())),
+                            const void*>>::value>> : std::true_type {
+  static_assert(absl::conjunction<
+                    std::is_convertible<decltype(std::declval<T&>().GetIf(
+                                            std::declval<TypeId>())),
+                                        void*>,
+                    std::is_convertible<decltype(std::declval<const T&>().GetIf(
+                                            std::declval<TypeId>())),
+                                        const void*>>::value,
+                "Either both mutable and const or none GetIf() overloads "
+                "must be provided by DependencyImpl");
+};
+
+// `DependencyDerived` adds `Dependency` and `StableDependency` operations
+// uniformly implemented in terms of other operations: `operator*`,
+// `operator->`, comparisons with `nullptr`, and `GetIf()`.
+//
+// It derives from the template parameter `Base` so that it can be used in
+// `Dependency` (applied to `DependencyMaybeRef`) and `StableDependency`
+// (applied to `StableDependencyImpl`).
+template <typename Base, typename Ptr, typename Manager>
+class DependencyDerived : public Base {
  public:
-  template <typename OtherManager>
+  using Base::Base;
+
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<decltype(std::declval<Base&>().get())>& operator*() {
+    const auto ptr = this->get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of Dependency::operator*: null pointer";
+    return *ptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  std::remove_pointer_t<decltype(std::declval<const Base&>().get())>&
+  operator*() const {
+    const auto ptr = this->get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of Dependency::operator*: null pointer";
+    return *ptr;
+  }
+
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  decltype(std::declval<Base&>().get()) operator->() {
+    const auto ptr = this->get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of Dependency::operator->: null pointer";
+    return ptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  decltype(std::declval<const Base&>().get()) operator->() const {
+    const auto ptr = this->get();
+    RIEGELI_ASSERT(ptr != nullptr)
+        << "Failed precondition of Dependency::operator->: null pointer";
+    return ptr;
+  }
+
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(const DependencyDerived& a, std::nullptr_t) {
+    return a.get() == nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(const DependencyDerived& a, std::nullptr_t) {
+    return a.get() != nullptr;
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator==(std::nullptr_t, const DependencyDerived& b) {
+    return nullptr == b.get();
+  }
+  template <typename DependentPtr = Ptr,
+            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  friend bool operator!=(std::nullptr_t, const DependencyDerived& b) {
+    return nullptr != b.get();
+  }
+
+  template <
+      typename OtherManager,
+      std::enable_if_t<IsValidDependency<Ptr, OtherManager>::value, int> = 0>
   OtherManager* GetIf() {
-    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>,
-                     OtherManager>();
+    return GetIfImpl<OtherManager>();
   }
-  template <typename OtherManager>
+  template <
+      typename OtherManager,
+      std::enable_if_t<IsValidDependency<Ptr, OtherManager>::value, int> = 0>
   const OtherManager* GetIf() const {
-    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>,
-                     OtherManager>();
+    return GetIfImpl<OtherManager>();
   }
 
-  void* GetIf(TypeId type_id) {
-    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>>(
-        type_id);
-  }
-  const void* GetIf(TypeId type_id) const {
-    return GetIfImpl<std::decay_t<decltype(std::declval<T&>().manager())>>(
-        type_id);
-  }
-
- protected:
-  DependencyGetIfBase() noexcept {
-    static_assert(std::is_base_of<DependencyGetIfBase<T>, T>::value,
-                  "The template argument T in DependencyGetIfBase<T> "
-                  "must be the class derived from DependencyGetIfBase<T>");
-  }
-
-  DependencyGetIfBase(DependencyGetIfBase&& that) = default;
-  DependencyGetIfBase& operator=(DependencyGetIfBase&& that) = default;
-
-  ~DependencyGetIfBase() = default;
+  void* GetIf(TypeId type_id) { return GetIfImpl(type_id); }
+  const void* GetIf(TypeId type_id) const { return GetIfImpl(type_id); }
 
  private:
-  template <
-      typename Manager, typename OtherManager,
-      std::enable_if_t<std::is_same<Manager, OtherManager>::value, int> = 0>
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<HasGetIfStatic<DependentBase, OtherManager>::value,
+                             int> = 0>
   OtherManager* GetIfImpl() {
-    return &(static_cast<T*>(this)->manager());
+    return Base::template GetIf<OtherManager>();
   }
-  template <
-      typename Manager, typename OtherManager,
-      std::enable_if_t<!std::is_same<Manager, OtherManager>::value, int> = 0>
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    HasGetIfDynamic<DependentBase>>::value,
+                int> = 0>
+  OtherManager* GetIfImpl() {
+    return static_cast<OtherManager*>(Base::GetIf(TypeId::For<OtherManager>()));
+  }
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    std::is_same<std::decay_t<Manager>, OtherManager>>::value,
+                int> = 0>
+  OtherManager* GetIfImpl() {
+    return &this->manager();
+  }
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<std::is_same<std::decay_t<Manager>,
+                                                OtherManager>>>::value,
+                int> = 0>
   OtherManager* GetIfImpl() {
     return nullptr;
   }
-  template <
-      typename Manager, typename OtherManager,
-      std::enable_if_t<std::is_same<Manager, OtherManager>::value, int> = 0>
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<HasGetIfStatic<DependentBase, OtherManager>::value,
+                             int> = 0>
   const OtherManager* GetIfImpl() const {
-    return &(static_cast<const T*>(this)->manager());
+    return Base::template GetIf<OtherManager>();
   }
-  template <
-      typename Manager, typename OtherManager,
-      std::enable_if_t<!std::is_same<Manager, OtherManager>::value, int> = 0>
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    HasGetIfDynamic<DependentBase>>::value,
+                int> = 0>
+  const OtherManager* GetIfImpl() const {
+    return static_cast<const OtherManager*>(
+        Base::GetIf(TypeId::For<OtherManager>()));
+  }
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    std::is_same<std::decay_t<Manager>, OtherManager>>::value,
+                int> = 0>
+  const OtherManager* GetIfImpl() const {
+    return &this->manager();
+  }
+  template <typename OtherManager, typename DependentBase = Base,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
+                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<std::is_same<std::decay_t<Manager>,
+                                                OtherManager>>>::value,
+                int> = 0>
   const OtherManager* GetIfImpl() const {
     return nullptr;
   }
 
-  template <typename Manager>
+  template <typename DependentBase = Base,
+            std::enable_if_t<HasGetIfDynamic<DependentBase>::value, int> = 0>
   void* GetIfImpl(TypeId type_id) {
-    if (TypeId::For<Manager>() == type_id) {
-      return &(static_cast<T*>(this)->manager());
+    return Base::GetIf(type_id);
+  }
+  template <typename DependentBase = Base,
+            std::enable_if_t<!HasGetIfDynamic<DependentBase>::value, int> = 0>
+  void* GetIfImpl(TypeId type_id) {
+    if (TypeId::For<std::decay_t<Manager>>() == type_id) {
+      return &this->manager();
     }
     return nullptr;
   }
-  template <typename Manager>
+  template <typename DependentBase = Base,
+            std::enable_if_t<HasGetIfDynamic<DependentBase>::value, int> = 0>
   const void* GetIfImpl(TypeId type_id) const {
-    if (TypeId::For<Manager>() == type_id) {
-      return &(static_cast<const T*>(this)->manager());
+    return Base::GetIf(type_id);
+  }
+  template <typename DependentBase = Base,
+            std::enable_if_t<!HasGetIfDynamic<DependentBase>::value, int> = 0>
+  const void* GetIfImpl(TypeId type_id) const {
+    if (TypeId::For<std::decay_t<Manager>>() == type_id) {
+      return &this->manager();
     }
     return nullptr;
   }
 };
 
+}  // namespace dependency_internal
+
 // Implementation shared between most specializations of `DependencyImpl` which
 // store `manager()` in a member variable.
 //
-// Provides constructors, `Reset()`, `manager()`, and `GetIf()`.
+// Provides constructors, `Reset()`, and `manager()`.
 template <typename Manager>
-class DependencyBase : public DependencyGetIfBase<DependencyBase<Manager>> {
+class DependencyBase {
  public:
   DependencyBase() noexcept
       : DependencyBase(
@@ -501,69 +668,10 @@ class Dependency;
 template <typename Ptr, typename Manager>
 class Dependency<Ptr, Manager,
                  std::enable_if_t<IsValidDependency<Ptr, Manager>::value>>
-    : public dependency_internal::DependencyMaybeRef<Ptr, Manager> {
+    : public dependency_internal::DependencyDerived<
+          dependency_internal::DependencyMaybeRef<Ptr, Manager>, Ptr, Manager> {
  public:
-  using Dependency::DependencyMaybeRef::DependencyMaybeRef;
-
-  // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart pointer
-  // to `P`, for convenience: it provides `operator*`, `operator->`, and can be
-  // compared against `nullptr`.
-
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<
-      decltype(std::declval<
-                   dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
-                   .get())>&
-  operator*() {
-    return *this->get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<
-      decltype(std::declval<const dependency_internal::DependencyMaybeRef<
-                   Ptr, Manager>&>()
-                   .get())>&
-  operator*() const {
-    return *this->get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<
-               dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
-               .get())
-  operator->() {
-    return this->get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<
-               const dependency_internal::DependencyMaybeRef<Ptr, Manager>&>()
-               .get())
-  operator->() const {
-    return this->get();
-  }
-
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(const Dependency& a, std::nullptr_t) {
-    return a.get() == nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(const Dependency& a, std::nullptr_t) {
-    return a.get() != nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(std::nullptr_t, const Dependency& b) {
-    return nullptr == b.get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(std::nullptr_t, const Dependency& b) {
-    return nullptr != b.get();
-  }
+  using Dependency::DependencyDerived::DependencyDerived;
 };
 
 // Specialization of `DependencyBase` for lvalue references.
@@ -572,8 +680,7 @@ class Dependency<Ptr, Manager,
 // assignment is not supported, and initialization from a tuple of constructor
 // arguments is not supported.
 template <typename Manager>
-class DependencyBase<Manager&>
-    : public DependencyGetIfBase<DependencyBase<Manager&>> {
+class DependencyBase<Manager&> {
  public:
   explicit DependencyBase(Manager& manager) noexcept : manager_(manager) {}
 
@@ -595,8 +702,7 @@ class DependencyBase<Manager&>
 // assignment is not supported, and initialization from a tuple of constructor
 // arguments is not supported.
 template <typename Manager>
-class DependencyBase<Manager&&>
-    : public DependencyGetIfBase<DependencyBase<Manager&&>> {
+class DependencyBase<Manager&&> {
  public:
   explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 

@@ -239,8 +239,7 @@ explicit DefaultChunkWriter(
 // `DependencyImpl<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
 template <typename M>
 class DependencyImpl<ChunkWriter*, M,
-                     std::enable_if_t<IsValidDependency<Writer*, M>::value>>
-    : DependencyGetIfBase<DependencyImpl<ChunkWriter*, M>> {
+                     std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
  public:
   DependencyImpl() noexcept : chunk_writer_(kClosed) {}
 

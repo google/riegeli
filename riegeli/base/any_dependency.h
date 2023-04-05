@@ -464,15 +464,6 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
   static constexpr bool kIsStable =
       AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
 
-  template <typename Manager>
-  Manager* GetIf() {
-    return this->manager().template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    return this->manager().template GetIf<Manager>();
-  }
-
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
@@ -495,15 +486,6 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable = true;
-
-  template <typename Manager>
-  Manager* GetIf() {
-    return this->manager().template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    return this->manager().template GetIf<Manager>();
-  }
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
@@ -532,17 +514,6 @@ class DependencyImpl<
   }
 
   static constexpr bool kIsStable = true;
-
-  template <typename Manager>
-  Manager* GetIf() {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->template GetIf<Manager>();
-  }
 
   void* GetIf(TypeId type_id) {
     if (this->manager() == nullptr) return nullptr;
@@ -646,15 +617,6 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
   static constexpr bool kIsStable =
       AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
 
-  template <typename Manager>
-  Manager* GetIf() {
-    return this->manager().template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    return this->manager().template GetIf<Manager>();
-  }
-
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
@@ -678,15 +640,6 @@ class DependencyImpl<Ptr,
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable = true;
-
-  template <typename Manager>
-  Manager* GetIf() {
-    return this->manager().template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    return this->manager().template GetIf<Manager>();
-  }
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
@@ -715,17 +668,6 @@ class DependencyImpl<
   }
 
   static constexpr bool kIsStable = true;
-
-  template <typename Manager>
-  Manager* GetIf() {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->template GetIf<Manager>();
-  }
-  template <typename Manager>
-  const Manager* GetIf() const {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->template GetIf<Manager>();
-  }
 
   void* GetIf(TypeId type_id) {
     if (this->manager() == nullptr) return nullptr;

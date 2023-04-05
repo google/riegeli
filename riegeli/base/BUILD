@@ -183,6 +183,7 @@ cc_library(
     name = "dependency",
     hdrs = ["dependency.h"],
     deps = [
+        ":assert",
         ":reset",
         ":type_id",
         "@com_google_absl//absl/base:core_headers",
@@ -196,7 +197,6 @@ cc_library(
     name = "stable_dependency",
     hdrs = ["stable_dependency.h"],
     deps = [
-        ":assert",
         ":dependency",
         ":reset",
         "@com_google_absl//absl/base:core_headers",

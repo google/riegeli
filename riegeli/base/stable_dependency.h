@@ -15,17 +15,13 @@
 #ifndef RIEGELI_BASE_STABLE_DEPENDENCY_H_
 #define RIEGELI_BASE_STABLE_DEPENDENCY_H_
 
-#include <stddef.h>
-
 #include <atomic>
-#include <cstddef>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/reset.h"
 
@@ -40,77 +36,72 @@ namespace riegeli {
 template <typename Ptr, typename Manager, typename Enable = void>
 class StableDependency;
 
-// Specialization when `Dependency<P*, M>` is already stable.
-template <typename P, typename M>
-class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable>>
-    : public Dependency<P*, M> {
+// Specialization when `Dependency<Ptr, Manager>` is already stable.
+template <typename Ptr, typename Manager>
+class StableDependency<Ptr, Manager,
+                       std::enable_if_t<Dependency<Ptr, Manager>::kIsStable>>
+    : public Dependency<Ptr, Manager> {
   using StableDependency::Dependency::Dependency;
 };
 
-// Specialization when `Dependency<P*, M>` is not stable: allocates the
-// dependency dynamically.
-template <typename P, typename M>
-class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>
-    : public DependencyGetIfBase<StableDependency<P*, M>> {
- private:
-  using DerivedP =
-      std::remove_pointer_t<decltype(std::declval<Dependency<P*, M>&>().get())>;
-  using ConstDerivedP = std::remove_pointer_t<
-      decltype(std::declval<const Dependency<P*, M>&>().get())>;
+namespace dependency_internal {
 
+template <typename Ptr, typename Manager>
+class StableDependencyImpl {
  public:
-  StableDependency() = default;
+  StableDependencyImpl() = default;
 
-  template <
-      typename DependentM = M,
-      std::enable_if_t<std::is_copy_constructible<DependentM>::value, int> = 0>
-  explicit StableDependency(const M& manager)
-      : dep_(new Dependency<P*, M>(manager)) {}
-  template <
-      typename DependentM = M,
-      std::enable_if_t<std::is_move_constructible<DependentM>::value, int> = 0>
-  explicit StableDependency(M&& manager) noexcept
-      : dep_(new Dependency<P*, M>(std::move(manager))) {}
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_copy_constructible<DependentManager>::value, int> = 0>
+  explicit StableDependencyImpl(const Manager& manager)
+      : dep_(new Dependency<Ptr, Manager>(manager)) {}
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_move_constructible<DependentManager>::value, int> = 0>
+  explicit StableDependencyImpl(Manager&& manager) noexcept
+      : dep_(new Dependency<Ptr, Manager>(std::move(manager))) {}
 
   template <typename... MArgs>
-  explicit StableDependency(std::tuple<MArgs...> manager_args)
-      : dep_(new Dependency<P*, M>(std::move(manager_args))) {}
+  explicit StableDependencyImpl(std::tuple<MArgs...> manager_args)
+      : dep_(new Dependency<Ptr, Manager>(std::move(manager_args))) {}
 
-  StableDependency(StableDependency&& that) noexcept
+  StableDependencyImpl(StableDependencyImpl&& that) noexcept
       : dep_(that.dep_.exchange(nullptr, std::memory_order_relaxed)) {}
-  StableDependency& operator=(StableDependency&& that) noexcept {
+  StableDependencyImpl& operator=(StableDependencyImpl&& that) noexcept {
     delete dep_.exchange(that.dep_.exchange(nullptr, std::memory_order_relaxed),
                          std::memory_order_relaxed);
     return *this;
   }
 
-  ~StableDependency() { delete dep_.load(std::memory_order_relaxed); }
+  ~StableDependencyImpl() { delete dep_.load(std::memory_order_relaxed); }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    Dependency<P*, M>* const dep = dep_.load(std::memory_order_relaxed);
+    Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep != nullptr) riegeli::Reset(*dep);
   }
 
-  template <
-      typename DependentM = M,
-      std::enable_if_t<std::is_copy_constructible<DependentM>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
-    Dependency<P*, M>* const dep = dep_.load(std::memory_order_relaxed);
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_copy_constructible<DependentManager>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
+    Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {
       // A race would violate the contract because this is not a const method.
-      dep_.store(new Dependency<P*, M>(manager), std::memory_order_relaxed);
+      dep_.store(new Dependency<Ptr, Manager>(manager),
+                 std::memory_order_relaxed);
     } else {
       riegeli::Reset(*dep, manager);
     }
   }
-  template <
-      typename DependentM = M,
-      std::enable_if_t<std::is_move_constructible<DependentM>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
-    Dependency<P*, M>* const dep = dep_.load(std::memory_order_relaxed);
+  template <typename DependentManager = Manager,
+            std::enable_if_t<
+                std::is_move_constructible<DependentManager>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
+    Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {
       // A race would violate the contract because this is not a const method.
-      dep_.store(new Dependency<P*, M>(std::move(manager)),
+      dep_.store(new Dependency<Ptr, Manager>(std::move(manager)),
                  std::memory_order_relaxed);
     } else {
       riegeli::Reset(*dep, std::move(manager));
@@ -120,89 +111,72 @@ class StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>
   template <typename... ManagerArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::tuple<ManagerArgs...> manager_args) {
-    Dependency<P*, M>* const dep = dep_.load(std::memory_order_relaxed);
+    Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {
       // A race would violate the contract because this is not a const method.
-      dep_.store(new Dependency<P*, M>(std::move(manager_args)),
+      dep_.store(new Dependency<Ptr, Manager>(std::move(manager_args)),
                  std::memory_order_relaxed);
     } else {
       riegeli::Reset(*dep, std::move(manager_args));
     }
   }
 
-  M& manager() { return EnsureAllocated()->manager(); }
-  const M& manager() const { return EnsureAllocated()->manager(); }
+  Manager& manager() { return EnsureAllocated()->manager(); }
+  const Manager& manager() const { return EnsureAllocated()->manager(); }
 
-  DerivedP* get() { return EnsureAllocated()->get(); }
-  ConstDerivedP* get() const { return EnsureAllocated()->get(); }
-  DerivedP& operator*() {
-    DerivedP* const ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of StableDependency::operator*: null pointer";
-    return *ptr;
+  decltype(std::declval<Dependency<Ptr, Manager>&>().get()) get() {
+    return EnsureAllocated()->get();
   }
-  ConstDerivedP& operator*() const {
-    ConstDerivedP* const ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of StableDependency::operator*: null pointer";
-    return *ptr;
-  }
-  DerivedP* operator->() {
-    DerivedP* const ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of StableDependency::operator->: null pointer";
-    return ptr;
-  }
-  ConstDerivedP* operator->() const {
-    ConstDerivedP* const ptr = get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of StableDependency::operator->: null pointer";
-    return ptr;
-  }
-
-  friend bool operator==(const StableDependency& a, std::nullptr_t) {
-    return a.get() == nullptr;
-  }
-  friend bool operator!=(const StableDependency& a, std::nullptr_t) {
-    return a.get() != nullptr;
-  }
-  friend bool operator==(std::nullptr_t, const StableDependency& a) {
-    return nullptr == a.get();
-  }
-  friend bool operator!=(std::nullptr_t, const StableDependency& a) {
-    return nullptr != a.get();
+  decltype(std::declval<const Dependency<Ptr, Manager>&>().get()) get() const {
+    return EnsureAllocated()->get();
   }
 
   bool is_owning() const { return EnsureAllocated()->is_owning(); }
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StableDependency& self,
+  friend void RiegeliRegisterSubobjects(const StableDependencyImpl& self,
                                         MemoryEstimator& memory_estimator) {
-    Dependency<P*, M>* const dep = self.dep_.load(std::memory_order_acquire);
+    Dependency<Ptr, Manager>* const dep =
+        self.dep_.load(std::memory_order_acquire);
     if (dep != nullptr) memory_estimator.RegisterDynamicObject(*dep);
   }
 
  private:
-  Dependency<P*, M>* EnsureAllocated() const {
-    Dependency<P*, M>* const dep = dep_.load(std::memory_order_acquire);
+  Dependency<Ptr, Manager>* EnsureAllocated() const {
+    Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_acquire);
     if (ABSL_PREDICT_TRUE(dep != nullptr)) return dep;
     return EnsureAllocatedSlow();
   }
 
-  Dependency<P*, M>* EnsureAllocatedSlow() const;
+  Dependency<Ptr, Manager>* EnsureAllocatedSlow() const;
 
   // Owned. `nullptr` is equivalent to a default constructed `Dependency`.
-  mutable std::atomic<Dependency<P*, M>*> dep_{nullptr};
+  mutable std::atomic<Dependency<Ptr, Manager>*> dep_{nullptr};
+};
+
+}  // namespace dependency_internal
+
+// Specialization when `Dependency<Ptr, Manager>` is not stable: allocates the
+// dependency dynamically.
+template <typename Ptr, typename Manager>
+class StableDependency<Ptr, Manager,
+                       std::enable_if_t<!Dependency<Ptr, Manager>::kIsStable>>
+    : public dependency_internal::DependencyDerived<
+          dependency_internal::StableDependencyImpl<Ptr, Manager>, Ptr,
+          Manager> {
+ public:
+  using StableDependency::DependencyDerived::DependencyDerived;
 };
 
 // Implementation details follow.
 
-template <typename P, typename M>
-Dependency<P*, M>*
-StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>::
-    EnsureAllocatedSlow() const {
-  Dependency<P*, M>* const dep = new Dependency<P*, M>();
-  Dependency<P*, M>* other_dep = nullptr;
+namespace dependency_internal {
+
+template <typename Ptr, typename Manager>
+Dependency<Ptr, Manager>*
+StableDependencyImpl<Ptr, Manager>::EnsureAllocatedSlow() const {
+  Dependency<Ptr, Manager>* const dep = new Dependency<Ptr, Manager>();
+  Dependency<Ptr, Manager>* other_dep = nullptr;
   if (ABSL_PREDICT_FALSE(!dep_.compare_exchange_strong(
           other_dep, dep, std::memory_order_acq_rel))) {
     // We lost the race.
@@ -211,6 +185,8 @@ StableDependency<P*, M, std::enable_if_t<!Dependency<P*, M>::kIsStable>>::
   }
   return dep;
 }
+
+}  // namespace dependency_internal
 
 }  // namespace riegeli
 
