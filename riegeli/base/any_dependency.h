@@ -399,13 +399,6 @@ class
   using MethodsFor = any_dependency_internal::MethodsFor<Ptr, inline_size,
                                                          inline_align, Manager>;
 
-#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
-  template <typename... Args, size_t... indices>
-  explicit AnyDependencyImpl(ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
-                             std::index_sequence<indices...>)
-      : AnyDependencyImpl(std::forward<Args>(std::get<indices>(args))...) {}
-#endif
-
   // Initializes `methods_`, `repr_`, and `ptr_`, avoiding a redundant
   // indirection and adopting them from `manager` instead if `Manager` is
   // already a compatible `AnyDependencyImpl` or `AnyDependencyRefImpl`.
@@ -428,17 +421,7 @@ class
                 int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_reference<Manager>>,
-                    absl::negation<any_dependency_internal::IsAnyDependency<
-                        Ptr, Manager>>>::value,
-                int> = 0>
-  void Initialize(std::tuple<ManagerArgs...> manager_args);
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<
-                any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
-                int> = 0>
+            std::enable_if_t<!std::is_reference<Manager>::value, int> = 0>
   void Initialize(std::tuple<ManagerArgs...> manager_args);
 
   const Methods* methods_;
@@ -1110,37 +1093,11 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_reference<Manager>>,
-                  absl::negation<any_dependency_internal::IsAnyDependency<
-                      Ptr, Manager>>>::value,
-              int>>
+          std::enable_if_t<!std::is_reference<Manager>::value, int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     std::tuple<ManagerArgs...> manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(repr_.storage, &ptr_, std::move(manager_args));
-}
-
-template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager, typename... ManagerArgs,
-    std::enable_if_t<
-        any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
-    std::tuple<ManagerArgs...> manager_args) {
-#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
-  AnyDependencyImpl<Ptr, inline_size, inline_align> manager =
-      std::make_from_tuple<AnyDependencyImpl<Ptr, inline_size, inline_align>>(
-          std::move(manager_args));
-#else
-  AnyDependencyImpl<Ptr, inline_size, inline_align> manager(
-      std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
-#endif
-  // Adopt `manager` instead of wrapping it.
-  manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
-  methods_ = std::exchange(manager.methods_, &NullMethods::methods);
-  methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
