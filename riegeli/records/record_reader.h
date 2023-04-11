@@ -15,6 +15,8 @@
 #ifndef RIEGELI_RECORDS_RECORD_READER_H_
 #define RIEGELI_RECORDS_RECORD_READER_H_
 
+#include <stdint.h>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -32,6 +34,7 @@
 #include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -132,6 +135,9 @@ class RecordReaderBase : public Object {
     //                     returns `false` if the recovery function returns
     //                     `false`
     //  * `Seek()` - returns the result of the recovery function
+    //  * `Search()` - skips invalid regions if the recovery function returns
+    //                 `true`, returns `absl::nullopt` if the recovery function
+    //                 returns `false`
     //
     // Default: `nullptr`.
     Options& set_recovery(
@@ -241,6 +247,12 @@ class RecordReaderBase : public Object {
     recovery_ = std::move(recovery);
   }
 
+  // Returns the function set by `Options::set_recovery` or `set_recovery()`.
+  const std::function<bool(const SkippedRegion&, RecordReaderBase&)>& recovery()
+      const {
+    return recovery_;
+  }
+
   // If `!ok()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
   // skipping over the invalid region.
@@ -345,6 +357,9 @@ class RecordReaderBase : public Object {
   //  * `unordered`     - It could not be determined which is the case.
   //                      The current record will be skipped.
   //
+  // The recovery function is set to `nullptr` while calling `test()`. Recovery
+  // is handled outside calling `test()`.
+  //
   // Preconditions:
   //  * All `less` records precede all `equivalent` records.
   //  * All `equivalent` records precede all `greater` records.
@@ -400,7 +415,12 @@ class RecordReaderBase : public Object {
   absl::optional<absl::partial_ordering> Search(Test&& test);
 
  protected:
-  enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
+  enum class Recoverable {
+    kNo,
+    kRecoverChunkReader,
+    kRecoverChunkDecoder,
+    kRecoverMetadata
+  };
 
   explicit RecordReaderBase(Closed) noexcept;
 
@@ -634,10 +654,9 @@ inline RecordPosition RecordReaderBase::last_pos() const {
   RIEGELI_ASSERT(last_record_is_valid())
       << "Failed precondition of RecordReaderBase::last_pos(): "
          "no record was recently read";
-  RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
-      << "Failed invariant of RecordReaderBase: "
-         "last position should be valid but no record was decoded";
-  return RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+  // `chunk_decoder_.index() == 0` after reading metadata.
+  return RecordPosition(chunk_begin_,
+                        SaturatingSub(chunk_decoder_.index(), uint64_t{1}));
 }
 
 inline RecordPosition RecordReaderBase::pos() const {

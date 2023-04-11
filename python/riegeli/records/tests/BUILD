@@ -14,6 +14,7 @@ py_test(
         "@absl_py//absl/logging",
         "@absl_py//absl/testing:absltest",
         "@absl_py//absl/testing:parameterized",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

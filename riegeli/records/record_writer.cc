@@ -777,8 +777,6 @@ RecordWriterBase::ParallelWorker::ChunkBegin() const {
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {
-  // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
-  // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
   RIEGELI_ASSERT(chunk_encoder_ != nullptr)
       << "Failed invariant of RecordWriterBase::ParallelWorker: "
          "last position should be valid but chunk is closed";

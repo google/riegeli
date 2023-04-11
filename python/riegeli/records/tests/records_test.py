@@ -21,6 +21,7 @@ import itertools
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
+from google.protobuf import message
 import riegeli
 import tensorflow as tf
 
@@ -218,10 +219,14 @@ def sample_message_id_only(i):
   return records_test_pb2.SimpleMessage(id=i)
 
 
-def record_writer_options(parallelism, transpose=False):
+def sample_invalid_message(size):
+  return b'\xff' * size  # An unfinished varint.
+
+
+def record_writer_options(parallelism, transpose=False, chunk_size=35000):
   return (
-      f'{"transpose," if transpose else ""}uncompressed,chunk_size:35000,'
-      f'parallelism:{parallelism}'
+      f'{"transpose," if transpose else ""}uncompressed,'
+      f'chunk_size:{chunk_size},parallelism:{parallelism}'
   )
 
 
@@ -554,6 +559,83 @@ class RecordsTest(parameterized.TestCase):
         )
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_metadata_exception(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+          serialized_metadata=sample_invalid_message(100),
+      ):
+        pass
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
+        with self.assertRaises(message.DecodeError):
+          reader.read_metadata()
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_metadata_recovery(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+          serialized_metadata=sample_invalid_message(100),
+      ):
+        pass
+
+      def recovery(skipped_region):
+        pass
+
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=recovery,
+      ) as reader:
+        self.assertEqual(reader.read_metadata(), riegeli.RecordsMetadata())
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_metadata_recovery_stop_iteration(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+          serialized_metadata=sample_invalid_message(100),
+      ):
+        pass
+
+      def recovery(skipped_region):
+        raise StopIteration
+
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=recovery,
+      ) as reader:
+        self.assertIsNone(reader.read_metadata())
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_field_projection(self, file_spec, random_access, parallelism):
     with contextlib.closing(
         file_spec(self.create_tempfile, random_access)
@@ -807,8 +889,8 @@ class RecordsTest(parameterized.TestCase):
 
         def test_function(search_target):
           def test(record_reader):
-            message = record_reader.read_message(records_test_pb2.SimpleMessage)
-            return (message.id > search_target) - (message.id < search_target)
+            msg = record_reader.read_message(records_test_pb2.SimpleMessage)
+            return (msg.id > search_target) - (msg.id < search_target)
 
           return test
 
@@ -848,8 +930,8 @@ class RecordsTest(parameterized.TestCase):
 
         def test_function(search_target):
           def test(record):
-            message = records_test_pb2.SimpleMessage.FromString(record)
-            return (message.id > search_target) - (message.id < search_target)
+            msg = records_test_pb2.SimpleMessage.FromString(record)
+            return (msg.id > search_target) - (msg.id < search_target)
 
           return test
 
@@ -861,6 +943,32 @@ class RecordsTest(parameterized.TestCase):
         self.assertEqual(reader.pos, positions[22])
         self.assertEqual(reader.search_for_record(test_function(23)), -1)
         self.assertEqual(reader.pos, end_pos)
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_record_stop_iteration(self, file_spec):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0),
+      ) as writer:
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
+
+        def test(record):
+          raise StopIteration
+
+        self.assertIsNone(reader.search_for_record(test))
 
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_search_for_message(self, file_spec):
@@ -888,8 +996,8 @@ class RecordsTest(parameterized.TestCase):
       ) as reader:
 
         def test_function(search_target):
-          def test(message):
-            return (message.id > search_target) - (message.id < search_target)
+          def test(msg):
+            return (msg.id > search_target) - (msg.id < search_target)
 
           return test
 
@@ -921,6 +1029,163 @@ class RecordsTest(parameterized.TestCase):
             -1,
         )
         self.assertEqual(reader.pos, end_pos)
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_message_stop_iteration(self, file_spec):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0),
+      ) as writer:
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
+
+        def test(record):
+          raise StopIteration
+
+        self.assertIsNone(
+            reader.search_for_message(records_test_pb2.SimpleMessage, test)
+        )
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_invalid_message_exception(self, file_spec):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      # Write 1 valid message, 1 invalid message, and 1 valid message, each in a
+      # separate chunk.
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0, chunk_size=15000),
+      ) as writer:
+        writer.write_message(sample_message(0, 10000))
+        writer.write_record(sample_invalid_message(10000))
+        writer.write_message(sample_message(2, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
+
+        def test_function(search_target):
+          def test(msg):
+            return (msg.id > search_target) - (msg.id < search_target)
+
+          return test
+
+        with self.assertRaises(message.DecodeError):
+          reader.search_for_message(
+              records_test_pb2.SimpleMessage, test_function(1)
+          )
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_invalid_message_recovery(self, file_spec):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      # Write 1 valid message, 1 invalid message, and 1 valid message, each in a
+      # separate chunk.
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0, chunk_size=15000),
+      ) as writer:
+        positions = []
+        writer.write_message(sample_message(0, 10000))
+        positions.append(writer.last_pos)
+        writer.write_record(sample_invalid_message(10000))
+        positions.append(writer.last_pos)
+        writer.write_message(sample_message(2, 10000))
+        positions.append(writer.last_pos)
+        writer.close()
+
+      def recovery(skipped_region):
+        pass
+
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=recovery,
+      ) as reader:
+
+        def test_function(search_target):
+          def test(msg):
+            return (msg.id > search_target) - (msg.id < search_target)
+
+          return test
+
+        self.assertEqual(
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(1)
+            ),
+            1,
+        )
+        self.assertEqual(reader.pos, positions[2])
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_invalid_message_recovery_stop_iteration(self, file_spec):
+    with contextlib.closing(
+        file_spec(
+            self.create_tempfile, random_access=RandomAccess.RANDOM_ACCESS
+        )
+    ) as files:
+      # Write 1 valid message, 1 invalid message, and 1 valid message, each in a
+      # separate chunk.
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0, chunk_size=15000),
+      ) as writer:
+        positions = []
+        writer.write_message(sample_message(0, 10000))
+        positions.append(writer.last_pos)
+        writer.write_record(sample_invalid_message(10000))
+        positions.append(writer.last_pos)
+        writer.write_message(sample_message(2, 10000))
+        positions.append(writer.last_pos)
+        writer.close()
+
+      def recovery(skipped_region):
+        raise StopIteration
+
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=recovery,
+      ) as reader:
+
+        def test_function(search_target):
+          def test(msg):
+            return (msg.id > search_target) - (msg.id < search_target)
+
+          return test
+
+        self.assertIsNone(
+            reader.search_for_message(
+                records_test_pb2.SimpleMessage, test_function(1)
+            )
+        )
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_exception(self, file_spec, random_access, parallelism):
@@ -1062,6 +1327,172 @@ class RecordsTest(parameterized.TestCase):
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
         with self.assertRaises(KeyboardInterrupt):
           reader.read_record()
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_message_exception(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+      ) as writer:
+        for i in range(9):
+          writer.write_message(sample_message(i, 10000))
+        for i in range(9, 10):
+          writer.write_record(sample_invalid_message(10000))
+        for i in range(10, 14):
+          writer.write_message(sample_message(i, 10000))
+        for i in range(14, 15):
+          writer.write_record(sample_invalid_message(10000))
+        for i in range(15, 23):
+          writer.write_message(sample_message(i, 10000))
+      # Read messages [0..9), [10..14), and [15, 23) successfully (all except
+      # invalid messages), raising exceptions for invalid messages
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+      ) as reader:
+        for i in range(9):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        with self.assertRaises(message.DecodeError):
+          reader.read_message(records_test_pb2.SimpleMessage)
+        for i in range(10, 14):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        with self.assertRaises(message.DecodeError):
+          reader.read_message(records_test_pb2.SimpleMessage)
+        for i in range(15, 23):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_message_recovery(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      positions = []
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+      ) as writer:
+        for i in range(9):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+        for i in range(9, 10):
+          writer.write_record(sample_invalid_message(10000))
+          positions.append(writer.last_pos)
+        for i in range(10, 14):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+        for i in range(14, 15):
+          writer.write_record(sample_invalid_message(10000))
+          positions.append(writer.last_pos)
+        for i in range(15, 23):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+      # Read messages [0..9), [10..14), and [15, 23) successfully (all except
+      # invalid messages).
+      skipped_regions = []
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=skipped_regions.append,
+      ) as reader:
+        for i in range(9):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        for i in range(10, 14):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        for i in range(15, 23):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
+      self.assertLen(skipped_regions, 2)
+      skipped_region = skipped_regions[0]
+      self.assertEqual(skipped_region.begin, positions[9].numeric)
+      self.assertEqual(skipped_region.end, positions[10].numeric)
+      skipped_region = skipped_regions[1]
+      self.assertEqual(skipped_region.begin, positions[14].numeric)
+      self.assertEqual(skipped_region.end, positions[15].numeric)
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_invalid_message_recovery_stop_iteration(
+      self, file_spec, random_access, parallelism
+  ):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access)
+    ) as files:
+      positions = []
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          owns_dest=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism),
+      ) as writer:
+        for i in range(9):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+        for i in range(9, 10):
+          writer.write_record(sample_invalid_message(10000))
+          positions.append(writer.last_pos)
+        for i in range(10, 14):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+        for i in range(14, 15):
+          writer.write_record(sample_invalid_message(10000))
+          positions.append(writer.last_pos)
+        for i in range(15, 23):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
+      # Read messages [0..9) successfully (all before the first invalid
+      # message).
+      skipped_regions = []
+
+      def recovery(skipped_region):
+        skipped_regions.append(skipped_region)
+        raise StopIteration
+
+      with riegeli.RecordReader(
+          files.reading_open(),
+          owns_src=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          recovery=recovery,
+      ) as reader:
+        for i in range(9):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000),
+          )
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
+      self.assertLen(skipped_regions, 1)
+      skipped_region = skipped_regions[0]
+      self.assertEqual(skipped_region.begin, positions[9].numeric)
+      self.assertEqual(skipped_region.end, positions[10].numeric)
 
 
 if __name__ == '__main__':

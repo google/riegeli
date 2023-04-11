@@ -472,9 +472,34 @@ static PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
   static constexpr ImportedConstant kRecordsMetadata(
       "riegeli.records.records_metadata_pb2", "RecordsMetadata");
   if (ABSL_PREDICT_FALSE(!kRecordsMetadata.Verify())) return nullptr;
+  static constexpr ImportedConstant kDecodeError("google.protobuf.message",
+                                                 "DecodeError");
+  if (ABSL_PREDICT_FALSE(!kDecodeError.Verify())) return nullptr;
   static constexpr Identifier id_FromString("FromString");
-  return PyObject_CallMethodObjArgs(kRecordsMetadata.get(), id_FromString.get(),
-                                    serialized_metadata.get(), nullptr);
+  PythonPtr metadata_object(
+      PyObject_CallMethodObjArgs(kRecordsMetadata.get(), id_FromString.get(),
+                                 serialized_metadata.get(), nullptr));
+  if (ABSL_PREDICT_FALSE(metadata_object == nullptr)) {
+    if (self->record_reader->recovery() != nullptr &&
+        PyErr_ExceptionMatches(kDecodeError.get())) {
+      const Exception exception = Exception::Fetch();
+      if (self->record_reader->recovery()(
+              SkippedRegion(self->record_reader->last_pos().chunk_begin(),
+                            self->record_reader->pos().numeric(),
+                            exception.message()),
+              *self->record_reader)) {
+        // Recovered metadata decoding, assume empty `RecordsMetadata`.
+        return PyObject_CallFunctionObjArgs(kRecordsMetadata.get(), nullptr);
+      }
+      if (ABSL_PREDICT_FALSE(self->recovery_exception.has_value())) {
+        self->recovery_exception->Restore();
+        return nullptr;
+      }
+      Py_RETURN_NONE;
+    }
+    return nullptr;
+  }
+  return metadata_object.release();
 }
 
 static PyObject* RecordReaderReadSerializedMetadata(PyRecordReaderObject* self,
@@ -520,25 +545,49 @@ static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::string_view record;
-  const bool read_record_ok =
-      PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
-  if (ABSL_PREDICT_FALSE(!read_record_ok)) {
-    if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
-      SetExceptionFromRecordReader(self);
+  for (;;) {
+    const bool read_record_ok =
+        PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
+    if (ABSL_PREDICT_FALSE(!read_record_ok)) {
+      if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
+        SetExceptionFromRecordReader(self);
+        return nullptr;
+      }
+      Py_RETURN_NONE;
+    }
+    MemoryView memory_view;
+    PyObject* const record_object = memory_view.ToPython(record);
+    if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
+    static constexpr ImportedConstant kDecodeError("google.protobuf.message",
+                                                   "DecodeError");
+    if (ABSL_PREDICT_FALSE(!kDecodeError.Verify())) return nullptr;
+    // return message_type.FromString(record)
+    static constexpr Identifier id_FromString("FromString");
+    PythonPtr message(PyObject_CallMethodObjArgs(
+        message_type_arg, id_FromString.get(), record_object, nullptr));
+    if (ABSL_PREDICT_FALSE(message == nullptr)) {
+      if (self->record_reader->recovery() != nullptr &&
+          PyErr_ExceptionMatches(kDecodeError.get())) {
+        const Exception exception = Exception::Fetch();
+        if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
+        if (self->record_reader->recovery()(
+                SkippedRegion(self->record_reader->last_pos().numeric(),
+                              self->record_reader->pos().numeric(),
+                              exception.message()),
+                *self->record_reader)) {
+          continue;
+        }
+        if (ABSL_PREDICT_FALSE(self->recovery_exception.has_value())) {
+          self->recovery_exception->Restore();
+          return nullptr;
+        }
+        Py_RETURN_NONE;
+      }
       return nullptr;
     }
-    Py_RETURN_NONE;
+    if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
+    return message.release();
   }
-  MemoryView memory_view;
-  PyObject* const record_object = memory_view.ToPython(record);
-  if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
-  // return message_type.FromString(record)
-  static constexpr Identifier id_FromString("FromString");
-  PythonPtr message(PyObject_CallMethodObjArgs(
-      message_type_arg, id_FromString.get(), record_object, nullptr));
-  if (ABSL_PREDICT_FALSE(message == nullptr)) return nullptr;
-  if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
-  return message.release();
 }
 
 static PyRecordIterObject* RecordReaderReadRecords(PyRecordReaderObject* self,
@@ -780,6 +829,10 @@ static PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
     if (test_exception != absl::nullopt) {
       test_exception->Restore();
+      if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
+        PyErr_Clear();
+        Py_RETURN_NONE;
+      }
     } else {
       SetExceptionFromRecordReader(self);
     }
@@ -800,6 +853,13 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  static constexpr ImportedConstant kDecodeError("google.protobuf.message",
+                                                 "DecodeError");
+  if (ABSL_PREDICT_FALSE(!kDecodeError.Verify())) return nullptr;
+  // `RecordReader::Search(test)` sets the recovery function to `nullptr` while
+  // calling `test()`. Save it here to call it explicitly in `test()`.
+  std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery =
+      self->record_reader->recovery();
   absl::optional<Exception> test_exception;
   const absl::optional<absl::partial_ordering> result = PythonUnlocked([&] {
     return self->record_reader->Search<absl::string_view>(
@@ -814,9 +874,30 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
           }
           // message = message_type.FromString(record)
           static constexpr Identifier id_FromString("FromString");
-          const PythonPtr message_object(PyObject_CallMethodObjArgs(
+          const PythonPtr message(PyObject_CallMethodObjArgs(
               message_type_arg, id_FromString.get(), record_object, nullptr));
-          if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
+          if (ABSL_PREDICT_FALSE(message == nullptr)) {
+            if (recovery != nullptr &&
+                PyErr_ExceptionMatches(kDecodeError.get())) {
+              const Exception exception = Exception::Fetch();
+              if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
+                test_exception.emplace(Exception::Fetch());
+                return absl::nullopt;
+              }
+              if (recovery(
+                      SkippedRegion(self->record_reader->last_pos().numeric(),
+                                    self->record_reader->pos().numeric(),
+                                    exception.message()),
+                      *self->record_reader)) {
+                // Declare the skipped record unordered.
+                return absl::partial_ordering::unordered;
+              }
+              if (ABSL_PREDICT_FALSE(self->recovery_exception.has_value())) {
+                return absl::nullopt;
+              }
+              // Cancel the search.
+              PyErr_SetNone(PyExc_StopIteration);
+            }
             test_exception.emplace(Exception::Fetch());
             return absl::nullopt;
           }
@@ -824,8 +905,8 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
             test_exception.emplace(Exception::Fetch());
             return absl::nullopt;
           }
-          const PythonPtr test_result(PyObject_CallFunctionObjArgs(
-              test_arg, message_object.get(), nullptr));
+          const PythonPtr test_result(
+              PyObject_CallFunctionObjArgs(test_arg, message.get(), nullptr));
           if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
             test_exception.emplace(Exception::Fetch());
             return absl::nullopt;
@@ -842,6 +923,10 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
     if (test_exception != absl::nullopt) {
       test_exception->Restore();
+      if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
+        PyErr_Clear();
+        Py_RETURN_NONE;
+      }
     } else {
       SetExceptionFromRecordReader(self);
     }
@@ -1053,6 +1138,7 @@ Args:
      * > 0:  The current record is after the desired position.
      * None: It could not be determined which is the case. The current record
              will be skipped.
+    It can also raise StopIteration to cancel the search.
 
 Preconditions:
  * All < 0 records precede all == 0 records.
@@ -1065,7 +1151,8 @@ Return values:
    points to the earliest such record.
  * -1: There are no == 0 nor > 0 records, but there is some < 0 record, and
    search() points to the end of file.
- * None: All records are None, and search() points to the end of file.
+ * None: All records are None, and search() points to the end of file,
+   or search() was cancelled.
 
 To find the earliest == 0 record instead of an arbitrary one, test() can be
 changed to return > 0 in place of == 0.

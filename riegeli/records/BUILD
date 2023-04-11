@@ -170,7 +170,7 @@ cc_library(
 cc_library(
     name = "block",
     hdrs = ["block.h"],
-    visibility = ["//visibility:private"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",

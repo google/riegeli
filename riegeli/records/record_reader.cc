@@ -210,7 +210,11 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata& metadata) {
   {
     absl::Status status = ParseFromChain(serialized_metadata, metadata);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return Fail(std::move(status));
+      metadata.Clear();
+      recoverable_ = Recoverable::kRecoverMetadata;
+      Fail(std::move(status));
+      if (!TryRecovery()) return false;
+      // Recovered metadata parsing, assume empty `RecordsMetadata`.
     }
   }
   return true;
@@ -218,7 +222,12 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata& metadata) {
 
 bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
   metadata.Clear();
-  if (ABSL_PREDICT_FALSE(!ok())) return TryRecovery();
+  last_record_is_valid_ = false;
+  if (ABSL_PREDICT_FALSE(!ok())) {
+    if (!TryRecovery()) return false;
+    last_record_is_valid_ = true;
+    return ok();
+  }
   ChunkReader& src = *SrcChunkReader();
   if (ABSL_PREDICT_FALSE(src.pos() != 0)) {
     return Fail(absl::FailedPreconditionError(
@@ -251,9 +260,12 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
+    metadata.Clear();
     recoverable_ = Recoverable::kRecoverChunkDecoder;
-    return TryRecovery();
+    if (!TryRecovery()) return false;
+    // Recovered metadata decoding, assume empty `RecordsMetadata`.
   }
+  last_record_is_valid_ = true;
   return true;
 }
 
@@ -375,13 +387,18 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       const uint64_t index_before = chunk_decoder_.index();
       if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) chunk_decoder_.Clear();
       if (skipped_region != nullptr) {
-        const Position region_begin = chunk_begin_ + index_before;
-        const Position region_end = pos().numeric();
         *skipped_region =
-            SkippedRegion(region_begin, region_end, std::move(saved_message));
+            SkippedRegion(chunk_begin_ + index_before, pos().numeric(),
+                          std::move(saved_message));
       }
       return true;
     }
+    case Recoverable::kRecoverMetadata:
+      if (skipped_region != nullptr) {
+        *skipped_region = SkippedRegion(chunk_begin_, pos().numeric(),
+                                        std::move(saved_message));
+      }
+      return true;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
@@ -584,7 +601,10 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
                   !Seek(RecordPosition(chunk_begin, record_index)))) {
             return absl::nullopt;
           }
+          std::function<bool(const SkippedRegion&, RecordReaderBase&)>
+              recovery = std::exchange(recovery_, nullptr);
           const absl::optional<absl::partial_ordering> ordering = test(*this);
+          recovery_ = std::move(recovery);
           if (ABSL_PREDICT_FALSE(!ok())) {
             // Reading the record made the `RecordReader` not OK, probably
             // because a message could not be parsed (or `test()` did something
@@ -618,25 +638,29 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(
   }
   if (greater_chunk_begin->ordering != 0 && less_found != absl::nullopt) {
     const absl::optional<SearchResult<uint64_t>> less_record_index =
-        BinarySearch(less_found->record_index, less_found->num_records,
-                     [&](uint64_t record_index)
-                         -> absl::optional<absl::partial_ordering> {
-                       if (ABSL_PREDICT_FALSE(!Seek(RecordPosition(
-                               less_found->chunk_begin, record_index)))) {
-                         return absl::nullopt;
-                       }
-                       const absl::optional<absl::partial_ordering> ordering =
-                           test(*this);
-                       if (ABSL_PREDICT_FALSE(!ok())) {
-                         // Reading the record made the `RecordReader` not OK,
-                         // probably because a message could not be parsed
-                         // (or `test()` did something unusual).
-                         if (!TryRecovery()) return absl::nullopt;
-                         // Declare the skipped record unordered.
-                         return absl::partial_ordering::unordered;
-                       }
-                       return ordering;
-                     });
+        BinarySearch(
+            less_found->record_index, less_found->num_records,
+            [&](uint64_t record_index)
+                -> absl::optional<absl::partial_ordering> {
+              if (ABSL_PREDICT_FALSE(!Seek(
+                      RecordPosition(less_found->chunk_begin, record_index)))) {
+                return absl::nullopt;
+              }
+              std::function<bool(const SkippedRegion&, RecordReaderBase&)>
+                  recovery = std::exchange(recovery_, nullptr);
+              const absl::optional<absl::partial_ordering> ordering =
+                  test(*this);
+              recovery_ = std::move(recovery);
+              if (ABSL_PREDICT_FALSE(!ok())) {
+                // Reading the record made the `RecordReader` not OK, probably
+                // because a message could not be parsed (or `test()` did
+                // something unusual).
+                if (!TryRecovery()) return absl::nullopt;
+                // Declare the skipped record unordered.
+                return absl::partial_ordering::unordered;
+              }
+              return ordering;
+            });
     if (ABSL_PREDICT_FALSE(less_record_index == absl::nullopt)) {
       return absl::nullopt;
     }
