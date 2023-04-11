@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -37,8 +36,7 @@ namespace riegeli {
 namespace read_all_internal {
 
 // Combines a status with the result of calling a function of type `Work` with
-// the first parameter of type `absl::string_view`, and optionally the second
-// parameter of type `const absl::Status&`.
+// the first parameter of type `absl::string_view`.
 //
 // See `ReadAll()` below for details.
 
@@ -46,8 +44,9 @@ template <typename Work, typename Enable = void>
 struct StringViewCallResult;
 
 template <typename Work>
-struct StringViewCallResult<Work, absl::void_t<decltype(std::declval<Work&&>()(
-                                      std::declval<absl::string_view>()))>> {
+struct StringViewCallResult<
+    Work, std::enable_if_t<!std::is_reference<decltype(std::declval<Work&&>()(
+              std::declval<absl::string_view>()))>::value>> {
  private:
   using WorkResult =
       decltype(std::declval<Work&&>()(std::declval<absl::string_view>()));
@@ -60,30 +59,6 @@ struct StringViewCallResult<Work, absl::void_t<decltype(std::declval<Work&&>()(
   static type Call(absl::Status&& status, Work&& work, absl::string_view dest) {
     return Maker::FromStatusOrWork(std::move(status), [&]() -> WorkResult {
       return std::forward<Work>(work)(dest);
-    });
-  }
-
-  static void Update(type& result, const absl::Status& status) {
-    return Maker::Update(result, status);
-  }
-};
-
-template <typename Work>
-struct StringViewCallResult<Work, absl::void_t<decltype(std::declval<Work&&>()(
-                                      std::declval<absl::string_view>(),
-                                      std::declval<const absl::Status&>()))>> {
- private:
-  using WorkResult = decltype(std::declval<Work&&>()(
-      std::declval<absl::string_view>(), std::declval<const absl::Status&>()));
-
-  using Maker = StatusAndMaker<WorkResult>;
-
- public:
-  using type = typename Maker::type;
-
-  static type Call(absl::Status&& status, Work&& work, absl::string_view dest) {
-    return Maker::FromStatusAndWork(status, [&]() -> WorkResult {
-      return std::forward<Work>(work)(dest, status);
     });
   }
 
@@ -111,7 +86,7 @@ using StringViewCallResultT = typename StringViewCallResult<Work>::type;
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// Reading to `absl::string_view` is supported in three ways:
+// Reading to `absl::string_view` is supported in two ways:
 //
 //  1. With `Src` being restricted to `Reader&`, i.e. not owned.
 //
@@ -120,7 +95,7 @@ using StringViewCallResultT = typename StringViewCallResult<Work>::type;
 //
 //  2. With the `absl::string_view&` output parameter replaced with a function
 //     to be called with a parameter of type `absl::string_view`. The function
-//     is called with data read, but only if reading succeeded.
+//     is called with data read.
 //
 //     If the `Reader` is owned, it is closed after calling the function.
 //     This invalidates the `absl::string_view`.
@@ -129,35 +104,14 @@ using StringViewCallResultT = typename StringViewCallResult<Work>::type;
 //     `ReadAll()` generalizes `absl::StatusOr<T>` for types where that is not
 //     applicable:
 //      * `absl::StatusOr<const T>`           -> `absl::StatusOr<T>`
-//      * `absl::StatusOr<T&>`                -> `absl::StatusOr<T*>`
-//      * `absl::StatusOr<T&&>`               -> `absl::StatusOr<T*>`
+//      * `absl::StatusOr<T&>`                -> rejected
+//      * `absl::StatusOr<T&&>`               -> rejected
 //      * `absl::StatusOr<void>`              -> `absl::Status`
 //      * `absl::StatusOr<absl::Status>`      -> `absl::Status`
 //      * `absl::StatusOr<absl::StatusOr<T>>` -> `absl::StatusOr<T>`
 //
-//     The result of `ReadAll()` combines the status of reading, the result of
-//     the function, and the status of closing: if one of these failed, returns
-//     the first failed status, otherwise returns the result of the function.
-//
-//  2. With the `absl::string_view&` output parameter replaced with a function
-//     to be called with the first parameter of type `absl::string_view` and the
-//     second parameter of type `const absl::Status&`. The function is called
-//     no matter whether reading succeeded, with possibly partial data and the
-//     status of reading.
-//
-//     If the `Reader` is owned, it is closed after calling the function.
-//     This invalidates the `absl::string_view`.
-//
-//     For `T` being the result type of the function, the result type of
-//     `ReadAll()` generalizes `StatusAnd<T>` for types where that is not
-//     applicable:
-//      * `StatusAnd<void>` -> `absl::Status`
-//
-//     The result of `ReadAll()` includes the result of the function (as `value`
-//     member, unless the function returns `void`) and combines the status of
-//     reading with the status of closing (as `status` member, or the whole
-//     result if the function returns `void`): if one of these failed, includes
-//     the first failed status.
+//     The function is called only if reading succeeded. If the function
+//     succeeds but closing fails, the result of the function is discarded.
 absl::Status ReadAll(Reader& src, absl::string_view& dest,
                      size_t max_length = std::numeric_limits<size_t>::max(),
                      size_t* length_read = nullptr);
