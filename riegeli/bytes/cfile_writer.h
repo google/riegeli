@@ -270,7 +270,7 @@ class CFileWriterBase : public BufferedWriter {
   absl::string_view filename() const { return filename_; }
 
   bool SupportsRandomAccess() override;
-  bool SupportsTruncate() override { return false; }
+  bool SupportsTruncate() override;
   bool SupportsReadMode() override;
 
  protected:
@@ -297,6 +297,7 @@ class CFileWriterBase : public BufferedWriter {
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
+  bool TruncateBehindBuffer(Position new_size) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:

@@ -34,6 +34,9 @@
 #endif
 #include <stddef.h>
 #include <stdio.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include <cerrno>
 #include <limits>
@@ -345,6 +348,17 @@ bool CFileWriterBase::SupportsRandomAccess() {
   return true;
 }
 
+bool CFileWriterBase::SupportsTruncate() {
+  if (!SupportsRandomAccess()) return false;
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  FILE* const dest = DestFile();
+#ifndef _WIN32
+  return fileno(dest) >= 0;
+#else
+  return _fileno(dest) >= 0;
+#endif
+}
+
 bool CFileWriterBase::SupportsReadMode() {
   if (ABSL_PREDICT_TRUE(supports_read_mode_ != LazyBoolState::kUnknown)) {
     return supports_read_mode_ == LazyBoolState::kTrue;
@@ -506,6 +520,58 @@ absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
     return absl::nullopt;
   }
   return IntCast<Position>(file_size);
+}
+
+bool CFileWriterBase::TruncateBehindBuffer(Position new_size) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  read_mode_ = false;
+  FILE* const dest = DestFile();
+  if (ABSL_PREDICT_FALSE(fflush(dest) != 0)) {
+    return FailOperation("fflush()");
+  }
+#ifndef _WIN32
+  const int fd = fileno(dest);
+  if (ABSL_PREDICT_FALSE(fd < 0)) return FailOperation("fileno()");
+#else
+  const int fd = _fileno(dest);
+  if (ABSL_PREDICT_FALSE(fd < 0)) return FailOperation("_fileno()");
+#endif
+  if (new_size >= start_pos()) {
+    // Seeking forwards.
+    if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
+      return FailOperation(cfile_internal::kFSeekFunctionName);
+    }
+    const cfile_internal::Offset file_size = cfile_internal::FTell(dest);
+    if (ABSL_PREDICT_FALSE(file_size < 0)) {
+      return FailOperation(cfile_internal::kFTellFunctionName);
+    }
+    if (ABSL_PREDICT_FALSE(new_size > IntCast<Position>(file_size))) {
+      // File ends.
+      set_start_pos(IntCast<Position>(file_size));
+      return false;
+    }
+  }
+#ifndef _WIN32
+again:
+  if (ABSL_PREDICT_FALSE(ftruncate(fd, IntCast<off_t>(new_size)) < 0)) {
+    if (errno == EINTR) goto again;
+    return FailOperation("ftruncate()");
+  }
+#else
+  if (ABSL_PREDICT_FALSE(_chsize_s(fd, IntCast<__int64>(new_size)) != 0)) {
+    return FailOperation("_chsize_s()");
+  }
+#endif
+  if (ABSL_PREDICT_FALSE(
+          cfile_internal::FSeek(dest, IntCast<cfile_internal::Offset>(new_size),
+                                SEEK_SET) != 0)) {
+    return FailOperation(cfile_internal::kFSeekFunctionName);
+  }
+  set_start_pos(new_size);
+  return true;
 }
 
 Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
