@@ -278,6 +278,9 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
 }
 
 bool WriterOutputStream::Next(void** data, int* size) {
+  RIEGELI_ASSERT(dest_ != nullptr)
+      << "Failed precondition of WriterOutputStream::Next(): "
+         "WriterOutputStream not initialized";
   if (ABSL_PREDICT_FALSE(dest_->pos() >=
                          Position{std::numeric_limits<int64_t>::max()})) {
     return false;
@@ -292,6 +295,9 @@ bool WriterOutputStream::Next(void** data, int* size) {
 }
 
 void WriterOutputStream::BackUp(int length) {
+  RIEGELI_ASSERT(dest_ != nullptr)
+      << "Failed precondition of WriterOutputStream::BackUp(): "
+         "WriterOutputStream not initialized";
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
          "negative length";
@@ -302,6 +308,9 @@ void WriterOutputStream::BackUp(int length) {
 }
 
 int64_t WriterOutputStream::ByteCount() const {
+  RIEGELI_ASSERT(dest_ != nullptr)
+      << "Failed precondition of WriterOutputStream::ByteCount(): "
+         "WriterOutputStream not initialized";
   return SaturatingIntCast<int64_t>(dest_->pos());
 }
 

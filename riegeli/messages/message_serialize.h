@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -173,15 +174,25 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
 // Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.
 class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
  public:
+  // Creates a dummy `WriterOutputStream`. Use `Reset(dest)` to initialize it to
+  // usable state.
+  WriterOutputStream() = default;
+
+  // Will write to `*dest`.
   explicit WriterOutputStream(Writer* dest)
       : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { dest_ = nullptr; }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Writer* dest) {
+    dest_ = RIEGELI_ASSERT_NOTNULL(dest);
+  }
 
   bool Next(void** data, int* size) override;
   void BackUp(int length) override;
   int64_t ByteCount() const override;
 
  private:
-  Writer* dest_;
+  Writer* dest_ = nullptr;
 };
 
 // Implementation details follow.

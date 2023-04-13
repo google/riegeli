@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -173,7 +174,17 @@ absl::Status ParseFromCord(const absl::Cord& src,
 // Adapts a `Reader` to a `google::protobuf::io::ZeroCopyInputStream`.
 class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
  public:
+  // Creates a dummy `ReaderInputStream`. Use `Reset(src)` to initialize it to
+  // usable state.
+  ReaderInputStream() = default;
+
+  // Will read from `*src`.
   explicit ReaderInputStream(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {}
+
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { src_ = nullptr; }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Reader* src) {
+    src_ = RIEGELI_ASSERT_NOTNULL(src);
+  }
 
   bool Next(const void** data, int* size) override;
   void BackUp(int length) override;
@@ -181,7 +192,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   int64_t ByteCount() const override;
 
  private:
-  Reader* src_;
+  Reader* src_ = nullptr;
 };
 
 // Implementation details follow.
