@@ -18,10 +18,9 @@ import tensorflow as tf
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.data.util import convert
 from tensorflow.python.framework import load_library
-from tensorflow.python.platform import resource_loader
 
 gen_riegeli_dataset_ops = load_library.load_op_library(
-    resource_loader.get_path_to_datafile('_riegeli_dataset_ops.so')
+    tf.compat.v1.resource_loader.get_path_to_datafile('_riegeli_dataset_ops.so')
 )
 
 __all__ = ('RiegeliDataset',)
