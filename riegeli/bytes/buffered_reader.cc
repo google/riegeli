@@ -540,13 +540,9 @@ bool BufferedReader::SyncImpl(SyncType sync_type) {
   const Position new_pos = pos();
   buffer_sizer_.EndRun(new_pos);
   SyncBuffer();
-  if (new_pos == limit_pos()) {
-    if (ABSL_PREDICT_FALSE(!ok())) return false;
-  } else {
-    if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
-  }
+  const bool result = new_pos == limit_pos() ? ok() : SeekBehindBuffer(new_pos);
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return result;
 }
 
 bool BufferedReader::SeekSlow(Position new_pos) {
@@ -559,9 +555,9 @@ bool BufferedReader::SeekSlow(Position new_pos) {
   }
   buffer_sizer_.EndRun(pos());
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
+  const bool result = SeekBehindBuffer(new_pos);
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return result;
 }
 
 absl::optional<Position> BufferedReader::SizeImpl() {

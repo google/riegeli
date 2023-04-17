@@ -169,11 +169,9 @@ bool BufferedWriter::FlushImpl(FlushType flush_type) {
   set_buffer();
   written_ = 0;
   if (ABSL_PREDICT_FALSE(!FlushBehindBuffer(src, flush_type))) return false;
-  if (ABSL_PREDICT_FALSE(start_pos() != new_pos)) {
-    if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
-  }
+  const bool result = start_pos() == new_pos || SeekBehindBuffer(new_pos);
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return result;
 }
 
 bool BufferedWriter::SeekSlow(Position new_pos) {
@@ -189,9 +187,9 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
   }
   buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(!SeekBehindBuffer(new_pos))) return false;
+  const bool result = SeekBehindBuffer(new_pos);
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return result;
 }
 
 absl::optional<Position> BufferedWriter::SizeImpl() {
@@ -206,9 +204,9 @@ absl::optional<Position> BufferedWriter::SizeImpl() {
 bool BufferedWriter::TruncateImpl(Position new_size) {
   buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(!TruncateBehindBuffer(new_size))) return false;
+  const bool result = TruncateBehindBuffer(new_size);
   buffer_sizer_.BeginRun(start_pos());
-  return true;
+  return result;
 }
 
 Reader* BufferedWriter::ReadModeImpl(Position initial_pos) {
