@@ -423,12 +423,12 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> CFileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {
-    if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
-  }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
+  if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {
+    Fail(random_access_status_);
+    return absl::nullopt;
+  }
   FILE* const src = SrcFile();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END)) != 0) {
     FailOperation(cfile_internal::kFSeekFunctionName);

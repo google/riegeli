@@ -655,12 +655,12 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> FileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
-    if (ok()) Fail(NoRandomAccessStatus());
-    return absl::nullopt;
-  }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
+  if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
+    Fail(NoRandomAccessStatus());
+    return absl::nullopt;
+  }
   uint64_t file_size;
   {
     const ::tensorflow::Status status =

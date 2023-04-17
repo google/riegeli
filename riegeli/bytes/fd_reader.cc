@@ -580,12 +580,12 @@ bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> FdReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {
-    if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
-  }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
+  if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {
+    Fail(random_access_status_);
+    return absl::nullopt;
+  }
   const int src = SrcFd();
   fd_internal::StatInfo stat_info;
   if (ABSL_PREDICT_FALSE(fd_internal::FStat(src, &stat_info) < 0)) {

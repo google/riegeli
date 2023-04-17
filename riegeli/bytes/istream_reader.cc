@@ -262,12 +262,12 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> IStreamReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {
-    if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
-  }
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   if (exact_size() != absl::nullopt) return *exact_size();
+  if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {
+    Fail(random_access_status_);
+    return absl::nullopt;
+  }
   std::istream& src = *SrcStream();
   errno = 0;
   src.seekg(0, std::ios_base::end);
