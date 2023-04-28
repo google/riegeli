@@ -32,7 +32,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/stream_internal.h"
+#include "riegeli/bytes/iostream_internal.h"
 
 namespace riegeli {
 
@@ -329,7 +329,7 @@ void IStreamReader<Src>::Done() {
   IStreamReaderBase::Done();
   if (src_.is_owning()) {
     errno = 0;
-    stream_internal::Close(*src_);
+    iostream_internal::Close(*src_);
     if (ABSL_PREDICT_FALSE(src_->fail()) && ABSL_PREDICT_TRUE(ok())) {
       FailOperation("istream::close()");
     }

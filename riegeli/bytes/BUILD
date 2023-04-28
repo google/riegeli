@@ -1018,8 +1018,8 @@ cc_library(
 cc_library(
     name = "istream_reader",
     srcs = [
+        "iostream_internal.h",
         "istream_reader.cc",
-        "stream_internal.h",
     ],
     hdrs = ["istream_reader.h"],
     deps = [
@@ -1042,8 +1042,8 @@ cc_library(
 cc_library(
     name = "ostream_writer",
     srcs = [
+        "iostream_internal.h",
         "ostream_writer.cc",
-        "stream_internal.h",
     ],
     hdrs = ["ostream_writer.h"],
     deps = [

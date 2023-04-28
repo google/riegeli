@@ -34,7 +34,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/stream_internal.h"
+#include "riegeli/bytes/iostream_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -356,7 +356,7 @@ inline void OStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline std::istream* OStreamWriter<Dest>::SrcStream() {
-  return stream_internal::DetectIStream(dest_.get());
+  return iostream_internal::DetectIStream(dest_.get());
 }
 
 template <typename Dest>
@@ -364,7 +364,7 @@ void OStreamWriter<Dest>::Done() {
   OStreamWriterBase::Done();
   if (dest_.is_owning()) {
     errno = 0;
-    stream_internal::Close(*dest_);
+    iostream_internal::Close(*dest_);
     if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(ok())) {
       FailOperation("ostream::close()");
     }
