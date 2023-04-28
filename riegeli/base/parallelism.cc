@@ -64,7 +64,7 @@ void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
         --num_threads_;
         return;
       }
-      absl::AnyInvocable<void()&&> task = std::move(tasks_.front());
+      absl::AnyInvocable<void() &&> task = std::move(tasks_.front());
       tasks_.pop_front();
       lock.Release();
       std::move(task)();
