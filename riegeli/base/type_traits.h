@@ -105,7 +105,7 @@ template <template <typename...> class Predicate, typename Tuple,
           size_t... indices>
 struct FilterTypeImpl<Predicate, Tuple, std::index_sequence<indices...>>
     : type_traits_internal::ConcatIndexSequences<std::conditional_t<
-          Predicate<std::tuple_element<indices, Tuple>>::value,
+          Predicate<std::tuple_element_t<indices, Tuple>>::value,
           std::index_sequence<indices>, std::index_sequence<>>...> {};
 
 }  // namespace type_traits_internal
