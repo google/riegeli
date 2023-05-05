@@ -178,7 +178,10 @@ class Lz4ReaderBase : public BufferedReader {
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
-  RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
+  //
+  // TODO: When https://github.com/lz4/lz4/issues/1227 is fixed:
+  // RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
+  std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter> decompressor_;
 };
 
 // A `Reader` which decompresses data with Lz4 after getting it from another
