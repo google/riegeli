@@ -51,7 +51,7 @@ class BufferOptions {
   }
   size_t min_buffer_size() const { return min_buffer_size_; }
 
-  // Tunes the minimal buffer size, which determines how much data at a time is
+  // Tunes the maximal buffer size, which determines how much data at a time is
   // typically read from the source / written to the destination.
   //
   // The actual buffer size changes between `min_buffer_size()` and
