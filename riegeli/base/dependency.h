@@ -901,9 +901,10 @@ inline absl::string_view ToStringView(absl::string_view value) { return value; }
 // `absl::Span<const char>` is accepted with a template to avoid implicit
 // conversions which can be ambiguous against `absl::string_view`
 // (e.g. `std::string`).
-template <typename T,
-          std::enable_if_t<
-              std::is_convertible<T, absl::Span<const char>>::value, int> = 0>
+template <
+    typename T,
+    std::enable_if_t<
+        std::is_convertible<const T&, absl::Span<const char>>::value, int> = 0>
 inline absl::string_view ToStringView(const T& value) {
   const absl::Span<const char> span = value;
   return absl::string_view(span.data(), span.size());
@@ -981,8 +982,8 @@ template <typename M>
 class DependencyImpl<
     absl::string_view, M*,
     std::enable_if_t<absl::disjunction<
-        std::is_convertible<M, absl::string_view>,
-        std::is_convertible<M, absl::Span<const char>>>::value>>
+        std::is_convertible<const M&, absl::string_view>,
+        std::is_convertible<const M&, absl::Span<const char>>>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
@@ -998,8 +999,8 @@ template <typename M>
 class DependencyImpl<
     absl::string_view, M,
     std::enable_if_t<absl::disjunction<
-        std::is_convertible<M, absl::string_view>,
-        std::is_convertible<M, absl::Span<const char>>>::value>>
+        std::is_convertible<const M&, absl::string_view>,
+        std::is_convertible<const M&, absl::Span<const char>>>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
@@ -1015,8 +1016,8 @@ template <typename M, typename Deleter>
 class DependencyImpl<
     absl::string_view, std::unique_ptr<M, Deleter>,
     std::enable_if_t<absl::disjunction<
-        std::is_convertible<M, absl::string_view>,
-        std::is_convertible<M, absl::Span<const char>>>::value>>
+        std::is_convertible<const M&, absl::string_view>,
+        std::is_convertible<const M&, absl::Span<const char>>>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
