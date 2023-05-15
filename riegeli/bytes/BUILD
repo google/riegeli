@@ -702,6 +702,19 @@ cc_library(
 )
 
 cc_library(
+    name = "compact_string_writer",
+    hdrs = ["compact_string_writer.h"],
+    deps = [
+        ":resizable_writer",
+        "//riegeli/base:assert",
+        "//riegeli/base:compact_string",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
     name = "chain_reader",
     srcs = ["chain_reader.cc"],
     hdrs = ["chain_reader.h"],

@@ -128,7 +128,7 @@ class ResizableWriterBase : public Writer {
   size_t used_size() const;
 
   // Returns the amount of data written to the destination. Does not include
-  // data wrtitten to `secondary_buffer_`.
+  // data written to `secondary_buffer_`.
   //
   // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   size_t used_dest_size() const;
