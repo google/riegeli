@@ -328,7 +328,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
       if (ABSL_PREDICT_FALSE(!status.ok())) WriteLine(status.message(), errors);
     }
     WriteLine("  chunk {", report);
-    TextPrintToWriter(chunk_summary, TextWriter(&report), print_options)
+    TextPrintToWriter(chunk_summary, TextWriter<>(&report), print_options)
         .IgnoreError();
     WriteLine("  }", report);
   }

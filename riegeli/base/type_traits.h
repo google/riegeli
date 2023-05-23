@@ -150,17 +150,13 @@ inline RemoveTypesFromEndT<num_from_end, Args&&...> RemoveFromEnd(
       std::make_index_sequence<sizeof...(Args) - num_from_end>());
 }
 
-// `TupleElementsSatisfy<Tuple, Predicate>::value` and
-// `TupleElementsSatisfyV<Tuple, Predicate>::value` check if all element types
+// `TupleElementsSatisfy<Tuple, Predicate>::value` checks if all element types
 // of a `std::tuple` type satisfy a predicate.
 template <typename Tuple, template <typename...> class Predicate>
 struct TupleElementsSatisfy;
 template <typename... T, template <typename...> class Predicate>
 struct TupleElementsSatisfy<std::tuple<T...>, Predicate>
     : absl::conjunction<Predicate<T>...> {};
-template <typename Tuple, template <typename...> class Predicate>
-inline bool TupleElementsSatisfyV =
-    TupleElementsSatisfy<Tuple, Predicate>::value;
 
 // `FilterType<Predicate, T...>::type` and
 // `FilterTypeT<Predicate, T...>` transform a parameter pack to a `std::tuple`

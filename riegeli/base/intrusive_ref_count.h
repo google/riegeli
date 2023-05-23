@@ -188,7 +188,7 @@ class RefCount {
   }
 
  private:
-  mutable std::atomic<size_t> ref_count_ = 1;
+  mutable std::atomic<size_t> ref_count_{1};
 };
 
 // Deriving `T` from `RefCountedBase<T>` makes it easier to provide functions
