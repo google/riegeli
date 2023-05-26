@@ -125,6 +125,7 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
     RIEGELI_ASSERT_UNREACHABLE()
         << "A CompactStringWriter has no reason to fail: " << writer_.status();
   }
+  writer_.dest().shrink_to_fit();
   return LinearSortedStringSet(std::move(writer_.dest()));
 }
 
