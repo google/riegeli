@@ -48,9 +48,6 @@ class LinearSortedStringSet {
   LinearSortedStringSet& operator=(LinearSortedStringSet&& that) noexcept =
       default;
 
-  // Makes `*this` equivalent to a newly constructed `LinearSortedStringSet`.
-  void Reset() { encoded_.clear(); }
-
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
 

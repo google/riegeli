@@ -49,9 +49,6 @@ class ChunkedSortedStringSet {
 
   ~ChunkedSortedStringSet();
 
-  // Makes `*this` equivalent to a newly constructed `ChunkedSortedStringSet`.
-  void Reset();
-
   // Returns `true` if the set is empty.
   bool empty() const { return repr_ == kEmptyRepr; }
 
@@ -249,12 +246,6 @@ inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
 
 inline ChunkedSortedStringSet::~ChunkedSortedStringSet() {
   if (repr_is_allocated()) DeleteAllocatedRepr();
-}
-
-inline void ChunkedSortedStringSet::Reset() {
-  if (repr_is_allocated()) DeleteAllocatedRepr();
-  first_chunk_.Reset();
-  repr_ = kEmptyRepr;
 }
 
 }  // namespace riegeli
