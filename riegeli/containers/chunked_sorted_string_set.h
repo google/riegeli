@@ -52,11 +52,6 @@ class ChunkedSortedStringSet {
   // Makes `*this` equivalent to a newly constructed `ChunkedSortedStringSet`.
   void Reset();
 
-  // Returns `true` if `element` is present in the set.
-  //
-  // Time complexity: `O(log(size / chunk_size) + chunk_size)`.
-  bool Contains(absl::string_view element) const;
-
   // Returns `true` if the set is empty.
   bool empty() const { return repr_ == kEmptyRepr; }
 
@@ -64,6 +59,11 @@ class ChunkedSortedStringSet {
   size_t size() const {
     return repr_is_inline() ? inline_repr() : allocated_repr()->size;
   }
+
+  // Returns `true` if `element` is present in the set.
+  //
+  // Time complexity: `O(log(size / chunk_size) + chunk_size)`.
+  bool contains(absl::string_view element) const;
 
   // Estimates the amount of memory used by this `ChunkedSortedStringSet`,
   // including `sizeof(ChunkedSortedStringSet)`.

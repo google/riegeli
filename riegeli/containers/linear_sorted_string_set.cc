@@ -50,14 +50,6 @@ inline size_t SharedLength(absl::string_view a, absl::string_view b) {
 inline LinearSortedStringSet::LinearSortedStringSet(CompactString&& encoded)
     : encoded_(std::move(encoded)) {}
 
-bool LinearSortedStringSet::Contains(absl::string_view element) const {
-  Iterator iterator(this);
-  while (const absl::optional<absl::string_view> found = iterator.Next()) {
-    if (*found >= element) return *found == element;
-  }
-  return false;  // Not found.
-}
-
 absl::string_view LinearSortedStringSet::first() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of LinearSortedStringSet::first(): "
@@ -75,6 +67,14 @@ absl::string_view LinearSortedStringSet::first() const {
                     length)
       << "Malformed LinearSortedStringSet encoding (unshared)";
   return absl::string_view(*ptr, IntCast<size_t>(length));
+}
+
+bool LinearSortedStringSet::contains(absl::string_view element) const {
+  Iterator iterator(this);
+  while (const absl::optional<absl::string_view> found = iterator.Next()) {
+    if (*found >= element) return *found == element;
+  }
+  return false;  // Not found.
 }
 
 size_t LinearSortedStringSet::EstimateMemory() const {

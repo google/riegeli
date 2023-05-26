@@ -47,7 +47,7 @@ uintptr_t ChunkedSortedStringSet::CopyAllocatedRepr() const {
   return make_allocated_repr(new Repr(*allocated_repr()));
 }
 
-bool ChunkedSortedStringSet::Contains(absl::string_view element) const {
+bool ChunkedSortedStringSet::contains(absl::string_view element) const {
   const LinearSortedStringSet* found_linear_set = &first_chunk_;
   if (repr_is_allocated()) {
     // The target chunk is the last chunk whose first element is less than or
@@ -57,7 +57,7 @@ bool ChunkedSortedStringSet::Contains(absl::string_view element) const {
     // after it, i.e. the first chunk whose first element is greater than the
     // element being searched (or possibly past the end iterator), and then go
     // back by one chunk (possibly to `first_chunk_`, even if its first element
-    // is still too large, in which case its `Contains()` will return `false`).
+    // is still too large, in which case its `contains()` will return `false`).
     //
     // Do not bother with returning `equal` to `BinarySearch()` if the first
     // element matches because this is rare, and that would require more
@@ -74,7 +74,7 @@ bool ChunkedSortedStringSet::Contains(absl::string_view element) const {
       found_linear_set = &chunk.found[-1];
     }
   }
-  return found_linear_set->Contains(element);
+  return found_linear_set->contains(element);
 }
 
 size_t ChunkedSortedStringSet::EstimateMemory() const {

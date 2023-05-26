@@ -51,16 +51,16 @@ class LinearSortedStringSet {
   // Makes `*this` equivalent to a newly constructed `LinearSortedStringSet`.
   void Reset() { encoded_.clear(); }
 
-  // Returns `true` if `element` is present in the set.
-  //
-  // Time complexity: `O(size)`.
-  bool Contains(absl::string_view element) const;
-
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
 
   // Returns the first element. The set must not be empty.
   absl::string_view first() const;
+
+  // Returns `true` if `element` is present in the set.
+  //
+  // Time complexity: `O(size)`.
+  bool contains(absl::string_view element) const;
 
   // Estimates the amount of memory used by this `LinearSortedStringSet`,
   // including `sizeof(LinearSortedStringSet)`.
