@@ -50,6 +50,14 @@ inline size_t SharedLength(absl::string_view a, absl::string_view b) {
 inline LinearSortedStringSet::LinearSortedStringSet(CompactString&& encoded)
     : encoded_(std::move(encoded)) {}
 
+size_t LinearSortedStringSet::size() const {
+  size_t size = 0;
+  for (Iterator iter = cbegin(); iter != cend(); ++iter) {
+    ++size;
+  }
+  return size;
+}
+
 absl::string_view LinearSortedStringSet::first() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of LinearSortedStringSet::first(): "

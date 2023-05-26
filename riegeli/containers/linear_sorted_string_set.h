@@ -64,6 +64,11 @@ class LinearSortedStringSet {
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
 
+  // Returns the number of elements.
+  //
+  // Time complexity: `O(size)`.
+  size_t size() const;
+
   // Returns the first element. The set must not be empty.
   absl::string_view first() const;
 
