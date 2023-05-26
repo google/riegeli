@@ -21,7 +21,7 @@
 
 namespace riegeli {
 
-// Resizes `dest` to `size`, ensuring that repeated growth has the cost
+// Resizes `dest` to `new_size`, ensuring that repeated growth has the cost
 // proportional to the final size. New contents are unspecified.
 void ResizeStringAmortized(std::string& dest, size_t new_size);
 

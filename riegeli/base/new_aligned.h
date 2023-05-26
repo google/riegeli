@@ -28,6 +28,36 @@
 
 namespace riegeli {
 
+namespace new_aligned_internal {
+
+template <typename T>
+inline void EnsureSpaceForObject(size_t& num_bytes) {
+  // Allocate enough space to construct the object, even if the caller does not
+  // need the whole tail part of the object.
+  num_bytes = UnsignedMax(num_bytes, sizeof(T));
+}
+
+template <>
+inline void EnsureSpaceForObject<void>(size_t& num_bytes) {}
+
+template <typename T, typename... Args>
+inline void ConstructObject(T* ptr, Args&&... args) {
+  new (ptr) T(std::forward<Args>(args)...);
+}
+
+template <>
+inline void ConstructObject(void* ptr) {}
+
+template <typename T>
+inline void DestroyObject(T* ptr) {
+  ptr->~T();
+}
+
+template <>
+inline void DestroyObject(void* ptr) {}
+
+}  // namespace new_aligned_internal
+
 // `NewAligned()`/`DeleteAligned()` provide memory allocation with the specified
 // alignment known at compile time, with the size specified in bytes, and which
 // allow deallocation to be faster by knowing the size.
@@ -35,6 +65,9 @@ namespace riegeli {
 // The alignment and size passed to `DeleteAligned()` must be the same as in the
 // corresponding `NewAligned()`. Pointer types must be compatible as with new
 // and delete expressions.
+//
+// If `T` is `void`, raw memory is allocated but no object is constructed or
+// destroyed.
 //
 // If the allocated size is given in terms of objects rather than bytes
 // and the type is not over-aligned (i.e. its alignment is not larger than
@@ -48,9 +81,7 @@ template <typename T, size_t alignment = alignof(T), typename... Args>
 inline T* NewAligned(size_t num_bytes, Args&&... args) {
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
-  // Allocate enough space to construct the object, even if the caller does not
-  // need the whole tail part of the object.
-  num_bytes = UnsignedMax(num_bytes, sizeof(T));
+  new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
   T* ptr;
 #if __cpp_aligned_new
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
@@ -80,7 +111,7 @@ inline T* NewAligned(size_t num_bytes, Args&&... args) {
     ptr = static_cast<T*>(aligned);
   }
 #endif
-  new (ptr) T(std::forward<Args>(args)...);
+  new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
   return ptr;
 }
 
@@ -88,8 +119,8 @@ template <typename T, size_t alignment = alignof(T)>
 inline void DeleteAligned(T* ptr, size_t num_bytes) {
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
-  num_bytes = UnsignedMax(num_bytes, sizeof(T));
-  ptr->~T();
+  new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
+  new_aligned_internal::DestroyObject(ptr);
 #if __cpp_aligned_new
 #if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
@@ -149,9 +180,7 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
                                   size_t* actual_num_bytes, Args&&... args) {
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
-  // Allocate enough space to construct the object, even if the caller does not
-  // need the whole tail part of the object.
-  min_num_bytes = UnsignedMax(min_num_bytes, sizeof(T));
+  new_aligned_internal::EnsureSpaceForObject<T>(min_num_bytes);
   T* ptr;
   const size_t capacity = EstimatedAllocatedSize(min_num_bytes);
 #if __cpp_aligned_new
@@ -183,7 +212,7 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
   }
 #endif
   *actual_num_bytes = capacity;
-  new (ptr) T(std::forward<Args>(args)...);
+  new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
   return ptr;
 }
 

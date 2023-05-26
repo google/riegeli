@@ -254,6 +254,14 @@ inline void AssertInitialized(const char* data, size_t size) {
 #endif
 }
 
+// Marks that a region of memory should be treated as uninitialized, which is
+// checked when running under memory sanitizer.
+inline void MarkPoisoned(const char* data, size_t size) {
+#ifdef MEMORY_SANITIZER
+  __msan_poison(data, size);
+#endif
+}
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_ASSERT_H_

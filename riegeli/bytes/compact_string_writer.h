@@ -15,10 +15,10 @@
 #ifndef RIEGELI_BYTES_COMPACT_STRING_WRITER_H_
 #define RIEGELI_BYTES_COMPACT_STRING_WRITER_H_
 
-#include <cstring>
+#include <stddef.h>
+
 #include <tuple>
 #include <type_traits>
-#include <utility>
 
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
@@ -44,16 +44,12 @@ struct CompactStringResizableTraits {
     RIEGELI_ASSERT_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds new size";
-    if (new_size <= dest.size()) {
-      dest.erase(new_size);
-    } else {
-      CompactString new_dest(new_size);
-      std::memcpy(new_dest.data(), dest.data(), used_size);
-      dest = std::move(new_dest);
-    }
+    dest.resize(new_size, used_size);
     return true;
   }
-  static void GrowToCapacity(Resizable& dest) { dest.GrowToCapacity(); }
+  static void GrowToCapacity(Resizable& dest) {
+    dest.set_size(dest.capacity());
+  }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
     RIEGELI_ASSERT_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
@@ -61,13 +57,8 @@ struct CompactStringResizableTraits {
     RIEGELI_ASSERT_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
-    dest.GrowToCapacity();
-    if (new_size > dest.size()) {
-      CompactString new_dest(new_size);
-      std::memcpy(new_dest.data(), dest.data(), used_size);
-      dest = std::move(new_dest);
-      dest.GrowToCapacity();
-    }
+    dest.resize(new_size, used_size);
+    GrowToCapacity(dest);
     return true;
   }
 };
@@ -97,11 +88,6 @@ using CompactStringWriterBase = ResizableWriterBase;
 // The `CompactString` must not be accessed until the `CompactStringWriter` is
 // closed or no longer used, except that it is allowed to read the
 // `CompactString` immediately after `Flush()`.
-//
-// Frequent flushing is inefficient. Since `CompactString` does not track
-// `capacity()`, `Close()` and `Flush()` do not amortize the cost of
-// reallocation by exponential growth like for `std::string`. Writing to the
-// `CompactString` after `Close()` or `Flush()` may reallocate it each time.
 template <typename Dest = CompactString*>
 class CompactStringWriter
     : public ResizableWriter<

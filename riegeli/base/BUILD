@@ -352,10 +352,13 @@ cc_library(
 
 cc_library(
     name = "compact_string",
+    srcs = ["compact_string.cc"],
     hdrs = ["compact_string.h"],
     deps = [
         ":arithmetic",
         ":assert",
+        ":estimated_allocated_size",
+        ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",
