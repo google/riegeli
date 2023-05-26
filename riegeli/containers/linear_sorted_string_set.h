@@ -19,6 +19,7 @@
 
 #include <iterator>
 #include <string>
+#include <type_traits>
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
@@ -117,7 +118,17 @@ class LinearSortedStringSet::Builder {
 
   // Inserts an element. It must be greater than all previously inserted
   // elements, otherwise it is not inserted and `false` is returned.
+  //
+  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
   bool InsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  bool InsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
   bool empty() const { return writer_.pos() == 0; }
@@ -134,6 +145,10 @@ class LinearSortedStringSet::Builder {
   LinearSortedStringSet Build() &&;
 
  private:
+  // This template is defined and used only in linear_sorted_string_set.cc.
+  template <typename Element, typename UpdateLast>
+  bool InsertNextImpl(Element&& element, UpdateLast update_last);
+
   CompactStringWriter<CompactString> writer_;
   std::string last_;
 };
@@ -253,6 +268,9 @@ inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
 inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
   return end();
 }
+
+extern template bool LinearSortedStringSet::Builder::InsertNext(
+    std::string&& element);
 
 }  // namespace riegeli
 

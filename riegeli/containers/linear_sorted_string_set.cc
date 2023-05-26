@@ -19,6 +19,7 @@
 
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -108,23 +109,50 @@ void LinearSortedStringSet::Builder::Reset() {
 }
 
 bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
+  return InsertNextImpl(
+      element, [this](absl::string_view element, size_t shared_length) {
+        last_.erase(shared_length);
+        const absl::string_view unshared(element.data() + shared_length,
+                                         element.size() - shared_length);
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `last_.append(unshared);`
+        last_.append(unshared.data(), unshared.size());
+        RIEGELI_ASSERT_EQ(last_, element) << "last_ incorrectly reconstructed";
+        return unshared;
+      });
+}
+
+template <typename Element,
+          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
+  // `std::move(element)` is correct and `std::forward<Element>(element)` is not
+  // necessary: `Element` is always `std::string`, never an lvalue reference.
+  return InsertNextImpl(
+      std::move(element), [this](std::string&& element, size_t shared_length) {
+        last_ = std::move(element);
+        return absl::string_view(last_.data() + shared_length,
+                                 last_.size() - shared_length);
+      });
+}
+
+template bool LinearSortedStringSet::Builder::InsertNext(std::string&& element);
+
+template <typename Element, typename UpdateLast>
+bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
+                                                    UpdateLast update_last) {
   RIEGELI_ASSERT(writer_.is_open())
       << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
          "set already built or moved from";
   const size_t shared_length = SharedLength(last_, element);
-  const absl::string_view unshared(element.data() + shared_length,
-                                   element.size() - shared_length);
-  if (ABSL_PREDICT_FALSE(unshared <=
+  if (ABSL_PREDICT_FALSE(absl::string_view(element.data() + shared_length,
+                                           element.size() - shared_length) <=
                          absl::string_view(last_.data() + shared_length,
                                            last_.size() - shared_length)) &&
       !empty()) {
     return false;  // Out of order.
   }
-  last_.erase(shared_length);
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `last_.append(unshared);`
-  last_.append(unshared.data(), unshared.size());
-  RIEGELI_ASSERT_EQ(last_, element) << "last_ incorrectly reconstructed";
+  const absl::string_view unshared =
+      update_last(std::forward<Element>(element), shared_length);
   // `shared_length` is stored if `shared_length > 0`.
   const uint64_t tagged_length =
       (uint64_t{unshared.size()} << 1) |

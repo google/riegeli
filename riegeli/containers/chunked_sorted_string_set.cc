@@ -17,6 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -99,6 +101,22 @@ ChunkedSortedStringSet::Builder& ChunkedSortedStringSet::Builder::operator=(
 ChunkedSortedStringSet::Builder::~Builder() = default;
 
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
+  return InsertNextImpl(element);
+}
+
+template <typename Element,
+          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+bool ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
+  // `std::move(element)` is correct and `std::forward<Element>(element)` is not
+  // necessary: `Element` is always `std::string`, never an lvalue reference.
+  return InsertNextImpl(std::move(element));
+}
+
+template bool ChunkedSortedStringSet::Builder::InsertNext(
+    std::string&& element);
+
+template <typename Element>
+bool ChunkedSortedStringSet::Builder::InsertNextImpl(Element&& element) {
   if (ABSL_PREDICT_FALSE(remaining_current_chunk_size_ == 0)) {
     if (ABSL_PREDICT_FALSE(element <= current_builder_.last())) {
       return false;  // Out of order (across chunks).
@@ -112,7 +130,8 @@ bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
     current_builder_.Reset();
     remaining_current_chunk_size_ = chunk_size_;
   }
-  if (ABSL_PREDICT_FALSE(!current_builder_.InsertNext(element))) {
+  if (ABSL_PREDICT_FALSE(
+          !current_builder_.InsertNext(std::forward<Element>(element)))) {
     return false;  // Out of order (within a chunk).
   }
   ++size_;

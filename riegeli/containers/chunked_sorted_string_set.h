@@ -20,6 +20,8 @@
 
 #include <iterator>
 #include <limits>
+#include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -187,7 +189,17 @@ class ChunkedSortedStringSet::Builder {
 
   // Inserts an element. It must be greater than all previously inserted
   // elements, otherwise it is not inserted and `false` is returned.
+  //
+  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
   bool InsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  bool InsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
   bool empty() const {
@@ -206,6 +218,10 @@ class ChunkedSortedStringSet::Builder {
   ChunkedSortedStringSet Build() &&;
 
  private:
+  // This template is defined and used only in chunked_sorted_string_set.cc.
+  template <typename Element>
+  bool InsertNextImpl(Element&& element);
+
   size_t size_;
   size_t chunk_size_;
   size_t remaining_current_chunk_size_;
@@ -357,6 +373,9 @@ inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const {
 inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
   return end();
 }
+
+extern template bool ChunkedSortedStringSet::Builder::InsertNext(
+    std::string&& element);
 
 }  // namespace riegeli
 
