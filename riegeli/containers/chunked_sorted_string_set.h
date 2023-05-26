@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <iterator>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -38,6 +39,14 @@ class ChunkedSortedStringSet {
   class Builder;
   class Iterator;
 
+  using value_type = absl::string_view;
+  using reference = value_type;
+  using const_reference = reference;
+  using iterator = Iterator;
+  using const_iterator = iterator;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+
   // An empty set.
   ChunkedSortedStringSet() = default;
 
@@ -48,6 +57,12 @@ class ChunkedSortedStringSet {
   ChunkedSortedStringSet& operator=(ChunkedSortedStringSet&& that) noexcept;
 
   ~ChunkedSortedStringSet();
+
+  // Iteration over the set.
+  Iterator begin() const;
+  Iterator cbegin() const;
+  Iterator end() const;
+  Iterator cend() const;
 
   // Returns `true` if the set is empty.
   bool empty() const { return repr_ == kEmptyRepr; }
@@ -204,24 +219,100 @@ class ChunkedSortedStringSet::Builder {
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 class ChunkedSortedStringSet::Iterator {
  public:
-  // Iterates over `*set` which must not be changed until the
-  // `ChunkedSortedStringSetIterator` is no longer used.
-  explicit Iterator(const ChunkedSortedStringSet* set);
+  // `iterator_concept` is only `std::input_iterator_tag` because the
+  // `std::forward_iterator` requirement and above require references to remain
+  // valid while the range exists.
+  using iterator_concept = std::input_iterator_tag;
+  // `iterator_category` is only `std::input_iterator_tag` also because the
+  // `LegacyForwardIterator` requirement and above require `reference` to be
+  // a true reference type.
+  using iterator_category = std::input_iterator_tag;
+  using value_type = absl::string_view;
+  using reference = value_type;
+  using difference_type = ptrdiff_t;
+
+  class pointer {
+   public:
+    reference* operator->() { return &ref_; }
+    const reference* operator->() const { return &ref_; }
+
+   private:
+    friend class Iterator;
+    explicit pointer(reference ref) : ref_(ref) {}
+    reference ref_;
+  };
+
+  // A sentinel value, equal to `end()`.
+  Iterator() = default;
+
+  Iterator(const Iterator& that) = default;
+  Iterator& operator=(const Iterator& that) = default;
 
   Iterator(Iterator&& that) noexcept = default;
   Iterator& operator=(Iterator&& that) noexcept = default;
 
-  // Returns the next element in the sorted order, or `absl::nullopt` if
-  // iteration is exhausted.
-  absl::optional<absl::string_view> Next();
+  // Returns the current element.
+  //
+  // The `absl::string_view` is valid until the next non-const operation on this
+  // `Iterator` (the string it points to is owned by `Iterator`).
+  reference operator*() const {
+    RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator*(): "
+           "iterator is end()";
+    return *current_iterator_;
+  }
+
+  pointer operator->() const {
+    RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator->(): "
+           "iterator is end()";
+    return pointer(**this);
+  }
+
+  Iterator& operator++() {
+    RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator++(): "
+           "iterator is end()";
+    Next();
+    return *this;
+  }
+  Iterator operator++(int) {
+    const Iterator tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  // Iterators can be compared even if they are associated with different
+  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const Iterator& a, const Iterator& b) {
+    return a.current_iterator_ == b.current_iterator_;
+  }
+  friend bool operator!=(const Iterator& a, const Iterator& b) {
+    return a.current_iterator_ != b.current_iterator_;
+  }
 
  private:
+  friend class ChunkedSortedStringSet;  // For `Iterator::Iterator`.
+
   using ChunkIterator = ChunkedSortedStringSet::ChunkIterator;
   using Repr = ChunkedSortedStringSet::Repr;
 
-  const ChunkedSortedStringSet* set_;
+  explicit Iterator(const ChunkedSortedStringSet* set)
+      : current_iterator_(set->first_chunk_.cbegin()),
+        next_chunk_iterator_(set->repr_is_inline()
+                                 ? ChunkIterator()
+                                 : set->allocated_repr()->chunks.cbegin()),
+        set_(set) {}
+
+  void Next();
+
   LinearSortedStringSet::Iterator current_iterator_;
-  ChunkIterator next_chunk_iterator_;
+  ChunkIterator next_chunk_iterator_ = ChunkIterator();
+  const ChunkedSortedStringSet* set_ = nullptr;
 };
 
 // Implementation details follow.
@@ -250,6 +341,22 @@ inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
 }
 
 inline ChunkedSortedStringSet::~ChunkedSortedStringSet() { DeleteRepr(repr_); }
+
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::begin() const {
+  return Iterator(this);
+}
+
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cbegin() const {
+  return begin();
+}
+
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const {
+  return Iterator();
+}
+
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
+  return end();
+}
 
 }  // namespace riegeli
 

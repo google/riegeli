@@ -17,14 +17,13 @@
 
 #include <stddef.h>
 
+#include <iterator>
 #include <string>
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/bytes/compact_string_writer.h"
-#include "riegeli/bytes/string_reader.h"
 
 namespace riegeli {
 
@@ -38,6 +37,14 @@ class LinearSortedStringSet {
   class Builder;
   class Iterator;
 
+  using value_type = absl::string_view;
+  using reference = value_type;
+  using const_reference = reference;
+  using iterator = Iterator;
+  using const_iterator = iterator;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+
   // An empty set.
   LinearSortedStringSet() = default;
 
@@ -47,6 +54,12 @@ class LinearSortedStringSet {
   LinearSortedStringSet(LinearSortedStringSet&& that) noexcept = default;
   LinearSortedStringSet& operator=(LinearSortedStringSet&& that) noexcept =
       default;
+
+  // Iteration over the set.
+  Iterator begin() const;
+  Iterator cbegin() const;
+  Iterator end() const;
+  Iterator cend() const;
 
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
@@ -123,24 +136,118 @@ class LinearSortedStringSet::Builder {
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 class LinearSortedStringSet::Iterator {
  public:
-  // Iterates over `*set` which must not be changed until the `Iterator` is no
-  // longer used.
-  explicit Iterator(const LinearSortedStringSet* set);
+  // `iterator_concept` is only `std::input_iterator_tag` because the
+  // `std::forward_iterator` requirement and above require references to remain
+  // valid while the range exists.
+  using iterator_concept = std::input_iterator_tag;
+  // `iterator_category` is only `std::input_iterator_tag` also because the
+  // `LegacyForwardIterator` requirement and above require `reference` to be
+  // a true reference type.
+  using iterator_category = std::input_iterator_tag;
+  using value_type = absl::string_view;
+  using reference = value_type;
+  using difference_type = ptrdiff_t;
+
+  class pointer {
+   public:
+    reference* operator->() { return &ref_; }
+    const reference* operator->() const { return &ref_; }
+
+   private:
+    friend class Iterator;
+    explicit pointer(reference ref) : ref_(ref) {}
+    reference ref_;
+  };
+
+  // A sentinel value, equal to `end()`.
+  Iterator() = default;
+
+  Iterator(const Iterator& that) = default;
+  Iterator& operator=(const Iterator& that) = default;
 
   Iterator(Iterator&& that) noexcept = default;
   Iterator& operator=(Iterator&& that) noexcept = default;
 
-  // Makes `*this` equivalent to a newly constructed `Iterator`.
-  void Reset(const LinearSortedStringSet* set);
+  // Returns the current element.
+  //
+  // The `absl::string_view` is valid until the next non-const operation on this
+  // `Iterator` (the string it points to is owned by `Iterator`).
+  reference operator*() const {
+    RIEGELI_ASSERT(cursor_ != nullptr)
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator*(): "
+           "iterator is end()";
+    return current_;
+  }
 
-  // Returns the next element in the sorted order, or `absl::nullopt` if
-  // iteration is exhausted.
-  absl::optional<absl::string_view> Next();
+  pointer operator->() const {
+    RIEGELI_ASSERT(cursor_ != nullptr)
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator->(): "
+           "iterator is end()";
+    return pointer(**this);
+  }
+
+  Iterator& operator++() {
+    RIEGELI_ASSERT(cursor_ != nullptr)
+        << "Failed precondition of "
+           "LinearSortedStringSet::Iterator::operator++(): "
+           "iterator is end()";
+    Next();
+    return *this;
+  }
+  Iterator operator++(int) {
+    const Iterator tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  // Iterators can be compared even if they are associated with different
+  // `LinearSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const Iterator& a, const Iterator& b) {
+    return a.cursor_ == b.cursor_;
+  }
+  friend bool operator!=(const Iterator& a, const Iterator& b) {
+    return a.cursor_ != b.cursor_;
+  }
 
  private:
-  StringReader<> reader_;
-  std::string current_;
+  friend class LinearSortedStringSet;  // For `Iterator::Iterator`.
+
+  explicit Iterator(absl::string_view encoded)
+      : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
+    Next();
+  }
+
+  void Next();
+
+  // `cursor_` points after the encoded current element in
+  // `LinearSortedStringSet::encoded_`, or is `nullptr` for `end()` (this is
+  // unambiguous because `CompactString::data()` is never `nullptr`).
+  const char* cursor_ = nullptr;
+  const char* limit_ = nullptr;
+  // Decoded current element, or empty for `end()`.
+  CompactString current_;
 };
+
+// Implementation details follow.
+
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::begin() const {
+  return Iterator(encoded_);
+}
+
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::cbegin() const {
+  return begin();
+}
+
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
+  return Iterator();
+}
+
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
+  return end();
+}
 
 }  // namespace riegeli
 

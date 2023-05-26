@@ -15,7 +15,6 @@ cc_library(
         "//riegeli/base:compact_string",
         "//riegeli/base:memory_estimator",
         "//riegeli/bytes:compact_string_writer",
-        "//riegeli/bytes:string_reader",
         "//riegeli/varint:varint_reading",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
