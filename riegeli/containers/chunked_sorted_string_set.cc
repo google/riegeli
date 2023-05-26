@@ -39,10 +39,10 @@ inline ChunkedSortedStringSet::ChunkedSortedStringSet(
                 ? make_inline_repr(size)
                 : make_allocated_repr(new Repr{std::move(chunks), size})) {}
 
-// Defined out of line to reduce inlined code bloat.
-void ChunkedSortedStringSet::DeleteAllocatedRepr() { delete allocated_repr(); }
+void ChunkedSortedStringSet::DeleteAllocatedRepr(uintptr_t repr) {
+  delete allocated_repr(repr);
+}
 
-// Defined out of line to reduce inlined code bloat.
 uintptr_t ChunkedSortedStringSet::CopyAllocatedRepr() const {
   return make_allocated_repr(new Repr(*allocated_repr()));
 }
@@ -91,7 +91,11 @@ ChunkedSortedStringSet::Builder::Builder(size_t chunk_size, size_t size_hint)
   if (size_hint > 0) chunks_.reserve((size_hint - 1) / chunk_size);
 }
 
-// Defined out of line to reduce inlined code bloat.
+ChunkedSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;
+
+ChunkedSortedStringSet::Builder& ChunkedSortedStringSet::Builder::operator=(
+    Builder&& that) noexcept = default;
+
 ChunkedSortedStringSet::Builder::~Builder() = default;
 
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {

@@ -87,10 +87,12 @@ class LinearSortedStringSet {
 class LinearSortedStringSet::Builder {
  public:
   // Begins with an empty set.
-  Builder() = default;
+  Builder();
 
-  Builder(Builder&& that) noexcept = default;
-  Builder& operator=(Builder&& that) noexcept = default;
+  Builder(Builder&& that) noexcept;
+  Builder& operator=(Builder&& that) noexcept;
+
+  ~Builder();
 
   // Makes `*this` equivalent to a newly constructed `Builder`.
   void Reset();

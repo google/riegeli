@@ -84,6 +84,15 @@ size_t LinearSortedStringSet::EstimateMemory() const {
   return memory_estimator.TotalMemory();
 }
 
+LinearSortedStringSet::Builder::Builder() = default;
+
+LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;
+
+LinearSortedStringSet::Builder& LinearSortedStringSet::Builder::operator=(
+    Builder&& that) noexcept = default;
+
+LinearSortedStringSet::Builder::~Builder() = default;
+
 void LinearSortedStringSet::Builder::Reset() {
   writer_.Reset();
   last_.clear();

@@ -99,20 +99,23 @@ class ChunkedSortedStringSet {
                                   size_t size);
 
   static constexpr uintptr_t kEmptyRepr = 1;
-  bool repr_is_inline() const { return (repr_ & 1) == 1; }
-  bool repr_is_allocated() const { return (repr_ & 1) == 0; }
+  static bool repr_is_inline(uintptr_t repr) { return (repr & 1) == 1; }
+  bool repr_is_inline() const { return repr_is_inline(repr_); }
+  static bool repr_is_allocated(uintptr_t repr) { return (repr & 1) == 0; }
+  bool repr_is_allocated() const { return repr_is_allocated(repr_); }
   size_t inline_repr() const {
     RIEGELI_ASSERT(repr_is_inline())
         << "Failed precondition of ChunkedSortedStringSet::inline_repr(): "
            "representation is not inline";
     return static_cast<size_t>(repr_ >> 1);
   }
-  const Repr* allocated_repr() const {
-    RIEGELI_ASSERT(repr_is_allocated())
+  static const Repr* allocated_repr(uintptr_t repr) {
+    RIEGELI_ASSERT(repr_is_allocated(repr))
         << "Failed precondition of ChunkedSortedStringSet::allocated_repr(): "
            "representation is not allocated";
-    return reinterpret_cast<const Repr*>(repr_);
+    return reinterpret_cast<const Repr*>(repr);
   }
+  const Repr* allocated_repr() const { return allocated_repr(repr_); }
   static uintptr_t make_inline_repr(size_t size) {
     RIEGELI_ASSERT_LE(size, std::numeric_limits<uintptr_t>::max() / 1)
         << "Failed precondition of ChunkedSortedStringSet::make_inline_repr(): "
@@ -127,7 +130,16 @@ class ChunkedSortedStringSet {
     return reinterpret_cast<uintptr_t>(repr);
   }
 
-  void DeleteAllocatedRepr();
+  static void DeleteRepr(uintptr_t repr) {
+    if (repr_is_allocated(repr)) DeleteAllocatedRepr(repr);
+  }
+
+  static void DeleteAllocatedRepr(uintptr_t repr);
+
+  uintptr_t CopyRepr() const {
+    return repr_is_inline() ? repr_ : CopyAllocatedRepr();
+  }
+
   uintptr_t CopyAllocatedRepr() const;
 
   // The first `LinearSortedStringSet` is stored inline to reduce object size
@@ -153,8 +165,8 @@ class ChunkedSortedStringSet::Builder {
   // match reality, nothing breaks.
   explicit Builder(size_t chunk_size, size_t size_hint = 0);
 
-  Builder(Builder&& that) noexcept = default;
-  Builder& operator=(Builder&& that) noexcept = default;
+  Builder(Builder&& that) noexcept;
+  Builder& operator=(Builder&& that) noexcept;
 
   ~Builder();
 
@@ -216,16 +228,12 @@ class ChunkedSortedStringSet::Iterator {
 
 inline ChunkedSortedStringSet::ChunkedSortedStringSet(
     const ChunkedSortedStringSet& that)
-    : first_chunk_(that.first_chunk_),
-      repr_(that.repr_is_inline() ? that.repr_ : that.CopyAllocatedRepr()) {}
+    : first_chunk_(that.first_chunk_), repr_(that.CopyRepr()) {}
 
 inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
     const ChunkedSortedStringSet& that) {
   first_chunk_ = that.first_chunk_;
-  const uintptr_t repr =
-      that.repr_is_inline() ? that.repr_ : that.CopyAllocatedRepr();
-  if (repr_is_allocated()) DeleteAllocatedRepr();
-  repr_ = repr;
+  DeleteRepr(std::exchange(repr_, that.CopyRepr()));
   return *this;
 }
 
@@ -237,16 +245,11 @@ inline ChunkedSortedStringSet::ChunkedSortedStringSet(
 inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
     ChunkedSortedStringSet&& that) noexcept {
   first_chunk_ = std::move(that.first_chunk_);
-  // Exchange `that.repr_` early to support self-assignment.
-  const uintptr_t repr = std::exchange(that.repr_, kEmptyRepr);
-  if (repr_is_allocated()) DeleteAllocatedRepr();
-  repr_ = repr;
+  DeleteRepr(std::exchange(repr_, std::exchange(that.repr_, kEmptyRepr)));
   return *this;
 }
 
-inline ChunkedSortedStringSet::~ChunkedSortedStringSet() {
-  if (repr_is_allocated()) DeleteAllocatedRepr();
-}
+inline ChunkedSortedStringSet::~ChunkedSortedStringSet() { DeleteRepr(repr_); }
 
 }  // namespace riegeli
 
