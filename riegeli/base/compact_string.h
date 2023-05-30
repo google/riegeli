@@ -81,10 +81,8 @@ class
   // Creates a `CompactString` which holds a copy of `src`.
   explicit CompactString(absl::string_view src) : repr_(MakeRepr(src)) {}
 
-  CompactString(const CompactString& that) : repr_(MakeRepr(that)) {}
-  CompactString& operator=(const CompactString& that) {
-    return *this = absl::string_view(that);
-  }
+  CompactString(const CompactString& that);
+  CompactString& operator=(const CompactString& that);
 
   CompactString(CompactString&& that) noexcept
       : repr_(std::exchange(that.repr_, kDefaultRepr)) {}
@@ -284,7 +282,14 @@ class
     RIEGELI_ASSERT_EQ(repr_ & 7, 1u)
         << "Failed precondition of CompactString::inline_size(): "
            "representation not inline";
-    return IntCast<size_t>((repr_ & 0xff) >> 3);
+    const size_t size = IntCast<size_t>((repr_ & 0xff) >> 3);
+    if (size > kInlineCapacity) {
+      // The assertion helps the compiler to reason about comparisons with
+      // `size()`.
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Inline size never exceeds kInlineCapacity";
+    }
+    return size;
   }
 
   static char* allocated_data(uintptr_t repr) {
@@ -350,6 +355,12 @@ class
     T stored_capacity;
     std::memcpy(&stored_capacity, allocated_data(repr) - 2 * sizeof(T),
                 sizeof(T));
+    if (stored_capacity <= kInlineCapacity) {
+      // The assertion helps the compiler to reason about comparisons with
+      // `capacity()`.
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Allocated capacity always exceeds kInlineCapacity";
+    }
     return size_t{stored_capacity};
   }
 
@@ -470,11 +481,43 @@ inline void CompactString::DeleteRepr(uintptr_t repr) {
        allocated_capacity_for_tag(tag, repr) + offset);
 }
 
+inline CompactString::CompactString(const CompactString& that) {
+  const uintptr_t that_tag = that.repr_ & 7;
+  if (that_tag == 1) {
+    repr_ = that.repr_;
+  } else {
+    repr_ = MakeRepr(absl::string_view(that.allocated_data(),
+                                       that.allocated_size_for_tag(that_tag)));
+  }
+}
+
+inline CompactString& CompactString::operator=(const CompactString& that) {
+  const uintptr_t that_tag = that.repr_ & 7;
+  if (that_tag == 1) {
+    const size_t that_size = that.inline_size();
+    RIEGELI_ASSERT_LE(that_size, capacity())
+        << "Inline size always fits in a capacity";
+    set_size(that_size);
+    // Use `std::memmove()` to support assigning from `*this`.
+    std::memmove(data(), that.inline_data(), that.inline_size());
+  } else {
+    const size_t that_size = that.allocated_size_for_tag(that_tag);
+    if (ABSL_PREDICT_TRUE(that_size <= capacity())) {
+      set_size(that_size);
+      // Use `std::memmove()` to support assigning from `*this`.
+      std::memmove(data(), that.allocated_data(), that_size);
+    } else {
+      AssignSlow(absl::string_view(that.allocated_data(), that_size));
+    }
+  }
+  return *this;
+}
+
 inline CompactString& CompactString::operator=(absl::string_view src) {
   if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
     set_size(src.size());
     if (ABSL_PREDICT_TRUE(
-            // `std::memcpy(_, nullptr, 0)` is undefined.
+            // `std::memmove(_, nullptr, 0)` is undefined.
             !src.empty())) {
       // Use `std::memmove()` to support assigning from a substring of `*this`.
       std::memmove(data(), src.data(), src.size());
