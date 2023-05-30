@@ -95,8 +95,31 @@ absl::string_view LinearSortedStringSet::first() const {
 }
 
 bool LinearSortedStringSet::contains(absl::string_view element) const {
-  for (const absl::string_view found : *this) {
-    if (found >= element) return found == element;
+  // Length of the prefix shared between the previous `*iterator` and the
+  // current `*iterator`.
+  size_t shared_length = 0;
+  // Length of the prefix shared between `element` and `*iterator`.
+  size_t common_length = 0;
+  for (LinearSortedStringSet::Iterator iterator = cbegin(); iterator != cend();
+       shared_length = iterator.Next()) {
+    // It would be incorrect to assume that if `shared_length < common_length`
+    // then `*iterator > element` because `shared_length` is not guaranteed to
+    // be maximal.
+    common_length = UnsignedMin(common_length, shared_length);
+    const absl::string_view found = *iterator;
+    common_length +=
+        SharedLength(absl::string_view(found.data() + common_length,
+                                       found.size() - common_length),
+                     absl::string_view(element.data() + common_length,
+                                       element.size() - common_length));
+    RIEGELI_ASSERT_EQ(absl::string_view(found.data(), common_length),
+                      absl::string_view(element.data(), common_length))
+        << "common_length incorrectly updated";
+    const absl::string_view found_suffix(found.data() + common_length,
+                                         found.size() - common_length);
+    const absl::string_view element_suffix(element.data() + common_length,
+                                           element.size() - common_length);
+    if (found_suffix >= element_suffix) return found_suffix.empty();
   }
   return false;  // Not found.
 }
@@ -235,7 +258,7 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
   return LinearSortedStringSet(std::move(writer_.dest()));
 }
 
-void LinearSortedStringSet::Iterator::Next() {
+size_t LinearSortedStringSet::Iterator::Next() {
   RIEGELI_ASSERT(cursor_ != nullptr)
       << "Failed precondition of LinearSortedStringSet::Iterator::Next(): "
          "iterator is end()";
@@ -243,7 +266,7 @@ void LinearSortedStringSet::Iterator::Next() {
     // `end()` was reached.
     cursor_ = nullptr;           // Mark `end()`.
     current_ = CompactString();  // Free memory.
-    return;
+    return 0;
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
@@ -285,6 +308,7 @@ void LinearSortedStringSet::Iterator::Next() {
   std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
   ptr += IntCast<size_t>(unshared_length);
   cursor_ = ptr;
+  return IntCast<size_t>(shared_length);
 }
 
 }  // namespace riegeli

@@ -396,6 +396,13 @@ class ChunkedSortedStringSet::Iterator {
     return tmp;
   }
 
+  // Advances to the next element, like `operator++`, but returns a length known
+  // to be shared with the previous element, or 0 if `end()` was reached.
+  //
+  // The shared length is not guaranteed to be maximal, so it should be used
+  // only for optimization.
+  size_t Next();
+
   // Iterators can be compared even if they are associated with different
   // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
   // other values are not equal.
@@ -418,8 +425,6 @@ class ChunkedSortedStringSet::Iterator {
                                  ? ChunkIterator()
                                  : set->allocated_repr()->chunks.cbegin()),
         set_(set) {}
-
-  void Next();
 
   LinearSortedStringSet::Iterator current_iterator_;
   ChunkIterator next_chunk_iterator_ = ChunkIterator();

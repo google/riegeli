@@ -215,26 +215,27 @@ ChunkedSortedStringSet ChunkedSortedStringSet::Builder::Build() && {
                                 size_);
 }
 
-void ChunkedSortedStringSet::Iterator::Next() {
+size_t ChunkedSortedStringSet::Iterator::Next() {
   RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
       << "Failed precondition of "
          "ChunkedSortedStringSet::Iterator::operator->(): "
          "iterator is end()";
-  ++current_iterator_;
+  const size_t shared_length = current_iterator_.Next();
   if (ABSL_PREDICT_TRUE(current_iterator_ !=
                         LinearSortedStringSet::Iterator())) {
     // Staying in the same chunk.
-    return;
+    return shared_length;
   }
   if (ABSL_PREDICT_FALSE(set_->repr_is_inline() ||
                          next_chunk_iterator_ ==
                              set_->allocated_repr()->chunks.cend())) {
     // Reached the end.
-    return;
+    return 0;
   }
   // Moving to the next chunk.
   current_iterator_ = next_chunk_iterator_->cbegin();
   ++next_chunk_iterator_;
+  return 0;
 }
 
 }  // namespace riegeli

@@ -305,6 +305,13 @@ class LinearSortedStringSet::Iterator {
     return tmp;
   }
 
+  // Advances to the next element, like `operator++`, but returns a length known
+  // to be shared with the previous element, or 0 if `end()` was reached.
+  //
+  // The shared length is not guaranteed to be maximal, so it should be used
+  // only for optimization.
+  size_t Next();
+
   // Iterators can be compared even if they are associated with different
   // `LinearSortedStringSet` objects. All `end()` values are equal, while all
   // other values are not equal.
@@ -322,8 +329,6 @@ class LinearSortedStringSet::Iterator {
       : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
     Next();
   }
-
-  void Next();
 
   // `cursor_` points after the encoded current element in
   // `LinearSortedStringSet::encoded_`, or is `nullptr` for `end()` (this is
