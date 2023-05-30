@@ -37,6 +37,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/type_traits.h"
 
 namespace google {
 namespace protobuf {
@@ -307,22 +308,10 @@ struct RegisterSubobjectsIsTrivial
               memory_estimator_internal::HasRiegeliRegisterSubobjects<T>>,
           std::is_trivially_destructible<T>> {};
 
-namespace memory_estimator_internal {
-namespace adl_begin_sandbox {
-
-using std::begin;
-
-template <typename T>
-using DereferenceIterableT = decltype(*begin(std::declval<T&>()));
-
-}  // namespace adl_begin_sandbox
-}  // namespace memory_estimator_internal
-
 template <typename T>
 inline void MemoryEstimator::RegisterSubobjectsOfElements(const T& iterable) {
   if (!RegisterSubobjectsIsTrivial<
-          memory_estimator_internal::adl_begin_sandbox::DereferenceIterableT<
-              T>>::value) {
+          adl_begin_sandbox::DereferenceIterableT<T>>::value) {
     for (const auto& element : iterable) {
       RegisterSubobjects(element);
     }

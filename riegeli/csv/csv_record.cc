@@ -415,17 +415,16 @@ bool CsvRecord::contains(absl::string_view name) const {
 void CsvRecord::Merge(
     std::initializer_list<std::pair<absl::string_view, absl::string_view>>
         src) {
-  Merge<
-      std::initializer_list<std::pair<absl::string_view, absl::string_view>>&>(
-      src);
+  Merge<std::initializer_list<std::pair<absl::string_view, absl::string_view>>>(
+      std::move(src));
 }
 
 absl::Status CsvRecord::TryMerge(
     std::initializer_list<std::pair<absl::string_view, absl::string_view>>
         src) {
   return TryMerge<
-      std::initializer_list<std::pair<absl::string_view, absl::string_view>>&>(
-      src);
+      std::initializer_list<std::pair<absl::string_view, absl::string_view>>>(
+      std::move(src));
 }
 
 absl::Status CsvRecord::FailMissingNames(

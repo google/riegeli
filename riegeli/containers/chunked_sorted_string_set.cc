@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <initializer_list>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -35,6 +36,17 @@
 #include "riegeli/containers/linear_sorted_string_set.h"
 
 namespace riegeli {
+
+ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(
+    std::initializer_list<absl::string_view> src, size_t chunk_size,
+    size_t size_hint) {
+  return FromSorted<>(src, chunk_size, size_hint);
+}
+
+ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
+    std::initializer_list<absl::string_view> src, size_t chunk_size) {
+  return FromUnsorted<>(src, chunk_size);
+}
 
 inline ChunkedSortedStringSet::ChunkedSortedStringSet(
     LinearSortedStringSet&& first_chunk,

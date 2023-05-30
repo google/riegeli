@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <cstring>
+#include <initializer_list>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -49,6 +50,16 @@ inline size_t SharedLength(absl::string_view a, absl::string_view b) {
 }
 
 }  // namespace
+
+LinearSortedStringSet LinearSortedStringSet::FromSorted(
+    std::initializer_list<absl::string_view> src) {
+  return FromSorted<>(src);
+}
+
+LinearSortedStringSet LinearSortedStringSet::FromUnsorted(
+    std::initializer_list<absl::string_view> src) {
+  return FromUnsorted<>(src);
+}
 
 inline LinearSortedStringSet::LinearSortedStringSet(CompactString&& encoded)
     : encoded_(std::move(encoded)) {}

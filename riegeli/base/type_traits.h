@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <iterator>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -43,6 +44,7 @@ namespace type_traits_internal {
 // element types corresponding to the given `std::index_sequence`.
 template <typename Tuple, typename Indices>
 struct SelectTypesFromTuple;
+
 template <typename Tuple, size_t... indices>
 struct SelectTypesFromTuple<Tuple, std::index_sequence<indices...>> {
   using type = std::tuple<std::tuple_element_t<indices, Tuple>...>;
@@ -80,6 +82,7 @@ struct RemoveTypesFromEndImpl<
 // Concatenates `std::index_sequence` types.
 template <typename... index_sequences>
 struct ConcatIndexSequences;
+
 template <>
 struct ConcatIndexSequences<> {
   using type = std::index_sequence<>;
@@ -101,6 +104,7 @@ struct ConcatIndexSequences<std::index_sequence<indices1...>,
 template <template <typename...> class Predicate, typename Tuple,
           typename Indices>
 struct FilterTypeImpl;
+
 template <template <typename...> class Predicate, typename Tuple,
           size_t... indices>
 struct FilterTypeImpl<Predicate, Tuple, std::index_sequence<indices...>>
@@ -154,6 +158,7 @@ inline RemoveTypesFromEndT<num_from_end, Args&&...> RemoveFromEnd(
 // of a `std::tuple` type satisfy a predicate.
 template <typename Tuple, template <typename...> class Predicate>
 struct TupleElementsSatisfy;
+
 template <typename... T, template <typename...> class Predicate>
 struct TupleElementsSatisfy<std::tuple<T...>, Predicate>
     : absl::conjunction<Predicate<T>...> {};
@@ -185,6 +190,7 @@ inline FilterTypeT<Predicate, Args&&...> Filter(Args&&... args) {
 // `std::tuple` type by decaying all elements from references to values.
 template <typename Tuple>
 struct DecayTupleType;
+
 template <typename... T>
 struct DecayTupleType<std::tuple<T...>> {
   using type = std::tuple<std::decay_t<T>...>;
@@ -262,6 +268,138 @@ struct IntersectionType<A, B>
 template <typename A, typename B, typename... Rest>
 struct IntersectionType<A, B, Rest...>
     : IntersectionType<IntersectionTypeT<A, B>, Rest...> {};
+
+// Let unqualified `begin()` below refer either to a function named `begin()`
+// found via ADL or to `std::begin()`, as appropriate for the given iterable.
+// This is done in a separate namespace to avoid introducing a name
+// `riegeli::begin()`.
+namespace adl_begin_sandbox {
+
+using std::begin;
+
+template <typename T>
+using IteratorT = decltype(begin(std::declval<T&>()));
+
+template <typename T>
+using DereferenceIterableT = decltype(*begin(std::declval<T&>()));
+
+template <typename T>
+using DereferenceIterableFirstT = decltype(begin(std::declval<T&>())->first);
+
+template <typename T>
+using DereferenceIterableSecondT = decltype(begin(std::declval<T&>())->second);
+
+}  // namespace adl_begin_sandbox
+
+// `IsIterableOf<Iterable, Element>::value` is `true` if iterating over
+// `Iterable` yields elements convertible to `Element`.
+
+template <typename Iterable, typename Element, typename Enable = void>
+struct IsIterableOf : std::false_type {};
+
+template <typename Iterable, typename Element>
+struct IsIterableOf<
+    Iterable, Element,
+    std::enable_if_t<std::is_convertible<
+        adl_begin_sandbox::DereferenceIterableT<Iterable>, Element>::value>>
+    : std::true_type {};
+
+// `IsForwardIterable<Iterable>::value` is `true` if the iterator over
+// `Iterable` is a forward iterator (supporting multiple passes).
+
+template <typename Iterable, typename Enable = void>
+struct IsForwardIterable : std::false_type {};
+
+template <typename Iterable>
+struct IsForwardIterable<
+    Iterable, std::enable_if_t<std::is_convertible<
+                  typename std::iterator_traits<adl_begin_sandbox::IteratorT<
+                      Iterable>>::iterator_category,
+                  std::forward_iterator_tag>::value>> : std::true_type {};
+
+// `IsRandomAccessIterable<Iterable>::value` is `true` if the iterator over
+// `Iterable` is a random access iterator.
+
+template <typename Iterable, typename Enable = void>
+struct IsRandomAccessIterable : std::false_type {};
+
+template <typename Iterable>
+struct IsRandomAccessIterable<
+    Iterable, std::enable_if_t<std::is_convertible<
+                  typename std::iterator_traits<adl_begin_sandbox::IteratorT<
+                      Iterable>>::iterator_category,
+                  std::random_access_iterator_tag>::value>> : std::true_type {};
+
+// `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value` is
+// `true` if iterating over `Iterable` yields pair proxies with keys convertible
+// to `Key` and values assignable from `Value`.
+
+template <typename Iterable, typename Key, typename Value,
+          typename Enable = void>
+struct IsIterableOfPairsWithAssignableValues : std::false_type {};
+
+template <typename Iterable, typename Key, typename Value>
+struct IsIterableOfPairsWithAssignableValues<
+    Iterable, Key, Value,
+    std::enable_if_t<absl::conjunction<
+        std::is_convertible<
+            adl_begin_sandbox::DereferenceIterableFirstT<Iterable>, Key>,
+        std::is_assignable<
+            adl_begin_sandbox::DereferenceIterableSecondT<Iterable>,
+            Value>>::value>> : std::true_type {};
+
+// `HasMovableElements<Iterable>::value` is `true` if moving (rather than
+// copying) out of elements of `Iterable` is safe.
+template <typename Iterable, typename Enable = void>
+struct HasMovableElements : std::false_type {};
+
+// Moving out of elements of `Iterable` is unsafe if it is an lvalue, or a view
+// container like `absl::Span<T>`. View containers are detected by checking
+// whether iterating over `Iterable&` and `const Iterable&` yields elements of
+// the same type.
+//
+// This also catches cases where `Iterable` always yields const elements, where
+// moving would be equivalent to copying, and trying to move would just yield
+// unnecessarily separate template instantiations.
+template <typename Iterable>
+struct HasMovableElements<
+    Iterable,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<std::is_lvalue_reference<Iterable>>,
+        absl::negation<std::is_same<
+            adl_begin_sandbox::DereferenceIterableT<std::decay_t<Iterable>>,
+            adl_begin_sandbox::DereferenceIterableT<
+                const std::decay_t<Iterable>>>>>::value>> : std::true_type {};
+
+// `MaybeMoveElement<Src>(element)` is `std::move(element)` or `element`,
+// depending on whether moving out of elements of `Src` is safe.
+
+template <typename Src, typename Element,
+          std::enable_if_t<!HasMovableElements<Src>::value, int> = 0>
+inline Element&& MaybeMoveElement(Element&& element) {
+  return std::forward<Element>(element);
+}
+
+template <typename Src, typename Element,
+          std::enable_if_t<HasMovableElements<Src>::value, int> = 0>
+inline std::remove_reference_t<Element>&& MaybeMoveElement(Element&& element) {
+  return static_cast<std::remove_reference_t<Element>&&>(element);
+}
+
+// `MaybeMakeMoveIterator<Src>(iterator)` is `std::make_move_iterator(iterator)`
+// or `iterator`, depending on whether moving out of elements of `Src` is safe.
+
+template <typename Src, typename Iterator,
+          std::enable_if_t<!HasMovableElements<Src>::value, int> = 0>
+inline Iterator MaybeMakeMoveIterator(Iterator iterator) {
+  return iterator;
+}
+
+template <typename Src, typename Iterator,
+          std::enable_if_t<HasMovableElements<Src>::value, int> = 0>
+inline std::move_iterator<Iterator> MaybeMakeMoveIterator(Iterator iterator) {
+  return std::move_iterator<Iterator>(iterator);
+}
 
 }  // namespace riegeli
 

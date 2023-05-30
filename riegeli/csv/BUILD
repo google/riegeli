@@ -33,13 +33,13 @@ cc_library(
     srcs = ["csv_writer.cc"],
     hdrs = ["csv_writer.h"],
     deps = [
-        ":containers",
         ":csv_record",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:status",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
@@ -57,11 +57,11 @@ cc_library(
     srcs = ["csv_record.cc"],
     hdrs = ["csv_record.h"],
     deps = [
-        ":containers",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:no_destructor",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:string_writer",
@@ -75,15 +75,5 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
-    name = "containers",
-    hdrs = ["containers.h"],
-    visibility = ["//visibility:private"],
-    deps = [
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/strings",
     ],
 )

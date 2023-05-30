@@ -42,9 +42,9 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/no_destructor.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/csv/containers.h"
 
 namespace riegeli {
 namespace csv_internal {
@@ -79,6 +79,43 @@ class ReferencePair : public std::pair<T1, T2> {
   /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
       : ReferencePair::pair(p.first, p.second) {}
 };
+
+// `AssignToString()` assigns a value convertible to `absl::string_view` to a
+// `std::string`.
+//
+// `AssignToString(src, dest)` is equivalent to `dest = src`, except that it
+// compiles also if `absl::string_view` is not C++17 `std::string_view`.
+//
+// `std::string&&` is accepted with a template to avoid implicit conversions
+// to `std::string` which can be ambiguous against `absl::string_view`
+// (e.g. `const char*`).
+
+inline void AssignToString(absl::string_view src, std::string& dest) {
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // remove `AssignToString()`, use `dest = src` directly.
+  dest.assign(src.data(), src.size());
+}
+
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+inline void AssignToString(Src&& src, std::string& dest) {
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
+  dest = std::move(src);
+}
+
+// `ToStringVector()` converts an iterable of elements convertible to
+// `absl::string_view` to a `std::vector<std::string>`.
+
+template <
+    typename Values,
+    std::enable_if_t<IsIterableOf<Values, absl::string_view>::value, int> = 0>
+inline std::vector<std::string> ToStringVector(Values&& values) {
+  using std::begin;
+  using std::end;
+  return std::vector<std::string>(MaybeMakeMoveIterator<Values>(begin(values)),
+                                  MaybeMakeMoveIterator<Values>(end(values)));
+}
 
 }  // namespace csv_internal
 }  // namespace riegeli
@@ -224,13 +261,12 @@ class CsvHeader {
   // e.g. `std::vector<std::string>`.
   //
   // Precondition: `names` have no duplicates
-  template <
-      typename Names,
-      std::enable_if_t<absl::conjunction<
-                           csv_internal::IsIterableOf<Names, absl::string_view>,
-                           absl::negation<std::is_same<std::decay_t<Names>,
-                                                       CsvHeader>>>::value,
-                       int> = 0>
+  template <typename Names,
+            std::enable_if_t<
+                absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                  absl::negation<std::is_same<
+                                      std::decay_t<Names>, CsvHeader>>>::value,
+                int> = 0>
   explicit CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
 
@@ -249,8 +285,7 @@ class CsvHeader {
   // Precondition: normalized `names` have no duplicates
   template <
       typename Names,
-      std::enable_if_t<
-          csv_internal::IsIterableOf<Names, absl::string_view>::value, int> = 0>
+      std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int> = 0>
   explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      Names&& names);
   explicit CsvHeader(std::function<std::string(absl::string_view)> normalizer,
@@ -267,13 +302,12 @@ class CsvHeader {
   //
   // Precondition: like for the corresponding constructor
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  template <
-      typename Names,
-      std::enable_if_t<absl::conjunction<
-                           csv_internal::IsIterableOf<Names, absl::string_view>,
-                           absl::negation<std::is_same<std::decay_t<Names>,
-                                                       CsvHeader>>>::value,
-                       int> = 0>
+  template <typename Names,
+            std::enable_if_t<
+                absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                  absl::negation<std::is_same<
+                                      std::decay_t<Names>, CsvHeader>>>::value,
+                int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Names&& names);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::initializer_list<absl::string_view> names);
@@ -281,8 +315,7 @@ class CsvHeader {
       std::function<std::string(absl::string_view)> normalizer);
   template <
       typename Names,
-      std::enable_if_t<
-          csv_internal::IsIterableOf<Names, absl::string_view>::value, int> = 0>
+      std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::function<std::string(absl::string_view)> normalizer, Names&& names);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
@@ -296,19 +329,17 @@ class CsvHeader {
   //  * `absl::OkStatus()`                 - `CsvHeader` is set to `names`
   //  * `absl::FailedPreconditionError(_)` - `names` had duplicates,
   //                                         `CsvHeader` is empty
-  template <
-      typename Names,
-      std::enable_if_t<absl::conjunction<
-                           csv_internal::IsIterableOf<Names, absl::string_view>,
-                           absl::negation<std::is_same<std::decay_t<Names>,
-                                                       CsvHeader>>>::value,
-                       int> = 0>
+  template <typename Names,
+            std::enable_if_t<
+                absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                  absl::negation<std::is_same<
+                                      std::decay_t<Names>, CsvHeader>>>::value,
+                int> = 0>
   absl::Status TryReset(Names&& names);
   absl::Status TryReset(std::initializer_list<absl::string_view> names);
   template <
       typename Names,
-      std::enable_if_t<
-          csv_internal::IsIterableOf<Names, absl::string_view>::value, int> = 0>
+      std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int> = 0>
   absl::Status TryReset(
       std::function<std::string(absl::string_view)> normalizer, Names&& names);
   absl::Status TryReset(
@@ -472,14 +503,12 @@ class CsvHeader {
   };
 
   template <typename Names,
-            std::enable_if_t<csv_internal::IsRandomAccessIterable<Names>::value,
-                             int> = 0>
+            std::enable_if_t<IsRandomAccessIterable<Names>::value, int> = 0>
   absl::Status TryResetInternal(
       std::function<std::string(absl::string_view)>&& normalizer,
       Names&& names);
   template <typename Names,
-            std::enable_if_t<
-                !csv_internal::IsRandomAccessIterable<Names>::value, int> = 0>
+            std::enable_if_t<!IsRandomAccessIterable<Names>::value, int> = 0>
   absl::Status TryResetInternal(
       std::function<std::string(absl::string_view)>&& normalizer,
       Names&& names);
@@ -751,10 +780,9 @@ class CsvRecord {
   // corresponding order.
   //
   // Precondition: `header.size() == fields.size()`
-  template <typename Fields,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Fields, absl::string_view>::value,
-                int> = 0>
+  template <
+      typename Fields,
+      std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int> = 0>
   explicit CsvRecord(CsvHeader header, Fields&& fields);
   explicit CsvRecord(CsvHeader header,
                      std::initializer_list<absl::string_view> fields);
@@ -774,10 +802,9 @@ class CsvRecord {
   // Precondition: like for the corresponding constructor
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(CsvHeader header);
-  template <typename Fields,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Fields, absl::string_view>::value,
-                int> = 0>
+  template <
+      typename Fields,
+      std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(CsvHeader header, Fields&& fields);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       CsvHeader header, std::initializer_list<absl::string_view> fields);
@@ -790,10 +817,9 @@ class CsvRecord {
   //                                         and `fields`
   //  * `absl::FailedPreconditionError(_)` - lengths of `header` and `fields`
   //                                         do not match, `CsvRecord` is empty
-  template <typename Fields,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Fields, absl::string_view>::value,
-                int> = 0>
+  template <
+      typename Fields,
+      std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int> = 0>
   absl::Status TryReset(CsvHeader header, Fields&& fields);
   absl::Status TryReset(CsvHeader header,
                         std::initializer_list<absl::string_view> fields);
@@ -860,10 +886,9 @@ class CsvRecord {
   //  * all fields from `src` are present in `*this`
   template <
       typename Src,
-      std::enable_if_t<
-          csv_internal::IsIterableOf<
-              Src, std::pair<absl::string_view, absl::string_view>>::value,
-          int> = 0>
+      std::enable_if_t<IsIterableOf<Src, std::pair<absl::string_view,
+                                                   absl::string_view>>::value,
+                       int> = 0>
   void Merge(Src&& src);
   void Merge(
       std::initializer_list<std::pair<absl::string_view, absl::string_view>>
@@ -883,10 +908,9 @@ class CsvRecord {
   //                                         has been set
   template <
       typename Src,
-      std::enable_if_t<
-          csv_internal::IsIterableOf<
-              Src, std::pair<absl::string_view, absl::string_view>>::value,
-          int> = 0>
+      std::enable_if_t<IsIterableOf<Src, std::pair<absl::string_view,
+                                                   absl::string_view>>::value,
+                       int> = 0>
   absl::Status TryMerge(Src&& src);
   absl::Status TryMerge(
       std::initializer_list<std::pair<absl::string_view, absl::string_view>>
@@ -901,11 +925,10 @@ class CsvRecord {
   //
   // Preconditions:
   //  * all fields from `dest` are present in `*this`
-  template <
-      typename Dest,
-      std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
-                           Dest, absl::string_view, std::string>::value,
-                       int> = 0>
+  template <typename Dest,
+            std::enable_if_t<IsIterableOfPairsWithAssignableValues<
+                                 Dest, absl::string_view, std::string>::value,
+                             int> = 0>
   void Split(Dest& dest) const;
 
   // Assigns corresponding field values to all field values resulting from
@@ -921,11 +944,10 @@ class CsvRecord {
   //  * `absl::FailedPreconditionError(_)` - some fields were absent in `*this`,
   //                                         only the intersection of fields
   //                                         has been set
-  template <
-      typename Dest,
-      std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
-                           Dest, absl::string_view, std::string>::value,
-                       int> = 0>
+  template <typename Dest,
+            std::enable_if_t<IsIterableOfPairsWithAssignableValues<
+                                 Dest, absl::string_view, std::string>::value,
+                             int> = 0>
   absl::Status TrySplit(Dest& dest) const;
 
   friend bool operator==(const CsvRecord& a, const CsvRecord& b);
@@ -1037,13 +1059,12 @@ inline typename CsvHeader::iterator::reference CsvHeader::iterator::operator[](
   return *(*this + n);
 }
 
-template <
-    typename Names,
-    std::enable_if_t<
-        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
-                          absl::negation<std::is_same<std::decay_t<Names>,
-                                                      CsvHeader>>>::value,
-        int>>
+template <typename Names,
+          std::enable_if_t<
+              absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                absl::negation<std::is_same<std::decay_t<Names>,
+                                                            CsvHeader>>>::value,
+              int>>
 CsvHeader::CsvHeader(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
@@ -1052,8 +1073,7 @@ CsvHeader::CsvHeader(Names&& names) {
 }
 
 template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value, int>>
+          std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int>>
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      Names&& names) {
   const absl::Status status =
@@ -1062,13 +1082,12 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
       << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
 }
 
-template <
-    typename Names,
-    std::enable_if_t<
-        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
-                          absl::negation<std::is_same<std::decay_t<Names>,
-                                                      CsvHeader>>>::value,
-        int>>
+template <typename Names,
+          std::enable_if_t<
+              absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                absl::negation<std::is_same<std::decay_t<Names>,
+                                                            CsvHeader>>>::value,
+              int>>
 void CsvHeader::Reset(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
@@ -1077,8 +1096,7 @@ void CsvHeader::Reset(Names&& names) {
 }
 
 template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value, int>>
+          std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int>>
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       Names&& names) {
   const absl::Status status =
@@ -1087,28 +1105,25 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
       << "Failed precondition of CsvHeader::Reset(): " << status.message();
 }
 
-template <
-    typename Names,
-    std::enable_if_t<
-        absl::conjunction<csv_internal::IsIterableOf<Names, absl::string_view>,
-                          absl::negation<std::is_same<std::decay_t<Names>,
-                                                      CsvHeader>>>::value,
-        int>>
+template <typename Names,
+          std::enable_if_t<
+              absl::conjunction<IsIterableOf<Names, absl::string_view>,
+                                absl::negation<std::is_same<std::decay_t<Names>,
+                                                            CsvHeader>>>::value,
+              int>>
 absl::Status CsvHeader::TryReset(Names&& names) {
   return TryResetInternal(nullptr, std::forward<Names>(names));
 }
 
 template <typename Names,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<Names, absl::string_view>::value, int>>
+          std::enable_if_t<IsIterableOf<Names, absl::string_view>::value, int>>
 absl::Status CsvHeader::TryReset(
     std::function<std::string(absl::string_view)> normalizer, Names&& names) {
   return TryResetInternal(std::move(normalizer), std::forward<Names>(names));
 }
 
-template <
-    typename Names,
-    std::enable_if_t<csv_internal::IsRandomAccessIterable<Names>::value, int>>
+template <typename Names,
+          std::enable_if_t<IsRandomAccessIterable<Names>::value, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status CsvHeader::TryResetInternal(
     std::function<std::string(absl::string_view)>&& normalizer, Names&& names) {
   // Iterable supports random access, which allows `std::equal()` in
@@ -1120,17 +1135,16 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status CsvHeader::TryResetInternal(
   }
   return TryResetUncached(
       std::move(normalizer),
-      csv_internal::ToVectorOfStrings(std::forward<Names>(names)));
+      csv_internal::ToStringVector(std::forward<Names>(names)));
 }
 
-template <
-    typename Names,
-    std::enable_if_t<!csv_internal::IsRandomAccessIterable<Names>::value, int>>
+template <typename Names,
+          std::enable_if_t<!IsRandomAccessIterable<Names>::value, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status CsvHeader::TryResetInternal(
     std::function<std::string(absl::string_view)>&& normalizer, Names&& names) {
   return TryResetInternal(
       std::move(normalizer),
-      csv_internal::ToVectorOfStrings(std::forward<Names>(names)));
+      csv_internal::ToStringVector(std::forward<Names>(names)));
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE
@@ -1363,10 +1377,8 @@ CsvRecord::IteratorImpl<FieldIterator>::operator[](difference_type n) const {
 inline CsvRecord::CsvRecord(CsvHeader header)
     : header_(std::move(header)), fields_(header_.size()) {}
 
-template <
-    typename Fields,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Fields, absl::string_view>::value, int>>
+template <typename Fields,
+          std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int>>
 CsvRecord::CsvRecord(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
@@ -1374,10 +1386,8 @@ CsvRecord::CsvRecord(CsvHeader header, Fields&& fields) {
       << "Failed precondition of CsvRecord::CsvRecord(): " << status.message();
 }
 
-template <
-    typename Fields,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Fields, absl::string_view>::value, int>>
+template <typename Fields,
+          std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int>>
 void CsvRecord::Reset(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
@@ -1385,10 +1395,8 @@ void CsvRecord::Reset(CsvHeader header, Fields&& fields) {
       << "Failed precondition of CsvRecord::Reset(): " << status.message();
 }
 
-template <
-    typename Fields,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Fields, absl::string_view>::value, int>>
+template <typename Fields,
+          std::enable_if_t<IsIterableOf<Fields, absl::string_view>::value, int>>
 absl::Status CsvRecord::TryReset(CsvHeader header, Fields&& fields) {
   return TryResetInternal(std::move(header), std::forward<Fields>(fields));
 }
@@ -1396,7 +1404,7 @@ absl::Status CsvRecord::TryReset(CsvHeader header, Fields&& fields) {
 template <typename Fields>
 inline absl::Status CsvRecord::TryResetInternal(CsvHeader&& header,
                                                 Fields&& fields) {
-  return TryResetInternal(std::move(header), csv_internal::ToVectorOfStrings(
+  return TryResetInternal(std::move(header), csv_internal::ToStringVector(
                                                  std::forward<Fields>(fields)));
 }
 
@@ -1416,22 +1424,22 @@ inline CsvRecord::const_iterator CsvRecord::end() const {
   return const_iterator(header_.end(), fields_.end());
 }
 
-template <typename Src,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<
-                  Src, std::pair<absl::string_view, absl::string_view>>::value,
-              int>>
+template <
+    typename Src,
+    std::enable_if_t<IsIterableOf<Src, std::pair<absl::string_view,
+                                                 absl::string_view>>::value,
+                     int>>
 void CsvRecord::Merge(Src&& src) {
   const absl::Status status = TryMerge(std::forward<Src>(src));
   RIEGELI_CHECK(status.ok())
       << "Failed precondition of CsvHeader::Merge(): " << status.message();
 }
 
-template <typename Src,
-          std::enable_if_t<
-              csv_internal::IsIterableOf<
-                  Src, std::pair<absl::string_view, absl::string_view>>::value,
-              int>>
+template <
+    typename Src,
+    std::enable_if_t<IsIterableOf<Src, std::pair<absl::string_view,
+                                                 absl::string_view>>::value,
+                     int>>
 absl::Status CsvRecord::TryMerge(Src&& src) {
   using std::begin;
   auto src_iter = begin(src);
@@ -1444,9 +1452,8 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
     if (this_iter == this->end() || this_iter->first != src_iter->first) break;
-    csv_internal::AssignToString(
-        csv_internal::MaybeMoveElement<Src>(src_iter->second),
-        this_iter->second);
+    csv_internal::AssignToString(MaybeMoveElement<Src>(src_iter->second),
+                                 this_iter->second);
     ++this_iter;
     ++src_iter;
   }
@@ -1461,9 +1468,8 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       missing_names.emplace_back(src_iter->first);
     } else {
-      csv_internal::AssignToString(
-          csv_internal::MaybeMoveElement<Src>(src_iter->second),
-          this_iter->second);
+      csv_internal::AssignToString(MaybeMoveElement<Src>(src_iter->second),
+                                   this_iter->second);
     }
     ++src_iter;
   } while (src_iter != src_end_iter);
@@ -1474,7 +1480,7 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
 }
 
 template <typename Dest,
-          std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+          std::enable_if_t<IsIterableOfPairsWithAssignableValues<
                                Dest, absl::string_view, std::string>::value,
                            int>>
 void CsvRecord::Split(Dest& dest) const {
@@ -1484,7 +1490,7 @@ void CsvRecord::Split(Dest& dest) const {
 }
 
 template <typename Dest,
-          std::enable_if_t<csv_internal::IsIterableOfPairsWithAssignableValues<
+          std::enable_if_t<IsIterableOfPairsWithAssignableValues<
                                Dest, absl::string_view, std::string>::value,
                            int>>
 absl::Status CsvRecord::TrySplit(Dest& dest) const {

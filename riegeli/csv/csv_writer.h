@@ -20,7 +20,6 @@
 
 #include <array>
 #include <initializer_list>
-#include <iterator>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -35,9 +34,9 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/csv/containers.h"
 #include "riegeli/csv/csv_record.h"
 #include "riegeli/lines/line_writing.h"
 #include "riegeli/lines/newline.h"
@@ -241,10 +240,9 @@ class CsvWriterBase : public Object {
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  template <typename Record,
-            std::enable_if_t<
-                csv_internal::IsIterableOf<Record, absl::string_view>::value,
-                int> = 0>
+  template <
+      typename Record,
+      std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int> = 0>
   bool WriteRecord(const Record& record);
   bool WriteRecord(std::initializer_list<absl::string_view> record);
 
@@ -432,8 +430,7 @@ explicit CsvWriter(std::tuple<DestArgs...> dest_args,
 //    characters: LF, CR, comment character, field separator.
 template <
     typename Record,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Record, absl::string_view>::value, int> = 0>
+    std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int> = 0>
 std::string WriteCsvRecordToString(
     const Record& record,
     CsvWriterBase::Options options = CsvWriterBase::Options());
@@ -495,17 +492,15 @@ inline bool WriteStandaloneRecord(const Record& record,
 
 }  // namespace csv_internal
 
-template <
-    typename Record,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Record, absl::string_view>::value, int>>
+template <typename Record,
+          std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int>>
 inline bool CsvWriterBase::WriteRecord(const Record& record) {
   return WriteRecordInternal(record);
 }
 
 inline bool CsvWriterBase::WriteRecord(
     std::initializer_list<absl::string_view> record) {
-  return WriteRecord<std::initializer_list<absl::string_view>>(record);
+  return WriteRecord<>(record);
 }
 
 template <typename Record>
@@ -626,10 +621,8 @@ void CsvWriter<Dest>::Done() {
   }
 }
 
-template <
-    typename Record,
-    std::enable_if_t<
-        csv_internal::IsIterableOf<Record, absl::string_view>::value, int>>
+template <typename Record,
+          std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
   RIEGELI_ASSERT(options.header() == absl::nullopt)
@@ -648,8 +641,7 @@ std::string WriteCsvRecordToString(const Record& record,
 inline std::string WriteCsvRecordToString(
     std::initializer_list<absl::string_view> record,
     CsvWriterBase::Options options) {
-  return WriteCsvRecordToString<std::initializer_list<absl::string_view>>(
-      record, std::move(options));
+  return WriteCsvRecordToString<>(record, std::move(options));
 }
 
 }  // namespace riegeli
