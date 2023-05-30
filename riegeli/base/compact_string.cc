@@ -20,7 +20,6 @@
 #include <limits>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -28,28 +27,18 @@
 
 namespace riegeli {
 
-CompactString& CompactString::operator=(absl::string_view src) {
+void CompactString::AssignSlow(absl::string_view src) {
   const size_t old_capacity = capacity();
-  if (src.size() <= old_capacity) {
-    set_size(src.size());
-    if (ABSL_PREDICT_TRUE(
-            // `std::memcpy(_, nullptr, 0)` is undefined.
-            !src.empty())) {
-      std::memmove(data(), src.data(), src.size());
-    }
-  } else {
-    DeleteRepr(std::exchange(
-        repr_, MakeRepr(src, UnsignedMax(src.size(),
-                                         old_capacity + old_capacity / 2))));
-  }
-  return *this;
+  DeleteRepr(std::exchange(
+      repr_,
+      MakeRepr(src, UnsignedMax(src.size(), old_capacity + old_capacity / 2))));
 }
 
 uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
   RIEGELI_ASSERT_LE(size, capacity)
       << "Failed precondition of CompactString::MakeReprSlow(): "
-         "size greater than capacity";
-  RIEGELI_ASSERT_GT(capacity, kMaxInlineSize)
+         "size exceeds capacity";
+  RIEGELI_ASSERT_GT(capacity, kInlineCapacity)
       << "Failed precondition of CompactString::MakeReprSlow(): "
          "representation is inline, use MakeRepr() instead";
   uintptr_t repr;
@@ -81,29 +70,36 @@ uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
 }
 
 char* CompactString::ResizeSlow(size_t new_size, size_t min_capacity,
-                                size_t old_capacity, absl::string_view src) {
+                                size_t used_size) {
+  RIEGELI_ASSERT_LE(new_size, min_capacity)
+      << "Failed precondition of CompactString::ResizeSlow(): "
+         "size exceeds capacity";
+  RIEGELI_ASSERT_LE(used_size, size())
+      << "Failed precondition of CompactString::ResizeSlow(): "
+         "used size exceeds old size";
+  RIEGELI_ASSERT_LE(used_size, new_size)
+      << "Failed precondition of CompactString::ResizeSlow(): "
+         "used size exceeds new size";
+  const size_t old_capacity = capacity();
   const uintptr_t new_repr = MakeRepr(
       new_size, UnsignedMax(min_capacity, old_capacity + old_capacity / 2));
-  RIEGELI_ASSERT(!is_inline(new_repr))
+  const uintptr_t tag = new_repr & 7;
+  RIEGELI_ASSERT_NE(tag, 1u)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
   char* ptr = allocated_data(new_repr);
-  if (ABSL_PREDICT_TRUE(
-          // `std::memcpy(_, nullptr, 0)` is undefined.
-          !src.empty())) {
-    std::memcpy(ptr, src.data(), src.size());
-  }
-  ptr += src.size();
+  std::memcpy(ptr, data(), used_size);
+  ptr += used_size;
   DeleteRepr(std::exchange(repr_, new_repr));
   return ptr;
 }
 
 void CompactString::ShrinkToFitSlow() {
-  RIEGELI_ASSERT(!is_inline())
+  const uintptr_t tag = repr_ & 7;
+  RIEGELI_ASSERT_NE(tag, 1u)
       << "Failed precondition of CompactString::ShrinkToFitSlow(): "
          "representation is inline, use shrink_to_fit() instead";
   size_t size;
-  const uintptr_t tag = repr_ & 7;
   if (tag == 2) {
     size = allocated_size<uint8_t>();
     if (allocated_capacity<uint8_t>() + 2 <=
