@@ -159,9 +159,7 @@ bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
       (uint64_t{unshared_length} << 1) |
       (shared_length > 0 ? uint64_t{1} : uint64_t{0});
   WriteVarint64(tagged_length, writer_);
-  if (shared_length > 0) {
-    WriteVarint64(uint64_t{shared_length}, writer_);
-  }
+  if (shared_length > 0) WriteVarint64(uint64_t{shared_length}, writer_);
   writer_.Write(unshared);
   return true;
 }

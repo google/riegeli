@@ -67,9 +67,7 @@ bool ChunkedSortedStringSet::contains(absl::string_view element) const {
     const SearchResult<ChunkIterator> chunk = BinarySearch(
         allocated_repr()->chunks.cbegin(), allocated_repr()->chunks.cend(),
         [&](ChunkIterator current) {
-          if (current->first() <= element) {
-            return absl::strong_ordering::less;
-          }
+          if (current->first() <= element) return absl::strong_ordering::less;
           return absl::strong_ordering::greater;
         });
     if (chunk.found != allocated_repr()->chunks.cbegin()) {
