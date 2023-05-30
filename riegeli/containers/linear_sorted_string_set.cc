@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -35,6 +36,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/compact_string_writer.h"
+#include "riegeli/endian/endian_reading.h"
 #include "riegeli/varint/varint_reading.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -44,10 +46,34 @@ namespace {
 
 inline size_t SharedLength(absl::string_view a, absl::string_view b) {
   const size_t min_length = UnsignedMin(a.size(), b.size());
-  for (size_t length = 0; length < min_length; ++length) {
-    if (a[length] != b[length]) return length;
+  size_t length = 0;
+  if (min_length < sizeof(uint64_t)) {
+    // Compare byte by byte.
+    while (length < min_length) {
+      if (a[length] != b[length]) return length;
+      ++length;
+    }
+    return length;
   }
-  return min_length;
+
+  // Compare whole blocks, except for the last pair.
+  const size_t limit = min_length - sizeof(uint64_t);
+  while (length < limit) {
+    const uint64_t xor_result = ReadLittleEndian64(a.data() + length) ^
+                                ReadLittleEndian64(b.data() + length);
+    if (xor_result != 0) {
+      return length + IntCast<size_t>(absl::countr_zero(xor_result)) / 8;
+    }
+    length += sizeof(uint64_t);
+  }
+  // Compare the last, possible incomplete blocks as whole blocks shifted
+  // backwards.
+  const uint64_t xor_result = ReadLittleEndian64(a.data() + limit) ^
+                              ReadLittleEndian64(b.data() + limit);
+  if (xor_result != 0) {
+    return limit + IntCast<size_t>(absl::countr_zero(xor_result)) / 8;
+  }
+  return limit + sizeof(uint64_t);
 }
 
 }  // namespace
