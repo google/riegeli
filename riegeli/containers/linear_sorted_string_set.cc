@@ -153,9 +153,10 @@ bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
   }
   const absl::string_view unshared =
       update_last(std::forward<Element>(element), shared_length);
+  const size_t unshared_length = unshared.size();
   // `shared_length` is stored if `shared_length > 0`.
   const uint64_t tagged_length =
-      (uint64_t{unshared.size()} << 1) |
+      (uint64_t{unshared_length} << 1) |
       (shared_length > 0 ? uint64_t{1} : uint64_t{0});
   WriteVarint64(tagged_length, writer_);
   if (shared_length > 0) {
