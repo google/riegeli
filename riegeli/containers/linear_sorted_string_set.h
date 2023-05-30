@@ -110,6 +110,37 @@ class LinearSortedStringSet {
   // Time complexity: `O(size)`.
   bool contains(absl::string_view element) const;
 
+  friend bool operator==(const LinearSortedStringSet& a,
+                         const LinearSortedStringSet& b) {
+    return EqualImpl(a, b);
+  }
+  friend bool operator!=(const LinearSortedStringSet& a,
+                         const LinearSortedStringSet& b) {
+    return !EqualImpl(a, b);
+  }
+  friend bool operator<(const LinearSortedStringSet& a,
+                        const LinearSortedStringSet& b) {
+    return LessImpl(a, b);
+  }
+  friend bool operator>(const LinearSortedStringSet& a,
+                        const LinearSortedStringSet& b) {
+    return LessImpl(b, a);
+  }
+  friend bool operator<=(const LinearSortedStringSet& a,
+                         const LinearSortedStringSet& b) {
+    return !LessImpl(b, a);
+  }
+  friend bool operator>=(const LinearSortedStringSet& a,
+                         const LinearSortedStringSet& b) {
+    return !LessImpl(a, b);
+  }
+
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state,
+                                 const LinearSortedStringSet& self) {
+    return self.AbslHashValueImpl(std::move(hash_state));
+  }
+
   // Estimates the amount of memory used by this `LinearSortedStringSet`,
   // including `sizeof(LinearSortedStringSet)`.
   size_t EstimateMemory() const;
@@ -123,6 +154,13 @@ class LinearSortedStringSet {
 
  private:
   explicit LinearSortedStringSet(CompactString&& encoded);
+
+  static bool EqualImpl(const LinearSortedStringSet& a,
+                        const LinearSortedStringSet& b);
+  static bool LessImpl(const LinearSortedStringSet& a,
+                       const LinearSortedStringSet& b);
+  template <typename HashState>
+  HashState AbslHashValueImpl(HashState hash_state);
 
   // Representation of each other element, which consists of the prefix of the
   // previous element with length shared_length, concatenated with unshared,
@@ -361,6 +399,16 @@ inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
 
 inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
   return end();
+}
+
+template <typename HashState>
+HashState LinearSortedStringSet::AbslHashValueImpl(HashState hash_state) {
+  size_t size = 0;
+  for (const absl::string_view element : *this) {
+    hash_state = HashState::combine(std::move(hash_state), element);
+    ++size;
+  }
+  return HashState::combine(std::move(hash_state), size);
 }
 
 extern template void LinearSortedStringSet::Builder::InsertNext(

@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <cstring>
 #include <initializer_list>
 #include <string>
@@ -98,6 +99,17 @@ bool LinearSortedStringSet::contains(absl::string_view element) const {
     if (found >= element) return found == element;
   }
   return false;  // Not found.
+}
+
+bool LinearSortedStringSet::EqualImpl(const LinearSortedStringSet& a,
+                                      const LinearSortedStringSet& b) {
+  return std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
+}
+
+bool LinearSortedStringSet::LessImpl(const LinearSortedStringSet& a,
+                                     const LinearSortedStringSet& b) {
+  return std::lexicographical_compare(a.cbegin(), a.cend(), b.cbegin(),
+                                      b.cend());
 }
 
 size_t LinearSortedStringSet::EstimateMemory() const {

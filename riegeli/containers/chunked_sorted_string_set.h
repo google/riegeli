@@ -123,6 +123,37 @@ class ChunkedSortedStringSet {
   // Time complexity: `O(log(size / chunk_size) + chunk_size)`.
   bool contains(absl::string_view element) const;
 
+  friend bool operator==(const ChunkedSortedStringSet& a,
+                         const ChunkedSortedStringSet& b) {
+    return EqualImpl(a, b);
+  }
+  friend bool operator!=(const ChunkedSortedStringSet& a,
+                         const ChunkedSortedStringSet& b) {
+    return !EqualImpl(a, b);
+  }
+  friend bool operator<(const ChunkedSortedStringSet& a,
+                        const ChunkedSortedStringSet& b) {
+    return LessImpl(a, b);
+  }
+  friend bool operator>(const ChunkedSortedStringSet& a,
+                        const ChunkedSortedStringSet& b) {
+    return LessImpl(b, a);
+  }
+  friend bool operator<=(const ChunkedSortedStringSet& a,
+                         const ChunkedSortedStringSet& b) {
+    return !LessImpl(b, a);
+  }
+  friend bool operator>=(const ChunkedSortedStringSet& a,
+                         const ChunkedSortedStringSet& b) {
+    return !LessImpl(a, b);
+  }
+
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state,
+                                 const ChunkedSortedStringSet& self) {
+    return self.AbslHashValueImpl(std::move(hash_state));
+  }
+
   // Estimates the amount of memory used by this `ChunkedSortedStringSet`,
   // including `sizeof(ChunkedSortedStringSet)`.
   size_t EstimateMemory() const;
@@ -202,6 +233,13 @@ class ChunkedSortedStringSet {
   }
 
   uintptr_t CopyAllocatedRepr() const;
+
+  static bool EqualImpl(const ChunkedSortedStringSet& a,
+                        const ChunkedSortedStringSet& b);
+  static bool LessImpl(const ChunkedSortedStringSet& a,
+                       const ChunkedSortedStringSet& b);
+  template <typename HashState>
+  HashState AbslHashValueImpl(HashState hash_state);
 
   // The first `LinearSortedStringSet` is stored inline to reduce object size
   // when the set is small.
@@ -487,6 +525,14 @@ inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const {
 
 inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
   return end();
+}
+
+template <typename HashState>
+HashState ChunkedSortedStringSet::AbslHashValueImpl(HashState hash_state) {
+  for (const absl::string_view element : *this) {
+    hash_state = HashState::combine(std::move(hash_state), element);
+  }
+  return HashState::combine(std::move(hash_state), size());
 }
 
 extern template void ChunkedSortedStringSet::Builder::InsertNext(

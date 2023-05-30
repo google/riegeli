@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <string>
 #include <type_traits>
@@ -90,6 +91,18 @@ bool ChunkedSortedStringSet::contains(absl::string_view element) const {
     }
   }
   return found_linear_set->contains(element);
+}
+
+bool ChunkedSortedStringSet::EqualImpl(const ChunkedSortedStringSet& a,
+                                       const ChunkedSortedStringSet& b) {
+  return a.size() == b.size() &&
+         std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
+}
+
+bool ChunkedSortedStringSet::LessImpl(const ChunkedSortedStringSet& a,
+                                      const ChunkedSortedStringSet& b) {
+  return std::lexicographical_compare(a.cbegin(), a.cend(), b.cbegin(),
+                                      b.cend());
 }
 
 size_t ChunkedSortedStringSet::EstimateMemory() const {
