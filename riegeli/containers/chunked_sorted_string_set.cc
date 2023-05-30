@@ -23,6 +23,9 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
@@ -98,26 +101,51 @@ ChunkedSortedStringSet::Builder& ChunkedSortedStringSet::Builder::operator=(
 
 ChunkedSortedStringSet::Builder::~Builder() = default;
 
-bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
+void ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
+  const absl::Status status = TryInsertNext(element);
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of "
+         "ChunkedSortedStringSet::Builder::InsertNext(): "
+      << status.message();
+}
+
+template <typename Element,
+          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+void ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
+  // `std::move(element)` is correct and `std::forward<Element>(element)` is not
+  // necessary: `Element` is always `std::string`, never an lvalue reference.
+  const absl::Status status = TryInsertNext(std::move(element));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of "
+         "ChunkedSortedStringSet::Builder::InsertNext(): "
+      << status.message();
+}
+
+template void ChunkedSortedStringSet::Builder::InsertNext(
+    std::string&& element);
+
+absl::Status ChunkedSortedStringSet::Builder::TryInsertNext(
+    absl::string_view element) {
   return InsertNextImpl(element);
 }
 
 template <typename Element,
           std::enable_if_t<std::is_same<Element, std::string>::value, int>>
-bool ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
+absl::Status ChunkedSortedStringSet::Builder::TryInsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   return InsertNextImpl(std::move(element));
 }
 
-template bool ChunkedSortedStringSet::Builder::InsertNext(
+template absl::Status ChunkedSortedStringSet::Builder::TryInsertNext(
     std::string&& element);
 
 template <typename Element>
-bool ChunkedSortedStringSet::Builder::InsertNextImpl(Element&& element) {
+absl::Status ChunkedSortedStringSet::Builder::InsertNextImpl(
+    Element&& element) {
   if (ABSL_PREDICT_FALSE(remaining_current_chunk_size_ == 0)) {
     if (ABSL_PREDICT_FALSE(element <= current_builder_.last())) {
-      return false;  // Out of order (across chunks).
+      return OutOfOrder(element);
     }
     LinearSortedStringSet linear_set = std::move(current_builder_).Build();
     if (first_chunk_ == absl::nullopt) {
@@ -128,13 +156,27 @@ bool ChunkedSortedStringSet::Builder::InsertNextImpl(Element&& element) {
     current_builder_.Reset();
     remaining_current_chunk_size_ = chunk_size_;
   }
-  if (ABSL_PREDICT_FALSE(
-          !current_builder_.InsertNext(std::forward<Element>(element)))) {
-    return false;  // Out of order (within a chunk).
+  {
+    const absl::Status status =
+        current_builder_.TryInsertNext(std::forward<Element>(element));
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
   }
   ++size_;
   --remaining_current_chunk_size_;
-  return true;
+  return absl::OkStatus();
+}
+
+absl::Status ChunkedSortedStringSet::Builder::OutOfOrder(
+    absl::string_view element) const {
+  return absl::FailedPreconditionError(
+      element == last()
+          ? absl::StrCat("Elements are not unique: new \"",
+                         absl::CHexEscape(element), "\" == last")
+          : absl::StrCat("Elements are not sorted: new \"",
+                         absl::CHexEscape(element), "\" > last \"",
+                         absl::CHexEscape(last()), "\""));
 }
 
 ChunkedSortedStringSet ChunkedSortedStringSet::Builder::Build() && {

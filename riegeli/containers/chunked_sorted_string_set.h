@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
@@ -187,19 +188,30 @@ class ChunkedSortedStringSet::Builder {
 
   ~Builder();
 
-  // Inserts an element. It must be greater than all previously inserted
-  // elements, otherwise it is not inserted and `false` is returned.
+  // Inserts an element.
   //
-  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  // Precondition: `element` is greater than all previously inserted elements.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
-  bool InsertNext(absl::string_view element);
+  void InsertNext(absl::string_view element);
   template <
       typename Element,
       std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
-  bool InsertNext(Element&& element);
+  void InsertNext(Element&& element);
+
+  // Inserts an element.
+  //
+  // If it is not greater than all previously inserted element, then nothing
+  // is inserted and an `absl::FailedPreconditionError()` is returned.
+  //
+  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  absl::Status TryInsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  absl::Status TryInsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
   bool empty() const {
@@ -220,7 +232,9 @@ class ChunkedSortedStringSet::Builder {
  private:
   // This template is defined and used only in chunked_sorted_string_set.cc.
   template <typename Element>
-  bool InsertNextImpl(Element&& element);
+  absl::Status InsertNextImpl(Element&& element);
+
+  absl::Status OutOfOrder(absl::string_view element) const;
 
   size_t size_;
   size_t chunk_size_;
@@ -374,7 +388,10 @@ inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
   return end();
 }
 
-extern template bool ChunkedSortedStringSet::Builder::InsertNext(
+extern template void ChunkedSortedStringSet::Builder::InsertNext(
+    std::string&& element);
+
+extern template absl::Status ChunkedSortedStringSet::Builder::TryInsertNext(
     std::string&& element);
 
 }  // namespace riegeli

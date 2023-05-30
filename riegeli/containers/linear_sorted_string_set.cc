@@ -24,6 +24,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
@@ -108,7 +110,28 @@ void LinearSortedStringSet::Builder::Reset() {
   last_.clear();
 }
 
-bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
+void LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
+  const absl::Status status = TryInsertNext(element);
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
+      << status.message();
+}
+
+template <typename Element,
+          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+void LinearSortedStringSet::Builder::InsertNext(Element&& element) {
+  // `std::move(element)` is correct and `std::forward<Element>(element)` is not
+  // necessary: `Element` is always `std::string`, never an lvalue reference.
+  const absl::Status status = TryInsertNext(std::move(element));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
+      << status.message();
+}
+
+template void LinearSortedStringSet::Builder::InsertNext(std::string&& element);
+
+absl::Status LinearSortedStringSet::Builder::TryInsertNext(
+    absl::string_view element) {
   return InsertNextImpl(
       element, [this](absl::string_view element, size_t shared_length) {
         last_.erase(shared_length);
@@ -124,7 +147,7 @@ bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
 
 template <typename Element,
           std::enable_if_t<std::is_same<Element, std::string>::value, int>>
-bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
+absl::Status LinearSortedStringSet::Builder::TryInsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   return InsertNextImpl(
@@ -135,13 +158,15 @@ bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
       });
 }
 
-template bool LinearSortedStringSet::Builder::InsertNext(std::string&& element);
+template absl::Status LinearSortedStringSet::Builder::TryInsertNext(
+    std::string&& element);
 
 template <typename Element, typename UpdateLast>
-bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
-                                                    UpdateLast update_last) {
+absl::Status LinearSortedStringSet::Builder::InsertNextImpl(
+    Element&& element, UpdateLast update_last) {
   RIEGELI_ASSERT(writer_.is_open())
-      << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
+      << "Failed precondition of "
+         "LinearSortedStringSet::Builder::TryInsertNext(): "
          "set already built or moved from";
   const size_t shared_length = SharedLength(last_, element);
   if (ABSL_PREDICT_FALSE(absl::string_view(element.data() + shared_length,
@@ -149,7 +174,7 @@ bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
                          absl::string_view(last_.data() + shared_length,
                                            last_.size() - shared_length)) &&
       !empty()) {
-    return false;  // Out of order.
+    return OutOfOrder(element);
   }
   const absl::string_view unshared =
       update_last(std::forward<Element>(element), shared_length);
@@ -161,7 +186,18 @@ bool LinearSortedStringSet::Builder::InsertNextImpl(Element&& element,
   WriteVarint64(tagged_length, writer_);
   if (shared_length > 0) WriteVarint64(uint64_t{shared_length}, writer_);
   writer_.Write(unshared);
-  return true;
+  return absl::OkStatus();
+}
+
+absl::Status LinearSortedStringSet::Builder::OutOfOrder(
+    absl::string_view element) const {
+  return absl::FailedPreconditionError(
+      element == last()
+          ? absl::StrCat("Elements are not unique: new \"",
+                         absl::CHexEscape(element), "\" == last")
+          : absl::StrCat("Elements are not sorted: new \"",
+                         absl::CHexEscape(element), "\" > last \"",
+                         absl::CHexEscape(last()), "\""));
 }
 
 LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {

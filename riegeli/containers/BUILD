@@ -34,6 +34,7 @@ cc_library(
         "//riegeli/base:binary_search",
         "//riegeli/base:memory_estimator",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:optional",
