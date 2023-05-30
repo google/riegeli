@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <iosfwd>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -48,12 +49,14 @@ namespace riegeli {
 //  * 0 - the size is stored before the data as `size_t`
 //
 // In the last three cases the capacity is stored before the size in the same
-// width as the size. The data are not followed by NUL.
+// width as the size.
+//
+// The data are not necessarily NUL-terminated.
 //
 // Since `data()`, `size()`, `operator[]` etc. involve branches, for iteration
 // it is faster to store the result of conversion to `absl::string_view` and
-// iterate over that, or use `StringReader`, and for appending it is faster to
-// use `CompactStringWriter`.
+// iterate over that, or use `StringReader`, and for repeated appending it is
+// faster to use `CompactStringWriter`.
 //
 // Memory usage of a `CompactString` of capacity c, assuming 8-byte pointers,
 // where H(n) is memory usage of a heap-allocated block of length n:
@@ -73,6 +76,10 @@ class
 #endif
         CompactString {
  public:
+  static constexpr size_t max_size() {
+    return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);
+  }
+
   CompactString() = default;
 
   // Creates a `CompactString` with the given size and uninitialized data.
@@ -142,12 +149,12 @@ class
   //
   // If `new_size > size()`, new data are uninitialized.
   //
-  // The return value is `data() + used_size`, for convenience of appending to
-  // previously used data.
+  // Returns `data() + used_size`, for convenience of appending to previously
+  // used data.
   //
   // `resize(new_size, used_size)` is equivalent to `set_size(used_size)`
-  // followed by `resize(new_size)`. `resize(new_size)` is equivalent to
-  // `resize(new_size, size())`.
+  // followed by `resize(new_size)` and returning `data() + used_size`.
+  // `resize(new_size)` is equivalent to `resize(new_size, size())`.
   //
   // Preconditions:
   //   `used_size <= size()`
@@ -159,6 +166,25 @@ class
   void reserve(size_t min_capacity);
 
   void shrink_to_fit();
+
+  // Appends `length` uninitialized data.
+  //
+  // Returns `data() + used_size` where `used_size` is `size()` before the call,
+  // for convenience of appending to previously used data.
+  //
+  // `append(length)` is equivalent to `resize(size() + length, size())` with
+  // a check against overflow of `size() + length`.
+  char* append(size_t length);
+
+  // Appends `src`.
+  void append(absl::string_view src);
+
+  // Ensures that `data()` are NUL-terminated after `size()` and returns
+  // `data()`.
+  //
+  // In contrast to `std::string::c_str()`, this is a non-const operation.
+  // It may reallocate the string and it writes the NUL each time.
+  const char* c_str();
 
   absl::strong_ordering Compare(absl::string_view that) const;
 
@@ -234,6 +260,11 @@ class
   friend std::ostream& operator<<(std::ostream& out,
                                   const CompactString& self) {
     return out << absl::string_view(self);
+  }
+
+  // Support `absl::Format(&compact_string, format, args...)`.
+  friend void AbslFormatFlush(CompactString* dest, absl::string_view src) {
+    dest->append(src);
   }
 
   // Registers this `CompactString` with `MemoryEstimator`.
@@ -409,6 +440,8 @@ class
   void AssignSlow(absl::string_view src);
   char* ResizeSlow(size_t new_size, size_t min_capacity, size_t used_size);
   void ShrinkToFitSlow();
+  char* AppendSlow(size_t length);
+  void AppendSlow(absl::string_view src);
 
   template <typename MemoryEstimator>
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
@@ -633,6 +666,39 @@ inline void CompactString::shrink_to_fit() {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return;
   return ShrinkToFitSlow();
+}
+
+inline char* CompactString::append(size_t length) {
+  const size_t old_size = size();
+  const size_t old_capacity = capacity();
+  if (ABSL_PREDICT_TRUE(length <= old_capacity - old_size)) {
+    set_size(old_size + length);
+    return data() + old_size;
+  }
+  return AppendSlow(length);
+}
+
+inline void CompactString::append(absl::string_view src) {
+  if (ABSL_PREDICT_TRUE(
+          // `std::memcpy(_, nullptr, 0)` is undefined.
+          !src.empty())) {
+    const size_t old_size = size();
+    const size_t old_capacity = capacity();
+    if (ABSL_PREDICT_TRUE(src.size() <= old_capacity - old_size)) {
+      set_size(old_size + src.size());
+      std::memcpy(data() + old_size, src.data(), src.size());
+      return;
+    }
+    AppendSlow(src);
+  }
+}
+
+inline const char* CompactString::c_str() {
+  const size_t used_size = size();
+  reserve(used_size + 1);
+  char* const ptr = data();
+  ptr[used_size] = '\0';
+  return ptr;
 }
 
 inline absl::strong_ordering CompactString::Compare(

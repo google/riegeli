@@ -415,6 +415,11 @@ class Chain {
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& self);
 
+  // Support `absl::Format(&chain, format, args...)`.
+  friend void AbslFormatFlush(Chain* dest, absl::string_view src) {
+    dest->Append(src);
+  }
+
   // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
   // otherwise does nothing.
   void VerifyInvariants() const;

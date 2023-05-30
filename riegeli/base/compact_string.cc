@@ -17,7 +17,6 @@
 #include <stdint.h>
 
 #include <cstring>
-#include <limits>
 #include <utility>
 
 #include "absl/strings/string_view.h"
@@ -56,9 +55,7 @@ uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
     set_allocated_size<uint16_t>(size, repr);
   } else {
     static_assert(sizeof(size_t) % 4 == 0, "Unsupported size_t size");
-    RIEGELI_CHECK_LE(capacity,
-                     std::numeric_limits<size_t>::max() - 2 * sizeof(size_t))
-        << "CompactString capacity overflow";
+    RIEGELI_CHECK_LE(capacity, max_size()) << "CompactString capacity overflow";
     const size_t requested =
         EstimatedAllocatedSize(capacity + 2 * sizeof(size_t));
     repr =
@@ -123,6 +120,38 @@ void CompactString::ShrinkToFitSlow() {
   }
   DeleteRepr(std::exchange(
       repr_, MakeRepr(absl::string_view(allocated_data(), size))));
+}
+
+char* CompactString::AppendSlow(size_t length) {
+  const size_t old_size = size();
+  RIEGELI_CHECK_LE(length, max_size() - old_size)
+      << "CompactString size overflow";
+  const size_t new_size = old_size + length;
+  return ResizeSlow(new_size, new_size, old_size);
+}
+
+void CompactString::AppendSlow(absl::string_view src) {
+  RIEGELI_ASSERT(!src.empty())
+      << "Failed precondition of CompactString::AppendSlow(): "
+         "nothing to append";
+  const size_t old_size = size();
+  const size_t old_capacity = capacity();
+  RIEGELI_CHECK_LE(src.size(), max_size() - old_size)
+      << "CompactString size overflow";
+  const size_t new_size = old_size + src.size();
+  const uintptr_t new_repr = MakeRepr(
+      new_size, UnsignedMax(new_size, old_capacity + old_capacity / 2));
+  const uintptr_t tag = new_repr & 7;
+  RIEGELI_ASSERT_NE(tag, 1u)
+      << "Inline representation has a fixed capacity, so reallocation is never "
+         "needed when the new capacity can use inline representation";
+  char* ptr = allocated_data(new_repr);
+  std::memcpy(ptr, data(), old_size);
+  ptr += old_size;
+  // Copy from `src` before deleting `repr_` to support appending from a
+  // substring of `*this`.
+  std::memcpy(ptr, src.data(), src.size());
+  DeleteRepr(std::exchange(repr_, new_repr));
 }
 
 }  // namespace riegeli
