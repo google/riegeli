@@ -126,7 +126,7 @@ bool LinearSortedStringSet::contains(absl::string_view element) const {
   size_t shared_length = 0;
   // Length of the prefix shared between `element` and `*iterator`.
   size_t common_length = 0;
-  for (LinearSortedStringSet::Iterator iterator = cbegin(); iterator != cend();
+  for (Iterator iterator = cbegin(); iterator != cend();
        shared_length = iterator.Next()) {
     // It would be incorrect to assume that if `shared_length < common_length`
     // then `*iterator > element` because `shared_length` is not guaranteed to
@@ -321,7 +321,7 @@ absl::Status LinearSortedStringSet::Builder::OutOfOrder(
           ? absl::StrCat("Elements are not unique: new \"",
                          absl::CHexEscape(element), "\" == last")
           : absl::StrCat("Elements are not sorted: new \"",
-                         absl::CHexEscape(element), "\" > last \"",
+                         absl::CHexEscape(element), "\" < last \"",
                          absl::CHexEscape(last()), "\""));
 }
 

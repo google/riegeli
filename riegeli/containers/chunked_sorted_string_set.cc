@@ -114,8 +114,7 @@ size_t ChunkedSortedStringSet::EstimateMemory() const {
 
 size_t ChunkedSortedStringSet::Iterator::Next() {
   RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
-      << "Failed precondition of "
-         "ChunkedSortedStringSet::Iterator::operator->(): "
+      << "Failed precondition of ChunkedSortedStringSet::Iterator::Next(): "
          "iterator is end()";
   const size_t shared_length = current_iterator_.Next();
   if (ABSL_PREDICT_TRUE(current_iterator_ !=
@@ -223,7 +222,7 @@ absl::Status ChunkedSortedStringSet::Builder::OutOfOrder(
           ? absl::StrCat("Elements are not unique: new \"",
                          absl::CHexEscape(element), "\" == last")
           : absl::StrCat("Elements are not sorted: new \"",
-                         absl::CHexEscape(element), "\" > last \"",
+                         absl::CHexEscape(element), "\" < last \"",
                          absl::CHexEscape(last()), "\""));
 }
 

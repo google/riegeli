@@ -214,7 +214,7 @@ class LinearSortedStringSet::Iterator {
   reference operator*() const {
     RIEGELI_ASSERT(cursor_ != nullptr)
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator*(): "
+           "LinearSortedStringSet::Iterator::operator*: "
            "iterator is end()";
     return current_;
   }
@@ -222,7 +222,7 @@ class LinearSortedStringSet::Iterator {
   pointer operator->() const {
     RIEGELI_ASSERT(cursor_ != nullptr)
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator->(): "
+           "LinearSortedStringSet::Iterator::operator->: "
            "iterator is end()";
     return pointer(**this);
   }
@@ -230,7 +230,7 @@ class LinearSortedStringSet::Iterator {
   Iterator& operator++() {
     RIEGELI_ASSERT(cursor_ != nullptr)
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator++(): "
+           "LinearSortedStringSet::Iterator::operator++: "
            "iterator is end()";
     Next();
     return *this;
@@ -304,10 +304,14 @@ class LinearSortedStringSet::Builder {
 
   // Inserts an element.
   //
-  // If it is not greater than all previously inserted element, then nothing
+  // If it is not greater than all previously inserted elements, then nothing
   // is inserted and an `absl::FailedPreconditionError()` is returned.
   //
-  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  // If `std::string&&` is passed, it is moved only if the result is `ok()`.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
   absl::Status TryInsertNext(absl::string_view element);
   template <
       typename Element,

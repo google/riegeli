@@ -293,7 +293,7 @@ class ChunkedSortedStringSet::Iterator {
   reference operator*() const {
     RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator*(): "
+           "ChunkedSortedStringSet::Iterator::operator*: "
            "iterator is end()";
     return *current_iterator_;
   }
@@ -301,7 +301,7 @@ class ChunkedSortedStringSet::Iterator {
   pointer operator->() const {
     RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator->(): "
+           "ChunkedSortedStringSet::Iterator::operator->: "
            "iterator is end()";
     return pointer(**this);
   }
@@ -309,7 +309,7 @@ class ChunkedSortedStringSet::Iterator {
   Iterator& operator++() {
     RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
         << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator++(): "
+           "ChunkedSortedStringSet::Iterator::operator++: "
            "iterator is end()";
     Next();
     return *this;
@@ -388,10 +388,14 @@ class ChunkedSortedStringSet::Builder {
 
   // Inserts an element.
   //
-  // If it is not greater than all previously inserted element, then nothing
+  // If it is not greater than all previously inserted elements, then nothing
   // is inserted and an `absl::FailedPreconditionError()` is returned.
   //
-  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  // If `std::string&&` is passed, it is moved only if the result is `ok()`.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
   absl::Status TryInsertNext(absl::string_view element);
   template <
       typename Element,
