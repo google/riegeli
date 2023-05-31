@@ -112,6 +112,29 @@ size_t ChunkedSortedStringSet::EstimateMemory() const {
   return memory_estimator.TotalMemory();
 }
 
+size_t ChunkedSortedStringSet::Iterator::Next() {
+  RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
+      << "Failed precondition of "
+         "ChunkedSortedStringSet::Iterator::operator->(): "
+         "iterator is end()";
+  const size_t shared_length = current_iterator_.Next();
+  if (ABSL_PREDICT_TRUE(current_iterator_ !=
+                        LinearSortedStringSet::Iterator())) {
+    // Staying in the same chunk.
+    return shared_length;
+  }
+  if (ABSL_PREDICT_FALSE(set_->repr_is_inline() ||
+                         next_chunk_iterator_ ==
+                             set_->allocated_repr()->chunks.cend())) {
+    // Reached the end.
+    return 0;
+  }
+  // Moving to the next chunk.
+  current_iterator_ = next_chunk_iterator_->cbegin();
+  ++next_chunk_iterator_;
+  return 0;
+}
+
 ChunkedSortedStringSet::Builder::Builder(size_t chunk_size, size_t size_hint)
     : size_(0),
       chunk_size_(chunk_size),
@@ -213,29 +236,6 @@ ChunkedSortedStringSet ChunkedSortedStringSet::Builder::Build() && {
   }
   return ChunkedSortedStringSet(*std::move(first_chunk_), std::move(chunks_),
                                 size_);
-}
-
-size_t ChunkedSortedStringSet::Iterator::Next() {
-  RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
-      << "Failed precondition of "
-         "ChunkedSortedStringSet::Iterator::operator->(): "
-         "iterator is end()";
-  const size_t shared_length = current_iterator_.Next();
-  if (ABSL_PREDICT_TRUE(current_iterator_ !=
-                        LinearSortedStringSet::Iterator())) {
-    // Staying in the same chunk.
-    return shared_length;
-  }
-  if (ABSL_PREDICT_FALSE(set_->repr_is_inline() ||
-                         next_chunk_iterator_ ==
-                             set_->allocated_repr()->chunks.cend())) {
-    // Reached the end.
-    return 0;
-  }
-  // Moving to the next chunk.
-  current_iterator_ = next_chunk_iterator_->cbegin();
-  ++next_chunk_iterator_;
-  return 0;
 }
 
 }  // namespace riegeli

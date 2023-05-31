@@ -168,6 +168,59 @@ size_t LinearSortedStringSet::EstimateMemory() const {
   return memory_estimator.TotalMemory();
 }
 
+size_t LinearSortedStringSet::Iterator::Next() {
+  RIEGELI_ASSERT(cursor_ != nullptr)
+      << "Failed precondition of LinearSortedStringSet::Iterator::Next(): "
+         "iterator is end()";
+  if (cursor_ == limit_) {
+    // `end()` was reached.
+    cursor_ = nullptr;           // Mark `end()`.
+    current_ = CompactString();  // Free memory.
+    return 0;
+  }
+  const char* ptr = cursor_;
+  uint64_t tagged_length;
+  {
+    const absl::optional<const char*> next =
+        ReadVarint64(ptr, limit_, tagged_length);
+    if (next == absl::nullopt) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Malformed LinearSortedStringSet encoding (tagged_length)";
+    } else {
+      ptr = *next;
+    }
+  }
+  const uint64_t unshared_length = tagged_length >> 1;
+  uint64_t shared_length = 0;
+  if ((tagged_length & 1) == 0) {
+    // `shared_length == 0` and is not stored.
+  } else {
+    // `shared_length` is stored.
+    {
+      const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit_, shared_length);
+      if (next == absl::nullopt) {
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Malformed LinearSortedStringSet encoding (shared_length)";
+      } else {
+        ptr = *next;
+      }
+    }
+    RIEGELI_ASSERT_LE(shared_length, current_.size())
+        << "Malformed LinearSortedStringSet encoding "
+           "(shared_length larger than previous element)";
+  }
+  RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+      << "Malformed LinearSortedStringSet encoding (unshared)";
+  const size_t new_size = IntCast<size_t>(shared_length + unshared_length);
+  char* const current_unshared =
+      current_.resize(new_size, IntCast<size_t>(shared_length));
+  std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
+  ptr += IntCast<size_t>(unshared_length);
+  cursor_ = ptr;
+  return IntCast<size_t>(shared_length);
+}
+
 LinearSortedStringSet::Builder::Builder() = default;
 
 LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;
@@ -282,59 +335,6 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
   }
   writer_.dest().shrink_to_fit();
   return LinearSortedStringSet(std::move(writer_.dest()));
-}
-
-size_t LinearSortedStringSet::Iterator::Next() {
-  RIEGELI_ASSERT(cursor_ != nullptr)
-      << "Failed precondition of LinearSortedStringSet::Iterator::Next(): "
-         "iterator is end()";
-  if (cursor_ == limit_) {
-    // `end()` was reached.
-    cursor_ = nullptr;           // Mark `end()`.
-    current_ = CompactString();  // Free memory.
-    return 0;
-  }
-  const char* ptr = cursor_;
-  uint64_t tagged_length;
-  {
-    const absl::optional<const char*> next =
-        ReadVarint64(ptr, limit_, tagged_length);
-    if (next == absl::nullopt) {
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (tagged_length)";
-    } else {
-      ptr = *next;
-    }
-  }
-  const uint64_t unshared_length = tagged_length >> 1;
-  uint64_t shared_length = 0;
-  if ((tagged_length & 1) == 0) {
-    // `shared_length == 0` and is not stored.
-  } else {
-    // `shared_length` is stored.
-    {
-      const absl::optional<const char*> next =
-          ReadVarint64(ptr, limit_, shared_length);
-      if (next == absl::nullopt) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Malformed LinearSortedStringSet encoding (shared_length)";
-      } else {
-        ptr = *next;
-      }
-    }
-    RIEGELI_ASSERT_LE(shared_length, current_.size())
-        << "Malformed LinearSortedStringSet encoding "
-           "(shared_length larger than previous element)";
-  }
-  RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
-      << "Malformed LinearSortedStringSet encoding (unshared)";
-  const size_t new_size = IntCast<size_t>(shared_length + unshared_length);
-  char* const current_unshared =
-      current_.resize(new_size, IntCast<size_t>(shared_length));
-  std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
-  ptr += IntCast<size_t>(unshared_length);
-  cursor_ = ptr;
-  return IntCast<size_t>(shared_length);
 }
 
 }  // namespace riegeli

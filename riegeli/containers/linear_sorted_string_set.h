@@ -41,8 +41,8 @@ namespace riegeli {
 // `ChunkedSortedStringSet`.
 class LinearSortedStringSet {
  public:
-  class Builder;
   class Iterator;
+  class Builder;
 
   using value_type = absl::string_view;
   using reference = value_type;
@@ -172,70 +172,6 @@ class LinearSortedStringSet {
   CompactString encoded_;
 };
 
-// Builds a `LinearSortedStringSet` from a sorted sequence of unique strings.
-class LinearSortedStringSet::Builder {
- public:
-  // Begins with an empty set.
-  Builder();
-
-  Builder(Builder&& that) noexcept;
-  Builder& operator=(Builder&& that) noexcept;
-
-  ~Builder();
-
-  // Makes `*this` equivalent to a newly constructed `Builder`.
-  void Reset();
-
-  // Inserts an element.
-  //
-  // Precondition: `element` is greater than all previously inserted elements.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  void InsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
-  void InsertNext(Element&& element);
-
-  // Inserts an element.
-  //
-  // If it is not greater than all previously inserted element, then nothing
-  // is inserted and an `absl::FailedPreconditionError()` is returned.
-  //
-  // If `std::string&&` is passed, it is moved only if the result is `true`.
-  absl::Status TryInsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
-  absl::Status TryInsertNext(Element&& element);
-
-  // Returns `true` if the set is empty.
-  bool empty() const { return writer_.pos() == 0; }
-
-  // Returns the last element. The set must not be empty.
-  absl::string_view last() const {
-    RIEGELI_ASSERT(!empty())
-        << "Failed precondition of LinearSortedStringSet::Builder::last(): "
-           "empty set";
-    return last_;
-  }
-
-  // Builds the `LinearSortedStringSet`. No more elements can be inserted.
-  LinearSortedStringSet Build() &&;
-
- private:
-  // This template is defined and used only in linear_sorted_string_set.cc.
-  template <typename Element, typename UpdateLast>
-  absl::Status InsertNextImpl(Element&& element, UpdateLast update_last);
-
-  absl::Status OutOfOrder(absl::string_view element) const;
-
-  CompactStringWriter<CompactString> writer_;
-  std::string last_;
-};
-
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 class LinearSortedStringSet::Iterator {
  public:
@@ -337,6 +273,70 @@ class LinearSortedStringSet::Iterator {
   const char* limit_ = nullptr;
   // Decoded current element, or empty for `end()`.
   CompactString current_;
+};
+
+// Builds a `LinearSortedStringSet` from a sorted sequence of unique strings.
+class LinearSortedStringSet::Builder {
+ public:
+  // Begins with an empty set.
+  Builder();
+
+  Builder(Builder&& that) noexcept;
+  Builder& operator=(Builder&& that) noexcept;
+
+  ~Builder();
+
+  // Makes `*this` equivalent to a newly constructed `Builder`.
+  void Reset();
+
+  // Inserts an element.
+  //
+  // Precondition: `element` is greater than all previously inserted elements.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
+  void InsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  void InsertNext(Element&& element);
+
+  // Inserts an element.
+  //
+  // If it is not greater than all previously inserted element, then nothing
+  // is inserted and an `absl::FailedPreconditionError()` is returned.
+  //
+  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  absl::Status TryInsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  absl::Status TryInsertNext(Element&& element);
+
+  // Returns `true` if the set is empty.
+  bool empty() const { return writer_.pos() == 0; }
+
+  // Returns the last element. The set must not be empty.
+  absl::string_view last() const {
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of LinearSortedStringSet::Builder::last(): "
+           "empty set";
+    return last_;
+  }
+
+  // Builds the `LinearSortedStringSet`. No more elements can be inserted.
+  LinearSortedStringSet Build() &&;
+
+ private:
+  // This template is defined and used only in linear_sorted_string_set.cc.
+  template <typename Element, typename UpdateLast>
+  absl::Status InsertNextImpl(Element&& element, UpdateLast update_last);
+
+  absl::Status OutOfOrder(absl::string_view element) const;
+
+  CompactStringWriter<CompactString> writer_;
+  std::string last_;
 };
 
 // Implementation details follow.

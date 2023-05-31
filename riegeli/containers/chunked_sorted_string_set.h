@@ -42,8 +42,8 @@ namespace riegeli {
 // `ChunkedSortedStringSet` is optimized for memory usage.
 class ChunkedSortedStringSet {
  public:
-  class Builder;
   class Iterator;
+  class Builder;
 
   using value_type = absl::string_view;
   using reference = value_type;
@@ -251,82 +251,6 @@ class ChunkedSortedStringSet {
   uintptr_t repr_ = kEmptyRepr;
 };
 
-// Builds a `ChunkedSortedStringSet` from a sorted sequence of unique strings.
-class ChunkedSortedStringSet::Builder {
- public:
-  // Begins with an empty set.
-  //
-  // `chunk_size` tunes the number of elements encoded together. A larger
-  // `chunk_size` reduces memory usage, but the time complexity of lookups is
-  // roughly proportional to `chunk_size`.
-  //
-  // `size_hint` is the expected number of elements. If it turns out to not
-  // match reality, nothing breaks.
-  explicit Builder(size_t chunk_size, size_t size_hint = 0);
-
-  Builder(Builder&& that) noexcept;
-  Builder& operator=(Builder&& that) noexcept;
-
-  ~Builder();
-
-  // Inserts an element.
-  //
-  // Precondition: `element` is greater than all previously inserted elements.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  void InsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
-  void InsertNext(Element&& element);
-
-  // Inserts an element.
-  //
-  // If it is not greater than all previously inserted element, then nothing
-  // is inserted and an `absl::FailedPreconditionError()` is returned.
-  //
-  // If `std::string&&` is passed, it is moved only if the result is `true`.
-  absl::Status TryInsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
-  absl::Status TryInsertNext(Element&& element);
-
-  // Returns `true` if the set is empty.
-  bool empty() const {
-    return first_chunk_ == absl::nullopt && current_builder_.empty();
-  }
-
-  // Returns the last element. The set must not be empty.
-  absl::string_view last() const {
-    RIEGELI_ASSERT(!empty())
-        << "Failed precondition of ChunkedSortedStringSet::Builder::last(): "
-           "empty set";
-    return current_builder_.last();
-  }
-
-  // Builds the `ChunkedSortedStringSet`. No more elements can be inserted.
-  ChunkedSortedStringSet Build() &&;
-
- private:
-  // This template is defined and used only in chunked_sorted_string_set.cc.
-  template <typename Element>
-  absl::Status InsertNextImpl(Element&& element);
-
-  absl::Status OutOfOrder(absl::string_view element) const;
-
-  size_t size_;
-  size_t chunk_size_;
-  size_t remaining_current_chunk_size_;
-
-  // Invariant: if `first_chunk_ == absl::nullopt` then `chunks_.empty()`
-  absl::optional<LinearSortedStringSet> first_chunk_;
-  std::vector<LinearSortedStringSet> chunks_;
-  LinearSortedStringSet::Builder current_builder_;
-};
-
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 class ChunkedSortedStringSet::Iterator {
  public:
@@ -429,6 +353,82 @@ class ChunkedSortedStringSet::Iterator {
   LinearSortedStringSet::Iterator current_iterator_;
   ChunkIterator next_chunk_iterator_ = ChunkIterator();
   const ChunkedSortedStringSet* set_ = nullptr;
+};
+
+// Builds a `ChunkedSortedStringSet` from a sorted sequence of unique strings.
+class ChunkedSortedStringSet::Builder {
+ public:
+  // Begins with an empty set.
+  //
+  // `chunk_size` tunes the number of elements encoded together. A larger
+  // `chunk_size` reduces memory usage, but the time complexity of lookups is
+  // roughly proportional to `chunk_size`.
+  //
+  // `size_hint` is the expected number of elements. If it turns out to not
+  // match reality, nothing breaks.
+  explicit Builder(size_t chunk_size, size_t size_hint = 0);
+
+  Builder(Builder&& that) noexcept;
+  Builder& operator=(Builder&& that) noexcept;
+
+  ~Builder();
+
+  // Inserts an element.
+  //
+  // Precondition: `element` is greater than all previously inserted elements.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `absl::string_view`
+  // (e.g. `const char*`).
+  void InsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  void InsertNext(Element&& element);
+
+  // Inserts an element.
+  //
+  // If it is not greater than all previously inserted element, then nothing
+  // is inserted and an `absl::FailedPreconditionError()` is returned.
+  //
+  // If `std::string&&` is passed, it is moved only if the result is `true`.
+  absl::Status TryInsertNext(absl::string_view element);
+  template <
+      typename Element,
+      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  absl::Status TryInsertNext(Element&& element);
+
+  // Returns `true` if the set is empty.
+  bool empty() const {
+    return first_chunk_ == absl::nullopt && current_builder_.empty();
+  }
+
+  // Returns the last element. The set must not be empty.
+  absl::string_view last() const {
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of ChunkedSortedStringSet::Builder::last(): "
+           "empty set";
+    return current_builder_.last();
+  }
+
+  // Builds the `ChunkedSortedStringSet`. No more elements can be inserted.
+  ChunkedSortedStringSet Build() &&;
+
+ private:
+  // This template is defined and used only in chunked_sorted_string_set.cc.
+  template <typename Element>
+  absl::Status InsertNextImpl(Element&& element);
+
+  absl::Status OutOfOrder(absl::string_view element) const;
+
+  size_t size_;
+  size_t chunk_size_;
+  size_t remaining_current_chunk_size_;
+
+  // Invariant: if `first_chunk_ == absl::nullopt` then `chunks_.empty()`
+  absl::optional<LinearSortedStringSet> first_chunk_;
+  std::vector<LinearSortedStringSet> chunks_;
+  LinearSortedStringSet::Builder current_builder_;
 };
 
 // Implementation details follow.
