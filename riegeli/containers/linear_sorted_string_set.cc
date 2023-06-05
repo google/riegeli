@@ -27,6 +27,7 @@
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -235,27 +236,29 @@ void LinearSortedStringSet::Builder::Reset() {
   last_.clear();
 }
 
-void LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
-  const absl::Status status = TryInsertNext(element);
-  RIEGELI_CHECK(status.ok())
+bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
+  const absl::StatusOr<bool> inserted = TryInsertNext(element);
+  RIEGELI_CHECK(inserted.ok())
       << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
-      << status.message();
+      << inserted.status().message();
+  return *inserted;
 }
 
 template <typename Element,
           std::enable_if_t<std::is_same<Element, std::string>::value, int>>
-void LinearSortedStringSet::Builder::InsertNext(Element&& element) {
+bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
-  const absl::Status status = TryInsertNext(std::move(element));
-  RIEGELI_CHECK(status.ok())
+  const absl::StatusOr<bool> inserted = TryInsertNext(std::move(element));
+  RIEGELI_CHECK(inserted.ok())
       << "Failed precondition of LinearSortedStringSet::Builder::InsertNext(): "
-      << status.message();
+      << inserted.status().message();
+  return *inserted;
 }
 
-template void LinearSortedStringSet::Builder::InsertNext(std::string&& element);
+template bool LinearSortedStringSet::Builder::InsertNext(std::string&& element);
 
-absl::Status LinearSortedStringSet::Builder::TryInsertNext(
+absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
     absl::string_view element) {
   return InsertNextImpl(
       element, [this](absl::string_view element, size_t shared_length) {
@@ -272,7 +275,8 @@ absl::Status LinearSortedStringSet::Builder::TryInsertNext(
 
 template <typename Element,
           std::enable_if_t<std::is_same<Element, std::string>::value, int>>
-absl::Status LinearSortedStringSet::Builder::TryInsertNext(Element&& element) {
+absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
+    Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   return InsertNextImpl(
@@ -283,23 +287,26 @@ absl::Status LinearSortedStringSet::Builder::TryInsertNext(Element&& element) {
       });
 }
 
-template absl::Status LinearSortedStringSet::Builder::TryInsertNext(
+template absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
     std::string&& element);
 
 template <typename Element, typename UpdateLast>
-absl::Status LinearSortedStringSet::Builder::InsertNextImpl(
+absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
     Element&& element, UpdateLast update_last) {
   RIEGELI_ASSERT(writer_.is_open())
       << "Failed precondition of "
          "LinearSortedStringSet::Builder::TryInsertNext(): "
          "set already built or moved from";
   const size_t shared_length = SharedLength(last_, element);
-  if (ABSL_PREDICT_FALSE(absl::string_view(element.data() + shared_length,
-                                           element.size() - shared_length) <=
-                         absl::string_view(last_.data() + shared_length,
-                                           last_.size() - shared_length)) &&
-      !empty()) {
-    return OutOfOrder(element);
+  const absl::string_view unshared_element(element.data() + shared_length,
+                                           element.size() - shared_length);
+  const absl::string_view unshared_last(last_.data() + shared_length,
+                                        last_.size() - shared_length);
+  if (ABSL_PREDICT_FALSE(unshared_element <= unshared_last) && !empty()) {
+    if (ABSL_PREDICT_TRUE(unshared_element == unshared_last)) return false;
+    return absl::FailedPreconditionError(absl::StrCat(
+        "Elements are not sorted: new \"", absl::CHexEscape(element),
+        "\" < last \"", absl::CHexEscape(last()), "\""));
   }
   const absl::string_view unshared =
       update_last(std::forward<Element>(element), shared_length);
@@ -311,18 +318,7 @@ absl::Status LinearSortedStringSet::Builder::InsertNextImpl(
   WriteVarint64(tagged_length, writer_);
   if (shared_length > 0) WriteVarint64(uint64_t{shared_length}, writer_);
   writer_.Write(unshared);
-  return absl::OkStatus();
-}
-
-absl::Status LinearSortedStringSet::Builder::OutOfOrder(
-    absl::string_view element) const {
-  return absl::FailedPreconditionError(
-      element == last()
-          ? absl::StrCat("Elements are not unique: new \"",
-                         absl::CHexEscape(element), "\" == last")
-          : absl::StrCat("Elements are not sorted: new \"",
-                         absl::CHexEscape(element), "\" < last \"",
-                         absl::CHexEscape(last()), "\""));
+  return true;
 }
 
 LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
