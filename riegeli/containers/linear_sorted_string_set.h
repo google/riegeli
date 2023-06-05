@@ -43,6 +43,7 @@ class LinearSortedStringSet {
  public:
   class Iterator;
   class Builder;
+  class NextInsertIterator;
 
   using value_type = absl::string_view;
   using reference = value_type;
@@ -289,6 +290,18 @@ class LinearSortedStringSet::Builder {
   // Makes `*this` equivalent to a newly constructed `Builder`.
   void Reset();
 
+  // Returns an output iterator which inserts elements to this `Builder`.
+  // Consecutive duplicates are inserted only once.
+  //
+  // Each inserted element must be greater than or equal to the last inserted
+  // element.
+  //
+  // Inserting with a `NextInsertIterator` is equivalent to calling
+  // `InsertNext()`. In particular if multiple iterators and explicit
+  // `InsertNext()` calls are used together, then their combined element
+  // sequence must be ordered.
+  NextInsertIterator NextInserter();
+
   // Inserts an element. Consecutive duplicates are inserted only once.
   //
   // Precondition: `element` is greater than or equal to the last inserted
@@ -347,6 +360,73 @@ class LinearSortedStringSet::Builder {
 
   CompactStringWriter<CompactString> writer_;
   std::string last_;
+};
+
+// Inserts elements to a `LinearSortedStringSet::Builder`. Consecutive
+// duplicates are inserted only once.
+//
+// Each inserted element must be greater than or equal to the last inserted
+// element.
+class LinearSortedStringSet::NextInsertIterator {
+ public:
+  using iterator_concept = std::output_iterator_tag;
+  using iterator_category = std::output_iterator_tag;
+  using value_type = absl::string_view;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+
+  class reference {
+   public:
+    // Inserts the next element.
+    //
+    // `std::string&&` is accepted with a template to avoid implicit conversions
+    // to `std::string` which can be ambiguous against `absl::string_view`
+    // (e.g. `const char*`).
+    reference& operator=(absl::string_view element) {
+      builder_->InsertNext(element);
+      return *this;
+    }
+    template <
+        typename Element,
+        std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+    reference& operator=(Element&& element) {
+      // `std::move(element)` is correct and `std::forward<Element>(element)` is
+      // not necessary: `Element` is always `std::string`, never an lvalue
+      // reference.
+      builder_->InsertNext(std::move(element));
+      return *this;
+    }
+
+   private:
+    friend class NextInsertIterator;
+    explicit reference(Builder* builder) : builder_(builder) {}
+    Builder* builder_;
+  };
+
+  // A sentinel value.
+  NextInsertIterator() = default;
+
+  NextInsertIterator(const NextInsertIterator& that) = default;
+  NextInsertIterator& operator=(const NextInsertIterator& that) = default;
+
+  reference operator*() const {
+    RIEGELI_ASSERT(builder_ != nullptr)
+        << "Failed precondition of NextInsertIterator::operator*: "
+           "iterator is sentinel";
+    return reference(builder_);
+  }
+
+  NextInsertIterator& operator++() { return *this; }
+  NextInsertIterator operator++(int) { return ++*this; }
+
+  Builder* builder() const { return builder_; }
+
+ private:
+  friend class Builder;  // For `NextInsertIterator::NextInsertIterator()`.
+
+  explicit NextInsertIterator(Builder* builder) : builder_(builder) {}
+
+  Builder* builder_ = nullptr;
 };
 
 // Implementation details follow.
@@ -418,6 +498,11 @@ HashState LinearSortedStringSet::AbslHashValueImpl(HashState hash_state) {
     ++size;
   }
   return HashState::combine(std::move(hash_state), size);
+}
+
+inline LinearSortedStringSet::NextInsertIterator
+LinearSortedStringSet::Builder::NextInserter() {
+  return NextInsertIterator(this);
 }
 
 extern template bool LinearSortedStringSet::Builder::InsertNext(
