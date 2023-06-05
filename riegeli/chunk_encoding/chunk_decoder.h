@@ -90,10 +90,13 @@ class ChunkDecoder : public Object {
 
   // Resets the `ChunkDecoder` and parses the chunk. Keeps options unchanged.
   //
+  // If `flatten`, prefer making records readily available as
+  // `absl::string_view`.
+  //
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  bool Decode(const Chunk& chunk);
+  bool Decode(const Chunk& chunk, bool flatten = false);
 
   // Reads the next record.
   //
@@ -141,7 +144,7 @@ class ChunkDecoder : public Object {
   void Done() override;
 
  private:
-  bool Parse(const ChunkHeader& header, Reader& src, Chain& dest);
+  bool Parse(const ChunkHeader& header, Reader& src, Chain& dest, bool flatten);
 
   FieldProjection field_projection_;
   // Invariants if `ok()`:

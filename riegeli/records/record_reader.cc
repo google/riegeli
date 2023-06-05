@@ -107,6 +107,7 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
       chunk_begin_(that.chunk_begin_),
       chunk_decoder_(std::move(that.chunk_decoder_)),
       last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
+      flatten_(std::exchange(that.flatten_, false)),
       recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
       recovery_(std::move(that.recovery_)) {}
 
@@ -116,6 +117,7 @@ RecordReaderBase& RecordReaderBase::operator=(
   chunk_begin_ = that.chunk_begin_;
   chunk_decoder_ = std::move(that.chunk_decoder_);
   last_record_is_valid_ = std::exchange(that.last_record_is_valid_, false);
+  flatten_ = std::exchange(that.flatten_, false);
   recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);
   recovery_ = std::move(that.recovery_);
   return *this;
@@ -126,6 +128,7 @@ void RecordReaderBase::Reset(Closed) {
   chunk_begin_ = 0;
   chunk_decoder_.Reset();
   last_record_is_valid_ = false;
+  flatten_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -135,6 +138,7 @@ void RecordReaderBase::Reset() {
   chunk_begin_ = 0;
   chunk_decoder_.Clear();
   last_record_is_valid_ = false;
+  flatten_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -302,22 +306,27 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
 }
 
 bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite& record) {
+  flatten_ = false;
   return ReadRecordImpl(record);
 }
 
 bool RecordReaderBase::ReadRecord(absl::string_view& record) {
+  flatten_ = true;
   return ReadRecordImpl(record);
 }
 
 bool RecordReaderBase::ReadRecord(std::string& record) {
+  flatten_ = false;
   return ReadRecordImpl(record);
 }
 
 bool RecordReaderBase::ReadRecord(Chain& record) {
+  flatten_ = false;
   return ReadRecordImpl(record);
 }
 
 bool RecordReaderBase::ReadRecord(absl::Cord& record) {
+  flatten_ = false;
   return ReadRecordImpl(record);
 }
 
@@ -692,7 +701,7 @@ inline bool RecordReaderBase::ReadChunk() {
     }
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Decode(chunk))) {
+  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Decode(chunk, flatten_))) {
     recoverable_ = Recoverable::kRecoverChunkDecoder;
     return Fail(chunk_decoder_.status());
   }

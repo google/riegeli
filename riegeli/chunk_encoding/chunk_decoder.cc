@@ -24,11 +24,13 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/array_backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -43,14 +45,14 @@ namespace riegeli {
 
 void ChunkDecoder::Done() { recoverable_ = false; }
 
-bool ChunkDecoder::Decode(const Chunk& chunk) {
+bool ChunkDecoder::Decode(const Chunk& chunk, bool flatten) {
   Clear();
   ChainReader<> data_reader(&chunk.data);
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
   }
   Chain values;
-  if (ABSL_PREDICT_FALSE(!Parse(chunk.header, data_reader, values))) {
+  if (ABSL_PREDICT_FALSE(!Parse(chunk.header, data_reader, values, flatten))) {
     limits_.clear();  // Ensure that `index() == num_records()`.
     return false;
   }
@@ -72,7 +74,7 @@ bool ChunkDecoder::Decode(const Chunk& chunk) {
 }
 
 inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
-                                Chain& dest) {
+                                Chain& dest, bool flatten) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
@@ -117,8 +119,20 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
                                                     limits_))) {
         return Fail(simple_decoder.status());
       }
-      if (ABSL_PREDICT_FALSE(!simple_decoder.reader().Read(
-              IntCast<size_t>(header.decoded_data_size()), dest))) {
+      bool read_ok;
+      if (flatten &&
+          // If all data are already available in a flat buffer, the chunk is
+          // likely uncompressed in a `ChainReader`, and reading it to a `Chain`
+          // will avoid copying it while preserving flatness.
+          simple_decoder.reader().available() < header.decoded_data_size()) {
+        const absl::Span<char> buffer =
+            dest.AppendFixedBuffer(IntCast<size_t>(header.decoded_data_size()));
+        read_ok = simple_decoder.reader().Read(buffer.size(), buffer.data());
+      } else {
+        read_ok = simple_decoder.reader().Read(
+            IntCast<size_t>(header.decoded_data_size()), dest);
+      }
+      if (ABSL_PREDICT_FALSE(!read_ok)) {
         return Fail(simple_decoder.reader().StatusOrAnnotate(
             absl::InvalidArgumentError("Reading record values failed")));
       }
@@ -132,15 +146,28 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
     }
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
-      ChainBackwardWriter<> dest_writer(&dest);
-      if (field_projection_.includes_all()) {
-        dest_writer.SetWriteSizeHint(header.decoded_data_size());
-      }
-      const bool decode_ok = transpose_decoder.Decode(
-          header.num_records(), header.decoded_data_size(), field_projection_,
-          src, dest_writer, limits_);
-      if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
-        return Fail(dest_writer.status());
+      bool decode_ok;
+      if (flatten && field_projection_.includes_all()) {
+        ArrayBackwardWriter<> dest_writer(dest.AppendFixedBuffer(
+            IntCast<size_t>(header.decoded_data_size())));
+        decode_ok = transpose_decoder.Decode(
+            header.num_records(), header.decoded_data_size(), field_projection_,
+            src, dest_writer, limits_);
+        if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
+          return Fail(dest_writer.status());
+        }
+      } else {
+        ChainBackwardWriter<> dest_writer(&dest);
+        if (field_projection_.includes_all()) {
+          dest_writer.SetWriteSizeHint(header.decoded_data_size());
+        }
+        decode_ok = transpose_decoder.Decode(
+            header.num_records(), header.decoded_data_size(), field_projection_,
+            src, dest_writer, limits_);
+        if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
+          return Fail(dest_writer.status());
+        }
+        if (flatten) dest.Flatten();
       }
       if (ABSL_PREDICT_FALSE(!decode_ok)) {
         return Fail(transpose_decoder.status());

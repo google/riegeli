@@ -39,6 +39,7 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:object",
         "//riegeli/base:types",
+        "//riegeli/bytes:array_backward_writer",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:reader",
@@ -47,6 +48,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )

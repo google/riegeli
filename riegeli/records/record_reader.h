@@ -456,6 +456,9 @@ class RecordReaderBase : public Object {
 
   bool last_record_is_valid_ = false;
 
+  // If `true`, prefer making records readily available as `absl::string_view`.
+  bool flatten_ = false;
+
   // Whether `Recover()` is applicable, and if so, how it should be performed:
   //
   //  * `Recoverable::kNo`                  - `Recover()` is not applicable
