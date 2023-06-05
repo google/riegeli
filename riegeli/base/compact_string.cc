@@ -99,20 +99,23 @@ void CompactString::ShrinkToFitSlow() {
   size_t size;
   if (tag == 2) {
     size = allocated_size<uint8_t>();
-    if (allocated_capacity<uint8_t>() + 2 <=
-        UnsignedMin(EstimatedAllocatedSize(size + 2), size_t{0xff + 2})) {
+    if (size > kInlineCapacity &&
+        allocated_capacity<uint8_t>() + 2 <=
+            UnsignedMin(EstimatedAllocatedSize(size + 2), size_t{0xff + 2})) {
       return;
     }
   } else if (tag == 4) {
     size = allocated_size<uint16_t>();
-    if (allocated_capacity<uint16_t>() + 4 <=
-        UnsignedMin(EstimatedAllocatedSize(size + 4), size_t{0xffff + 4})) {
+    if (size > 0xff &&
+        allocated_capacity<uint16_t>() + 4 <=
+            UnsignedMin(EstimatedAllocatedSize(size + 4), size_t{0xffff + 4})) {
       return;
     }
   } else if (tag == 0) {
     size = allocated_size<size_t>();
-    if (allocated_capacity<size_t>() + 2 * sizeof(size_t) <=
-        EstimatedAllocatedSize(size + 2 * sizeof(size_t))) {
+    if (size > 0xffff &&
+        allocated_capacity<size_t>() + 2 * sizeof(size_t) <=
+            EstimatedAllocatedSize(size + 2 * sizeof(size_t))) {
       return;
     }
   } else {
