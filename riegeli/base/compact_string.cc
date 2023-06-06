@@ -78,12 +78,11 @@ char* CompactString::ResizeSlow(size_t new_size, size_t min_capacity,
       << "Failed precondition of CompactString::ResizeSlow(): "
          "used size exceeds new size";
   const size_t old_capacity = capacity();
-  const uintptr_t new_repr = MakeRepr(
-      new_size, UnsignedMax(min_capacity, old_capacity + old_capacity / 2));
-  const uintptr_t tag = new_repr & 7;
-  RIEGELI_ASSERT_NE(tag, 1u)
+  RIEGELI_ASSERT_GT(min_capacity, kInlineCapacity)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
+  const uintptr_t new_repr = MakeReprSlow(
+      new_size, UnsignedMax(min_capacity, old_capacity + old_capacity / 2));
   char* ptr = allocated_data(new_repr);
   std::memcpy(ptr, data(), used_size);
   ptr += used_size;
@@ -142,12 +141,11 @@ void CompactString::AppendSlow(absl::string_view src) {
   RIEGELI_CHECK_LE(src.size(), max_size() - old_size)
       << "CompactString size overflow";
   const size_t new_size = old_size + src.size();
-  const uintptr_t new_repr = MakeRepr(
-      new_size, UnsignedMax(new_size, old_capacity + old_capacity / 2));
-  const uintptr_t tag = new_repr & 7;
-  RIEGELI_ASSERT_NE(tag, 1u)
+  RIEGELI_ASSERT_GT(new_size, kInlineCapacity)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
+  const uintptr_t new_repr = MakeReprSlow(
+      new_size, UnsignedMax(new_size, old_capacity + old_capacity / 2));
   char* ptr = allocated_data(new_repr);
   std::memcpy(ptr, data(), old_size);
   ptr += old_size;
