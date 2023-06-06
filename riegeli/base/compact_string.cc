@@ -155,4 +155,15 @@ void CompactString::AppendSlow(absl::string_view src) {
   DeleteRepr(std::exchange(repr_, new_repr));
 }
 
+void CompactString::ReserveOneMoreByteSlow() {
+  const size_t used_size = size();
+  RIEGELI_ASSERT_GT(used_size + 1, kInlineCapacity)
+      << "Inline representation has a fixed capacity, so reallocation is never "
+         "needed when the new capacity can use inline representation";
+  const uintptr_t new_repr = MakeReprSlow(used_size, used_size + 1);
+  char* const ptr = allocated_data(new_repr);
+  std::memcpy(ptr, data(), used_size);
+  DeleteRepr(std::exchange(repr_, new_repr));
+}
+
 }  // namespace riegeli

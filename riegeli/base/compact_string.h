@@ -442,6 +442,7 @@ class
   void ShrinkToFitSlow();
   char* AppendSlow(size_t length);
   void AppendSlow(absl::string_view src);
+  void ReserveOneMoreByteSlow();
 
   template <typename MemoryEstimator>
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
@@ -705,7 +706,10 @@ inline void CompactString::append(absl::string_view src) {
 
 inline const char* CompactString::c_str() {
   const size_t used_size = size();
-  reserve(used_size + 1);
+  // Allocate just enough for NUL, do not call `reserve(used_size + 1)` here
+  // because that could overallocate by 50%. In `c_str()` it is likely that the
+  // string already has its final value.
+  if (ABSL_PREDICT_FALSE(used_size == capacity())) ReserveOneMoreByteSlow();
   char* const ptr = data();
   ptr[used_size] = '\0';
   return ptr;
