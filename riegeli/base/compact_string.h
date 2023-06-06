@@ -21,7 +21,6 @@
 #include <cstring>
 #include <iosfwd>
 #include <limits>
-#include <string>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -113,7 +112,6 @@ class
   size_t capacity() const;
 
   operator absl::string_view() const;
-  explicit operator std::string() const;
 
   char& operator[](size_t index);
   const char& operator[](size_t index) const;
@@ -590,10 +588,6 @@ inline CompactString::operator absl::string_view() const {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return absl::string_view(inline_data(), inline_size());
   return absl::string_view(allocated_data(), allocated_size_for_tag(tag));
-}
-
-inline CompactString::operator std::string() const {
-  return std::string(absl::string_view(*this));
 }
 
 inline char& CompactString::operator[](size_t index) {
