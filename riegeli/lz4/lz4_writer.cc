@@ -197,6 +197,9 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
       stable_src_ = true;
     }
   }
+  RIEGELI_ASSERT(compressor_ != nullptr)
+      << "compressor_ == nullptr when the pledged size was already written, "
+         "which was checked above";
   size_t block_size;
   switch (preferences_.frameInfo.blockSizeID) {
     case LZ4F_max64KB:
@@ -256,6 +259,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
 
 bool Lz4WriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!BufferedWriter::FlushImpl(flush_type))) return false;
+  if (compressor_ == nullptr) return true;
   Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!dest.Push(LZ4F_compressBound(0, &preferences_)))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
