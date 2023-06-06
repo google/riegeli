@@ -610,15 +610,20 @@ inline const char& CompactString::operator[](size_t index) const {
 inline void CompactString::set_size(size_t new_size) {
   RIEGELI_ASSERT_LE(new_size, capacity())
       << "Failed precondition of CompactString::SetSize(): size out of range";
-  // The `#ifdef` helps the compiler to realize that computing the arguments is
-  // unnecessary if `MarkPoisoned()` does nothing.
-#ifdef MEMORY_SANITIZER
-  if (new_size < size()) MarkPoisoned(data() + new_size, size() - new_size);
-#endif
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) {
     set_inline_size(new_size);
-  } else if (tag == 2) {
+    return;
+  }
+  // The `#ifdef` helps the compiler to realize that computing the arguments is
+  // unnecessary if `MarkPoisoned()` does nothing.
+#ifdef MEMORY_SANITIZER
+  if (new_size < allocated_size_for_tag(tag)) {
+    MarkPoisoned(allocated_data() + new_size,
+                 allocated_size_for_tag(tag) - new_size);
+  }
+#endif
+  if (tag == 2) {
     set_allocated_size<uint8_t>(new_size);
   } else if (tag == 4) {
     set_allocated_size<uint16_t>(new_size);
@@ -648,7 +653,12 @@ inline char* CompactString::resize(size_t new_size, size_t used_size) {
     // The `#ifdef` helps the compiler to realize that computing the arguments
     // is unnecessary if `MarkPoisoned()` does nothing.
 #ifdef MEMORY_SANITIZER
-    MarkPoisoned(data() + used_size, UnsignedMin(size(), new_size) - used_size);
+    const uintptr_t tag = repr_ & 7;
+    if (tag != 1) {
+      MarkPoisoned(
+          allocated_data() + used_size,
+          UnsignedMin(allocated_size_for_tag(tag), new_size) - used_size);
+    }
 #endif
     set_size(new_size);
     return data() + used_size;
