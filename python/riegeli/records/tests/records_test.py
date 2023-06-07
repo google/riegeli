@@ -23,9 +23,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import message
 import riegeli
-import tensorflow as tf
-
 from riegeli.records.tests import records_test_pb2
+import tensorflow as tf
 
 
 def combine_named_parameters(*testcase_sets):

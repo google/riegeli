@@ -18,7 +18,6 @@ import os
 import riegeli
 from riegeli.tensorflow.ops import riegeli_dataset_ops
 import tensorflow as tf
-
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.data.util import nest
 from tensorflow.python.eager import context

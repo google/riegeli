@@ -16,7 +16,6 @@
 import io
 
 import riegeli
-
 from riegeli.records.tests import records_test_pb2
 
 

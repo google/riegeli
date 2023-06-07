@@ -14,7 +14,6 @@
 """TensorFlow dataset for Riegeli/records files."""
 
 import tensorflow as tf
-
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.data.util import convert
 from tensorflow.python.framework import load_library

@@ -24,9 +24,12 @@ namespace riegeli {
 
 void ResizeStringAmortized(std::string& dest, size_t new_size) {
   if (new_size > dest.capacity()) {
-    dest.reserve(UnsignedMax(
-        new_size,
-        UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
+    dest.reserve(
+        dest.capacity() == std::string().capacity()
+            ? new_size
+            : UnsignedMax(new_size,
+                          UnsignedMin(dest.capacity() + dest.capacity() / 2,
+                                      dest.max_size())));
   }
   dest.resize(new_size);
 }

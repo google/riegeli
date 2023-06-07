@@ -17,9 +17,8 @@ from riegeli.base import riegeli_error
 from riegeli.records import record_position
 from riegeli.records import record_reader
 from riegeli.records import record_writer
-from riegeli.records import skipped_region
-
 from riegeli.records import records_metadata_pb2
+from riegeli.records import skipped_region
 
 __all__ = (
     'RiegeliError',
