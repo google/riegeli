@@ -175,7 +175,8 @@ size_t LinearSortedStringSet::Iterator::Next() {
          "iterator is end()";
   if (cursor_ == limit_) {
     // `end()` was reached.
-    cursor_ = nullptr;           // Mark `end()`.
+    cursor_ = nullptr;  // Mark `end()`.
+    length_if_unshared_ = 0;
     current_ = CompactString();  // Free memory.
     return 0;
   }
@@ -192,31 +193,48 @@ size_t LinearSortedStringSet::Iterator::Next() {
     }
   }
   const uint64_t unshared_length = tagged_length >> 1;
-  uint64_t shared_length = 0;
   if ((tagged_length & 1) == 0) {
     // `shared_length == 0` and is not stored.
-  } else {
-    // `shared_length` is stored.
-    {
-      const absl::optional<const char*> next =
-          ReadVarint64(ptr, limit_, shared_length);
-      if (next == absl::nullopt) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Malformed LinearSortedStringSet encoding (shared_length)";
-      } else {
-        ptr = *next;
-      }
-    }
-    RIEGELI_ASSERT_LE(shared_length, current_.size())
-        << "Malformed LinearSortedStringSet encoding "
-           "(shared_length larger than previous element)";
+    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+        << "Malformed LinearSortedStringSet encoding (unshared)";
+    current_.clear();
+    length_if_unshared_ = IntCast<size_t>(unshared_length);
+    ptr += IntCast<size_t>(unshared_length);
+    cursor_ = ptr;
+    return 0;
   }
+  // `shared_length` is stored.
+  uint64_t shared_length;
+  {
+    const absl::optional<const char*> next =
+        ReadVarint64(ptr, limit_, shared_length);
+    if (next == absl::nullopt) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Malformed LinearSortedStringSet encoding (shared_length)";
+    } else {
+      ptr = *next;
+    }
+  }
+  RIEGELI_ASSERT_LE(shared_length, length_if_unshared_ > 0 ? length_if_unshared_
+                                                           : current_.size())
+      << "Malformed LinearSortedStringSet encoding "
+         "(shared_length larger than previous element)";
   RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
       << "Malformed LinearSortedStringSet encoding (unshared)";
   const size_t new_size = IntCast<size_t>(shared_length + unshared_length);
-  char* const current_unshared =
-      current_.resize(new_size, IntCast<size_t>(shared_length));
+  // The unshared part of the next element will be written here.
+  char* current_unshared;
+  if (length_if_unshared_ > 0) {
+    char* const current_data = current_.resize(new_size, 0);
+    std::memcpy(current_data, cursor_ - length_if_unshared_,
+                IntCast<size_t>(shared_length));
+    current_unshared = current_data + IntCast<size_t>(shared_length);
+  } else {
+    current_unshared =
+        current_.resize(new_size, IntCast<size_t>(shared_length));
+  }
   std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
+  length_if_unshared_ = 0;
   ptr += IntCast<size_t>(unshared_length);
   cursor_ = ptr;
   return IntCast<size_t>(shared_length);
@@ -297,7 +315,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
       << "Failed precondition of "
          "LinearSortedStringSet::Builder::TryInsertNext(): "
          "set already built or moved from";
-  const size_t shared_length = SharedLength(last_, element);
+  size_t shared_length = SharedLength(last_, element);
   const absl::string_view unshared_element(element.data() + shared_length,
                                            element.size() - shared_length);
   const absl::string_view unshared_last(last_.data() + shared_length,
@@ -307,6 +325,12 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
     return absl::FailedPreconditionError(absl::StrCat(
         "Elements are not sorted: new \"", absl::CHexEscape(element),
         "\" < last \"", absl::CHexEscape(last()), "\""));
+  }
+  if (shared_length == 1) {
+    // If only the first byte is shared, write the element fully unshared.
+    // The encoded length is the same, and this allows `Iterator` to avoid
+    // allocating the string.
+    shared_length = 0;
   }
   const absl::string_view unshared =
       update_last(std::forward<Element>(element), shared_length);

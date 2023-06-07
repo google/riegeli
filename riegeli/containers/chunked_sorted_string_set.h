@@ -290,7 +290,7 @@ class ChunkedSortedStringSet::Iterator {
   // Returns the current element.
   //
   // The `absl::string_view` is valid until the next non-const operation on this
-  // `Iterator` (the string it points to is owned by `Iterator`).
+  // `Iterator` (the string it points to is conditionally owned by `Iterator`).
   reference operator*() const {
     RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
         << "Failed precondition of "

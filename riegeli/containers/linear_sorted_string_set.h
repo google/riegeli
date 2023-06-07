@@ -211,13 +211,18 @@ class LinearSortedStringSet::Iterator {
   // Returns the current element.
   //
   // The `absl::string_view` is valid until the next non-const operation on this
-  // `Iterator` (the string it points to is owned by `Iterator`).
+  // `Iterator` (the string it points to is conditionally owned by `Iterator`).
   reference operator*() const {
     RIEGELI_ASSERT(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::operator*: "
            "iterator is end()";
-    return current_;
+    if (length_if_unshared_ > 0) {
+      return absl::string_view(cursor_ - length_if_unshared_,
+                               length_if_unshared_);
+    } else {
+      return current_;
+    }
   }
 
   pointer operator->() const {
@@ -272,7 +277,14 @@ class LinearSortedStringSet::Iterator {
   // unambiguous because `CompactString::data()` is never `nullptr`).
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
-  // Decoded current element, or empty for `end()`.
+  // If `length_if_unshared_ > 0`, the current element is
+  // `absl::string_view(cursor_ - length_if_unshared_, length_if_unshared_)`,
+  // and `current_` is unused and empty.
+  //
+  // If `length_if_unshared_ == 0`, the decoded current element is `current_`.
+  size_t length_if_unshared_ = 0;
+  // If `*this` is `end()`, or if `length_if_unshared_ > 0`, unused and empty.
+  // Otherwise stores the decoded current element.
   CompactString current_;
 };
 
