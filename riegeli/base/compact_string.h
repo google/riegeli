@@ -374,6 +374,8 @@ class
     set_allocated_size<T>(size, repr_);
   }
 
+  void set_allocated_size_for_tag(uintptr_t tag, size_t new_size);
+
   template <typename T>
   static size_t allocated_capacity(uint64_t repr) {
     const uintptr_t tag = repr & 7;
@@ -436,6 +438,7 @@ class
   static void DeleteRepr(uintptr_t repr);
 
   void AssignSlow(absl::string_view src);
+  void AssignSlow(const CompactString& that);
   char* ResizeSlow(size_t new_size, size_t min_capacity, size_t used_size);
   void ShrinkToFitSlow();
   char* AppendSlow(size_t length);
@@ -526,21 +529,26 @@ inline CompactString::CompactString(const CompactString& that) {
 inline CompactString& CompactString::operator=(const CompactString& that) {
   const uintptr_t that_tag = that.repr_ & 7;
   if (that_tag == 1) {
-    const size_t that_size = that.inline_size();
-    RIEGELI_ASSERT_LE(that_size, capacity())
-        << "Inline size always fits in a capacity";
-    set_size(that_size);
-    // Use `std::memmove()` to support assigning from `*this`.
-    std::memmove(data(), that.inline_data(), that.inline_size());
-  } else {
-    const size_t that_size = that.allocated_size_for_tag(that_tag);
-    if (ABSL_PREDICT_TRUE(that_size <= capacity())) {
-      set_size(that_size);
-      // Use `std::memmove()` to support assigning from `*this`.
-      std::memmove(data(), that.allocated_data(), that_size);
+    const uintptr_t tag = repr_ & 7;
+    if (tag == 1) {
+      repr_ = that.repr_;
     } else {
-      AssignSlow(absl::string_view(that.allocated_data(), that_size));
+      set_allocated_size_for_tag(tag, that.inline_size());
+      RIEGELI_ASSERT_LE(kInlineCapacity, capacity())
+          << "Inline capacity always fits in a capacity";
+      // Copy fixed `kInlineCapacity` instead of variable `that.inline_size()`.
+      std::memcpy(allocated_data(), that.inline_data(), kInlineCapacity);
+      // The `#ifdef` helps the compiler to realize that computing the arguments
+      // is unnecessary if `MarkPoisoned()` does nothing.
+#ifdef MEMORY_SANITIZER
+      // This part got unpoisoned by copying `kInlineCapacity` instead of
+      // `that.inline_size()`. Poison it again.
+      MarkPoisoned(allocated_data() + that.inline_size(),
+                   kInlineCapacity - that.inline_size());
+#endif
     }
+  } else {
+    AssignSlow(that);
   }
   return *this;
 }
@@ -610,6 +618,11 @@ inline void CompactString::set_size(size_t new_size) {
     set_inline_size(new_size);
     return;
   }
+  set_allocated_size_for_tag(tag, new_size);
+}
+
+inline void CompactString::set_allocated_size_for_tag(uintptr_t tag,
+                                                      size_t new_size) {
   // The `#ifdef` helps the compiler to realize that computing the arguments is
   // unnecessary if `MarkPoisoned()` does nothing.
 #ifdef MEMORY_SANITIZER

@@ -33,6 +33,18 @@ void CompactString::AssignSlow(absl::string_view src) {
       MakeRepr(src, UnsignedMax(src.size(), old_capacity + old_capacity / 2))));
 }
 
+void CompactString::AssignSlow(const CompactString& that) {
+  const uintptr_t that_tag = that.repr_ & 7;
+  const size_t that_size = that.allocated_size_for_tag(that_tag);
+  if (ABSL_PREDICT_TRUE(that_size <= capacity())) {
+    set_size(that_size);
+    // Use `std::memmove()` to support assigning from `*this`.
+    std::memmove(data(), that.allocated_data(), that_size);
+  } else {
+    AssignSlow(absl::string_view(that.allocated_data(), that_size));
+  }
+}
+
 uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
   RIEGELI_ASSERT_LE(size, capacity)
       << "Failed precondition of CompactString::MakeReprSlow(): "
