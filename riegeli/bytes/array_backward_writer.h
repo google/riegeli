@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -58,6 +59,8 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   void set_written(absl::Span<char> written) { written_ = written; }
 
   bool PushBehindScratch(size_t recommended_length) override;
+  using PushableBackwardWriter::WriteBehindScratch;
+  bool WriteBehindScratch(absl::string_view src);
   bool FlushBehindScratch(FlushType flush_type) override;
   bool TruncateBehindScratch(Position new_size) override;
 

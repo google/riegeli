@@ -42,6 +42,18 @@ bool ArrayWriterBase::PushBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
+  return ForcePushUsingScratch();
+}
+
+bool ArrayWriterBase::WriteBehindScratch(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(string_view): "
+         "enough space available, use Write(string_view) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(string_view): "
+         "scratch used";
   return FailOverflow();
 }
 

@@ -96,6 +96,14 @@ class PushableBackwardWriter : public BackwardWriter {
   // These circumstances should be rare, otherwise performance would be poor
   // because `Push()` would call `PushSlow()` too often.
   //
+  // Warning: `WriteSlow(absl::string_view)` or `WriteSlow(Chain)` is
+  // called to stop using scratch by writing scratch contents, and the
+  // default implementation of `WriteSlow(absl::string_view)` calls
+  // `PushBehindScratch()`. This means that if `PushBehindScratch()` calls
+  // `ForcePushUsingScratch()`, then `WriteSlow(absl::string_view)` must be
+  // overridden to avoid indirectly calling `ForcePushUsingScratch()` or
+  // `PushSlow(min_length > 1)`.
+  //
   // Preconditions:
   //   `available() == 0`
   //   `!scratch_used()`

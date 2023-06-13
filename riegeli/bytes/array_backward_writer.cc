@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -30,6 +31,18 @@ bool ArrayBackwardWriterBase::PushBehindScratch(size_t recommended_length) {
          "some space available, use Push() instead";
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableBackwardWriter::PushBehindScratch(): "
+         "scratch used";
+  return ForcePushUsingScratch();
+}
+
+bool ArrayBackwardWriterBase::WriteBehindScratch(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(string_view): "
+         "enough space available, use Write(string_view) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(string_view): "
          "scratch used";
   return FailOverflow();
 }

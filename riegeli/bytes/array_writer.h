@@ -67,6 +67,8 @@ class ArrayWriterBase : public PushableWriter {
 
   void Done() override;
   bool PushBehindScratch(size_t recommended_length) override;
+  using PushableWriter::WriteBehindScratch;
+  bool WriteBehindScratch(absl::string_view src);
   bool FlushBehindScratch(FlushType flush_type) override;
   bool SeekBehindScratch(Position new_pos) override;
   absl::optional<Position> SizeBehindScratch() override;

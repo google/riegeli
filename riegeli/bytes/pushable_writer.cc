@@ -86,6 +86,11 @@ inline bool PushableWriter::SyncScratch() {
       return false;
     }
   }
+  RIEGELI_ASSERT(!scratch_used())
+      << "WriteSlow(absl::string_view) must not start using scratch, "
+         "in particular if PushBehindScratch() calls ForcePushUsingScratch() "
+         "then WriteSlow(absl::string_view) must be overridden to avoid "
+         "indirectly calling ForcePushUsingScratch()";
   // Restore buffer allocation.
   buffer.ClearAndShrink();
   scratch_->buffer = std::move(buffer);
