@@ -57,8 +57,9 @@ class PushableWriter : public Writer {
   void Done() override;
   void OnFail() override;
 
-  // Returns `true` if scratch is used, which means that buffer pointers are
-  // temporarily unrelated to the destination. This is exposed for assertions.
+  // Returns `true` if scratch is currently in use, which means that buffer
+  // pointers are temporarily unrelated to the destination. This is exposed for
+  // assertions.
   bool scratch_used() const;
 
   // `PushableWriter::{Done,FlushImpl}()` write the scratch if needed, and call
