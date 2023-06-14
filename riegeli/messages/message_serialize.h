@@ -33,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/writer.h"
 
@@ -151,6 +152,16 @@ absl::Status SerializeLengthPrefixedToWriter(
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest,
                                SerializeOptions options = SerializeOptions());
+
+// Writes the message in binary format to the given `CompactString`, clearing it
+// first.
+//
+// Returns status:
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
+absl::Status SerializeToCompactString(
+    const google::protobuf::MessageLite& src, CompactString& dest,
+    SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `Chain`, clearing it first.
 //

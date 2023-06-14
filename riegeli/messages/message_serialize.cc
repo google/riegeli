@@ -35,10 +35,12 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compact_string.h"
+#include "riegeli/base/string_utils.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/array_writer.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"
-#include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -65,14 +67,14 @@ inline absl::Status SerializeToWriterUsingStream(
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
   coded_stream.SetSerializationDeterministic(deterministic);
   src.SerializeWithCachedSizes(&coded_stream);
+  RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+      << src.GetTypeName() << " was modified concurrently during serialization";
   // Flush `coded_stream` before checking `dest.ok()`.
   coded_stream.Trim();
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
   RIEGELI_ASSERT(!coded_stream.HadError())
       << "Failed to serialize message of type " << src.GetTypeName()
       << ": SerializeWithCachedSizes() failed for an unknown reason";
-  RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
-      << src.GetTypeName() << " was modified concurrently during serialization";
   RIEGELI_ASSERT_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
       << "Byte size calculation and serialization were inconsistent. This "
          "may indicate a bug in protocol buffers or it may be caused by "
@@ -159,13 +161,13 @@ absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
     return FailSizeOverflow(src, size);
   }
+  dest.clear();
+  ResizeStringAmortized(dest, size);
   if (options.deterministic() == google::protobuf::io::CodedOutputStream::
                                      IsDefaultSerializationDeterministic()) {
     // Creating a string, which is necessarily flat.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
-    dest.clear();
-    dest.resize(size);
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(&dest[0])));
@@ -179,13 +181,54 @@ absl::Status SerializeToString(const google::protobuf::MessageLite& src,
         << src.GetTypeName();
     return absl::OkStatus();
   }
-  riegeli::StringWriter<> writer(&dest);
-  writer.SetWriteSizeHint(size);
+  riegeli::ArrayWriter<> writer(&dest[0], size);
   const absl::Status status =
       SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
   if (!writer.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "A StringWriter has no reason to fail: " << writer.status();
+    RIEGELI_ASSERT_UNREACHABLE() << "An ArrayWriter has no reason to fail "
+                                    "if the size does not overflow: "
+                                 << writer.status();
+  }
+  return status;
+}
+
+absl::Status SerializeToCompactString(const google::protobuf::MessageLite& src,
+                                      CompactString& dest,
+                                      SerializeOptions options) {
+  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << " because it is missing required fields: "
+      << src.InitializationErrorString();
+  const size_t size = options.GetByteSize(src);
+  if (ABSL_PREDICT_FALSE(size >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return FailSizeOverflow(src, size);
+  }
+  char* const data = dest.resize(size, 0);
+  if (options.deterministic() == google::protobuf::io::CodedOutputStream::
+                                     IsDefaultSerializationDeterministic()) {
+    // Creating a string, which is necessarily flat.
+    // `SerializeWithCachedSizesToArray()` is faster than
+    // `SerializeWithCachedSizes()`.
+    char* const cursor = reinterpret_cast<char*>(
+        src.SerializeWithCachedSizesToArray(reinterpret_cast<uint8_t*>(data)));
+    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+        << src.GetTypeName()
+        << " was modified concurrently during serialization";
+    RIEGELI_ASSERT_EQ(PtrDistance(data, cursor), size)
+        << "Byte size calculation and serialization were inconsistent. This "
+           "may indicate a bug in protocol buffers or it may be caused by "
+           "concurrent modification of "
+        << src.GetTypeName();
+    return absl::OkStatus();
+  }
+  riegeli::ArrayWriter<> writer(data, size);
+  const absl::Status status =
+      SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
+  if (!writer.Close()) {
+    RIEGELI_ASSERT_UNREACHABLE() << "An ArrayWriter has no reason to fail "
+                                    "if the size does not overflow: "
+                                 << writer.status();
   }
   return status;
 }
