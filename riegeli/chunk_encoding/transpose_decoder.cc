@@ -1490,8 +1490,8 @@ struct TransposeDecoder::DecodingState {
   // Stack of all open sub-messages.
   SubmessageStack submessage_stack;
   // Number of following iteration that go directly to `node->next_node`
-  // without reading transition byte.
-  int num_iters;
+  // without reading transition byte. Maximum value is 4.
+  int8_t num_iters;
 };
 
 inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
