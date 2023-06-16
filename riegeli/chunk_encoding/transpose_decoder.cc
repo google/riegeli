@@ -1427,10 +1427,9 @@ struct TransposeDecoder::DecodingState {
         return false;
       }
       node += (transition_byte >> 2);
-      num_iters = transition_byte & 3;
-      if (node->is_implicit) ++num_iters;
+      num_iters = (transition_byte & 3) + (node->is_implicit ? 1 : 0);
     } else {
-      if (!node->is_implicit) --num_iters;
+      num_iters -= node->is_implicit ? 0 : 1;
     }
     return true;
   }
