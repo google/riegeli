@@ -28,6 +28,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -66,6 +67,8 @@ size_t StringLikeSize(long src) = delete;
 size_t StringLikeSize(unsigned long src) = delete;
 size_t StringLikeSize(long long src) = delete;
 size_t StringLikeSize(unsigned long long src) = delete;
+size_t StringLikeSize(absl::int128 src) = delete;
+size_t StringLikeSize(absl::uint128 src) = delete;
 size_t StringLikeSize(float) = delete;
 size_t StringLikeSize(double) = delete;
 size_t StringLikeSize(long double) = delete;
@@ -214,6 +217,8 @@ class BackwardWriter : public Object {
   bool Write(unsigned long src) = delete;
   bool Write(long long src) = delete;
   bool Write(unsigned long long src) = delete;
+  bool Write(absl::int128 src) = delete;
+  bool Write(absl::uint128 src) = delete;
   bool Write(float src) = delete;
   bool Write(double src) = delete;
   bool Write(long double src) = delete;

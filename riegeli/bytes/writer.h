@@ -28,6 +28,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -111,6 +112,8 @@ void StringifiedSize(long src);
 void StringifiedSize(unsigned long src);
 void StringifiedSize(long long src);
 void StringifiedSize(unsigned long long src);
+void StringifiedSize(absl::int128 src);
+void StringifiedSize(absl::uint128 src);
 void StringifiedSize(float);
 void StringifiedSize(double);
 void StringifiedSize(long double);
@@ -275,6 +278,8 @@ class Writer : public Object {
   bool Write(unsigned long src);
   bool Write(long long src);
   bool Write(unsigned long long src);
+  bool Write(absl::int128 src);
+  bool Write(absl::uint128 src);
   bool Write(float src);
   bool Write(double src);
   bool Write(long double src);
