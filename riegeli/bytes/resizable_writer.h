@@ -393,9 +393,12 @@ struct StringResizableTraits {
   static void Reserve(Resizable& dest, size_t new_size, size_t used_size) {
     if (new_size > dest.capacity()) {
       dest.erase(used_size);
-      dest.reserve(UnsignedMax(
-          new_size,
-          UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
+      dest.reserve(
+          dest.capacity() == Resizable().capacity()
+              ? new_size
+              : UnsignedMax(new_size,
+                            UnsignedMin(dest.capacity() + dest.capacity() / 2,
+                                        dest.max_size())));
     }
   }
 };
