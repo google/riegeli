@@ -94,7 +94,47 @@ inline LinearSortedStringSet::LinearSortedStringSet(CompactString&& encoded)
 
 size_t LinearSortedStringSet::size() const {
   size_t size = 0;
-  for (Iterator iter = cbegin(); iter != cend(); ++iter) {
+  size_t current_length = 0;
+  const absl::string_view encoded_view = encoded_;
+  const char* ptr = encoded_view.data();
+  const char* const limit = ptr + encoded_view.size();
+  while (ptr != limit) {
+    uint64_t tagged_length;
+    {
+      const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit, tagged_length);
+      if (next == absl::nullopt) {
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Malformed LinearSortedStringSet encoding (tagged_length)";
+      } else {
+        ptr = *next;
+      }
+    }
+    const uint64_t unshared_length = tagged_length >> 1;
+    uint64_t shared_length;
+    if ((tagged_length & 1) == 0) {
+      // `shared_length == 0` and is not stored.
+      shared_length = 0;
+    } else {
+      // `shared_length` is stored.
+      {
+        const absl::optional<const char*> next =
+            ReadVarint64(ptr, limit, shared_length);
+        if (next == absl::nullopt) {
+          RIEGELI_ASSERT_UNREACHABLE()
+              << "Malformed LinearSortedStringSet encoding (shared_length)";
+        } else {
+          ptr = *next;
+        }
+      }
+      RIEGELI_ASSERT_LE(shared_length, current_length)
+          << "Malformed LinearSortedStringSet encoding "
+             "(shared_length larger than previous element)";
+    }
+    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit))
+        << "Malformed LinearSortedStringSet encoding (unshared)";
+    current_length = IntCast<size_t>(shared_length + unshared_length);
+    ptr += IntCast<size_t>(unshared_length);
     ++size;
   }
   return size;
