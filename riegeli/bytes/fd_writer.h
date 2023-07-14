@@ -426,6 +426,7 @@ class FdWriterBase : public BufferedWriter {
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
+  bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
@@ -449,6 +450,7 @@ class FdWriterBase : public BufferedWriter {
 
   bool WriteMode();
   bool SeekInternal(int dest, Position new_pos);
+  bool TruncateInternal(int dest, Position new_size);
 
   std::string filename_;
   bool has_independent_pos_ = false;

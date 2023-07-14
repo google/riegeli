@@ -590,6 +590,41 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
+bool FdWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "enough space available, use WriteZeros() instead";
+  if (!FdWriterBase::SupportsRandomAccess()) {
+    return BufferedWriter::WriteZerosSlow(length);
+  }
+  const absl::optional<Position> size = SizeImpl();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "BufferedWriter::SizeImpl() flushes the buffer";
+  if (ABSL_PREDICT_FALSE(
+          length > Position{std::numeric_limits<fd_internal::Offset>::max()} -
+                       start_pos())) {
+    return FailOverflow();
+  }
+  const Position new_pos = start_pos() + length;
+  if (new_pos < *size) {
+    // Existing data after zeros must be preserved. Optimization below is not
+    // feasible.
+    return BufferedWriter::WriteZerosSlow(length);
+  }
+
+  // Optimize extending with zeros by calling `ftruncate()` (`_chsize_s()` on
+  // Windows).
+  const int dest = DestFd();
+  if (start_pos() < *size) {
+    // Remove the part to be overwritten with zeros.
+    if (ABSL_PREDICT_FALSE(!TruncateInternal(dest, start_pos()))) return false;
+  }
+  // Extend with zeros.
+  if (ABSL_PREDICT_FALSE(!TruncateInternal(dest, new_pos))) return false;
+  return SeekInternal(dest, new_pos);
+}
+
 bool FdWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!BufferedWriter::FlushImpl(flush_type))) return false;
   switch (flush_type) {
@@ -687,6 +722,29 @@ absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
   return IntCast<Position>(stat_info.st_size);
 }
 
+inline bool FdWriterBase::TruncateInternal(int dest, Position new_size) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of FdWriterBase::TruncateInternal(): "
+         "buffer not empty";
+  RIEGELI_ASSERT(ok())
+      << "Failed precondition of FdWriterBase::TruncateInternal(): "
+      << status();
+#ifndef _WIN32
+again:
+  if (ABSL_PREDICT_FALSE(
+          ftruncate(dest, IntCast<fd_internal::Offset>(new_size)) < 0)) {
+    if (errno == EINTR) goto again;
+    return FailOperation("ftruncate()");
+  }
+#else
+  if (ABSL_PREDICT_FALSE(
+          _chsize_s(dest, IntCast<fd_internal::Offset>(new_size)) != 0)) {
+    return FailOperation("_chsize_s()");
+  }
+#endif
+  return true;
+}
+
 bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
@@ -706,19 +764,7 @@ bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
       return false;
     }
   }
-#ifndef _WIN32
-again:
-  if (ABSL_PREDICT_FALSE(
-          ftruncate(dest, IntCast<fd_internal::Offset>(new_size)) < 0)) {
-    if (errno == EINTR) goto again;
-    return FailOperation("ftruncate()");
-  }
-#else
-  if (ABSL_PREDICT_FALSE(
-          _chsize_s(dest, IntCast<fd_internal::Offset>(new_size)) != 0)) {
-    return FailOperation("_chsize_s()");
-  }
-#endif
+  if (ABSL_PREDICT_FALSE(!TruncateInternal(dest, new_size))) return false;
   return SeekInternal(dest, new_size);
 }
 
