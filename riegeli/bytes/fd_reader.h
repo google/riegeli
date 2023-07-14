@@ -622,6 +622,7 @@ template <typename DependentSrc,
           std::enable_if_t<std::is_same<DependentSrc, OwnedFd>::value, int>>
 inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
+  src_.Reset();
   Initialize(filename, std::move(options));
 }
 

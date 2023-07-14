@@ -203,7 +203,7 @@ void CFileWriterBase::InitializePos(FILE* dest, absl::string_view mode,
   } else {
     if (file_internal::GetAppend(mode)) {
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
-        // Random access is not supported. Assume the current position as 0.
+        // Random access is not supported. Assume 0 as the initial position.
         supports_random_access_ = LazyBoolState::kFalse;
         supports_read_mode_ = LazyBoolState::kFalse;
         random_access_status_ =
@@ -215,7 +215,7 @@ void CFileWriterBase::InitializePos(FILE* dest, absl::string_view mode,
     }
     const cfile_internal::Offset file_pos = cfile_internal::FTell(dest);
     if (file_pos < 0) {
-      // Random access is not supported. Assume the current position as 0.
+      // Random access is not supported. Assume 0 as the initial position.
       supports_random_access_ = LazyBoolState::kFalse;
       supports_read_mode_ = LazyBoolState::kFalse;
       random_access_status_ =

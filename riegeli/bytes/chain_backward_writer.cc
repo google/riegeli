@@ -67,11 +67,11 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<size_t>::max() - dest.size())) {
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   MakeBuffer(dest, min_length, recommended_length);
   return true;
 }
@@ -84,11 +84,11 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   move_start_pos(src.size());
   dest.Prepend(src, options_);
   MakeBuffer(dest);
@@ -103,11 +103,11 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   move_start_pos(src.size());
   dest.Prepend(std::move(src), options_);
   MakeBuffer(dest);
@@ -122,11 +122,11 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   move_start_pos(src.size());
   dest.Prepend(src, options_);
   MakeBuffer(dest);
@@ -141,11 +141,11 @@ bool ChainBackwardWriterBase::WriteZerosSlow(Position length) {
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
-                                      IntCast<size_t>(pos()))) {
+                                      IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   move_start_pos(length);
   dest.Prepend(ChainOfZeros(IntCast<size_t>(length)), options_);
   MakeBuffer(dest);
@@ -160,11 +160,11 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   move_start_pos(src.size());
   dest.Prepend(std::move(src), options_);
   MakeBuffer(dest);

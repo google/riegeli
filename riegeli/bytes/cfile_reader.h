@@ -530,6 +530,7 @@ template <typename DependentSrc,
 inline void CFileReader<Src>::Reset(absl::string_view filename,
                                     Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
+  src_.Reset();
   Initialize(filename, std::move(options));
 }
 

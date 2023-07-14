@@ -494,9 +494,8 @@ inline uintptr_t CompactString::MakeRepr(size_t size) {
 inline uintptr_t CompactString::MakeRepr(absl::string_view src,
                                          size_t capacity) {
   uintptr_t repr = MakeRepr(src.size(), capacity);
-  if (ABSL_PREDICT_TRUE(
-          // `std::memcpy(_, nullptr, 0)` is undefined.
-          !src.empty())) {
+  // `std::memcpy(_, nullptr, 0)` is undefined.
+  if (ABSL_PREDICT_TRUE(!src.empty())) {
     std::memcpy(
         capacity <= kInlineCapacity ? inline_data(repr) : allocated_data(repr),
         src.data(), src.size());
@@ -556,9 +555,8 @@ inline CompactString& CompactString::operator=(const CompactString& that) {
 inline CompactString& CompactString::operator=(absl::string_view src) {
   if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
     set_size(src.size());
-    if (ABSL_PREDICT_TRUE(
-            // `std::memmove(_, nullptr, 0)` is undefined.
-            !src.empty())) {
+    // `std::memmove(_, nullptr, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
       // Use `std::memmove()` to support assigning from a substring of `*this`.
       std::memmove(data(), src.data(), src.size());
     }
@@ -697,9 +695,8 @@ inline char* CompactString::append(size_t length) {
 }
 
 inline void CompactString::append(absl::string_view src) {
-  if (ABSL_PREDICT_TRUE(
-          // `std::memcpy(_, nullptr, 0)` is undefined.
-          !src.empty())) {
+  // `std::memcpy(_, nullptr, 0)` is undefined.
+  if (ABSL_PREDICT_TRUE(!src.empty())) {
     const size_t old_size = size();
     const size_t old_capacity = capacity();
     if (ABSL_PREDICT_TRUE(src.size() <= old_capacity - old_size)) {

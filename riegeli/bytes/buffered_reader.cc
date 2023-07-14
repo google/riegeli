@@ -144,9 +144,8 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
   if (length >= buffer_sizer_.BufferLength(pos())) {
     // Read directly to `dest`.
     const size_t available_length = available();
-    if (
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(_, nullptr, 0)` is undefined.
+    if (available_length > 0) {
       std::memcpy(dest, cursor(), available_length);
       dest += available_length;
       length -= available_length;

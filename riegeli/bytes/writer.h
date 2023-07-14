@@ -863,9 +863,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
 
 inline bool Writer::WriteZeros(Position length) {
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    if (ABSL_PREDICT_TRUE(
-            // `std::memset(nullptr, _, 0)` is undefined.
-            length > 0)) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(length > 0)) {
       std::memset(cursor(), 0, IntCast<size_t>(length));
       move_cursor(IntCast<size_t>(length));
     }
@@ -877,9 +876,8 @@ inline bool Writer::WriteZeros(Position length) {
 
 inline bool Writer::WriteChars(Position length, char src) {
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    if (ABSL_PREDICT_TRUE(
-            // `std::memset(nullptr, _, 0)` is undefined.
-            length > 0)) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(length > 0)) {
       std::memset(cursor(), src, IntCast<size_t>(length));
       move_cursor(IntCast<size_t>(length));
     }

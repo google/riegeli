@@ -176,7 +176,7 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = ShardReader();
   }
-  if (ABSL_PREDICT_FALSE(pos() == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(limit_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
   MakeBuffer(*shard);

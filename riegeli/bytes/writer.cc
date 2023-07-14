@@ -300,9 +300,8 @@ bool Writer::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   do {
     const size_t available_length = available();
-    if (
-        // `std::memcpy(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       std::memcpy(cursor(), src.data(), available_length);
       move_cursor(available_length);
       src.remove_prefix(available_length);
@@ -374,9 +373,8 @@ bool Writer::WriteZerosSlow(Position length) {
          "enough space available, use WriteZeros() instead";
   while (length > available()) {
     const size_t available_length = available();
-    if (
-        // `std::memset(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       std::memset(cursor(), 0, available_length);
       move_cursor(available_length);
       length -= available_length;
@@ -397,9 +395,8 @@ bool Writer::WriteCharsSlow(Position length, char src) {
   if (src == '\0') return WriteZerosSlow(length);
   while (length > available()) {
     const size_t available_length = available();
-    if (
-        // `std::memset(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       std::memset(cursor(), src, available_length);
       move_cursor(available_length);
       length -= available_length;

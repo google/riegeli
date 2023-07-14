@@ -1,9 +1,11 @@
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 
 exports_files([
-    "absl_py.BUILD",
     "highwayhash.BUILD",
     "net_zstd.BUILD",
     "six.BUILD",

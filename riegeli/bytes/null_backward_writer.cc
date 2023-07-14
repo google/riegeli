@@ -76,11 +76,11 @@ bool NullBackwardWriter::WriteSlow(const Chain& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
+  SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   return MakeBuffer();
 }
@@ -90,11 +90,11 @@ bool NullBackwardWriter::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
+  SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(src.size());
   return MakeBuffer();
 }
@@ -104,11 +104,11 @@ bool NullBackwardWriter::WriteZerosSlow(Position length) {
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
+  SyncBuffer();
   if (ABSL_PREDICT_FALSE(length >
-                         std::numeric_limits<Position>::max() - pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  SyncBuffer();
   move_start_pos(length);
   return MakeBuffer();
 }

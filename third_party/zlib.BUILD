@@ -1,7 +1,4 @@
-package(
-    default_visibility = ["//visibility:public"],
-    features = ["header_modules"],
-)
+package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
 

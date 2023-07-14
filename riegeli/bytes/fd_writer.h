@@ -473,7 +473,7 @@ class FdWriterBase : public BufferedWriter {
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
   bool read_mode_ = false;
 
-  // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
+  // Invariant: `start_pos() <= std::numeric_limits<fd_internal::Offset>::max()`
 };
 
 // A `Writer` which writes to a file descriptor.
@@ -817,6 +817,7 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   FdWriterBase::Reset(options.buffer_options());
+  dest_.Reset();
   Initialize(filename, std::move(options));
 }
 

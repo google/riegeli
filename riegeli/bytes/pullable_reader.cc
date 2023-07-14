@@ -146,9 +146,8 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
   do {
     const size_t length =
         UnsignedMin(available(), PtrDistance(dest, max_limit));
-    if (
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        length > 0) {
+    // `std::memcpy(_, nullptr, 0)` is undefined.
+    if (length > 0) {
       std::memcpy(dest, cursor(), length);
       move_cursor(length);
       dest += length;
@@ -178,9 +177,8 @@ bool PullableReader::ReadBehindScratch(size_t length, char* dest) {
          "scratch used";
   do {
     const size_t available_length = available();
-    if (
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(_, nullptr, 0)` is undefined.
+    if (available_length > 0) {
       std::memcpy(dest, cursor(), available_length);
       move_cursor(available_length);
       dest += available_length;

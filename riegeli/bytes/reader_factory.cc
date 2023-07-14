@@ -186,9 +186,8 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) {
     const size_t available_length = available();
-    if (
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(_, nullptr, 0)` is undefined.
+    if (available_length > 0) {
       std::memcpy(dest, cursor(), available_length);
       move_cursor(available_length);
       dest += available_length;

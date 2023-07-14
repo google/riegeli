@@ -276,7 +276,7 @@ void FdWriterBase::InitializePos(int dest, int mode,
     const fd_internal::Offset file_pos = fd_internal::LSeek(
         dest, 0, (mode & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
     if (file_pos < 0) {
-      // Random access is not supported. Assume the current position as 0.
+      // Random access is not supported. Assume 0 as the initial position.
       supports_random_access_ = LazyBoolState::kFalse;
       supports_read_mode_ = LazyBoolState::kFalse;
       random_access_status_ =

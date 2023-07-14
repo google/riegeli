@@ -2,7 +2,10 @@ load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
 
 licenses(["restricted"])
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["header_modules"],
+)
 
 toolchain(
     name = "toolchain",

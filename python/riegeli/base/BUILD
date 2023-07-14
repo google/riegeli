@@ -1,4 +1,7 @@
-package(default_visibility = ["//python/riegeli:__subpackages__"])
+package(
+    default_visibility = ["//python/riegeli:__subpackages__"],
+    features = ["header_modules"],
+)
 
 licenses(["notice"])
 

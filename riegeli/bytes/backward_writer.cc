@@ -53,9 +53,8 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   do {
     const size_t available_length = available();
-    if (
-        // `std::memcpy(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       move_cursor(available_length);
       std::memcpy(cursor(), src.data() + src.size() - available_length,
                   available_length);
@@ -137,9 +136,8 @@ bool BackwardWriter::WriteZerosSlow(Position length) {
          "enough space available, use WriteZeros() instead";
   while (length > available()) {
     const size_t available_length = available();
-    if (
-        // `std::memset(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       move_cursor(available_length);
       std::memset(cursor(), 0, available_length);
       length -= available_length;
@@ -160,9 +158,8 @@ bool BackwardWriter::WriteCharsSlow(Position length, char src) {
   if (src == '\0') return WriteZerosSlow(length);
   while (length > available()) {
     const size_t available_length = available();
-    if (
-        // `std::memset(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       move_cursor(available_length);
       std::memset(cursor(), src, available_length);
       length -= available_length;

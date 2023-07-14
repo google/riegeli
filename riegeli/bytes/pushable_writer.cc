@@ -169,9 +169,8 @@ bool PushableWriter::WriteBehindScratch(absl::string_view src) {
          "scratch used";
   do {
     const size_t available_length = available();
-    if (
-        // `std::memcpy(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memcpy(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       std::memcpy(cursor(), src.data(), available_length);
       move_cursor(available_length);
       src.remove_prefix(available_length);
@@ -246,9 +245,8 @@ bool PushableWriter::WriteZerosBehindScratch(Position length) {
          "scratch used";
   while (length > available()) {
     const size_t available_length = available();
-    if (
-        // `std::memset(nullptr, _, 0)` is undefined.
-        available_length > 0) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (available_length > 0) {
       std::memset(cursor(), 0, available_length);
       move_cursor(available_length);
       length -= available_length;
@@ -390,9 +388,8 @@ bool PushableWriter::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= length && length <= kMaxBytesToCopy) {
-      if (ABSL_PREDICT_TRUE(
-              // `std::memset(nullptr, _, 0)` is undefined.
-              length > 0)) {
+      // `std::memset(nullptr, _, 0)` is undefined.
+      if (ABSL_PREDICT_TRUE(length > 0)) {
         std::memset(cursor(), 0, IntCast<size_t>(length));
         move_cursor(IntCast<size_t>(length));
       }

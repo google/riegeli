@@ -622,6 +622,7 @@ template <typename DependentDest,
 inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      Options options) {
   CFileWriterBase::Reset(options.buffer_options());
+  dest_.Reset();
   Initialize(filename, std::move(options));
 }
 
