@@ -69,17 +69,19 @@ class AbslStringifyWriter : public BufferedWriter {
   Dest dest_{};
 };
 
-// Specialization of `AbslStringifyWriter<StringifySink*>` which avoids
-// wrapping a `Writer` in a `StringifySink` and adapting it back to a `Writer`.
+// Specialization of `AbslStringifyWriter<WriterAbslStringifySink*>` which
+// avoids wrapping a `Writer` in a `WriterAbslStringifySink` and adapting it
+// back to a `Writer`.
 template <>
-class AbslStringifyWriter<StringifySink*> : public PrefixLimitingWriter<> {
+class AbslStringifyWriter<WriterAbslStringifySink*>
+    : public PrefixLimitingWriter<> {
  public:
   // Creates a closed `AbslStringifyWriter`.
   explicit AbslStringifyWriter(Closed) noexcept
       : PrefixLimitingWriter(kClosed) {}
 
   // Will write to `*dest`.
-  explicit AbslStringifyWriter(StringifySink* dest)
+  explicit AbslStringifyWriter(WriterAbslStringifySink* dest)
       : PrefixLimitingWriter(RIEGELI_ASSERT_NOTNULL(dest)->dest()),
         dest_(dest) {}
 
@@ -89,14 +91,14 @@ class AbslStringifyWriter<StringifySink*> : public PrefixLimitingWriter<> {
   // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
   // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(StringifySink* dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(WriterAbslStringifySink* dest);
 
   // Returns a pointer to the sink being written to. Unchanged by `Close()`.
-  StringifySink*& dest() { return dest_; }
-  StringifySink* const& dest() const { return dest_; }
+  WriterAbslStringifySink*& dest() { return dest_; }
+  WriterAbslStringifySink* const& dest() const { return dest_; }
 
  private:
-  StringifySink* dest_{};
+  WriterAbslStringifySink* dest_{};
 };
 
 // Support CTAD.
@@ -150,24 +152,25 @@ bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   return true;
 }
 
-inline AbslStringifyWriter<StringifySink*>::AbslStringifyWriter(
+inline AbslStringifyWriter<WriterAbslStringifySink*>::AbslStringifyWriter(
     AbslStringifyWriter&& that) noexcept
     : PrefixLimitingWriter(static_cast<PrefixLimitingWriter&&>(that)),
       dest_(that.dest_) {}
 
-inline AbslStringifyWriter<StringifySink*>& AbslStringifyWriter<
-    StringifySink*>::operator=(AbslStringifyWriter&& that) noexcept {
+inline AbslStringifyWriter<WriterAbslStringifySink*>& AbslStringifyWriter<
+    WriterAbslStringifySink*>::operator=(AbslStringifyWriter&& that) noexcept {
   PrefixLimitingWriter::operator=(static_cast<PrefixLimitingWriter&&>(that));
   dest_ = that.dest_;
   return *this;
 }
 
-inline void AbslStringifyWriter<StringifySink*>::Reset(Closed) {
+inline void AbslStringifyWriter<WriterAbslStringifySink*>::Reset(Closed) {
   PrefixLimitingWriter::Reset(kClosed);
   dest_ = nullptr;
 }
 
-inline void AbslStringifyWriter<StringifySink*>::Reset(StringifySink* dest) {
+inline void AbslStringifyWriter<WriterAbslStringifySink*>::Reset(
+    WriterAbslStringifySink* dest) {
   PrefixLimitingWriter::Reset(dest->dest());
   dest_ = dest;
 }

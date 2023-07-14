@@ -48,16 +48,17 @@ class Reader;
 class Writer;
 
 // An sink for `AbslStringify()` which appends to a `Writer`.
-class StringifySink {
+class WriterAbslStringifySink {
  public:
-  // Creates a dummy `StringifySink`. It must not be used.
-  StringifySink() = default;
+  // Creates a dummy `WriterAbslStringifySink`. It must not be used.
+  WriterAbslStringifySink() = default;
 
   // Will write to `*dest`.
-  explicit StringifySink(Writer* dest) : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+  explicit WriterAbslStringifySink(Writer* dest)
+      : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
 
-  StringifySink(StringifySink&& that) = default;
-  StringifySink& operator=(StringifySink&& that) = default;
+  WriterAbslStringifySink(WriterAbslStringifySink&& that) = default;
+  WriterAbslStringifySink& operator=(WriterAbslStringifySink&& that) = default;
 
   // Returns the `Writer` being written to.
   Writer* dest() const { return dest_; }
@@ -70,7 +71,8 @@ class StringifySink {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   void Append(Src&& src);
-  friend void AbslFormatFlush(StringifySink* dest, absl::string_view src) {
+  friend void AbslFormatFlush(WriterAbslStringifySink* dest,
+                              absl::string_view src) {
     dest->Append(src);
   }
 
@@ -82,10 +84,9 @@ class StringifySink {
 template <typename T, typename Enable = void>
 struct HasAbslStringify : std::false_type {};
 template <typename T>
-struct HasAbslStringify<
-    T, absl::void_t<decltype(AbslStringify(std::declval<StringifySink&>(),
-                                           std::declval<const T&>()))>>
-    : std::true_type {};
+struct HasAbslStringify<T, absl::void_t<decltype(AbslStringify(
+                               std::declval<WriterAbslStringifySink&>(),
+                               std::declval<const T&>()))>> : std::true_type {};
 
 // `StringifiedSize()` of a stringifiable value returns its size in `size_t` if
 // easily known, otherwise `void`.
@@ -646,15 +647,17 @@ class AssociatedReader {
 
 // Implementation details follow.
 
-inline void StringifySink::Append(size_t length, char src) {
+inline void WriterAbslStringifySink::Append(size_t length, char src) {
   dest_->WriteChars(length, src);
 }
 
-inline void StringifySink::Append(absl::string_view src) { dest_->Write(src); }
+inline void WriterAbslStringifySink::Append(absl::string_view src) {
+  dest_->Write(src);
+}
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void StringifySink::Append(Src&& src) {
+inline void WriterAbslStringifySink::Append(Src&& src) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   dest_->Write(std::move(src));
@@ -842,7 +845,7 @@ inline bool Writer::Write(absl::Cord&& src) {
 
 template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>
 inline bool Writer::Write(Src&& src) {
-  StringifySink sink(this);
+  WriterAbslStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
   return ok();
 }
