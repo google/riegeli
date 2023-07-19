@@ -27,11 +27,17 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compact_string.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/containers/linear_sorted_string_set.h"
 
 namespace riegeli {
@@ -45,6 +51,66 @@ class ChunkedSortedStringSet {
   class Iterator;
   class Builder;
   class NextInsertIterator;
+
+  // Options for `Decode()`.
+  class DecodeOptions {
+   public:
+    DecodeOptions() noexcept {}
+
+    // If `false`, performs partial validation of the structure of data, which
+    // is sufficient to prevent undefined behavior when the set is used. The
+    // only aspect not validated is that elements are sorted and unique. This is
+    // faster. If elements are not sorted and unique, then iteration yields
+    // elements in the stored order, and `contains()` may fail to find an
+    // element which can be seen during iteration.
+    //
+    // If `true`, performs full validation of encoded data, including checking
+    // that elements are sorted and unique. This is slower. This can be used for
+    // parsing untrusted data.
+    //
+    // Default: `false`.
+    DecodeOptions& set_validate(bool validate) & {
+      validate_ = validate;
+      return *this;
+    }
+    DecodeOptions&& set_validate(bool validate) && {
+      return std::move(set_validate(validate));
+    }
+    bool validate() const { return validate_; }
+
+    // `Decode()` fails if more than `set_max_num_chunks()` chunks would need to
+    // be created. This can be used for parsing untrusted data.
+    //
+    // Default: `std::vector<LinearSortedStringSet>().max_size()`.
+    DecodeOptions& set_max_num_chunks(size_t max_num_chunks) & {
+      max_num_chunks_ = max_num_chunks;
+      return *this;
+    }
+    DecodeOptions&& set_max_num_chunks(size_t max_num_chunks) && {
+      return std::move(set_max_num_chunks(max_num_chunks));
+    }
+    size_t max_num_chunks() const { return max_num_chunks_; }
+
+    // `Decode()` fails if more than `max_encoded_chunk_size()` bytes would need
+    // to be allocated for any chunk. This can be used for parsing untrusted
+    // data.
+    //
+    // Default: `CompactString::max_size()`.
+    DecodeOptions& set_max_encoded_chunk_size(size_t max_encoded_chunk_size) & {
+      max_encoded_chunk_size_ = max_encoded_chunk_size;
+      return *this;
+    }
+    DecodeOptions&& set_max_encoded_chunk_size(
+        size_t max_encoded_chunk_size) && {
+      return std::move(set_max_encoded_chunk_size(max_encoded_chunk_size));
+    }
+    size_t max_encoded_chunk_size() const { return max_encoded_chunk_size_; }
+
+   private:
+    bool validate_ = false;
+    size_t max_num_chunks_ = std::vector<LinearSortedStringSet>().max_size();
+    size_t max_encoded_chunk_size_ = CompactString::max_size();
+  };
 
   using value_type = absl::string_view;
   using reference = value_type;
@@ -169,6 +235,23 @@ class ChunkedSortedStringSet {
     }
   }
 
+  // Returns the size of data that would be written by `Encode()`.
+  size_t EncodedSize() const;
+
+  // Encodes the set to a sequence of bytes.
+  //
+  // As for now the encoding is not guaranteed to not change in future.
+  // Please ask qrczak@google.com if you need stability.
+  template <
+      typename Dest,
+      std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+  absl::Status Encode(Dest&& dest) const;
+
+  // Decodes the set from the encoded form.
+  template <typename Src,
+            std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+  absl::Status Decode(Src&& src, DecodeOptions options = DecodeOptions());
+
  private:
   using ChunkIterator = std::vector<LinearSortedStringSet>::const_iterator;
 
@@ -241,6 +324,9 @@ class ChunkedSortedStringSet {
                        const ChunkedSortedStringSet& b);
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state);
+
+  absl::Status EncodeImpl(Writer& dest) const;
+  absl::Status DecodeImpl(Reader& src, DecodeOptions options);
 
   // The first `LinearSortedStringSet` is stored inline to reduce object size
   // when the set is small.
@@ -621,6 +707,35 @@ HashState ChunkedSortedStringSet::AbslHashValueImpl(HashState hash_state) {
     hash_state = HashState::combine(std::move(hash_state), element);
   }
   return HashState::combine(std::move(hash_state), size());
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status ChunkedSortedStringSet::Encode(Dest&& dest) const {
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(EncodedSize());
+  absl::Status status = EncodeImpl(*dest_dep);
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
+    }
+  }
+  return status;
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status ChunkedSortedStringSet::Decode(Src&& src,
+                                                   DecodeOptions options) {
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  absl::Status status = DecodeImpl(*src_dep, options);
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
+    }
+  }
+  return status;
 }
 
 inline ChunkedSortedStringSet::NextInsertIterator

@@ -37,6 +37,8 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/compact_string_writer.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/varint/varint_reading.h"
 #include "riegeli/varint/varint_writing.h"
@@ -116,7 +118,7 @@ size_t LinearSortedStringSet::size() const {
       // `shared_length == 0` and is not stored.
       shared_length = 0;
     } else {
-      // `shared_length` is stored.
+      // `shared_length > 0` and is stored.
       {
         const absl::optional<const char*> next =
             ReadVarint64(ptr, limit, shared_length);
@@ -127,9 +129,11 @@ size_t LinearSortedStringSet::size() const {
           ptr = *next;
         }
       }
-      RIEGELI_ASSERT_LE(shared_length, current_length)
+      // Compare `<` instead of `<=`, before `++shared_length`.
+      RIEGELI_ASSERT_LT(shared_length, current_length)
           << "Malformed LinearSortedStringSet encoding "
              "(shared_length larger than previous element)";
+      ++shared_length;
     }
     RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit))
         << "Malformed LinearSortedStringSet encoding (unshared)";
@@ -209,6 +213,154 @@ size_t LinearSortedStringSet::EstimateMemory() const {
   return memory_estimator.TotalMemory();
 }
 
+absl::Status LinearSortedStringSet::EncodeImpl(Writer& dest) const {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(uint64_t{encoded_.size()}, dest))) {
+    return dest.status();
+  }
+  if (ABSL_PREDICT_FALSE(!dest.Write(encoded_))) return dest.status();
+  return absl::OkStatus();
+}
+
+absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
+                                               DecodeOptions options) {
+  uint64_t encoded_size;
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, encoded_size))) {
+    return src.StatusOrAnnotate(
+        absl::InvalidArgumentError("Malformed LinearSortedStringSet encoding "
+                                   "(encoded_size)"));
+  }
+  if (ABSL_PREDICT_FALSE(encoded_size > options.max_encoded_size())) {
+    return src.AnnotateStatus(absl::ResourceExhaustedError(absl::StrCat(
+        "Maximum LinearSortedStringSet encoded length exceeded: ", encoded_size,
+        " > ", options.max_encoded_size())));
+  }
+  CompactString encoded(IntCast<size_t>(encoded_size));
+  if (ABSL_PREDICT_FALSE(
+          !src.Read(IntCast<size_t>(encoded_size), encoded.data()))) {
+    return src.StatusOrAnnotate(
+        absl::InvalidArgumentError("Malformed LinearSortedStringSet encoding "
+                                   "(encoded)"));
+  }
+
+  // Validate `encoded` and update `*options.decode_state()`.
+  size_t size = 0;
+  size_t current_length = 0;
+  CompactString current_if_validated_and_shared;
+  absl::optional<absl::string_view> current_if_validated =
+      options.decode_state() == nullptr
+          ? absl::nullopt
+          : absl::optional<absl::string_view>(options.decode_state()->last);
+  const absl::string_view encoded_view = encoded;
+  const char* ptr = encoded_view.data();
+  const char* const limit = ptr + encoded_view.size();
+  while (ptr != limit) {
+    uint64_t tagged_length;
+    {
+      const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit, tagged_length);
+      if (next == absl::nullopt) {
+        return src.AnnotateStatus(absl::InvalidArgumentError(
+            "Malformed LinearSortedStringSet encoding (tagged_length)"));
+      } else {
+        ptr = *next;
+      }
+    }
+    const uint64_t unshared_length = tagged_length >> 1;
+    if ((tagged_length & 1) == 0) {
+      // `shared_length == 0` and is not stored.
+      if (ABSL_PREDICT_FALSE(unshared_length > PtrDistance(ptr, limit))) {
+        return src.AnnotateStatus(absl::InvalidArgumentError(
+            "Malformed LinearSortedStringSet encoding (unshared)"));
+      }
+      current_length = IntCast<size_t>(unshared_length);
+      if (options.validate()) {
+        if (ABSL_PREDICT_TRUE(current_if_validated != absl::nullopt) &&
+            ABSL_PREDICT_FALSE(absl::string_view(ptr, current_length) <=
+                               *current_if_validated)) {
+          return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
+              "Elements are not sorted and unique: new \"",
+              absl::CHexEscape(absl::string_view(ptr, current_length)),
+              "\" <= last \"", absl::CHexEscape(*current_if_validated), "\"")));
+        }
+        current_if_validated_and_shared.clear();
+        current_if_validated = absl::string_view(ptr, current_length);
+      }
+    } else {
+      // `shared_length > 0` and is stored.
+      uint64_t shared_length;
+      {
+        const absl::optional<const char*> next =
+            ReadVarint64(ptr, limit, shared_length);
+        if (next == absl::nullopt) {
+          return src.AnnotateStatus(absl::InvalidArgumentError(
+              "Malformed LinearSortedStringSet encoding (shared_length)"));
+        } else {
+          ptr = *next;
+        }
+      }
+      // Compare `>=` instead of `>`, before `++shared_length`.
+      if (ABSL_PREDICT_FALSE(shared_length >= current_length)) {
+        return src.AnnotateStatus(absl::InvalidArgumentError(
+            "Malformed LinearSortedStringSet encoding "
+            "(shared_length larger than previous element)"));
+      }
+      ++shared_length;
+      if (ABSL_PREDICT_FALSE(unshared_length > PtrDistance(ptr, limit))) {
+        return src.AnnotateStatus(absl::InvalidArgumentError(
+            "Malformed LinearSortedStringSet encoding (unshared)"));
+      }
+      current_length = IntCast<size_t>(shared_length + unshared_length);
+      if (options.validate()) {
+        if (ABSL_PREDICT_TRUE(current_if_validated != absl::nullopt) &&
+            ABSL_PREDICT_FALSE(
+                absl::string_view(ptr, unshared_length) <=
+                absl::string_view(
+                    current_if_validated->data() + shared_length,
+                    current_if_validated->size() - shared_length))) {
+          return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
+              "Elements are not sorted and unique: new \"",
+              absl::CHexEscape(
+                  absl::StrCat(absl::string_view(current_if_validated->data(),
+                                                 shared_length),
+                               absl::string_view(ptr, unshared_length))),
+              "\" <= last \"", absl::CHexEscape(*current_if_validated), "\"")));
+        }
+        // The unshared part of the next element will be written here.
+        char* current_unshared;
+        if (current_if_validated_and_shared.empty()) {
+          RIEGELI_ASSERT(current_if_validated != absl::nullopt)
+              << "shared_length > 0 implies that this is not the first element";
+          char* const current_data =
+              current_if_validated_and_shared.resize(current_length, 0);
+          std::memcpy(current_data, current_if_validated->data(),
+                      IntCast<size_t>(shared_length));
+          current_unshared = current_data + IntCast<size_t>(shared_length);
+        } else {
+          current_unshared = current_if_validated_and_shared.resize(
+              current_length, IntCast<size_t>(shared_length));
+        }
+        std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
+        current_if_validated = current_if_validated_and_shared;
+      }
+    }
+    ptr += IntCast<size_t>(unshared_length);
+    ++size;
+  }
+  if (options.decode_state() != nullptr && size > 0) {
+    options.decode_state()->size += size;
+    if (options.validate()) {
+      if (current_if_validated_and_shared.empty()) {
+        options.decode_state()->last = *current_if_validated;
+      } else {
+        options.decode_state()->last =
+            std::move(current_if_validated_and_shared);
+      }
+    }
+  }
+  encoded_ = std::move(encoded);
+  return absl::OkStatus();
+}
+
 size_t LinearSortedStringSet::Iterator::Next() {
   RIEGELI_ASSERT(cursor_ != nullptr)
       << "Failed precondition of LinearSortedStringSet::Iterator::Next(): "
@@ -217,7 +369,7 @@ size_t LinearSortedStringSet::Iterator::Next() {
     // `end()` was reached.
     cursor_ = nullptr;  // Mark `end()`.
     length_if_unshared_ = 0;
-    current_ = CompactString();  // Free memory.
+    current_if_shared_ = CompactString();  // Free memory.
     return 0;
   }
   const char* ptr = cursor_;
@@ -237,13 +389,13 @@ size_t LinearSortedStringSet::Iterator::Next() {
     // `shared_length == 0` and is not stored.
     RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
         << "Malformed LinearSortedStringSet encoding (unshared)";
-    current_.clear();
+    current_if_shared_.clear();
     length_if_unshared_ = IntCast<size_t>(unshared_length);
     ptr += IntCast<size_t>(unshared_length);
     cursor_ = ptr;
     return 0;
   }
-  // `shared_length` is stored.
+  // `shared_length > 0` and is stored.
   uint64_t shared_length;
   {
     const absl::optional<const char*> next =
@@ -255,23 +407,26 @@ size_t LinearSortedStringSet::Iterator::Next() {
       ptr = *next;
     }
   }
-  RIEGELI_ASSERT_LE(shared_length, length_if_unshared_ > 0 ? length_if_unshared_
-                                                           : current_.size())
+  // Compare `<` instead of `<=`, before `++shared_length`.
+  RIEGELI_ASSERT_LT(shared_length, length_if_unshared_ > 0
+                                       ? length_if_unshared_
+                                       : current_if_shared_.size())
       << "Malformed LinearSortedStringSet encoding "
          "(shared_length larger than previous element)";
+  ++shared_length;
   RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
       << "Malformed LinearSortedStringSet encoding (unshared)";
   const size_t new_size = IntCast<size_t>(shared_length + unshared_length);
   // The unshared part of the next element will be written here.
   char* current_unshared;
   if (length_if_unshared_ > 0) {
-    char* const current_data = current_.resize(new_size, 0);
+    char* const current_data = current_if_shared_.resize(new_size, 0);
     std::memcpy(current_data, cursor_ - length_if_unshared_,
                 IntCast<size_t>(shared_length));
     current_unshared = current_data + IntCast<size_t>(shared_length);
   } else {
     current_unshared =
-        current_.resize(new_size, IntCast<size_t>(shared_length));
+        current_if_shared_.resize(new_size, IntCast<size_t>(shared_length));
   }
   std::memcpy(current_unshared, ptr, IntCast<size_t>(unshared_length));
   length_if_unshared_ = 0;
@@ -380,7 +535,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
       (uint64_t{unshared_length} << 1) |
       (shared_length > 0 ? uint64_t{1} : uint64_t{0});
   WriteVarint64(tagged_length, writer_);
-  if (shared_length > 0) WriteVarint64(uint64_t{shared_length}, writer_);
+  if (shared_length > 0) WriteVarint64(uint64_t{shared_length - 1}, writer_);
   writer_.Write(unshared);
   return true;
 }

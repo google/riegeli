@@ -16,6 +16,7 @@
 #define RIEGELI_CONTAINERS_LINEAR_SORTED_STRING_SET_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <algorithm>
 #include <initializer_list>
@@ -25,12 +26,19 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/compact_string_writer.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
@@ -44,6 +52,77 @@ class LinearSortedStringSet {
   class Iterator;
   class Builder;
   class NextInsertIterator;
+
+  // When calling `Decode()` for a sequence of sets whose elements should be
+  // ordered, a `DecodeState` is passed between calls. This is primarily used by
+  // `ChunkedSortedStringSet::Decode()`.
+  struct DecodeState {
+    // Total number of elements decoded so far. The size is calculated as a side
+    // effect of structural validation; calling `size()` later would be slower.
+    size_t size = 0;
+    // If not `absl::nullopt`, the last element in the last decoded set.
+    // Meaningful only if `DecodeOptions::validate()`.
+    absl::optional<CompactString> last;
+  };
+
+  // Options for `Decode()`.
+  class DecodeOptions {
+   public:
+    DecodeOptions() noexcept {}
+
+    // If `false`, performs partial validation of the structure of data, which
+    // is sufficient to prevent undefined behavior when the set is used. The
+    // only aspect not validated is that elements are sorted and unique. This is
+    // faster. If elements are not sorted and unique, then iteration yields
+    // elements in the stored order, and `contains()` may fail to find an
+    // element which can be seen during iteration.
+    //
+    // If `true`, performs full validation of encoded data, including checking
+    // that elements are sorted and unique. This is slower. This can be used for
+    // parsing untrusted data.
+    //
+    // Default: `false`.
+    DecodeOptions& set_validate(bool validate) & {
+      validate_ = validate;
+      return *this;
+    }
+    DecodeOptions&& set_validate(bool validate) && {
+      return std::move(set_validate(validate));
+    }
+    bool validate() const { return validate_; }
+
+    // `Decode()` fails if more than `max_encoded_size()` bytes would need to be
+    // allocated. This can be used for parsing untrusted data.
+    //
+    // Default: `CompactString::max_size()`.
+    DecodeOptions& set_max_encoded_size(size_t max_encoded_size) & {
+      max_encoded_size_ = max_encoded_size;
+      return *this;
+    }
+    DecodeOptions&& set_max_encoded_size(size_t max_encoded_size) && {
+      return std::move(set_max_encoded_size(max_encoded_size));
+    }
+    size_t max_encoded_size() const { return max_encoded_size_; }
+
+    // When calling `Decode()` for a sequence of sets whose elements should be
+    // ordered, a `DecodeState` is passed between calls. This is primarily used
+    // by `ChunkedSortedStringSet::Decode()`.
+    //
+    // Default: `nullptr`.
+    DecodeOptions& set_decode_state(DecodeState* decode_state) & {
+      decode_state_ = decode_state;
+      return *this;
+    }
+    DecodeOptions&& set_decode_state(DecodeState* decode_state) && {
+      return std::move(set_decode_state(decode_state));
+    }
+    DecodeState* decode_state() const { return decode_state_; }
+
+   private:
+    bool validate_ = false;
+    size_t max_encoded_size_ = CompactString::max_size();
+    DecodeState* decode_state_ = nullptr;
+  };
 
   using value_type = absl::string_view;
   using reference = value_type;
@@ -153,6 +232,23 @@ class LinearSortedStringSet {
     memory_estimator.RegisterSubobjects(self.encoded_);
   }
 
+  // Returns the size of data that would be written by `Encode()`.
+  size_t EncodedSize() const;
+
+  // Encodes the set to a sequence of bytes.
+  //
+  // As for now the encoding is not guaranteed to not change in future.
+  // Please ask qrczak@google.com if you need stability.
+  template <
+      typename Dest,
+      std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+  absl::Status Encode(Dest&& dest) const;
+
+  // Decodes the set from the encoded form.
+  template <typename Src,
+            std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+  absl::Status Decode(Src&& src, DecodeOptions options = DecodeOptions());
+
  private:
   explicit LinearSortedStringSet(CompactString&& encoded);
 
@@ -163,13 +259,16 @@ class LinearSortedStringSet {
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state);
 
+  absl::Status EncodeImpl(Writer& dest) const;
+  absl::Status DecodeImpl(Reader& src, DecodeOptions options);
+
   // Representation of each other element, which consists of the prefix of the
   // previous element with length shared_length, concatenated with unshared,
   // where tagged_length = (unshared_length << 1) | (shared_length > 0 ? 1 : 0):
   //
-  //  * tagged_length : varint64
-  //  * shared_length : varint64, if shared_length > 0
-  //  * unshared      : char[unshared_length]
+  //  * tagged_length     : varint64
+  //  * shared_length - 1 : varint64, if shared_length > 0
+  //  * unshared          : char[unshared_length]
   CompactString encoded_;
 };
 
@@ -221,7 +320,7 @@ class LinearSortedStringSet::Iterator {
       return absl::string_view(cursor_ - length_if_unshared_,
                                length_if_unshared_);
     } else {
-      return current_;
+      return current_if_shared_;
     }
   }
 
@@ -279,13 +378,14 @@ class LinearSortedStringSet::Iterator {
   const char* limit_ = nullptr;
   // If `length_if_unshared_ > 0`, the current element is
   // `absl::string_view(cursor_ - length_if_unshared_, length_if_unshared_)`,
-  // and `current_` is unused and empty.
+  // and `current_if_shared_` is unused and empty.
   //
-  // If `length_if_unshared_ == 0`, the decoded current element is `current_`.
+  // If `length_if_unshared_ == 0`, the decoded current element is
+  // `current_if_shared_`.
   size_t length_if_unshared_ = 0;
   // If `*this` is `end()`, or if `length_if_unshared_ > 0`, unused and empty.
   // Otherwise stores the decoded current element.
-  CompactString current_;
+  CompactString current_if_shared_;
 };
 
 // Builds a `LinearSortedStringSet` from a sorted sequence of strings.
@@ -510,6 +610,39 @@ HashState LinearSortedStringSet::AbslHashValueImpl(HashState hash_state) {
     ++size;
   }
   return HashState::combine(std::move(hash_state), size);
+}
+
+inline size_t LinearSortedStringSet::EncodedSize() const {
+  return LengthVarint64(uint64_t{encoded_.size()}) + encoded_.size();
+}
+
+template <typename Dest,
+          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+inline absl::Status LinearSortedStringSet::Encode(Dest&& dest) const {
+  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(EncodedSize());
+  absl::Status status = EncodeImpl(*dest_dep);
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
+    }
+  }
+  return status;
+}
+
+template <typename Src,
+          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+inline absl::Status LinearSortedStringSet::Decode(Src&& src,
+                                                  DecodeOptions options) {
+  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  absl::Status status = DecodeImpl(*src_dep, options);
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+      status.Update(src_dep->status());
+    }
+  }
+  return status;
 }
 
 inline LinearSortedStringSet::NextInsertIterator

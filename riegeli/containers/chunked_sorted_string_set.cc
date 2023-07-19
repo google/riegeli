@@ -32,10 +32,15 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/containers/linear_sorted_string_set.h"
+#include "riegeli/varint/varint_reading.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
@@ -111,6 +116,114 @@ size_t ChunkedSortedStringSet::EstimateMemory() const {
   memory_estimator.RegisterMemory(sizeof(ChunkedSortedStringSet));
   memory_estimator.RegisterSubobjects(*this);
   return memory_estimator.TotalMemory();
+}
+
+size_t ChunkedSortedStringSet::EncodedSize() const {
+  if (repr_is_inline()) {
+    if (first_chunk_.empty()) return 1;
+    return 1 + first_chunk_.EncodedSize();
+  }
+
+  size_t encoded_size = LengthVarint64(allocated_repr()->chunks.size() + 1) +
+                        first_chunk_.EncodedSize();
+  for (const LinearSortedStringSet& chunk : allocated_repr()->chunks) {
+    encoded_size += chunk.EncodedSize();
+  }
+  return encoded_size;
+}
+
+absl::Status ChunkedSortedStringSet::EncodeImpl(Writer& dest) const {
+  if (repr_is_inline()) {
+    if (first_chunk_.empty()) {
+      if (ABSL_PREDICT_FALSE(!WriteVarint64(0, dest))) return dest.status();
+      return absl::OkStatus();
+    }
+    if (ABSL_PREDICT_FALSE(!WriteVarint64(1, dest))) return dest.status();
+    return first_chunk_.Encode(dest);
+  }
+
+  if (ABSL_PREDICT_FALSE(
+          !WriteVarint64(allocated_repr()->chunks.size() + 1, dest))) {
+    return dest.status();
+  }
+  {
+    const absl::Status status = first_chunk_.Encode(dest);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  for (const LinearSortedStringSet& chunk : allocated_repr()->chunks) {
+    {
+      const absl::Status status = chunk.Encode(dest);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ChunkedSortedStringSet::DecodeImpl(Reader& src,
+                                                DecodeOptions options) {
+  uint64_t num_chunks;
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, num_chunks))) {
+    return src.StatusOrAnnotate(
+        absl::InvalidArgumentError("Malformed ChunkedSortedStringSet encoding "
+                                   "(num_chunks)"));
+  }
+  if (num_chunks == 0) {
+    first_chunk_ = LinearSortedStringSet();
+    DeleteRepr(std::exchange(repr_, kEmptyRepr));
+    return absl::OkStatus();
+  }
+  if (ABSL_PREDICT_FALSE(num_chunks > options.max_num_chunks())) {
+    return src.AnnotateStatus(absl::ResourceExhaustedError(absl::StrCat(
+        "Maximum ChunkedSortedStringSet number of chunks exceeded: ",
+        num_chunks, " > ", options.max_num_chunks())));
+  }
+
+  LinearSortedStringSet::DecodeState decode_state;
+  const LinearSortedStringSet::DecodeOptions linear_options =
+      LinearSortedStringSet::DecodeOptions()
+          .set_validate(options.validate())
+          .set_max_encoded_size(options.max_encoded_chunk_size())
+          .set_decode_state(&decode_state);
+  LinearSortedStringSet first_chunk;
+  {
+    const absl::Status status = first_chunk.Decode(src, linear_options);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(first_chunk.empty())) {
+    return src.AnnotateStatus(
+        absl::InvalidArgumentError("Malformed ChunkedSortedStringSet encoding "
+                                   "(empty first chunk)"));
+  }
+  if (num_chunks == 1) {
+    first_chunk_ = std::move(first_chunk);
+    DeleteRepr(std::exchange(repr_, make_inline_repr(decode_state.size)));
+    return absl::OkStatus();
+  }
+
+  std::vector<LinearSortedStringSet> chunks(IntCast<size_t>(num_chunks - 1));
+  for (LinearSortedStringSet& chunk : chunks) {
+    {
+      const absl::Status status = chunk.Decode(src, linear_options);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+    if (ABSL_PREDICT_FALSE(chunk.empty())) {
+      return src.AnnotateStatus(absl::InvalidArgumentError(
+          "Malformed ChunkedSortedStringSet encoding "
+          "(empty chunk)"));
+    }
+  }
+  first_chunk_ = std::move(first_chunk);
+  DeleteRepr(std::exchange(repr_, make_allocated_repr(new Repr{
+                                      std::move(chunks), decode_state.size})));
+  return absl::OkStatus();
 }
 
 size_t ChunkedSortedStringSet::Iterator::Next() {
