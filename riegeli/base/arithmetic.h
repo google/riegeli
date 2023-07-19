@@ -45,6 +45,15 @@ struct IsSignedInt : absl::conjunction<std::is_integral<T>, std::is_signed<T>> {
 template <>
 struct IsSignedInt<absl::int128> : std::true_type {};
 
+// `IsInt<T>::value` is `true` for integral types, including `absl::uint128` and
+// `absl::int128`.
+template <typename T>
+struct IsInt : std::is_integral<T> {};
+template <>
+struct IsInt<absl::uint128> : std::true_type {};
+template <>
+struct IsInt<absl::int128> : std::true_type {};
+
 // `MakeUnsigned<T>::type` and `MakeUnsignedT<T>` transform a signed integral
 // type to the corresponding unsigned type, including `absl::int128`, and leave
 // unsigned integral types unchanged, including `absl::uint128`.

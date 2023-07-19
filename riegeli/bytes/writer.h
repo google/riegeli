@@ -41,6 +41,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/write_int_internal.h"
 
 namespace riegeli {
 
@@ -647,6 +648,37 @@ class AssociatedReader {
 
 // Implementation details follow.
 
+namespace write_int_internal {
+
+template <typename T>
+inline bool WriteUnsigned(T src, Writer& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
+  dest.set_cursor(WriteDecUnsigned(src, dest.cursor()));
+  return true;
+}
+
+template <typename T>
+inline bool WriteSigned(T src, Writer& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
+  MakeUnsignedT<T> abs_value;
+  char* cursor = dest.cursor();
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *cursor = '-';
+    ++cursor;
+    abs_value = NegatingUnsignedCast(src);
+  }
+  dest.set_cursor(WriteDecUnsigned(abs_value, cursor));
+  return true;
+}
+
+}  // namespace write_int_internal
+
 inline void WriterAbslStringifySink::Append(size_t length, char src) {
   dest_->WriteChars(length, src);
 }
@@ -841,6 +873,54 @@ inline bool Writer::Write(absl::Cord&& src) {
   }
   AssertInitialized(start(), start_to_cursor());
   return WriteSlow(std::move(src));
+}
+
+inline bool Writer::Write(signed char src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(unsigned char src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool Writer::Write(short src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(unsigned short src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool Writer::Write(int src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(unsigned src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool Writer::Write(long src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(unsigned long src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool Writer::Write(long long src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(unsigned long long src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool Writer::Write(absl::int128 src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool Writer::Write(absl::uint128 src) {
+  return write_int_internal::WriteUnsigned(src, *this);
 }
 
 template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>

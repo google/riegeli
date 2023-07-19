@@ -30,6 +30,7 @@ cc_library(
     hdrs = ["writer.h"],
     deps = [
         ":reader_and_writer",
+        ":write_int_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
@@ -84,6 +85,7 @@ cc_library(
     ],
     visibility = ["//visibility:private"],
     deps = [
+        ":write_int_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffer",
@@ -161,6 +163,19 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "write_int_internal",
+    srcs = ["write_int_internal.cc"],
+    hdrs = ["write_int_internal.h"],
+    visibility = ["//riegeli:__subpackages__"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:int128",
     ],
 )
 

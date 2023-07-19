@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
