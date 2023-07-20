@@ -44,15 +44,21 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr size_t ChunkedSortedStringSet::Options::kDefaultChunkSize;
+#endif
+
 ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(
-    std::initializer_list<absl::string_view> src, size_t chunk_size,
-    size_t size_hint) {
-  return FromSorted<>(src, chunk_size, size_hint);
+    std::initializer_list<absl::string_view> src, Options options) {
+  return FromSorted<>(src, std::move(options));
 }
 
 ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
-    std::initializer_list<absl::string_view> src, size_t chunk_size) {
-  return FromUnsorted<>(src, chunk_size);
+    std::initializer_list<absl::string_view> src, Options options) {
+  return FromUnsorted<>(src, std::move(options));
 }
 
 inline ChunkedSortedStringSet::ChunkedSortedStringSet(
@@ -248,11 +254,13 @@ size_t ChunkedSortedStringSet::Iterator::Next() {
   return 0;
 }
 
-ChunkedSortedStringSet::Builder::Builder(size_t chunk_size, size_t size_hint)
+ChunkedSortedStringSet::Builder::Builder(Options options)
     : size_(0),
-      chunk_size_(chunk_size),
-      remaining_current_chunk_size_(chunk_size) {
-  if (size_hint > 0) chunks_.reserve((size_hint - 1) / chunk_size);
+      chunk_size_(options.chunk_size()),
+      remaining_current_chunk_size_(chunk_size_) {
+  if (options.size_hint() > 0) {
+    chunks_.reserve((options.size_hint() - 1) / chunk_size_);
+  }
 }
 
 ChunkedSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;

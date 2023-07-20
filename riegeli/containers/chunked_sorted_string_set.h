@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -48,6 +49,45 @@ namespace riegeli {
 // `ChunkedSortedStringSet` is optimized for memory usage.
 class ChunkedSortedStringSet {
  public:
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Tunes the number of elements encoded together. A larger `chunk_size`
+    // reduces memory usage, but the time complexity of lookups is roughly
+    // proportional to `chunk_size`.
+    //
+    // Default: `kDefaultChunkSize` (16).
+    static constexpr size_t kDefaultChunkSize = 16;
+    Options& set_chunk_size(size_t chunk_size) & {
+      chunk_size_ = chunk_size;
+      return *this;
+    }
+    Options&& set_chunk_size(size_t chunk_size) && {
+      return std::move(set_chunk_size(chunk_size));
+    }
+    size_t chunk_size() const { return chunk_size_; }
+
+    // Expected final size, or 0 if unknown. This may improve performance and
+    // memory usage.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: 0.
+    Options& set_size_hint(size_t size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(size_t size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+    size_t size_hint() const { return size_hint_; }
+
+   private:
+    size_t chunk_size_ = kDefaultChunkSize;
+    size_t size_hint_ = 0;
+  };
+
   class Iterator;
   class Builder;
   class NextInsertIterator;
@@ -127,21 +167,17 @@ class ChunkedSortedStringSet {
   // `for (const absl::string_view element : src)`,
   // e.g. `std::vector<std::string>`.
   //
-  // `chunk_size` tunes the number of elements encoded together. A larger
-  // `chunk_size` reduces memory usage, but the time complexity of lookups is
-  // roughly proportional to `chunk_size`.
-  //
-  // `size_hint` is the expected number of elements. If it turns out to not
-  // match reality, nothing breaks. If `Src` supports random access iteration,
-  // `std::distance(begin(src), end(src))` is automatically used as `size_hint`.
+  // If `Src` supports random access iteration,
+  // `std::distance(begin(src), end(src))` is automatically used as
+  // `Options::size_hint()`.
   template <
       typename Src,
       std::enable_if_t<IsIterableOf<Src, absl::string_view>::value, int> = 0>
-  static ChunkedSortedStringSet FromSorted(Src&& src, size_t chunk_size,
-                                           size_t size_hint = 0);
+  static ChunkedSortedStringSet FromSorted(Src&& src,
+                                           Options options = Options());
   static ChunkedSortedStringSet FromSorted(
-      std::initializer_list<absl::string_view> src, size_t chunk_size,
-      size_t size_hint = 0);
+      std::initializer_list<absl::string_view> src,
+      Options options = Options());
 
   // Creates a set consisting of the given elements. They do not need to be
   // sorted. Duplicates are inserted only once.
@@ -150,15 +186,20 @@ class ChunkedSortedStringSet {
   // `for (const absl::string_view element : src)`,
   // e.g. `std::vector<std::string>`.
   //
-  // `chunk_size` tunes the number of elements encoded together. A larger
-  // `chunk_size` reduces memory usage, but the time complexity of lookups is
-  // roughly proportional to `chunk_size`.
+  // If duplicates are expected, `Options::size_hint()` should apply before
+  // removing duplicates.
+  //
+  // If `Src` supports random access iteration,
+  // `std::distance(begin(src), end(src))` is automatically used as
+  // `Options::size_hint()`.
   template <
       typename Src,
       std::enable_if_t<IsIterableOf<Src, absl::string_view>::value, int> = 0>
-  static ChunkedSortedStringSet FromUnsorted(Src&& src, size_t chunk_size);
+  static ChunkedSortedStringSet FromUnsorted(Src&& src,
+                                             Options options = Options());
   static ChunkedSortedStringSet FromUnsorted(
-      std::initializer_list<absl::string_view> src, size_t chunk_size);
+      std::initializer_list<absl::string_view> src,
+      Options options = Options());
 
   // An empty set.
   ChunkedSortedStringSet() = default;
@@ -446,14 +487,11 @@ class ChunkedSortedStringSet::Iterator {
 class ChunkedSortedStringSet::Builder {
  public:
   // Begins with an empty set.
-  //
-  // `chunk_size` tunes the number of elements encoded together. A larger
-  // `chunk_size` reduces memory usage, but the time complexity of lookups is
-  // roughly proportional to `chunk_size`.
-  //
-  // `size_hint` is the expected number of elements. If it turns out to not
-  // match reality, nothing breaks.
-  explicit Builder(size_t chunk_size, size_t size_hint = 0);
+  explicit Builder(Options options = Options());
+  ABSL_DEPRECATED("Use Options instead")
+  explicit Builder(size_t chunk_size, size_t size_hint = 0)
+      : Builder(Options().set_chunk_size(chunk_size).set_size_hint(size_hint)) {
+  }
 
   Builder(Builder&& that) noexcept;
   Builder& operator=(Builder&& that) noexcept;
@@ -611,8 +649,7 @@ class ChunkedSortedStringSet::NextInsertIterator {
 template <typename Src,
           std::enable_if_t<IsIterableOf<Src, absl::string_view>::value, int>>
 ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
-                                                          size_t chunk_size,
-                                                          size_t size_hint) {
+                                                          Options options) {
   using std::begin;
   auto iter = begin(src);
   using std::end;
@@ -621,9 +658,9 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   if (std::is_convertible<
           typename std::iterator_traits<SrcIterator>::iterator_category,
           std::random_access_iterator_tag>::value) {
-    size_hint = std::distance(iter, end_iter);
+    options.set_size_hint(std::distance(iter, end_iter));
   }
-  ChunkedSortedStringSet::Builder builder(chunk_size, size_hint);
+  ChunkedSortedStringSet::Builder builder(std::move(options));
   for (; iter != end_iter; ++iter) {
     builder.InsertNext(MaybeMoveElement<Src>(*iter));
   }
@@ -633,18 +670,19 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
 template <typename Src,
           std::enable_if_t<IsIterableOf<Src, absl::string_view>::value, int>>
 inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
-    Src&& src, size_t chunk_size) {
+    Src&& src, Options options) {
   using std::begin;
   auto iter = begin(src);
   using std::end;
   auto end_iter = end(src);
   using SrcIterator = decltype(iter);
-  std::vector<SrcIterator> iterators;
   if (std::is_convertible<
           typename std::iterator_traits<SrcIterator>::iterator_category,
           std::random_access_iterator_tag>::value) {
-    iterators.reserve(std::distance(iter, end_iter));
+    options.set_size_hint(std::distance(iter, end_iter));
   }
+  std::vector<SrcIterator> iterators;
+  iterators.reserve(options.size_hint());
   for (; iter != end_iter; ++iter) {
     iterators.push_back(iter);
   }
@@ -653,7 +691,8 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
               return absl::string_view(*a) < absl::string_view(*b);
             });
 
-  ChunkedSortedStringSet::Builder builder(chunk_size, iterators.size());
+  options.set_size_hint(iterators.size());
+  ChunkedSortedStringSet::Builder builder(std::move(options));
   for (const SrcIterator& iter : iterators) {
     builder.InsertNext(MaybeMoveElement<Src>(*iter));
   }
