@@ -27,7 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -488,10 +487,6 @@ class ChunkedSortedStringSet::Builder {
  public:
   // Begins with an empty set.
   explicit Builder(Options options = Options());
-  ABSL_DEPRECATED("Use Options instead")
-  explicit Builder(size_t chunk_size, size_t size_hint = 0)
-      : Builder(Options().set_chunk_size(chunk_size).set_size_hint(size_hint)) {
-  }
 
   Builder(Builder&& that) noexcept;
   Builder& operator=(Builder&& that) noexcept;
