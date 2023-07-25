@@ -194,7 +194,8 @@ char* WriteHexImpl(uint8_t src, char* dest, size_t width) {
     return WriteHex1Impl(src, dest);
   }
   if (width > 2) {
-    std::memset(dest, '0', width - 2);
+    // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
+    std::memset(dest, '0', width > 2 ? width - 2 : 0);
     dest += width - 2;
   }
   return WriteHex2Impl(src, dest);
@@ -207,7 +208,8 @@ char* WriteHexImpl(uint16_t src, char* dest, size_t width) {
   const __m128i out = WriteHex4Impl(src);
   if (src >= uint32_t{1} << 12 || width >= 4) {
     if (width > 4) {
-      std::memset(dest, '0', width - 4);
+      // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
+      std::memset(dest, '0', width > 4 ? width - 4 : 0);
       dest += width - 4;
     }
     _mm_storeu_si32(dest, out);
@@ -237,7 +239,8 @@ char* WriteHexImpl(uint32_t src, char* dest, size_t width) {
   const __m128i out = WriteHex8Impl(src);
   if (src >= uint32_t{1} << 28 || width >= 8) {
     if (width > 8) {
-      std::memset(dest, '0', width - 8);
+      // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
+      std::memset(dest, '0', width > 0 ? width - 8 : 0);
       dest += width - 8;
     }
     _mm_storeu_si64(dest, out);
@@ -266,7 +269,8 @@ char* WriteHexImpl(uint64_t src, char* dest, size_t width) {
   const __m128i out = WriteHex16Impl(src);
   if (src >= uint64_t{1} << 60 || width >= 16) {
     if (width > 16) {
-      std::memset(dest, '0', width - 16);
+      // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
+      std::memset(dest, '0', width > 16 ? width - 16 : 0);
       dest += width - 16;
     }
     _mm_storeu_si128(reinterpret_cast<__m128i*>(dest), out);

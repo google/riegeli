@@ -104,7 +104,8 @@ inline char* WriteDecImpl(uint32_t src, char* dest, size_t width) {
   }
 
   if (width > 10) {
-    std::memset(dest, '0', width - 10);
+    // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
+    std::memset(dest, '0', width > 10 ? width - 10 : 0);
     dest += width - 10;
   }
   digits = src / 100'000'000;
@@ -151,7 +152,7 @@ inline char* WriteDecImpl(uint64_t src, char* dest, size_t width) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteDecImpl(absl::uint128 src, char* dest, size_t width) {
+inline char* WriteDecImpl(absl::uint128 src, char* dest, size_t width) {
   if (src <= std::numeric_limits<uint64_t>::max()) {
     return WriteDecImpl(IntCast<uint64_t>(src), dest, width);
   }
