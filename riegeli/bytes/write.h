@@ -67,22 +67,16 @@ namespace write_internal {
 
 template <typename WriterType, typename... Srcs,
           std::enable_if_t<
-              absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
-                                                 std::declval<const Srcs&>())),
-                                             size_t>...>::value,
-              int> = 0>
+              absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
                                                           const Srcs&... srcs) {
   dest.SetWriteSizeHint(
-      SaturatingAdd<Position>(Position{riegeli::StringifiedSize(srcs)}...));
+      SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
 }
 
 template <typename WriterType, typename... Srcs,
           std::enable_if_t<
-              !absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
-                                                  std::declval<const Srcs&>())),
-                                              size_t>...>::value,
-              int> = 0>
+              !absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
                                                           const Srcs&... srcs) {
 }

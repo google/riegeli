@@ -77,6 +77,7 @@ cc_binary(
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",
         "//riegeli/records:record_writer",
+        "//riegeli/text:ascii_align",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",

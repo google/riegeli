@@ -21,7 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
-#include <tuple>  // IWYU pragma: keep
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -89,21 +89,22 @@ struct HasAbslStringify<T, absl::void_t<decltype(AbslStringify(
                                std::declval<WriterAbslStringifySink&>(),
                                std::declval<const T&>()))>> : std::true_type {};
 
-// `StringifiedSize()` of a stringifiable value returns its size in `size_t` if
-// easily known, otherwise `void`.
+// `StringifiedSize()` of a stringifiable value returns the size of its
+// stringification as `Position` if easily known, otherwise it is only declared
+// as returning `void`.
 //
 // It has the same overloads as `Writer::Write()`, assuming that the parameter
 // is passed by const reference.
-inline size_t StringifiedSize(char src) { return 1; }
+inline Position StringifiedSize(char src) { return 1; }
 #if __cpp_char8_t
-inline size_t StringifiedSize(char8_t src) { return 1; }
+inline Position StringifiedSize(char8_t src) { return 1; }
 #endif
-inline size_t StringifiedSize(absl::string_view src) { return src.size(); }
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t StringifiedSize(const char* src) {
+inline Position StringifiedSize(absl::string_view src) { return src.size(); }
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
   return std::strlen(src);
 }
-inline size_t StringifiedSize(const Chain& src) { return src.size(); }
-inline size_t StringifiedSize(const absl::Cord& src) { return src.size(); }
+inline Position StringifiedSize(const Chain& src) { return src.size(); }
+inline Position StringifiedSize(const absl::Cord& src) { return src.size(); }
 void StringifiedSize(signed char);
 void StringifiedSize(unsigned char);
 void StringifiedSize(short src);
@@ -134,6 +135,17 @@ struct IsStringifiable : std::false_type {};
 template <typename T>
 struct IsStringifiable<T, absl::void_t<decltype(riegeli::StringifiedSize(
                               std::declval<const T&>()))>> : std::true_type {};
+
+// `HasStringifiedSize` checks if the type has `StringifiedSize()` defined
+// returning the size.
+template <typename T, typename Enable = void>
+struct HasStringifiedSize : std::false_type {};
+template <typename T>
+struct HasStringifiedSize<
+    T, std::enable_if_t<std::is_convertible<decltype(riegeli::StringifiedSize(
+                                                std::declval<const T&>())),
+                                            Position>::value>>
+    : std::true_type {};
 
 // Abstract class `Writer` writes sequences of bytes to a destination. The
 // nature of the destination depends on the particular class derived from
@@ -309,6 +321,21 @@ class Writer : public Object {
                             IsStringifiable<Srcs>...>::value,
           int> = 0>
   bool Write(Srcs&&... srcs);
+
+  // Writes stringified elements of the tuple to the buffer and/or the
+  // destination.
+  //
+  // Return values:
+  //  * `true`  - success
+  //  * `false` - failure (`!ok()`)
+  template <typename... Srcs,
+            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
+                             int> = 0>
+  bool WriteTuple(const std::tuple<Srcs...>& srcs);
+  template <typename... Srcs,
+            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
+                             int> = 0>
+  bool WriteTuple(std::tuple<Srcs...>&& srcs);
 
   // Writes the given number of zero bytes to the buffer and/or the destination.
   //
@@ -584,7 +611,19 @@ class Writer : public Object {
   virtual Reader* ReadModeImpl(Position initial_pos);
 
  private:
-#if !__cpp_fold_expressions
+  template <size_t index, typename... Srcs,
+            std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+      const std::tuple<Srcs...>& srcs) {
+    return true;
+  }
+  template <size_t index, typename... Srcs,
+            std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+      const std::tuple<Srcs...>& srcs) {
+    return Write(std::get<index>(srcs)) && WriteInternal<index + 1>(srcs);
+  }
+
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
@@ -599,7 +638,6 @@ class Writer : public Object {
                std::get<index>(srcs))) &&
            WriteInternal<index + 1>(std::move(srcs));
   }
-#endif
 
   char* start_ = nullptr;
   char* cursor_ = nullptr;
@@ -941,8 +979,24 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
 #if __cpp_fold_expressions
   return (Write(std::forward<Srcs>(srcs)) && ...);
 #else
-  return WriteInternal<0>(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
+  return WriteTuple(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 #endif
+}
+
+template <
+    typename... Srcs,
+    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
+    const std::tuple<Srcs...>& srcs) {
+  return WriteInternal<0>(srcs);
+}
+
+template <
+    typename... Srcs,
+    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
+    std::tuple<Srcs...>&& srcs) {
+  return WriteInternal<0>(std::move(srcs));
 }
 
 inline bool Writer::WriteZeros(Position length) {

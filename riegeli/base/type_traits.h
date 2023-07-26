@@ -154,6 +154,17 @@ inline RemoveTypesFromEndT<num_from_end, Args&&...> RemoveFromEnd(
       std::make_index_sequence<sizeof...(Args) - num_from_end>());
 }
 
+// `ApplyToTupleElements<F, std::tuple<T...>>::type` and
+// `ApplyToTupleElementsT<F, std::tuple<T...>>` is `F<T...>`.
+template <template <typename... Args> class F, typename Tuple>
+struct ApplyToTupleElements;
+template <template <typename... Args> class F, typename... T>
+struct ApplyToTupleElements<F, std::tuple<T...>> {
+  using type = F<T...>;
+};
+template <template <typename... Args> class F, typename Tuple>
+using ApplyToTupleElementsT = typename ApplyToTupleElements<F, Tuple>::type;
+
 // `TupleElementsSatisfy<Tuple, Predicate>::value` checks if all element types
 // of a `std::tuple` type satisfy a predicate.
 template <typename Tuple, template <typename...> class Predicate>

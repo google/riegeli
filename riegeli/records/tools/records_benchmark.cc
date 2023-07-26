@@ -57,6 +57,7 @@
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
 #include "riegeli/records/tools/tfrecord_recognizer.h"
+#include "riegeli/text/ascii_align.h"
 #include "riegeli/varint/varint_writing.h"
 #include "tensorflow/core/lib/io/compression.h"
 #include "tensorflow/core/lib/io/record_reader.h"
@@ -155,9 +156,7 @@ void Stats::Add(double value) { samples_.push_back(value); }
 double Stats::Median() {
   RIEGELI_CHECK(!samples_.empty()) << "No data";
   const size_t middle = samples_.size() / 2;
-  std::nth_element(samples_.begin(),
-                   samples_.begin() + riegeli::IntCast<ptrdiff_t>(middle),
-                   samples_.end());
+  std::nth_element(samples_.begin(), samples_.begin() + middle, samples_.end());
   return samples_[middle];
 }
 
@@ -211,7 +210,7 @@ class Benchmarks {
   std::vector<std::pair<std::string, const char*>> tfrecord_benchmarks_;
   std::vector<std::pair<std::string, riegeli::RecordWriterBase::Options>>
       riegeli_benchmarks_;
-  int max_name_width_ = 0;
+  size_t max_name_width_ = 0;
 };
 
 bool Benchmarks::ReadFile(absl::string_view filename,
@@ -361,10 +360,9 @@ Benchmarks::Benchmarks(std::vector<std::string> records, std::string output_dir,
 }
 
 void Benchmarks::RegisterTFRecord(absl::string_view tfrecord_options) {
-  max_name_width_ =
-      std::max(max_name_width_,
-               riegeli::IntCast<int>(absl::string_view("tfrecord ").size() +
-                                     tfrecord_options.size()));
+  max_name_width_ = riegeli::UnsignedMax(
+      max_name_width_,
+      absl::string_view("tfrecord ").size() + tfrecord_options.size());
   const char* compression = tensorflow::io::compression::kNone;
   riegeli::OptionsParser options_parser;
   options_parser.AddOption(
@@ -384,28 +382,31 @@ void Benchmarks::RegisterTFRecord(absl::string_view tfrecord_options) {
 }
 
 void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
-  max_name_width_ =
-      std::max(max_name_width_,
-               riegeli::IntCast<int>(absl::string_view("riegeli ").size() +
-                                     riegeli_options.size()));
+  max_name_width_ = riegeli::UnsignedMax(
+      max_name_width_,
+      absl::string_view("riegeli ").size() + riegeli_options.size());
   riegeli::RecordWriterBase::Options options;
   RIEGELI_CHECK_EQ(options.FromString(riegeli_options), absl::OkStatus());
   riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 
 void Benchmarks::RunAll(riegeli::Writer& report) {
-  absl::Format(&report, "Original uncompressed size: %.3f MB",
+  report.Write("Original uncompressed size: ");
+  absl::Format(&report, "%.3f",
                static_cast<double>(original_size_) / 1000000.0);
-  WriteLine(report);
-  WriteLine("Creating files ", output_dir_, "/record_benchmark_*", report);
-  absl::Format(&report, "%-*s", max_name_width_, "");
-  WriteLine("  Compr.    Write       Read", report);
-  absl::Format(&report, "%-*s", max_name_width_, "");
-  WriteLine("  ratio    CPU Real   CPU Real", report);
-  absl::Format(&report, "%-*s", max_name_width_, "Format");
-  WriteLine("    %     MB/s MB/s  MB/s MB/s", report);
-  report.WriteChars(riegeli::IntCast<size_t>(max_name_width_ + 30), '-');
-  WriteLine(report);
+  riegeli::WriteLine(" MB", report);
+  riegeli::WriteLine("Creating files ", output_dir_, "/record_benchmark_*",
+                     report);
+  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+                     "  Compr.    Write       Read", report);
+  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+                     "  ratio    CPU Real   CPU Real", report);
+  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+                     "    %     MB/s MB/s  MB/s MB/s", report);
+  riegeli::WriteLine(riegeli::AsciiLeft(riegeli::AlignOptions()
+                                            .set_width(max_name_width_ + 30)
+                                            .set_fill('-')),
+                     report);
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
@@ -449,7 +450,7 @@ void Benchmarks::RunOne(
     absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
         read_records,
     riegeli::Writer& report) {
-  absl::Format(&report, "%-*s ", max_name_width_, name);
+  report.Write(riegeli::AsciiLeft(name, max_name_width_), ' ');
   report.Flush();
   const std::string filename =
       absl::StrCat(output_dir_, "/record_benchmark_", Filename(name));
@@ -507,7 +508,8 @@ void Benchmarks::RunOne(
         std::array<Stats*, 2>{{&reading_cpu_speed, &reading_real_speed}}}) {
     report.Write(' ');
     for (Stats* const stats : stats_cpu_real) {
-      absl::Format(&report, " %4.0f", stats->Median());
+      report.Write(' ');
+      absl::Format(&report, "%4.0f", stats->Median());
     }
   }
   riegeli::WriteLine(report);
