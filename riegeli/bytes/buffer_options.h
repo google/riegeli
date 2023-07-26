@@ -148,6 +148,9 @@ class BufferOptionsBase {
   const BufferOptions& buffer_options() const { return buffer_options_; }
 
  protected:
+  BufferOptionsBase(const BufferOptionsBase& that) = default;
+  BufferOptionsBase& operator=(const BufferOptionsBase& that) = default;
+
   ~BufferOptionsBase() = default;
 
  private:
