@@ -264,6 +264,8 @@ class ChainWriter : public ChainWriterBase {
   const Chain* DestChain() const override { return dest_.get(); }
 
  private:
+  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
+  // `dest_` to `*this`; adjust them to match `dest_`.
   void MoveDest(ChainWriter&& that);
 
   // The object providing and possibly owning the `Chain` being written to, with

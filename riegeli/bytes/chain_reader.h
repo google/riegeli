@@ -131,6 +131,8 @@ class ChainReader : public ChainReaderBase {
   const Chain* SrcChain() const override { return src_.get(); }
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(ChainReader&& that);
 
   // The object providing and possibly owning the `Chain` being read from.

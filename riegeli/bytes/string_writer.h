@@ -278,6 +278,9 @@ class StringWriter : public StringWriterBase {
   const std::string* DestString() const override { return dest_.get(); }
 
  private:
+  // Moves `that.dest_` to `dest_`, and `that.secondary_buffer_` to
+  // `secondary_buffer_`. Buffer pointers are already moved from `dest_` to
+  // `*this`; adjust them to match `dest_` or `secondary_buffer_`.
   void MoveDestAndSecondaryBuffer(StringWriter&& that);
 
   // The object providing and possibly owning the `std::string` being written

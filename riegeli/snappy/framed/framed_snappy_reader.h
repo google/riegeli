@@ -142,6 +142,8 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   void VerifyEndImpl() override;
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(FramedSnappyReader&& that);
 
   // The object providing and possibly owning the compressed `Reader`.

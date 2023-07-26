@@ -146,6 +146,8 @@ class WrappedWriter : public WrappedWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
+  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
+  // `dest_` to `*this`; adjust them to match `dest_`.
   void MoveDest(WrappedWriter&& that);
 
   // The object providing and possibly owning the original `Writer`.

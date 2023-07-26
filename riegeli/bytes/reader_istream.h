@@ -199,6 +199,8 @@ class ReaderIStream : public ReaderIStreamBase {
   void Done() override;
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(ReaderIStream&& that);
 
   // The object providing and possibly owning the `Reader`.

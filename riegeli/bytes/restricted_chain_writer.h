@@ -76,6 +76,8 @@ class RestrictedChainWriter : public Writer {
   // Appends uninitialized space to `dest_`.
   void MakeBuffer(size_t min_length = 1, size_t recommended_length = 0);
 
+  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
+  // `dest_` to `*this`; adjust them to match `dest_`.
   void MoveDest(RestrictedChainWriter&& that);
 
   // Invariants if `ok()`:

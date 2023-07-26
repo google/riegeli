@@ -136,6 +136,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   absl::Span<const char> DestSpan() const override { return dest_.get(); }
 
  private:
+  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
+  // `dest_` to `*this`; adjust them to match `dest_`.
   void MoveDest(ArrayBackwardWriter&& that);
 
   // The object providing and possibly owning the array being written to.

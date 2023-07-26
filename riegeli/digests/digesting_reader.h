@@ -198,6 +198,8 @@ class DigestingReader : public DigestingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(DigestingReader&& that);
 
   Digester digester_;

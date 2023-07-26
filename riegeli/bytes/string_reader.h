@@ -56,6 +56,11 @@ class StringReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
+
+  // Invariants if `is_open()`:
+  //   `start() == SrcStringView().data()`
+  //   `start_to_limit() == SrcStringView().size()`
+  //   `start_pos() == 0`
 };
 
 // A `Reader` which reads from a `std::string` or array.
@@ -137,6 +142,8 @@ class StringReader : public StringReaderBase {
   absl::string_view SrcStringView() const override { return src_.get(); }
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(StringReader&& that);
 
   // The object providing and possibly owning the `std::string` or array being

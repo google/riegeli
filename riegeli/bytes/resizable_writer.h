@@ -349,6 +349,9 @@ class ResizableWriter : public ResizableWriterBase {
   bool GrowDestAndMakeBuffer(size_t new_size) override;
 
  private:
+  // Moves `that.dest_` to `dest_`, and `that.secondary_buffer_` to
+  // `secondary_buffer_`. Buffer pointers are already moved from `dest_` to
+  // `*this`; adjust them to match `dest_` or `secondary_buffer_`.
   void MoveDestAndSecondaryBuffer(ResizableWriter&& that);
 
   // The object providing and possibly owning the `Resizable` being written

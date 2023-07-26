@@ -158,6 +158,8 @@ class CordReader : public CordReaderBase {
   const absl::Cord* SrcCord() const override { return src_.get(); }
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(CordReader&& that);
 
   // The object providing and possibly owning the `absl::Cord` being read from.

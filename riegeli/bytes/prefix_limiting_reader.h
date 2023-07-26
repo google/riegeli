@@ -191,6 +191,8 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
+  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
+  // to `*this`; adjust them to match `src_`.
   void MoveSrc(PrefixLimitingReader&& that);
 
   // The object providing and possibly owning the original `Reader`.
