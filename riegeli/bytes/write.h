@@ -57,7 +57,7 @@ template <
         absl::conjunction<
             IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringLike>>::value,
+                                 IsStringifiable>>::value,
         int> = 0>
 absl::Status Write(Args&&... args);
 
@@ -65,25 +65,25 @@ absl::Status Write(Args&&... args);
 
 namespace write_internal {
 
-template <typename... Srcs,
+template <typename WriterType, typename... Srcs,
           std::enable_if_t<
               absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
                                                  std::declval<const Srcs&>())),
                                              size_t>...>::value,
               int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(Writer& dest,
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
                                                           const Srcs&... srcs) {
   dest.SetWriteSizeHint(
       SaturatingAdd<Position>(Position{riegeli::StringifiedSize(srcs)}...));
 }
 
-template <typename... Srcs,
+template <typename WriterType, typename... Srcs,
           std::enable_if_t<
               !absl::conjunction<std::is_same<decltype(riegeli::StringifiedSize(
                                                   std::declval<const Srcs&>())),
                                               size_t>...>::value,
               int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(Writer& dest,
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
                                                           const Srcs&... srcs) {
 }
 
@@ -114,8 +114,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
     std::index_sequence<indices...>) {
   Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.is_owning()) {
-    dest_dep->SetWriteSizeHint(SaturatingAdd<Position>(
-        Position{riegeli::StringifiedSize(std::get<indices>(srcs))}...));
+    SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
   }
   absl::Status status;
   if (ABSL_PREDICT_FALSE(
@@ -152,7 +151,7 @@ template <
         absl::conjunction<
             IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringLike>>::value,
+                                 IsStringifiable>>::value,
         int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::BackwardWriteInternal(

@@ -16,7 +16,9 @@
 
 #include <stddef.h>
 
+#include <cmath>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
@@ -46,6 +49,20 @@ absl::Status BackwardWriter::AnnotateStatusImpl(absl::Status status) {
 
 bool BackwardWriter::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("BackwardWriter position overflow"));
+}
+
+// TODO: Optimize implementations below.
+bool BackwardWriter::Write(float src) { return Write(absl::StrCat(src)); }
+
+bool BackwardWriter::Write(double src) { return Write(absl::StrCat(src)); }
+
+bool BackwardWriter::Write(long double src) {
+  return Write(
+      absl::StrFormat("%g",
+                      // Consistently use "nan", never "-nan".
+                      ABSL_PREDICT_FALSE(std::isnan(src))
+                          ? std::numeric_limits<long double>::quiet_NaN()
+                          : src));
 }
 
 bool BackwardWriter::WriteSlow(absl::string_view src) {

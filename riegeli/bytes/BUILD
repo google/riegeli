@@ -76,11 +76,13 @@ cc_library(
     srcs = [
         "backward_writer.cc",
         "reader.cc",
+        "restricted_chain_writer.cc",
         "writer.cc",
     ],
     hdrs = [
         "backward_writer.h",
         "reader.h",
+        "restricted_chain_writer.h",
         "writer.h",
     ],
     visibility = ["//visibility:private"],
@@ -798,6 +800,19 @@ cc_library(
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "restricted_chain_writer",
+    hdrs = ["restricted_chain_writer.h"],
+    deps = [
+        ":reader_and_writer",
+        "//riegeli/base:chain",
+        "//riegeli/base:object",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 

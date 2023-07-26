@@ -40,50 +40,10 @@
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/restricted_chain_writer.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-// `StringLikeSize()` of a string-like value returns its size.
-//
-// It has the same overloads as `BackwardWriter::Write()`, assuming that the
-// parameter is passed by const reference.
-inline size_t StringLikeSize(char src) { return 1; }
-#if __cpp_char8_t
-inline size_t StringLikeSize(char8_t src) { return 1; }
-#endif
-inline size_t StringLikeSize(absl::string_view src) { return src.size(); }
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t StringLikeSize(const char* src) {
-  return std::strlen(src);
-}
-inline size_t StringLikeSize(const Chain& src) { return src.size(); }
-inline size_t StringLikeSize(const absl::Cord& src) { return src.size(); }
-size_t StringLikeSize(signed char) = delete;
-size_t StringLikeSize(unsigned char) = delete;
-size_t StringLikeSize(short src) = delete;
-size_t StringLikeSize(unsigned short src) = delete;
-size_t StringLikeSize(int src) = delete;
-size_t StringLikeSize(unsigned src) = delete;
-size_t StringLikeSize(long src) = delete;
-size_t StringLikeSize(unsigned long src) = delete;
-size_t StringLikeSize(long long src) = delete;
-size_t StringLikeSize(unsigned long long src) = delete;
-size_t StringLikeSize(absl::int128 src) = delete;
-size_t StringLikeSize(absl::uint128 src) = delete;
-size_t StringLikeSize(float) = delete;
-size_t StringLikeSize(double) = delete;
-size_t StringLikeSize(long double) = delete;
-size_t StringLikeSize(bool) = delete;
-size_t StringLikeSize(wchar_t) = delete;
-size_t StringLikeSize(char16_t) = delete;
-size_t StringLikeSize(char32_t) = delete;
-
-// `IsStringLike` checks if the type is an appropriate argument for
-// `BackwardWriter::Write()` and `riegeli::Write(BackwardWriter&)`.
-template <typename T, typename Enable = void>
-struct IsStringLike : std::false_type {};
-template <typename T>
-struct IsStringLike<T, absl::void_t<decltype(riegeli::StringLikeSize(
-                           std::declval<const T&>()))>> : std::true_type {};
 
 // Abstract class `BackwardWriter` writes sequences of bytes to a destination,
 // like `Writer`, but back to front.
@@ -205,29 +165,38 @@ class BackwardWriter : public Object {
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
 
-  // Other integer types are not supported. Delete overloads to avoid implicit
-  // conversions.
-  bool Write(signed char src) = delete;
-  bool Write(unsigned char src) = delete;
-  bool Write(short src) = delete;
-  bool Write(unsigned short src) = delete;
-  bool Write(int src) = delete;
-  bool Write(unsigned src) = delete;
-  bool Write(long src) = delete;
-  bool Write(unsigned long src) = delete;
-  bool Write(long long src) = delete;
-  bool Write(unsigned long long src) = delete;
-  bool Write(absl::int128 src) = delete;
-  bool Write(absl::uint128 src) = delete;
-  bool Write(float src) = delete;
-  bool Write(double src) = delete;
-  bool Write(long double src) = delete;
+  // Writes a stringified value to the buffer and/or the destination.
+  //
+  // Return values:
+  //  * `true`  - success
+  //  * `false` - failure (`!ok()`)
+  bool Write(signed char src);
+  bool Write(unsigned char src);
+  bool Write(short src);
+  bool Write(unsigned short src);
+  bool Write(int src);
+  bool Write(unsigned src);
+  bool Write(long src);
+  bool Write(unsigned long src);
+  bool Write(long long src);
+  bool Write(unsigned long long src);
+  bool Write(absl::int128 src);
+  bool Write(absl::uint128 src);
+  bool Write(float src);
+  bool Write(double src);
+  bool Write(long double src);
+  template <typename Src,
+            std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+  bool Write(Src&& src);
+
+  // Other integer types are is not supported. Delete overloads to avoid
+  // implicit conversions.
   bool Write(bool src) = delete;
   bool Write(wchar_t src) = delete;
   bool Write(char16_t src) = delete;
   bool Write(char32_t src) = delete;
 
-  // Writes string-like values to the buffer and/or the destination.
+  // Writes stringified values to the buffer and/or the destination.
   //
   // `srcs` are prepended in the reverse order, so that they appear in the
   // destination in the same order as arguments of `Write()`.
@@ -239,7 +208,7 @@ class BackwardWriter : public Object {
       typename... Srcs,
       std::enable_if_t<
           absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                            IsStringLike<Srcs>...>::value,
+                            IsStringifiable<Srcs>...>::value,
           int> = 0>
   bool Write(Srcs&&... srcs);
 
@@ -476,6 +445,36 @@ class BackwardWriter : public Object {
 
 // Implementation details follow.
 
+namespace write_int_internal {
+
+template <typename T>
+inline bool WriteUnsigned(T src, BackwardWriter& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
+  dest.set_cursor(WriteDecUnsignedBackward(src, dest.cursor()));
+  return true;
+}
+
+template <typename T>
+inline bool WriteSigned(T src, BackwardWriter& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
+  char* cursor = dest.cursor();
+  if (src >= 0) {
+    cursor = WriteDecUnsignedBackward(UnsignedCast(src), cursor);
+  } else {
+    cursor = WriteDecUnsignedBackward(NegatingUnsignedCast(src), cursor);
+    --cursor;
+    *cursor = '-';
+  }
+  dest.set_cursor(cursor);
+  return true;
+}
+
+}  // namespace write_int_internal
+
 inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
     : Object(static_cast<Object&&>(that)),
       start_(std::exchange(that.start_, nullptr)),
@@ -662,11 +661,70 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
   return WriteSlow(std::move(src));
 }
 
+inline bool BackwardWriter::Write(signed char src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(unsigned char src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(short src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(unsigned short src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(int src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(unsigned src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(long src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(unsigned long src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(long long src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(unsigned long long src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(absl::int128 src) {
+  return write_int_internal::WriteSigned(src, *this);
+}
+
+inline bool BackwardWriter::Write(absl::uint128 src) {
+  return write_int_internal::WriteUnsigned(src, *this);
+}
+
+template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>
+inline bool BackwardWriter::Write(Src&& src) {
+  RestrictedChainWriter chain_writer;
+  WriterAbslStringifySink sink(&chain_writer);
+  AbslStringify(sink, std::forward<Src>(src));
+  if (ABSL_PREDICT_FALSE(!chain_writer.Close())) {
+    return Fail(chain_writer.status());
+  }
+  return Write(std::move(chain_writer.dest()));
+}
+
 template <
     typename... Srcs,
     std::enable_if_t<
         absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                          IsStringLike<Srcs>...>::value,
+                          IsStringifiable<Srcs>...>::value,
         int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::Write(Srcs&&... srcs) {
   return WriteInternal<sizeof...(Srcs)>(

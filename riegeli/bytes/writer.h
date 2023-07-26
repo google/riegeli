@@ -127,7 +127,8 @@ void StringifiedSize(char16_t) = delete;
 void StringifiedSize(char32_t) = delete;
 
 // `IsStringifiable` checks if the type is an appropriate argument for
-// `Writer::Write()`, `riegeli::Write(Writer&)`, and `riegeli::WriteLine()`.
+// `Writer::Write()`, `BackwardWriter::Write()`, `riegeli::Write()`, and e.g.
+// `riegeli::WriteLine()`.
 template <typename T, typename Enable = void>
 struct IsStringifiable : std::false_type {};
 template <typename T>
