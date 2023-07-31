@@ -68,13 +68,39 @@ class DecType {
   size_t width_;
 };
 
+// Specialization of `DecType` for `char` which is written as unsigned.
+template <>
+class DecType<char> {
+ public:
+  explicit DecType(char value, size_t width) : value_(value), width_(width) {}
+
+  const char& value() const { return value_; }
+  size_t width() const { return width_; }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const DecType& self) {
+    return AbslStringify(
+        sink, DecType<unsigned char>(static_cast<unsigned char>(self.value()),
+                                     self.width()));
+  }
+
+ private:
+  char value_;
+  size_t width_;
+};
+
 // Wraps an integer such that its stringified representation is padded with
 // zeros to at least the given width.
 //
 // For negative numbers the width includes the minus sign.
 //
-// If no minimum width is needed, integers can be stringified directly, without
-// wrapping.
+// `char` is stringified as unsigned.
+//
+// If no minimum width is needed, integers can be written to `riegeli::Writer`
+// and `riegeli::BackwardWriter` directly, without wrapping, except that `bool`,
+// `wchar_t`, `char16_t`, nor `char32_t` cannot be written directly, and for
+// `char` and `char8_t` written directly the character itself is written, not
+// its decimal representation.
 template <typename T>
 inline DecType<T> Dec(T value, size_t width = 0) {
   return DecType<T>(value, width);
@@ -115,10 +141,33 @@ class HexType {
   size_t width_;
 };
 
+// Specialization of `HexType` for `char` which is written as unsigned.
+template <>
+class HexType<char> {
+ public:
+  explicit HexType(char value, size_t width) : value_(value), width_(width) {}
+
+  const char& value() const { return value_; }
+  size_t width() const { return width_; }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const HexType& self) {
+    return AbslStringify(
+        sink, HexType<unsigned char>(static_cast<unsigned char>(self.value()),
+                                     self.width()));
+  }
+
+ private:
+  char value_;
+  size_t width_;
+};
+
 // Wraps an integer such that its stringified representation is hexadecimal,
 // padded with zeros to at least the given width.
 //
 // For negative numbers the width includes the minus sign.
+//
+// `char` is written as unsigned.
 template <typename T>
 inline HexType<T> Hex(T value, size_t width = 0) {
   return HexType<T>(value, width);
