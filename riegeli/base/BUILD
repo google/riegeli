@@ -35,6 +35,7 @@ cc_library(
     hdrs = ["assert.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 

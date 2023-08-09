@@ -20,10 +20,12 @@
 #include <ostream>  // IWYU pragma: export
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -94,11 +96,31 @@ class CheckResult {
   const char* message_ = nullptr;
 };
 
+template <typename T>
+using IsChar =
+    absl::disjunction<std::is_same<T, char>, std::is_same<T, signed char>,
+                      std::is_same<T, unsigned char>, std::is_same<T, wchar_t>,
+#if __cpp_char8_t
+                      std::is_same<T, char8_t>,
+#endif
+                      std::is_same<T, char16_t>, std::is_same<T, char32_t>>;
+
+template <typename T, std::enable_if_t<IsChar<T>::value, int> = 0>
+typename std::char_traits<T>::int_type GetStreamable(const T& value) {
+  return static_cast<typename std::char_traits<T>::int_type>(value);
+}
+
+template <typename T, std::enable_if_t<!IsChar<T>::value, int> = 0>
+const T& GetStreamable(const T& value) {
+  return value;
+}
+
 template <typename A, typename B>
 ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
                                                      const A& a, const B& b) {
   std::ostringstream stream;
-  stream << message << " (" << a << " vs. " << b << ")";
+  stream << message << " (" << GetStreamable(a) << " vs. " << GetStreamable(b)
+         << ")";
   // Do not bother with freeing this string: the program will soon terminate.
   return (new std::string(stream.str()))->c_str();
 }
