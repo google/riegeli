@@ -332,19 +332,19 @@ bool TextWriter<newline, Dest>::FlushImpl(FlushType flush_type) {
 }
 
 template <typename Dest>
-inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(const Dest& dest,
-                                                       Options options)
+inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
+    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextWriter::PrefixLimitingWriter(dest) {}
 
 template <typename Dest>
-inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(Dest&& dest,
-                                                       Options options)
+inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
+    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextWriter::PrefixLimitingWriter(std::move(dest)) {}
 
 template <typename Dest>
 template <typename... DestArgs>
 inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
+    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextWriter::PrefixLimitingWriter(std::move(dest_args)) {}
 
 template <typename Dest>
@@ -353,21 +353,21 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void TextWriter<WriteNewline::kLf, Dest>::Reset(const Dest& dest,
-                                                       Options options) {
+inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
+    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextWriter::PrefixLimitingWriter::Reset(dest);
 }
 
 template <typename Dest>
-inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Dest&& dest,
-                                                       Options options) {
+inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
+    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, Options options) {
+    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest_args));
 }
 

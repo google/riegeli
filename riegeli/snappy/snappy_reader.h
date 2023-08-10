@@ -210,13 +210,15 @@ inline void SnappyReaderBase::Reset() {
 }
 
 template <typename Src>
-inline SnappyReader<Src>::SnappyReader(const Src& src, Options options)
+inline SnappyReader<Src>::SnappyReader(const Src& src,
+                                       ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline SnappyReader<Src>::SnappyReader(Src&& src, Options options)
+inline SnappyReader<Src>::SnappyReader(Src&& src,
+                                       ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -224,7 +226,7 @@ inline SnappyReader<Src>::SnappyReader(Src&& src, Options options)
 template <typename Src>
 template <typename... SrcArgs>
 inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
-                                       Options options)
+                                       ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -249,14 +251,16 @@ inline void SnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void SnappyReader<Src>::Reset(const Src& src, Options options) {
+inline void SnappyReader<Src>::Reset(const Src& src,
+                                     ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline void SnappyReader<Src>::Reset(Src&& src, Options options) {
+inline void SnappyReader<Src>::Reset(Src&& src,
+                                     ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -265,7 +269,7 @@ inline void SnappyReader<Src>::Reset(Src&& src, Options options) {
 template <typename Src>
 template <typename... SrcArgs>
 inline void SnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                     Options options) {
+                                     ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

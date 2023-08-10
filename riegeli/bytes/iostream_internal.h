@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 
 namespace riegeli {
@@ -40,7 +41,7 @@ struct HasClose<T, absl::void_t<decltype(std::declval<T>().close())>>
     : std::true_type {};
 
 template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>
-inline void Close(Stream& stream) {}
+inline void Close(ABSL_ATTRIBUTE_UNUSED Stream& stream) {}
 
 template <typename Stream, std::enable_if_t<HasClose<Stream>::value, int> = 0>
 inline void Close(Stream& stream) {
@@ -55,7 +56,7 @@ inline std::istream* DetectIStream(T* stream) {
 
 template <typename T,
           std::enable_if_t<!std::is_base_of<std::istream, T>::value, int> = 0>
-inline std::istream* DetectIStream(T* stream) {
+inline std::istream* DetectIStream(ABSL_ATTRIBUTE_UNUSED T* stream) {
   return nullptr;
 }
 

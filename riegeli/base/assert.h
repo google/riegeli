@@ -270,7 +270,8 @@ inline T AssertNotNull(T&& value) {
 
 // Asserts that a region of memory is initialized, which is checked when running
 // under memory sanitizer.
-inline void AssertInitialized(const char* data, size_t size) {
+inline void AssertInitialized(ABSL_ATTRIBUTE_UNUSED const char* data,
+                              ABSL_ATTRIBUTE_UNUSED size_t size) {
 #ifdef MEMORY_SANITIZER
   __msan_check_mem_is_initialized(data, size);
 #endif
@@ -278,7 +279,8 @@ inline void AssertInitialized(const char* data, size_t size) {
 
 // Marks that a region of memory should be treated as uninitialized, which is
 // checked when running under memory sanitizer.
-inline void MarkPoisoned(const char* data, size_t size) {
+inline void MarkPoisoned(ABSL_ATTRIBUTE_UNUSED const char* data,
+                         ABSL_ATTRIBUTE_UNUSED size_t size) {
 #ifdef MEMORY_SANITIZER
   __msan_poison(data, size);
 #endif

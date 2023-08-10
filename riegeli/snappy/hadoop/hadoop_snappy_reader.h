@@ -203,14 +203,15 @@ inline void HadoopSnappyReaderBase::Reset() {
 }
 
 template <typename Src>
-inline HadoopSnappyReader<Src>::HadoopSnappyReader(const Src& src,
-                                                   Options options)
+inline HadoopSnappyReader<Src>::HadoopSnappyReader(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline HadoopSnappyReader<Src>::HadoopSnappyReader(Src&& src, Options options)
+inline HadoopSnappyReader<Src>::HadoopSnappyReader(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -218,7 +219,7 @@ inline HadoopSnappyReader<Src>::HadoopSnappyReader(Src&& src, Options options)
 template <typename Src>
 template <typename... SrcArgs>
 inline HadoopSnappyReader<Src>::HadoopSnappyReader(
-    std::tuple<SrcArgs...> src_args, Options options)
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -246,14 +247,16 @@ inline void HadoopSnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void HadoopSnappyReader<Src>::Reset(const Src& src, Options options) {
+inline void HadoopSnappyReader<Src>::Reset(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline void HadoopSnappyReader<Src>::Reset(Src&& src, Options options) {
+inline void HadoopSnappyReader<Src>::Reset(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -261,8 +264,8 @@ inline void HadoopSnappyReader<Src>::Reset(Src&& src, Options options) {
 
 template <typename Src>
 template <typename... SrcArgs>
-inline void HadoopSnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                           Options options) {
+inline void HadoopSnappyReader<Src>::Reset(
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

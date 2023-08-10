@@ -394,6 +394,7 @@ inline void ZlibReaderBase::Reset(
   concatenate_ = concatenate;
   truncated_ = false;
   stream_had_data_ = false;
+  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
   dictionary_ = std::move(dictionary);

@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
@@ -244,7 +245,7 @@ inline size_t DynamicSizeOfImpl(const T& object) {
 
 template <typename T,
           std::enable_if_t<!HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOfImpl(const T& object) {
+inline size_t DynamicSizeOfImpl(ABSL_ATTRIBUTE_UNUSED const T& object) {
   return sizeof(T);
 }
 
@@ -269,8 +270,9 @@ template <typename T,
               absl::conjunction<absl::negation<HasRiegeliRegisterSubobjects<T>>,
                                 std::is_trivially_destructible<T>>::value,
               int> = 0>
-inline void RegisterSubobjectsImpl(const T& object,
-                                   MemoryEstimator& memory_estimator) {}
+inline void RegisterSubobjectsImpl(
+    ABSL_ATTRIBUTE_UNUSED const T& object,
+    ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
 template <typename T,
           std::enable_if_t<
@@ -278,7 +280,7 @@ template <typename T,
                   absl::negation<HasRiegeliRegisterSubobjects<T>>,
                   absl::negation<std::is_trivially_destructible<T>>>::value,
               int> = 0>
-inline void RegisterSubobjectsImpl(const T& object,
+inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T& object,
                                    MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
 }
@@ -419,8 +421,9 @@ namespace memory_estimator_internal {
 
 template <size_t index, typename... T,
           std::enable_if_t<(index == sizeof...(T)), int> = 0>
-inline void RegisterTupleElements(const std::tuple<T...>& self,
-                                  MemoryEstimator& memory_estimator) {}
+inline void RegisterTupleElements(
+    ABSL_ATTRIBUTE_UNUSED const std::tuple<T...>& self,
+    ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
 template <size_t index, typename... T,
           std::enable_if_t<(index < sizeof...(T)), int> = 0>

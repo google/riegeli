@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
@@ -292,8 +293,9 @@ inline SearchGuide<typename Traits::Pos> GetSearchGuide(
 
 template <typename Traits>
 inline SearchGuide<typename Traits::Pos> GetSearchGuide(
-    SearchGuide<typename Traits::Pos> guide, const typename Traits::Pos& pos,
-    const Traits& traits) {
+    SearchGuide<typename Traits::Pos> guide,
+    ABSL_ATTRIBUTE_UNUSED const typename Traits::Pos& pos,
+    ABSL_ATTRIBUTE_UNUSED const Traits& traits) {
   return guide;
 }
 
@@ -303,7 +305,7 @@ struct CancelSearch;
 template <>
 struct CancelSearch<absl::partial_ordering> {
   template <typename Pos>
-  static absl::partial_ordering At(const Pos& pos) {
+  static absl::partial_ordering At(ABSL_ATTRIBUTE_UNUSED const Pos& pos) {
     return absl::partial_ordering::equivalent;
   }
 };

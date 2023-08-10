@@ -281,13 +281,15 @@ inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
 }
 
 template <typename Dest>
-inline SnappyWriter<Dest>::SnappyWriter(const Dest& dest, Options options)
+inline SnappyWriter<Dest>::SnappyWriter(const Dest& dest,
+                                        ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline SnappyWriter<Dest>::SnappyWriter(Dest&& dest, Options options)
+inline SnappyWriter<Dest>::SnappyWriter(Dest&& dest,
+                                        ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
@@ -295,7 +297,7 @@ inline SnappyWriter<Dest>::SnappyWriter(Dest&& dest, Options options)
 template <typename Dest>
 template <typename... DestArgs>
 inline SnappyWriter<Dest>::SnappyWriter(std::tuple<DestArgs...> dest_args,
-                                        Options options)
+                                        ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
@@ -320,14 +322,16 @@ inline void SnappyWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void SnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
+inline void SnappyWriter<Dest>::Reset(const Dest& dest,
+                                      ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void SnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void SnappyWriter<Dest>::Reset(Dest&& dest,
+                                      ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
@@ -336,7 +340,7 @@ inline void SnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
 template <typename Dest>
 template <typename... DestArgs>
 inline void SnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                      Options options) {
+                                      ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());

@@ -535,7 +535,7 @@ class Reader : public Object {
   virtual void VerifyEndImpl();
 
   // Implementation of `SetReadAllHint()`.
-  virtual void SetReadAllHintImpl(bool read_all_hint) {}
+  virtual void SetReadAllHintImpl(ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {}
 
   // Implementation of the slow part of `Pull()`.
   //

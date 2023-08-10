@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -113,7 +114,7 @@ inline void Close(Digester& digester) {
 
 template <typename Digester,
           std::enable_if_t<!HasClose<Digester>::value, int> = 0>
-inline void Close(Digester& digester) {}
+inline void Close(ABSL_ATTRIBUTE_UNUSED Digester& digester) {}
 
 // `digester_internal::DigesterType` is the result of `Digester::Digest()`, or
 // `void` if that is not defined.
@@ -150,7 +151,7 @@ inline DigestType<Digester> Digest(Digester& digester) {
 
 template <typename Digester,
           std::enable_if_t<!HasDigest<Digester>::value, int> = 0>
-inline DigestType<Digester> Digest(Digester& digester) {}
+inline DigestType<Digester> Digest(ABSL_ATTRIBUTE_UNUSED Digester& digester) {}
 
 }  // namespace digesting_internal
 }  // namespace riegeli

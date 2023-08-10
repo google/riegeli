@@ -95,9 +95,9 @@ struct HasAbslStringify<T, absl::void_t<decltype(AbslStringify(
 //
 // It has the same overloads as `Writer::Write()`, assuming that the parameter
 // is passed by const reference.
-inline Position StringifiedSize(char src) { return 1; }
+inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char src) { return 1; }
 #if __cpp_char8_t
-inline Position StringifiedSize(char8_t src) { return 1; }
+inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char8_t src) { return 1; }
 #endif
 inline Position StringifiedSize(absl::string_view src) { return src.size(); }
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
@@ -517,7 +517,8 @@ class Writer : public Object {
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of `SetWriteSizeHint()`.
-  virtual void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) {}
+  virtual void SetWriteSizeHintImpl(
+      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
 
   // Implementation of the slow part of `Push()`.
   //
@@ -614,7 +615,7 @@ class Writer : public Object {
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
-      const std::tuple<Srcs...>& srcs) {
+      ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs) {
     return true;
   }
   template <size_t index, typename... Srcs,
@@ -627,7 +628,7 @@ class Writer : public Object {
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
-      std::tuple<Srcs...>&& srcs) {
+      ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...>&& srcs) {
     return true;
   }
   template <size_t index, typename... Srcs,

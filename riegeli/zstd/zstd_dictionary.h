@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
@@ -144,7 +145,7 @@ class ZstdDictionary {
   struct ZSTD_CDictCache;
 
   struct ZSTD_CDictReleaser {
-    void operator()(ZSTD_CDict* ptr) {
+    void operator()(ABSL_ATTRIBUTE_UNUSED ZSTD_CDict* ptr) {
       // `*ptr` is owned by `*compression_cache`.
       compression_cache.reset();
     }

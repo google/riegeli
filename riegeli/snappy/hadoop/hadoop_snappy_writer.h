@@ -210,15 +210,15 @@ inline void HadoopSnappyWriterBase::Reset() {
 }
 
 template <typename Dest>
-inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(const Dest& dest,
-                                                    Options options)
+inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
+    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(Dest&& dest,
-                                                    Options options)
+inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
+    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
@@ -226,7 +226,7 @@ inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(Dest&& dest,
 template <typename Dest>
 template <typename... DestArgs>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
+    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
@@ -253,14 +253,16 @@ inline void HadoopSnappyWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void HadoopSnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
+inline void HadoopSnappyWriter<Dest>::Reset(
+    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void HadoopSnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void HadoopSnappyWriter<Dest>::Reset(
+    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
@@ -268,8 +270,8 @@ inline void HadoopSnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
 
 template <typename Dest>
 template <typename... DestArgs>
-inline void HadoopSnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                            Options options) {
+inline void HadoopSnappyWriter<Dest>::Reset(
+    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());

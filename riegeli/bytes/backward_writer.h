@@ -357,7 +357,8 @@ class BackwardWriter : public Object {
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of `SetWriteSizeHint()`.
-  virtual void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) {}
+  virtual void SetWriteSizeHintImpl(
+      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
 
   // Implementation of the slow part of `Push()`.
   //
@@ -443,7 +444,7 @@ class BackwardWriter : public Object {
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == 0), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
-      const std::tuple<Srcs...>& srcs) {
+      ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs) {
     return true;
   }
 
@@ -459,7 +460,7 @@ class BackwardWriter : public Object {
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == 0), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
-      std::tuple<Srcs...>&& srcs) {
+      ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...>&& srcs) {
     return true;
   }
 

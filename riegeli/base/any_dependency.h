@@ -725,7 +725,7 @@ bool IsOwning(const Dependency<Ptr, Manager>& dep) {
 template <
     typename Ptr, typename Manager,
     std::enable_if_t<!HasIsOwning<Dependency<Ptr, Manager>>::value, int> = 0>
-bool IsOwning(const Dependency<Ptr, Manager>& dep) {
+bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Dependency<Ptr, Manager>& dep) {
   return false;
 }
 
@@ -734,17 +734,25 @@ struct NullMethods {
   static const Methods<Ptr> methods;
 
  private:
-  static void Destroy(Storage self) {}
-  static void Move(Storage self, Ptr* self_ptr, Storage that) {
+  static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
+  static void Move(ABSL_ATTRIBUTE_UNUSED Storage self, Ptr* self_ptr,
+                   ABSL_ATTRIBUTE_UNUSED Storage that) {
     new (self_ptr) Ptr(SentinelPtr<Ptr>());
   }
-  static bool IsOwning(const Storage self) { return false; }
-  static void* MutableGetIf(Storage self, TypeId type_id) { return nullptr; }
-  static const void* ConstGetIf(const Storage self, TypeId type_id) {
+  static bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Storage self) {
+    return false;
+  }
+  static void* MutableGetIf(ABSL_ATTRIBUTE_UNUSED Storage self,
+                            ABSL_ATTRIBUTE_UNUSED TypeId type_id) {
     return nullptr;
   }
-  static void RegisterSubobjects(const Storage self,
-                                 MemoryEstimator& memory_estimator) {}
+  static const void* ConstGetIf(ABSL_ATTRIBUTE_UNUSED const Storage self,
+                                ABSL_ATTRIBUTE_UNUSED TypeId type_id) {
+    return nullptr;
+  }
+  static void RegisterSubobjects(
+      ABSL_ATTRIBUTE_UNUSED const Storage self,
+      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 };
 
 template <typename Ptr>

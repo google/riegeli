@@ -374,18 +374,19 @@ void TextReader<newline, Src>::VerifyEndImpl() {
 }
 
 template <typename Src>
-inline TextReader<ReadNewline::kLf, Src>::TextReader(const Src& src,
-                                                     Options options)
+inline TextReader<ReadNewline::kLf, Src>::TextReader(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextReader::PrefixLimitingReader(src) {}
 
 template <typename Src>
-inline TextReader<ReadNewline::kLf, Src>::TextReader(Src&& src, Options options)
+inline TextReader<ReadNewline::kLf, Src>::TextReader(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextReader::PrefixLimitingReader(std::move(src)) {}
 
 template <typename Src>
 template <typename... SrcArgs>
 inline TextReader<ReadNewline::kLf, Src>::TextReader(
-    std::tuple<SrcArgs...> src_args, Options options)
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextReader::PrefixLimitingReader(std::move(src_args)) {}
 
 template <typename Src>
@@ -394,21 +395,21 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void TextReader<ReadNewline::kLf, Src>::Reset(const Src& src,
-                                                     Options options) {
+inline void TextReader<ReadNewline::kLf, Src>::Reset(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextReader::PrefixLimitingReader::Reset(src);
 }
 
 template <typename Src>
-inline void TextReader<ReadNewline::kLf, Src>::Reset(Src&& src,
-                                                     Options options) {
+inline void TextReader<ReadNewline::kLf, Src>::Reset(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextReader::PrefixLimitingReader::Reset(std::move(src));
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void TextReader<ReadNewline::kLf, Src>::Reset(
-    std::tuple<SrcArgs...> src_args, Options options) {
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextReader::PrefixLimitingReader::Reset(std::move(src_args));
 }
 

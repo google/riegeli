@@ -144,7 +144,7 @@ class FdReaderBase : public BufferedReader {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(bool text) & {
+    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) & {
 #ifdef _WIN32
       mode_ =
           (mode_ & ~(_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT)) |

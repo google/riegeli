@@ -206,14 +206,15 @@ inline void FramedSnappyReaderBase::Reset() {
 }
 
 template <typename Src>
-inline FramedSnappyReader<Src>::FramedSnappyReader(const Src& src,
-                                                   Options options)
+inline FramedSnappyReader<Src>::FramedSnappyReader(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline FramedSnappyReader<Src>::FramedSnappyReader(Src&& src, Options options)
+inline FramedSnappyReader<Src>::FramedSnappyReader(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -221,7 +222,7 @@ inline FramedSnappyReader<Src>::FramedSnappyReader(Src&& src, Options options)
 template <typename Src>
 template <typename... SrcArgs>
 inline FramedSnappyReader<Src>::FramedSnappyReader(
-    std::tuple<SrcArgs...> src_args, Options options)
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -249,14 +250,16 @@ inline void FramedSnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FramedSnappyReader<Src>::Reset(const Src& src, Options options) {
+inline void FramedSnappyReader<Src>::Reset(
+    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   FramedSnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline void FramedSnappyReader<Src>::Reset(Src&& src, Options options) {
+inline void FramedSnappyReader<Src>::Reset(
+    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options) {
   FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -264,8 +267,8 @@ inline void FramedSnappyReader<Src>::Reset(Src&& src, Options options) {
 
 template <typename Src>
 template <typename... SrcArgs>
-inline void FramedSnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                           Options options) {
+inline void FramedSnappyReader<Src>::Reset(
+    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options) {
   FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

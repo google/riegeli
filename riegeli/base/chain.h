@@ -1197,7 +1197,8 @@ template <typename T,
               absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
                                 HasCallOperatorWithoutData<T>>::value,
               int> = 0>
-inline void CallOperator(const T& object, absl::string_view data) {
+inline void CallOperator(const T& object,
+                         ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
   object();
 }
 
@@ -1207,7 +1208,8 @@ template <
         absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
                           absl::negation<HasCallOperatorWithoutData<T>>>::value,
         int> = 0>
-inline void CallOperator(T& object, absl::string_view data) {}
+inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T& object,
+                         ABSL_ATTRIBUTE_UNUSED absl::string_view data) {}
 
 template <typename T, typename Enable = void>
 struct HasDumpStructureWithData : std::false_type {};
@@ -1238,7 +1240,8 @@ template <typename T,
               absl::conjunction<absl::negation<HasDumpStructureWithData<T>>,
                                 HasDumpStructureWithoutData<T>>::value,
               int> = 0>
-inline void DumpStructure(T& object, absl::string_view data,
+inline void DumpStructure(T& object,
+                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
                           std::ostream& out) {
   object.DumpStructure(out);
 }
@@ -1249,21 +1252,24 @@ template <
                          absl::negation<HasDumpStructureWithData<T>>,
                          absl::negation<HasDumpStructureWithoutData<T>>>::value,
                      int> = 0>
-inline void DumpStructure(T& object, absl::string_view data,
+inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED T& object,
+                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
                           std::ostream& out) {
   out << "[external] { }";
 }
 
 template <typename T,
           std::enable_if_t<RegisterSubobjectsIsGood<T>::value, int> = 0>
-inline void RegisterSubobjects(const T& object, absl::string_view data,
+inline void RegisterSubobjects(const T& object,
+                               ABSL_ATTRIBUTE_UNUSED absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjects(object);
 }
 
 template <typename T,
           std::enable_if_t<!RegisterSubobjectsIsGood<T>::value, int> = 0>
-inline void RegisterSubobjects(const T& object, absl::string_view data,
+inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T& object,
+                               absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
   // As an approximation of memory usage of an unknown type, register just the
