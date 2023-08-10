@@ -77,9 +77,9 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
 template <typename WriterType, typename... Srcs,
           std::enable_if_t<
               !absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
-                                                          const Srcs&... srcs) {
-}
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
+    ABSL_ATTRIBUTE_UNUSED WriterType& dest,
+    ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
 
 template <typename... Srcs, typename Dest, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
