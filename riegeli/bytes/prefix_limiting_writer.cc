@@ -156,7 +156,7 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
     dest.Seek(std::numeric_limits<Position>::max());
     seek_ok = false;
   } else {
-    seek_ok = dest.Seek(base_pos_ + new_pos);
+    seek_ok = dest.Seek(new_pos + base_pos_);
   }
   MakeBuffer(dest);
   return seek_ok;
@@ -192,7 +192,7 @@ bool PrefixLimitingWriterBase::TruncateImpl(Position new_size) {
     dest.Seek(std::numeric_limits<Position>::max());
     truncate_ok = false;
   } else {
-    truncate_ok = dest.Truncate(base_pos_ + new_size);
+    truncate_ok = dest.Truncate(new_size + base_pos_);
   }
   MakeBuffer(dest);
   return truncate_ok;
@@ -207,7 +207,7 @@ Reader* PrefixLimitingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  Reader* const reader = dest.ReadMode(SaturatingAdd(base_pos_, initial_pos));
+  Reader* const reader = dest.ReadMode(SaturatingAdd(initial_pos, base_pos_));
   MakeBuffer(dest);
   if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;
   return associated_reader_.ResetReader(

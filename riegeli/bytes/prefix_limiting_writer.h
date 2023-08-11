@@ -48,7 +48,7 @@ class PrefixLimitingWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // The base position of the original `Reader`. It must be at least as large
+    // The base position of the original `Writer`. It must be at least as large
     // as the initial position.
     //
     // `absl::nullopt` means the current position.
@@ -71,7 +71,7 @@ class PrefixLimitingWriterBase : public Writer {
   virtual Writer* DestWriter() = 0;
   virtual const Writer* DestWriter() const = 0;
 
-  // Returns the base position of the origial `Writer`.
+  // Returns the base position of the original `Writer`.
   Position base_pos() const { return base_pos_; }
 
   bool PrefersCopying() const override;

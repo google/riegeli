@@ -203,7 +203,7 @@ bool PrefixLimitingReaderBase::SeekSlow(Position new_pos) {
     src.Seek(std::numeric_limits<Position>::max());
     seek_ok = false;
   } else {
-    seek_ok = src.Seek(base_pos_ + new_pos);
+    seek_ok = src.Seek(new_pos + base_pos_);
   }
   MakeBuffer(src);
   return seek_ok;
@@ -236,7 +236,7 @@ std::unique_ptr<Reader> PrefixLimitingReaderBase::NewReaderImpl(
   // if `SrcReader()->SupportsNewReader()`.
   Reader& src = *SrcReader();
   std::unique_ptr<Reader> reader =
-      src.NewReader(SaturatingAdd(base_pos_, initial_pos));
+      src.NewReader(SaturatingAdd(initial_pos, base_pos_));
   if (ABSL_PREDICT_FALSE(reader == nullptr)) {
     FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     return nullptr;

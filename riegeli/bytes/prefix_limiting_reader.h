@@ -70,7 +70,7 @@ class PrefixLimitingReaderBase : public Reader {
   virtual Reader* SrcReader() = 0;
   virtual const Reader* SrcReader() const = 0;
 
-  // Returns the base position of the origial `Reader`.
+  // Returns the base position of the original `Reader`.
   Position base_pos() const { return base_pos_; }
 
   bool ToleratesReadingAhead() override;
