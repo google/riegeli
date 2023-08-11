@@ -16,16 +16,15 @@
 #define RIEGELI_BASE_ASSERT_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <ostream>  // IWYU pragma: export
 #include <sstream>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -96,22 +95,22 @@ class CheckResult {
   const char* message_ = nullptr;
 };
 
-template <typename T>
-using IsChar =
-    absl::disjunction<std::is_same<T, char>, std::is_same<T, signed char>,
-                      std::is_same<T, unsigned char>, std::is_same<T, wchar_t>,
+// For showing a value in a failure message involving a comparison, if needed
+// then converts the value to a different type with the appropriate behavior of
+// `operator<<`: characters are shown as integers.
+
+inline int GetStreamable(char value) { return value; }
+inline int GetStreamable(signed char value) { return value; }
+inline unsigned GetStreamable(unsigned char value) { return value; }
+inline int GetStreamable(wchar_t value) { return value; }
 #if __cpp_char8_t
-                      std::is_same<T, char8_t>,
+inline unsigned GetStreamable(char8_t value) { return value; }
 #endif
-                      std::is_same<T, char16_t>, std::is_same<T, char32_t>>;
+inline uint16_t GetStreamable(char16_t value) { return value; }
+inline uint32_t GetStreamable(char32_t value) { return value; }
 
-template <typename T, std::enable_if_t<IsChar<T>::value, int> = 0>
-typename std::char_traits<T>::int_type GetStreamable(const T& value) {
-  return static_cast<typename std::char_traits<T>::int_type>(value);
-}
-
-template <typename T, std::enable_if_t<!IsChar<T>::value, int> = 0>
-const T& GetStreamable(const T& value) {
+template <typename T>
+inline const T& GetStreamable(const T& value) {
   return value;
 }
 
