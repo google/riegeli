@@ -499,6 +499,55 @@ cc_library(
 )
 
 cc_library(
+    name = "position_shifting_reader",
+    srcs = ["position_shifting_reader.cc"],
+    hdrs = ["position_shifting_reader.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:buffering",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+        "//riegeli/base:status",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "position_shifting_writer",
+    srcs = ["position_shifting_writer.cc"],
+    hdrs = ["position_shifting_writer.h"],
+    deps = [
+        ":position_shifting_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:buffering",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+        "//riegeli/base:status",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "null_writer",
     srcs = ["null_writer.cc"],
     hdrs = ["null_writer.h"],

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_PREFIX_LIMITING_READER_H_
-#define RIEGELI_BYTES_PREFIX_LIMITING_READER_H_
+#ifndef RIEGELI_BYTES_POSITION_SHIFTING_READER_H_
+#define RIEGELI_BYTES_POSITION_SHIFTING_READER_H_
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -40,37 +41,34 @@ namespace riegeli {
 class BackwardWriter;
 class Writer;
 
-// Template parameter independent part of `PrefixLimitingReader`.
-class PrefixLimitingReaderBase : public Reader {
+// Template parameter independent part of `PositionShiftingReader`.
+class PositionShiftingReaderBase : public Reader {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // The base position of the original `Reader`. It must be at least as large
-    // as the initial position.
+    // The base position of the new `Reader`.
     //
-    // `absl::nullopt` means the current position.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) & {
+    // Default: 0.
+    Options& set_base_pos(Position base_pos) & {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) && {
+    Options&& set_base_pos(Position base_pos) && {
       return std::move(set_base_pos(base_pos));
     }
-    absl::optional<Position> base_pos() const { return base_pos_; }
+    Position base_pos() const { return base_pos_; }
 
    private:
-    absl::optional<Position> base_pos_;
+    Position base_pos_ = 0;
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* SrcReader() = 0;
   virtual const Reader* SrcReader() const = 0;
 
-  // Returns the base position of the original `Reader`.
+  // Returns the base position of the new `Reader`.
   Position base_pos() const { return base_pos_; }
 
   bool ToleratesReadingAhead() override;
@@ -80,14 +78,17 @@ class PrefixLimitingReaderBase : public Reader {
   bool SupportsNewReader() override;
 
  protected:
-  using Reader::Reader;
+  explicit PositionShiftingReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  PrefixLimitingReaderBase(PrefixLimitingReaderBase&& that) noexcept;
-  PrefixLimitingReaderBase& operator=(PrefixLimitingReaderBase&& that) noexcept;
+  explicit PositionShiftingReaderBase(Position base_pos);
+
+  PositionShiftingReaderBase(PositionShiftingReaderBase&& that) noexcept;
+  PositionShiftingReaderBase& operator=(
+      PositionShiftingReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset();
-  void Initialize(Reader* src, absl::optional<Position> base_pos);
+  void Reset(Position base_pos);
+  void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   // Sets cursor of `src` to cursor of `*this`.
@@ -117,7 +118,9 @@ class PrefixLimitingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  // This template is defined and used only in prefix_limiting_reader.cc.
+  ABSL_ATTRIBUTE_COLD bool FailUnderflow(Position new_pos, Object& object);
+
+  // This template is defined and used only in position_shifting_reader.cc.
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
 
@@ -126,14 +129,14 @@ class PrefixLimitingReaderBase : public Reader {
   // Invariants if `is_open()`:
   //   `start() >= SrcReader()->cursor()`
   //   `limit() == SrcReader()->limit()`
-  //   `limit_pos() == SrcReader()->limit_pos() - base_pos_`
+  //   `limit_pos() == SrcReader()->limit_pos() + base_pos_`
 };
 
-// A `Reader` which reads from another `Reader`, hiding data before a base
-// position, and reporting positions shifted so that the base position appears
-// as 0.
+// A `Reader` which reads from another `Reader`, reporting positions shifted so
+// that the beginning appears as the given base position. Seeking back before
+// the base position fails.
 //
-// `PositionShiftingReader` can be used for shifting positions in the other
+// `PrefixLimitingReader` can be used for shifting positions in the other
 // direction.
 //
 // The `Src` template parameter specifies the type of the object providing and
@@ -145,31 +148,31 @@ class PrefixLimitingReaderBase : public Reader {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The original `Reader` must not be accessed until the `PrefixLimitingReader`
+// The original `Reader` must not be accessed until the `PositionShiftingReader`
 // is closed or no longer used.
 template <typename Src = Reader*>
-class PrefixLimitingReader : public PrefixLimitingReaderBase {
+class PositionShiftingReader : public PositionShiftingReaderBase {
  public:
-  // Creates a closed `PrefixLimitingReader`.
-  explicit PrefixLimitingReader(Closed) noexcept
-      : PrefixLimitingReaderBase(kClosed) {}
+  // Creates a closed `PositionShiftingReader`.
+  explicit PositionShiftingReader(Closed) noexcept
+      : PositionShiftingReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit PrefixLimitingReader(const Src& src, Options options = Options());
-  explicit PrefixLimitingReader(Src&& src, Options options = Options());
+  explicit PositionShiftingReader(const Src& src, Options options = Options());
+  explicit PositionShiftingReader(Src&& src, Options options = Options());
 
   // Will read from the original `Reader` provided by a `Src` constructed from
   // elements of `src_args`. This avoids constructing a temporary `Src` and
   // moving from it.
   template <typename... SrcArgs>
-  explicit PrefixLimitingReader(std::tuple<SrcArgs...> src_args,
-                                Options options = Options());
+  explicit PositionShiftingReader(std::tuple<SrcArgs...> src_args,
+                                  Options options = Options());
 
-  PrefixLimitingReader(PrefixLimitingReader&& that) noexcept;
-  PrefixLimitingReader& operator=(PrefixLimitingReader&& that) noexcept;
+  PositionShiftingReader(PositionShiftingReader&& that) noexcept;
+  PositionShiftingReader& operator=(PositionShiftingReader&& that) noexcept;
 
-  // Makes `*this` equivalent to a newly constructed `PrefixLimitingReader`.
-  // This avoids constructing a temporary `PrefixLimitingReader` and moving
+  // Makes `*this` equivalent to a newly constructed `PositionShiftingReader`.
+  // This avoids constructing a temporary `PositionShiftingReader` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
@@ -196,7 +199,7 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
  private:
   // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
   // to `*this`; adjust them to match `src_`.
-  void MoveSrc(PrefixLimitingReader&& that);
+  void MoveSrc(PositionShiftingReader&& that);
 
   // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
@@ -204,146 +207,147 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit PrefixLimitingReader(Closed)
-    -> PrefixLimitingReader<DeleteCtad<Closed>>;
+explicit PositionShiftingReader(Closed)
+    -> PositionShiftingReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit PrefixLimitingReader(const Src& src,
-                              PrefixLimitingReaderBase::Options options =
-                                  PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<std::decay_t<Src>>;
+explicit PositionShiftingReader(const Src& src,
+                                PositionShiftingReaderBase::Options options =
+                                    PositionShiftingReaderBase::Options())
+    -> PositionShiftingReader<std::decay_t<Src>>;
 template <typename Src>
-explicit PrefixLimitingReader(Src&& src,
-                              PrefixLimitingReaderBase::Options options =
-                                  PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<std::decay_t<Src>>;
+explicit PositionShiftingReader(Src&& src,
+                                PositionShiftingReaderBase::Options options =
+                                    PositionShiftingReaderBase::Options())
+    -> PositionShiftingReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-explicit PrefixLimitingReader(std::tuple<SrcArgs...> src_args,
-                              PrefixLimitingReaderBase::Options options =
-                                  PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit PositionShiftingReader(std::tuple<SrcArgs...> src_args,
+                                PositionShiftingReaderBase::Options options =
+                                    PositionShiftingReaderBase::Options())
+    -> PositionShiftingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.
 
-inline PrefixLimitingReaderBase::PrefixLimitingReaderBase(
-    PrefixLimitingReaderBase&& that) noexcept
+inline PositionShiftingReaderBase::PositionShiftingReaderBase(Position base_pos)
+    : base_pos_(base_pos) {}
+
+inline PositionShiftingReaderBase::PositionShiftingReaderBase(
+    PositionShiftingReaderBase&& that) noexcept
     : Reader(static_cast<Reader&&>(that)), base_pos_(that.base_pos_) {}
 
-inline PrefixLimitingReaderBase& PrefixLimitingReaderBase::operator=(
-    PrefixLimitingReaderBase&& that) noexcept {
+inline PositionShiftingReaderBase& PositionShiftingReaderBase::operator=(
+    PositionShiftingReaderBase&& that) noexcept {
   Reader::operator=(static_cast<Reader&&>(that));
   base_pos_ = that.base_pos_;
   return *this;
 }
 
-inline void PrefixLimitingReaderBase::Reset(Closed) {
+inline void PositionShiftingReaderBase::Reset(Closed) {
   Reader::Reset(kClosed);
   base_pos_ = 0;
 }
 
-inline void PrefixLimitingReaderBase::Reset() {
+inline void PositionShiftingReaderBase::Reset(Position base_pos) {
   Reader::Reset();
-  // `base_pos_` will be set by `Initialize()`.
+  base_pos_ = base_pos;
 }
 
-inline void PrefixLimitingReaderBase::Initialize(
-    Reader* src, absl::optional<Position> base_pos) {
+inline void PositionShiftingReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of PrefixLimitingReader: null Reader pointer";
-  if (base_pos == absl::nullopt) {
-    base_pos_ = src->pos();
-  } else {
-    RIEGELI_ASSERT_LE(*base_pos, src->pos())
-        << "Failed precondition of PrefixLimitingReader: "
-           "current position below the base position";
-    base_pos_ = *base_pos;
-  }
+      << "Failed precondition of PositionShiftingReader: null Reader pointer";
   MakeBuffer(*src);
 }
 
-inline void PrefixLimitingReaderBase::SyncBuffer(Reader& src) {
+inline void PositionShiftingReaderBase::SyncBuffer(Reader& src) {
   src.set_cursor(cursor());
 }
 
-inline void PrefixLimitingReaderBase::MakeBuffer(Reader& src) {
-  RIEGELI_ASSERT_GE(src.pos(), base_pos_)
-      << "PrefixLimitingReader source changed position unexpectedly";
+inline void PositionShiftingReaderBase::MakeBuffer(Reader& src) {
+  if (ABSL_PREDICT_FALSE(src.limit_pos() >
+                         std::numeric_limits<Position>::max() - base_pos_)) {
+    FailOverflow();
+    return;
+  }
   set_buffer(src.cursor(), src.available());
-  set_limit_pos(src.limit_pos() - base_pos_);
+  set_limit_pos(src.limit_pos() + base_pos_);
   if (ABSL_PREDICT_FALSE(!src.ok())) {
     FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   }
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(const Src& src,
-                                                       Options options)
-    : src_(src) {
-  Initialize(src_.get(), options.base_pos());
+inline PositionShiftingReader<Src>::PositionShiftingReader(const Src& src,
+                                                           Options options)
+    : PositionShiftingReaderBase(options.base_pos()), src_(src) {
+  Initialize(src_.get());
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(Src&& src,
-                                                       Options options)
-    : src_(std::move(src)) {
-  Initialize(src_.get(), options.base_pos());
+inline PositionShiftingReader<Src>::PositionShiftingReader(Src&& src,
+                                                           Options options)
+    : PositionShiftingReaderBase(options.base_pos()), src_(std::move(src)) {
+  Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(
+inline PositionShiftingReader<Src>::PositionShiftingReader(
     std::tuple<SrcArgs...> src_args, Options options)
-    : src_(std::move(src_args)) {
-  Initialize(src_.get(), options.base_pos());
+    : PositionShiftingReaderBase(options.base_pos()),
+      src_(std::move(src_args)) {
+  Initialize(src_.get());
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(
-    PrefixLimitingReader&& that) noexcept
-    : PrefixLimitingReaderBase(static_cast<PrefixLimitingReaderBase&&>(that)) {
+inline PositionShiftingReader<Src>::PositionShiftingReader(
+    PositionShiftingReader&& that) noexcept
+    : PositionShiftingReaderBase(
+          static_cast<PositionShiftingReaderBase&&>(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>& PrefixLimitingReader<Src>::operator=(
-    PrefixLimitingReader&& that) noexcept {
-  PrefixLimitingReaderBase::operator=(
-      static_cast<PrefixLimitingReaderBase&&>(that));
+inline PositionShiftingReader<Src>& PositionShiftingReader<Src>::operator=(
+    PositionShiftingReader&& that) noexcept {
+  PositionShiftingReaderBase::operator=(
+      static_cast<PositionShiftingReaderBase&&>(that));
   MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
-inline void PrefixLimitingReader<Src>::Reset(Closed) {
-  PrefixLimitingReaderBase::Reset(kClosed);
+inline void PositionShiftingReader<Src>::Reset(Closed) {
+  PositionShiftingReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
-inline void PrefixLimitingReader<Src>::Reset(const Src& src, Options options) {
-  PrefixLimitingReaderBase::Reset();
+inline void PositionShiftingReader<Src>::Reset(const Src& src,
+                                               Options options) {
+  PositionShiftingReaderBase::Reset(options.base_pos());
   src_.Reset(src);
-  Initialize(src_.get(), options.base_pos());
+  Initialize(src_.get());
 }
 
 template <typename Src>
-inline void PrefixLimitingReader<Src>::Reset(Src&& src, Options options) {
-  PrefixLimitingReaderBase::Reset();
+inline void PositionShiftingReader<Src>::Reset(Src&& src, Options options) {
+  PositionShiftingReaderBase::Reset(options.base_pos());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.base_pos());
+  Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
-inline void PrefixLimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                             Options options) {
-  PrefixLimitingReaderBase::Reset();
+inline void PositionShiftingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                               Options options) {
+  PositionShiftingReaderBase::Reset(options.base_pos());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.base_pos());
+  Initialize(src_.get());
 }
 
 template <typename Src>
-inline void PrefixLimitingReader<Src>::MoveSrc(PrefixLimitingReader&& that) {
+inline void PositionShiftingReader<Src>::MoveSrc(
+    PositionShiftingReader&& that) {
   if (src_.kIsStable || that.src_ == nullptr) {
     src_ = std::move(that.src_);
   } else {
@@ -356,8 +360,8 @@ inline void PrefixLimitingReader<Src>::MoveSrc(PrefixLimitingReader&& that) {
 }
 
 template <typename Src>
-void PrefixLimitingReader<Src>::Done() {
-  PrefixLimitingReaderBase::Done();
+void PositionShiftingReader<Src>::Done() {
+  PositionShiftingReaderBase::Done();
   if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
@@ -366,14 +370,14 @@ void PrefixLimitingReader<Src>::Done() {
 }
 
 template <typename Src>
-void PrefixLimitingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
+void PositionShiftingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
-void PrefixLimitingReader<Src>::VerifyEndImpl() {
+void PositionShiftingReader<Src>::VerifyEndImpl() {
   if (!src_.is_owning()) {
-    PrefixLimitingReaderBase::VerifyEndImpl();
+    PositionShiftingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
     src_->VerifyEnd();
@@ -382,7 +386,7 @@ void PrefixLimitingReader<Src>::VerifyEndImpl() {
 }
 
 template <typename Src>
-bool PrefixLimitingReader<Src>::SyncImpl(SyncType sync_type) {
+bool PositionShiftingReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
@@ -395,4 +399,4 @@ bool PrefixLimitingReader<Src>::SyncImpl(SyncType sync_type) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_PREFIX_LIMITING_READER_H_
+#endif  // RIEGELI_BYTES_POSITION_SHIFTING_READER_H_

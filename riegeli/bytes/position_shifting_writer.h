@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_PREFIX_LIMITING_WRITER_H_
-#define RIEGELI_BYTES_PREFIX_LIMITING_WRITER_H_
+#ifndef RIEGELI_BYTES_POSITION_SHIFTING_WRITER_H_
+#define RIEGELI_BYTES_POSITION_SHIFTING_WRITER_H_
 
 #include <stddef.h>
 
+#include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -38,36 +39,33 @@
 namespace riegeli {
 
 template <typename Src>
-class PrefixLimitingReader;
+class PositionShiftingReader;
 class Reader;
 
-// Template parameter independent part of `PrefixLimitingWriter`.
-class PrefixLimitingWriterBase : public Writer {
+// Template parameter independent part of `PositionShiftingWriter`.
+class PositionShiftingWriterBase : public Writer {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // The base position of the original `Writer`. It must be at least as large
-    // as the initial position.
+    // The base position of the new `Writer`.
     //
-    // `absl::nullopt` means the current position.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) & {
+    // Default: 0.
+    Options& set_base_pos(Position base_pos) & {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) && {
+    Options&& set_base_pos(Position base_pos) && {
       return std::move(set_base_pos(base_pos));
     }
-    absl::optional<Position> base_pos() const { return base_pos_; }
+    Position base_pos() const { return base_pos_; }
 
    private:
-    absl::optional<Position> base_pos_;
+    Position base_pos_ = 0;
   };
 
-  // Returns the original `Writer`. Unchanged by `Close()`.
+  // Returns the new `Writer`. Unchanged by `Close()`.
   virtual Writer* DestWriter() = 0;
   virtual const Writer* DestWriter() const = 0;
 
@@ -80,14 +78,17 @@ class PrefixLimitingWriterBase : public Writer {
   bool SupportsReadMode() override;
 
  protected:
-  using Writer::Writer;
+  explicit PositionShiftingWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  PrefixLimitingWriterBase(PrefixLimitingWriterBase&& that) noexcept;
-  PrefixLimitingWriterBase& operator=(PrefixLimitingWriterBase&& that) noexcept;
+  explicit PositionShiftingWriterBase(Position base_pos);
+
+  PositionShiftingWriterBase(PositionShiftingWriterBase&& that) noexcept;
+  PositionShiftingWriterBase& operator=(
+      PositionShiftingWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset();
-  void Initialize(Writer* dest, absl::optional<Position> base_pos);
+  void Reset(Position base_pos);
+  void Initialize(Writer* dest);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   // Sets cursor of `dest` to cursor of `*this`.
@@ -114,25 +115,27 @@ class PrefixLimitingWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
-  // This template is defined and used only in prefix_limiting_writer.cc.
+  ABSL_ATTRIBUTE_COLD bool FailUnderflow(Position new_pos, Object& object);
+
+  // This template is defined and used only in position_shifting_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
 
   Position base_pos_ = 0;
 
-  AssociatedReader<PrefixLimitingReader<Reader*>> associated_reader_;
+  AssociatedReader<PositionShiftingReader<Reader*>> associated_reader_;
 
   // Invariants if `ok()`:
   //   `start() == DestWriter()->cursor()`
   //   `limit() == DestWriter()->limit()`
-  //   `start_pos() == DestWriter()->pos() - base_pos_`
+  //   `start_pos() == DestWriter()->pos() + base_pos_`
 };
 
-// A `Writer` which writes to another `Writer`, hiding data before a base
-// position, and reporting positions shifted so that the base position appears
-// as 0.
+// A `Writer` which writes to another `Writer`, reporting positions shifted so
+// that the beginning appears as the given base position. Seeking back before
+// the base position fails.
 //
-// `PositionShiftingWriter` can be used for shifting positions in the other
+// `PrefixLimitingWriter` can be used for shifting positions in the other
 // direction.
 //
 // The `Dest` template parameter specifies the type of the object providing and
@@ -144,32 +147,33 @@ class PrefixLimitingWriterBase : public Writer {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The original `Writer` must not be accessed until the `PrefixLimitingWriter`
+// The original `Writer` must not be accessed until the `PositionShiftingWriter`
 // is closed or no longer used, except that it is allowed to read the
 // destination of the original `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
-class PrefixLimitingWriter : public PrefixLimitingWriterBase {
+class PositionShiftingWriter : public PositionShiftingWriterBase {
  public:
-  // Creates a closed `PrefixLimitingWriter`.
-  explicit PrefixLimitingWriter(Closed) noexcept
-      : PrefixLimitingWriterBase(kClosed) {}
+  // Creates a closed `PositionShiftingWriter`.
+  explicit PositionShiftingWriter(Closed) noexcept
+      : PositionShiftingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit PrefixLimitingWriter(const Dest& dest, Options options = Options());
-  explicit PrefixLimitingWriter(Dest&& dest, Options options = Options());
+  explicit PositionShiftingWriter(const Dest& dest,
+                                  Options options = Options());
+  explicit PositionShiftingWriter(Dest&& dest, Options options = Options());
 
   // Will write to the original `Writer` provided by a `Dest` constructed from
   // elements of `dest_args`. This avoids constructing a temporary `Dest` and
   // moving from it.
   template <typename... DestArgs>
-  explicit PrefixLimitingWriter(std::tuple<DestArgs...> dest_args,
-                                Options options = Options());
+  explicit PositionShiftingWriter(std::tuple<DestArgs...> dest_args,
+                                  Options options = Options());
 
-  PrefixLimitingWriter(PrefixLimitingWriter&& that) noexcept;
-  PrefixLimitingWriter& operator=(PrefixLimitingWriter&& that) noexcept;
+  PositionShiftingWriter(PositionShiftingWriter&& that) noexcept;
+  PositionShiftingWriter& operator=(PositionShiftingWriter&& that) noexcept;
 
-  // Makes `*this` equivalent to a newly constructed `PrefixLimitingWriter`.
-  // This avoids constructing a temporary `PrefixLimitingWriter` and moving
+  // Makes `*this` equivalent to a newly constructed `PositionShiftingWriter`.
+  // This avoids constructing a temporary `PositionShiftingWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
@@ -195,7 +199,7 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
  private:
   // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
   // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(PrefixLimitingWriter&& that);
+  void MoveDest(PositionShiftingWriter&& that);
 
   // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
@@ -203,152 +207,152 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit PrefixLimitingWriter(Closed)
-    -> PrefixLimitingWriter<DeleteCtad<Closed>>;
+explicit PositionShiftingWriter(Closed)
+    -> PositionShiftingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit PrefixLimitingWriter(const Dest& dest,
-                              PrefixLimitingWriterBase::Options options =
-                                  PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<std::decay_t<Dest>>;
+explicit PositionShiftingWriter(const Dest& dest,
+                                PositionShiftingWriterBase::Options options =
+                                    PositionShiftingWriterBase::Options())
+    -> PositionShiftingWriter<std::decay_t<Dest>>;
 template <typename Dest>
-explicit PrefixLimitingWriter(Dest&& dest,
-                              PrefixLimitingWriterBase::Options options =
-                                  PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<std::decay_t<Dest>>;
+explicit PositionShiftingWriter(Dest&& dest,
+                                PositionShiftingWriterBase::Options options =
+                                    PositionShiftingWriterBase::Options())
+    -> PositionShiftingWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-explicit PrefixLimitingWriter(std::tuple<DestArgs...> dest_args,
-                              PrefixLimitingWriterBase::Options options =
-                                  PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit PositionShiftingWriter(std::tuple<DestArgs...> dest_args,
+                                PositionShiftingWriterBase::Options options =
+                                    PositionShiftingWriterBase::Options())
+    -> PositionShiftingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.
 
-inline PrefixLimitingWriterBase::PrefixLimitingWriterBase(
-    PrefixLimitingWriterBase&& that) noexcept
+inline PositionShiftingWriterBase::PositionShiftingWriterBase(Position base_pos)
+    : base_pos_(base_pos) {}
+
+inline PositionShiftingWriterBase::PositionShiftingWriterBase(
+    PositionShiftingWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       base_pos_(that.base_pos_),
       associated_reader_(std::move(that.associated_reader_)) {}
 
-inline PrefixLimitingWriterBase& PrefixLimitingWriterBase::operator=(
-    PrefixLimitingWriterBase&& that) noexcept {
+inline PositionShiftingWriterBase& PositionShiftingWriterBase::operator=(
+    PositionShiftingWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   base_pos_ = that.base_pos_;
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
-inline void PrefixLimitingWriterBase::Reset(Closed) {
+inline void PositionShiftingWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   base_pos_ = 0;
   associated_reader_.Reset();
 }
 
-inline void PrefixLimitingWriterBase::Reset() {
+inline void PositionShiftingWriterBase::Reset(Position base_pos) {
   Writer::Reset();
-  // `base_pos_` will be set by `Initialize()`.
+  base_pos_ = base_pos;
   associated_reader_.Reset();
 }
 
-inline void PrefixLimitingWriterBase::Initialize(
-    Writer* dest, absl::optional<Position> base_pos) {
+inline void PositionShiftingWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of PrefixLimitingWriter: null Writer pointer";
-  if (base_pos == absl::nullopt) {
-    base_pos_ = dest->pos();
-  } else {
-    RIEGELI_ASSERT_LE(*base_pos, dest->pos())
-        << "Failed precondition of PrefixLimitingWriter: "
-           "current position below the base position";
-    base_pos_ = *base_pos;
-  }
+      << "Failed precondition of PositionShiftingWriter: null Writer pointer";
   MakeBuffer(*dest);
 }
 
-inline void PrefixLimitingWriterBase::SyncBuffer(Writer& dest) {
+inline void PositionShiftingWriterBase::SyncBuffer(Writer& dest) {
   dest.set_cursor(cursor());
 }
 
-inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
-  RIEGELI_ASSERT_GE(dest.pos(), base_pos_)
-      << "PrefixLimitingWriter destination changed position unexpectedly";
+inline void PositionShiftingWriterBase::MakeBuffer(Writer& dest) {
+  if (ABSL_PREDICT_FALSE(dest.pos() >
+                         std::numeric_limits<Position>::max() - base_pos_)) {
+    FailOverflow();
+    return;
+  }
   set_buffer(dest.cursor(), dest.available());
-  set_start_pos(dest.pos() - base_pos_);
+  set_start_pos(dest.pos() + base_pos_);
   if (ABSL_PREDICT_FALSE(!dest.ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
 }
 
 template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(const Dest& dest,
-                                                        Options options)
-    : dest_(dest) {
-  Initialize(dest_.get(), options.base_pos());
+inline PositionShiftingWriter<Dest>::PositionShiftingWriter(const Dest& dest,
+                                                            Options options)
+    : PositionShiftingWriterBase(options.base_pos()), dest_(dest) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(Dest&& dest,
-                                                        Options options)
-    : dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.base_pos());
+inline PositionShiftingWriter<Dest>::PositionShiftingWriter(Dest&& dest,
+                                                            Options options)
+    : PositionShiftingWriterBase(options.base_pos()), dest_(std::move(dest)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
+inline PositionShiftingWriter<Dest>::PositionShiftingWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.base_pos());
+    : PositionShiftingWriterBase(options.base_pos()),
+      dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
-    PrefixLimitingWriter&& that) noexcept
-    : PrefixLimitingWriterBase(static_cast<PrefixLimitingWriterBase&&>(that)) {
+inline PositionShiftingWriter<Dest>::PositionShiftingWriter(
+    PositionShiftingWriter&& that) noexcept
+    : PositionShiftingWriterBase(
+          static_cast<PositionShiftingWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-inline PrefixLimitingWriter<Dest>& PrefixLimitingWriter<Dest>::operator=(
-    PrefixLimitingWriter&& that) noexcept {
-  PrefixLimitingWriterBase::operator=(
-      static_cast<PrefixLimitingWriterBase&&>(that));
+inline PositionShiftingWriter<Dest>& PositionShiftingWriter<Dest>::operator=(
+    PositionShiftingWriter&& that) noexcept {
+  PositionShiftingWriterBase::operator=(
+      static_cast<PositionShiftingWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::Reset(Closed) {
-  PrefixLimitingWriterBase::Reset(kClosed);
+inline void PositionShiftingWriter<Dest>::Reset(Closed) {
+  PositionShiftingWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::Reset(const Dest& dest,
-                                              Options options) {
-  PrefixLimitingWriterBase::Reset();
+inline void PositionShiftingWriter<Dest>::Reset(const Dest& dest,
+                                                Options options) {
+  PositionShiftingWriterBase::Reset(options.base_pos());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.base_pos());
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
-  PrefixLimitingWriterBase::Reset();
+inline void PositionShiftingWriter<Dest>::Reset(Dest&& dest, Options options) {
+  PositionShiftingWriterBase::Reset(options.base_pos());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.base_pos());
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline void PrefixLimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                              Options options) {
-  PrefixLimitingWriterBase::Reset();
+inline void PositionShiftingWriter<Dest>::Reset(
+    std::tuple<DestArgs...> dest_args, Options options) {
+  PositionShiftingWriterBase::Reset(options.base_pos());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.base_pos());
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::MoveDest(PrefixLimitingWriter&& that) {
+inline void PositionShiftingWriter<Dest>::MoveDest(
+    PositionShiftingWriter&& that) {
   if (dest_.kIsStable || that.dest_ == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
@@ -361,8 +365,8 @@ inline void PrefixLimitingWriter<Dest>::MoveDest(PrefixLimitingWriter&& that) {
 }
 
 template <typename Dest>
-void PrefixLimitingWriter<Dest>::Done() {
-  PrefixLimitingWriterBase::Done();
+void PositionShiftingWriter<Dest>::Done() {
+  PositionShiftingWriterBase::Done();
   if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
@@ -371,7 +375,7 @@ void PrefixLimitingWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void PrefixLimitingWriter<Dest>::SetWriteSizeHintImpl(
+void PositionShiftingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) {
     dest_->SetWriteSizeHint(
@@ -382,7 +386,7 @@ void PrefixLimitingWriter<Dest>::SetWriteSizeHintImpl(
 }
 
 template <typename Dest>
-bool PrefixLimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
+bool PositionShiftingWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
   bool flush_ok = true;
@@ -395,4 +399,4 @@ bool PrefixLimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_PREFIX_LIMITING_WRITER_H_
+#endif  // RIEGELI_BYTES_POSITION_SHIFTING_WRITER_H_
