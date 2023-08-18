@@ -352,7 +352,10 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
         << "Failed invariant of ChainWriterBase: "
            "the tail is both appended and separated";
-    if (ABSL_PREDICT_FALSE(new_size > dest.size())) return false;
+    if (ABSL_PREDICT_FALSE(new_size > dest.size())) {
+      set_start_pos(dest.size());
+      return false;
+    }
   } else if (new_size > pos()) {
     if (ABSL_PREDICT_TRUE(tail_ == nullptr) || tail_->empty()) return false;
     SyncBuffer(dest);
@@ -373,6 +376,8 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
       return true;
     }
   }
+  RIEGELI_ASSERT(tail_ == nullptr || tail_->empty());
+  RIEGELI_ASSERT_LE(new_size, dest.size());
   set_start_pos(new_size);
   dest.RemoveSuffix(dest.size() - IntCast<size_t>(new_size), options_);
   set_buffer();

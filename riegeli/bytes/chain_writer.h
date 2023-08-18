@@ -176,10 +176,14 @@ class ChainWriterBase : public Writer {
   // position are appended to `*DestChain()`, buffer pointers are `nullptr`,
   // and `tail_ == nullptr || tail_->empty()`.
   //
-  // Otherwise, if `tail_ != nullptr`, data after the current position are
-  // separated in `*tail_`, ignoring a prefix of `*tail_` with length
-  // `start_to_cursor()`, saturated at ignoring the whole `*tail_` (the ignored
-  // prefix is being overwritten with buffered data).
+  // Otherwise, if `limit_pos() == DestChain()->size() && tail_ != nullptr`,
+  // data after the current position are separated in `*tail_`, ignoring a
+  // prefix of `*tail_` with length `start_to_cursor()`, saturated at ignoring
+  // the whole `*tail_` (the ignored prefix is being overwritten with buffered
+  // data).
+  //
+  // Otherwise `limit_pos() == DestChain()->size() && tail_ == nullptr`, and
+  // there are no data after the current position.
   //
   // `tail_` is stored behind `std::unique_ptr` to reduce the object size in the
   // common case when random access is not used.
