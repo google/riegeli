@@ -96,6 +96,12 @@ class BackwardWriter : public Object {
   // to it, with `cursor()` pointing to the current position going downwards
   // (past the next byte to write).
   //
+  // Memory before the address to which `cursor()` is eventually moved must not
+  // be clobbered.
+  //
+  // Non-const member functions may change buffer pointers, including changing
+  // how much data around the current position are buffered.
+  //
   // Invariants:
   //   `start() >= cursor() >= limit()` (possibly all `nullptr`)
   //   if `!ok()` then `start() == cursor() == limit() == nullptr`
@@ -103,14 +109,15 @@ class BackwardWriter : public Object {
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
 
-  // Decrements the value of `cursor()`. Call this during writing data under
-  // `cursor()` to indicate how much was written.
+  // Decrements the value of `cursor()`. Does not change `start()` nor
+  // `limit()`. Call this during writing data under `cursor()` to indicate how
+  // much was written.
   //
   // Precondition: `length <= available()`
   void move_cursor(size_t length);
 
-  // Updates the value of `cursor()`. Call this during writing data under
-  // `cursor()` to indicate how much was written, or to seek within the buffer.
+  // Sets the value of `cursor()`. Does not change `start()` nor `limit()`. Call
+  // this during writing data under `cursor()` to indicate how much was written.
   //
   // Precondition: `start() >= cursor >= limit()`
   void set_cursor(char* cursor);

@@ -119,6 +119,9 @@ class Reader : public Object {
   // Buffer pointers. Data between `start()` and `limit()` are available for
   // immediate reading, with `cursor()` pointing to the current position.
   //
+  // Non-const member functions may change buffer pointers, including changing
+  // how much data around the current position are buffered.
+  //
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
   //   if `!is_open()` then `start() == cursor() == limit() == nullptr`
@@ -126,14 +129,16 @@ class Reader : public Object {
   const char* cursor() const { return cursor_; }
   const char* limit() const { return limit_; }
 
-  // Increments the value of `cursor()`. Call this during reading data under
-  // `cursor()` to indicate how much was read.
+  // Increments the value of `cursor()`. Does not change `start()` nor
+  // `limit()`. Call this during reading data under `cursor()` to indicate how
+  // much was read.
   //
   // Precondition: `length <= available()`
   void move_cursor(size_t length);
 
-  // Sets the value of `cursor()`. Call this during reading data under
-  // `cursor()` to indicate how much was read, or to seek within the buffer.
+  // Sets the value of `cursor()`. Does not change `start()` nor `limit()`. Call
+  // this during reading data under `cursor()` to indicate how much was read, or
+  // to seek within the buffer.
   //
   // Precondition: `start() <= cursor <= limit()`
   void set_cursor(const char* cursor);

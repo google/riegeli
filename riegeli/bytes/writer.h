@@ -210,6 +210,12 @@ class Writer : public Object {
   // immediate writing data to it, with `cursor()` pointing to the current
   // position.
   //
+  // Memory after the address to which `cursor()` is eventually moved must not
+  // be clobbered.
+  //
+  // Non-const member functions may change buffer pointers, including changing
+  // how much data around the current position are buffered.
+  //
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
   //   if `!ok()` then `start() == cursor() == limit() == nullptr`
@@ -217,14 +223,15 @@ class Writer : public Object {
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
 
-  // Increments the value of `cursor()`. Call this during writing data under
-  // `cursor()` to indicate how much was written.
+  // Increments the value of `cursor()`. Does not change `start()` nor
+  // `limit()`. Call this during writing data under `cursor()` to indicate how
+  // much was written.
   //
   // Precondition: `length <= available()`
   void move_cursor(size_t length);
 
-  // Sets the value of `cursor()`. Call this during writing data under
-  // `cursor()` to indicate how much was written, or to seek within the buffer.
+  // Sets the value of `cursor()`. Does not change `start()` nor `limit()`. Call
+  // this during writing data under `cursor()` to indicate how much was written.
   //
   // Preconditions: `start() <= cursor <= limit()`
   void set_cursor(char* cursor);
