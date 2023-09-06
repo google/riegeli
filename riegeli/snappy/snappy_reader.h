@@ -159,7 +159,7 @@ explicit SnappyReader(
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader&` (not owned),
-// `ChainReader<>` (owned),`std::unique_ptr<Reader>` (owned),
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and

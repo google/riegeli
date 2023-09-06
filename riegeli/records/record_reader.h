@@ -465,7 +465,7 @@ class RecordReaderBase : public Object {
   //  * `Recoverable::kRecoverChunkReader`  - `Recover()` tries to recover
   //                                          `chunk_reader_`
   //  * `Recoverable::kRecoverChunkDecoder` - `Recover()` tries to recover
-  //                                          `chunk_decoder_,` skips the chunk
+  //                                          `chunk_decoder_`, skips the chunk
   //                                          if that failed
   //
   // Invariants:

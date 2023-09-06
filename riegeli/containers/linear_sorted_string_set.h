@@ -364,7 +364,7 @@ class LinearSortedStringSet::Iterator {
   }
 
  private:
-  friend class LinearSortedStringSet;  // For `Iterator::Iterator`.
+  friend class LinearSortedStringSet;  // For `Iterator()`.
 
   explicit Iterator(absl::string_view encoded)
       : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
@@ -534,7 +534,7 @@ class LinearSortedStringSet::NextInsertIterator {
   Builder* builder() const { return builder_; }
 
  private:
-  friend class Builder;  // For `NextInsertIterator::NextInsertIterator()`.
+  friend class Builder;  // For `NextInsertIterator()`.
 
   explicit NextInsertIterator(Builder* builder) : builder_(builder) {}
 

@@ -465,7 +465,7 @@ class ChunkedSortedStringSet::Iterator {
   }
 
  private:
-  friend class ChunkedSortedStringSet;  // For `Iterator::Iterator`.
+  friend class ChunkedSortedStringSet;  // For `Iterator()`.
 
   using ChunkIterator = ChunkedSortedStringSet::ChunkIterator;
   using Repr = ChunkedSortedStringSet::Repr;
@@ -632,7 +632,7 @@ class ChunkedSortedStringSet::NextInsertIterator {
   Builder* builder() const { return builder_; }
 
  private:
-  friend class Builder;  // For `NextInsertIterator::NextInsertIterator()`.
+  friend class Builder;  // For `NextInsertIterator()`.
 
   explicit NextInsertIterator(Builder* builder) : builder_(builder) {}
 
