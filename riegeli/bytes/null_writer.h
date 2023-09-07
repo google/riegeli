@@ -36,11 +36,21 @@ namespace riegeli {
 // It tracks `pos()` normally.
 class NullWriter : public Writer {
  public:
+  class Options : public BufferOptionsBase<Options> {
+   public:
+    Options() noexcept {}
+
+    // `NullWriter` has a smaller default buffer sizes (256) so that writing
+    // larger values is skipped altogether.
+    static constexpr size_t kDefaultMinBufferSize = 256;
+    static constexpr size_t kDefaultMaxBufferSize = 256;
+  };
+
   // Creates a closed `NullWriter`.
   explicit NullWriter(Closed) noexcept : Writer(kClosed) {}
 
   // Will discard all output.
-  NullWriter() noexcept {}
+  explicit NullWriter(Options options = Options()) noexcept;
 
   NullWriter(NullWriter&& that) noexcept;
   NullWriter& operator=(NullWriter&& that) noexcept;
@@ -48,7 +58,7 @@ class NullWriter : public Writer {
   // Makes `*this` equivalent to a newly constructed `NullWriter`. This avoids
   // constructing a temporary `NullWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   bool PrefersCopying() const override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -82,6 +92,9 @@ class NullWriter : public Writer {
 
 // Implementation details follow.
 
+inline NullWriter::NullWriter(Options options) noexcept
+    : buffer_sizer_(options.buffer_options()) {}
+
 inline NullWriter::NullWriter(NullWriter&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       buffer_sizer_(that.buffer_sizer_),
@@ -103,9 +116,9 @@ inline void NullWriter::Reset(Closed) {
   written_size_ = 0;
 }
 
-inline void NullWriter::Reset() {
+inline void NullWriter::Reset(Options options) {
   Writer::Reset();
-  buffer_sizer_.Reset();
+  buffer_sizer_.Reset(options.buffer_options());
   written_size_ = 0;
 }
 

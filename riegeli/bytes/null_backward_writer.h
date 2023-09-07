@@ -36,11 +36,21 @@ namespace riegeli {
 // It tracks `pos()` normally.
 class NullBackwardWriter : public BackwardWriter {
  public:
+  class Options : public BufferOptionsBase<Options> {
+   public:
+    Options() noexcept {}
+
+    // `NullBackwardWriter` has a smaller default buffer sizes (256) so that
+    // writing larger values is skipped altogether.
+    static constexpr size_t kDefaultMinBufferSize = 256;
+    static constexpr size_t kDefaultMaxBufferSize = 256;
+  };
+
   // Creates a closed `NullBackwardWriter`.
   explicit NullBackwardWriter(Closed) noexcept : BackwardWriter(kClosed) {}
 
   // Will discard all output.
-  NullBackwardWriter() noexcept {}
+  NullBackwardWriter(Options options = Options()) noexcept;
 
   NullBackwardWriter(NullBackwardWriter&& that) noexcept;
   NullBackwardWriter& operator=(NullBackwardWriter&& that) noexcept;
@@ -48,7 +58,7 @@ class NullBackwardWriter : public BackwardWriter {
   // Makes `*this` equivalent to a newly constructed `NullBackwardWriter`. This
   // avoids constructing a temporary `NullBackwardWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
@@ -76,6 +86,9 @@ class NullBackwardWriter : public BackwardWriter {
 
 // Implementation details follow.
 
+inline NullBackwardWriter::NullBackwardWriter(Options options) noexcept
+    : buffer_sizer_(options.buffer_options()) {}
+
 inline NullBackwardWriter::NullBackwardWriter(
     NullBackwardWriter&& that) noexcept
     : BackwardWriter(static_cast<BackwardWriter&&>(that)),
@@ -96,9 +109,9 @@ inline void NullBackwardWriter::Reset(Closed) {
   buffer_ = Buffer();
 }
 
-inline void NullBackwardWriter::Reset() {
+inline void NullBackwardWriter::Reset(Options options) {
   BackwardWriter::Reset();
-  buffer_sizer_.Reset();
+  buffer_sizer_.Reset(options.buffer_options());
 }
 
 }  // namespace riegeli
