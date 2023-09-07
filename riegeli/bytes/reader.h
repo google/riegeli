@@ -246,6 +246,9 @@ class Reader : public Object {
   // In contrast to `Read()`, `ReadSome()` may read less than `max_length`
   // before reaching the end of the source if less data are available earlier.
   //
+  // `ReadSome(absl::string_view&)` points `dest` to an array holding the data.
+  // The array is valid until the next non-const operation on the `Reader`.
+  //
   // If `length_read != nullptr` then sets `*length_read` to the length read.
   // This is equal to the difference between `pos()` after and before the call.
   //
@@ -254,6 +257,8 @@ class Reader : public Object {
   //  * `false` (when `ok()`)  - source ends
   //                                     (no bytes read and `max_length > 0`)
   //  * `false` (when `!ok()`) - failure (no bytes read and `max_length > 0`)
+  bool ReadSome(size_t max_length, absl::string_view& dest,
+                size_t* length_read = nullptr);
   bool ReadSome(size_t max_length, char* dest, size_t* length_read = nullptr);
   bool ReadSome(size_t max_length, std::string& dest,
                 size_t* length_read = nullptr);
@@ -900,6 +905,17 @@ inline bool Reader::Copy(size_t length, BackwardWriter& dest) {
     return dest.Write(data);
   }
   return CopySlow(length, dest);
+}
+
+inline bool Reader::ReadSome(size_t max_length, absl::string_view& dest,
+                             size_t* length_read) {
+  const bool pull_ok =
+      ABSL_PREDICT_FALSE(max_length == 0) || Pull(1, max_length);
+  const size_t length = UnsignedMin(max_length, available());
+  dest = absl::string_view(cursor(), length);
+  move_cursor(length);
+  if (length_read != nullptr) *length_read = length;
+  return pull_ok;
 }
 
 inline bool Reader::ReadSome(size_t max_length, char* dest,
