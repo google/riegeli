@@ -23,6 +23,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -33,6 +35,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/null_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/digests/digesting_internal.h"
 
@@ -138,10 +141,11 @@ class DigestingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the first template argument can be deduced as the value
-// type of the second constructor argument (there must be two constructor
-// arguments for CTAD), and the second template argument can be deduced as the
-// value type of the first constructor argument. This requires C++17.
+// By relying on CTAD the `Digester` template argument can be deduced as the
+// value type of the `digester_args` constructor argument (there must be only
+// one `digester_args` for CTAD), and the `Dest` template argument can be
+// deduced as the value type of the `dest` constructor argument. This requires
+// C++17.
 //
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -228,6 +232,50 @@ template <typename Digester, typename... DestArgs>
 explicit DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
     -> DigestingWriter<void, DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
+
+// Returns the digest of `src`.
+//
+// The `Digester` template argument can be deduced as the value type of the
+// `digester` argument (there must be only one `digester_args` for this).
+template <typename Digester, typename Src,
+          std::enable_if_t<IsStringifiable<Src>::value, int> = 0>
+digesting_internal::DigestType<Digester> DigestFrom(Src&& src,
+                                                    const Digester& digester);
+template <typename Digester, typename Src,
+          std::enable_if_t<IsStringifiable<Src>::value, int> = 0>
+digesting_internal::DigestType<Digester> DigestFrom(Src&& src,
+                                                    Digester&& digester);
+template <typename Digester, typename Src, typename... DigesterArgs,
+          std::enable_if_t<
+              absl::conjunction<IsStringifiable<Src>,
+                                std::integral_constant<
+                                    bool, sizeof...(DigesterArgs) != 1>>::value,
+              int> = 0>
+digesting_internal::DigestType<Digester> DigestFrom(
+    Src&& src, DigesterArgs&&... digester_args);
+
+// Returns the digest of elements of `srcs`.
+//
+// The `Digester` template argument can be deduced as the value type of the
+// `digester` argument (there must be only one `digester_args` for this).
+template <typename Digester, typename... Srcs,
+          std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
+                           int> = 0>
+digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, const Digester& digester);
+template <typename Digester, typename... Srcs,
+          std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
+                           int> = 0>
+digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, Digester&& digester);
+template <typename Digester, typename... Srcs, typename... DigesterArgs,
+          std::enable_if_t<
+              absl::conjunction<IsStringifiable<Srcs>...,
+                                std::integral_constant<
+                                    bool, sizeof...(DigesterArgs) != 1>>::value,
+              int> = 0>
+digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, DigesterArgs&&... digester_args);
 
 // Implementation details follow.
 
@@ -404,6 +452,180 @@ bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
   }
   MakeBuffer(*dest_);
   return flush_ok;
+}
+
+namespace digesting_writer_internal {
+
+// `digesting_writer_internal::IsStringLike()` of a stringifiable value is
+// declared as returning `int` for types having an optimized `DigestFromImpl()`
+// implementation, and `void` otherwise.
+//
+// It has the same overloads as `Writer::Write()`, assuming that the parameter
+// is passed by const reference.
+void IsStringLike(char src);
+#if __cpp_char8_t
+void IsStringLike(char8_t src);
+#endif
+int IsStringLike(absl::string_view src);
+int IsStringLike(const char* src);
+int IsStringLike(const Chain& src);
+int IsStringLike(const absl::Cord& src);
+void IsStringLike(signed char);
+void IsStringLike(unsigned char);
+void IsStringLike(short src);
+void IsStringLike(unsigned short src);
+void IsStringLike(int src);
+void IsStringLike(unsigned src);
+void IsStringLike(long src);
+void IsStringLike(unsigned long src);
+void IsStringLike(long long src);
+void IsStringLike(unsigned long long src);
+void IsStringLike(absl::int128 src);
+void IsStringLike(absl::uint128 src);
+void IsStringLike(float);
+void IsStringLike(double);
+void IsStringLike(long double);
+template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+void IsStringLike(const Src&);
+void IsStringLike(bool) = delete;
+void IsStringLike(wchar_t) = delete;
+void IsStringLike(char16_t) = delete;
+void IsStringLike(char32_t) = delete;
+
+template <typename Digester, typename... DigesterArgs>
+inline digesting_internal::DigestType<Digester> DigestFromImpl(
+    absl::string_view src, DigesterArgs&&... digester_args) {
+  Digester digester(std::forward<DigesterArgs>(digester_args)...);
+  digesting_internal::Write(digester, src);
+  digesting_internal::Close(digester);
+  return digesting_internal::Digest(digester);
+}
+
+template <typename Digester, typename... DigesterArgs>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline digesting_internal::DigestType<Digester>
+DigestFromImpl(const char* src, DigesterArgs&&... digester_args) {
+  return DigestFromImpl(absl::string_view(src),
+                        std::forward<DigesterArgs>(digester_args)...);
+}
+
+template <typename Digester, typename... DigesterArgs>
+inline digesting_internal::DigestType<Digester> DigestFromImpl(
+    const Chain& src, DigesterArgs&&... digester_args) {
+  Digester digester(std::forward<DigesterArgs>(digester_args)...);
+  for (const absl::string_view fragment : src.blocks()) {
+    digesting_internal::Write(digester, fragment);
+  }
+  digesting_internal::Close(digester);
+  return digesting_internal::Digest(digester);
+}
+
+template <typename Digester, typename... DigesterArgs>
+inline digesting_internal::DigestType<Digester> DigestFromImpl(
+    const absl::Cord& src, DigesterArgs&&... digester_args) {
+  Digester digester(std::forward<DigesterArgs>(digester_args)...);
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      digesting_internal::Write(digester, *flat);
+    } else {
+      for (const absl::string_view fragment : src.Chunks()) {
+        digesting_internal::Write(digester, fragment);
+      }
+    }
+  }
+  digesting_internal::Close(digester);
+  return digesting_internal::Digest(digester);
+}
+
+template <typename Digester, typename Src, typename... DigesterArgs,
+          std::enable_if_t<
+              std::is_same<decltype(digesting_writer_internal::IsStringLike(
+                               std::declval<const Src&>())),
+                           void>::value,
+              int> = 0>
+inline digesting_internal::DigestType<Digester> DigestFromImpl(
+    Src&& src, DigesterArgs&&... digester_args) {
+  DigestingWriter<Digester, NullWriter> writer(
+      std::forward_as_tuple(), std::forward<DigesterArgs>(digester_args)...);
+  writer.Write(std::forward<Src>(src));
+  RIEGELI_CHECK(writer.Close())
+      << "DigestingWriter<Digester, NullWriter> can fail only "
+         "if the size overflows: "
+      << writer.status();
+  return writer.Digest();
+}
+
+template <typename Digester, typename... Srcs, typename... DigesterArgs>
+inline digesting_internal::DigestType<Digester> DigestFromTupleImpl(
+    const std::tuple<Srcs...>& srcs, DigesterArgs&&... digester_args) {
+  DigestingWriter<Digester, NullWriter> writer(
+      std::forward_as_tuple(), std::forward<DigesterArgs>(digester_args)...);
+  writer.WriteTuple(srcs);
+  RIEGELI_CHECK(writer.Close())
+      << "DigestingWriter<Digester, NullWriter> can fail only "
+         "if the size overflows: "
+      << writer.status();
+  return writer.Digest();
+}
+
+}  // namespace digesting_writer_internal
+
+template <typename Digester, typename Src,
+          std::enable_if_t<IsStringifiable<Src>::value, int>>
+inline digesting_internal::DigestType<Digester> DigestFrom(
+    Src&& src, const Digester& digester) {
+  return digesting_writer_internal::DigestFromImpl<std::decay_t<Digester>>(
+      std::forward<Src>(src), digester);
+}
+
+template <typename Digester, typename Src,
+          std::enable_if_t<IsStringifiable<Src>::value, int>>
+inline digesting_internal::DigestType<Digester> DigestFrom(
+    Src&& src, Digester&& digester) {
+  return digesting_writer_internal::DigestFromImpl<std::decay_t<Digester>>(
+      std::forward<Src>(src), std::forward<Digester>(digester));
+}
+
+template <typename Digester, typename Src, typename... DigesterArgs,
+          std::enable_if_t<
+              absl::conjunction<IsStringifiable<Src>,
+                                std::integral_constant<
+                                    bool, sizeof...(DigesterArgs) != 1>>::value,
+              int>>
+inline digesting_internal::DigestType<Digester> DigestFrom(
+    Src&& src, DigesterArgs&&... digester_args) {
+  return digesting_writer_internal::DigestFromImpl<Digester>(
+      std::forward<Src>(src), std::forward<DigesterArgs>(digester_args)...);
+}
+
+template <
+    typename Digester, typename... Srcs,
+    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+inline digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, const Digester& digester) {
+  return digesting_writer_internal::DigestFromTupleImpl<std::decay_t<Digester>>(
+      srcs, digester);
+}
+
+template <
+    typename Digester, typename... Srcs,
+    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+inline digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, Digester&& digester) {
+  return digesting_writer_internal::DigestFromTupleImpl<std::decay_t<Digester>>(
+      srcs, std::forward<Digester>(digester));
+}
+
+template <typename Digester, typename... Srcs, typename... DigesterArgs,
+          std::enable_if_t<
+              absl::conjunction<IsStringifiable<Srcs>...,
+                                std::integral_constant<
+                                    bool, sizeof...(DigesterArgs) != 1>>::value,
+              int>>
+inline digesting_internal::DigestType<Digester> DigestFromTuple(
+    const std::tuple<Srcs...>& srcs, DigesterArgs&&... digester_args) {
+  return digesting_writer_internal::DigestFromTupleImpl<Digester>(
+      srcs, std::forward<DigesterArgs>(digester_args)...);
 }
 
 }  // namespace riegeli

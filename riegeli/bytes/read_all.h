@@ -57,9 +57,9 @@ struct StringViewCallResult<
   using type = typename Maker::type;
 
   static type Call(absl::Status&& status, Work&& work, absl::string_view dest) {
-    return Maker::FromStatusOrWork(std::move(status), [&]() -> WorkResult {
-      return std::forward<Work>(work)(dest);
-    });
+    if (!status.ok()) return Maker::FromStatus(std::move(status));
+    return Maker::FromWork(
+        [&]() -> WorkResult { return std::forward<Work>(work)(dest); });
   }
 
   static void Update(type& result, const absl::Status& status) {

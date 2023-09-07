@@ -44,7 +44,8 @@ absl::Status SetMessage(const absl::Status& status, absl::string_view message);
 // is unchanged.
 absl::Status Annotate(const absl::Status& status, absl::string_view detail);
 
-// Generalizes `absl::StatusOr<T>` for types where that is not applicable:
+// `StatusOrMaker<T>::type` and `StatusOrMakerT<T>` generalize
+// `absl::StatusOr<T>` for types where that is not applicable:
 //  * `absl::StatusOr<const T>`           -> `absl::StatusOr<T>`
 //  * `absl::StatusOr<T&>`                -> rejected
 //  * `absl::StatusOr<T&&>`               -> rejected
@@ -60,10 +61,13 @@ struct StatusOrMaker {
   // The combined type.
   using type = absl::StatusOr<T>;
 
-  // Returns `status` or `work()`. Calls `work()` only if `status.ok()`.
+  // Returns `status`.
+  static type FromStatus(const absl::Status& status) { return status; }
+  static type FromStatus(absl::Status&& status) { return std::move(status); }
+
+  // Returns `work()`.
   template <typename Work>
-  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
-    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+  static type FromWork(Work&& work) {
     return std::forward<Work>(work)();
   }
 
@@ -92,9 +96,11 @@ template <>
 struct StatusOrMaker<void> {
   using type = absl::Status;
 
+  static type FromStatus(const absl::Status& status) { return status; }
+  static type FromStatus(absl::Status&& status) { return std::move(status); }
+
   template <typename Work>
-  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
-    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+  static type FromWork(Work&& work) {
     std::forward<Work>(work)();
     return absl::OkStatus();
   }
@@ -108,9 +114,11 @@ template <>
 struct StatusOrMaker<absl::Status> {
   using type = absl::Status;
 
+  static type FromStatus(const absl::Status& status) { return status; }
+  static type FromStatus(absl::Status&& status) { return std::move(status); }
+
   template <typename Work>
-  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
-    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+  static type FromWork(Work&& work) {
     return std::forward<Work>(work)();
   }
 
@@ -123,9 +131,11 @@ template <typename T>
 struct StatusOrMaker<absl::StatusOr<T>> {
   using type = absl::StatusOr<T>;
 
+  static type FromStatus(const absl::Status& status) { return status; }
+  static type FromStatus(absl::Status&& status) { return std::move(status); }
+
   template <typename Work>
-  static type FromStatusOrWork(absl::Status&& status, Work&& work) {
-    if (ABSL_PREDICT_FALSE(!status.ok())) return std::move(status);
+  static type FromWork(Work&& work) {
     return std::forward<Work>(work)();
   }
 
@@ -133,6 +143,9 @@ struct StatusOrMaker<absl::StatusOr<T>> {
     if (result.ok()) result = status;
   }
 };
+
+template <typename T>
+using StatusOrMakerT = typename StatusOrMaker<T>::type;
 
 }  // namespace riegeli
 
