@@ -364,18 +364,17 @@ void DigestingWriter<Digester, Dest>::Done() {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  digesting_internal::Close(digesting_internal::Dereference(digester_));
+  digesting_internal::Close(digester_);
 }
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::DigesterWrite(absl::string_view src) {
-  digesting_internal::Dereference(digester_).Write(src);
+  digesting_internal::Write(digester_, src);
 }
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::DigesterWriteZeros(Position length) {
-  digesting_internal::WriteZeros(digesting_internal::Dereference(digester_),
-                                 length);
+  digesting_internal::WriteZeros(digester_, length);
 }
 
 template <typename Digester, typename Dest>
@@ -386,7 +385,7 @@ DigestingWriter<Digester, Dest>::Digest() {
     set_start_pos(pos());
     set_buffer(cursor(), available());
   }
-  return digesting_internal::Digest(digesting_internal::Dereference(digester_));
+  return digesting_internal::Digest(digester_);
 }
 
 template <typename Digester, typename Dest>

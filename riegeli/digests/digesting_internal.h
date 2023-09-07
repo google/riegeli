@@ -67,6 +67,13 @@ inline DereferenceType<Digester> Dereference(Digester& digester) {
   return digester;
 }
 
+// `digester_internal::Write()` calls `Digester::Write()`.
+
+template <typename Digester>
+inline void Write(Digester& digester, absl::string_view src) {
+  digesting_internal::Dereference(digester).Write(src);
+}
+
 // `digester_internal::WriteZeros()` calls `Digester::WriteZeros()`, or uses
 // `Digester::Write()` if that is not defined.
 
@@ -78,21 +85,24 @@ struct HasWriteZeros<Digester,
                      absl::void_t<decltype(std::declval<Digester>().WriteZeros(
                          std::declval<Position>()))>> : std::true_type {};
 
-template <typename Digester,
-          std::enable_if_t<HasWriteZeros<Digester>::value, int> = 0>
+template <
+    typename Digester,
+    std::enable_if_t<HasWriteZeros<DereferenceType<Digester>>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
-  digester.WriteZeros(length);
+  digesting_internal::Dereference(digester).WriteZeros(length);
 }
 
-template <typename Digester,
-          std::enable_if_t<!HasWriteZeros<Digester>::value, int> = 0>
+template <
+    typename Digester,
+    std::enable_if_t<!HasWriteZeros<DereferenceType<Digester>>::value, int> = 0>
 inline void WriteZeros(Digester& digester, Position length) {
   const absl::string_view kArrayOfZeros = ArrayOfZeros();
   while (length > kArrayOfZeros.size()) {
-    digester.Write(kArrayOfZeros);
+    digesting_internal::Write(digester, kArrayOfZeros);
     length -= kArrayOfZeros.size();
   }
-  digester.Write(kArrayOfZeros.substr(0, IntCast<size_t>(length)));
+  digesting_internal::Write(digester,
+                            kArrayOfZeros.substr(0, IntCast<size_t>(length)));
 }
 
 // `digester_internal::Close()` calls `Digester::Close()`, or does nothing if
@@ -107,13 +117,14 @@ struct HasClose<Digester,
     : std::true_type {};
 
 template <typename Digester,
-          std::enable_if_t<HasClose<Digester>::value, int> = 0>
+          std::enable_if_t<HasClose<DereferenceType<Digester>>::value, int> = 0>
 inline void Close(Digester& digester) {
-  digester.Close();
+  digesting_internal::Dereference(digester).Close();
 }
 
-template <typename Digester,
-          std::enable_if_t<!HasClose<Digester>::value, int> = 0>
+template <
+    typename Digester,
+    std::enable_if_t<!HasClose<DereferenceType<Digester>>::value, int> = 0>
 inline void Close(ABSL_ATTRIBUTE_UNUSED Digester& digester) {}
 
 // `digester_internal::DigesterType` is the result of `Digester::Digest()`, or
@@ -141,16 +152,18 @@ struct DigestTypeImpl<Digester, std::enable_if_t<HasDigest<Digester>::value>> {
 };
 
 template <typename Digester>
-using DigestType = typename DigestTypeImpl<Digester>::type;
+using DigestType = typename DigestTypeImpl<DereferenceType<Digester>>::type;
 
-template <typename Digester,
-          std::enable_if_t<HasDigest<Digester>::value, int> = 0>
+template <
+    typename Digester,
+    std::enable_if_t<HasDigest<DereferenceType<Digester>>::value, int> = 0>
 inline DigestType<Digester> Digest(Digester& digester) {
-  return digester.Digest();
+  return digesting_internal::Dereference(digester).Digest();
 }
 
-template <typename Digester,
-          std::enable_if_t<!HasDigest<Digester>::value, int> = 0>
+template <
+    typename Digester,
+    std::enable_if_t<!HasDigest<DereferenceType<Digester>>::value, int> = 0>
 inline DigestType<Digester> Digest(ABSL_ATTRIBUTE_UNUSED Digester& digester) {}
 
 }  // namespace digesting_internal

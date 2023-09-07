@@ -355,7 +355,7 @@ DigestingReader<Digester, Src>::Digest() {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
   }
-  return digesting_internal::Digest(digesting_internal::Dereference(digester_));
+  return digesting_internal::Digest(digester_);
 }
 
 template <typename Digester, typename Src>
@@ -366,12 +366,12 @@ void DigestingReader<Digester, Src>::Done() {
       FailWithoutAnnotation(src_->status());
     }
   }
-  digesting_internal::Close(digesting_internal::Dereference(digester_));
+  digesting_internal::Close(digester_);
 }
 
 template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
-  digesting_internal::Dereference(digester_).Write(src);
+  digesting_internal::Write(digester_, src);
 }
 
 template <typename Digester, typename Src>
