@@ -23,6 +23,7 @@
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -40,10 +41,10 @@ class NullBackwardWriter : public BackwardWriter {
    public:
     Options() noexcept {}
 
-    // `NullBackwardWriter` has a smaller default buffer sizes (256) so that
+    // `NullBackwardWriter` has a smaller default buffer size (256) so that
     // writing larger values is skipped altogether.
-    static constexpr size_t kDefaultMinBufferSize = 256;
-    static constexpr size_t kDefaultMaxBufferSize = 256;
+    static constexpr size_t kDefaultMinBufferSize = kMaxBytesToCopy + 1;
+    static constexpr size_t kDefaultMaxBufferSize = kMaxBytesToCopy + 1;
   };
 
   // Creates a closed `NullBackwardWriter`.
