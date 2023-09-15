@@ -22,7 +22,6 @@
 
 #include <limits>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -54,24 +53,19 @@ void Lz4ReaderBase::Initialize(Reader* src) {
 
 inline void Lz4ReaderBase::InitializeDecompressor(Reader& src) {
   LZ4F_errorCode_t result = 0;
-  // TODO: When https://github.com/lz4/lz4/issues/1227 is fixed:
-  // decompressor_ =
-  //     RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
-  //         recycling_pool_options_)
-  //         .Get(
-  //             [&result] {
-  //               LZ4F_dctx* decompressor = nullptr;
-  //               result = LZ4F_createDecompressionContext(&decompressor,
-  //                                                        LZ4F_VERSION);
-  //               return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
-  //                   decompressor);
-  //             },
-  //             [](LZ4F_dctx* decompressor) {
-  //               LZ4F_resetDecompressionContext(decompressor);
-  //             });
-  LZ4F_dctx* decompressor = nullptr;
-  result = LZ4F_createDecompressionContext(&decompressor, LZ4F_VERSION);
-  decompressor_ = std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(decompressor);
+  decompressor_ = RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
+                      recycling_pool_options_)
+                      .Get(
+                          [&result] {
+                            LZ4F_dctx* decompressor = nullptr;
+                            result = LZ4F_createDecompressionContext(
+                                &decompressor, LZ4F_VERSION);
+                            return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
+                                decompressor);
+                          },
+                          [](LZ4F_dctx* decompressor) {
+                            LZ4F_resetDecompressionContext(decompressor);
+                          });
   if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) {
     Fail(absl::InternalError(
         absl::StrCat("LZ4F_createDecompressionContext() failed: ",
@@ -327,30 +321,23 @@ namespace lz4_internal {
 inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info,
                          const RecyclingPoolOptions& recycling_pool_options) {
   using LZ4F_dctxDeleter = Lz4ReaderBase::LZ4F_dctxDeleter;
-  // TODO: When https://github.com/lz4/lz4/issues/1227 is fixed:
-  // RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor;
-  std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter> decompressor;
+  RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor;
   {
     LZ4F_errorCode_t result = 0;
-    // TODO: When https://github.com/lz4/lz4/issues/1227 is fixed:
-    // decompressor =
-    //     RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
-    //         recycling_pool_options)
-    //         .Get(
-    //             [&result] {
-    //               LZ4F_dctx* decompressor = nullptr;
-    //               result = LZ4F_createDecompressionContext(&decompressor,
-    //                                                        LZ4F_VERSION);
-    //               return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
-    //                   decompressor);
-    //             },
-    //             [](LZ4F_dctx* decompressor) {
-    //               LZ4F_resetDecompressionContext(decompressor);
-    //             });
-    LZ4F_dctx* decompressor_ptr = nullptr;
-    result = LZ4F_createDecompressionContext(&decompressor_ptr, LZ4F_VERSION);
     decompressor =
-        std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(decompressor_ptr);
+        RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::global(
+            recycling_pool_options)
+            .Get(
+                [&result] {
+                  LZ4F_dctx* decompressor = nullptr;
+                  result = LZ4F_createDecompressionContext(&decompressor,
+                                                           LZ4F_VERSION);
+                  return std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter>(
+                      decompressor);
+                },
+                [](LZ4F_dctx* decompressor) {
+                  LZ4F_resetDecompressionContext(decompressor);
+                });
     if (ABSL_PREDICT_FALSE(LZ4F_isError(result))) return false;
   }
   if (ABSL_PREDICT_FALSE(!src.Pull(LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH,

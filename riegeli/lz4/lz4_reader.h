@@ -36,6 +36,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/lz4/lz4_dictionary.h"  // IWYU pragma: export
+#include "third_party/lz4/lib/lz4.h"
 
 namespace riegeli {
 
@@ -104,7 +105,12 @@ class Lz4ReaderBase : public BufferedReader {
    private:
     bool growing_source_ = false;
     Lz4Dictionary dictionary_;
-    RecyclingPoolOptions recycling_pool_options_;
+    RecyclingPoolOptions recycling_pool_options_
+#if LZ4_VERSION_NUMBER <= 10904
+        // Workaround for https://github.com/lz4/lz4/issues/1227.
+        = RecyclingPoolOptions().set_max_size(0)
+#endif
+        ;
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
@@ -179,9 +185,7 @@ class Lz4ReaderBase : public BufferedReader {
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
   //
-  // TODO: When https://github.com/lz4/lz4/issues/1227 is fixed:
-  // RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
-  std::unique_ptr<LZ4F_dctx, LZ4F_dctxDeleter> decompressor_;
+  RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor_;
 };
 
 // A `Reader` which decompresses data with Lz4 after getting it from another
