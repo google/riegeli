@@ -166,29 +166,68 @@ absl::string_view LinearSortedStringSet::first() const {
 }
 
 bool LinearSortedStringSet::contains(absl::string_view element) const {
-  // Length of the prefix shared between the previous `*iterator` and the
-  // current `*iterator`.
-  size_t shared_length = 0;
   // Length of the prefix shared between `element` and `*iterator`.
   size_t common_length = 0;
-  for (Iterator iterator = cbegin(); iterator != cend();
-       shared_length = iterator.Next()) {
-    // It would be incorrect to assume that if `shared_length < common_length`
-    // then `*iterator > element` because `shared_length` is not guaranteed to
-    // be maximal.
-    common_length = UnsignedMin(common_length, shared_length);
-    const absl::string_view found = *iterator;
-    common_length +=
-        SharedLength(absl::string_view(found.data() + common_length,
-                                       found.size() - common_length),
-                     absl::string_view(element.data() + common_length,
-                                       element.size() - common_length));
-    // The first difference, if any, is at `common_length`.
-    RIEGELI_ASSERT_EQ(absl::string_view(found.data(), common_length),
-                      absl::string_view(element.data(), common_length))
+  for (SplitElementIterator iterator = split_elements().cbegin();
+       iterator != SplitElementIterator(); ++iterator) {
+    // It would be incorrect to assume that if
+    // `found.prefix().size() < common_length` then `*iterator > element`
+    // because `found.prefix().size()` is not guaranteed to be maximal.
+    const SplitElement found = *iterator;
+    common_length = UnsignedMin(common_length, found.prefix().size());
+    if (common_length < found.prefix().size()) {
+      common_length +=
+          SharedLength(absl::string_view(found.prefix().data() + common_length,
+                                         found.prefix().size() - common_length),
+                       absl::string_view(element.data() + common_length,
+                                         element.size() - common_length));
+      if (common_length < found.prefix().size()) {
+        // The first difference, if any, is at
+        // `found.prefix().data() + common_length`.
+        RIEGELI_ASSERT_EQ(
+            absl::string_view(found.prefix().data(), common_length),
+            absl::string_view(element.data(), common_length))
+            << "common_length incorrectly updated";
+        const absl::string_view found_middle(
+            found.prefix().data() + common_length,
+            found.prefix().size() - common_length);
+        const absl::string_view element_suffix(element.data() + common_length,
+                                               element.size() - common_length);
+        RIEGELI_ASSERT(found_middle.empty() || element_suffix.empty() ||
+                       found_middle.front() != element_suffix.front())
+            << "common_length incorrectly updated";
+        if (found_middle.empty()) {
+          if (element_suffix.empty()) return true;
+        } else {
+          if (element_suffix.empty() ||
+              static_cast<unsigned char>(found_middle.front()) >
+                  static_cast<unsigned char>(element_suffix.front())) {
+            return false;
+          }
+        }
+        continue;
+      }
+    }
+
+    RIEGELI_ASSERT_GE(common_length, found.prefix().size())
         << "common_length incorrectly updated";
-    const absl::string_view found_suffix(found.data() + common_length,
-                                         found.size() - common_length);
+    common_length += SharedLength(
+        absl::string_view(
+            found.suffix().data() + (common_length - found.prefix().size()),
+            found.suffix().size() - (common_length - found.prefix().size())),
+        absl::string_view(element.data() + common_length,
+                          element.size() - common_length));
+    // The first difference, if any, is at
+    // `found.suffix().data() + (common_length - found_prefix().size())`.
+    RIEGELI_ASSERT_EQ(
+        absl::StrCat(found.prefix(),
+                     absl::string_view(found.suffix().data(),
+                                       common_length - found.prefix().size())),
+        absl::string_view(element.data(), common_length))
+        << "common_length incorrectly updated";
+    const absl::string_view found_suffix(
+        found.suffix().data() + (common_length - found.prefix().size()),
+        found.suffix().size() - (common_length - found.prefix().size()));
     const absl::string_view element_suffix(element.data() + common_length,
                                            element.size() - common_length);
     RIEGELI_ASSERT(found_suffix.empty() || element_suffix.empty() ||
@@ -373,16 +412,17 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
   return absl::OkStatus();
 }
 
-size_t LinearSortedStringSet::Iterator::Next() {
+LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   RIEGELI_ASSERT(cursor_ != nullptr)
-      << "Failed precondition of LinearSortedStringSet::Iterator::Next(): "
+      << "Failed precondition of "
+         "LinearSortedStringSet::Iterator::operator++: "
          "iterator is end()";
   if (cursor_ == limit_) {
     // `end()` was reached.
     cursor_ = nullptr;  // Mark `end()`.
     length_if_unshared_ = 0;
     current_if_shared_ = CompactString();  // Free memory.
-    return 0;
+    return *this;
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
@@ -405,7 +445,7 @@ size_t LinearSortedStringSet::Iterator::Next() {
     length_if_unshared_ = IntCast<size_t>(unshared_length);
     ptr += IntCast<size_t>(unshared_length);
     cursor_ = ptr;
-    return 0;
+    return *this;
   }
   // `shared_length > 0` and is stored.
   uint64_t shared_length;
@@ -444,7 +484,103 @@ size_t LinearSortedStringSet::Iterator::Next() {
   length_if_unshared_ = 0;
   ptr += IntCast<size_t>(unshared_length);
   cursor_ = ptr;
-  return IntCast<size_t>(shared_length);
+  return *this;
+}
+
+LinearSortedStringSet::SplitElementIterator&
+LinearSortedStringSet::SplitElementIterator::operator++() {
+  RIEGELI_ASSERT(cursor_ != nullptr)
+      << "Failed precondition of "
+         "LinearSortedStringSet::SplitElementIterator::operator++: "
+         "iterator is end()";
+  if (cursor_ == limit_) {
+    // `end()` was reached.
+    cursor_ = nullptr;                    // Mark `end()`.
+    prefix_if_stored_ = CompactString();  // Free memory.
+    prefix_ = absl::string_view();
+    suffix_length_ = 0;
+    return *this;
+  }
+  const char* ptr = cursor_;
+  uint64_t tagged_length;
+  {
+    const absl::optional<const char*> next =
+        ReadVarint64(ptr, limit_, tagged_length);
+    if (next == absl::nullopt) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Malformed LinearSortedStringSet encoding (tagged_length)";
+    } else {
+      ptr = *next;
+    }
+  }
+  const uint64_t unshared_length = tagged_length >> 1;
+  if ((tagged_length & 1) == 0) {
+    // `shared_length == 0` and is not stored.
+    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+        << "Malformed LinearSortedStringSet encoding (unshared)";
+    prefix_ = absl::string_view();
+    suffix_length_ = IntCast<size_t>(unshared_length);
+    ptr += IntCast<size_t>(unshared_length);
+    cursor_ = ptr;
+    return *this;
+  }
+  // `shared_length > 0` and is stored.
+  uint64_t shared_length;
+  {
+    const absl::optional<const char*> next =
+        ReadVarint64(ptr, limit_, shared_length);
+    if (next == absl::nullopt) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Malformed LinearSortedStringSet encoding (shared_length)";
+    } else {
+      ptr = *next;
+    }
+  }
+  // Compare `<` instead of `<=`, before `++shared_length`.
+  RIEGELI_ASSERT_LT(shared_length, prefix_.size() + suffix_length_)
+      << "Malformed LinearSortedStringSet encoding "
+         "(shared_length larger than previous element)";
+  ++shared_length;
+  RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+      << "Malformed LinearSortedStringSet encoding (unshared)";
+  if (shared_length <= prefix_.size()) {
+    prefix_ = absl::string_view(prefix_.data(), IntCast<size_t>(shared_length));
+  } else if (prefix_.empty()) {
+    prefix_ = absl::string_view(cursor_ - suffix_length_,
+                                IntCast<size_t>(shared_length));
+  } else {
+    // Append
+    // `absl::string_view(cursor_ - suffix_length_,
+    //                    IntCast<size_t>(shared_length) - prefix_.size())`
+    // to `prefix_`, using `prefix_if_stored_` for storage.
+
+    // The new prefix.
+    char* prefix_data;
+    // The suffix of the new prefix which is not shared with the previous
+    // element will be written here.
+    char* prefix_unshared;
+    if (prefix_if_stored_.data() == prefix_.data()) {
+      RIEGELI_ASSERT_GE(prefix_if_stored_.size(), prefix_.size())
+          << "Failed invariant of LinearSortedStringSet::SplitElementIterator: "
+             "prefix_ overflows prefix_if_stored_";
+      // `prefix_if_stored_` already begins with `prefix_`.
+      prefix_unshared = prefix_if_stored_.resize(IntCast<size_t>(shared_length),
+                                                 prefix_.size());
+      prefix_data = prefix_unshared - prefix_.size();
+    } else {
+      // Copy `prefix_` to the beginning of `prefix_if_stored_` first.
+      prefix_data = prefix_if_stored_.resize(IntCast<size_t>(shared_length), 0);
+      std::memcpy(prefix_data, prefix_.data(), prefix_.size());
+      prefix_unshared = prefix_data + prefix_.size();
+    }
+    std::memcpy(prefix_unshared, cursor_ - suffix_length_,
+                IntCast<size_t>(shared_length) - prefix_.size());
+    prefix_ = absl::string_view(prefix_data, IntCast<size_t>(shared_length));
+  }
+  ptr += IntCast<size_t>(unshared_length);
+  cursor_ = ptr;
+  suffix_length_ = IntCast<size_t>(unshared_length);
+  return *this;
 }
 
 LinearSortedStringSet::Builder::Builder() = default;

@@ -50,6 +50,9 @@ namespace riegeli {
 class LinearSortedStringSet {
  public:
   class Iterator;
+  class SplitElement;
+  class SplitElementIterator;
+  class SplitElements;
   class Builder;
   class NextInsertIterator;
 
@@ -173,6 +176,14 @@ class LinearSortedStringSet {
   Iterator cbegin() const;
   Iterator end() const;
   Iterator cend() const;
+
+  // Returns a proxy for `LinearSortedStringSet` where each element is
+  // represented as `SplitElement` rather than `absl::string_view`. This is
+  // more efficient but less convenient.
+  //
+  // The `SplitElements` object is valid while the `LinearSortedStringSet` is
+  // valid.
+  SplitElements split_elements() const;
 
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
@@ -332,26 +343,12 @@ class LinearSortedStringSet::Iterator {
     return pointer(**this);
   }
 
-  Iterator& operator++() {
-    RIEGELI_ASSERT(cursor_ != nullptr)
-        << "Failed precondition of "
-           "LinearSortedStringSet::Iterator::operator++: "
-           "iterator is end()";
-    Next();
-    return *this;
-  }
+  Iterator& operator++();
   Iterator operator++(int) {
     const Iterator tmp = *this;
     ++*this;
     return tmp;
   }
-
-  // Advances to the next element, like `operator++`, but returns a length known
-  // to be shared with the previous element, or 0 if `end()` was reached.
-  //
-  // The shared length is not guaranteed to be maximal, so it should be used
-  // only for optimization.
-  size_t Next();
 
   // Iterators can be compared even if they are associated with different
   // `LinearSortedStringSet` objects. All `end()` values are equal, while all
@@ -368,7 +365,7 @@ class LinearSortedStringSet::Iterator {
 
   explicit Iterator(absl::string_view encoded)
       : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
-    Next();
+    ++*this;
   }
 
   // `cursor_` points after the encoded current element in
@@ -386,6 +383,167 @@ class LinearSortedStringSet::Iterator {
   // If `*this` is `end()`, or if `length_if_unshared_ > 0`, unused and empty.
   // Otherwise stores the decoded current element.
   CompactString current_if_shared_;
+};
+
+// Represents an element as the concatenation of two `absl::string_view` values:
+// prefix and suffix. This is more efficient than a single `absl::string_view`
+// but less convenient.
+//
+// The prefix is known to be shared with the previous element. It is not
+// guaranteed to be the longest shared prefix though.
+class LinearSortedStringSet::SplitElement {
+ public:
+  explicit SplitElement(absl::string_view prefix, absl::string_view suffix)
+      : prefix_(prefix), suffix_(suffix) {}
+
+  SplitElement(const SplitElement& that) = default;
+  SplitElement& operator=(const SplitElement& that) = default;
+
+  absl::string_view prefix() const { return prefix_; }
+  absl::string_view suffix() const { return suffix_; }
+
+ private:
+  absl::string_view prefix_;
+  absl::string_view suffix_;
+};
+
+// Iterates over a `LinearSortedStringSet` in the sorted order.
+//
+// Each element is represented as `SplitElement` rather than
+// `absl::string_view`, which is more efficient but less convenient.
+class LinearSortedStringSet::SplitElementIterator {
+ public:
+  // `iterator_concept` is only `std::input_iterator_tag` because the
+  // `std::forward_iterator` requirement and above require references to remain
+  // valid while the range exists.
+  using iterator_concept = std::input_iterator_tag;
+  // `iterator_category` is only `std::input_iterator_tag` also because the
+  // `LegacyForwardIterator` requirement and above require `reference` to be
+  // a true reference type.
+  using iterator_category = std::input_iterator_tag;
+  using value_type = SplitElement;
+  using reference = value_type;
+  using difference_type = ptrdiff_t;
+
+  class pointer {
+   public:
+    reference* operator->() { return &ref_; }
+    const reference* operator->() const { return &ref_; }
+
+   private:
+    friend class SplitElementIterator;
+    explicit pointer(reference ref) : ref_(ref) {}
+    reference ref_;
+  };
+
+  // A sentinel value, equal to `end()`.
+  SplitElementIterator() = default;
+
+  SplitElementIterator(const SplitElementIterator& that) = default;
+  SplitElementIterator& operator=(const SplitElementIterator& that) = default;
+
+  SplitElementIterator(SplitElementIterator&& that) noexcept = default;
+  SplitElementIterator& operator=(SplitElementIterator&& that) noexcept =
+      default;
+
+  // Returns the current element.
+  //
+  // The `absl::string_view` is valid until the next non-const operation on this
+  // `Iterator` (the string it points to is conditionally owned by `Iterator`).
+  reference operator*() const {
+    RIEGELI_ASSERT(cursor_ != nullptr)
+        << "Failed precondition of "
+           "LinearSortedStringSet::SplitElementIterator::operator*: "
+           "iterator is end()";
+    return SplitElement(
+        prefix_, absl::string_view(cursor_ - suffix_length_, suffix_length_));
+  }
+
+  pointer operator->() const {
+    RIEGELI_ASSERT(cursor_ != nullptr)
+        << "Failed precondition of "
+           "LinearSortedStringSet::SplitElementIterator::operator->: "
+           "iterator is end()";
+    return pointer(**this);
+  }
+
+  SplitElementIterator& operator++();
+  SplitElementIterator operator++(int) {
+    const SplitElementIterator tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  // Iterators can be compared even if they are associated with different
+  // `LinearSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const SplitElementIterator& a,
+                         const SplitElementIterator& b) {
+    return a.cursor_ == b.cursor_;
+  }
+  friend bool operator!=(const SplitElementIterator& a,
+                         const SplitElementIterator& b) {
+    return a.cursor_ != b.cursor_;
+  }
+
+ private:
+  friend class SplitElements;  // For `SplitElementIterator()`.
+
+  explicit SplitElementIterator(absl::string_view encoded)
+      : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
+    ++*this;
+  }
+
+  // `cursor_` points after the encoded current element in
+  // `LinearSortedStringSet::encoded_`, or is `nullptr` for `end()` (this is
+  // unambiguous because `CompactString::data()` is never `nullptr`).
+  const char* cursor_ = nullptr;
+  const char* limit_ = nullptr;
+  // `prefix_if_stored_` is unused or provides storage for `prefix_` (might be
+  // longer than `prefix_`).
+  CompactString prefix_if_stored_;
+  // If `*this` is `end()`, `prefix_.empty()` and `suffix_length_ == 0`.
+  // Otherwise the current element is the concatenation of `prefix_` and
+  // `absl::string_view(cursor_ - suffix_length_, suffix_length_)`.
+  // `prefix_` points to a prefix of `prefix_if_stored_` or to a substring of
+  // encoded data.
+  absl::string_view prefix_;
+  size_t suffix_length_ = 0;
+};
+
+// A proxy for `LinearSortedStringSet` where each element is represented as
+// `SplitElement` rather than `absl::string_view`. This is more efficient but
+// less convenient.
+class LinearSortedStringSet::SplitElements {
+ public:
+  using value_type = SplitElement;
+  using reference = value_type;
+  using const_reference = reference;
+  using iterator = SplitElementIterator;
+  using const_iterator = iterator;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+
+  SplitElements(const SplitElements& that) = default;
+  SplitElements& operator=(const SplitElements& that) = default;
+
+  // Iteration over the set.
+  //
+  // The `SplitElementIterator` is valid while the `LinearSortedStringSet` is
+  // valid. The `SplitElements` object does not need to be kept valid.
+  SplitElementIterator begin() const { return SplitElementIterator(encoded_); }
+  SplitElementIterator cbegin() const { return begin(); }
+  SplitElementIterator end() const { return SplitElementIterator(); }
+  SplitElementIterator cend() const { return end(); }
+
+ private:
+  friend class LinearSortedStringSet;  // For `SplitElements()`.
+
+  explicit SplitElements(const LinearSortedStringSet* set)
+      : encoded_(set->encoded_) {}
+
+  // Invariant: `encoded_.data() != nullptr`
+  absl::string_view encoded_;
 };
 
 // Builds a `LinearSortedStringSet` from a sorted sequence of strings.
@@ -600,6 +758,11 @@ inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
 
 inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
   return end();
+}
+
+inline LinearSortedStringSet::SplitElements
+LinearSortedStringSet::split_elements() const {
+  return SplitElements(this);
 }
 
 template <typename HashState>

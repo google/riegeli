@@ -232,26 +232,27 @@ absl::Status ChunkedSortedStringSet::DecodeImpl(Reader& src,
   return absl::OkStatus();
 }
 
-size_t ChunkedSortedStringSet::Iterator::Next() {
+ChunkedSortedStringSet::Iterator&
+ChunkedSortedStringSet::Iterator::operator++() {
   RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
-      << "Failed precondition of ChunkedSortedStringSet::Iterator::Next(): "
+      << "Failed precondition of ChunkedSortedStringSet::Iterator::operator++: "
          "iterator is end()";
-  const size_t shared_length = current_iterator_.Next();
+  ++current_iterator_;
   if (ABSL_PREDICT_TRUE(current_iterator_ !=
                         LinearSortedStringSet::Iterator())) {
     // Staying in the same chunk.
-    return shared_length;
+    return *this;
   }
   if (ABSL_PREDICT_FALSE(set_->repr_is_inline() ||
                          next_chunk_iterator_ ==
                              set_->allocated_repr()->chunks.cend())) {
     // Reached the end.
-    return 0;
+    return *this;
   }
   // Moving to the next chunk.
   current_iterator_ = next_chunk_iterator_->cbegin();
   ++next_chunk_iterator_;
-  return 0;
+  return *this;
 }
 
 ChunkedSortedStringSet::Builder::Builder(Options options)

@@ -433,26 +433,12 @@ class ChunkedSortedStringSet::Iterator {
     return pointer(**this);
   }
 
-  Iterator& operator++() {
-    RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
-        << "Failed precondition of "
-           "ChunkedSortedStringSet::Iterator::operator++: "
-           "iterator is end()";
-    Next();
-    return *this;
-  }
+  Iterator& operator++();
   Iterator operator++(int) {
     const Iterator tmp = *this;
     ++*this;
     return tmp;
   }
-
-  // Advances to the next element, like `operator++`, but returns a length known
-  // to be shared with the previous element, or 0 if `end()` was reached.
-  //
-  // The shared length is not guaranteed to be maximal, so it should be used
-  // only for optimization.
-  size_t Next();
 
   // Iterators can be compared even if they are associated with different
   // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
