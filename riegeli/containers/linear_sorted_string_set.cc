@@ -183,6 +183,7 @@ bool LinearSortedStringSet::contains(absl::string_view element) const {
                                        found.size() - common_length),
                      absl::string_view(element.data() + common_length,
                                        element.size() - common_length));
+    // The first difference, if any, is at `common_length`.
     RIEGELI_ASSERT_EQ(absl::string_view(found.data(), common_length),
                       absl::string_view(element.data(), common_length))
         << "common_length incorrectly updated";
@@ -190,7 +191,18 @@ bool LinearSortedStringSet::contains(absl::string_view element) const {
                                          found.size() - common_length);
     const absl::string_view element_suffix(element.data() + common_length,
                                            element.size() - common_length);
-    if (found_suffix >= element_suffix) return found_suffix.empty();
+    RIEGELI_ASSERT(found_suffix.empty() || element_suffix.empty() ||
+                   found_suffix.front() != element_suffix.front())
+        << "common_length incorrectly updated";
+    if (found_suffix.empty()) {
+      if (element_suffix.empty()) return true;
+    } else {
+      if (element_suffix.empty() ||
+          static_cast<unsigned char>(found_suffix.front()) >
+              static_cast<unsigned char>(element_suffix.front())) {
+        return false;
+      }
+    }
   }
   return false;  // Not found.
 }
