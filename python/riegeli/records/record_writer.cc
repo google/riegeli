@@ -524,6 +524,18 @@ static PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
+static PyObject* RecordWriterPadToBlockBoundary(PyRecordWriterObject* self,
+                                                PyObject* args) {
+  if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
+  const bool pad_to_block_boundary_ok =
+      PythonUnlocked([&] { return self->record_writer->PadToBlockBoundary(); });
+  if (ABSL_PREDICT_FALSE(!pad_to_block_boundary_ok)) {
+    SetExceptionFromRecordWriter(self);
+    return nullptr;
+  }
+  Py_RETURN_NONE;
+}
+
 static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
                                    PyObject* kwargs) {
   static constexpr const char* keywords[] = {"flush_type", nullptr};
@@ -647,6 +659,23 @@ Writes a number of records.
 Args:
   records: Records to write as an iterable of proto messages.
 )doc"},
+    {"pad_to_block_boundary",
+     reinterpret_cast<PyCFunction>(RecordWriterPadToBlockBoundary), METH_NOARGS,
+     R"doc(
+pad_to_block_boundary(self) -> None
+
+Writes padding to reach a 64KB block boundary.
+
+Consequences:
+ * Even if the existing file was corrupted or truncated, data appended to it
+   will be readable.
+ * Physical concatenation of separately written files yields a valid file
+   (setting metadata in subsequent files is wasteful but harmless).
+ * Up to 64KB is wasted when padding is written.
+
+If pad_to_block_boundary option is true, this is done automatically when the
+RecordWriter is created, before close(), and before flush().
+)doc"},
     {"flush", reinterpret_cast<PyCFunction>(RecordWriterFlush),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 flush(self, flush_type: FlushType = FlushType.FROM_PROCESS) -> None
@@ -718,7 +747,7 @@ last_pos.numeric returns the position as an int.
 
 Precondition:
   a record was successfully written and there was no intervening call to
-  close() or flush().
+  close(), pad_to_block_boundary(), or flush().
 )doc"),
      nullptr},
     {const_cast<char*>("pos"), reinterpret_cast<getter>(RecordWriterPos),

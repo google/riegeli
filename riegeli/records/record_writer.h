@@ -382,6 +382,8 @@ class RecordWriterBase : public Object {
     //
     //  * Up to 64KB is wasted when padding is written.
     //
+    // `PadToBlockBoundary()` can be used to do this explicitly.
+    //
     // Default: `false`.
     Options& set_pad_to_block_boundary(bool pad_to_block_boundary) & {
       pad_to_block_boundary_ = pad_to_block_boundary;
@@ -456,6 +458,23 @@ class RecordWriterBase : public Object {
   bool WriteRecord(const absl::Cord& record);
   bool WriteRecord(absl::Cord&& record);
 
+  // Writes padding to reach a 64KB block boundary.
+  //
+  // Consequences:
+  //
+  //  * Even if the existing file was corrupted or truncated, data appended to
+  //    it will be readable.
+  //
+  //  * Physical concatenation of separately written files yields a valid file
+  //    (setting metadata in subsequent files is wasteful but harmless).
+  //
+  //  * Up to 64KB is wasted when padding is written.
+  //
+  // If `pad_to_block_boundary` option is `true`, this is done automatically
+  // when the `RecordWriter` is created, before `Close()`, before `Flush()`, and
+  // before `FutureFlush()`.
+  bool PadToBlockBoundary();
+
   // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism() > 0`, waits for any background writing to
   // complete.
@@ -506,8 +525,8 @@ class RecordWriterBase : public Object {
   // `Position`.
   //
   // Precondition: a record was successfully written and there was no
-  // intervening call to `Close()`, `Flush()` or `FutureFlush()` (this can be
-  // checked with `last_record_is_valid()`).
+  // intervening call to `Close()`, `PadToBlockBoundary()`, `Flush()` or
+  // `FutureFlush()` (this can be checked with `last_record_is_valid()`).
   FutureRecordPosition LastPos() const;
 
   // Returns `true` if calling `LastPos()` is valid.
