@@ -141,7 +141,10 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
                            ValueParser::Real(0.0, 1.0, &bucket_fraction_));
   options_parser.AddOption(
       "pad_to_block_boundary",
-      ValueParser::Enum({{"", true}, {"true", true}, {"false", false}},
+      ValueParser::Enum({{"", Padding::kTrue},
+                         {"true", Padding::kTrue},
+                         {"false", Padding::kFalse},
+                         {"initially", Padding::kInitially}},
                         &pad_to_block_boundary_));
   options_parser.AddOption(
       "parallelism",
@@ -245,13 +248,13 @@ inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
   if (initial_pos == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
     if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
-  } else {
-    MaybePadToBlockBoundary();
+  } else if (options_.pad_to_block_boundary() != Options::Padding::kFalse) {
+    PadToBlockBoundary();
   }
 }
 
 inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
-  if (options_.pad_to_block_boundary()) {
+  if (options_.pad_to_block_boundary() == Options::Padding::kTrue) {
     return PadToBlockBoundary();
   } else {
     return true;

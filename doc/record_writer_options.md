@@ -14,7 +14,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "window_log" ":" window_log |
     "chunk_size" ":" chunk_size |
     "bucket_fraction" ":" bucket_fraction |
-    "pad_to_block_boundary" (":" ("true" | "false"))? |
+    "pad_to_block_boundary" (":" ("true" | "false" | "initially"))? |
     "parallelism" ":" parallelism
   brotli_level ::= integer in the range [0..11] (default 6)
   zstd_level ::= integer in the range [-131072..22] (default 3)
@@ -117,11 +117,16 @@ If `true` (`pad_to_block_boundary` is the same as `pad_to_block_boundary:true`),
 padding is written to reach a 64KB block boundary when the `RecordWriter` is
 created, closed, or flushed. Consequences:
 
-*   Even if the existing file was corrupted or truncated, data appended to it
+1.  Even if the existing file was corrupted or truncated, data appended to it
     will be readable.
-*   Physical concatenation of separately written files yields a valid file
+2.  Physical concatenation of separately written files yields a valid file
     (setting metadata in subsequent files is wasteful but harmless).
-*   Up to 64KB is wasted when padding is written.
+3.  The cost is that up to 64KB is wasted when padding is written.
+
+If `initially`, padding is written when the `RecordWriter` is created. This can
+be used for the 1st purpose above.
+
+If `false`, padding is never written.
 
 Default: `false`.
 
