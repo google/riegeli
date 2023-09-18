@@ -178,7 +178,6 @@ class RecordWriterBase::Worker {
   // If the result is `false` then `!ok()`.
   virtual bool CloseChunk() = 0;
 
-  virtual bool PadToBlockBoundary() = 0;
   bool MaybePadToBlockBoundary();
 
   // Precondition: chunk is not open.
@@ -203,6 +202,7 @@ class RecordWriterBase::Worker {
 
   virtual bool WriteSignature() = 0;
   virtual bool WriteMetadata() = 0;
+  virtual bool PadToBlockBoundary() = 0;
 
   std::unique_ptr<ChunkEncoder> MakeChunkEncoder();
   void EncodeSignature(Chunk& chunk);
@@ -978,24 +978,6 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
     return FailWithoutAnnotation(worker_->status());
   }
   last_record_is_valid_ = true;
-  return true;
-}
-
-bool RecordWriterBase::PadToBlockBoundary() {
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  last_record_is_valid_ = false;
-  if (chunk_size_so_far_ != 0) {
-    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
-      return FailWithoutAnnotation(worker_->status());
-    }
-  }
-  if (ABSL_PREDICT_FALSE(!worker_->PadToBlockBoundary())) {
-    return FailWithoutAnnotation(worker_->status());
-  }
-  if (chunk_size_so_far_ != 0) {
-    worker_->OpenChunk();
-    chunk_size_so_far_ = 0;
-  }
   return true;
 }
 
