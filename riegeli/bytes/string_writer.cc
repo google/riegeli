@@ -108,7 +108,6 @@ void StringWriterBase::SetWriteSizeHintImpl(
     std::move(secondary_buffer_).AppendTo(dest);
     secondary_buffer_.Clear();
   }
-  GrowDestToCapacityAndMakeBuffer(dest, IntCast<size_t>(start_pos()));
 }
 
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
