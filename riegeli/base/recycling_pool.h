@@ -152,6 +152,9 @@ class RecyclingPool : public BackgroundCleanee {
   // Precondition: `BackgroundCleaner` was not used yet.
   void SetBackgroundCleaner(BackgroundCleaner* cleaner);
 
+  // Deletes all objects stored in the pool.
+  void Clear();
+
   // Creates an object, or returns an existing object from the pool if possible.
   //
   // `factory` takes no arguments and returns `RawHandle`. It is called to
@@ -249,6 +252,9 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   // Precondition: `BackgroundCleaner` was not used yet.
   void SetBackgroundCleaner(BackgroundCleaner* cleaner);
 
+  // Deletes all objects stored in the pool.
+  void Clear();
+
   // Creates an object, or returns an existing object from the pool if possible.
   //
   // `factory` takes no arguments and returns `RawHandle`. It is called to
@@ -267,7 +273,8 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   RawHandle RawGet(const Key& key, Factory&& factory,
                    Refurbisher&& refurbisher = DefaultRefurbisher());
 
-  // Puts an idle object into the pool for recycling.
+  // Puts an idle object into the pool for recycling, possibly under a different
+  // key.
   void RawPut(const Key& key, RawHandle object);
 
  protected:
@@ -450,6 +457,21 @@ void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
 }
 
 template <typename T, typename Deleter>
+void RecyclingPool<T, Deleter>::Clear() {
+  if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
+  absl::InlinedVector<RawHandle, 16> evicted;
+  absl::MutexLock lock(&mutex_);
+  evicted.reserve(ring_buffer_size_);
+  while (ring_buffer_size_ > 0) {
+    if (ring_buffer_end_ == 0) ring_buffer_end_ = options_.max_size();
+    --ring_buffer_end_;
+    --ring_buffer_size_;
+    evicted.push_back(std::move(ring_buffer_by_age_[ring_buffer_end_].object));
+  }
+  // Destroy `evicted` after releasing `mutex_`.
+}
+
+template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
     Factory&& factory, Refurbisher&& refurbisher) {
@@ -606,6 +628,18 @@ void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
          "BackgroundCleaner was already used";
   cleaner_ = cleaner;
   cleaner_token_ = cleaner_->Register(this);
+}
+
+template <typename T, typename Key, typename Deleter>
+void KeyedRecyclingPool<T, Key, Deleter>::Clear() {
+  if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
+  ByAge evicted_by_age;
+  ByKey evicted_by_key;
+  absl::MutexLock lock(&mutex_);
+  evicted_by_age = std::exchange(by_age_, ByAge());
+  evicted_by_key = std::exchange(by_key_, ByKey());
+  cache_ = by_key_.end();
+  // Destroy `evicted_by_age` and `evicted_by_key` after releasing `mutex_`.
 }
 
 template <typename T, typename Key, typename Deleter>

@@ -35,7 +35,23 @@ BackgroundCleaner::Token BackgroundCleaner::Register(
 
 void BackgroundCleaner::Unregister(Token token) {
   absl::MutexLock lock(&mutex_);
-  // Wait until this cleanee is not being cleaned.
+  CancelCleaningInternal(token);
+  if (next_ == token.iter()) ++next_;
+  entries_.erase(token.iter());
+}
+
+void BackgroundCleaner::CancelCleaning(Token token) {
+  absl::MutexLock lock(&mutex_);
+  CancelCleaningInternal(token);
+  if (next_ == token.iter()) {
+    ++next_;
+  } else {
+    entries_.splice(entries_.begin(), entries_, token.iter());
+  }
+}
+
+// Waits until this cleanee is not being cleaned.
+inline void BackgroundCleaner::CancelCleaningInternal(Token token) {
   struct Args {
     BackgroundCleanee** current_cleanee;
     BackgroundCleanee* cleanee_to_unregister;
@@ -46,8 +62,6 @@ void BackgroundCleaner::Unregister(Token token) {
         return *args->current_cleanee != args->cleanee_to_unregister;
       },
       &args));
-  if (next_ == token.iter()) ++next_;
-  entries_.erase(token.iter());
 }
 
 void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {

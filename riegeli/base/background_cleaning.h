@@ -101,6 +101,15 @@ class BackgroundCleaner {
   // Thread safe.
   void Unregister(Token token);
 
+  // Cancels any pending cleaning corresponding to `token`. Does not unregister
+  // the cleanee.
+  //
+  // This might block if the cleanee is being cleaned or will be cleaned soon,
+  // so this must not be called under a mutex needed for cleaning.
+  //
+  // Thread safe.
+  void CancelCleaning(Token token);
+
   // Schedules cleaning the cleanee corresponding to `token` at `deadline`.
   //
   // Does nothing if `deadline == absl::InfiniteFuture()`. If `deadline` is in
@@ -119,6 +128,9 @@ class BackgroundCleaner {
   absl::Time TimeNow();
 
  private:
+  void CancelCleaningInternal(Token token)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   void ScheduleCleaningSlow(Token token, absl::Time deadline);
 
   void BackgroundThread();
