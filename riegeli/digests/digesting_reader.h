@@ -434,6 +434,7 @@ DigestFromReaderImpl(Src&& src, DigesterArgs&&... digester_args) {
   using Maker = StatusOrMaker<DigestType>;
   DigestingReader<Digester, Src&&> reader(
       std::forward<Src>(src), std::forward<DigesterArgs>(digester_args)...);
+  reader.SetReadAllHint(true);
   do {
     reader.move_cursor(reader.available());
   } while (reader.Pull());
