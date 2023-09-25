@@ -158,7 +158,7 @@ class BrotliDictionary {
   bool empty() const { return chunks_.empty(); }
 
   // Returns the sequence of chunks the dictionary consists of.
-  const absl::Span<const RefCountedPtr<const Chunk>> chunks() const {
+  absl::Span<const RefCountedPtr<const Chunk>> chunks() const {
     return chunks_;
   }
 
