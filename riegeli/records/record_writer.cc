@@ -248,13 +248,13 @@ inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
   if (initial_pos == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
     if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
-  } else if (options_.pad_to_block_boundary() != Options::Padding::kFalse) {
+  } else if (options_.pad_to_block_boundary() != Padding::kFalse) {
     PadToBlockBoundary();
   }
 }
 
 inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
-  if (options_.pad_to_block_boundary() == Options::Padding::kTrue) {
+  if (options_.pad_to_block_boundary() == Padding::kTrue) {
     return PadToBlockBoundary();
   } else {
     return true;

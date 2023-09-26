@@ -59,15 +59,15 @@ void SetRecordType(const google::protobuf::Descriptor& descriptor,
 // Template parameter independent part of `RecordWriter`.
 class RecordWriterBase : public Object {
  public:
+  // Specifies when to write padding to a block boundary.
+  enum class Padding {
+    kFalse,      // Never.
+    kTrue,       // Initially, at `Flush()`, and at `Close()`.
+    kInitially,  // Initially.
+  };
+
   class Options {
    public:
-    // Specifies when to write padding to a block boundary.
-    enum class Padding {
-      kFalse,      // Never.
-      kTrue,       // Initially, at `Flush()`, and at `Close()`.
-      kInitially,  // Initially.
-    };
-
     Options() noexcept {}
 
     // Parses options from text:
