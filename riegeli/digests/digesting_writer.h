@@ -301,8 +301,8 @@ inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
          "cursor of the original Writer changed unexpectedly";
   if (start_to_cursor() > 0) {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
+    dest.set_cursor(cursor());
   }
-  dest.set_cursor(cursor());
 }
 
 inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
@@ -432,6 +432,7 @@ DigestingWriter<Digester, Dest>::Digest() {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_start_pos(pos());
     set_buffer(cursor(), available());
+    dest_->set_cursor(cursor());
   }
   return digesting_internal::Digest(digester_);
 }

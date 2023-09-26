@@ -107,7 +107,7 @@ class DigestingReaderBase : public Reader {
 //   // Called with consecutive fragments of data.
 //   void Write(absl::string_view src);
 //
-//   // `WriteZeros()` is not used by `DigestingReader` but is used by .
+//   // `WriteZeros()` is not used by `DigestingReader` but is used by
 //   // `DigestingWriter`.
 //
 //   // Called when nothing more will be digested. Resources can be freed.
@@ -268,8 +268,8 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
+    src.set_cursor(cursor());
   }
-  src.set_cursor(cursor());
 }
 
 inline void DigestingReaderBase::MakeBuffer(Reader& src) {
@@ -377,6 +377,7 @@ DigestingReader<Digester, Src>::Digest() {
   if (start_to_cursor() > 0) {
     DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
+    src_->set_cursor(cursor());
   }
   return digesting_internal::Digest(digester_);
 }
