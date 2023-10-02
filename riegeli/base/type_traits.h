@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "absl/strings/string_view.h"
 
 namespace riegeli {
 
@@ -411,6 +412,26 @@ template <typename Src, typename Iterator,
 inline std::move_iterator<Iterator> MaybeMakeMoveIterator(Iterator iterator) {
   return std::move_iterator<Iterator>(iterator);
 }
+
+namespace type_traits_internal {
+
+class UnimplementedSink {
+ public:
+  void Append(size_t length, char src);
+  void Append(absl::string_view src);
+  friend void AbslFormatFlush(UnimplementedSink* dest, absl::string_view src);
+};
+
+}  // namespace type_traits_internal
+
+// Checks if the type supports stringification using `AbslStringify()`.
+template <typename T, typename Enable = void>
+struct HasAbslStringify : std::false_type {};
+template <typename T>
+struct HasAbslStringify<
+    T, absl::void_t<decltype(AbslStringify(
+           std::declval<type_traits_internal::UnimplementedSink&>(),
+           std::declval<const T&>()))>> : std::true_type {};
 
 }  // namespace riegeli
 

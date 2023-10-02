@@ -49,6 +49,7 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:object",
         "//riegeli/base:reset",
+        "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/base:zeros",
         "//riegeli/bytes:null_writer",

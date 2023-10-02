@@ -22,6 +22,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <new>
 #include <string>
 #include <tuple>
@@ -410,7 +411,7 @@ class Chain {
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const Chain& self) {
-    return self.AbslStringifyImpl(sink);
+    self.AbslStringifyImpl(sink);
   }
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& self);

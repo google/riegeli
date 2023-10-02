@@ -79,7 +79,7 @@ class DecType<char> {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const DecType& self) {
-    return AbslStringify(
+    AbslStringify(
         sink, DecType<unsigned char>(static_cast<unsigned char>(self.value()),
                                      self.width()));
   }
@@ -152,7 +152,7 @@ class HexType<char> {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const HexType& self) {
-    return AbslStringify(
+    AbslStringify(
         sink, HexType<unsigned char>(static_cast<unsigned char>(self.value()),
                                      self.width()));
   }

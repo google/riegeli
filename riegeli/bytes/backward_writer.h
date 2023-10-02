@@ -39,6 +39,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
 #include "riegeli/bytes/writer.h"

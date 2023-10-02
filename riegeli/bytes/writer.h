@@ -40,6 +40,7 @@
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/write_int_internal.h"
 
@@ -80,14 +81,6 @@ class WriterAbslStringifySink {
  private:
   Writer* dest_ = nullptr;
 };
-
-// Checks if the type supports stringification using `AbslStringify()`.
-template <typename T, typename Enable = void>
-struct HasAbslStringify : std::false_type {};
-template <typename T>
-struct HasAbslStringify<T, absl::void_t<decltype(AbslStringify(
-                               std::declval<WriterAbslStringifySink&>(),
-                               std::declval<const T&>()))>> : std::true_type {};
 
 // `StringifiedSize()` of a stringifiable value returns the size of its
 // stringification as `Position` if easily known, otherwise it is only declared
