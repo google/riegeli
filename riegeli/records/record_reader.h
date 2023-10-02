@@ -515,7 +515,7 @@ class RecordReaderBase : public Object {
 // ```
 //       riegeli::RecordReaderBase::Options().set_recovery(
 //           [&skipped_bytes](const riegeli::SkippedRegion& skipped_region,
-//                            riegeli::RecordWriterBase& record_writer) {
+//                            riegeli::RecordReaderBase& record_reader) {
 //             skipped_bytes += skipped_region.length();
 //             return true;
 //           })
