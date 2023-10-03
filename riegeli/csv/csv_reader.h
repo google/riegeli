@@ -332,11 +332,12 @@ class CsvReaderBase : public Object {
     recovery_ = std::move(recovery);
   }
 
-  // Returns `true` if reading the header was requested, i.e.
-  // `Options::required_header() != absl::nullopt`.
+  // Returns `true` if reading the header was requested or assumed, i.e.
+  // `Options::required_header() != absl::nullopt ||
+  //  Options::assumed_header() != absl::nullopt`.
   //
   // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no particular
-  // header is assumed, and only `ReadRecord()` to a vector of fields is
+  // header is assumed, and only `ReadRecord(std::vector<std::string>&)` is
   // supported.
   bool has_header() const { return has_header_; }
 
@@ -358,7 +359,8 @@ class CsvReaderBase : public Object {
   // been verified in the `header()`.
   //
   // Precondition:
-  //   `has_header()`, i.e. `Options::required_header() != absl::nullopt`
+  //   `has_header()`, i.e. `Options::required_header() != absl::nullopt ||
+  //                         Options::assumed_hedaer() != absl::nullopt`
   //
   // Return values:
   //  * `true`                 - success (`record` is set)
@@ -377,7 +379,7 @@ class CsvReaderBase : public Object {
   //  * `false` (when `!ok()`) - failure (`record` is empty)
   bool ReadRecord(std::vector<std::string>& record);
 
-  // Determines if a record follows without reading it, but skipps intevening
+  // Determines if a record follows without reading it, but skips intervening
   // comments.
   //
   // Return values:
