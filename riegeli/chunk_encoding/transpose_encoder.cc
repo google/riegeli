@@ -317,12 +317,10 @@ inline uint32_t TransposeEncoder::GetPosInTagsList(
 }
 
 inline TransposeEncoder::Node* TransposeEncoder::GetNode(NodeId node_id) {
-  auto it = message_nodes_.find(node_id);
-  if (it == message_nodes_.end()) {
-    it = message_nodes_.emplace(node_id, next_message_id_).first;
-    ++next_message_id_;
-  }
-  return &*it;
+  const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator, bool>
+      insert_result = message_nodes_.try_emplace(node_id, next_message_id_);
+  if (insert_result.second) ++next_message_id_;
+  return &*insert_result.first;
 }
 
 // Precondition: `IsProtoMessage` returns `true` for this record.
