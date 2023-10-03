@@ -37,8 +37,11 @@ namespace riegeli {
 // Combines creating a `Writer` / `BackwardWriter` (optionally), calling
 // `Write()`, and `Close()` (if the `Writer` / `BackwardWriter` is owned).
 //
-// The `Dest` template parameter specifies the type of the object providing and
-// possibly owning the `Writer` / `BackwardWriter`. `Dest` must support
+// The last argument is the destination of some type `Dest`. The remaining
+// arguments are the values.
+//
+// `Dest` specifies the type of the object providing and possibly owning the
+// `Writer` / `BackwardWriter`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned). Analogously for `BackwardWriter`.

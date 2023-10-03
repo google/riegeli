@@ -112,6 +112,9 @@ class AsciiLeftType {
 // representation is filled to at least the given width, with the values on the
 // left side of the field.
 //
+// The last argument is `AlignOptions` or the width. The remaining arguments are
+// the values.
+//
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
 // Values are captured by reference, so the result is valid while the values are
@@ -176,6 +179,9 @@ class AsciiCenterType {
 // centered in the field (with one fill character fewer on the left side if
 // there is an odd number of them).
 //
+// The last argument is `AlignOptions` or the width. The remaining arguments are
+// the values.
+//
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
 // Values are captured by reference, so the result is valid while the values are
@@ -238,6 +244,9 @@ class AsciiRightType {
 // Wraps a sequence of values such that their concatenated stringified
 // representation is filled to at least the given width, with the values on the
 // right side of the field.
+//
+// The last argument is `AlignOptions` or the width. The remaining arguments are
+// the values.
 //
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
