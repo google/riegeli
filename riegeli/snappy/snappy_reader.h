@@ -154,17 +154,17 @@ explicit SnappyReader(
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyDecompress()` is equivalent to copying all data from a
-// `SnappyReader<Src>` to `dest`.
+// `SnappyReader<Src&&>` to `dest`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Reader`. `Src` must support
-// `Dependency<Reader*, Src>`, e.g. `Reader&` (not owned),
+// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //

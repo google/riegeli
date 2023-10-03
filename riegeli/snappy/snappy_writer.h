@@ -192,7 +192,7 @@ explicit SnappyWriter(
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyCompress()` is equivalent to copying all data from `src` to a
-// `SnappyWriter<Dest>`.
+// `SnappyWriter<Dest&&>`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Reader`. `Src` must support
