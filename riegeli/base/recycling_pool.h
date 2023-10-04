@@ -16,8 +16,10 @@
 #define RIEGELI_BASE_RECYCLING_POOL_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <atomic>
+#include <limits>
 #include <list>
 #include <memory>
 #include <type_traits>  // IWYU pragma: keep
@@ -33,6 +35,7 @@
 #include "absl/meta/type_traits.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/background_cleaning.h"
 #include "riegeli/base/no_destructor.h"
@@ -52,7 +55,7 @@ class RecyclingPoolOptions {
   //          which is the maximum of 16 and hardware concurrency.
   static size_t DefaultMaxSize();
   RecyclingPoolOptions& set_max_size(size_t max_size) & {
-    max_size_ = max_size;
+    max_size_ = SaturatingIntCast<uint32_t>(max_size);
     return *this;
   }
   RecyclingPoolOptions&& set_max_size(size_t max_size) && {
@@ -72,17 +75,22 @@ class RecyclingPoolOptions {
   // Default: `absl::Minutes(1)`.
   static constexpr absl::Duration kDefaultMaxAge = absl::Minutes(1);
   RecyclingPoolOptions& set_max_age(absl::Duration max_age) & {
-    max_age_ = max_age;
+    max_age_seconds_ = AgeToSeconds(max_age);
     return *this;
   }
   RecyclingPoolOptions&& set_max_age(absl::Duration max_age) && {
     return std::move(set_max_age(max_age));
   }
-  absl::Duration max_age() const { return max_age_; }
+  absl::Duration max_age() const {
+    return max_age_seconds_ == std::numeric_limits<uint32_t>::max()
+               ? absl::InfiniteDuration()
+               : absl::Seconds(max_age_seconds_);
+  }
 
   friend bool operator==(const RecyclingPoolOptions& a,
                          const RecyclingPoolOptions& b) {
-    return a.max_size_ == b.max_size_ && a.max_age_ == b.max_age_;
+    return a.max_size_ == b.max_size_ &&
+           a.max_age_seconds_ == b.max_age_seconds_;
   }
   friend bool operator!=(const RecyclingPoolOptions& a,
                          const RecyclingPoolOptions& b) {
@@ -93,14 +101,25 @@ class RecyclingPoolOptions {
   friend HashState AbslHashValue(HashState hash_state,
                                  const RecyclingPoolOptions& self) {
     return HashState::combine(std::move(hash_state), self.max_size_,
-                              self.max_age_);
+                              self.max_age_seconds_);
   }
 
  private:
-  static size_t DefaultMaxSizeSlow();
+  // For `max_age_seconds_`.
+  template <typename T, typename Deleter>
+  friend class RecyclingPool;
+  // For `max_age_seconds_`.
+  template <typename T, typename Key, typename Deleter>
+  friend class KeyedRecyclingPool;
 
-  size_t max_size_ = DefaultMaxSize();
-  absl::Duration max_age_ = kDefaultMaxAge;
+  static uint32_t DefaultMaxSizeSlow();
+  static uint32_t AgeToSeconds(absl::Duration age);  // Round up.
+
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t max_size_ = SaturatingIntCast<uint32_t>(DefaultMaxSize());
+  // Use `uint32_t` instead of `absl::Duration` to reduce the object size.
+  // `std::numeric_limits<uint32_t>::max()` means `absl::InfiniteDuration()`.
+  uint32_t max_age_seconds_ = 60;  // `AgeToSeconds(kDefaultMaxAge)`
 };
 
 // `RecyclingPool<T, Deleter>` keeps a pool of idle objects of type `T`, so that
@@ -191,8 +210,8 @@ class RecyclingPool : public BackgroundCleanee {
   BackgroundCleaner::Token cleaner_token_;
   absl::Mutex mutex_;
   // All objects, ordered by age (older to newer).
-  size_t ring_buffer_end_ ABSL_GUARDED_BY(mutex_) = 0;
-  size_t ring_buffer_size_ ABSL_GUARDED_BY(mutex_) = 0;
+  uint32_t ring_buffer_end_ ABSL_GUARDED_BY(mutex_) = 0;
+  uint32_t ring_buffer_size_ ABSL_GUARDED_BY(mutex_) = 0;
   // Invariant: `ring_buffer_by_age_.size() == options_.max_size()`
   std::vector<Entry> ring_buffer_by_age_ ABSL_GUARDED_BY(mutex_);
 };
@@ -327,8 +346,18 @@ class KeyedRecyclingPool : public BackgroundCleanee {
 // Implementation details follow.
 
 inline size_t RecyclingPoolOptions::DefaultMaxSize() {
-  static const size_t kDefaultMaxSize = DefaultMaxSizeSlow();
+  static const uint32_t kDefaultMaxSize = DefaultMaxSizeSlow();
   return kDefaultMaxSize;
+}
+
+inline uint32_t RecyclingPoolOptions::AgeToSeconds(absl::Duration age) {
+  if (age >= absl::Seconds(std::numeric_limits<uint32_t>::max())) {
+    return std::numeric_limits<uint32_t>::max();
+  }
+  if (age <= absl::ZeroDuration()) return 0;
+  int64_t seconds = absl::ToInt64Seconds(age);
+  if (age != absl::Seconds(seconds)) ++seconds;  // Round up.
+  return IntCast<uint32_t>(seconds);
 }
 
 namespace recycling_pool_internal {
@@ -489,7 +518,9 @@ typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
   {
     absl::MutexLock lock(&mutex_);
     if (ABSL_PREDICT_TRUE(ring_buffer_size_ > 0)) {
-      if (ring_buffer_end_ == 0) ring_buffer_end_ = options_.max_size();
+      if (ring_buffer_end_ == 0) {
+        ring_buffer_end_ = IntCast<uint32_t>(options_.max_size());
+      }
       --ring_buffer_end_;
       --ring_buffer_size_;
       // Return the newest entry.
@@ -511,12 +542,13 @@ void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
   absl::MutexLock lock(&mutex_);
   // Add a newest entry. Evict the oldest entry if the pool is full.
   absl::Time deadline = absl::InfiniteFuture();
-  if (options_.max_age() != absl::InfiniteDuration()) {
+  if (options_.max_age_seconds_ != std::numeric_limits<uint32_t>::max()) {
+    const absl::Duration max_age = options_.max_age();
     if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
       cleaner_ = &BackgroundCleaner::global();
       cleaner_token_ = cleaner_->Register(this);
     }
-    deadline = cleaner_->TimeNow() + options_.max_age();
+    deadline = cleaner_->TimeNow() + max_age;
   }
   Entry& entry = ring_buffer_by_age_[ring_buffer_end_];
   evicted = std::exchange(entry.object, std::move(object));
@@ -705,12 +737,13 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
   absl::MutexLock lock(&mutex_);
   // Add a newest entry with this key.
   absl::Time deadline = absl::InfiniteFuture();
-  if (options_.max_age() != absl::InfiniteDuration()) {
+  if (options_.max_age_seconds_ != std::numeric_limits<uint32_t>::max()) {
+    const absl::Duration max_age = options_.max_age();
     if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
       cleaner_ = &BackgroundCleaner::global();
       cleaner_token_ = cleaner_->Register(this);
     }
-    deadline = cleaner_->TimeNow() + options_.max_age();
+    deadline = cleaner_->TimeNow() + max_age;
   }
   if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
     ByKeyEntries& by_key_entries = cache_->second;

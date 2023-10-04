@@ -14,7 +14,7 @@
 
 #include "riegeli/base/recycling_pool.h"
 
-#include <stddef.h>
+#include <stdint.h>
 
 #include <thread>
 
@@ -30,9 +30,9 @@ namespace riegeli {
 constexpr absl::Duration RecyclingPoolOptions::kDefaultMaxAge;
 #endif
 
-size_t RecyclingPoolOptions::DefaultMaxSizeSlow() {
-  return UnsignedMax(size_t{16},
-                     IntCast<size_t>(std::thread::hardware_concurrency()));
+uint32_t RecyclingPoolOptions::DefaultMaxSizeSlow() {
+  return UnsignedMax(uint32_t{16},
+                     IntCast<uint32_t>(std::thread::hardware_concurrency()));
 }
 
 }  // namespace riegeli
