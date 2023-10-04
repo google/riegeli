@@ -20,11 +20,17 @@
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
+#include "src/zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
 
-void Crc32Digester::Write(absl::string_view src) {
+Crc32Digester::Crc32Digester(uint32_t seed) : crc_(seed) {
+  // This checks CPU features.
+  crc32(0, nullptr, 0);
+}
+
+void Crc32Digester::WriteImpl(absl::string_view src) {
   while (src.size() > std::numeric_limits<uInt>::max()) {
     crc_ = IntCast<uint32_t>(crc32(IntCast<uLong>(crc_),
                                    reinterpret_cast<const Bytef*>(src.data()),

@@ -19,7 +19,6 @@
 
 #include <cstring>
 #include <limits>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -27,7 +26,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "crc32c/crc32c.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -37,20 +35,13 @@
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/digests/crc32c_digester.h"
+#include "riegeli/digests/digesting_writer.h"
 #include "riegeli/endian/endian_writing.h"
 #include "riegeli/snappy/framed/framed_snappy_reader.h"
 #include "snappy.h"
 
 namespace riegeli {
-
-namespace {
-
-// https://github.com/google/snappy/blob/e9e11b84e629c3e06fbaa4f0a86de02ceb9d6992/framing_format.txt#L39
-inline uint32_t MaskChecksum(uint32_t x) {
-  return ((x >> 15) | (x << 17)) + 0xa282ead8;
-}
-
-}  // namespace
 
 void FramedSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
@@ -156,7 +147,9 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
         compressed_chunk);
   }
   WriteLittleEndian32(
-      MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)),
+      MaskCrc32c(
+          DigestFrom(absl::string_view(uncompressed_data, uncompressed_length),
+                     Crc32cDigester())),
       compressed_chunk + sizeof(uint32_t));
   dest.move_cursor(2 * sizeof(uint32_t) + compressed_length);
   move_start_pos(uncompressed_length);

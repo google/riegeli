@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "absl/strings/string_view.h"
+#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
@@ -29,19 +30,25 @@ namespace riegeli {
 //
 // This polynomial is used e.g. by gzip, zip, and png:
 // https://en.wikipedia.org/wiki/Cyclic_redundancy_check#Polynomial_representations_of_cyclic_redundancy_checks
-class Crc32Digester {
+class Crc32Digester : public Digester<uint32_t> {
  public:
-  Crc32Digester() = default;
+  Crc32Digester() : Crc32Digester(0) {}
+
+  explicit Crc32Digester(uint32_t seed);
 
   Crc32Digester(const Crc32Digester& that) = default;
   Crc32Digester& operator=(const Crc32Digester& that) = default;
 
-  void Write(absl::string_view src);
+  Crc32Digester(Crc32Digester&& that) = default;
+  Crc32Digester& operator=(Crc32Digester&& that) = default;
 
-  uint32_t Digest() const { return crc_; }
+ protected:
+  void WriteImpl(absl::string_view src) override;
+
+  uint32_t DigestImpl() override { return crc_; }
 
  private:
-  uint32_t crc_ = 0;
+  uint32_t crc_;
 };
 
 }  // namespace riegeli

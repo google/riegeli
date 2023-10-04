@@ -6,6 +6,27 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "digester",
+    srcs = ["digester.cc"],
+    hdrs = ["digester.h"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "//riegeli/base:type_traits",
+        "//riegeli/base:types",
+        "//riegeli/base:zeros",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "digesting_reader",
     srcs = [
         "digesting_internal.h",
@@ -69,6 +90,7 @@ cc_library(
     name = "crc32c_digester",
     hdrs = ["crc32c_digester.h"],
     deps = [
+        ":digester",
         "//riegeli/base:arithmetic",
         "@com_google_absl//absl/strings",
         "@crc32c",
@@ -80,6 +102,7 @@ cc_library(
     srcs = ["crc32_digester.cc"],
     hdrs = ["crc32_digester.h"],
     deps = [
+        ":digester",
         "//riegeli/base:arithmetic",
         "@com_google_absl//absl/strings",
         "@zlib",
