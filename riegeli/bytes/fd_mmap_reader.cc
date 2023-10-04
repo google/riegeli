@@ -14,6 +14,12 @@
 
 #ifndef _WIN32
 
+// Make `posix_fadvise()` available.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
+#undef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
+#endif
+
 // Make `off_t` 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
@@ -52,9 +58,15 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#ifndef _WIN32
+#include <type_traits>
+#endif
 #include <utility>
 
 #include "absl/base/optimization.h"
+#ifndef _WIN32
+#include "absl/meta/type_traits.h"
+#endif
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/status/statusor.h"
@@ -65,7 +77,9 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
+#endif
 #ifndef _WIN32
 #include "riegeli/base/no_destructor.h"
 #endif
@@ -115,6 +129,35 @@ inline Position GetPageSize() {
   GetSystemInfo(&system_info);
   return IntCast<Position>(system_info.dwAllocationGranularity);
 }
+
+#endif
+
+#ifndef _WIN32
+
+// `posix_fadvise()` is supported by POSIX systems but not MacOS.
+
+template <typename FirstArg, typename Enable = void>
+struct HavePosixFadvise : std::false_type {};
+
+template <typename FirstArg>
+struct HavePosixFadvise<
+    FirstArg, absl::void_t<decltype(posix_fadvise(
+                  std::declval<FirstArg>(), std::declval<fd_internal::Offset>(),
+                  std::declval<fd_internal::Offset>(), std::declval<int>()))>>
+    : std::true_type {};
+
+template <typename FirstArg,
+          std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
+inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
+#ifdef POSIX_FADV_SEQUENTIAL
+  posix_fadvise(src, 0, 0,
+                read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
+#endif
+}
+
+template <typename FirstArg,
+          std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
+inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {}
 
 #endif
 
@@ -339,6 +382,17 @@ absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
   }
   return ChainReader::AnnotateStatusImpl(std::move(status));
 }
+
+#ifndef _WIN32
+
+void FdMMapReaderBase::SetReadAllHintImpl(bool read_all_hint) {
+  ChainReader::SetReadAllHintImpl(read_all_hint);
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  const int src = SrcFd();
+  FdSetReadAllHint(src, read_all_hint);
+}
+
+#endif
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;

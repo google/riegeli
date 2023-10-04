@@ -14,10 +14,10 @@
 
 #ifndef _WIN32
 
-// Make `pread()` available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
+// Make `pread()` and `posix_fadvise()` available.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
 #undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 #endif
 
 // Make `off_t` 64-bit even on 32-bit systems.
@@ -129,6 +129,31 @@ inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
   errno = EOPNOTSUPP;
   return -1;
 }
+
+// `posix_fadvise()` is supported by POSIX systems but not MacOS.
+
+template <typename FirstArg, typename Enable = void>
+struct HavePosixFadvise : std::false_type {};
+
+template <typename FirstArg>
+struct HavePosixFadvise<
+    FirstArg, absl::void_t<decltype(posix_fadvise(
+                  std::declval<FirstArg>(), std::declval<fd_internal::Offset>(),
+                  std::declval<fd_internal::Offset>(), std::declval<int>()))>>
+    : std::true_type {};
+
+template <typename FirstArg,
+          std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
+inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
+#ifdef POSIX_FADV_SEQUENTIAL
+  posix_fadvise(src, 0, 0,
+                read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
+#endif
+}
+
+template <typename FirstArg,
+          std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
+inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {}
 
 }  // namespace
 
@@ -366,6 +391,17 @@ absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
   }
   return BufferedReader::AnnotateStatusImpl(std::move(status));
 }
+
+#ifndef _WIN32
+
+void FdReaderBase::SetReadAllHintImpl(bool read_all_hint) {
+  BufferedReader::SetReadAllHintImpl(read_all_hint);
+  if (ABSL_PREDICT_FALSE(!ok())) return;
+  const int src = SrcFd();
+  FdSetReadAllHint(src, read_all_hint);
+}
+
+#endif
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                 char* dest) {

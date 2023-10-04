@@ -30,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -279,6 +278,9 @@ class FdReaderBase : public BufferedReader {
 
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
+#ifndef _WIN32
+  void SetReadAllHintImpl(bool read_all_hint) override;
+#endif
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 #ifndef _WIN32
   bool CopyInternal(Position length, Writer& dest) override;

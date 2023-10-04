@@ -30,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -192,7 +191,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // `Close()`.
   absl::string_view filename() const { return filename_; }
 
-  absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool SupportsNewReader() override { return true; }
 
  protected:
@@ -219,6 +217,10 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 #endif
 
   void Done() override;
+  absl::Status AnnotateStatusImpl(absl::Status status) override;
+#ifndef _WIN32
+  void SetReadAllHintImpl(bool read_all_hint) override;
+#endif
   bool SyncImpl(SyncType sync_type) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
