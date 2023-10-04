@@ -108,3 +108,15 @@ cc_library(
         "@zlib",
     ],
 )
+
+cc_library(
+    name = "adler32_digester",
+    srcs = ["adler32_digester.cc"],
+    hdrs = ["adler32_digester.h"],
+    deps = [
+        ":digester",
+        "//riegeli/base:arithmetic",
+        "@com_google_absl//absl/strings",
+        "@zlib",
+    ],
+)
