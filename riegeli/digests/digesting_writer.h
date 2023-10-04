@@ -441,7 +441,11 @@ DigestingWriter<Digester, Dest>::Digest() {
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  if (dest_.is_owning()) dest_->SetWriteSizeHint(write_size_hint);
+  if (dest_.is_owning()) {
+    SyncBuffer(*dest_);
+    dest_->SetWriteSizeHint(write_size_hint);
+    MakeBuffer(*dest_);
+  }
 }
 
 template <typename Digester, typename Dest>

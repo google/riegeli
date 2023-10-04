@@ -400,7 +400,11 @@ void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
 
 template <typename Digester, typename Src>
 void DigestingReader<Digester, Src>::SetReadAllHintImpl(bool read_all_hint) {
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.is_owning()) {
+    SyncBuffer(*src_);
+    src_->SetReadAllHint(read_all_hint);
+    MakeBuffer(*src_);
+  }
 }
 
 template <typename Digester, typename Src>

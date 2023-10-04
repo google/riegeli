@@ -378,10 +378,12 @@ template <typename Dest>
 void PositionShiftingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) {
+    SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(
         write_size_hint == absl::nullopt
             ? absl::nullopt
             : absl::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
+    MakeBuffer(*dest_);
   }
 }
 

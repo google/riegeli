@@ -367,7 +367,11 @@ void PrefixLimitingReader<Src>::Done() {
 
 template <typename Src>
 void PrefixLimitingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.is_owning()) {
+    SyncBuffer(*src_);
+    src_->SetReadAllHint(read_all_hint);
+    MakeBuffer(*src_);
+  }
 }
 
 template <typename Src>

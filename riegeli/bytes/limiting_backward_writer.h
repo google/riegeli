@@ -155,7 +155,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   void Reset(Closed);
   void Reset(bool exact);
-  void Initialize(BackwardWriter* dest, Options&& options);
+  void Initialize(BackwardWriter* dest, Options&& options, bool is_owning);
   bool exact() const { return exact_; }
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
@@ -325,7 +325,8 @@ inline void LimitingBackwardWriterBase::Reset(bool exact) {
 }
 
 inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
-                                                   Options&& options) {
+                                                   Options&& options,
+                                                   bool is_owning) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";
@@ -333,6 +334,13 @@ inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
                  options.max_length() == absl::nullopt)
       << "Failed precondition of LimitingBackwardWriter: "
          "Options::max_pos() and Options::max_length() are both set";
+  if (is_owning && exact()) {
+    if (options.max_pos() != absl::nullopt) {
+      dest->SetWriteSizeHint(SaturatingSub(*options.max_pos(), dest->pos()));
+    } else if (options.max_length() != absl::nullopt) {
+      dest->SetWriteSizeHint(options.max_length());
+    }
+  }
   MakeBuffer(*dest);
   if (options.max_pos() != absl::nullopt) {
     set_max_pos(*options.max_pos());
@@ -377,16 +385,14 @@ template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(const Dest& dest,
                                                             Options options)
     : LimitingBackwardWriterBase(options.exact()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest&& dest,
                                                             Options options)
     : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
@@ -394,8 +400,7 @@ template <typename... DestArgs>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
     std::tuple<DestArgs...> dest_args, Options options)
     : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
@@ -426,16 +431,14 @@ inline void LimitingBackwardWriter<Dest>::Reset(const Dest& dest,
                                                 Options options) {
   LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
 inline void LimitingBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
   LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
@@ -444,8 +447,7 @@ inline void LimitingBackwardWriter<Dest>::Reset(
     std::tuple<DestArgs...> dest_args, Options options) {
   LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options));
-  if (dest_.is_owning() && exact()) dest_->SetWriteSizeHint(max_length());
+  Initialize(dest_.get(), std::move(options), dest_.is_owning());
 }
 
 template <typename Dest>
@@ -476,10 +478,12 @@ template <typename Dest>
 void LimitingBackwardWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning() && !exact()) {
+    if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(
         write_size_hint == absl::nullopt
             ? absl::nullopt
             : absl::make_optional(UnsignedMin(*write_size_hint, max_length())));
+    MakeBuffer(*dest_);
   }
 }
 
