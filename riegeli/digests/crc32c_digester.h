@@ -54,7 +54,7 @@ class Crc32cDigester : public Digester<uint32_t> {
 };
 
 // A common way to mask CRC32C values for storage along with the data.
-// These constants are used e.g. by Framed Snappy and TFRecordIO.
+// These constants are used e.g. by Framed Snappy and TFRecord.
 
 template <uint32_t delta = 0xa282ead8, int ror_bits = 15>
 constexpr uint32_t MaskCrc32c(uint32_t unmasked) {
