@@ -22,7 +22,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -30,6 +29,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
@@ -50,25 +50,6 @@ absl::Status DigestingWriterBase::AnnotateStatusImpl(absl::Status status) {
     MakeBuffer(dest);
   }
   return status;
-}
-
-inline void DigestingWriterBase::DigesterWrite(const Chain& src) {
-  for (const absl::string_view fragment : src.blocks()) {
-    DigesterWrite(fragment);
-  }
-}
-
-inline void DigestingWriterBase::DigesterWrite(const absl::Cord& src) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      DigesterWrite(*flat);
-      return;
-    }
-  }
-  for (const absl::string_view fragment : src.Chunks()) {
-    DigesterWrite(fragment);
-  }
 }
 
 bool DigestingWriterBase::PushSlow(size_t min_length,
@@ -124,7 +105,8 @@ inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  DigesterWrite(src);
+  DigesterBase* const digester = GetDigester();
+  digester->Write(src);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return write_ok;
@@ -137,7 +119,8 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  DigesterWriteZeros(length);
+  DigesterBase* const digester = GetDigester();
+  digester->WriteZeros(length);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;

@@ -34,17 +34,20 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/reset.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/digests/digesting_internal.h"
+#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
 // Template parameter independent part of `DigestingReader`.
 class DigestingReaderBase : public Reader {
  public:
+  // Returns the `DigesterBase`. Unchanged by `Close()`.
+  virtual DigesterBase* GetDigester() = 0;
+  virtual const DigesterBase* GetDigester() const = 0;
+
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* SrcReader() = 0;
   virtual const Reader* SrcReader() const = 0;
@@ -72,10 +75,6 @@ class DigestingReaderBase : public Reader {
   // `start()` to hide data already digested. Fails `*this` if `src` failed.
   void MakeBuffer(Reader& src);
 
-  virtual void DigesterWrite(absl::string_view src) = 0;
-  void DigesterWrite(const Chain& src);
-  void DigesterWrite(const absl::Cord& src);
-
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
@@ -97,35 +96,13 @@ class DigestingReaderBase : public Reader {
 // A `Reader` which reads from another `Reader`, and lets another object observe
 // data being read and return some data called a digest, e.g. a checksum.
 //
-// The `Digester` template parameter specifies how data are being digested.
-// `DigestingReader` forwards basic operations to `Digester`: constructor
-// with forwarded parameters after `src`, move constructor, move assignment,
-// destructor, and optionally `Reset()`. Apart from that, `Digester` should
-// support:
-//
-// ```
-//   // Called with consecutive fragments of data.
-//   void Write(absl::string_view src);
-//
-//   // `WriteZeros()` is not used by `DigestingReader` but is used by
-//   // `DigestingWriter`.
-//
-//   // Called when nothing more will be digested. Resources can be freed.
-//   //
-//   // This method is optional. If that is not defined, nothing is done.
-//   void Close();
-//
-//   // Returns the digest. Its type and meaning depends on the `Digester`.
-//   // Unchanged by `Close()`.
-//   //
-//   // This method is optional. If that is not defined, nothing is done and
-//   // `void` is returned.
-//   DigestType Digest();
-// ```
-//
-// Alternatively, `Digester` can be a pointer or smart pointer to a type
-// supporting the above operations. This allows to extract the digest after
-// the `DigestingReader` is destroyed.
+// The `DigesterType` template parameter specifies the type of the object
+// providing and possibly owning the digester. `DigesterType` must support
+// `Dependency<DigesterBase*, DigesterType>` and must provide a member function
+// `DigestType Digest()` for some `DigestType`, e.g.
+// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
+// `std::unique_ptr<Digester<uint32_t>>` (owned),
+// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
@@ -133,35 +110,51 @@ class DigestingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the `Digester` template argument can be deduced as the
-// value type of the `digester_args` constructor argument (there must be only
-// one `digester_args` for CTAD), and the `Src` template argument can be deduced
-// as the value type of the `src` constructor argument. This requires C++17.
+// By relying on CTAD the `DigesterType` template argument can be deduced as the
+// value type of the `digester` constructor argument, and the `Src` template
+// argument can be deduced as the value type of the `src` constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `DigestingReader` is
 // closed or no longer used.
-template <typename Digester, typename Src = Reader*>
+template <typename DigesterType, typename Src = Reader*>
 class DigestingReader : public DigestingReaderBase {
  public:
   // The type of the digest.
-  using DigestType = digesting_internal::DigestType<Digester>;
+  using DigestType = DigestTypeOf<DigesterType>;
 
   // Creates a closed `DigestingReader`.
   explicit DigestingReader(Closed) noexcept : DigestingReaderBase(kClosed) {}
 
-  // Will read from the original `Reader` provided by `src`. Constructs a
-  // `Digester` from `digester_args`.
+  // Will read from the original `Reader` provided by `src`, using the
+  // `DigesterBase` provided by `digester` or constructed from elements of
+  // `digester_args`.
+  explicit DigestingReader(const Src& src, const DigesterType& digester);
+  explicit DigestingReader(const Src& src, DigesterType&& digester);
   template <typename... DigesterArgs>
-  explicit DigestingReader(const Src& src, DigesterArgs&&... digester_args);
+  explicit DigestingReader(
+      const Src& src,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
+  explicit DigestingReader(Src&& src, const DigesterType& digester);
+  explicit DigestingReader(Src&& src, DigesterType&& digester);
   template <typename... DigesterArgs>
-  explicit DigestingReader(Src&& src, DigesterArgs&&... digester_args);
+  explicit DigestingReader(
+      Src&& src,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
 
   // Will read from the original `Reader` provided by a `Src` constructed from
   // elements of `src_args`. This avoids constructing a temporary `Src` and
   // moving from it.
-  template <typename... SrcArgs, typename... DigesterArgs>
+  template <typename... SrcArgs>
   explicit DigestingReader(std::tuple<SrcArgs...> src_args,
-                           DigesterArgs&&... digester_args);
+                           const DigesterType& digester);
+  template <typename... SrcArgs>
+  explicit DigestingReader(std::tuple<SrcArgs...> src_args,
+                           DigesterType&& digester);
+  template <typename... SrcArgs, typename... DigesterArgs>
+  explicit DigestingReader(
+      std::tuple<SrcArgs...> src_args,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
 
   DigestingReader(DigestingReader&& that) noexcept;
   DigestingReader& operator=(DigestingReader&& that) noexcept;
@@ -169,18 +162,41 @@ class DigestingReader : public DigestingReaderBase {
   // Makes `*this` equivalent to a newly constructed `DigestingReader`. This
   // avoids constructing a temporary `DigestingReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  template <typename... DigesterArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          DigesterArgs&&... digester_args);
+                                          const DigesterType& digester);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+                                          DigesterType&& digester);
   template <typename... DigesterArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      const Src& src,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          DigesterArgs&&... digester_args);
-  template <typename... SrcArgs, typename... DigesterArgs>
+                                          const DigesterType& digester);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src, DigesterType&& digester);
+  template <typename... DigesterArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Src&& src,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
+  template <typename... SrcArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
-                                          DigesterArgs&&... digester_args);
+                                          const DigesterType& digester);
+  template <typename... SrcArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+                                          DigesterType&& digester);
+  template <typename... SrcArgs, typename... DigesterArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::tuple<SrcArgs...> src_args,
+      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
 
   // Digests buffered data if needed, and returns the digest.
   DigestType Digest();
+
+  // Returns the object providing and possibly owning the `DigesterBase`.
+  // Unchanged by `Close()`.
+  DigesterType& digester() { return digester_.manager(); }
+  const DigesterType& digester() const { return digester_.manager(); }
+  DigesterBase* GetDigester() override { return digester_.get(); }
+  const DigesterBase* GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
@@ -191,10 +207,6 @@ class DigestingReader : public DigestingReaderBase {
 
  protected:
   void Done() override;
-
-  using DigestingReaderBase::DigesterWrite;
-  void DigesterWrite(absl::string_view src) override;
-
   void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
@@ -204,7 +216,8 @@ class DigestingReader : public DigestingReaderBase {
   // to `*this`; adjust them to match `src_`.
   void MoveSrc(DigestingReader&& that);
 
-  Digester digester_;
+  // The object providing and possibly owning the `DigesterBase`.
+  Dependency<DigesterBase*, DigesterType> digester_;
   // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
 };
@@ -212,37 +225,66 @@ class DigestingReader : public DigestingReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
-template <typename Digester, typename Src>
-explicit DigestingReader(const Src& src, Digester&& digester)
-    -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
-template <typename Digester, typename Src>
-explicit DigestingReader(Src&& src, Digester&& digester)
-    -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
-template <typename Digester, typename... SrcArgs>
-explicit DigestingReader(std::tuple<SrcArgs...> src_args, Digester&& digester)
-    -> DigestingReader<void, DeleteCtad<std::tuple<SrcArgs...>>>;
+template <typename DigesterType, typename Src>
+explicit DigestingReader(const Src& src, const DigesterType& digester)
+    -> DigestingReader<std::decay_t<DigesterType>, std::decay_t<Src>>;
+template <typename DigesterType, typename Src>
+explicit DigestingReader(const Src& src, DigesterType&& digester)
+    -> DigestingReader<std::decay_t<DigesterType>, std::decay_t<Src>>;
+template <typename... DigesterArgs, typename Src>
+explicit DigestingReader(const Src& src,
+                         std::tuple<DigesterArgs...> digester_args)
+    -> DigestingReader<DeleteCtad<std::tuple<DigesterArgs...>>,
+                       std::decay_t<Src>>;
+template <typename DigesterType, typename Src>
+explicit DigestingReader(Src&& src, const DigesterType& digester)
+    -> DigestingReader<std::decay_t<DigesterType>, std::decay_t<Src>>;
+template <typename DigesterType, typename Src>
+explicit DigestingReader(Src&& src, DigesterType&& digester)
+    -> DigestingReader<std::decay_t<DigesterType>, std::decay_t<Src>>;
+template <typename... DigesterArgs, typename Src>
+explicit DigestingReader(Src&& src, std::tuple<DigesterArgs...> digester_args)
+    -> DigestingReader<DeleteCtad<std::tuple<DigesterArgs...>>,
+                       std::decay_t<Src>>;
+template <typename DigesterType, typename... SrcArgs>
+explicit DigestingReader(std::tuple<SrcArgs...> src_args,
+                         const DigesterType& digester)
+    -> DigestingReader<std::decay_t<DigesterType>,
+                       DeleteCtad<std::tuple<SrcArgs...>>>;
+template <typename DigesterType, typename... SrcArgs>
+explicit DigestingReader(std::tuple<SrcArgs...> src_args,
+                         DigesterType&& digester)
+    -> DigestingReader<std::decay_t<DigesterType>,
+                       DeleteCtad<std::tuple<SrcArgs...>>>;
+template <typename... DigesterArgs, typename... SrcArgs>
+explicit DigestingReader(std::tuple<SrcArgs...> src_args,
+                         std::tuple<DigesterArgs...> digester_args)
+    -> DigestingReader<DeleteCtad<std::tuple<DigesterArgs...>>,
+                       DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Reads all remaining data from `src` and returns their digest.
 //
-// The `Digester` template argument can be deduced as the value type of the
-// `digester` argument (there must be only one `digester_args` for this).
-template <typename Digester, typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-StatusOrMakerT<digesting_internal::DigestType<Digester>> DigestFromReader(
-    Src&& src, const Digester& digester);
-template <typename Digester, typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-StatusOrMakerT<digesting_internal::DigestType<Digester>> DigestFromReader(
-    Src&& src, Digester&& digester);
-template <typename Digester, typename Src, typename... DigesterArgs,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                std::integral_constant<
-                                    bool, sizeof...(DigesterArgs) != 1>>::value,
-              int> = 0>
-StatusOrMakerT<digesting_internal::DigestType<Digester>> DigestFromReader(
-    Src&& src, DigesterArgs&&... digester_args);
+// The `DigesterType` template parameter specifies the type of the object
+// providing and possibly owning the digester. `DigesterType` must support
+// `Dependency<DigesterBase*, DigesterType&&>` and must provide a member
+// function `DigestType Digest()` for some `DigestType`, e.g.
+// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
+// `std::unique_ptr<Digester<uint32_t>>` (owned),
+// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
+//
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the `Reader`. `Src` must support
+// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyDependency<Reader*>` (maybe owned).
+template <typename DigesterType, typename Src,
+          std::enable_if_t<absl::conjunction<
+                               IsValidDependency<DigesterBase*, DigesterType&&>,
+                               IsValidDependency<Reader*, Src&&>>::value,
+                           int> = 0>
+StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
+    Src&& src, DigesterType&& digester);
 
 // Implementation details follow.
 
@@ -267,7 +309,8 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {
-    DigesterWrite(absl::string_view(start(), start_to_cursor()));
+    DigesterBase* const digester = GetDigester();
+    digester->Write(absl::string_view(start(), start_to_cursor()));
     src.set_cursor(cursor());
   }
 }
@@ -278,88 +321,188 @@ inline void DigestingReaderBase::MakeBuffer(Reader& src) {
   if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
 }
 
-template <typename Digester, typename Src>
-template <typename... DigesterArgs>
-inline DigestingReader<Digester, Src>::DigestingReader(
-    const Src& src, DigesterArgs&&... digester_args)
-    : digester_(std::forward<DigesterArgs>(digester_args)...), src_(src) {
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    const Src& src, const DigesterType& digester)
+    : digester_(digester), src_(src) {
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
-template <typename... DigesterArgs>
-inline DigestingReader<Digester, Src>::DigestingReader(
-    Src&& src, DigesterArgs&&... digester_args)
-    : digester_(std::forward<DigesterArgs>(digester_args)...),
-      src_(std::move(src)) {
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    const Src& src, DigesterType&& digester)
+    : digester_(std::move(digester)), src_(src) {
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
+template <typename DigesterType, typename Src>
+template <typename... DigesterArgs>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    const Src& src, std::tuple<DigesterArgs...> digester_args)
+    : digester_(std::move(digester_args)), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    Src&& src, const DigesterType& digester)
+    : digester_(digester), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    Src&& src, DigesterType&& digester)
+    : digester_(std::move(digester)), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... DigesterArgs>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    Src&& src, std::tuple<DigesterArgs...> digester_args)
+    : digester_(std::move(digester_args)), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... SrcArgs>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    std::tuple<SrcArgs...> src_args, const DigesterType& digester)
+    : digester_(digester), src_(std::move(src_args)) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... SrcArgs>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    std::tuple<SrcArgs...> src_args, DigesterType&& digester)
+    : digester_(std::move(digester)), src_(std::move(src_args)) {
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
 template <typename... SrcArgs, typename... DigesterArgs>
-inline DigestingReader<Digester, Src>::DigestingReader(
-    std::tuple<SrcArgs...> src_args, DigesterArgs&&... digester_args)
-    : digester_(std::forward<DigesterArgs>(digester_args)...),
-      src_(std::move(src_args)) {
+inline DigestingReader<DigesterType, Src>::DigestingReader(
+    std::tuple<SrcArgs...> src_args, std::tuple<DigesterArgs...> digester_args)
+    : digester_(std::move(digester_args)), src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
-inline DigestingReader<Digester, Src>::DigestingReader(
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>::DigestingReader(
     DigestingReader&& that) noexcept
     : DigestingReaderBase(static_cast<DigestingReaderBase&&>(that)),
       digester_(std::move(that.digester_)) {
   MoveSrc(std::move(that));
 }
 
-template <typename Digester, typename Src>
-inline DigestingReader<Digester, Src>&
-DigestingReader<Digester, Src>::operator=(DigestingReader&& that) noexcept {
+template <typename DigesterType, typename Src>
+inline DigestingReader<DigesterType, Src>&
+DigestingReader<DigesterType, Src>::operator=(DigestingReader&& that) noexcept {
   DigestingReaderBase::operator=(static_cast<DigestingReaderBase&&>(that));
   digester_ = std::move(that.digester_);
   MoveSrc(std::move(that));
   return *this;
 }
 
-template <typename Digester, typename Src>
-inline void DigestingReader<Digester, Src>::Reset(Closed) {
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::Reset(Closed) {
   DigestingReaderBase::Reset(kClosed);
-  riegeli::Reset(digester_);
+  digester_.Reset();
   src_.Reset();
 }
 
-template <typename Digester, typename Src>
-template <typename... DigesterArgs>
-inline void DigestingReader<Digester, Src>::Reset(
-    const Src& src, DigesterArgs&&... digester_args) {
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    const Src& src, const DigesterType& digester) {
   DigestingReaderBase::Reset();
-  riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
+  digester_.Reset(digester);
   src_.Reset(src);
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
-template <typename... DigesterArgs>
-inline void DigestingReader<Digester, Src>::Reset(
-    Src&& src, DigesterArgs&&... digester_args) {
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::Reset(const Src& src,
+                                                      DigesterType&& digester) {
   DigestingReaderBase::Reset();
-  riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
+  digester_.Reset(std::move(digester));
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... DigesterArgs>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    const Src& src, std::tuple<DigesterArgs...> digester_args) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(std::move(digester_args));
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    Src&& src, const DigesterType& digester) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(digester);
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
-template <typename... SrcArgs, typename... DigesterArgs>
-inline void DigestingReader<Digester, Src>::Reset(
-    std::tuple<SrcArgs...> src_args, DigesterArgs&&... digester_args) {
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::Reset(Src&& src,
+                                                      DigesterType&& digester) {
   DigestingReaderBase::Reset();
-  riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
+  digester_.Reset(std::move(digester));
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... DigesterArgs>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    Src&& src, std::tuple<DigesterArgs...> digester_args) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(std::move(digester_args));
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... SrcArgs>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    std::tuple<SrcArgs...> src_args, const DigesterType& digester) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(digester);
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 
-template <typename Digester, typename Src>
-inline void DigestingReader<Digester, Src>::MoveSrc(DigestingReader&& that) {
+template <typename DigesterType, typename Src>
+template <typename... SrcArgs>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    std::tuple<SrcArgs...> src_args, DigesterType&& digester) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(std::move(digester));
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+template <typename... SrcArgs, typename... DigesterArgs>
+inline void DigestingReader<DigesterType, Src>::Reset(
+    std::tuple<SrcArgs...> src_args,
+    std::tuple<DigesterArgs...> digester_args) {
+  DigestingReaderBase::Reset();
+  digester_.Reset(std::move(digester_args));
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
+}
+
+template <typename DigesterType, typename Src>
+inline void DigestingReader<DigesterType, Src>::MoveSrc(
+    DigestingReader&& that) {
   if (src_.kIsStable || that.src_ == nullptr) {
     src_ = std::move(that.src_);
   } else {
@@ -371,35 +514,31 @@ inline void DigestingReader<Digester, Src>::MoveSrc(DigestingReader&& that) {
   }
 }
 
-template <typename Digester, typename Src>
-inline typename DigestingReader<Digester, Src>::DigestType
-DigestingReader<Digester, Src>::Digest() {
+template <typename DigesterType, typename Src>
+inline typename DigestingReader<DigesterType, Src>::DigestType
+DigestingReader<DigesterType, Src>::Digest() {
   if (start_to_cursor() > 0) {
-    DigesterWrite(absl::string_view(start(), start_to_cursor()));
+    digester_->Write(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
     src_->set_cursor(cursor());
   }
-  return digesting_internal::Digest(digester_);
+  return digester_->Digest();
 }
 
-template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::Done() {
+template <typename DigesterType, typename Src>
+void DigestingReader<DigesterType, Src>::Done() {
   DigestingReaderBase::Done();
   if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }
   }
-  digesting_internal::Close(digester_);
+  if (digester_.is_owning()) digester_->Close();
 }
 
-template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::DigesterWrite(absl::string_view src) {
-  digesting_internal::Write(digester_, src);
-}
-
-template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::SetReadAllHintImpl(bool read_all_hint) {
+template <typename DigesterType, typename Src>
+void DigestingReader<DigesterType, Src>::SetReadAllHintImpl(
+    bool read_all_hint) {
   if (src_.is_owning()) {
     SyncBuffer(*src_);
     src_->SetReadAllHint(read_all_hint);
@@ -407,8 +546,8 @@ void DigestingReader<Digester, Src>::SetReadAllHintImpl(bool read_all_hint) {
   }
 }
 
-template <typename Digester, typename Src>
-void DigestingReader<Digester, Src>::VerifyEndImpl() {
+template <typename DigesterType, typename Src>
+void DigestingReader<DigesterType, Src>::VerifyEndImpl() {
   if (!src_.is_owning()) {
     DigestingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
@@ -418,8 +557,8 @@ void DigestingReader<Digester, Src>::VerifyEndImpl() {
   }
 }
 
-template <typename Digester, typename Src>
-bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
+template <typename DigesterType, typename Src>
+bool DigestingReader<DigesterType, Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
@@ -430,15 +569,17 @@ bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-namespace digesting_reader_internal {
-
-template <typename Digester, typename Src, typename... DigesterArgs>
-inline StatusOrMakerT<digesting_internal::DigestType<Digester>>
-DigestFromReaderImpl(Src&& src, DigesterArgs&&... digester_args) {
-  using DigestType = digesting_internal::DigestType<Digester>;
+template <typename DigesterType, typename Src,
+          std::enable_if_t<absl::conjunction<
+                               IsValidDependency<DigesterBase*, DigesterType&&>,
+                               IsValidDependency<Reader*, Src&&>>::value,
+                           int>>
+inline StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
+    Src&& src, DigesterType&& digester) {
+  using DigestType = DigestTypeOf<DigesterType&&>;
   using Maker = StatusOrMaker<DigestType>;
-  DigestingReader<Digester, Src&&> reader(
-      std::forward<Src>(src), std::forward<DigesterArgs>(digester_args)...);
+  DigestingReader<DigesterType&&, Src&&> reader(
+      std::forward<Src>(src), std::forward<DigesterType&&>(digester));
   reader.SetReadAllHint(true);
   do {
     reader.move_cursor(reader.available());
@@ -447,37 +588,6 @@ DigestFromReaderImpl(Src&& src, DigesterArgs&&... digester_args) {
     return Maker::FromStatus(reader.status());
   }
   return Maker::FromWork([&]() -> DigestType { return reader.Digest(); });
-}
-
-}  // namespace digesting_reader_internal
-
-template <typename Digester, typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline StatusOrMakerT<digesting_internal::DigestType<Digester>>
-DigestFromReader(Src&& src, const Digester& digester) {
-  return digesting_reader_internal::DigestFromReaderImpl<
-      std::decay_t<Digester>>(std::forward<Src>(src), digester);
-}
-
-template <typename Digester, typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline StatusOrMakerT<digesting_internal::DigestType<Digester>>
-DigestFromReader(Src&& src, Digester&& digester) {
-  return digesting_reader_internal::DigestFromReaderImpl<
-      std::decay_t<Digester>>(std::forward<Src>(src),
-                              std::forward<Digester>(digester));
-}
-
-template <typename Digester, typename Src, typename... DigesterArgs,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                std::integral_constant<
-                                    bool, sizeof...(DigesterArgs) != 1>>::value,
-              int>>
-inline StatusOrMakerT<digesting_internal::DigestType<Digester>>
-DigestFromReader(Src&& src, DigesterArgs&&... digester_args) {
-  return digesting_reader_internal::DigestFromReaderImpl<Digester>(
-      std::forward<Src>(src), std::forward<DigesterArgs>(digester_args)...);
 }
 
 }  // namespace riegeli

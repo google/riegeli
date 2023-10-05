@@ -32,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
@@ -52,25 +53,6 @@ absl::Status DigestingReaderBase::AnnotateStatusImpl(absl::Status status) {
     MakeBuffer(src);
   }
   return status;
-}
-
-inline void DigestingReaderBase::DigesterWrite(const Chain& src) {
-  for (const absl::string_view fragment : src.blocks()) {
-    DigesterWrite(fragment);
-  }
-}
-
-inline void DigestingReaderBase::DigesterWrite(const absl::Cord& src) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      DigesterWrite(*flat);
-      return;
-    }
-  }
-  for (const absl::string_view fragment : src.Chunks()) {
-    DigesterWrite(fragment);
-  }
 }
 
 bool DigestingReaderBase::PullSlow(size_t min_length,
@@ -95,7 +77,10 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   SyncBuffer(src);
   size_t length_read;
   const bool read_ok = src.Read(length, dest, &length_read);
-  if (length_read > 0) DigesterWrite(absl::string_view(dest, length_read));
+  if (length_read > 0) {
+    DigesterBase* const digester = GetDigester();
+    digester->Write(absl::string_view(dest, length_read));
+  }
   MakeBuffer(src);
   return read_ok;
 }
@@ -112,8 +97,11 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
   SyncBuffer(src);
   Chain data;
   const bool read_ok = src.Read(length, data);
-  DigesterWrite(data);
-  dest.Append(std::move(data));
+  if (!data.empty()) {
+    DigesterBase* const digester = GetDigester();
+    digester->Write(data);
+    dest.Append(std::move(data));
+  }
   MakeBuffer(src);
   return read_ok;
 }
@@ -130,8 +118,11 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   SyncBuffer(src);
   absl::Cord data;
   const bool read_ok = src.Read(length, data);
-  DigesterWrite(data);
-  dest.Append(std::move(data));
+  if (!data.empty()) {
+    DigesterBase* const digester = GetDigester();
+    digester->Write(data);
+    dest.Append(std::move(data));
+  }
   MakeBuffer(src);
   return read_ok;
 }
@@ -156,7 +147,10 @@ bool DigestingReaderBase::ReadSomeDirectlySlow(
         return dest;
       },
       &length_read);
-  if (read_directly) DigesterWrite(absl::string_view(dest, length_read));
+  if (read_directly) {
+    DigesterBase* const digester = GetDigester();
+    digester->Write(absl::string_view(dest, length_read));
+  }
   MakeBuffer(src);
   return read_directly;
 }
