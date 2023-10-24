@@ -247,6 +247,10 @@ class ResizableWriterBase : public Writer {
 //   // `used_size` is preserved. Remaining space is unspecified. Returns
 //   // `true` on success, or `false` on failure.
 //   //
+//   // The intent is to resize exactly to `new_size`, but the size reported by
+//   // `Size(dest)` can be larger than `new_size` if `dest` cannot represent
+//   // all sizes exactly.
+//   //
 //   // Preconditions:
 //   //   `used_size <= Size(dest)`
 //   //   `used_size <= new_size`
@@ -647,10 +651,11 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
           !ResizableTraits::Resize(*dest_, new_size, used_dest_size()))) {
     return FailOverflow();
   }
-  RIEGELI_ASSERT_EQ(ResizableTraits::Size(*dest_), new_size)
+  RIEGELI_ASSERT_GE(ResizableTraits::Size(*dest_), new_size)
       << "Failed postcondition of ResizableTraits::Resize(): "
-         "not resized to requested size";
-  set_buffer(ResizableTraits::Data(*dest_), new_size, cursor_index);
+         "not resized to at least requested size";
+  set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
+             cursor_index);
   set_start_pos(0);
   return true;
 }
