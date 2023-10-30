@@ -433,6 +433,30 @@ struct HasAbslStringify<
            std::declval<type_traits_internal::UnimplementedSink&>(),
            std::declval<const T&>()))>> : std::true_type {};
 
+// Deriving a class from `ConditionallyCopyable<is_copyable>` disables default
+// copy and move constructor and assignment if `!is_copyable`.
+//
+// A derived class should either make desired copy and move constructor and
+// assignment explicitly defaulted, so that they get effectively defaulted or
+// deleted depending on `is_copyable`, or leave them out to make them implicitly
+// defined, with the same effect.
+//
+// An explicit definition of copy and move constructor and assignment, which
+// does not refer to the corresponding operation of the base class, would
+// circumvent the intent of `!is_copyable`.
+
+template <bool is_copyable>
+class ConditionallyCopyable {};
+
+template <>
+class ConditionallyCopyable<false> {
+ public:
+  ConditionallyCopyable() = default;
+
+  ConditionallyCopyable(const ConditionallyCopyable&) = delete;
+  ConditionallyCopyable& operator=(const ConditionallyCopyable&) = delete;
+};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_TYPE_TRAITS_H_
