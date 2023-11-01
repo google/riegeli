@@ -222,12 +222,10 @@ class CsvHeader {
    private:
     friend class CsvHeader;
 
-    explicit iterator(const std::string* iter) : iter_(iter) {}
+    explicit iterator(std::vector<std::string>::const_iterator iter)
+        : iter_(iter) {}
 
-    // This is `const std::string*` and not
-    // `std::vector<std::string>::const_iterator` to make it easier to return
-    // iterators over an empty range when `payload_ == nullptr`.
-    const std::string* iter_ = nullptr;
+    std::vector<std::string>::const_iterator iter_{};
   };
 
   using key_type = std::string;
@@ -1250,13 +1248,12 @@ CsvHeader::normalizer() const {
 
 inline CsvHeader::iterator CsvHeader::begin() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
-  return iterator(payload_->index_to_name.data());
+  return iterator(payload_->index_to_name.cbegin());
 }
 
 inline CsvHeader::iterator CsvHeader::end() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
-  return iterator(payload_->index_to_name.data() +
-                  payload_->index_to_name.size());
+  return iterator(payload_->index_to_name.cend());
 }
 
 inline bool CsvHeader::empty() const {

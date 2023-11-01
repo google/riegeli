@@ -264,10 +264,9 @@ CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
           ? payload_->name_to_index.find(name)
           : payload_->name_to_index.find(payload_->normalizer(name));
   if (ABSL_PREDICT_FALSE(iter == payload_->name_to_index.cend())) {
-    return iterator(payload_->index_to_name.data() +
-                    payload_->index_to_name.size());
+    return iterator(payload_->index_to_name.cend());
   }
-  return iterator(payload_->index_to_name.data() + iter->second);
+  return iterator(payload_->index_to_name.cbegin() + iter->second);
 }
 
 bool CsvHeader::contains(absl::string_view name) const {
