@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <cstddef>
+#include <memory>
 #include <new>
 #include <tuple>
 #include <type_traits>
@@ -433,14 +434,16 @@ class
   Repr repr_;
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>>`.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
-    : public DependencyBase<AnyDependencyImpl<Ptr, inline_size, inline_align>> {
+// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<P>>` when `P` is
+// convertible to `Ptr`.
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>,
+                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+    : public DependencyBase<AnyDependencyImpl<P, inline_size, inline_align>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager().get(); }
+  P get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -453,18 +456,19 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
   }
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<Ptr>&&>`.
+// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<P>&&>` when `P` is
+// convertible to `Ptr`.
 //
-// It is defined explicitly because `AnyDependencyImpl<Ptr>` can be heavy and is
+// It is defined explicitly because `AnyDependencyImpl<P>` can be heavy and is
 // better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
-    : public DependencyBase<
-          AnyDependencyImpl<Ptr, inline_size, inline_align>&&> {
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>&&,
+                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+    : public DependencyBase<AnyDependencyImpl<P, inline_size, inline_align>&&> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager().get(); }
+  P get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -477,20 +481,22 @@ class DependencyImpl<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>&&>
 };
 
 // Specialization of
-// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyImpl<Ptr>, Deleter>>`.
+// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyImpl<P>, Deleter>>` when
+// `P` is convertible to `Ptr`.
 //
 // It covers `ClosingPtrType<AnyDependency>`.
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
     Ptr,
-    std::unique_ptr<AnyDependencyImpl<Ptr, inline_size, inline_align>, Deleter>>
+    std::unique_ptr<AnyDependencyImpl<P, inline_size, inline_align>, Deleter>,
+    std::enable_if_t<std::is_convertible<P, Ptr>::value>>
     : public DependencyBase<std::unique_ptr<
-          AnyDependencyImpl<Ptr, inline_size, inline_align>, Deleter>> {
+          AnyDependencyImpl<P, inline_size, inline_align>, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager()->get(); }
+  P get() const { return this->manager()->get(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
@@ -585,15 +591,17 @@ class AnyDependencyRefImpl
   }
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>>`.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
+// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<P>>` when `P` is
+// convertible to `Ptr`.
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>,
+                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
     : public DependencyBase<
-          AnyDependencyRefImpl<Ptr, inline_size, inline_align>> {
+          AnyDependencyRefImpl<P, inline_size, inline_align>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager().get(); }
+  P get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -606,19 +614,20 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
   }
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<Ptr>&&>`.
+// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<P>&&>` when `P`
+// is convertible to `Ptr`.
 //
-// It is defined explicitly because `AnyDependencyRefImpl<Ptr>` can be heavy and
+// It is defined explicitly because `AnyDependencyRefImpl<P>` can be heavy and
 // is better kept by reference.
-template <typename Ptr, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr,
-                     AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&>
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
+class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>&&,
+                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
     : public DependencyBase<
-          AnyDependencyRefImpl<Ptr, inline_size, inline_align>&&> {
+          AnyDependencyRefImpl<P, inline_size, inline_align>&&> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager().get(); }
+  P get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -631,20 +640,23 @@ class DependencyImpl<Ptr,
 };
 
 // Specialization of
-// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyRefImpl<Ptr>, Deleter>>`.
+// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyRefImpl<P>, Deleter>>` when
+// `P` is convertible to `Ptr`.
 //
 // It covers `ClosingPtrType<AnyDependencyRef>`.
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Ptr, typename P, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
-    Ptr, std::unique_ptr<AnyDependencyRefImpl<Ptr, inline_size, inline_align>,
-                         Deleter>>
+    Ptr,
+    std::unique_ptr<AnyDependencyRefImpl<P, inline_size, inline_align>,
+                    Deleter>,
+    std::enable_if_t<std::is_convertible<P, Ptr>::value>>
     : public DependencyBase<std::unique_ptr<
-          AnyDependencyRefImpl<Ptr, inline_size, inline_align>, Deleter>> {
+          AnyDependencyRefImpl<P, inline_size, inline_align>, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  Ptr get() const { return this->manager()->get(); }
+  P get() const { return this->manager()->get(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
