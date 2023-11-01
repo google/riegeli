@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <ostream>
 #include <type_traits>
 #include <utility>
 
@@ -28,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/write_int_internal.h"
 #include "riegeli/bytes/writer.h"
 
@@ -49,6 +51,15 @@ class DecType {
     self.AbslStringifyImpl(sink);
   }
 
+  template <typename DependentT = T,
+            std::enable_if_t<IsInt<DependentT>::value, int> = 0>
+  friend std::ostream& operator<<(std::ostream& out, const DecType& self) {
+    OStreamWriter<> writer(&out);
+    self.WriteTo(writer);
+    writer.Close();
+    return out;
+  }
+
  private:
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
@@ -56,13 +67,17 @@ class DecType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void AbslStringifyImpl(Sink& sink) const;
-  // Faster implementations if `Sink` is `WriterAbslStringifySink`.
+  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
+  void AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+    WriteTo(*sink.dest());
+  }
+
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const;
+  void WriteTo(Writer& dest) const;
   template <typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const;
+  void WriteTo(Writer& dest) const;
 
   T value_;
   size_t width_;
@@ -82,6 +97,11 @@ class DecType<char> {
     AbslStringify(
         sink, DecType<unsigned char>(static_cast<unsigned char>(self.value()),
                                      self.width()));
+  }
+
+  friend std::ostream& operator<<(std::ostream& out, const DecType& self) {
+    return out << DecType<unsigned char>(
+               static_cast<unsigned char>(self.value()), self.width());
   }
 
  private:
@@ -122,6 +142,15 @@ class HexType {
     self.AbslStringifyImpl(sink);
   }
 
+  template <typename DependentT = T,
+            std::enable_if_t<IsInt<DependentT>::value, int> = 0>
+  friend std::ostream& operator<<(std::ostream& out, const HexType& self) {
+    OStreamWriter<> writer(&out);
+    self.WriteTo(writer);
+    writer.Close();
+    return out;
+  }
+
  private:
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
@@ -129,13 +158,17 @@ class HexType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void AbslStringifyImpl(Sink& sink) const;
-  // Faster implementations if `Sink` is `WriterAbslStringifySink`.
+  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
+  void AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+    WriteTo(*sink.dest());
+  }
+
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const;
+  void WriteTo(Writer& dest) const;
   template <typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const;
+  void WriteTo(Writer& dest) const;
 
   T value_;
   size_t width_;
@@ -155,6 +188,11 @@ class HexType<char> {
     AbslStringify(
         sink, HexType<unsigned char>(static_cast<unsigned char>(self.value()),
                                      self.width()));
+  }
+
+  friend std::ostream& operator<<(std::ostream& out, const HexType& self) {
+    return out << HexType<unsigned char>(
+               static_cast<unsigned char>(self.value()), self.width());
   }
 
  private:
@@ -415,29 +453,27 @@ inline void DecType<T>::AbslStringifyImpl(Sink& sink) const {
 template <typename T>
 template <typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void DecType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+inline void DecType<T>::WriteTo(Writer& dest) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  if (ABSL_PREDICT_FALSE(
-          !sink.dest()->Push(UnsignedMax(width_, kMaxNumDigits)))) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits)))) {
     return;
   }
-  sink.dest()->set_cursor(write_int_internal::WriteDecUnsigned(
-      value_, sink.dest()->cursor(), width_));
+  dest.set_cursor(
+      write_int_internal::WriteDecUnsigned(value_, dest.cursor(), width_));
 }
 
 template <typename T>
 template <typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void DecType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+inline void DecType<T>::WriteTo(Writer& dest) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  if (ABSL_PREDICT_FALSE(
-          !sink.dest()->Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
     return;
   }
   MakeUnsignedT<T> abs_value;
-  char* cursor = sink.dest()->cursor();
+  char* cursor = dest.cursor();
   size_t width = width_;
   if (value_ >= 0) {
     abs_value = UnsignedCast(value_);
@@ -447,7 +483,7 @@ inline void DecType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
     abs_value = NegatingUnsignedCast(value_);
     width = SaturatingSub(width, size_t{1});
   }
-  sink.dest()->set_cursor(
+  dest.set_cursor(
       write_int_internal::WriteDecUnsigned(abs_value, cursor, width));
 }
 
@@ -504,27 +540,25 @@ inline void HexType<T>::AbslStringifyImpl(Sink& sink) const {
 template <typename T>
 template <typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void HexType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+inline void HexType<T>::WriteTo(Writer& dest) const {
   constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
-  if (ABSL_PREDICT_FALSE(
-          !sink.dest()->Push(UnsignedMax(width_, kMaxNumDigits)))) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits)))) {
     return;
   }
-  sink.dest()->set_cursor(write_int_internal::WriteHexUnsigned(
-      value_, sink.dest()->cursor(), width_));
+  dest.set_cursor(
+      write_int_internal::WriteHexUnsigned(value_, dest.cursor(), width_));
 }
 
 template <typename T>
 template <typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void HexType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
+inline void HexType<T>::WriteTo(Writer& dest) const {
   constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
-  if (ABSL_PREDICT_FALSE(
-          !sink.dest()->Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
     return;
   }
   MakeUnsignedT<T> abs_value;
-  char* cursor = sink.dest()->cursor();
+  char* cursor = dest.cursor();
   size_t width = width_;
   if (value_ >= 0) {
     abs_value = UnsignedCast(value_);
@@ -534,7 +568,7 @@ inline void HexType<T>::AbslStringifyImpl(WriterAbslStringifySink& sink) const {
     abs_value = NegatingUnsignedCast(value_);
     width = SaturatingSub(width, size_t{1});
   }
-  sink.dest()->set_cursor(
+  dest.set_cursor(
       write_int_internal::WriteHexUnsigned(abs_value, cursor, width));
 }
 

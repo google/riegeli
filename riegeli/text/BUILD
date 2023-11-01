@@ -12,6 +12,7 @@ cc_library(
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:write_int_internal",
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
@@ -31,6 +32,7 @@ cc_library(
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/bytes:absl_stringify_writer",
+        "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:restricted_chain_writer",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
