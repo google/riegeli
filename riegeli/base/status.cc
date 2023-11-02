@@ -14,8 +14,6 @@
 
 #include "riegeli/base/status.h"
 
-#include <string>
-
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"

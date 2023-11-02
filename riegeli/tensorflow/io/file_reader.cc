@@ -36,6 +36,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -115,10 +116,11 @@ inline bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
   return Fail(
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
 #if TF_GRAPH_DEF_VERSION < 1467
-                            status.error_message()),
+                            status.error_message()
 #else
-                            status.message()),
+                            status.message()
 #endif
+                                ),
                absl::StrCat(operation, " failed")));
 }
 

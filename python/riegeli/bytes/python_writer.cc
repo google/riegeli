@@ -26,8 +26,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <memory>
-#include <string>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"

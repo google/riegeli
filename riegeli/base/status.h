@@ -15,10 +15,8 @@
 #ifndef RIEGELI_BASE_STATUS_H_
 #define RIEGELI_BASE_STATUS_H_
 
-#include <algorithm>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"

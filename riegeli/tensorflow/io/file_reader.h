@@ -160,7 +160,7 @@ class FileReaderBase : public Reader {
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
-  static absl::Status NoRandomAccessStatus();
+  ABSL_ATTRIBUTE_COLD static absl::Status NoRandomAccessStatus();
 
   void set_exact_size(absl::optional<Position> exact_size) {
     buffer_sizer_.set_exact_size(exact_size);

@@ -19,7 +19,6 @@
 
 #include <limits>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -37,6 +36,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/zlib/zlib_error.h"
+#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {

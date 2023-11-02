@@ -123,10 +123,11 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
   return Fail(
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
 #if TF_GRAPH_DEF_VERSION < 1467
-                            status.error_message()),
+                            status.error_message()
 #else
-                            status.message()),
+                            status.message()
 #endif
+                                ),
                absl::StrCat(operation, " failed")));
 }
 

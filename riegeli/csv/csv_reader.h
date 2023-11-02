@@ -452,7 +452,7 @@ class CsvReaderBase : public Object {
     kEscape,
   };
 
-  ABSL_ATTRIBUTE_COLD bool MaxFieldLengthExceeded();
+  ABSL_ATTRIBUTE_COLD bool FailMaxFieldLengthExceeded();
   void SkipLine(Reader& src);
   bool ReadQuoted(Reader& src, std::string& field);
   bool ReadFields(Reader& src, std::vector<std::string>& fields,

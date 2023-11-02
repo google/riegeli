@@ -70,6 +70,7 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:assert",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@zlib",

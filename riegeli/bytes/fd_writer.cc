@@ -63,6 +63,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif

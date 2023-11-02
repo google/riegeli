@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <string>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -25,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"

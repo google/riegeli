@@ -84,8 +84,8 @@ inline void ReadFlat(Reader& src, size_t length, Dest& dest) {
 }
 
 template <typename Dest>
-ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, Dest& dest,
-                                               size_t max_length) {
+ABSL_ATTRIBUTE_COLD bool FailMaxLineLengthExceeded(Reader& src, Dest& dest,
+                                                   size_t max_length) {
   ReadFlat(src, max_length, dest);
   return src.Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum line length exceeded: ", max_length)));
@@ -97,7 +97,7 @@ inline bool FoundNewline(Reader& src, Dest& dest, ReadLineOptions options,
   const size_t length_with_newline = length + newline_length;
   if (options.keep_newline()) length = length_with_newline;
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLineLengthExceeded(src, dest, options.max_length());
+    return FailMaxLineLengthExceeded(src, dest, options.max_length());
   }
   ReadFlatAndSkip(src, length_with_newline, length, dest);
   return true;
@@ -147,7 +147,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
             // The CR is the final character and is not a part of a line
             // terminator.
             if (ABSL_PREDICT_FALSE(options.max_length() < 1)) {
-              return MaxLineLengthExceeded(src, dest, options.max_length());
+              return FailMaxLineLengthExceeded(src, dest, options.max_length());
             }
             ReadFlat(src, 1, dest);
             return src.ok();
@@ -197,7 +197,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-      return MaxLineLengthExceeded(src, dest, options.max_length());
+      return FailMaxLineLengthExceeded(src, dest, options.max_length());
     }
     options.set_max_length(options.max_length() - length);
     ReadFlat(src, length, dest);
@@ -240,13 +240,13 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
           // The buffer ends with CR.
           length = src.available() - 1;
           if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-            return MaxLineLengthExceeded(src, dest, options.max_length());
+            return FailMaxLineLengthExceeded(src, dest, options.max_length());
           }
           if (ABSL_PREDICT_FALSE(!src.Pull(length + 2))) {
             // The CR is the final character and is not a part of a line
             // terminator.
             if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
-              return MaxLineLengthExceeded(src, dest, options.max_length());
+              return FailMaxLineLengthExceeded(src, dest, options.max_length());
             }
             dest = absl::string_view(src.cursor(), src.available());
             src.move_cursor(src.available());
@@ -283,7 +283,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   continue_reading:
     length = src.available();
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-      return MaxLineLengthExceeded(src, dest, options.max_length());
+      return FailMaxLineLengthExceeded(src, dest, options.max_length());
     }
   } while (src.Pull(length + 1));
   dest = absl::string_view(src.cursor(), src.available());

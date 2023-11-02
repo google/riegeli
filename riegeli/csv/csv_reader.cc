@@ -242,7 +242,7 @@ absl::Status CsvReaderBase::AnnotateOverSrc(absl::Status status) {
   return status;
 }
 
-bool CsvReaderBase::MaxFieldLengthExceeded() {
+bool CsvReaderBase::FailMaxFieldLengthExceeded() {
   recoverable_ = true;
   return Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum field length exceeded: ", max_field_length_)));
@@ -289,7 +289,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
     if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
       if (ABSL_PREDICT_FALSE(src.available() >
                              max_field_length_ - field.size())) {
-        return MaxFieldLengthExceeded();
+        return FailMaxFieldLengthExceeded();
       }
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
@@ -314,7 +314,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
           if (ABSL_PREDICT_FALSE(src.available() >
                                  max_field_length_ - field.size())) {
-            return MaxFieldLengthExceeded();
+            return FailMaxFieldLengthExceeded();
           }
           field.append(src.cursor(), src.available());
           src.move_cursor(src.available());
@@ -337,7 +337,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
     }
     const size_t length = PtrDistance(src.cursor(), ptr - 1);
     if (ABSL_PREDICT_FALSE(length > max_field_length_ - field.size())) {
-      return MaxFieldLengthExceeded();
+      return FailMaxFieldLengthExceeded();
     }
     field.append(src.cursor(), length);
     src.set_cursor(ptr);
@@ -417,7 +417,7 @@ next_field:
     if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
       if (ABSL_PREDICT_FALSE(src.available() >
                              max_field_length_ - field.size())) {
-        return MaxFieldLengthExceeded();
+        return FailMaxFieldLengthExceeded();
       }
       field.append(src.cursor(), src.available());
       src.move_cursor(src.available());
@@ -447,7 +447,7 @@ next_field:
     }
     const size_t length = PtrDistance(src.cursor(), ptr - 1);
     if (ABSL_PREDICT_FALSE(length > max_field_length_ - field.size())) {
-      return MaxFieldLengthExceeded();
+      return FailMaxFieldLengthExceeded();
     }
     field.append(src.cursor(), length);
     src.set_cursor(ptr);

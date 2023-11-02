@@ -18,7 +18,6 @@
 
 #include <limits>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -35,6 +34,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zlib/zlib_error.h"
 #include "riegeli/zlib/zlib_reader.h"
+#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
