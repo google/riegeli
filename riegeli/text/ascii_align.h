@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
@@ -137,6 +138,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
+            std::integral_constant<bool, sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
@@ -147,6 +149,16 @@ AsciiLeft(Args&&... args) {
                                RemoveTypesFromEndT<1, Args&&...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
+}
+
+// A specialization for one stringifiable parameter which allows to annotate the
+// parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<Arg&&>::value, int> = 0>
+inline AsciiLeftType<Arg&&> AsciiLeft(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                      AlignOptions options) {
+  return AsciiLeftType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
+                              std::move(options));
 }
 
 // The type returned by `AsciiCenter()`.
@@ -216,6 +228,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
+            std::integral_constant<bool, sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
@@ -226,6 +239,16 @@ AsciiCenter(Args&&... args) {
                                RemoveTypesFromEndT<1, Args&&...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
+}
+
+// A specialization for one stringifiable parameter which allows to annotate the
+// parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<Arg&&>::value, int> = 0>
+inline AsciiCenterType<Arg&&> AsciiCenter(
+    Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
+  return AsciiCenterType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
+                                std::move(options));
 }
 
 // The type returned by `AsciiRight()`.
@@ -294,6 +317,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
+            std::integral_constant<bool, sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
@@ -304,6 +328,16 @@ AsciiRight(Args&&... args) {
                                RemoveTypesFromEndT<1, Args&&...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
+}
+
+// A specialization for one stringifiable parameter which allows to annotate the
+// parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<Arg&&>::value, int> = 0>
+inline AsciiRightType<Arg&&> AsciiRight(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                        AlignOptions options) {
+  return AsciiRightType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
+                               std::move(options));
 }
 
 // Implementation details follow.
