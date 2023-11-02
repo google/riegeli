@@ -126,9 +126,14 @@ class RecordPosition {
   }
 
   // Writes `self.ToString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, RecordPosition self);
+  friend std::ostream& operator<<(std::ostream& out, RecordPosition self) {
+    self.OutputImpl(out);
+    return out;
+  }
 
  private:
+  void OutputImpl(std::ostream& out) const;
+
   // Invariant:
   //   `record_index_ <= std::numeric_limits<uint64_t>::max() - chunk_begin_`
   uint64_t chunk_begin_ = 0;

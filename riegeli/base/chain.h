@@ -414,7 +414,10 @@ class Chain {
     self.AbslStringifyImpl(sink);
   }
 
-  friend std::ostream& operator<<(std::ostream& out, const Chain& self);
+  friend std::ostream& operator<<(std::ostream& out, const Chain& self) {
+    self.OutputImpl(out);
+    return out;
+  }
 
   // Support `absl::Format(&chain, format, args...)`.
   friend void AbslFormatFlush(Chain* dest, absl::string_view src) {
@@ -608,6 +611,7 @@ class Chain {
   HashState AbslHashValueImpl(HashState hash_state) const;
   template <typename Sink>
   void AbslStringifyImpl(Sink& sink) const;
+  void OutputImpl(std::ostream& out) const;
 
   BlockPtrs block_ptrs_;
 

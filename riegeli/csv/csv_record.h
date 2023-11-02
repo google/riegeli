@@ -445,7 +445,9 @@ class CsvHeader {
   absl::optional<size_t> IndexOf(absl::string_view name) const;
 
   // Compares the sequence of field names. Does not compare the normalizer.
-  friend bool operator==(const CsvHeader& a, const CsvHeader& b);
+  friend bool operator==(const CsvHeader& a, const CsvHeader& b) {
+    return EqualImpl(a, b);
+  }
   friend bool operator!=(const CsvHeader& a, const CsvHeader& b) {
     return !(a == b);
   }
@@ -464,7 +466,10 @@ class CsvHeader {
   }
 
   // Writes `self.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self);
+  friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self) {
+    self.OutputImpl(out);
+    return out;
+  }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvHeader& self,
@@ -527,7 +532,10 @@ class CsvHeader {
 
   void EnsureUniqueOwner();
 
+  static bool EqualImpl(const CsvHeader& a, const CsvHeader& b);
+
   void WriteDebugStringTo(Writer& writer) const;
+  void OutputImpl(std::ostream& out) const;
 
   // A one-element cache of a recently constructed `Payload`, to reuse the
   // `Payload` when multiple `CsvHeader` objects are created from the same
@@ -948,7 +956,9 @@ class CsvRecord {
                              int> = 0>
   absl::Status TrySplit(Dest& dest) const;
 
-  friend bool operator==(const CsvRecord& a, const CsvRecord& b);
+  friend bool operator==(const CsvRecord& a, const CsvRecord& b) {
+    return EqualImpl(a, b);
+  }
   friend bool operator!=(const CsvRecord& a, const CsvRecord& b) {
     return !(a == b);
   }
@@ -967,7 +977,10 @@ class CsvRecord {
   }
 
   // Writes `self.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self);
+  friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self) {
+    self.OutputImpl(out);
+    return out;
+  }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvRecord& self,
@@ -987,7 +1000,10 @@ class CsvRecord {
   absl::Status FailMissingNames(
       absl::Span<const std::string> missing_names) const;
 
+  static bool EqualImpl(const CsvRecord& a, const CsvRecord& b);
+
   void WriteDebugStringTo(Writer& writer) const;
+  void OutputImpl(std::ostream& out) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;

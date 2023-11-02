@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <ios>
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -44,7 +46,6 @@
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/string_utils.h"
-#include "riegeli/base/types.h"
 #include "riegeli/base/zeros.h"
 
 namespace riegeli {
@@ -2622,19 +2623,19 @@ absl::strong_ordering Chain::Compare(const Chain& that) const {
   return absl::strong_ordering::equal;
 }
 
-std::ostream& operator<<(std::ostream& out, const Chain& self) {
+void Chain::OutputImpl(std::ostream& out) const {
   std::ostream::sentry sentry(out);
   if (sentry) {
     if (ABSL_PREDICT_FALSE(
-            self.size() >
+            size() >
             UnsignedCast(std::numeric_limits<std::streamsize>::max()))) {
       out.setstate(std::ios::badbit);
-      return out;
+      return;
     }
     size_t lpad = 0;
     size_t rpad = 0;
-    if (IntCast<size_t>(out.width()) > self.size()) {
-      const size_t pad = IntCast<size_t>(out.width()) - self.size();
+    if (IntCast<size_t>(out.width()) > size()) {
+      const size_t pad = IntCast<size_t>(out.width()) - size();
       if ((out.flags() & out.adjustfield) == out.left) {
         rpad = pad;
       } else {
@@ -2642,13 +2643,12 @@ std::ostream& operator<<(std::ostream& out, const Chain& self) {
       }
     }
     if (lpad > 0) WritePadding(out, lpad);
-    for (const absl::string_view fragment : self.blocks()) {
+    for (const absl::string_view fragment : blocks()) {
       out.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
     }
     if (rpad > 0) WritePadding(out, rpad);
     out.width(0);
   }
-  return out;
 }
 
 void Chain::VerifyInvariants() const {

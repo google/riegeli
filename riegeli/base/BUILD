@@ -341,7 +341,6 @@ cc_library(
         ":shared_buffer",
         ":sized_shared_buffer",
         ":string_utils",
-        ":types",
         ":zeros",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",

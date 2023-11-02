@@ -63,9 +63,15 @@ class SkippedRegion {
   }
 
   // Writes `self.ToString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const SkippedRegion& self);
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const SkippedRegion& self) {
+    self.OutputImpl(out);
+    return out;
+  }
 
  private:
+  void OutputImpl(std::ostream& out) const;
+
   Position begin_ = 0;
   Position end_ = 0;
   std::string message_;
