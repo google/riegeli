@@ -181,7 +181,7 @@ class DatasetTestBase(test.TestCase):
 class RiegeliDatasetTest(DatasetTestBase):
 
   def setUp(self):
-    super(RiegeliDatasetTest, self).setUp()
+    super().setUp()
     self._num_files = 2
     self._num_records = 7
 

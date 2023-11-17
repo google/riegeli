@@ -21,13 +21,14 @@
 // clang-format: do not reorder the above include.
 
 #include <stddef.h>
-#include <stdint.h>
 
+#include <functional>
 #include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
@@ -993,7 +994,7 @@ Raises:
 )doc"},
     {"read_metadata", reinterpret_cast<PyCFunction>(RecordReaderReadMetadata),
      METH_NOARGS, R"doc(
-read_metadata(self) -> Optional[RecordsMetadata]
+read_metadata(self) -> RecordsMetadata | None
 
 Returns file metadata.
 
@@ -1008,7 +1009,7 @@ Returns:
     {"read_serialized_metadata",
      reinterpret_cast<PyCFunction>(RecordReaderReadSerializedMetadata),
      METH_NOARGS, R"doc(
-read_serialized_metadata(self) -> Optional[bytes]
+read_serialized_metadata(self) -> bytes | None
 
 Returns file metadata.
 
@@ -1020,7 +1021,7 @@ Returns:
 )doc"},
     {"read_record", reinterpret_cast<PyCFunction>(RecordReaderReadRecord),
      METH_NOARGS, R"doc(
-read_record(self) -> Optional[bytes]
+read_record(self) -> bytes | None
 
 Reads the next record.
 
@@ -1029,7 +1030,7 @@ Returns:
 )doc"},
     {"read_message", reinterpret_cast<PyCFunction>(RecordReaderReadMessage),
      METH_VARARGS | METH_KEYWORDS, R"doc(
-read_message(self, message_type: Type[Message]) -> Optional[Message]
+read_message(self, message_type: type[Message]) -> Message | None
 
 Reads the next record.
 
@@ -1050,7 +1051,7 @@ Yields:
 )doc"},
     {"read_messages", reinterpret_cast<PyCFunction>(RecordReaderReadMessages),
      METH_VARARGS | METH_KEYWORDS, R"doc(
-read_messages(self, message_type: Type[Message]) -> Iterator[Message]
+read_messages(self, message_type: type[Message]) -> Iterator[Message]
 
 Returns an iterator which reads all remaining records.
 
@@ -1061,7 +1062,7 @@ Yields:
      reinterpret_cast<PyCFunction>(RecordReaderSetFieldProjection),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 set_field_projection(
-    self, field_projection: Optional[Iterable[Iterable[int]]]
+    self, field_projection: Iterable[Iterable[int]] | None
 ) -> None
 
 Like field_projection constructor argument, but can be done at any time.
@@ -1122,7 +1123,7 @@ This is the position corresponding to its end.
     {"search", reinterpret_cast<PyCFunction>(RecordReaderSearch),
      METH_VARARGS | METH_KEYWORDS,
      R"doc(
-search(self, test: Callable[[RecordReader], Optional[int]]) -> None
+search(self, test: Callable[[RecordReader], int | None]) -> None
 
 Searches the file for a desired record, or for a desired position between
 records, given that it is possible to determine whether a given record is before
@@ -1174,7 +1175,7 @@ test().
      reinterpret_cast<PyCFunction>(RecordReaderSearchForRecord),
      METH_VARARGS | METH_KEYWORDS,
      R"doc(
-search_for_record(self, test: Callable[[bytes], Optional[int]]) -> None
+search_for_record(self, test: Callable[[bytes], int | None]) -> None
 
 A variant of search() which reads a record before calling test(), instead of
 letting test() read the record.
@@ -1188,8 +1189,8 @@ Args:
      METH_VARARGS | METH_KEYWORDS,
      R"doc(
 search_for_message(
-    self, message_type: Type[Message],
-    test: Callable[[Message], Optional[int]]
+    self, message_type: type[Message],
+    test: Callable[[Message], int | None]
 ) -> None
 
 A variant of search() which reads a record before calling test(), instead of
@@ -1289,12 +1290,12 @@ RecordReader(
     src: BinaryIO,
     *,
     owns_src: bool = True,
-    assumed_pos: Optional[int] = None,
+    assumed_pos: int | None = None,
     min_buffer_size: int = 4 << 10,
     max_buffer_size: int = 64 << 10,
-    buffer_size: Optional[int],
-    field_projection: Optional[Iterable[Iterable[int]]] = None,
-    recovery: Optional[Callable[[SkippedRegion], Any]] = None) -> RecordReader
+    buffer_size: int | None,
+    field_projection: Iterable[Iterable[int]] | None = None,
+    recovery: Callable[[SkippedRegion], Any] | None = None) -> RecordReader
 
 Will read from the given file.
 
@@ -1479,7 +1480,7 @@ const PyMethodDef kModuleMethods[] = {
     {"get_record_type", reinterpret_cast<PyCFunction>(GetRecordType),
      METH_VARARGS | METH_KEYWORDS,
      R"doc(
-get_record_type(metadata: RecordsMetadata) -> Optional[Type[Message]]
+get_record_type(metadata: RecordsMetadata) -> type[Message] | None
 
 Interprets record_type_name and file_descriptor from metadata.
 

@@ -160,7 +160,7 @@ class LocalFileSpecBase(FileSpecBase):
   __slots__ = ('_filename',)
 
   def __init__(self, create_tempfile, random_access):
-    super(LocalFileSpecBase, self).__init__(create_tempfile, random_access)
+    super().__init__(create_tempfile, random_access)
     self._filename = create_tempfile().full_path
 
 

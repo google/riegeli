@@ -240,7 +240,7 @@ const PyMethodDef RecordPositionMethods[] = {
     {"from_str", reinterpret_cast<PyCFunction>(RecordPositionFromStr),
      METH_VARARGS | METH_KEYWORDS | METH_CLASS,
      R"doc(
-from_str(type, serialized: Union[str, bytes] -> RecordPosition
+from_str(type, serialized: str | bytes) -> RecordPosition
 
 Parses RecordPosition from its text format.
 
@@ -260,7 +260,7 @@ positions.
     {"from_bytes", reinterpret_cast<PyCFunction>(RecordPositionFromBytes),
      METH_VARARGS | METH_KEYWORDS | METH_CLASS, R"doc(
 from_bytes(
-    type, serialized: Union[bytes, bytearray, memoryview]) -> RecordPosition
+    type, serialized: bytes | bytearray | memoryview) -> RecordPosition
 
 Parses RecordPosition from its binary format.
 

@@ -72,7 +72,7 @@ class RiegeliDataset(dataset_ops.DatasetSource):
     variant_tensor = gen_riegeli_dataset_ops.riegeli_dataset(
         self._filenames, self._min_buffer_size, self._max_buffer_size
     )
-    super(RiegeliDataset, self).__init__(variant_tensor)
+    super().__init__(variant_tensor)
 
   @property
   def element_spec(self):

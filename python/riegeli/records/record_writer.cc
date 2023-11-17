@@ -34,7 +34,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
-#include "riegeli/records/record_position.h"
 #include "riegeli/records/record_writer.h"
 
 namespace riegeli {
@@ -612,7 +611,7 @@ If the RecordWriter was not failed but already closed, does nothing.
 )doc"},
     {"write_record", reinterpret_cast<PyCFunction>(RecordWriterWriteRecord),
      METH_VARARGS | METH_KEYWORDS, R"doc(
-write_record(self, record: Union[bytes, bytearray, memoryview]) -> None
+write_record(self, record: bytes | bytearray | memoryview) -> None
 
 Writes the next record.
 
@@ -631,7 +630,7 @@ Args:
     {"write_records", reinterpret_cast<PyCFunction>(RecordWriterWriteRecords),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 write_records(
-    self, records: Iterable[Union[bytes, bytearray, memoryview]]) -> None
+    self, records: Iterable[bytes | bytearray | memoryview]) -> None
 
 Writes a number of records.
 
@@ -770,13 +769,13 @@ RecordWriter(
     dest: BinaryIO,
     *,
     owns_dest: bool = True,
-    assumed_pos: Optional[int] = None,
+    assumed_pos: int | None = None,
     min_buffer_size: int = 4 << 10,
     max_buffer_size: int = 64 << 10,
-    buffer_size: Optional[int],
-    options: Union[str, bytes] = '',
-    metadata: Optional[RecordsMetadata] = None,
-    serialized_metadata: Union[bytes, bytearray, memoryview] = b''
+    buffer_size: int | None,
+    options: str | bytes = '',
+    metadata: RecordsMetadata | None = None,
+    serialized_metadata: bytes | bytearray | memoryview = b''
 ) -> RecordWriter
 
 Will write to the given file.
@@ -860,7 +859,7 @@ const PyMethodDef kModuleMethods[] = {
     {"set_record_type", reinterpret_cast<PyCFunction>(SetRecordType),
      METH_VARARGS | METH_KEYWORDS,
      R"doc(
-set_record_type(metadata: RecordsMetadata, message_type: Type[Message]) -> None
+set_record_type(metadata: RecordsMetadata, message_type: type[Message]) -> None
 
 Sets record_type_name and file_descriptor in metadata.
 
