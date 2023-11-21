@@ -210,7 +210,9 @@ class
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
         AnyDependencyImpl
-    : public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
+    : public ConditionallyAbslNullabilityCompatible<
+          std::is_pointer<Ptr>::value>,
+      public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
                                                               0> {
  public:
   // Creates an empty `AnyDependencyImpl`.

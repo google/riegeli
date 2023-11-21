@@ -457,6 +457,20 @@ class ConditionallyCopyable<false> {
   ConditionallyCopyable& operator=(const ConditionallyCopyable&) = delete;
 };
 
+// Deriving a class from `ConditionallyAbslNullabilityCompatible<is_pointer>`
+// adds `absl_nullability_compatible` member if `is_pointer`.
+//
+// This allows Nullability annotations on the type.
+
+template <bool is_pointer>
+class ConditionallyAbslNullabilityCompatible {};
+
+template <>
+class ConditionallyAbslNullabilityCompatible<true> {
+ public:
+  using absl_nullability_compatible = void;
+};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_TYPE_TRAITS_H_

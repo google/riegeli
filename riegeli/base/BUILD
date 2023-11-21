@@ -191,6 +191,7 @@ cc_library(
         ":assert",
         ":reset",
         ":type_id",
+        ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",

@@ -63,6 +63,9 @@ class OwnedCFile {
   friend bool operator==(FILE* a, const OwnedCFile& b) { return a == b.get(); }
   friend bool operator!=(FILE* a, const OwnedCFile& b) { return a != b.get(); }
 
+  // Allow Nullability annotations on `OwnedCFile`.
+  using absl_nullability_compatible = void;
+
  private:
   struct CFileDeleter {
     void operator()(FILE* ptr) const { fclose(ptr); }
@@ -101,6 +104,9 @@ class UnownedCFile {
   friend bool operator!=(UnownedCFile a, FILE* b) { return a.get() != b; }
   friend bool operator==(FILE* a, UnownedCFile b) { return a == b.get(); }
   friend bool operator!=(FILE* a, UnownedCFile b) { return a != b.get(); }
+
+  // Allow Nullability annotations on `UnownedCFile`.
+  using absl_nullability_compatible = void;
 
  private:
   FILE* file_ = nullptr;

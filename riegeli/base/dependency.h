@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/type_id.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -384,7 +385,9 @@ struct HasGetIfDynamic<
 // `Dependency` (applied to `DependencyMaybeRef`) and `StableDependency`
 // (applied to `StableDependencyImpl`).
 template <typename Base, typename Ptr, typename Manager>
-class DependencyDerived : public Base {
+class DependencyDerived : public Base,
+                          public ConditionallyAbslNullabilityCompatible<
+                              std::is_pointer<Ptr>::value> {
  public:
   using Base::Base;
 

@@ -131,6 +131,9 @@ class
     return nullptr != b.get();
   }
 
+  // Allow Nullability annotations on `RefCountedPtr`.
+  using absl_nullability_compatible = void;
+
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const RefCountedPtr& self,
                                         MemoryEstimator& memory_estimator) {
