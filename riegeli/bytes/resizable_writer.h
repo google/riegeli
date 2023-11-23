@@ -18,10 +18,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -410,6 +412,62 @@ struct StringResizableTraits {
               : UnsignedMax(new_size,
                             UnsignedMin(dest.capacity() + dest.capacity() / 2,
                                         dest.max_size())));
+    }
+  }
+};
+
+// `ResizableTraits` for `std::vector<T>`.
+//
+// Warning: byte contents are reinterpreted as values of type `T`, and the size
+// is rounded up to a multiple of the element type.
+template <typename T, typename Allocator = std::allocator<T>>
+struct VectorResizableTraits {
+  static_assert(
+      std::is_trivially_copyable<T>::value,
+      "Parameter of VectorResizableTraits must be trivially copyable");
+
+  using Resizable = std::vector<T, Allocator>;
+  static char* Data(Resizable& dest) {
+    return reinterpret_cast<char*>(dest.data());
+  }
+  static size_t Size(const Resizable& dest) { return dest.size() * sizeof(T); }
+  static constexpr bool kIsStable = true;
+  static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_LE(used_size, dest.size() * sizeof(T))
+        << "Failed precondition of ResizableTraits::Resize(): "
+           "used size exceeds old size";
+    RIEGELI_ASSERT_LE(used_size, new_size)
+        << "Failed precondition of ResizableTraits::Resize(): "
+           "used size exceeds new size";
+    const size_t new_num_elements = SizeToNumElements(new_size);
+    Reserve(dest, new_num_elements, used_size);
+    dest.resize(new_num_elements);
+    return true;
+  }
+  static void GrowToCapacity(Resizable& dest) { dest.resize(dest.capacity()); }
+  static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_LE(used_size, dest.size() * sizeof(T))
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "used size exceeds old size";
+    RIEGELI_ASSERT_LE(used_size, new_size)
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "used size exceeds new size";
+    Reserve(dest, SizeToNumElements(new_size), used_size);
+    GrowToCapacity(dest);
+    return true;
+  }
+
+ private:
+  static size_t SizeToNumElements(size_t size) {
+    return size / sizeof(T) + (size % sizeof(T) == 0 ? 0 : 1);
+  }
+  static void Reserve(Resizable& dest, size_t new_num_elements,
+                      size_t used_size) {
+    if (new_num_elements > dest.capacity()) {
+      dest.erase(dest.begin() + SizeToNumElements(used_size), dest.end());
+      dest.reserve(UnsignedMax(
+          new_num_elements,
+          UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
     }
   }
 };
