@@ -837,9 +837,20 @@ class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
 
 // Specialization of `DependencyImpl<P*, M&>` when `M*` is convertible to `P*`:
 // an unowned dependency passed by lvalue reference.
+//
+// If `P` is possibly cv-qualified `void`, then `Dependency<P*, Manager&>`
+// has an ambiguous interpretation for `Manager` being `M*`, `std::nullptr_t`,
+// or `std::unique_ptr<M, Deleter>`. The ambiguity is resolved in favor of
+// pointing the `void*` to the dereferenced `M`, not to the `Manager` object
+// itself.
 template <typename P, typename M>
-class DependencyImpl<P*, M&,
-                     std::enable_if_t<std::is_convertible<M*, P*>::value>>
+class DependencyImpl<
+    P*, M&,
+    std::enable_if_t<absl::conjunction<
+        std::is_convertible<M*, P*>,
+        absl::negation<absl::conjunction<
+            std::is_void<P>, dependency_internal::DereferencedForVoidPtr<
+                                 std::decay_t<M>>>>>::value>>
     : public DependencyBase<M&> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
