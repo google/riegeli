@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
@@ -239,57 +240,47 @@ char* WriteHex(absl::uint128 src, char* dest, size_t width);
 
 // `WriteHexUnsigned()` writes at least `width` digits.
 
-template <typename T, std::enable_if_t<(std::numeric_limits<T>::max() <=
-                                        std::numeric_limits<uint8_t>::max()),
-                                       int> = 0>
+template <typename T, std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 2   ? WriteHex2(IntCast<uint8_t>(src), dest)
          : width <= 1 ? WriteHex(IntCast<uint8_t>(src), dest)
                       : WriteHex(IntCast<uint8_t>(src), dest, width);
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint8_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint16_t>::max()),
-        int> = 0>
+template <typename T,
+          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
+                                             FitsIn<T, uint16_t>>::value,
+                           int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 4   ? WriteHex4(IntCast<uint16_t>(src), dest)
          : width <= 1 ? WriteHex(IntCast<uint16_t>(src), dest)
                       : WriteHex(IntCast<uint16_t>(src), dest, width);
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint16_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint32_t>::max()),
-        int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
+                                            FitsIn<T, uint32_t>>::value,
+                          int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 8   ? WriteHex8(IntCast<uint32_t>(src), dest)
          : width <= 1 ? WriteHex(IntCast<uint32_t>(src), dest)
                       : WriteHex(IntCast<uint32_t>(src), dest, width);
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint32_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint64_t>::max()),
-        int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
+                                            FitsIn<T, uint64_t>>::value,
+                          int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 16  ? WriteHex16(IntCast<uint64_t>(src), dest)
          : width <= 1 ? WriteHex(IntCast<uint64_t>(src), dest)
                       : WriteHex(IntCast<uint64_t>(src), dest, width);
 }
 
-template <typename T,
-          std::enable_if_t<(std::numeric_limits<T>::max() >
-                                std::numeric_limits<uint64_t>::max() &&
-                            std::numeric_limits<T>::max() <=
-                                std::numeric_limits<absl::uint128>::max()),
-                           int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
+                                            FitsIn<T, absl::uint128>>::value,
+                          int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 32  ? WriteHex32(IntCast<absl::uint128>(src), dest)
          : width <= 1 ? WriteHex(IntCast<absl::uint128>(src), dest)
@@ -305,15 +296,11 @@ void WriteHexBackward32(absl::uint128 src, char* dest);
 
 template <typename T>
 constexpr size_t MaxLengthWriteHexUnsignedBackward() {
-  return std::numeric_limits<T>::max() <= std::numeric_limits<uint8_t>::max()
-             ? 2
-         : std::numeric_limits<T>::max() <= std::numeric_limits<uint16_t>::max()
-             ? 4
-         : std::numeric_limits<T>::max() <= std::numeric_limits<uint32_t>::max()
-             ? 8
-         : std::numeric_limits<T>::max() <= std::numeric_limits<uint64_t>::max()
-             ? 16
-             : 32;
+  return FitsIn<T, uint8_t>::value    ? 2
+         : FitsIn<T, uint16_t>::value ? 4
+         : FitsIn<T, uint32_t>::value ? 8
+         : FitsIn<T, uint64_t>::value ? 16
+                                      : 32;
 }
 
 // `WriteHexUnsignedBackward<T>()` writes at least `width` digits.
@@ -321,9 +308,7 @@ constexpr size_t MaxLengthWriteHexUnsignedBackward() {
 // `width` must be at most `MaxLengthWriteHexUnsignedBackward<T>()`, and that
 // much space must be available before `dest`.
 
-template <typename T, std::enable_if_t<(std::numeric_limits<T>::max() <=
-                                        std::numeric_limits<uint8_t>::max()),
-                                       int> = 0>
+template <typename T, std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 2u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
@@ -333,12 +318,10 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   return dest - width;
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint8_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint16_t>::max()),
-        int> = 0>
+template <typename T,
+          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
+                                             FitsIn<T, uint16_t>>::value,
+                           int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 4u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
@@ -350,12 +333,10 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   return dest - width;
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint16_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint32_t>::max()),
-        int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
+                                            FitsIn<T, uint32_t>>::value,
+                          int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 8u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
@@ -366,12 +347,10 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   return dest - width;
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        (std::numeric_limits<T>::max() > std::numeric_limits<uint32_t>::max() &&
-         std::numeric_limits<T>::max() <= std::numeric_limits<uint64_t>::max()),
-        int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
+                                            FitsIn<T, uint64_t>>::value,
+                          int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 16u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
@@ -382,12 +361,10 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   return dest - width;
 }
 
-template <typename T,
-          std::enable_if_t<(std::numeric_limits<T>::max() >
-                                std::numeric_limits<uint64_t>::max() &&
-                            std::numeric_limits<T>::max() <=
-                                std::numeric_limits<absl::uint128>::max()),
-                           int> = 0>
+template <typename T, std::enable_if_t<
+                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
+                                            FitsIn<T, absl::uint128>>::value,
+                          int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 32u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
@@ -424,6 +401,7 @@ template <typename Sink, typename DependentT,
 inline void DecType<T>::AbslStringifyImpl(Sink& sink) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
   char str[kMaxNumDigits + 1];
   char* begin;
   size_t length;
@@ -469,22 +447,12 @@ template <typename DependentT,
 inline void DecType<T>::WriteTo(Writer& dest) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
   if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
     return;
   }
-  MakeUnsignedT<T> abs_value;
-  char* cursor = dest.cursor();
-  size_t width = width_;
-  if (value_ >= 0) {
-    abs_value = UnsignedCast(value_);
-  } else {
-    *cursor = '-';
-    ++cursor;
-    abs_value = NegatingUnsignedCast(value_);
-    width = SaturatingSub(width, size_t{1});
-  }
   dest.set_cursor(
-      write_int_internal::WriteDecUnsigned(abs_value, cursor, width));
+      write_int_internal::WriteDecSigned(value_, dest.cursor(), width_));
 }
 
 template <typename T>
@@ -510,8 +478,9 @@ template <typename Sink, typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
 inline void HexType<T>::AbslStringifyImpl(Sink& sink) const {
   constexpr size_t kMaxNumDigits =
-      write_int_internal::MaxLengthWriteHexUnsignedBackward<T>();
+      write_int_internal::MaxLengthWriteHexUnsignedBackward<MakeUnsignedT<T>>();
   size_t width = width_;
+  // `+ 1` for the minus sign.
   char str[kMaxNumDigits + 1];
   char* begin;
   if (value_ >= 0) {
@@ -554,6 +523,7 @@ template <typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
 inline void HexType<T>::WriteTo(Writer& dest) const {
   constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
+  // `+ 1` for the minus sign.
   if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
     return;
   }

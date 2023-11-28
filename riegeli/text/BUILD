@@ -17,6 +17,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings",

@@ -179,19 +179,98 @@ inline char* WriteDecImpl(absl::uint128 src, char* dest, size_t width) {
 }  // namespace
 
 char* WriteDec(uint32_t src, char* dest) { return WriteDecImpl(src, dest, 0); }
+
 char* WriteDec(uint64_t src, char* dest) { return WriteDecImpl(src, dest, 0); }
+
 char* WriteDec(absl::uint128 src, char* dest) {
   return WriteDecImpl(src, dest, 0);
+}
+
+char* WriteDec(int32_t src, char* dest) {
+  uint32_t abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+  }
+  return WriteDec(abs_value, dest);
+}
+
+char* WriteDec(int64_t src, char* dest) {
+  uint64_t abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+  }
+  return WriteDec(abs_value, dest);
+}
+
+char* WriteDec(absl::int128 src, char* dest) {
+  absl::uint128 abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+  }
+  return WriteDec(abs_value, dest);
 }
 
 char* WriteDec(uint32_t src, char* dest, size_t width) {
   return WriteDecImpl(src, dest, width);
 }
+
 char* WriteDec(uint64_t src, char* dest, size_t width) {
   return WriteDecImpl(src, dest, width);
 }
+
 char* WriteDec(absl::uint128 src, char* dest, size_t width) {
   return WriteDecImpl(src, dest, width);
+}
+
+char* WriteDec(int32_t src, char* dest, size_t width) {
+  uint32_t abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+    width = SaturatingSub(width, size_t{1});
+  }
+  return WriteDec(abs_value, dest, width);
+}
+
+char* WriteDec(int64_t src, char* dest, size_t width) {
+  uint64_t abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+    width = SaturatingSub(width, size_t{1});
+  }
+  return WriteDec(abs_value, dest, width);
+}
+
+char* WriteDec(absl::int128 src, char* dest, size_t width) {
+  absl::uint128 abs_value;
+  if (src >= 0) {
+    abs_value = UnsignedCast(src);
+  } else {
+    *dest = '-';
+    ++dest;
+    abs_value = NegatingUnsignedCast(src);
+    width = SaturatingSub(width, size_t{1});
+  }
+  return WriteDec(abs_value, dest, width);
 }
 
 char* WriteDecBackward(uint32_t src, char* dest) {
@@ -210,6 +289,7 @@ char* WriteDecBackward(uint32_t src, char* dest) {
   }
   return dest;
 }
+
 char* WriteDecBackward(uint64_t src, char* dest) {
   while (src > std::numeric_limits<uint32_t>::max()) {
     const uint32_t digits = IntCast<uint32_t>(src % 100);
@@ -219,6 +299,7 @@ char* WriteDecBackward(uint64_t src, char* dest) {
   }
   return WriteDecBackward(IntCast<uint32_t>(src), dest);
 }
+
 char* WriteDecBackward(absl::uint128 src, char* dest) {
   while (src > std::numeric_limits<uint64_t>::max()) {
     const uint32_t digits = IntCast<uint32_t>(src % 100);
@@ -227,6 +308,39 @@ char* WriteDecBackward(absl::uint128 src, char* dest) {
     WriteDec2Impl(digits, dest);
   }
   return WriteDecBackward(IntCast<uint64_t>(src), dest);
+}
+
+char* WriteDecBackward(int32_t src, char* dest) {
+  if (src >= 0) {
+    return WriteDecBackward(UnsignedCast(src), dest);
+  } else {
+    dest = WriteDecBackward(NegatingUnsignedCast(src), dest);
+    --dest;
+    *dest = '-';
+    return dest;
+  }
+}
+
+char* WriteDecBackward(int64_t src, char* dest) {
+  if (src >= 0) {
+    return WriteDecBackward(UnsignedCast(src), dest);
+  } else {
+    dest = WriteDecBackward(NegatingUnsignedCast(src), dest);
+    --dest;
+    *dest = '-';
+    return dest;
+  }
+}
+
+char* WriteDecBackward(absl::int128 src, char* dest) {
+  if (src >= 0) {
+    return WriteDecBackward(UnsignedCast(src), dest);
+  } else {
+    dest = WriteDecBackward(NegatingUnsignedCast(src), dest);
+    --dest;
+    *dest = '-';
+    return dest;
+  }
 }
 
 }  // namespace write_int_internal

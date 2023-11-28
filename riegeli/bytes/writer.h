@@ -703,17 +703,9 @@ template <typename T>
 inline bool WriteSigned(T src, Writer& dest) {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
   if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
-  MakeUnsignedT<T> abs_value;
-  char* cursor = dest.cursor();
-  if (src >= 0) {
-    abs_value = UnsignedCast(src);
-  } else {
-    *cursor = '-';
-    ++cursor;
-    abs_value = NegatingUnsignedCast(src);
-  }
-  dest.set_cursor(WriteDecUnsigned(abs_value, cursor));
+  dest.set_cursor(WriteDecSigned(src, dest.cursor()));
   return true;
 }
 

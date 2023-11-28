@@ -500,16 +500,9 @@ template <typename T>
 inline bool WriteSigned(T src, BackwardWriter& dest) {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
   if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
-  char* cursor = dest.cursor();
-  if (src >= 0) {
-    cursor = WriteDecUnsignedBackward(UnsignedCast(src), cursor);
-  } else {
-    cursor = WriteDecUnsignedBackward(NegatingUnsignedCast(src), cursor);
-    --cursor;
-    *cursor = '-';
-  }
-  dest.set_cursor(cursor);
+  dest.set_cursor(WriteDecSignedBackward(src, dest.cursor()));
   return true;
 }
 
