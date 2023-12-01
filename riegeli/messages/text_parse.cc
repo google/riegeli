@@ -15,13 +15,11 @@
 #include "riegeli/messages/text_parse.h"
 
 #include <memory>
-#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/message.h"
@@ -40,13 +38,12 @@ namespace messages_internal {
 void StringErrorCollector::AddError(int line,
                                     google::protobuf::io::ColumnNumber column,
                                     const std::string& message) {
-  if (!errors_.empty()) {
-    absl::StrAppend(&errors_, errors_.back() == '.' ? " " : ". ");
-  }
   if (line >= 0) {
-    absl::StrAppendFormat(&errors_, "At %d:%d: ", line + 1, column + 1);
+    absl::StrAppend(&errors_, "\nAt ", line + 1, ":", column + 1, ": ",
+                    message);
+  } else {
+    absl::StrAppend(&errors_, "\n", message);
   }
-  absl::StrAppend(&errors_, message);
 }
 
 }  // namespace messages_internal
@@ -68,12 +65,9 @@ absl::Status TextParseFromReaderImpl(Reader& src,
                                         : parser.Parse(&input_stream, &dest);
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) {
-    std::string message = absl::StrCat("Failed to text-parse message of type ",
-                                       dest.GetTypeName());
-    if (!options.error_collector_->errors().empty()) {
-      absl::StrAppend(&message, ". ", options.error_collector_->errors());
-    }
-    return src.AnnotateStatus(absl::InvalidArgumentError(message));
+    return src.AnnotateStatus(absl::InvalidArgumentError(
+        absl::StrCat("Failed to text-parse message of type ",
+                     dest.GetTypeName(), options.error_collector_->errors())));
   }
   return absl::OkStatus();
 }

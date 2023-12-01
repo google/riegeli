@@ -456,13 +456,11 @@ class RecordsTest(parameterized.TestCase):
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          field_projection=[
-              [
-                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
-                      'id'
-                  ].number
-              ]
-          ],
+          field_projection=[[
+              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                  'id'
+              ].number
+          ]],
       ) as reader:
         self.assertEqual(
             list(reader.read_messages(records_test_pb2.SimpleMessage)),
@@ -495,15 +493,11 @@ class RecordsTest(parameterized.TestCase):
               reader.read_message(records_test_pb2.SimpleMessage),
               sample_message(i, 10000),
           )
-        reader.set_field_projection(
-            [
-                [
-                    records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
-                        'id'
-                    ].number
-                ]
-            ]
-        )
+        reader.set_field_projection([[
+            records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                'id'
+            ].number
+        ]])
         for i in range(4, 14):
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
@@ -651,13 +645,11 @@ class RecordsTest(parameterized.TestCase):
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
-          field_projection=[
-              [
-                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
-                      'id'
-                  ].number
-              ]
-          ],
+          field_projection=[[
+              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name[
+                  'id'
+              ].number
+          ]],
       ) as reader:
         for i in range(23):
           self.assertEqual(
