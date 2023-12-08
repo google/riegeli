@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/bytes/wrapped_writer.h"
+#include "riegeli/bytes/wrapping_backward_writer.h"
 
 #include <stddef.h>
 
@@ -22,29 +22,28 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
-#include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
+#include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
 
-void WrappedWriterBase::Done() {
+void WrappingBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    Writer& dest = *DestWriter();
+    BackwardWriter& dest = *DestWriter();
     SyncBuffer(dest);
   }
-  Writer::Done();
+  BackwardWriter::Done();
 }
 
-absl::Status WrappedWriterBase::AnnotateStatusImpl(absl::Status status) {
+absl::Status WrappingBackwardWriterBase::AnnotateStatusImpl(
+    absl::Status status) {
   // Fully delegate annotations to `*DestWriter()`.
   if (is_open()) {
-    Writer& dest = *DestWriter();
+    BackwardWriter& dest = *DestWriter();
     SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
     MakeBuffer(dest);
@@ -52,132 +51,93 @@ absl::Status WrappedWriterBase::AnnotateStatusImpl(absl::Status status) {
   return status;
 }
 
-bool WrappedWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
+bool WrappingBackwardWriterBase::PushSlow(size_t min_length,
+                                          size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Writer::PushSlow(): "
+      << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
   return push_ok;
 }
 
-bool WrappedWriterBase::WriteSlow(absl::string_view src) {
+bool WrappingBackwardWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
-      << "Failed precondition of Writer::WriteSlow(string_view): "
+      << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   return WriteInternal(src);
 }
 
-bool WrappedWriterBase::WriteSlow(const Chain& src) {
+bool WrappingBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(Chain): "
+      << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   return WriteInternal(src);
 }
 
-bool WrappedWriterBase::WriteSlow(Chain&& src) {
+bool WrappingBackwardWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(Chain&&): "
+      << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   return WriteInternal(std::move(src));
 }
 
-bool WrappedWriterBase::WriteSlow(const absl::Cord& src) {
+bool WrappingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(Cord): "
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   return WriteInternal(src);
 }
 
-bool WrappedWriterBase::WriteSlow(absl::Cord&& src) {
+bool WrappingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(Cord&&): "
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   return WriteInternal(std::move(src));
 }
 
 template <typename Src>
-inline bool WrappedWriterBase::WriteInternal(Src&& src) {
+inline bool WrappingBackwardWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return write_ok;
 }
 
-bool WrappedWriterBase::WriteZerosSlow(Position length) {
+bool WrappingBackwardWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;
 }
 
-bool WrappedWriterBase::SupportsRandomAccess() {
-  Writer* const dest = DestWriter();
-  return dest != nullptr && dest->SupportsRandomAccess();
-}
-
-bool WrappedWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
-      << "Failed precondition of Writer::SeekSlow(): "
-         "position unchanged, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
-  SyncBuffer(dest);
-  const bool seek_ok = dest.Seek(new_pos);
-  MakeBuffer(dest);
-  return seek_ok;
-}
-
-bool WrappedWriterBase::PrefersCopying() const {
-  const Writer* const dest = DestWriter();
+bool WrappingBackwardWriterBase::PrefersCopying() const {
+  const BackwardWriter* const dest = DestWriter();
   return dest != nullptr && dest->PrefersCopying();
 }
 
-absl::optional<Position> WrappedWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  Writer& dest = *DestWriter();
-  SyncBuffer(dest);
-  const absl::optional<Position> size = dest.Size();
-  MakeBuffer(dest);
-  return size;
-}
-
-bool WrappedWriterBase::SupportsTruncate() {
-  Writer* const dest = DestWriter();
+bool WrappingBackwardWriterBase::SupportsTruncate() {
+  BackwardWriter* const dest = DestWriter();
   return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool WrappedWriterBase::TruncateImpl(Position new_size) {
+bool WrappingBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
+  BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   const bool truncate_ok = dest.Truncate(new_size);
   MakeBuffer(dest);
   return truncate_ok;
-}
-
-bool WrappedWriterBase::SupportsReadMode() {
-  Writer* const dest = DestWriter();
-  return dest != nullptr && dest->SupportsReadMode();
-}
-
-Reader* WrappedWriterBase::ReadModeImpl(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  Writer& dest = *DestWriter();
-  SyncBuffer(dest);
-  Reader* const reader = dest.ReadMode(initial_pos);
-  MakeBuffer(dest);
-  return reader;
 }
 
 }  // namespace riegeli

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_WRAPPED_BACKWARD_WRITER_H_
-#define RIEGELI_BYTES_WRAPPED_BACKWARD_WRITER_H_
+#ifndef RIEGELI_BYTES_WRAPPING_BACKWARD_WRITER_H_
+#define RIEGELI_BYTES_WRAPPING_BACKWARD_WRITER_H_
 
 #include <stddef.h>
 
@@ -36,8 +36,8 @@
 
 namespace riegeli {
 
-// Template parameter independent part of `WrappedBackwardWriter`.
-class WrappedBackwardWriterBase : public BackwardWriter {
+// Template parameter independent part of `WrappingBackwardWriter`.
+class WrappingBackwardWriterBase : public BackwardWriter {
  public:
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
   virtual BackwardWriter* DestWriter() = 0;
@@ -49,9 +49,9 @@ class WrappedBackwardWriterBase : public BackwardWriter {
  protected:
   using BackwardWriter::BackwardWriter;
 
-  WrappedBackwardWriterBase(WrappedBackwardWriterBase&& that) noexcept;
-  WrappedBackwardWriterBase& operator=(
-      WrappedBackwardWriterBase&& that) noexcept;
+  WrappingBackwardWriterBase(WrappingBackwardWriterBase&& that) noexcept;
+  WrappingBackwardWriterBase& operator=(
+      WrappingBackwardWriterBase&& that) noexcept;
 
   void Initialize(BackwardWriter* dest);
 
@@ -76,7 +76,7 @@ class WrappedBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
-  // This template is defined and used only in wrapped_backward_writer.cc.
+  // This template is defined and used only in wrapping_backward_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
 
@@ -99,31 +99,31 @@ class WrappedBackwardWriterBase : public BackwardWriter {
 // the first constructor argument. This requires C++17.
 //
 // The original `BackwardWriter` must not be accessed until the
-// `WrappedBackwardWriter` is closed or no longer used, except that it is
+// `WrappingBackwardWriter` is closed or no longer used, except that it is
 // allowed to read the destination of the original `BackwardWriter` immediately
 // after `Flush()`.
 template <typename Dest = BackwardWriter*>
-class WrappedBackwardWriter : public WrappedBackwardWriterBase {
+class WrappingBackwardWriter : public WrappingBackwardWriterBase {
  public:
-  // Creates a closed `WrappedBackwardWriter`.
-  explicit WrappedBackwardWriter(Closed) noexcept
-      : WrappedBackwardWriterBase(kClosed) {}
+  // Creates a closed `WrappingBackwardWriter`.
+  explicit WrappingBackwardWriter(Closed) noexcept
+      : WrappingBackwardWriterBase(kClosed) {}
 
   // Will write to the original `BackwardWriter` provided by `dest`.
-  explicit WrappedBackwardWriter(const Dest& dest);
-  explicit WrappedBackwardWriter(Dest&& dest);
+  explicit WrappingBackwardWriter(const Dest& dest);
+  explicit WrappingBackwardWriter(Dest&& dest);
 
   // Will write to the original `BackwardWriter` provided by a `Dest`
   // constructed from elements of `dest_args`. This avoids constructing a
   // temporary `Dest` and moving from it.
   template <typename... DestArgs>
-  explicit WrappedBackwardWriter(std::tuple<DestArgs...> dest_args);
+  explicit WrappingBackwardWriter(std::tuple<DestArgs...> dest_args);
 
-  WrappedBackwardWriter(WrappedBackwardWriter&& that) noexcept;
-  WrappedBackwardWriter& operator=(WrappedBackwardWriter&& that) noexcept;
+  WrappingBackwardWriter(WrappingBackwardWriter&& that) noexcept;
+  WrappingBackwardWriter& operator=(WrappingBackwardWriter&& that) noexcept;
 
-  // Makes `*this` equivalent to a newly constructed `WrappedBackwardWriter`.
-  // This avoids constructing a temporary `WrappedBackwardWriter` and moving
+  // Makes `*this` equivalent to a newly constructed `WrappingBackwardWriter`.
+  // This avoids constructing a temporary `WrappingBackwardWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
@@ -146,7 +146,7 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
  private:
   // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
   // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(WrappedBackwardWriter&& that);
+  void MoveDest(WrappingBackwardWriter&& that);
 
   // The object providing and possibly owning the original `BackwardWriter`.
   Dependency<BackwardWriter*, Dest> dest_;
@@ -154,117 +154,117 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-explicit WrappedBackwardWriter(Closed)
-    -> WrappedBackwardWriter<DeleteCtad<Closed>>;
+explicit WrappingBackwardWriter(Closed)
+    -> WrappingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit WrappedBackwardWriter(const Dest& dest)
-    -> WrappedBackwardWriter<std::decay_t<Dest>>;
+explicit WrappingBackwardWriter(const Dest& dest)
+    -> WrappingBackwardWriter<std::decay_t<Dest>>;
 template <typename Dest>
-explicit WrappedBackwardWriter(Dest&& dest)
-    -> WrappedBackwardWriter<std::decay_t<Dest>>;
+explicit WrappingBackwardWriter(Dest&& dest)
+    -> WrappingBackwardWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-explicit WrappedBackwardWriter(std::tuple<DestArgs...> dest_args)
-    -> WrappedBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit WrappingBackwardWriter(std::tuple<DestArgs...> dest_args)
+    -> WrappingBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.
 
-inline WrappedBackwardWriterBase::WrappedBackwardWriterBase(
-    WrappedBackwardWriterBase&& that) noexcept
+inline WrappingBackwardWriterBase::WrappingBackwardWriterBase(
+    WrappingBackwardWriterBase&& that) noexcept
     : BackwardWriter(static_cast<BackwardWriter&&>(that)) {}
 
-inline WrappedBackwardWriterBase& WrappedBackwardWriterBase::operator=(
-    WrappedBackwardWriterBase&& that) noexcept {
+inline WrappingBackwardWriterBase& WrappingBackwardWriterBase::operator=(
+    WrappingBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(static_cast<BackwardWriter&&>(that));
   return *this;
 }
 
-inline void WrappedBackwardWriterBase::Initialize(BackwardWriter* dest) {
+inline void WrappingBackwardWriterBase::Initialize(BackwardWriter* dest) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of WrappedBackwardWriter: "
+      << "Failed precondition of WrappingBackwardWriter: "
          "null BackwardWriter pointer";
   MakeBuffer(*dest);
 }
 
-inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
+inline void WrappingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
   dest.set_cursor(cursor());
 }
 
-inline void WrappedBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
+inline void WrappingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
   set_buffer(dest.limit(), dest.start_to_limit(), dest.start_to_cursor());
   set_start_pos(dest.start_pos());
   if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
 template <typename Dest>
-inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(const Dest& dest)
+inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(const Dest& dest)
     : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(Dest&& dest)
+inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(Dest&& dest)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(
+inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(
     std::tuple<DestArgs...> dest_args)
     : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(
-    WrappedBackwardWriter&& that) noexcept
-    : WrappedBackwardWriterBase(
-          static_cast<WrappedBackwardWriterBase&&>(that)) {
+inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(
+    WrappingBackwardWriter&& that) noexcept
+    : WrappingBackwardWriterBase(
+          static_cast<WrappingBackwardWriterBase&&>(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-inline WrappedBackwardWriter<Dest>& WrappedBackwardWriter<Dest>::operator=(
-    WrappedBackwardWriter&& that) noexcept {
-  WrappedBackwardWriterBase::operator=(
-      static_cast<WrappedBackwardWriterBase&&>(that));
+inline WrappingBackwardWriter<Dest>& WrappingBackwardWriter<Dest>::operator=(
+    WrappingBackwardWriter&& that) noexcept {
+  WrappingBackwardWriterBase::operator=(
+      static_cast<WrappingBackwardWriterBase&&>(that));
   MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-inline void WrappedBackwardWriter<Dest>::Reset(Closed) {
-  WrappedBackwardWriterBase::Reset(kClosed);
+inline void WrappingBackwardWriter<Dest>::Reset(Closed) {
+  WrappingBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
-inline void WrappedBackwardWriter<Dest>::Reset(const Dest& dest) {
-  WrappedBackwardWriterBase::Reset();
+inline void WrappingBackwardWriter<Dest>::Reset(const Dest& dest) {
+  WrappingBackwardWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void WrappedBackwardWriter<Dest>::Reset(Dest&& dest) {
-  WrappedBackwardWriterBase::Reset();
+inline void WrappingBackwardWriter<Dest>::Reset(Dest&& dest) {
+  WrappingBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
-inline void WrappedBackwardWriter<Dest>::Reset(
+inline void WrappingBackwardWriter<Dest>::Reset(
     std::tuple<DestArgs...> dest_args) {
-  WrappedBackwardWriterBase::Reset();
+  WrappingBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void WrappedBackwardWriter<Dest>::MoveDest(
-    WrappedBackwardWriter&& that) {
+inline void WrappingBackwardWriter<Dest>::MoveDest(
+    WrappingBackwardWriter&& that) {
   if (dest_.kIsStable || that.dest_ == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
@@ -277,8 +277,8 @@ inline void WrappedBackwardWriter<Dest>::MoveDest(
 }
 
 template <typename Dest>
-void WrappedBackwardWriter<Dest>::Done() {
-  WrappedBackwardWriterBase::Done();
+void WrappingBackwardWriter<Dest>::Done() {
+  WrappingBackwardWriterBase::Done();
   if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(dest_->status());
@@ -287,7 +287,7 @@ void WrappedBackwardWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-void WrappedBackwardWriter<Dest>::SetWriteSizeHintImpl(
+void WrappingBackwardWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) {
     SyncBuffer(*dest_);
@@ -297,7 +297,7 @@ void WrappedBackwardWriter<Dest>::SetWriteSizeHintImpl(
 }
 
 template <typename Dest>
-bool WrappedBackwardWriter<Dest>::FlushImpl(FlushType flush_type) {
+bool WrappingBackwardWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
   bool flush_ok = true;
@@ -310,4 +310,4 @@ bool WrappedBackwardWriter<Dest>::FlushImpl(FlushType flush_type) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_WRAPPED_BACKWARD_WRITER_H_
+#endif  // RIEGELI_BYTES_WRAPPING_BACKWARD_WRITER_H_

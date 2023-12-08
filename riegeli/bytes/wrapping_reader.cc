@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/bytes/wrapped_reader.h"
+#include "riegeli/bytes/wrapping_reader.h"
 
 #include <stddef.h>
 
@@ -36,7 +36,7 @@
 
 namespace riegeli {
 
-void WrappedReaderBase::Done() {
+void WrappingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
     Reader& src = *SrcReader();
     SyncBuffer(src);
@@ -44,7 +44,7 @@ void WrappedReaderBase::Done() {
   Reader::Done();
 }
 
-absl::Status WrappedReaderBase::AnnotateStatusImpl(absl::Status status) {
+absl::Status WrappingReaderBase::AnnotateStatusImpl(absl::Status status) {
   // Fully delegate annotations to `*SrcReader()`.
   if (is_open()) {
     Reader& src = *SrcReader();
@@ -55,7 +55,8 @@ absl::Status WrappedReaderBase::AnnotateStatusImpl(absl::Status status) {
   return status;
 }
 
-bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+bool WrappingReaderBase::PullSlow(size_t min_length,
+                                  size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
@@ -67,7 +68,7 @@ bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   return pull_ok;
 }
 
-bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
+bool WrappingReaderBase::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
@@ -79,7 +80,7 @@ bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
   return read_ok;
 }
 
-bool WrappedReaderBase::ReadSlow(size_t length, Chain& dest) {
+bool WrappingReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
@@ -89,7 +90,7 @@ bool WrappedReaderBase::ReadSlow(size_t length, Chain& dest) {
   return ReadInternal(length, dest);
 }
 
-bool WrappedReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
+bool WrappingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
@@ -100,7 +101,7 @@ bool WrappedReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 template <typename Dest>
-inline bool WrappedReaderBase::ReadInternal(size_t length, Dest& dest) {
+inline bool WrappingReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -109,7 +110,7 @@ inline bool WrappedReaderBase::ReadInternal(size_t length, Dest& dest) {
   return read_ok;
 }
 
-bool WrappedReaderBase::CopySlow(Position length, Writer& dest) {
+bool WrappingReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
@@ -121,7 +122,7 @@ bool WrappedReaderBase::CopySlow(Position length, Writer& dest) {
   return copy_ok;
 }
 
-bool WrappedReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
+bool WrappingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
@@ -133,7 +134,7 @@ bool WrappedReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return copy_ok;
 }
 
-bool WrappedReaderBase::ReadSomeDirectlySlow(
+bool WrappingReaderBase::ReadSomeDirectlySlow(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
@@ -149,8 +150,8 @@ bool WrappedReaderBase::ReadSomeDirectlySlow(
   return read_directly;
 }
 
-void WrappedReaderBase::ReadHintSlow(size_t min_length,
-                                     size_t recommended_length) {
+void WrappingReaderBase::ReadHintSlow(size_t min_length,
+                                      size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
@@ -161,22 +162,22 @@ void WrappedReaderBase::ReadHintSlow(size_t min_length,
   MakeBuffer(src);
 }
 
-bool WrappedReaderBase::ToleratesReadingAhead() {
+bool WrappingReaderBase::ToleratesReadingAhead() {
   Reader* const src = SrcReader();
   return src != nullptr && src->ToleratesReadingAhead();
 }
 
-bool WrappedReaderBase::SupportsRandomAccess() {
+bool WrappingReaderBase::SupportsRandomAccess() {
   Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 
-bool WrappedReaderBase::SupportsRewind() {
+bool WrappingReaderBase::SupportsRewind() {
   Reader* const src = SrcReader();
   return src != nullptr && src->SupportsRewind();
 }
 
-bool WrappedReaderBase::SeekSlow(Position new_pos) {
+bool WrappingReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
@@ -188,12 +189,12 @@ bool WrappedReaderBase::SeekSlow(Position new_pos) {
   return seek_ok;
 }
 
-bool WrappedReaderBase::SupportsSize() {
+bool WrappingReaderBase::SupportsSize() {
   Reader* const src = SrcReader();
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> WrappedReaderBase::SizeImpl() {
+absl::optional<Position> WrappingReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -202,12 +203,13 @@ absl::optional<Position> WrappedReaderBase::SizeImpl() {
   return size;
 }
 
-bool WrappedReaderBase::SupportsNewReader() {
+bool WrappingReaderBase::SupportsNewReader() {
   Reader* const src = SrcReader();
   return src != nullptr && src->SupportsNewReader();
 }
 
-std::unique_ptr<Reader> WrappedReaderBase::NewReaderImpl(Position initial_pos) {
+std::unique_ptr<Reader> WrappingReaderBase::NewReaderImpl(
+    Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
   // if `SrcReader()->SupportsNewReader()`.

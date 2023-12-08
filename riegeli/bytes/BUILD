@@ -322,9 +322,9 @@ cc_library(
 )
 
 cc_library(
-    name = "wrapped_reader",
-    srcs = ["wrapped_reader.cc"],
-    hdrs = ["wrapped_reader.h"],
+    name = "wrapping_reader",
+    srcs = ["wrapping_reader.cc"],
+    hdrs = ["wrapping_reader.h"],
     deps = [
         ":backward_writer",
         ":reader",
@@ -345,9 +345,9 @@ cc_library(
 )
 
 cc_library(
-    name = "wrapped_writer",
-    srcs = ["wrapped_writer.cc"],
-    hdrs = ["wrapped_writer.h"],
+    name = "wrapping_writer",
+    srcs = ["wrapping_writer.cc"],
+    hdrs = ["wrapping_writer.h"],
     deps = [
         ":reader",
         ":writer",
@@ -367,9 +367,9 @@ cc_library(
 )
 
 cc_library(
-    name = "wrapped_backward_writer",
-    srcs = ["wrapped_backward_writer.cc"],
-    hdrs = ["wrapped_backward_writer.h"],
+    name = "wrapping_backward_writer",
+    srcs = ["wrapping_backward_writer.cc"],
+    hdrs = ["wrapping_backward_writer.h"],
     deps = [
         ":backward_writer",
         "//riegeli/base:arithmetic",
@@ -384,6 +384,28 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "wrapped_reader",
+    hdrs = ["wrapped_reader.h"],
+    deps = [
+        ":reader",
+        ":wrapping_reader",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
+    ],
+)
+
+cc_library(
+    name = "wrapped_writer",
+    hdrs = ["wrapped_writer.h"],
+    deps = [
+        ":wrapping_writer",
+        ":writer",
+        "//riegeli/base:dependency",
+        "//riegeli/base:object",
     ],
 )
 
