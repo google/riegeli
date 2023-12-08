@@ -197,21 +197,21 @@ template <typename BaseDigesterType,
               digester_internal::ConvertDigest<DigestTypeOf<BaseDigesterType>,
                                                DigestType>,
           typename Enable = void>
-class WrappedDigester : public Digester<DigestType> {
+class WrappingDigester : public Digester<DigestType> {
  public:
   // Default-constructs the base `DigesterType`.
-  WrappedDigester() : base_(std::forward_as_tuple()) {}
+  WrappingDigester() : base_(std::forward_as_tuple()) {}
 
   // Forwards constructor arguments to the base `DigesterType`.
   template <typename... Args>
-  explicit WrappedDigester(Args&&... args)
+  explicit WrappingDigester(Args&&... args)
       : base_(std::forward_as_tuple(std::forward<Args>(args)...)) {}
 
-  WrappedDigester(const WrappedDigester& that) = default;
-  WrappedDigester& operator=(const WrappedDigester& that) = default;
+  WrappingDigester(const WrappingDigester& that) = default;
+  WrappingDigester& operator=(const WrappingDigester& that) = default;
 
-  WrappedDigester(WrappedDigester&& that) = default;
-  WrappedDigester& operator=(WrappedDigester&& that) = default;
+  WrappingDigester(WrappingDigester&& that) = default;
+  WrappingDigester& operator=(WrappingDigester&& that) = default;
 
  protected:
   // Returns the `BaseDigesterType`.
@@ -231,12 +231,12 @@ class WrappedDigester : public Digester<DigestType> {
   Dependency<DigesterBase*, BaseDigesterType> base_;
 };
 
-// A specialization of `WrappedDigester` when `DigestType` is not changing and
+// A specialization of `WrappingDigester` when `DigestType` is not changing and
 // `BaseDigesterType` is a concrete class deriving from `Digester<DigestType>`.
 // Use inheritance instead of delegation for optimization.
 template <typename BaseDigesterType, typename DigestType,
           DigestType (*digest_converter)(DigestType)>
-class WrappedDigester<
+class WrappingDigester<
     BaseDigesterType, DigestType, digest_converter,
     std::enable_if_t<absl::conjunction<
         std::is_base_of<Digester<DigestType>, BaseDigesterType>,
@@ -245,15 +245,15 @@ class WrappedDigester<
  public:
   using BaseDigesterType::BaseDigesterType;
 
-  WrappedDigester(const WrappedDigester& that) = default;
-  WrappedDigester& operator=(const WrappedDigester& that) = default;
+  WrappingDigester(const WrappingDigester& that) = default;
+  WrappingDigester& operator=(const WrappingDigester& that) = default;
 
-  WrappedDigester(WrappedDigester&& that) = default;
-  WrappedDigester& operator=(WrappedDigester&& that) = default;
+  WrappingDigester(WrappingDigester&& that) = default;
+  WrappingDigester& operator=(WrappingDigester&& that) = default;
 
  protected:
   // Returns the `BaseDigesterType`. The dynamic type is actually
-  // `WrappedDigester`.
+  // `WrappingDigester`.
   BaseDigesterType& base() { return *this; }
   const BaseDigesterType& base() const { return *this; }
 
