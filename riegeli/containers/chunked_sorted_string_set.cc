@@ -35,6 +35,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/binary_search.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -111,10 +112,22 @@ bool ChunkedSortedStringSet::EqualImpl(const ChunkedSortedStringSet& a,
          std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
 }
 
-bool ChunkedSortedStringSet::LessImpl(const ChunkedSortedStringSet& a,
-                                      const ChunkedSortedStringSet& b) {
-  return std::lexicographical_compare(a.cbegin(), a.cend(), b.cbegin(),
-                                      b.cend());
+StrongOrdering ChunkedSortedStringSet::CompareImpl(
+    const ChunkedSortedStringSet& a, const ChunkedSortedStringSet& b) {
+  Iterator a_iter = a.cbegin();
+  Iterator b_iter = b.cbegin();
+  while (a_iter != a.cend()) {
+    if (b_iter == b.cend()) return StrongOrdering::greater;
+    {
+      const int ordering = a_iter->compare(*b_iter);
+      if (ordering != 0) {
+        return AsStrongOrdering(ordering);
+      }
+    }
+    ++a_iter;
+    ++b_iter;
+  }
+  return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
 }
 
 size_t ChunkedSortedStringSet::EstimateMemory() const {

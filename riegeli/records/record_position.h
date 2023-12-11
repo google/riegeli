@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -48,7 +49,7 @@ namespace riegeli {
 // an approximate position interpolated along the file, e.g. for splitting the
 // file into shards, or unless the position must be expressed as an integer from
 // the range [0..`file_size`] in order to fit into a preexisting API.
-class RecordPosition {
+class RecordPosition : public WithCompare<RecordPosition> {
  public:
   // Creates a `RecordPosition` corresponding to the first record.
   constexpr RecordPosition() = default;
@@ -83,32 +84,15 @@ class RecordPosition {
     return a.chunk_begin() == b.chunk_begin() &&
            a.record_index() == b.record_index();
   }
-  friend bool operator!=(RecordPosition a, RecordPosition b) {
-    return !(a == b);
-  }
-  friend bool operator<(RecordPosition a, RecordPosition b) {
-    if (a.chunk_begin() != b.chunk_begin()) {
-      return a.chunk_begin() < b.chunk_begin();
+  friend StrongOrdering RIEGELI_COMPARE(const RecordPosition& a,
+                                        const RecordPosition& b) {
+    {
+      const StrongOrdering ordering = Compare(a.chunk_begin(), b.chunk_begin());
+      if (ordering != 0) {
+        return ordering;
+      }
     }
-    return a.record_index() < b.record_index();
-  }
-  friend bool operator>(RecordPosition a, RecordPosition b) {
-    if (a.chunk_begin() != b.chunk_begin()) {
-      return a.chunk_begin() > b.chunk_begin();
-    }
-    return a.record_index() > b.record_index();
-  }
-  friend bool operator<=(RecordPosition a, RecordPosition b) {
-    if (a.chunk_begin() != b.chunk_begin()) {
-      return a.chunk_begin() < b.chunk_begin();
-    }
-    return a.record_index() <= b.record_index();
-  }
-  friend bool operator>=(RecordPosition a, RecordPosition b) {
-    if (a.chunk_begin() != b.chunk_begin()) {
-      return a.chunk_begin() > b.chunk_begin();
-    }
-    return a.record_index() >= b.record_index();
+    return Compare(a.record_index(), b.record_index());
   }
 
   template <typename HashState>

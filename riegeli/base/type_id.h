@@ -15,13 +15,15 @@
 #ifndef RIEGELI_BASE_TYPE_ID_H_
 #define RIEGELI_BASE_TYPE_ID_H_
 
+#include "riegeli/base/compare.h"
+
 namespace riegeli {
 
 // `TypeId::For<A>()` is a token which is equal to `TypeId::For<B>()` whenever
 // `A` and `B` are the same type.
 //
 // `TypeId()` is another value not equal to any other.
-class TypeId {
+class TypeId : public WithEqual<TypeId> {
  public:
   constexpr TypeId() = default;
 
@@ -34,7 +36,6 @@ class TypeId {
   friend constexpr bool operator==(TypeId a, TypeId b) {
     return a.ptr_ == b.ptr_;
   }
-  friend constexpr bool operator!=(TypeId a, TypeId b) { return !(a == b); }
 
  private:
   template <typename T>

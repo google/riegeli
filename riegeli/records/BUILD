@@ -91,6 +91,7 @@ cc_library(
     deps = [
         ":block",
         "//riegeli/base:assert",
+        "//riegeli/base:compare",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:types",
         "//riegeli/bytes:string_reader",

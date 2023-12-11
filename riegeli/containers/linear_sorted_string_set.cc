@@ -35,6 +35,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -251,10 +252,22 @@ bool LinearSortedStringSet::EqualImpl(const LinearSortedStringSet& a,
   return std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
 }
 
-bool LinearSortedStringSet::LessImpl(const LinearSortedStringSet& a,
-                                     const LinearSortedStringSet& b) {
-  return std::lexicographical_compare(a.cbegin(), a.cend(), b.cbegin(),
-                                      b.cend());
+StrongOrdering LinearSortedStringSet::CompareImpl(
+    const LinearSortedStringSet& a, const LinearSortedStringSet& b) {
+  Iterator a_iter = a.cbegin();
+  Iterator b_iter = b.cbegin();
+  while (a_iter != a.cend()) {
+    if (b_iter == b.cend()) return StrongOrdering::greater;
+    {
+      const int ordering = a_iter->compare(*b_iter);
+      if (ordering != 0) {
+        return AsStrongOrdering(ordering);
+      }
+    }
+    ++a_iter;
+    ++b_iter;
+  }
+  return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
 }
 
 size_t LinearSortedStringSet::EstimateMemory() const {

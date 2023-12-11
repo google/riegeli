@@ -28,6 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
@@ -385,9 +386,11 @@ struct HasGetIfDynamic<
 // `Dependency` (applied to `DependencyMaybeRef`) and `StableDependency`
 // (applied to `StableDependencyImpl`).
 template <typename Base, typename Ptr, typename Manager>
-class DependencyDerived : public Base,
-                          public ConditionallyAbslNullabilityCompatible<
-                              std::is_pointer<Ptr>::value> {
+class DependencyDerived
+    : public Base,
+      public WithEqual<DependencyDerived<Base, Ptr, Manager>>,
+      public ConditionallyAbslNullabilityCompatible<
+          std::is_pointer<Ptr>::value> {
  public:
   using Base::Base;
 
@@ -430,21 +433,6 @@ class DependencyDerived : public Base,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   friend bool operator==(const DependencyDerived& a, std::nullptr_t) {
     return a.get() == nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(const DependencyDerived& a, std::nullptr_t) {
-    return a.get() != nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(std::nullptr_t, const DependencyDerived& b) {
-    return nullptr == b.get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(std::nullptr_t, const DependencyDerived& b) {
-    return nullptr != b.get();
   }
 
   template <

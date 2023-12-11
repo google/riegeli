@@ -38,12 +38,13 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/background_cleaning.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/no_destructor.h"
 
 namespace riegeli {
 
 // Options for `RecyclingPool` and `KeyedRecyclingPool`.
-class RecyclingPoolOptions {
+class RecyclingPoolOptions : public WithEqual<RecyclingPoolOptions> {
  public:
   RecyclingPoolOptions() = default;
 
@@ -91,10 +92,6 @@ class RecyclingPoolOptions {
                          const RecyclingPoolOptions& b) {
     return a.max_size_ == b.max_size_ &&
            a.max_age_seconds_ == b.max_age_seconds_;
-  }
-  friend bool operator!=(const RecyclingPoolOptions& a,
-                         const RecyclingPoolOptions& b) {
-    return !(a == b);
   }
 
   template <typename HashState>

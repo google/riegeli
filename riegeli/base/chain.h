@@ -34,12 +34,12 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
@@ -119,7 +119,7 @@ class ChainOptions {
 //
 // A `Chain` is implemented with a sequence of blocks holding flat data
 // fragments.
-class Chain {
+class Chain : public WithCompare<Chain> {
  public:
   using Options = chain_internal::ChainOptions;
 
@@ -345,62 +345,18 @@ class Chain {
 
   friend void swap(Chain& a, Chain& b) noexcept;
 
-  absl::strong_ordering Compare(const Chain& that) const;
-  absl::strong_ordering Compare(absl::string_view that) const;
-
   friend bool operator==(const Chain& a, const Chain& b) {
-    return a.size() == b.size() && a.Compare(b) == 0;
+    return a.size() == b.size() && CompareImpl(a, b) == 0;
   }
-  friend bool operator!=(const Chain& a, const Chain& b) { return !(a == b); }
-  friend bool operator<(const Chain& a, const Chain& b) {
-    return a.Compare(b) < 0;
-  }
-  friend bool operator>(const Chain& a, const Chain& b) {
-    return a.Compare(b) > 0;
-  }
-  friend bool operator<=(const Chain& a, const Chain& b) {
-    return a.Compare(b) <= 0;
-  }
-  friend bool operator>=(const Chain& a, const Chain& b) {
-    return a.Compare(b) >= 0;
+  friend StrongOrdering RIEGELI_COMPARE(const Chain& a, const Chain& b) {
+    return CompareImpl(a, b);
   }
 
   friend bool operator==(const Chain& a, absl::string_view b) {
-    return a.size() == b.size() && a.Compare(b) == 0;
+    return a.size() == b.size() && CompareImpl(a, b) == 0;
   }
-  friend bool operator!=(const Chain& a, absl::string_view b) {
-    return !(a == b);
-  }
-  friend bool operator<(const Chain& a, absl::string_view b) {
-    return a.Compare(b) < 0;
-  }
-  friend bool operator>(const Chain& a, absl::string_view b) {
-    return a.Compare(b) > 0;
-  }
-  friend bool operator<=(const Chain& a, absl::string_view b) {
-    return a.Compare(b) <= 0;
-  }
-  friend bool operator>=(const Chain& a, absl::string_view b) {
-    return a.Compare(b) >= 0;
-  }
-
-  friend bool operator==(absl::string_view a, const Chain& b) {
-    return a.size() == b.size() && b.Compare(a) == 0;
-  }
-  friend bool operator!=(absl::string_view a, const Chain& b) {
-    return !(a == b);
-  }
-  friend bool operator<(absl::string_view a, const Chain& b) {
-    return b.Compare(a) > 0;
-  }
-  friend bool operator>(absl::string_view a, const Chain& b) {
-    return b.Compare(a) < 0;
-  }
-  friend bool operator<=(absl::string_view a, const Chain& b) {
-    return b.Compare(a) >= 0;
-  }
-  friend bool operator>=(absl::string_view a, const Chain& b) {
-    return b.Compare(a) <= 0;
+  friend StrongOrdering RIEGELI_COMPARE(const Chain& a, absl::string_view b) {
+    return CompareImpl(a, b);
   }
 
   template <typename HashState>
@@ -607,6 +563,8 @@ class Chain {
                                 const Options& options);
 
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
+  static StrongOrdering CompareImpl(const Chain& a, const Chain& b);
+  static StrongOrdering CompareImpl(const Chain& a, absl::string_view b);
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state) const;
   template <typename Sink>
@@ -637,7 +595,7 @@ class Chain {
 // Represents either `const BlockPtr*`, or one of two special values
 // (`kBeginShortData` and `kEndShortData`) behaving as if they were pointers in
 // a single-element `BlockPtr` array.
-class Chain::BlockPtrPtr {
+class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
  public:
   explicit constexpr BlockPtrPtr(uintptr_t repr) : repr_(repr) {}
   static BlockPtrPtr from_ptr(const BlockPtr* ptr);
@@ -654,32 +612,11 @@ class Chain::BlockPtrPtr {
   friend bool operator==(BlockPtrPtr a, BlockPtrPtr b) {
     return a.repr_ == b.repr_;
   }
-  friend bool operator!=(BlockPtrPtr a, BlockPtrPtr b) {
-    return a.repr_ != b.repr_;
-  }
-  friend bool operator<(BlockPtrPtr a, BlockPtrPtr b) {
+  friend StrongOrdering RIEGELI_COMPARE(BlockPtrPtr a, BlockPtrPtr b) {
     RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
         << "Incompatible BlockPtrPtr values";
-    if (a.is_special()) return a.repr_ < b.repr_;
-    return a.as_ptr() < b.as_ptr();
-  }
-  friend bool operator>(BlockPtrPtr a, BlockPtrPtr b) {
-    RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
-        << "Incompatible BlockPtrPtr values";
-    if (a.is_special()) return a.repr_ > b.repr_;
-    return a.as_ptr() > b.as_ptr();
-  }
-  friend bool operator<=(BlockPtrPtr a, BlockPtrPtr b) {
-    RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
-        << "Incompatible BlockPtrPtr values";
-    if (a.is_special()) return a.repr_ <= b.repr_;
-    return a.as_ptr() <= b.as_ptr();
-  }
-  friend bool operator>=(BlockPtrPtr a, BlockPtrPtr b) {
-    RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
-        << "Incompatible BlockPtrPtr values";
-    if (a.is_special()) return a.repr_ >= b.repr_;
-    return a.as_ptr() >= b.as_ptr();
+    if (a.is_special()) return Compare(a.repr_, b.repr_);
+    return Compare(a.as_ptr(), b.as_ptr());
   }
 
  private:
@@ -710,7 +647,7 @@ class Chain::BlockPtrPtr {
   uintptr_t repr_;
 };
 
-class Chain::BlockIterator {
+class Chain::BlockIterator : public WithCompare<BlockIterator> {
  public:
   using iterator_concept = std::random_access_iterator_tag;
   // `iterator_category` is only `std::input_iterator_tag` because the
@@ -766,35 +703,11 @@ class Chain::BlockIterator {
            "incomparable iterators";
     return a.ptr_ == b.ptr_;
   }
-  friend bool operator!=(BlockIterator a, BlockIterator b) {
+  friend StrongOrdering RIEGELI_COMPARE(BlockIterator a, BlockIterator b) {
     RIEGELI_ASSERT(a.chain_ == b.chain_)
-        << "Failed precondition of operator!=(Chain::BlockIterator): "
+        << "Failed precondition of operator<=>(Chain::BlockIterator): "
            "incomparable iterators";
-    return a.ptr_ != b.ptr_;
-  }
-  friend bool operator<(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
-        << "Failed precondition of operator<(Chain::BlockIterator): "
-           "incomparable iterators";
-    return a.ptr_ < b.ptr_;
-  }
-  friend bool operator>(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
-        << "Failed precondition of operator>(Chain::BlockIterator): "
-           "incomparable iterators";
-    return a.ptr_ > b.ptr_;
-  }
-  friend bool operator<=(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
-        << "Failed precondition of operator<=(Chain::BlockIterator): "
-           "incomparable iterators";
-    return a.ptr_ <= b.ptr_;
-  }
-  friend bool operator>=(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
-        << "Failed precondition of operator>=(Chain::BlockIterator): "
-           "incomparable iterators";
-    return a.ptr_ >= b.ptr_;
+    return Compare(a.ptr_, b.ptr_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
     RIEGELI_ASSERT(a.chain_ == b.chain_)

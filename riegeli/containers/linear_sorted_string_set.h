@@ -33,6 +33,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/compact_string_writer.h"
@@ -47,7 +48,7 @@ namespace riegeli {
 // `LinearSortedStringSet` is optimized for memory usage. It should be used
 // only with very small sets (up to tens of elements), otherwise consider
 // `ChunkedSortedStringSet`.
-class LinearSortedStringSet {
+class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
  public:
   class Iterator;
   class SplitElement;
@@ -205,25 +206,9 @@ class LinearSortedStringSet {
                          const LinearSortedStringSet& b) {
     return EqualImpl(a, b);
   }
-  friend bool operator!=(const LinearSortedStringSet& a,
-                         const LinearSortedStringSet& b) {
-    return !EqualImpl(a, b);
-  }
-  friend bool operator<(const LinearSortedStringSet& a,
-                        const LinearSortedStringSet& b) {
-    return LessImpl(a, b);
-  }
-  friend bool operator>(const LinearSortedStringSet& a,
-                        const LinearSortedStringSet& b) {
-    return LessImpl(b, a);
-  }
-  friend bool operator<=(const LinearSortedStringSet& a,
-                         const LinearSortedStringSet& b) {
-    return !LessImpl(b, a);
-  }
-  friend bool operator>=(const LinearSortedStringSet& a,
-                         const LinearSortedStringSet& b) {
-    return !LessImpl(a, b);
+  friend StrongOrdering RIEGELI_COMPARE(const LinearSortedStringSet& a,
+                                        const LinearSortedStringSet& b) {
+    return CompareImpl(a, b);
   }
 
   template <typename HashState>
@@ -265,8 +250,8 @@ class LinearSortedStringSet {
 
   static bool EqualImpl(const LinearSortedStringSet& a,
                         const LinearSortedStringSet& b);
-  static bool LessImpl(const LinearSortedStringSet& a,
-                       const LinearSortedStringSet& b);
+  static StrongOrdering CompareImpl(const LinearSortedStringSet& a,
+                                    const LinearSortedStringSet& b);
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state);
 
@@ -284,7 +269,7 @@ class LinearSortedStringSet {
 };
 
 // Iterates over a `LinearSortedStringSet` in the sorted order.
-class LinearSortedStringSet::Iterator {
+class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
  public:
   // `iterator_concept` is only `std::input_iterator_tag` because the
   // `std::forward_iterator` requirement and above require references to remain
@@ -356,9 +341,6 @@ class LinearSortedStringSet::Iterator {
   friend bool operator==(const Iterator& a, const Iterator& b) {
     return a.cursor_ == b.cursor_;
   }
-  friend bool operator!=(const Iterator& a, const Iterator& b) {
-    return a.cursor_ != b.cursor_;
-  }
 
  private:
   friend class LinearSortedStringSet;  // For `Iterator()`.
@@ -411,7 +393,8 @@ class LinearSortedStringSet::SplitElement {
 //
 // Each element is represented as `SplitElement` rather than
 // `absl::string_view`, which is more efficient but less convenient.
-class LinearSortedStringSet::SplitElementIterator {
+class LinearSortedStringSet::SplitElementIterator
+    : public WithEqual<SplitElementIterator> {
  public:
   // `iterator_concept` is only `std::input_iterator_tag` because the
   // `std::forward_iterator` requirement and above require references to remain
@@ -480,10 +463,6 @@ class LinearSortedStringSet::SplitElementIterator {
   friend bool operator==(const SplitElementIterator& a,
                          const SplitElementIterator& b) {
     return a.cursor_ == b.cursor_;
-  }
-  friend bool operator!=(const SplitElementIterator& a,
-                         const SplitElementIterator& b) {
-    return a.cursor_ != b.cursor_;
   }
 
  private:

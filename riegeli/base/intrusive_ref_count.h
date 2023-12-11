@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 
 namespace riegeli {
 
@@ -50,7 +51,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        RefCountedPtr {
+        RefCountedPtr : public WithEqual<RefCountedPtr<T>> {
  public:
   // Creates an empty `RefCountedPtr`.
   constexpr RefCountedPtr() = default;
@@ -115,20 +116,8 @@ class
   friend bool operator==(const RefCountedPtr& a, const RefCountedPtr& b) {
     return a.get() == b.get();
   }
-  friend bool operator!=(const RefCountedPtr& a, const RefCountedPtr& b) {
-    return a.get() != b.get();
-  }
   friend bool operator==(const RefCountedPtr& a, std::nullptr_t) {
     return a.get() == nullptr;
-  }
-  friend bool operator!=(const RefCountedPtr& a, std::nullptr_t) {
-    return a.get() != nullptr;
-  }
-  friend bool operator==(std::nullptr_t, const RefCountedPtr& b) {
-    return nullptr == b.get();
-  }
-  friend bool operator!=(std::nullptr_t, const RefCountedPtr& b) {
-    return nullptr != b.get();
   }
 
   // Allow Nullability annotations on `RefCountedPtr`.

@@ -69,9 +69,9 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
   compressor_ =
       KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::global(
           recycling_pool_options_)
-          .Get(LzmaStreamKey{container_,
+          .Get(LzmaStreamKey(container_,
                              container_ == Container::kXz && parallelism > 0,
-                             preset},
+                             preset),
                [] {
                  return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
                      new lzma_stream());

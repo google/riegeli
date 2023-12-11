@@ -37,6 +37,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -127,26 +128,36 @@ bool IsProtoMessage(Reader& record) {
 
 // `PriorityQueueEntry` is used in `tag_priority` to order destinations by the
 // number of transitions into them.
-struct PriorityQueueEntry {
-  PriorityQueueEntry() {}
+struct PriorityQueueEntry : WithCompare<PriorityQueueEntry> {
+  PriorityQueueEntry() = default;
 
   explicit PriorityQueueEntry(uint32_t dest_index, size_t num_transitions)
       : dest_index(dest_index), num_transitions(num_transitions) {}
+
+  friend bool operator==(const PriorityQueueEntry& a,
+                         const PriorityQueueEntry& b) {
+    return a.dest_index == b.dest_index &&
+           a.num_transitions == b.num_transitions;
+  }
+  friend StrongOrdering RIEGELI_COMPARE(const PriorityQueueEntry& a,
+                                        const PriorityQueueEntry& b) {
+    // Sort by `num_transitions`. Largest first.
+    {
+      const StrongOrdering ordering =
+          Compare(b.num_transitions, a.num_transitions);
+      if (ordering != 0) {
+        return ordering;
+      }
+    }
+    // Break ties for reproducible ordering.
+    return Compare(a.dest_index, b.dest_index);
+  }
 
   // Index of the destination in `tags_list_`.
   uint32_t dest_index = 0;
   // Number of transitions into destination.
   size_t num_transitions = 0;
 };
-
-bool operator<(PriorityQueueEntry a, PriorityQueueEntry b) {
-  // Sort by `num_transitions`. Largest first.
-  if (a.num_transitions != b.num_transitions) {
-    return a.num_transitions > b.num_transitions;
-  }
-  // Break ties for reproducible ordering.
-  return a.dest_index < b.dest_index;
-}
 
 }  // namespace
 

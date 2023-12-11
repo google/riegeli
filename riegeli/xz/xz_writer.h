@@ -28,6 +28,7 @@
 #include "lzma.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -225,13 +226,17 @@ class XzWriterBase : public BufferedWriter {
     }
   };
 
-  struct LzmaStreamKey {
+  struct LzmaStreamKey : WithEqual<LzmaStreamKey> {
+    LzmaStreamKey() = default;
+    explicit LzmaStreamKey(Container container, bool with_parallelism,
+                           uint32_t preset)
+        : container(container),
+          with_parallelism(with_parallelism),
+          preset(preset) {}
+
     friend bool operator==(LzmaStreamKey a, LzmaStreamKey b) {
       return a.container == b.container &&
              a.with_parallelism == b.with_parallelism && a.preset == b.preset;
-    }
-    friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
-      return !(a == b);
     }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {

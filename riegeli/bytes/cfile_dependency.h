@@ -25,6 +25,7 @@
 #include <memory>
 
 #include "absl/base/attributes.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -32,7 +33,7 @@ namespace riegeli {
 // Owns a `FILE` (`nullptr` means none).
 //
 // `OwnedCFile` is explicitly convertible from `FILE*`.
-class OwnedCFile {
+class OwnedCFile : public WithEqual<OwnedCFile> {
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() = default;
@@ -55,13 +56,7 @@ class OwnedCFile {
   friend bool operator==(const OwnedCFile& a, const OwnedCFile& b) {
     return a.get() == b.get();
   }
-  friend bool operator!=(const OwnedCFile& a, const OwnedCFile& b) {
-    return a.get() != b.get();
-  }
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
-  friend bool operator!=(const OwnedCFile& a, FILE* b) { return a.get() != b; }
-  friend bool operator==(FILE* a, const OwnedCFile& b) { return a == b.get(); }
-  friend bool operator!=(FILE* a, const OwnedCFile& b) { return a != b.get(); }
 
   // Allow Nullability annotations on `OwnedCFile`.
   using absl_nullability_compatible = void;
@@ -77,7 +72,7 @@ class OwnedCFile {
 // Refers to a `FILE` but does not own it (`nullptr` means none).
 //
 // `UnownedCFile` is explicitly convertible from `FILE*`.
-class UnownedCFile {
+class UnownedCFile : public WithEqual<UnownedCFile> {
  public:
   // Creates an `UnownedCFile` which does not refer to a file.
   UnownedCFile() = default;
@@ -97,13 +92,7 @@ class UnownedCFile {
   friend bool operator==(UnownedCFile a, UnownedCFile b) {
     return a.get() == b.get();
   }
-  friend bool operator!=(UnownedCFile a, UnownedCFile b) {
-    return a.get() != b.get();
-  }
   friend bool operator==(UnownedCFile a, FILE* b) { return a.get() == b; }
-  friend bool operator!=(UnownedCFile a, FILE* b) { return a.get() != b; }
-  friend bool operator==(FILE* a, UnownedCFile b) { return a == b.get(); }
-  friend bool operator!=(FILE* a, UnownedCFile b) { return a != b.get(); }
 
   // Allow Nullability annotations on `UnownedCFile`.
   using absl_nullability_compatible = void;

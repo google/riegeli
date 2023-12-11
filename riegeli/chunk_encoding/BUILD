@@ -214,6 +214,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
+        "//riegeli/base:compare",
         "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_backward_writer",

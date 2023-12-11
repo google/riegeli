@@ -81,7 +81,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
       KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global(
           recycling_pool_options_)
           .Get(
-              ZStreamKey{compression_level, window_bits_},
+              ZStreamKey(compression_level, window_bits_),
               [&] {
                 std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
                 const int zlib_code =

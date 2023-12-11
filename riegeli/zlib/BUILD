@@ -46,6 +46,7 @@ cc_library(
         ":zlib_reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:compare",
         "//riegeli/base:dependency",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:object",

@@ -60,7 +60,7 @@ inline void XzReaderBase::InitializeDecompressor() {
   decompressor_ =
       KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::global(
           recycling_pool_options_)
-          .Get(LzmaStreamKey{container_}, [] {
+          .Get(LzmaStreamKey(container_), [] {
             return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
                 new lzma_stream());
           });

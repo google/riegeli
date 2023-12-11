@@ -59,6 +59,7 @@ cc_library(
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:compare",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:no_destructor",
         "//riegeli/base:type_traits",

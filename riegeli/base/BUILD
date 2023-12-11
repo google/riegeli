@@ -28,6 +28,15 @@ cc_library(
 )
 
 cc_library(
+    name = "compare",
+    hdrs = ["compare.h"],
+    deps = [
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/types:compare",
+    ],
+)
+
+cc_library(
     name = "assert",
     srcs = [
         "assert.cc",
@@ -145,6 +154,7 @@ cc_library(
 cc_library(
     name = "type_id",
     hdrs = ["type_id.h"],
+    deps = [":compare"],
 )
 
 cc_library(
@@ -189,6 +199,7 @@ cc_library(
     hdrs = ["dependency.h"],
     deps = [
         ":assert",
+        ":compare",
         ":reset",
         ":type_id",
         ":type_traits",
@@ -215,6 +226,7 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":compare",
         ":dependency",
         ":memory_estimator",
         ":type_id",
@@ -275,6 +287,7 @@ cc_library(
     hdrs = ["intrusive_ref_count.h"],
     deps = [
         ":assert",
+        ":compare",
         "@com_google_absl//absl/base:core_headers",
     ],
 )
@@ -334,6 +347,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":buffering",
+        ":compare",
         ":cord_utils",
         ":intrusive_ref_count",
         ":memory_estimator",
@@ -348,7 +362,6 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
@@ -361,12 +374,12 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":compare",
         ":estimated_allocated_size",
         ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:compare",
     ],
 )
 
@@ -420,6 +433,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":background_cleaning",
+        ":compare",
         ":no_destructor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",

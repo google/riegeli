@@ -27,9 +27,9 @@
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/new_aligned.h"
 
 namespace riegeli {
@@ -73,7 +73,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        CompactString {
+        CompactString : public WithCompare<CompactString> {
  public:
   static constexpr size_t max_size() {
     return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);
@@ -184,63 +184,21 @@ class
   // It may reallocate the string and it writes the NUL each time.
   const char* c_str();
 
-  absl::strong_ordering Compare(absl::string_view that) const;
-
   friend bool operator==(const CompactString& a, const CompactString& b) {
     return a.repr_ == b.repr_ || absl::string_view(a) == absl::string_view(b);
   }
-  friend bool operator!=(const CompactString& a, const CompactString& b) {
-    return !(a == b);
-  }
-  friend bool operator<(const CompactString& a, const CompactString& b) {
-    return absl::string_view(a) < absl::string_view(b);
-  }
-  friend bool operator>(const CompactString& a, const CompactString& b) {
-    return absl::string_view(a) > absl::string_view(b);
-  }
-  friend bool operator<=(const CompactString& a, const CompactString& b) {
-    return absl::string_view(a) <= absl::string_view(b);
-  }
-  friend bool operator>=(const CompactString& a, const CompactString& b) {
-    return absl::string_view(a) >= absl::string_view(b);
+  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
+                                        const CompactString& b) {
+    if (a.repr_ == b.repr_) return StrongOrdering::equal;
+    return AsStrongOrdering(absl::string_view(a).compare(b));
   }
 
   friend bool operator==(const CompactString& a, absl::string_view b) {
     return absl::string_view(a) == b;
   }
-  friend bool operator!=(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) != b;
-  }
-  friend bool operator<(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) < b;
-  }
-  friend bool operator>(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) > b;
-  }
-  friend bool operator<=(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) <= b;
-  }
-  friend bool operator>=(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) >= b;
-  }
-
-  friend bool operator==(absl::string_view a, const CompactString& b) {
-    return a == absl::string_view(b);
-  }
-  friend bool operator!=(absl::string_view a, const CompactString& b) {
-    return a != absl::string_view(b);
-  }
-  friend bool operator<(absl::string_view a, const CompactString& b) {
-    return a < absl::string_view(b);
-  }
-  friend bool operator>(absl::string_view a, const CompactString& b) {
-    return a > absl::string_view(b);
-  }
-  friend bool operator<=(absl::string_view a, const CompactString& b) {
-    return a <= absl::string_view(b);
-  }
-  friend bool operator>=(absl::string_view a, const CompactString& b) {
-    return a >= absl::string_view(b);
+  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
+                                        absl::string_view b) {
+    return AsStrongOrdering(absl::string_view(a).compare(b));
   }
 
   template <typename HashState>
@@ -717,14 +675,6 @@ inline const char* CompactString::c_str() {
   char* const ptr = data();
   ptr[used_size] = '\0';
   return ptr;
-}
-
-inline absl::strong_ordering CompactString::Compare(
-    absl::string_view that) const {
-  const int result = absl::string_view(*this).compare(that);
-  if (result < 0) return absl::strong_ordering::less;
-  if (result > 0) return absl::strong_ordering::greater;
-  return absl::strong_ordering::equivalent;
 }
 
 template <typename MemoryEstimator>

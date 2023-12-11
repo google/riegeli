@@ -40,6 +40,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/type_traits.h"
@@ -173,9 +174,9 @@ std::string AsciiCaseInsensitive(absl::string_view name);
 // they have been added.
 //
 // Copying a `CsvHeader` object is cheap, sharing the actual set.
-class CsvHeader {
+class CsvHeader : public WithEqual<CsvHeader> {
  public:
-  class iterator {
+  class iterator : public WithCompare<iterator> {
    public:
     using iterator_category = std::random_access_iterator_tag;
     using value_type = std::string;
@@ -203,16 +204,10 @@ class CsvHeader {
     friend bool operator==(iterator a, iterator b) {
       return a.iter_ == b.iter_;
     }
-    friend bool operator!=(iterator a, iterator b) {
-      return a.iter_ != b.iter_;
-    }
-    friend bool operator<(iterator a, iterator b) { return a.iter_ < b.iter_; }
-    friend bool operator>(iterator a, iterator b) { return a.iter_ > b.iter_; }
-    friend bool operator<=(iterator a, iterator b) {
-      return a.iter_ <= b.iter_;
-    }
-    friend bool operator>=(iterator a, iterator b) {
-      return a.iter_ >= b.iter_;
+    friend StrongOrdering RIEGELI_COMPARE(iterator a, iterator b) {
+      if (a.iter_ < b.iter_) return StrongOrdering::less;
+      if (a.iter_ > b.iter_) return StrongOrdering::greater;
+      return StrongOrdering::equal;
     }
     friend difference_type operator-(iterator a, iterator b) {
       return a.iter_ - b.iter_;
@@ -448,9 +443,6 @@ class CsvHeader {
   friend bool operator==(const CsvHeader& a, const CsvHeader& b) {
     return EqualImpl(a, b);
   }
-  friend bool operator!=(const CsvHeader& a, const CsvHeader& b) {
-    return !(a == b);
-  }
 
   // Renders contents in a human-readable way.
   std::string DebugString() const;
@@ -668,11 +660,11 @@ explicit CsvHeaderConstant(
 //
 // This is conceptually a mapping from field names to field values, with a fixed
 // set of field names. The set of field names is expressed as `CsvHeader`.
-class CsvRecord {
+class CsvRecord : public WithEqual<CsvRecord> {
  private:
   // Implementation shared between `iterator` and `const_iterator`.
   template <typename FieldIterator>
-  class IteratorImpl {
+  class IteratorImpl : public WithCompare<IteratorImpl<FieldIterator>> {
    public:
     using iterator_concept = std::random_access_iterator_tag;
     // `iterator_category` is only `std::input_iterator_tag` because the
@@ -726,20 +718,10 @@ class CsvRecord {
     friend bool operator==(IteratorImpl a, IteratorImpl b) {
       return a.field_iter_ == b.field_iter_;
     }
-    friend bool operator!=(IteratorImpl a, IteratorImpl b) {
-      return a.field_iter_ != b.field_iter_;
-    }
-    friend bool operator<(IteratorImpl a, IteratorImpl b) {
-      return a.field_iter_ < b.field_iter_;
-    }
-    friend bool operator>(IteratorImpl a, IteratorImpl b) {
-      return a.field_iter_ > b.field_iter_;
-    }
-    friend bool operator<=(IteratorImpl a, IteratorImpl b) {
-      return a.field_iter_ <= b.field_iter_;
-    }
-    friend bool operator>=(IteratorImpl a, IteratorImpl b) {
-      return a.field_iter_ >= b.field_iter_;
+    friend StrongOrdering RIEGELI_COMPARE(IteratorImpl a, IteratorImpl b) {
+      if (a.field_iter_ < b.field_iter_) return StrongOrdering::less;
+      if (a.field_iter_ > b.field_iter_) return StrongOrdering::greater;
+      return StrongOrdering::equal;
     }
     friend difference_type operator-(IteratorImpl a, IteratorImpl b) {
       return a.field_iter_ - b.field_iter_;
@@ -958,9 +940,6 @@ class CsvRecord {
 
   friend bool operator==(const CsvRecord& a, const CsvRecord& b) {
     return EqualImpl(a, b);
-  }
-  friend bool operator!=(const CsvRecord& a, const CsvRecord& b) {
-    return !(a == b);
   }
 
   // Renders contents in a human-readable way.

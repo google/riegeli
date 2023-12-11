@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "lzma.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -164,12 +165,12 @@ class XzReaderBase : public BufferedReader {
     }
   };
 
-  struct LzmaStreamKey {
+  struct LzmaStreamKey : WithEqual<LzmaStreamKey> {
+    LzmaStreamKey() = default;
+    explicit LzmaStreamKey(Container container) : container(container) {}
+
     friend bool operator==(LzmaStreamKey a, LzmaStreamKey b) {
       return a.container == b.container;
-    }
-    friend bool operator!=(LzmaStreamKey a, LzmaStreamKey b) {
-      return !(a == b);
     }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, LzmaStreamKey self) {

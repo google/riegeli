@@ -34,6 +34,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/reader.h"
@@ -46,7 +47,7 @@ namespace riegeli {
 // prefixes within each chunk.
 //
 // `ChunkedSortedStringSet` is optimized for memory usage.
-class ChunkedSortedStringSet {
+class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
  public:
   class Options {
    public:
@@ -234,25 +235,9 @@ class ChunkedSortedStringSet {
                          const ChunkedSortedStringSet& b) {
     return EqualImpl(a, b);
   }
-  friend bool operator!=(const ChunkedSortedStringSet& a,
-                         const ChunkedSortedStringSet& b) {
-    return !EqualImpl(a, b);
-  }
-  friend bool operator<(const ChunkedSortedStringSet& a,
-                        const ChunkedSortedStringSet& b) {
-    return LessImpl(a, b);
-  }
-  friend bool operator>(const ChunkedSortedStringSet& a,
-                        const ChunkedSortedStringSet& b) {
-    return LessImpl(b, a);
-  }
-  friend bool operator<=(const ChunkedSortedStringSet& a,
-                         const ChunkedSortedStringSet& b) {
-    return !LessImpl(b, a);
-  }
-  friend bool operator>=(const ChunkedSortedStringSet& a,
-                         const ChunkedSortedStringSet& b) {
-    return !LessImpl(a, b);
+  friend StrongOrdering RIEGELI_COMPARE(const ChunkedSortedStringSet& a,
+                                        const ChunkedSortedStringSet& b) {
+    return CompareImpl(a, b);
   }
 
   template <typename HashState>
@@ -360,8 +345,8 @@ class ChunkedSortedStringSet {
 
   static bool EqualImpl(const ChunkedSortedStringSet& a,
                         const ChunkedSortedStringSet& b);
-  static bool LessImpl(const ChunkedSortedStringSet& a,
-                       const ChunkedSortedStringSet& b);
+  static StrongOrdering CompareImpl(const ChunkedSortedStringSet& a,
+                                    const ChunkedSortedStringSet& b);
   template <typename HashState>
   HashState AbslHashValueImpl(HashState hash_state);
 
@@ -379,7 +364,7 @@ class ChunkedSortedStringSet {
 };
 
 // Iterates over a `LinearSortedStringSet` in the sorted order.
-class ChunkedSortedStringSet::Iterator {
+class ChunkedSortedStringSet::Iterator : public WithEqual<Iterator> {
  public:
   // `iterator_concept` is only `std::input_iterator_tag` because the
   // `std::forward_iterator` requirement and above require references to remain
@@ -445,9 +430,6 @@ class ChunkedSortedStringSet::Iterator {
   // other values are not equal.
   friend bool operator==(const Iterator& a, const Iterator& b) {
     return a.current_iterator_ == b.current_iterator_;
-  }
-  friend bool operator!=(const Iterator& a, const Iterator& b) {
-    return a.current_iterator_ != b.current_iterator_;
   }
 
  private:

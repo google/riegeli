@@ -32,12 +32,12 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory_estimator.h"
@@ -2557,70 +2557,75 @@ void swap(Chain& a, Chain& b) noexcept {
   swap(a.size_, b.size_);
 }
 
-absl::strong_ordering Chain::Compare(const Chain& that) const {
-  Chain::BlockIterator this_iter = blocks().cbegin();
-  Chain::BlockIterator that_iter = that.blocks().cbegin();
+StrongOrdering Chain::CompareImpl(const Chain& a, const Chain& b) {
+  Chain::BlockIterator a_iter = a.blocks().cbegin();
+  Chain::BlockIterator b_iter = b.blocks().cbegin();
   size_t this_pos = 0;
   size_t that_pos = 0;
-  while (this_iter != blocks().cend()) {
-    if (that_iter == that.blocks().cend()) {
+  while (a_iter != a.blocks().cend()) {
+    if (b_iter == b.blocks().cend()) {
       do {
-        if (!this_iter->empty()) return absl::strong_ordering::greater;
-        ++this_iter;
-      } while (this_iter != blocks().cend());
-      return absl::strong_ordering::equal;
+        if (!a_iter->empty()) return StrongOrdering::greater;
+        ++a_iter;
+      } while (a_iter != a.blocks().cend());
+      return StrongOrdering::equal;
     }
     const size_t length =
-        UnsignedMin(this_iter->size() - this_pos, that_iter->size() - that_pos);
-    const int result = std::memcmp(this_iter->data() + this_pos,
-                                   that_iter->data() + that_pos, length);
-    if (result < 0) return absl::strong_ordering::less;
-    if (result > 0) return absl::strong_ordering::greater;
+        UnsignedMin(a_iter->size() - this_pos, b_iter->size() - that_pos);
+    {
+      const int ordering = std::memcmp(a_iter->data() + this_pos,
+                                       b_iter->data() + that_pos, length);
+      if (ordering != 0) {
+        return AsStrongOrdering(ordering);
+      }
+    }
     this_pos += length;
-    if (this_pos == this_iter->size()) {
-      ++this_iter;
+    if (this_pos == a_iter->size()) {
+      ++a_iter;
       this_pos = 0;
     }
     that_pos += length;
-    if (that_pos == that_iter->size()) {
-      ++that_iter;
+    if (that_pos == b_iter->size()) {
+      ++b_iter;
       that_pos = 0;
     }
   }
-  while (that_iter != that.blocks().cend()) {
-    if (!that_iter->empty()) return absl::strong_ordering::less;
-    ++that_iter;
+  while (b_iter != b.blocks().cend()) {
+    if (!b_iter->empty()) return StrongOrdering::less;
+    ++b_iter;
   }
-  return absl::strong_ordering::equal;
+  return StrongOrdering::equal;
 }
 
-absl::strong_ordering Chain::Compare(absl::string_view that) const {
-  Chain::BlockIterator this_iter = blocks().cbegin();
+StrongOrdering Chain::CompareImpl(const Chain& a, absl::string_view b) {
+  Chain::BlockIterator a_iter = a.blocks().cbegin();
   size_t this_pos = 0;
   size_t that_pos = 0;
-  while (this_iter != blocks().cend()) {
-    if (that_pos == that.size()) {
+  while (a_iter != a.blocks().cend()) {
+    if (that_pos == b.size()) {
       do {
-        if (!this_iter->empty()) return absl::strong_ordering::greater;
-        ++this_iter;
-      } while (this_iter != blocks().cend());
-      return absl::strong_ordering::equal;
+        if (!a_iter->empty()) return StrongOrdering::greater;
+        ++a_iter;
+      } while (a_iter != a.blocks().cend());
+      return StrongOrdering::equal;
     }
     const size_t length =
-        UnsignedMin(this_iter->size() - this_pos, that.size() - that_pos);
-    const int result = std::memcmp(this_iter->data() + this_pos,
-                                   that.data() + that_pos, length);
-    if (result < 0) return absl::strong_ordering::less;
-    if (result > 0) return absl::strong_ordering::greater;
+        UnsignedMin(a_iter->size() - this_pos, b.size() - that_pos);
+    {
+      const int ordering =
+          std::memcmp(a_iter->data() + this_pos, b.data() + that_pos, length);
+      if (ordering != 0) {
+        return AsStrongOrdering(ordering);
+      }
+    }
     this_pos += length;
-    if (this_pos == this_iter->size()) {
-      ++this_iter;
+    if (this_pos == a_iter->size()) {
+      ++a_iter;
       this_pos = 0;
     }
     that_pos += length;
   }
-  return that_pos == that.size() ? absl::strong_ordering::equal
-                                 : absl::strong_ordering::less;
+  return that_pos == b.size() ? StrongOrdering::equal : StrongOrdering::less;
 }
 
 void Chain::OutputImpl(std::ostream& out) const {

@@ -31,6 +31,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_id.h"
@@ -210,7 +211,8 @@ class
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
         AnyDependencyImpl
-    : public ConditionallyAbslNullabilityCompatible<
+    : public WithEqual<AnyDependencyImpl<Ptr, inline_size, inline_align>>,
+      public ConditionallyAbslNullabilityCompatible<
           std::is_pointer<Ptr>::value>,
       public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
                                                               0> {
@@ -344,21 +346,6 @@ class
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   friend bool operator==(const AnyDependencyImpl& a, std::nullptr_t) {
     return a.get() == nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(const AnyDependencyImpl& a, std::nullptr_t) {
-    return a.get() != nullptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator==(std::nullptr_t, const AnyDependencyImpl& b) {
-    return nullptr == b.get();
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  friend bool operator!=(std::nullptr_t, const AnyDependencyImpl& b) {
-    return nullptr != b.get();
   }
 
   // If `true`, the `AnyDependencyImpl` owns the dependent object, i.e. closing

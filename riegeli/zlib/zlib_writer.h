@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -196,12 +197,15 @@ class ZlibWriterBase : public BufferedWriter {
     void operator()(z_stream_s* ptr) const;
   };
 
-  struct ZStreamKey {
+  struct ZStreamKey : WithEqual<ZStreamKey> {
+    ZStreamKey() = default;
+    explicit ZStreamKey(int compression_level, int window_bits)
+        : compression_level(compression_level), window_bits(window_bits) {}
+
     friend bool operator==(ZStreamKey a, ZStreamKey b) {
       return a.compression_level == b.compression_level &&
              a.window_bits == b.window_bits;
     }
-    friend bool operator!=(ZStreamKey a, ZStreamKey b) { return !(a == b); }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, ZStreamKey self) {
       return HashState::combine(std::move(hash_state), self.compression_level,
