@@ -345,8 +345,8 @@ class Chain {
 
   friend void swap(Chain& a, Chain& b) noexcept;
 
-  absl::strong_ordering Compare(absl::string_view that) const;
   absl::strong_ordering Compare(const Chain& that) const;
+  absl::strong_ordering Compare(absl::string_view that) const;
 
   friend bool operator==(const Chain& a, const Chain& b) {
     return a.size() == b.size() && a.Compare(b) == 0;
