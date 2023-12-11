@@ -99,6 +99,15 @@ namespace riegeli {
 
 namespace {
 
+// If `copy_file_range()` is available, it is used to make copying from
+// `FdReader` to `FdWriter` more efficient.
+//
+// By default its availability is autodetected.
+// Define `RIEGELI_DISABLE_COPY_FILE_RANGE` to disable using it even if it
+// appears to be available.
+
+#if !RIEGELI_DISABLE_COPY_FILE_RANGE
+
 // `copy_file_range()` is supported by Linux and FreeBSD.
 
 template <typename FirstArg, typename Enable = void>
@@ -129,6 +138,8 @@ inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
   errno = EOPNOTSUPP;
   return -1;
 }
+
+#endif
 
 // `posix_fadvise()` is supported by POSIX systems but not MacOS.
 
@@ -499,6 +510,7 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
          "nothing to copy";
   RIEGELI_ASSERT(ok())
       << "Failed precondition of BufferedReader::CopyInternal(): " << status();
+#if !RIEGELI_DISABLE_COPY_FILE_RANGE
   if (HaveCopyFileRange<int>::value) {
     {
       FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>();
@@ -554,6 +566,7 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
       }
     }
   }
+#endif
   return BufferedReader::CopyInternal(length, dest);
 }
 
