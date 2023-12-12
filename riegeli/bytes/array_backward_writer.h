@@ -60,7 +60,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
 
   bool PushBehindScratch(size_t recommended_length) override;
   using PushableBackwardWriter::WriteBehindScratch;
-  bool WriteBehindScratch(absl::string_view src);
+  bool WriteBehindScratch(absl::string_view src) override;
   bool FlushBehindScratch(FlushType flush_type) override;
   bool TruncateBehindScratch(Position new_size) override;
 
