@@ -235,7 +235,7 @@ class WrappingDigester : public Digester<DigestType> {
 // `BaseDigesterType` is a concrete class deriving from `Digester<DigestType>`.
 // Use inheritance instead of delegation for optimization.
 template <typename BaseDigesterType, typename DigestType,
-          DigestType (*digest_converter)(DigestType)>
+          DigestType (*digest_converter)(DigestTypeOf<BaseDigesterType>)>
 class WrappingDigester<
     BaseDigesterType, DigestType, digest_converter,
     std::enable_if_t<absl::conjunction<
