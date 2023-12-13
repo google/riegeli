@@ -30,7 +30,6 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -89,16 +88,12 @@ bool ChunkedSortedStringSet::contains(absl::string_view element) const {
     // element being searched (or possibly past the end iterator), and then go
     // back by one chunk (possibly to `first_chunk_`, even if its first element
     // is still too large, in which case its `contains()` will return `false`).
-    //
-    // Do not bother with returning `equal` to `BinarySearch()` if the first
-    // element matches because this is rare, and that would require more
-    // conditions.
     const SearchResult<ChunkIterator> chunk = BinarySearch(
         allocated_repr()->chunks.cbegin(), allocated_repr()->chunks.cend(),
         [&](ChunkIterator current) {
-          if (current->first() <= element) return absl::strong_ordering::less;
-          return absl::strong_ordering::greater;
+          return current->first().compare(element);
         });
+    if (chunk.ordering == 0) return true;
     if (chunk.found != allocated_repr()->chunks.cbegin()) {
       found_linear_set = &chunk.found[-1];
     }

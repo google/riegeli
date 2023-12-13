@@ -30,13 +30,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -349,7 +349,9 @@ class RecordReaderBase : public Object {
   // The current position before calling `Search()` does not matter.
   //
   // The `test` function takes `*this` as a parameter, seeked to some record,
-  // and returns `absl::optional<absl::partial_ordering>`:
+  // and returns `absl::nullopt` or an ordering (a value comparable with literal
+  // 0, such as `{Partial,Strong}Ordering`,
+  // `{std,absl}::{partial,weak,strong}_ordering`, or `int`):
   //  * `absl::nullopt` - Cancel the search.
   //  * `less`          - The current record is before the desired position.
   //  * `equivalent`    - The current record is desired, searching can stop.
@@ -400,19 +402,17 @@ class RecordReaderBase : public Object {
   // For skipping invalid file regions during `Search()`, a recovery function
   // (`RecordReaderBase::Options::recovery()`) can be set, but `Recover()`
   // resumes only simple operations and is not applicable here.
-  absl::optional<absl::partial_ordering> Search(
-      absl::FunctionRef<
-          absl::optional<absl::partial_ordering>(RecordReaderBase& reader)>
-          test);
+  template <typename Test>
+  absl::optional<PartialOrdering> Search(Test&& test);
 
   // A variant of `Search()` which reads a record before calling `test()`,
   // instead of letting `test()` read the record.
   //
-  // The `Record` type must be supported by `ReadRecord()`, and `test` must be
-  // callable with an argument of type `Record&` or `const Record&`, returning
-  // `absl::optional<absl::partial_ordering>`.
+  // The `Record` type must be supported by `ReadRecord()`. The `test` function
+  // takes `Record&` or `const Record&` as a parameter, and returns
+  // `absl::nullopt` or an ordering.
   template <typename Record, typename Test>
-  absl::optional<absl::partial_ordering> Search(Test&& test);
+  absl::optional<PartialOrdering> Search(Test&& test);
 
  protected:
   enum class Recoverable {
@@ -492,6 +492,11 @@ class RecordReaderBase : public Object {
   //
   // Precondition: `ok()`
   bool ReadChunk();
+
+  absl::optional<PartialOrdering> SearchImpl(
+      absl::FunctionRef<
+          absl::optional<PartialOrdering>(RecordReaderBase& reader)>
+          test);
 };
 
 // `RecordReader` reads records of a Riegeli/records file. A record is
@@ -671,15 +676,39 @@ inline RecordPosition RecordReaderBase::pos() const {
   return RecordPosition(SrcChunkReader()->pos(), 0);
 }
 
+namespace record_reader_internal {
+
+template <typename T>
+inline absl::optional<PartialOrdering> AsOptionalPartialOrdering(
+    T test_result) {
+  return AsPartialOrdering(test_result);
+}
+
+template <typename T>
+inline absl::optional<PartialOrdering> AsOptionalPartialOrdering(
+    absl::optional<T> test_result) {
+  if (test_result == absl::nullopt) return absl::nullopt;
+  return AsPartialOrdering(*test_result);
+}
+
+}  // namespace record_reader_internal
+
+template <typename Test>
+absl::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
+  return SearchImpl([&](RecordReaderBase& self) {
+    return record_reader_internal::AsOptionalPartialOrdering(test(self));
+  });
+}
+
 template <typename Record, typename Test>
-absl::optional<absl::partial_ordering> RecordReaderBase::Search(Test&& test) {
+absl::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
   Record record;
-  return Search(
-      [&](RecordReaderBase& self) -> absl::optional<absl::partial_ordering> {
+  return SearchImpl(
+      [&](RecordReaderBase& self) -> absl::optional<PartialOrdering> {
         if (ABSL_PREDICT_FALSE(!self.ReadRecord(record))) {
-          return absl::partial_ordering::unordered;
+          return PartialOrdering::unordered;
         }
-        return test(record);
+        return record_reader_internal::AsOptionalPartialOrdering(test(record));
       });
 }
 

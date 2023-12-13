@@ -34,12 +34,12 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
@@ -561,18 +561,17 @@ PythonPtr PositionToPython(Position value);
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<Position> PositionFromPython(PyObject* object);
 
-// Converts C++ `absl::partial_ordering` to a Python `None` (for `unordered`)
-// or `int` object (-1 for `less`, 0 for `equivalent`, or 1 for `greater`).
+// Converts C++ `PartialOrdering` to a Python `None` (for `unordered`) or `int`
+// object (-1 for `less`, 0 for `equivalent`, or 1 for `greater`).
 //
 // Returns `nullptr` on failure (with Python exception set).
-PythonPtr PartialOrderingToPython(absl::partial_ordering ordering);
+PythonPtr PartialOrderingToPython(PartialOrdering ordering);
 
-// Converts a Python object to C++ `absl::partial_ordering`. Valid Python
-// objects are `int` (compared with 0) or `None`.
+// Converts a Python object to C++ `PartialOrdering`. Valid Python objects are
+// `int` (compared with 0) or `None`.
 //
 // Returns `absl::nullopt` on failure (with Python exception set).
-absl::optional<absl::partial_ordering> PartialOrderingFromPython(
-    PyObject* object);
+absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object);
 
 // Implementation details follow.
 

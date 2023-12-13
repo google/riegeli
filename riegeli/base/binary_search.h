@@ -23,8 +23,8 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/compare.h"
 
 namespace riegeli {
 
@@ -49,16 +49,18 @@ namespace riegeli {
 //                   and `found` is the end of the range to search.
 template <typename Pos>
 struct SearchResult {
-  absl::partial_ordering ordering;
+  PartialOrdering ordering;
   Pos found;
 };
 
-// The `test()` parameter of `BinarySearch()` is a function which returns either
-// `absl::partial_ordering` or `SearchGuide<Traits::Pos>`.
+// The `test()` parameter of `BinarySearch()` is a function which returns
+// an ordering (a value comparable with literal 0, such as
+// `{Partial,Strong}Ordering`, `{std,absl}::{partial,weak,strong}_ordering`,
+// or `int`) or `SearchGuide<Traits::Pos>`.
 //
 // If the earliest interesting position after `current` can be found
-// independently from `test(current)`, `test(current)` can return
-// `absl::partial_ordering`. The next position will be `traits.Next(current)`.
+// independently from `test(current)`, `test(current)` can return an ordering.
+// The next position will be `traits.Next(current)`.
 //
 // If the earliest interesting position after `current` can be more easily found
 // as a side effect of `test(current)`, `test(current)` can return
@@ -69,11 +71,86 @@ struct SearchResult {
 // position after `current`.
 template <typename Pos>
 struct SearchGuide {
-  absl::partial_ordering ordering;
+  template <typename Ordering,
+            std::enable_if_t<IsOrdering<Ordering>::value, int> = 0>
+  explicit SearchGuide(Ordering ordering, const Pos& next)
+      : ordering(AsPartialOrdering(ordering)), next(next) {}
+  template <typename Ordering,
+            std::enable_if_t<IsOrdering<Ordering>::value, int> = 0>
+  explicit SearchGuide(Ordering ordering, Pos&& next)
+      : ordering(AsPartialOrdering(ordering)), next(std::move(next)) {}
+
+  SearchGuide(const SearchGuide& other) = default;
+  SearchGuide& operator=(const SearchGuide& other) = default;
+
+  SearchGuide(SearchGuide&& other) = default;
+  SearchGuide& operator=(SearchGuide&& other) = default;
+
+  template <
+      typename OtherPos,
+      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  /*implicit*/ SearchGuide(const SearchGuide<OtherPos>& other)
+      : ordering(other.ordering), next(other.next) {}
+  template <
+      typename OtherPos,
+      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  SearchGuide& operator=(const SearchGuide<OtherPos>& other) {
+    ordering = other.ordering;
+    next = other.next;
+    return *this;
+  }
+
+  template <
+      typename OtherPos,
+      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  /*implicit*/ SearchGuide(SearchGuide<OtherPos>&& other)
+      : ordering(other.ordering), next(std::move(other.next)) {}
+  template <
+      typename OtherPos,
+      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  SearchGuide& operator=(SearchGuide<OtherPos>&& other) {
+    ordering = other.ordering;
+    next = std::move(other.next);
+    return *this;
+  }
+
+  PartialOrdering ordering;
   Pos next;
 };
 
+// Support CTAD.
+#if __cpp_deduction_guides
+template <typename Pos, typename Ordering>
+explicit SearchGuide(Ordering ordering, Pos next)
+    -> SearchGuide<std::decay_t<Pos>>;
+#endif
+
 namespace binary_search_internal {
+
+template <typename T, typename Pos, typename Enable = void>
+struct IsSearchGuide : std::false_type {};
+
+template <typename Pos, typename OtherPos>
+struct IsSearchGuide<SearchGuide<OtherPos>, Pos>
+    : std::is_convertible<OtherPos, Pos> {};
+
+template <typename T, typename Pos>
+struct IsOrderingOrSearchGuide
+    : absl::disjunction<IsOrdering<T>, IsSearchGuide<T, Pos>> {};
+
+template <typename T, typename Pos>
+struct IsOptionalOrderingOrSearchGuide : std::false_type {};
+
+template <typename T, typename Pos>
+struct IsOptionalOrderingOrSearchGuide<absl::optional<T>, Pos>
+    : IsOrderingOrSearchGuide<T, Pos> {};
+
+template <typename T, typename Pos>
+struct IsStatusOrOrderingOrSearchGuide : std::false_type {};
+
+template <typename T, typename Pos>
+struct IsStatusOrOrderingOrSearchGuide<absl::StatusOr<T>, Pos>
+    : IsOrderingOrSearchGuide<T, Pos> {};
 
 template <typename Test, typename Pos, typename Enable = void>
 struct TestReturnsOrderingOrSearchGuide : std::false_type {};
@@ -81,11 +158,9 @@ struct TestReturnsOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<absl::disjunction<
-        std::is_convertible<decltype(std::declval<Test>()(std::declval<Pos>())),
-                            absl::partial_ordering>,
-        std::is_convertible<decltype(std::declval<Test>()(std::declval<Pos>())),
-                            SearchGuide<Pos>>>::value>> : std::true_type {};
+    std::enable_if_t<IsOrderingOrSearchGuide<
+        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
+    : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
 struct TestReturnsOptionalOrderingOrSearchGuide : std::false_type {};
@@ -93,21 +168,8 @@ struct TestReturnsOptionalOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsOptionalOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<absl::disjunction<
-        absl::conjunction<
-            std::is_convertible<decltype(std::declval<Test>()(
-                                    std::declval<Pos>())),
-                                absl::optional<absl::partial_ordering>>,
-            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
-                                                   std::declval<Pos>())),
-                                               absl::partial_ordering>>>,
-        absl::conjunction<
-            std::is_convertible<decltype(std::declval<Test>()(
-                                    std::declval<Pos>())),
-                                absl::optional<SearchGuide<Pos>>>,
-            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
-                                                   std::declval<Pos>())),
-                                               SearchGuide<Pos>>>>>::value>>
+    std::enable_if_t<IsOptionalOrderingOrSearchGuide<
+        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
     : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
@@ -116,21 +178,8 @@ struct TestReturnsStatusOrOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsStatusOrOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<absl::disjunction<
-        absl::conjunction<
-            std::is_convertible<decltype(std::declval<Test>()(
-                                    std::declval<Pos>())),
-                                absl::StatusOr<absl::partial_ordering>>,
-            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
-                                                   std::declval<Pos>())),
-                                               absl::partial_ordering>>>,
-        absl::conjunction<
-            std::is_convertible<decltype(std::declval<Test>()(
-                                    std::declval<Pos>())),
-                                absl::StatusOr<SearchGuide<Pos>>>,
-            absl::negation<std::is_convertible<decltype(std::declval<Test>()(
-                                                   std::declval<Pos>())),
-                                               SearchGuide<Pos>>>>>::value>>
+    std::enable_if_t<IsStatusOrOrderingOrSearchGuide<
+        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
     : std::true_type {};
 
 }  // namespace binary_search_internal
@@ -147,7 +196,7 @@ struct TestReturnsStatusOrOrderingOrSearchGuide<
 // search.
 //
 // The `test()` function takes `current` of type `Traits::Pos` as a parameter
-// and returns `absl::partial_ordering`:
+// and returns an ordering:
 //  * `less`       - `current` is before the desired position.
 //  * `equivalent` - `current` is desired, searching can stop.
 //  * `greater`    - `current` is after the desired position.
@@ -261,8 +310,8 @@ class DefaultSearchTraits {
   // Returns the earliest interesting position after `current`.
   //
   // `Next()` is used only if the `test()` parameter of `BinarySearch()` returns
-  // `absl::partial_ordering`. If `test()` returns `SearchGuide<Pos>`, the
-  // result of `test()` provides the next position instead.
+  // an ordering. If `test()` returns `SearchGuide<Pos>`, the result of `test()`
+  // provides the next position instead.
   //
   // Precondition: `test(current)` returned `less` or `unordered`.
   T Next(T current) const { return current + 1; }
@@ -283,37 +332,44 @@ class DefaultSearchTraits {
 
 namespace binary_search_internal {
 
-template <typename Traits>
+template <typename Traits, typename Ordering,
+          std::enable_if_t<IsOrdering<Ordering>::value, int> = 0>
 inline SearchGuide<typename Traits::Pos> GetSearchGuide(
-    absl::partial_ordering ordering, typename Traits::Pos pos,
-    const Traits& traits) {
-  return SearchGuide<typename Traits::Pos>{
-      ordering, ordering >= 0 ? std::move(pos) : traits.Next(std::move(pos))};
+    Ordering ordering, typename Traits::Pos&& pos, const Traits& traits) {
+  return SearchGuide<typename Traits::Pos>(
+      AsPartialOrdering(ordering),
+      ordering >= 0 ? std::move(pos) : traits.Next(std::move(pos)));
 }
 
-template <typename Traits>
+template <typename Traits, typename OtherPos>
 inline SearchGuide<typename Traits::Pos> GetSearchGuide(
-    SearchGuide<typename Traits::Pos> guide,
-    ABSL_ATTRIBUTE_UNUSED const typename Traits::Pos& pos,
+    SearchGuide<OtherPos>&& guide,
+    ABSL_ATTRIBUTE_UNUSED typename Traits::Pos&& pos,
     ABSL_ATTRIBUTE_UNUSED const Traits& traits) {
-  return guide;
+  return std::move(guide);
 }
 
-template <typename TestResult>
+template <typename Pos, typename TestResult, typename Enable = void>
 struct CancelSearch;
 
-template <>
-struct CancelSearch<absl::partial_ordering> {
-  template <typename Pos>
-  static absl::partial_ordering At(ABSL_ATTRIBUTE_UNUSED const Pos& pos) {
-    return absl::partial_ordering::equivalent;
+template <typename Pos, typename Ordering>
+struct CancelSearch<Pos, Ordering,
+                    std::enable_if_t<IsOrdering<Ordering>::value>> {
+  static PartialOrdering DoCancel(ABSL_ATTRIBUTE_UNUSED const Pos& pos) {
+    return PartialOrdering::equivalent;
+  }
+  static PartialOrdering DoNotCancel(Ordering ordering) {
+    return AsPartialOrdering(ordering);
   }
 };
 
-template <typename Pos>
-struct CancelSearch<SearchGuide<Pos>> {
-  static SearchGuide<Pos> At(const Pos& pos) {
-    return SearchGuide<Pos>{absl::partial_ordering::equivalent, pos};
+template <typename Pos, typename OtherPos>
+struct CancelSearch<Pos, SearchGuide<OtherPos>> {
+  static SearchGuide<Pos> DoCancel(const Pos& pos) {
+    return SearchGuide<Pos>(PartialOrdering::equivalent, pos);
+  }
+  static SearchGuide<Pos> DoNotCancel(SearchGuide<OtherPos>&& guide) {
+    return std::move(guide);
   }
 };
 
@@ -352,7 +408,7 @@ inline SearchResult<typename Traits::Pos> BinarySearch(
   //  * `unordered` - There are no such positions either,
   //                  and `greater_result.found` is `high`.
   using Pos = typename Traits::Pos;
-  SearchResult<Pos> greater_result = {absl::partial_ordering::unordered, high};
+  SearchResult<Pos> greater_result = {PartialOrdering::unordered, high};
 
 again:
   absl::optional<Pos> middle_before_unordered = traits.Middle(low, high);
@@ -362,23 +418,24 @@ again:
   // are `unordered`.
   bool unordered_found = false;
   for (;;) {
-    SearchGuide<Pos> guide =
-        binary_search_internal::GetSearchGuide(test(middle), middle, traits);
+    auto test_result = test(middle);
+    SearchGuide<Pos> guide = binary_search_internal::GetSearchGuide(
+        std::move(test_result), std::move(middle), traits);
     if (guide.ordering < 0) {
       if (!(greater_result.ordering >= 0)) {
-        greater_result.ordering = absl::partial_ordering::less;
+        greater_result.ordering = PartialOrdering::less;
       }
       low = std::move(guide.next);
       goto again;
     }
     if (guide.ordering == 0) {
       // Assign instead of returning for NRVO.
-      greater_result.ordering = absl::partial_ordering::equivalent;
+      greater_result.ordering = PartialOrdering::equivalent;
       greater_result.found = std::move(guide.next);
       return greater_result;
     }
     if (guide.ordering > 0) {
-      greater_result.ordering = absl::partial_ordering::greater;
+      greater_result.ordering = PartialOrdering::greater;
       greater_result.found = std::move(guide.next);
       if (unordered_found) break;
       // Use the position from `guide` instead of `*middle_before_unordered`
@@ -421,12 +478,13 @@ inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
       std::move(low), std::move(high),
       [&](const typename Traits::Pos& pos) {
         auto test_result = test(pos);
+        using Cancel = binary_search_internal::CancelSearch<
+            typename Traits::Pos, std::decay_t<decltype(*test_result)>>;
         if (ABSL_PREDICT_FALSE(test_result == absl::nullopt)) {
           cancelled = true;
-          return binary_search_internal::CancelSearch<
-              std::decay_t<decltype(*test_result)>>::At(pos);
+          return Cancel::DoCancel(pos);
         }
-        return *std::move(test_result);
+        return Cancel::DoNotCancel(*std::move(test_result));
       },
       traits);
   if (ABSL_PREDICT_FALSE(cancelled)) return absl::nullopt;
@@ -457,12 +515,13 @@ inline absl::StatusOr<SearchResult<typename Traits::Pos>> BinarySearch(
       std::move(low), std::move(high),
       [&](const typename Traits::Pos& pos) {
         auto test_result = test(pos);
+        using Cancel = binary_search_internal::CancelSearch<
+            typename Traits::Pos, std::decay_t<decltype(*test_result)>>;
         if (ABSL_PREDICT_FALSE(!test_result.ok())) {
           status = test_result.status();
-          return binary_search_internal::CancelSearch<
-              std::decay_t<decltype(*test_result)>>::At(pos);
+          return Cancel::DoCancel(pos);
         }
-        return *std::move(test_result);
+        return Cancel::DoNotCancel(*std::move(test_result));
       },
       traits);
   if (ABSL_PREDICT_FALSE(!status.ok())) return status;

@@ -27,7 +27,6 @@
 #include <stdint.h>
 
 #include <limits>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -35,12 +34,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
@@ -387,23 +386,20 @@ absl::optional<Position> PositionFromPython(PyObject* object) {
   return IntCast<Position>(index_value);
 }
 
-PythonPtr PartialOrderingToPython(absl::partial_ordering ordering) {
-  if (ordering == absl::partial_ordering::unordered) {
+PythonPtr PartialOrderingToPython(PartialOrdering ordering) {
+  if (ordering == PartialOrdering::unordered) {
     return Py_INCREF(Py_None), PythonPtr(Py_None);
   }
   return PythonPtr(PyLong_FromLong(ordering < 0 ? -1 : ordering == 0 ? 0 : 1));
 }
 
-absl::optional<absl::partial_ordering> PartialOrderingFromPython(
-    PyObject* object) {
-  if (object == Py_None) return absl::partial_ordering::unordered;
+absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object) {
+  if (object == Py_None) return PartialOrdering::unordered;
   const long long_value = PyLong_AsLong(object);
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) {
     return absl::nullopt;
   }
-  return long_value < 0    ? absl::partial_ordering::less
-         : long_value == 0 ? absl::partial_ordering::equivalent
-                           : absl::partial_ordering::greater;
+  return Compare(long_value, 0);
 }
 
 }  // namespace python
