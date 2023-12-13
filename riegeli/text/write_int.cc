@@ -190,9 +190,7 @@ inline char* WriteHex32Impl(absl::uint128 src, char* dest) {
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
 char* WriteHexImpl(uint8_t src, char* dest, size_t width) {
-  if (src < uint8_t{1} << 4 && width <= 1) {
-    return WriteHex1Impl(src, dest);
-  }
+  if (src < uint8_t{1} << 4 && width <= 1) return WriteHex1Impl(src, dest);
   if (width > 2) {
     // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
     std::memset(dest, '0', width > 2 ? width - 2 : 0);

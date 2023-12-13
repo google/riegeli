@@ -211,9 +211,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                           ? std::move(buffer_)
                           : Buffer(buffer_length);
   // `std::memcpy(_, nullptr, 0)` is undefined.
-  if (cursor_index > 0) {
-    std::memcpy(new_buffer.data(), start(), cursor_index);
-  }
+  if (cursor_index > 0) std::memcpy(new_buffer.data(), start(), cursor_index);
   buffer_ = std::move(new_buffer);
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),
