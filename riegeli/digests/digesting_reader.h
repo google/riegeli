@@ -265,6 +265,10 @@ explicit DigestingReader(std::tuple<SrcArgs...> src_args,
 
 // Reads all remaining data from `src` and returns their digest.
 //
+// If `length_read != nullptr` then sets `*length_read` to the length read.
+// This is equal to the difference between `src.pos()` after and before the
+// call.
+//
 // The `DigesterType` template parameter specifies the type of the object
 // providing and possibly owning the digester. `DigesterType` must support
 // `Dependency<DigesterBase*, DigesterType&&>` and must provide a member
@@ -284,7 +288,7 @@ template <typename DigesterType, typename Src,
                                IsValidDependency<Reader*, Src&&>>::value,
                            int> = 0>
 StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
-    Src&& src, DigesterType&& digester);
+    Src&& src, DigesterType&& digester, Position* length_read = nullptr);
 
 // Implementation details follow.
 
@@ -575,15 +579,19 @@ template <typename DigesterType, typename Src,
                                IsValidDependency<Reader*, Src&&>>::value,
                            int>>
 inline StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
-    Src&& src, DigesterType&& digester) {
+    Src&& src, DigesterType&& digester, Position* length_read) {
   using DigestType = DigestTypeOf<DigesterType&&>;
   using Maker = StatusOrMaker<DigestType>;
   DigestingReader<DigesterType&&, Src&&> reader(
       std::forward<Src>(src), std::forward<DigesterType&&>(digester));
   reader.SetReadAllHint(true);
+  const Position pos_before = reader.pos();
   do {
     reader.move_cursor(reader.available());
   } while (reader.Pull());
+  RIEGELI_ASSERT_GE(reader.pos(), pos_before)
+      << "DigestingReader decreased src.pos()";
+  if (length_read != nullptr) *length_read = reader.pos() - pos_before;
   if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) {
     return Maker::FromStatus(reader.status());
   }
