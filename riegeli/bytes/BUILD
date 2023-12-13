@@ -388,28 +388,6 @@ cc_library(
 )
 
 cc_library(
-    name = "wrapped_reader",
-    hdrs = ["wrapped_reader.h"],
-    deps = [
-        ":reader",
-        ":wrapping_reader",
-        "//riegeli/base:dependency",
-        "//riegeli/base:object",
-    ],
-)
-
-cc_library(
-    name = "wrapped_writer",
-    hdrs = ["wrapped_writer.h"],
-    deps = [
-        ":wrapping_writer",
-        ":writer",
-        "//riegeli/base:dependency",
-        "//riegeli/base:object",
-    ],
-)
-
-cc_library(
     name = "limiting_reader",
     srcs = ["limiting_reader.cc"],
     hdrs = ["limiting_reader.h"],
