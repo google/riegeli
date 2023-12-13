@@ -17,6 +17,8 @@
 
 #include <stddef.h>
 
+#include <array>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -177,6 +179,16 @@ inline To ConvertDigest(From value) {
 }
 
 }  // namespace digester_internal
+
+// Converts a digest from `std::array<char, size>` to `std::string`.
+// Intended to be used with `WrappingDigester`.
+//
+// You may pass a pointer to this function, without wrapping it in a lambda
+// (it will not be overloaded).
+template <size_t size>
+std::string ArrayToString(std::array<char, size> digest) {
+  return std::string(digest.data(), digest.size());
+}
 
 // Wraps an object providing and possibly owning a digester in a concrete class
 // deriving from `Digester<DigestType>`. Possibly converts the digest returned
