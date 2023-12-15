@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
+#include "lz4.h"
 #include "lz4frame.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -36,7 +37,6 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/lz4/lz4_dictionary.h"  // IWYU pragma: export
-#include "third_party/lz4/lib/lz4.h"
 
 namespace riegeli {
 
