@@ -189,7 +189,7 @@ inline char* WriteHex32Impl(absl::uint128 src, char* dest) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteHexImpl(uint8_t src, char* dest, size_t width) {
+inline char* WriteHexImpl(uint8_t src, char* dest, size_t width) {
   if (src < uint8_t{1} << 4 && width <= 1) return WriteHex1Impl(src, dest);
   if (width > 2) {
     // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
@@ -201,7 +201,7 @@ char* WriteHexImpl(uint8_t src, char* dest, size_t width) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteHexImpl(uint16_t src, char* dest, size_t width) {
+inline char* WriteHexImpl(uint16_t src, char* dest, size_t width) {
 #ifdef __SSSE3__
   const __m128i out = WriteHex4Impl(src);
   if (src >= uint32_t{1} << 12 || width >= 4) {
@@ -232,7 +232,7 @@ char* WriteHexImpl(uint16_t src, char* dest, size_t width) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteHexImpl(uint32_t src, char* dest, size_t width) {
+inline char* WriteHexImpl(uint32_t src, char* dest, size_t width) {
 #ifdef __SSSE3__
   const __m128i out = WriteHex8Impl(src);
   if (src >= uint32_t{1} << 28 || width >= 8) {
@@ -262,7 +262,7 @@ char* WriteHexImpl(uint32_t src, char* dest, size_t width) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteHexImpl(uint64_t src, char* dest, size_t width) {
+inline char* WriteHexImpl(uint64_t src, char* dest, size_t width) {
 #ifdef __SSSE3__
   const __m128i out = WriteHex16Impl(src);
   if (src >= uint64_t{1} << 60 || width >= 16) {
@@ -292,7 +292,7 @@ char* WriteHexImpl(uint64_t src, char* dest, size_t width) {
 
 // Inline to optimize for a constant `width`.
 ABSL_ATTRIBUTE_ALWAYS_INLINE
-char* WriteHexImpl(absl::uint128 src, char* dest, size_t width) {
+inline char* WriteHexImpl(absl::uint128 src, char* dest, size_t width) {
   if (absl::Uint128High64(src) == 0) {
     return WriteHexImpl(absl::Uint128Low64(src), dest, width);
   }
