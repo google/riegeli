@@ -405,13 +405,14 @@ class RecordWriterBase : public Object {
     }
     ABSL_DEPRECATED("Use `set_pad_to_block_boundary(Padding)` instead.")
     Options& set_pad_to_block_boundary(bool pad_to_block_boundary) & {
-      pad_to_block_boundary_ =
-          pad_to_block_boundary ? Padding::kTrue : Padding::kFalse;
+      set_pad_to_block_boundary(pad_to_block_boundary ? Padding::kTrue
+                                                      : Padding::kFalse);
       return *this;
     }
     ABSL_DEPRECATED("Use `set_pad_to_block_boundary(Padding)` instead.")
     Options&& set_pad_to_block_boundary(bool pad_to_block_boundary) && {
-      return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
+      return std::move(set_pad_to_block_boundary(
+          pad_to_block_boundary ? Padding::kTrue : Padding::kFalse));
     }
     Padding pad_to_block_boundary() const { return pad_to_block_boundary_; }
 
