@@ -162,11 +162,32 @@ inline StrongOrdering AsStrongOrdering(T ordering) {
 
 // Definitions of `RIEGELI_COMPARE` which in C++20 are provided automatically.
 
-template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-inline StrongOrdering RIEGELI_COMPARE(T a, T b) {
+template <typename A, typename B,
+          std::enable_if_t<absl::conjunction<std::is_integral<A>,
+                                             std::is_integral<B>>::value,
+                           int> = 0>
+inline StrongOrdering RIEGELI_COMPARE(A a, B b) {
   return a < b   ? StrongOrdering::less
          : a > b ? StrongOrdering::greater
                  : StrongOrdering::equal;
+}
+
+template <
+    typename A, typename B,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<absl::conjunction<
+                              std::is_integral<A>, std::is_integral<B>>>,
+                          std::is_arithmetic<A>, std::is_arithmetic<B>>::value,
+        int> = 0>
+inline PartialOrdering RIEGELI_COMPARE(A a, B b) {
+  static_assert(
+      std::is_floating_point<A>::value || std::is_floating_point<B>::value,
+      "Arithmetic types which are not integral types "
+      "must be floating point types");
+  return a < b    ? PartialOrdering::less
+         : a > b  ? PartialOrdering::greater
+         : a == b ? PartialOrdering::equivalent
+                  : PartialOrdering::unordered;
 }
 
 template <typename T, std::enable_if_t<std::is_enum<T>::value, int> = 0>
@@ -174,15 +195,6 @@ inline StrongOrdering RIEGELI_COMPARE(T a, T b) {
   return a < b   ? StrongOrdering::less
          : a > b ? StrongOrdering::greater
                  : StrongOrdering::equal;
-}
-
-template <typename T,
-          std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
-inline PartialOrdering RIEGELI_COMPARE(T a, T b) {
-  return a < b    ? PartialOrdering::less
-         : a > b  ? PartialOrdering::greater
-         : a == b ? PartialOrdering::equivalent
-                  : PartialOrdering::unordered;
 }
 
 template <typename T>
