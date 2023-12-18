@@ -20,7 +20,7 @@
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "src/zconf.h"
+#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
