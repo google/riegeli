@@ -18,6 +18,7 @@
 
 #include <limits>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "zconf.h"
@@ -31,6 +32,10 @@ Crc32Digester::Crc32Digester(uint32_t seed) : crc_(seed) {
 }
 
 void Crc32Digester::WriteImpl(absl::string_view src) {
+  if (ABSL_PREDICT_FALSE(src.empty())) {
+    // `crc32(state, nullptr, 0)` exceptionally returns 0, not `state`.
+    return;
+  }
   while (src.size() > std::numeric_limits<uInt>::max()) {
     crc_ = IntCast<uint32_t>(crc32(IntCast<uLong>(crc_),
                                    reinterpret_cast<const Bytef*>(src.data()),

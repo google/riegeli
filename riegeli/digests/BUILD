@@ -95,6 +95,7 @@ cc_library(
     deps = [
         ":digester",
         "//riegeli/base:arithmetic",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@zlib",
     ],
@@ -107,6 +108,7 @@ cc_library(
     deps = [
         ":digester",
         "//riegeli/base:arithmetic",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@zlib",
     ],

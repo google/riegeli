@@ -18,6 +18,7 @@
 
 #include <limits>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "zconf.h"
@@ -31,6 +32,10 @@ Adler32Digester::Adler32Digester(uint32_t seed) : adler_(seed) {
 }
 
 void Adler32Digester::WriteImpl(absl::string_view src) {
+  if (ABSL_PREDICT_FALSE(src.empty())) {
+    // `adler32(state, nullptr, 0)` exceptionally returns 1, not `state`.
+    return;
+  }
   while (src.size() > std::numeric_limits<uInt>::max()) {
     adler_ = IntCast<uint32_t>(adler32(
         IntCast<uLong>(adler_), reinterpret_cast<const Bytef*>(src.data()),
