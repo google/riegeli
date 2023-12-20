@@ -259,7 +259,7 @@ bool FileWriterBase::WriteZerosSlow(Position length) {
     // Write directly from `CordOfZeros()`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    while (length > std::numeric_limits<size_t>::max()) {
+    while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
       if (ABSL_PREDICT_FALSE(!WriteInternal(
               CordOfZeros(std::numeric_limits<size_t>::max())))) {
         return false;
