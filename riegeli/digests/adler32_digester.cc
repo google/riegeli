@@ -16,8 +16,6 @@
 
 #include <stdint.h>
 
-#include <limits>
-
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -28,23 +26,17 @@ namespace riegeli {
 
 Adler32Digester::Adler32Digester(uint32_t seed) : adler_(seed) {
   // This checks CPU features.
-  adler32(0, nullptr, 0);
+  adler32_z(0, nullptr, 0);
 }
 
 void Adler32Digester::WriteImpl(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(src.empty())) {
-    // `adler32(state, nullptr, 0)` exceptionally returns 1, not `state`.
+    // `adler32_z(state, nullptr, 0)` exceptionally returns 1, not `state`.
     return;
   }
-  while (src.size() > std::numeric_limits<uInt>::max()) {
-    adler_ = IntCast<uint32_t>(adler32(
-        IntCast<uLong>(adler_), reinterpret_cast<const Bytef*>(src.data()),
-        std::numeric_limits<uInt>::max()));
-    src.remove_prefix(std::numeric_limits<uInt>::max());
-  }
-  adler_ = IntCast<uint32_t>(adler32(IntCast<uLong>(adler_),
-                                     reinterpret_cast<const Bytef*>(src.data()),
-                                     IntCast<uInt>(src.size())));
+  adler_ = IntCast<uint32_t>(adler32_z(
+      IntCast<uLong>(adler_), reinterpret_cast<const Bytef*>(src.data()),
+      IntCast<z_size_t>(src.size())));
 }
 
 }  // namespace riegeli

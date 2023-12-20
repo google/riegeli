@@ -16,8 +16,6 @@
 
 #include <stdint.h>
 
-#include <limits>
-
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -28,23 +26,17 @@ namespace riegeli {
 
 Crc32Digester::Crc32Digester(uint32_t seed) : crc_(seed) {
   // This checks CPU features.
-  crc32(0, nullptr, 0);
+  crc32_z(0, nullptr, 0);
 }
 
 void Crc32Digester::WriteImpl(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(src.empty())) {
-    // `crc32(state, nullptr, 0)` exceptionally returns 0, not `state`.
+    // `crc32_z(state, nullptr, 0)` exceptionally returns 0, not `state`.
     return;
   }
-  while (src.size() > std::numeric_limits<uInt>::max()) {
-    crc_ = IntCast<uint32_t>(crc32(IntCast<uLong>(crc_),
+  crc_ = IntCast<uint32_t>(crc32_z(IntCast<uLong>(crc_),
                                    reinterpret_cast<const Bytef*>(src.data()),
-                                   std::numeric_limits<uInt>::max()));
-    src.remove_prefix(std::numeric_limits<uInt>::max());
-  }
-  crc_ = IntCast<uint32_t>(crc32(IntCast<uLong>(crc_),
-                                 reinterpret_cast<const Bytef*>(src.data()),
-                                 IntCast<uInt>(src.size())));
+                                   IntCast<z_size_t>(src.size())));
 }
 
 }  // namespace riegeli
