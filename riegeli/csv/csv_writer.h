@@ -527,9 +527,10 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
         const absl::string_view field = *iter;
         if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
       } while (++iter != end_iter);
-    } else if (field.empty()) {
-      // Quote a single empty field to avoid writing an empty line which might
-      // be skipped by some readers.
+    } else if (field.empty() &&
+               ABSL_PREDICT_TRUE(field_separator_ != kUtf8Bom[0])) {
+      // Quote a single empty field if not already quoted, to avoid writing an
+      // empty line which might be skipped by some readers.
       if (ABSL_PREDICT_FALSE(!WriteQuotes(dest))) return false;
     }
   }

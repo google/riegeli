@@ -24,11 +24,9 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/status.h"
@@ -179,7 +177,20 @@ bool CsvWriterBase::WriteQuotes(Writer& dest) {
 }
 
 bool CsvWriterBase::WriteFirstField(Writer& dest, absl::string_view field) {
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(field, kUtf8Bom)) &&
+  // Quote the first field if the field together with the field separator could
+  // make the line starting with UTF-8 BOM.
+  //
+  // For simplicity other fields are not considered, at the cost of unnecessary
+  // quoting in corner cases.
+  if (ABSL_PREDICT_FALSE(
+          field.empty() ? field_separator_ == kUtf8Bom[0]
+                        : field[0] == kUtf8Bom[0] &&
+                              (field.size() == 1
+                                   ? field_separator_ == kUtf8Bom[1]
+                                   : field[1] == kUtf8Bom[1] &&
+                                         (field.size() == 2
+                                              ? field_separator_ == kUtf8Bom[2]
+                                              : field[2] == kUtf8Bom[2]))) &&
       quote_ != absl::nullopt) {
     return WriteQuoted(dest, field, 0);
   }
