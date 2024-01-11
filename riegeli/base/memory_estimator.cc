@@ -14,9 +14,6 @@
 
 #include "riegeli/base/memory_estimator.h"
 
-#include "absl/base/optimization.h"
-#include "riegeli/base/estimated_allocated_size.h"
-
 #ifdef __GXX_RTTI
 #include <cxxabi.h>
 #endif
@@ -29,7 +26,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
+#include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
 
@@ -87,6 +86,10 @@ void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
 
 bool MemoryEstimator::RegisterNode(const void* ptr) {
   return ptr != nullptr && objects_seen_.insert(ptr).second;
+}
+
+void MemoryEstimator::RegisterUnknownTypeImpl(std::type_index index) {
+  unknown_types_.insert(index);
 }
 
 std::vector<std::string> MemoryEstimator::UnknownTypes() const {

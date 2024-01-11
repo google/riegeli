@@ -183,6 +183,8 @@ class MemoryEstimator {
   std::vector<std::string> UnknownTypes() const;
 
  private:
+  void RegisterUnknownTypeImpl(std::type_index index);
+
   bool deterministic_for_testing_ = false;
   bool unknown_types_no_rtti_ = false;
   size_t total_memory_ = 0;
@@ -219,7 +221,7 @@ inline void MemoryEstimator::RegisterMemory(size_t memory) {
 template <typename T>
 inline void MemoryEstimator::RegisterUnknownType() {
 #if __cpp_rtti
-  unknown_types_.insert(std::type_index(typeid(T)));
+  RegisterUnknownTypeImpl(std::type_index(typeid(T)));
 #else
   unknown_types_no_rtti_ = true;
 #endif
