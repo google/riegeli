@@ -125,9 +125,15 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //   template <typename... ManagerArgs>
 //   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
 //
+//   // Copies the dependency.
+//   //
+//   // These methods are optional.
+//   Dependency(const Dependency& that) noexcept;
+//   Dependency& operator=(const Dependency& that) noexcept;
+//
 //   // Moves the dependency.
 //   //
-//   // Assignment operator is optional.
+//   // These methods are optional.
 //   Dependency(Dependency&& that) noexcept;
 //   Dependency& operator=(Dependency&& that) noexcept;
 //
@@ -269,12 +275,24 @@ template <typename Ptr, typename Manager>
 class DependencyMaybeRef<
     Ptr, Manager, std::enable_if_t<IsValidDependencyImpl<Ptr, Manager>::value>>
     : public DependencyImpl<Ptr, Manager> {
+ public:
   using DependencyMaybeRef::DependencyImpl::DependencyImpl;
+
+ protected:
+  DependencyMaybeRef(const DependencyMaybeRef& that) = default;
+  DependencyMaybeRef& operator=(const DependencyMaybeRef& that) = default;
+
+  DependencyMaybeRef(DependencyMaybeRef&& that) = default;
+  DependencyMaybeRef& operator=(DependencyMaybeRef&& that) = default;
+
+  ~DependencyMaybeRef() = default;
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&>` when
 // `DependencyImpl<Ptr, M&>` is not defined: delegate to
 // `DependencyImpl<Ptr, std::decay_t<M>>`.
+//
+// Assignment is not supported.
 template <typename Ptr, typename M>
 class DependencyMaybeRef<
     Ptr, M&,
@@ -286,13 +304,21 @@ class DependencyMaybeRef<
   explicit DependencyMaybeRef(M& manager) noexcept
       : DependencyMaybeRef::DependencyImpl(manager) {}
 
+ protected:
+  DependencyMaybeRef(const DependencyMaybeRef& that) = default;
+  DependencyMaybeRef& operator=(const DependencyMaybeRef&) = delete;
+
   DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+
+  ~DependencyMaybeRef() = default;
 };
 
 // Specialization of `DependencyMaybeRef<Ptr, M&&>` when
 // `DependencyImpl<Ptr, M&&>` is not defined: delegate to
 // `DependencyImpl<Ptr, std::decay_t<M>>`.
+//
+// Assignment is not supported.
 template <typename Ptr, typename M>
 class DependencyMaybeRef<
     Ptr, M&&,
@@ -304,8 +330,14 @@ class DependencyMaybeRef<
   explicit DependencyMaybeRef(M&& manager) noexcept
       : DependencyMaybeRef::DependencyImpl(std::move(manager)) {}
 
+ protected:
+  DependencyMaybeRef(const DependencyMaybeRef& that) = default;
+  DependencyMaybeRef& operator=(const DependencyMaybeRef&) = delete;
+
   DependencyMaybeRef(DependencyMaybeRef&& that) = default;
   DependencyMaybeRef& operator=(DependencyMaybeRef&&) = delete;
+
+  ~DependencyMaybeRef() = default;
 };
 
 }  // namespace dependency_internal
@@ -450,6 +482,15 @@ class DependencyDerived
 
   void* GetIf(TypeId type_id) { return GetIfImpl(type_id); }
   const void* GetIf(TypeId type_id) const { return GetIfImpl(type_id); }
+
+ protected:
+  DependencyDerived(const DependencyDerived& that) = default;
+  DependencyDerived& operator=(const DependencyDerived& that) = default;
+
+  DependencyDerived(DependencyDerived&& that) = default;
+  DependencyDerived& operator=(DependencyDerived&& that) = default;
+
+  ~DependencyDerived() = default;
 
  private:
   template <typename OtherManager, typename DependentBase = Base,
@@ -625,6 +666,9 @@ class DependencyBase {
   const Manager& manager() const { return manager_; }
 
  protected:
+  DependencyBase(const DependencyBase& that) = default;
+  DependencyBase& operator=(const DependencyBase& that) = default;
+
   DependencyBase(DependencyBase&& that) = default;
   DependencyBase& operator=(DependencyBase&& that) = default;
 
@@ -678,8 +722,8 @@ class DependencyBase<Manager&> {
   Manager& manager() const { return manager_; }
 
  protected:
-  DependencyBase(DependencyBase&& that) = default;
-  DependencyBase& operator=(DependencyBase&&) = delete;
+  DependencyBase(const DependencyBase& that) = default;
+  DependencyBase& operator=(const DependencyBase&) = delete;
 
   ~DependencyBase() = default;
 
@@ -700,8 +744,8 @@ class DependencyBase<Manager&&> {
   Manager& manager() const { return manager_; }
 
  protected:
-  DependencyBase(DependencyBase&& that) = default;
-  DependencyBase& operator=(DependencyBase&&) = delete;
+  DependencyBase(const DependencyBase& that) = default;
+  DependencyBase& operator=(const DependencyBase&) = delete;
 
   ~DependencyBase() = default;
 
@@ -723,6 +767,12 @@ class DependencyImpl<P*, M*,
   bool is_owning() const { return false; }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of `DependencyImpl<P*, std::nullptr_t>`: an unowned dependency
@@ -739,6 +789,12 @@ class DependencyImpl<P*, std::nullptr_t>
   bool is_owning() const { return false; }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 namespace dependency_internal {
@@ -780,6 +836,15 @@ class DependencyImpl<
   bool is_owning() const { return true; }
 
   static constexpr bool kIsStable = false;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // `IsValidDependencyImpl<P*, M>` when `M*` is convertible to `P*` is
@@ -821,6 +886,12 @@ class DependencyImpl<P*, std::unique_ptr<M, Deleter>,
   bool is_owning() const { return this->manager() != nullptr; }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of `DependencyImpl<P*, M&>` when `M*` is convertible to `P*`:
@@ -848,6 +919,12 @@ class DependencyImpl<
   bool is_owning() const { return false; }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = delete;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of `DependencyImpl<P*, M&&>` when `M*` is convertible to `P*`:
@@ -875,6 +952,12 @@ class DependencyImpl<
   bool is_owning() const { return true; }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = delete;
+
+  ~DependencyImpl() = default;
 };
 
 namespace dependency_internal {
@@ -927,6 +1010,12 @@ class DependencyImpl<
   M& get() const { return *this->manager(); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename P, typename M>
@@ -942,6 +1031,15 @@ class DependencyImpl<
   const M& get() const { return this->manager(); }
 
   static constexpr bool kIsStable = std::is_same<P, M>::value;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename P, typename M, typename Deleter>
@@ -957,6 +1055,12 @@ class DependencyImpl<
   M& get() const { return *this->manager(); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Additional specializations of `DependencyImpl<absl::string_view, Manager>`.
@@ -975,6 +1079,12 @@ class DependencyImpl<absl::string_view, const char*>
   absl::string_view get() const { return this->manager(); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <>
@@ -985,6 +1095,12 @@ class DependencyImpl<absl::string_view, char*> : public DependencyBase<char*> {
   absl::string_view get() const { return this->manager(); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename M>
@@ -1004,6 +1120,12 @@ class DependencyImpl<
   }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename M>
@@ -1025,6 +1147,15 @@ class DependencyImpl<
   static constexpr bool kIsStable =
       absl::disjunction<std::is_same<M, absl::Span<const char>>,
                         std::is_same<M, absl::Span<char>>>::value;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename M, typename Deleter>
@@ -1044,6 +1175,12 @@ class DependencyImpl<
   }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Additional specializations of `DependencyImpl<absl::Span<T>, Manager>`.
@@ -1065,6 +1202,12 @@ class DependencyImpl<
   absl::Span<T> get() const { return absl::Span<T>(*this->manager()); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename T, typename M>
@@ -1084,6 +1227,15 @@ class DependencyImpl<
   }
 
   static constexpr bool kIsStable = false;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 template <typename T, typename M, typename Deleter>
@@ -1100,6 +1252,12 @@ class DependencyImpl<
   absl::Span<T> get() const { return absl::Span<T>(*this->manager()); }
 
   static constexpr bool kIsStable = true;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 }  // namespace riegeli

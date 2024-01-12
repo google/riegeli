@@ -250,9 +250,6 @@ class DependencyImpl<ChunkWriter*, M,
   explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_writer_(std::move(manager_args)) {}
 
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
-
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_writer_.Reset(kClosed); }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
@@ -276,6 +273,12 @@ class DependencyImpl<ChunkWriter*, M,
   bool is_owning() const { return true; }
 
   static constexpr bool kIsStable = false;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 
  private:
   DefaultChunkWriter<M> chunk_writer_;

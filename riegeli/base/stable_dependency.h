@@ -41,7 +41,11 @@ template <typename Ptr, typename Manager>
 class StableDependency<Ptr, Manager,
                        std::enable_if_t<Dependency<Ptr, Manager>::kIsStable>>
     : public Dependency<Ptr, Manager> {
+ public:
   using StableDependency::Dependency::Dependency;
+
+  StableDependency(StableDependency&& other) = default;
+  StableDependency& operator=(StableDependency&& other) = default;
 };
 
 namespace dependency_internal {
@@ -166,6 +170,9 @@ class StableDependency<Ptr, Manager,
           Manager> {
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
+
+  StableDependency(StableDependency&& other) = default;
+  StableDependency& operator=(StableDependency&& other) = default;
 };
 
 // Implementation details follow.

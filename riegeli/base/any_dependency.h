@@ -443,6 +443,12 @@ class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>,
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<P>&&>` when `P` is
@@ -467,6 +473,12 @@ class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>&&,
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = delete;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of
@@ -501,6 +513,12 @@ class DependencyImpl<
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
@@ -601,6 +619,12 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>,
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<P>&&>` when `P`
@@ -626,6 +650,12 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>&&,
   const void* GetIf(TypeId type_id) const {
     return this->manager().GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = delete;
+
+  ~DependencyImpl() = default;
 };
 
 // Specialization of
@@ -661,6 +691,12 @@ class DependencyImpl<
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 };
 
 // Implementation details follow.

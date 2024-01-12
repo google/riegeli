@@ -327,9 +327,6 @@ class DependencyImpl<ChunkReader*, M,
   explicit DependencyImpl(std::tuple<MArgs...> manager_args)
       : chunk_reader_(std::move(manager_args)) {}
 
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
-
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_reader_.Reset(kClosed); }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
@@ -353,6 +350,12 @@ class DependencyImpl<ChunkReader*, M,
   bool is_owning() const { return true; }
 
   static constexpr bool kIsStable = false;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
 
  private:
   DefaultChunkReader<M> chunk_reader_;
