@@ -20,19 +20,35 @@
 
 #include "riegeli/bytes/cfile_internal.h"
 
-#ifndef _WIN32
 #ifdef __APPLE__
-
 #include <fcntl.h>
+#endif
 #include <stdio.h>
 
+#ifdef __APPLE__
 #include <cerrno>
+#endif
+#include <string>
 
 #include "absl/base/optimization.h"
+#ifdef __APPLE__
 #include "absl/strings/string_view.h"
+#endif
+#include "riegeli/bytes/fd_internal.h"
 
 namespace riegeli {
 namespace cfile_internal {
+
+void FilenameForCFile(FILE* file, std::string& filename) {
+  const int fd = fileno(file);
+  if (ABSL_PREDICT_FALSE(fd < 0)) {
+    filename = "<unknown>";
+  } else {
+    fd_internal::FilenameForFd(fd, filename);
+  }
+}
+
+#ifdef __APPLE__
 
 FILE* FOpen(const char* filename, const char* mode,
             absl::string_view& failed_function_name) {
@@ -82,8 +98,7 @@ FILE* FOpen(const char* filename, const char* mode,
   return file;
 }
 
+#endif
+
 }  // namespace cfile_internal
 }  // namespace riegeli
-
-#endif
-#endif

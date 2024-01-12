@@ -31,19 +31,15 @@
 #endif
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 namespace fd_internal {
 
-// Returns the `assumed_filename`.
-//
-// If `absl::nullopt`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-// `absl::StrCat("/proc/self/fd/", fd)` is inferred from `fd` (on Windows:
-// "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
-std::string ResolveFilename(int fd,
-                            absl::optional<std::string>&& assumed_filename);
+// Infers a filename from fd: "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+// `absl::StrCat("/proc/self/fd/", fd)` (on Windows: "CONIN$", "CONOUT$",
+// "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
+void FilenameForFd(int fd, std::string& filename);
 
 #ifndef _WIN32
 

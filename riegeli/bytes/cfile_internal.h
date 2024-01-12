@@ -24,15 +24,25 @@
 #include <sys/types.h>
 #endif
 
+#include <string>
 #include <type_traits>
 #include <utility>
 
+#ifndef __APPLE__
+#include "absl/base/optimization.h"
+#endif
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 namespace cfile_internal {
+
+// Infers a filename from the fd corresponding to the `FILE`: "/dev/stdin",
+// "/dev/stdout", "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` (on
+// Windows: "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`),
+// or "<unknown>" if there is no corresponding fd.
+void FilenameForCFile(FILE* file, std::string& filename);
 
 #ifndef _WIN32
 

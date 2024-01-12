@@ -46,26 +46,42 @@ class CFileReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `CFileReader` reads from an already open `FILE`, `assumed_filename()`
-    // allows to override the filename which is included in failure messages and
-    // returned by `filename()`.
+    // `assumed_filename()` allows to override the filename which is included in
+    // failure messages and returned by `filename()`.
     //
-    // If `CFileReader` opens a `FILE` with a filename, `assumed_filename()`
-    // has no effect.
+    // If this is `absl::nullopt` and `CFileReader` opens a `FILE` with a
+    // filename, then that filename is used.
     //
-    // Default: "".
-    Options& set_assumed_filename(absl::string_view assumed_filename) & {
-      // TODO: When `absl::string_view` becomes C++17
-      // `std::string_view`: `assumed_filename_ = assumed_filename`
-      assumed_filename_.assign(assumed_filename.data(),
-                               assumed_filename.size());
+    // If this is `absl::nullopt` and `CFileReader` reads from an already open
+    // `FILE`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd
+    // corresponding to the `FILE` (on Windows: "CONIN$", "CONOUT$", "CONERR$",
+    // or `absl::StrCat("<fd ", fd, ">")`), or "<unknown>" if there is no
+    // corresponding fd.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) & {
+      if (assumed_filename == absl::nullopt) {
+        assumed_filename_ = absl::nullopt;
+      } else {
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `assumed_filename_.emplace(*assumed_filename)`
+        assumed_filename_.emplace(assumed_filename->data(),
+                                  assumed_filename->size());
+      }
       return *this;
     }
-    Options&& set_assumed_filename(absl::string_view assumed_filename) && {
+    Options&& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) && {
       return std::move(set_assumed_filename(assumed_filename));
     }
-    std::string& assumed_filename() { return assumed_filename_; }
-    const std::string& assumed_filename() const { return assumed_filename_; }
+    absl::optional<std::string>& assumed_filename() {
+      return assumed_filename_;
+    }
+    const absl::optional<std::string>& assumed_filename() const {
+      return assumed_filename_;
+    }
 
     // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "r" (on
@@ -168,7 +184,7 @@ class CFileReaderBase : public BufferedReader {
     bool growing_source() const { return growing_source_; }
 
    private:
-    std::string assumed_filename_;
+    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     std::string mode_ = "re";
 #else
@@ -203,17 +219,15 @@ class CFileReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, bool growing_source);
-  void Initialize(FILE* src, std::string&& assumed_filename,
-#ifdef _WIN32
-                  absl::string_view mode,
-#endif
-                  absl::optional<Position> assumed_pos);
+  void Initialize(FILE* src, Options&& options);
   FILE* OpenFile(absl::string_view filename, const std::string& mode);
-  void InitializePos(FILE* src,
+  bool InitializeAssumedFilename(Options& options);
+  void InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
-                     absl::string_view mode, bool mode_was_passed_to_fopen,
+                     ,
+                     bool mode_was_passed_to_fopen
 #endif
-                     absl::optional<Position> assumed_pos);
+  );
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
@@ -407,7 +421,8 @@ inline void CFileReaderBase::Reset(Closed) {
 inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `OpenFile()`.
+  // `filename_` will be set by `Initialize()`, `OpenFile()`, or
+  // `InitializeAssumedFilename()`.
   growing_source_ = growing_source;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
@@ -416,26 +431,27 @@ inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
 #endif
 }
 
+inline bool CFileReaderBase::InitializeAssumedFilename(Options& options) {
+  if (options.assumed_filename() != absl::nullopt) {
+    filename_ = *std::move(options.assumed_filename());
+    return true;
+  } else {
+    return false;
+  }
+}
+
 template <typename Src>
 inline CFileReader<Src>::CFileReader(const Src& src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(src) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline CFileReader<Src>::CFileReader(Src&& src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -448,11 +464,7 @@ inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
                                      Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -487,22 +499,14 @@ template <typename Src>
 inline void CFileReader<Src>::Reset(const Src& src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline void CFileReader<Src>::Reset(Src&& src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -516,11 +520,7 @@ inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                     Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -537,13 +537,15 @@ template <typename Src>
 void CFileReader<Src>::Initialize(absl::string_view filename,
                                   Options&& options) {
   FILE* const src = OpenFile(filename, options.mode());
+  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(),
+  InitializePos(src_.get(), std::move(options)
 #ifdef _WIN32
-                options.mode(), /*mode_was_passed_to_fopen=*/true,
+                                ,
+                /*mode_was_passed_to_fopen=*/true
 #endif
-                options.assumed_pos());
+  );
 }
 
 template <typename Src>

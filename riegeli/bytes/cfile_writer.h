@@ -52,26 +52,42 @@ class CFileWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `CFileWriter` writes to an already open `FILE`, `assumed_filename()`
-    // allows to override the filename which is included in failure messages and
-    // returned by `filename()`.
+    // `assumed_filename()` allows to override the filename which is included in
+    // failure messages and returned by `filename()`.
     //
-    // If `CFileWriter` opens a `FILE` with a filename, `assumed_filename()` has
-    // no effect.
+    // If this is `absl::nullopt` and `CFileWriter` opens a `FILE` with a
+    // filename, then that filename is used.
     //
-    // Default: "".
-    Options& set_assumed_filename(absl::string_view assumed_filename) & {
-      // TODO: When `absl::string_view` becomes C++17
-      // `std::string_view`: `assumed_filename_ = assumed_filename`
-      assumed_filename_.assign(assumed_filename.data(),
-                               assumed_filename.size());
+    // If this is `absl::nullopt` and `CFileWriter` writes to an already open
+    // `FILE`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd
+    // corresponding to the `FILE` (on Windows: "CONIN$", "CONOUT$", "CONERR$",
+    // or `absl::StrCat("<fd ", fd, ">")`), or "<unknown>" if there is no
+    // corresponding fd.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) & {
+      if (assumed_filename == absl::nullopt) {
+        assumed_filename_ = absl::nullopt;
+      } else {
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `assumed_filename_.emplace(*assumed_filename)`
+        assumed_filename_.emplace(assumed_filename->data(),
+                                  assumed_filename->size());
+      }
       return *this;
     }
-    Options&& set_assumed_filename(absl::string_view assumed_filename) && {
+    Options&& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) && {
       return std::move(set_assumed_filename(assumed_filename));
     }
-    std::string& assumed_filename() { return assumed_filename_; }
-    const std::string& assumed_filename() const { return assumed_filename_; }
+    absl::optional<std::string>& assumed_filename() {
+      return assumed_filename_;
+    }
+    const absl::optional<std::string>& assumed_filename() const {
+      return assumed_filename_;
+    }
 
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "w" or "a"
@@ -252,7 +268,7 @@ class CFileWriterBase : public BufferedWriter {
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    std::string assumed_filename_;
+    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     std::string mode_ = "we";
 #else
@@ -283,12 +299,11 @@ class CFileWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
-  void Initialize(FILE* dest, std::string&& assumed_filename,
-                  absl::string_view mode, absl::optional<Position> assumed_pos);
+  void Initialize(FILE* dest, Options&& options);
   FILE* OpenFile(absl::string_view filename, const std::string& mode);
-  void InitializePos(FILE* dest, absl::string_view mode,
-                     bool mode_was_passed_to_fopen,
-                     absl::optional<Position> assumed_pos);
+  bool InitializeAssumedFilename(Options& options);
+  void InitializePos(FILE* dest, Options&& options,
+                     bool mode_was_passed_to_fopen);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
@@ -518,7 +533,8 @@ inline void CFileWriterBase::Reset(Closed) {
 
 inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `OpenFile()`.
+  // `filename_` will be set by `Initialize()`, `OpenFile()`, or
+  // `InitializeAssumedFilename()`.
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
@@ -530,18 +546,25 @@ inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   read_mode_ = false;
 }
 
+inline bool CFileWriterBase::InitializeAssumedFilename(Options& options) {
+  if (options.assumed_filename() != absl::nullopt) {
+    filename_ = *std::move(options.assumed_filename());
+    return true;
+  } else {
+    return false;
+  }
+}
+
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(const Dest& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -553,8 +576,7 @@ template <typename... DestArgs>
 inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -589,16 +611,14 @@ template <typename Dest>
 inline void CFileWriter<Dest>::Reset(const Dest& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -612,8 +632,7 @@ inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options.assumed_filename()), options.mode(),
-             options.assumed_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -630,10 +649,11 @@ template <typename Dest>
 void CFileWriter<Dest>::Initialize(absl::string_view filename,
                                    Options&& options) {
   FILE* const dest = OpenFile(filename, options.mode());
+  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), options.mode(),
-                /*mode_was_passed_to_fopen=*/true, options.assumed_pos());
+  InitializePos(dest_.get(), std::move(options),
+                /*mode_was_passed_to_fopen=*/true);
 }
 
 template <typename Dest>

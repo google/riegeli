@@ -62,17 +62,16 @@ class FdWriterBase : public BufferedWriter {
 
     Options() noexcept {}
 
-    // If `FdWriter` writes to an already open fd, `assumed_filename()` allows
-    // to override the filename which is included in failure messages and
-    // returned by `filename()`.
+    // `assumed_filename()` allows to override the filename which is included in
+    // failure messages and returned by `filename()`.
     //
-    // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
-    // "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` is inferred from
-    // the fd (on Windows: "CONIN$", "CONOUT$", "CONERR$", or
-    // `absl::StrCat("<fd ", fd, ">")`).
+    // If this is `absl::nullopt` and `FdWriter` opens a fd with a filename,
+    // then that filename is used.
     //
-    // If `FdWriter` opens a fd with a filename, `assumed_filename()` has no
-    // effect.
+    // If this is `absl::nullopt` and `FdWriter` writes to an already open fd,
+    // then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd (on Windows:
+    // "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_filename(
@@ -399,24 +398,11 @@ class FdWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
-  void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
-#ifdef _WIN32
-                  int mode,
-#endif
-                  absl::optional<Position> assumed_pos,
-                  absl::optional<Position> independent_pos);
+  void Initialize(int dest, Options&& options);
   int OpenFd(absl::string_view filename, int mode,
              Options::Permissions permissions);
-#ifndef _WIN32
-  void InitializePos(int dest, absl::optional<Position> assumed_pos,
-                     absl::optional<Position> independent_pos);
-#endif
-  void InitializePos(int dest, int mode,
-#ifdef _WIN32
-                     bool mode_was_passed_to_open,
-#endif
-                     absl::optional<Position> assumed_pos,
-                     absl::optional<Position> independent_pos);
+  bool InitializeAssumedFilename(Options& options);
+  void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
   ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
@@ -698,7 +684,8 @@ inline void FdWriterBase::Reset(Closed) {
 
 inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `OpenFd()`.
+  // `filename_` will be set by `Initialize()`, `OpenFd()`, or
+  // `InitializeAssumedFilename()`.
   has_independent_pos_ = false;
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
@@ -711,24 +698,25 @@ inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   read_mode_ = false;
 }
 
+inline bool FdWriterBase::InitializeAssumedFilename(Options& options) {
+  if (options.assumed_filename() != absl::nullopt) {
+    filename_ = *std::move(options.assumed_filename());
+    return true;
+  } else {
+    return false;
+  }
+}
+
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -740,11 +728,7 @@ template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -777,22 +761,14 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -806,11 +782,7 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options.assumed_filename()),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -825,13 +797,11 @@ inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
 template <typename Dest>
 void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
   const int dest = OpenFd(filename, options.mode(), options.permissions());
+  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), options.mode(),
-#ifdef _WIN32
-                /*mode_was_passed_to_open=*/true,
-#endif
-                options.assumed_pos(), options.independent_pos());
+  InitializePos(dest_.get(), std::move(options),
+                /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>

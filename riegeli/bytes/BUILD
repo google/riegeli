@@ -1083,7 +1083,6 @@ cc_library(
     deps = [
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -1295,6 +1294,7 @@ cc_library(
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
+        ":fd_internal",
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",

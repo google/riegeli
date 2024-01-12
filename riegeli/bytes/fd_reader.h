@@ -51,17 +51,16 @@ class FdReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `FdReader` reads from an already open fd, `assumed_filename()` allows
-    // to override the filename which is included in failure messages and
-    // returned by `filename()`.
+    // `assumed_filename()` allows to override the filename which is included in
+    // failure messages and returned by `filename()`.
     //
-    // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
-    // "/dev/stderr", or `absl::StrCat("/proc/self/fd/", fd)` is inferred from
-    // the fd (on Windows: "CONIN$", "CONOUT$", "CONERR$", or
-    // `absl::StrCat("<fd ", fd, ">")`).
+    // If this is `absl::nullopt` and `FdReader` opens a fd with a filename,
+    // then that filename is used.
     //
-    // If `FdReader` opens a fd with a filename, `assumed_filename()` has no
-    // effect.
+    // If this is `absl::nullopt` and `FdReader` reads from an already open fd,
+    // then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
+    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd (on Windows:
+    // "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_filename(
@@ -257,20 +256,15 @@ class FdReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options, bool growing_source);
-  void Initialize(int src,
-#ifdef _WIN32
-                  int mode,
-#endif
-                  absl::optional<std::string>&& assumed_filename,
-                  absl::optional<Position> assumed_pos,
-                  absl::optional<Position> independent_pos);
+  void Initialize(int src, Options&& options);
   int OpenFd(absl::string_view filename, int mode);
-  void InitializePos(int src,
+  bool InitializeAssumedFilename(Options& options);
+  void InitializePos(int src, Options&& options
 #ifdef _WIN32
-                     int mode, bool mode_was_passed_to_open,
+                     ,
+                     bool mode_was_passed_to_open
 #endif
-                     absl::optional<Position> assumed_pos,
-                     absl::optional<Position> independent_pos);
+  );
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
   ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
@@ -499,7 +493,8 @@ inline void FdReaderBase::Reset(Closed) {
 inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
                                 bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `OpenFd()`.
+  // `filename_` will be set by `Initialize()`, `OpenFd()`, or
+  // `InitializeAssumedFilename()`.
   has_independent_pos_ = false;
   growing_source_ = growing_source;
   supports_random_access_ = false;
@@ -509,28 +504,27 @@ inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
 #endif
 }
 
+inline bool FdReaderBase::InitializeAssumedFilename(Options& options) {
+  if (options.assumed_filename() != absl::nullopt) {
+    filename_ = *std::move(options.assumed_filename());
+    return true;
+  } else {
+    return false;
+  }
+}
+
 template <typename Src>
 inline FdReader<Src>::FdReader(const Src& src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(src) {
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(Src&& src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -542,12 +536,7 @@ template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -580,24 +569,14 @@ template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(src);
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -611,12 +590,7 @@ inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(),
-#ifdef _WIN32
-             options.mode(),
-#endif
-             std::move(options.assumed_filename()), options.assumed_pos(),
-             options.independent_pos());
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -631,14 +605,15 @@ inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
 template <typename Src>
 void FdReader<Src>::Initialize(absl::string_view filename, Options&& options) {
   const int src = OpenFd(filename, options.mode());
+  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(),
+  InitializePos(src_.get(), std::move(options)
 #ifdef _WIN32
-                options.mode(),
-                /*mode_was_passed_to_open=*/true,
+                                ,
+                /*mode_was_passed_to_open=*/true
 #endif
-                options.assumed_pos(), options.independent_pos());
+  );
 }
 
 template <typename Src>

@@ -45,16 +45,16 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
   RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
-      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_random_access_ not reset";
   RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
-      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_read_mode_ not reset";
   RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
-      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "random_access_status_ not reset";
   RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
-      << "Failed precondition of OStreamWriterBase::InitializePos(): "
+      << "Failed precondition of OStreamWriterBase::Initialize(): "
          "read_mode_status_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     // Either constructing the stream failed or the stream was already in a

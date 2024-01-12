@@ -196,14 +196,13 @@ void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 }  // namespace
 
-void FdMMapReaderBase::Initialize(
-    int src, absl::optional<std::string>&& assumed_filename,
-    absl::optional<Position> independent_pos,
-    absl::optional<Position> max_length) {
+void FdMMapReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  filename_ = fd_internal::ResolveFilename(src, std::move(assumed_filename));
-  InitializePos(src, independent_pos, max_length);
+  if (!InitializeAssumedFilename(options)) {
+    fd_internal::FilenameForFd(src, filename_);
+  }
+  InitializePos(src, std::move(options));
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int mode) {
@@ -244,12 +243,10 @@ again:
   return src;
 }
 
-void FdMMapReaderBase::InitializePos(int src,
-                                     absl::optional<Position> independent_pos,
-                                     absl::optional<Position> max_length) {
+void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   Position initial_pos;
-  if (independent_pos != absl::nullopt) {
-    initial_pos = *independent_pos;
+  if (options.independent_pos() != absl::nullopt) {
+    initial_pos = *options.independent_pos();
   } else {
     const fd_internal::Offset file_pos = fd_internal::LSeek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
@@ -266,11 +263,12 @@ void FdMMapReaderBase::InitializePos(int src,
   }
   Position base_pos = 0;
   Position length = IntCast<Position>(stat_info.st_size);
-  if (max_length != absl::nullopt) {
+  if (options.max_length() != absl::nullopt) {
     base_pos = initial_pos;
-    length = UnsignedMin(SaturatingSub(length, initial_pos), *max_length);
+    length =
+        UnsignedMin(SaturatingSub(length, initial_pos), *options.max_length());
   }
-  if (independent_pos == absl::nullopt) base_pos_to_sync_ = base_pos;
+  if (options.independent_pos() == absl::nullopt) base_pos_to_sync_ = base_pos;
   if (length == 0) {
     // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
     // Set it now to empty.
@@ -336,7 +334,7 @@ void FdMMapReaderBase::InitializePos(int src,
       std::forward_as_tuple(static_cast<const char*>(addr)),
       absl::string_view(static_cast<const char*>(addr) + rounding,
                         IntCast<size_t>(length))));
-  if (max_length == absl::nullopt) Seek(initial_pos);
+  if (options.max_length() == absl::nullopt) Seek(initial_pos);
 }
 
 void FdMMapReaderBase::InitializeWithExistingData(int src,

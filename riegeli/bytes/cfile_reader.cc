@@ -102,19 +102,18 @@ inline size_t AvailableLength(DependentFILE* src) {
 
 }  // namespace
 
-void CFileReaderBase::Initialize(FILE* src, std::string&& assumed_filename,
-#ifdef _WIN32
-                                 absl::string_view mode,
-#endif
-                                 absl::optional<Position> assumed_pos) {
+void CFileReaderBase::Initialize(FILE* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  filename_ = std::move(assumed_filename);
-  InitializePos(src,
+  if (!InitializeAssumedFilename(options)) {
+    cfile_internal::FilenameForCFile(src, filename_);
+  }
+  InitializePos(src, std::move(options)
 #ifdef _WIN32
-                mode, /*mode_was_passed_to_fopen=*/false,
+                         ,
+                /*mode_was_passed_to_fopen=*/false
 #endif
-                assumed_pos);
+  );
 }
 
 FILE* CFileReaderBase::OpenFile(absl::string_view filename,
@@ -155,12 +154,12 @@ FILE* CFileReaderBase::OpenFile(absl::string_view filename,
   return src;
 }
 
-void CFileReaderBase::InitializePos(FILE* src,
+void CFileReaderBase::InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
-                                    absl::string_view mode,
-                                    bool mode_was_passed_to_fopen,
+                                    ,
+                                    bool mode_was_passed_to_fopen
 #endif
-                                    absl::optional<Position> assumed_pos) {
+) {
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
@@ -177,7 +176,7 @@ void CFileReaderBase::InitializePos(FILE* src,
     return;
   }
 #ifdef _WIN32
-  int text_mode = file_internal::GetTextAsFlags(mode);
+  int text_mode = file_internal::GetTextAsFlags(options.mode());
   if (!mode_was_passed_to_fopen && text_mode != 0) {
     const int fd = _fileno(src);
     if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -191,7 +190,7 @@ void CFileReaderBase::InitializePos(FILE* src,
     }
     original_mode_ = original_mode;
   }
-  if (assumed_pos == absl::nullopt) {
+  if (options.assumed_pos() == absl::nullopt) {
     if (text_mode == 0) {
       const int fd = _fileno(src);
       if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -209,17 +208,17 @@ void CFileReaderBase::InitializePos(FILE* src,
         return;
       }
     }
-    if (text_mode != _O_BINARY) assumed_pos = 0;
+    if (text_mode != _O_BINARY) options.set_assumed_pos(0);
   }
 #endif
-  if (assumed_pos != absl::nullopt) {
+  if (options.assumed_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
+            *options.assumed_pos() >
             Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*assumed_pos);
+    set_limit_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
     static const NoDestructor<absl::Status> status(absl::UnimplementedError(
         "CFileReaderBase::Options::assumed_pos() excludes random access"));

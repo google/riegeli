@@ -15,36 +15,42 @@
 #include "riegeli/bytes/fd_internal.h"
 
 #include <string>
-#include <utility>
 
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 
 namespace riegeli {
 namespace fd_internal {
 
-std::string ResolveFilename(int fd,
-                            absl::optional<std::string>&& assumed_filename) {
-  if (assumed_filename != absl::nullopt) return *std::move(assumed_filename);
+void FilenameForFd(int fd, std::string& filename) {
   switch (fd) {
 #ifndef _WIN32
     case 0:
-      return "/dev/stdin";
+      filename = "/dev/stdin";
+      break;
     case 1:
-      return "/dev/stdout";
+      filename = "/dev/stdout";
+      break;
     case 2:
-      return "/dev/stderr";
+      filename = "/dev/stderr";
+      break;
     default:
-      return absl::StrCat("/proc/self/fd/", fd);
+      filename.clear();
+      absl::StrAppend(&filename, "/proc/self/fd/", fd);
+      break;
 #else
     case 0:
-      return "CONIN$";
+      filename = "CONIN$";
+      break;
     case 1:
-      return "CONOUT$";
+      filename = "CONOUT$";
+      break;
     case 2:
-      return "CONERR$";
+      filename = "CONERR$";
+      break;
     default:
-      return absl::StrCat("<fd ", fd, ">");
+      filename.clear();
+      absl::StrAppend(&filename, "<fd ", fd, ">");
+      break;
 #endif
   }
 }

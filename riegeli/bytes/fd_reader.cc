@@ -170,21 +170,18 @@ inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {}
 
 #endif
 
-void FdReaderBase::Initialize(int src,
-#ifdef _WIN32
-                              int mode,
-#endif
-                              absl::optional<std::string>&& assumed_filename,
-                              absl::optional<Position> assumed_pos,
-                              absl::optional<Position> independent_pos) {
+void FdReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  filename_ = fd_internal::ResolveFilename(src, std::move(assumed_filename));
-  InitializePos(src,
+  if (!InitializeAssumedFilename(options)) {
+    fd_internal::FilenameForFd(src, filename_);
+  }
+  InitializePos(src, std::move(options)
 #ifdef _WIN32
-                mode, /*mode_was_passed_to_open=*/false,
+                         ,
+                /*mode_was_passed_to_open=*/false
 #endif
-                assumed_pos, independent_pos);
+  );
 }
 
 int FdReaderBase::OpenFd(absl::string_view filename, int mode) {
@@ -228,12 +225,12 @@ again:
   return src;
 }
 
-void FdReaderBase::InitializePos(int src,
+void FdReaderBase::InitializePos(int src, Options&& options
 #ifdef _WIN32
-                                 int mode, bool mode_was_passed_to_open,
+                                 ,
+                                 bool mode_was_passed_to_open
 #endif
-                                 absl::optional<Position> assumed_pos,
-                                 absl::optional<Position> independent_pos) {
+) {
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "has_independent_pos_ not reset";
@@ -247,8 +244,8 @@ void FdReaderBase::InitializePos(int src,
   RIEGELI_ASSERT(original_mode_ == absl::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
-  int text_mode =
-      mode & (_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT);
+  int text_mode = options.mode() &
+                  (_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT);
   if (!mode_was_passed_to_open && text_mode != 0) {
     const int original_mode = _setmode(src, text_mode);
     if (ABSL_PREDICT_FALSE(original_mode < 0)) {
@@ -257,7 +254,7 @@ void FdReaderBase::InitializePos(int src,
     }
     original_mode_ = original_mode;
   }
-  if (assumed_pos == absl::nullopt) {
+  if (options.assumed_pos() == absl::nullopt) {
     if (text_mode == 0) {
       // There is no `_getmode()`, but `_setmode()` returns the previous mode.
       text_mode = _setmode(src, _O_BINARY);
@@ -271,42 +268,42 @@ void FdReaderBase::InitializePos(int src,
       }
     }
     if (text_mode != _O_BINARY) {
-      if (ABSL_PREDICT_FALSE(independent_pos != absl::nullopt)) {
+      if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
         Fail(absl::InvalidArgumentError(
             "FdReaderBase::Options::independent_pos() requires binary mode"));
         return;
       }
-      assumed_pos = 0;
+      options.set_assumed_pos(0);
     }
   }
 #endif
-  if (assumed_pos != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(independent_pos != absl::nullopt)) {
+  if (options.assumed_pos() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
       Fail(absl::InvalidArgumentError(
           "FdReaderBase::Options::assumed_pos() and independent_pos() "
           "must not be both set"));
       return;
     }
     if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
+            *options.assumed_pos() >
             Position{std::numeric_limits<fd_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*assumed_pos);
+    set_limit_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
     static const NoDestructor<absl::Status> status(absl::UnimplementedError(
         "FdReaderBase::Options::assumed_pos() excludes random access"));
     random_access_status_ = *status;
-  } else if (independent_pos != absl::nullopt) {
+  } else if (options.independent_pos() != absl::nullopt) {
     has_independent_pos_ = true;
     if (ABSL_PREDICT_FALSE(
-            *independent_pos >
+            *options.independent_pos() >
             Position{std::numeric_limits<fd_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*independent_pos);
+    set_limit_pos(*options.independent_pos());
     supports_random_access_ = true;
   } else {
     const fd_internal::Offset file_pos = fd_internal::LSeek(src, 0, SEEK_CUR);
