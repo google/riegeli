@@ -34,6 +34,9 @@ class ReadLineOptions {
  public:
   ReadLineOptions() noexcept {}
 
+  // Options can also be specified by the line terminator alone.
+  /*implicit*/ ReadLineOptions(ReadNewline newline) : newline_(newline) {}
+
   // Line terminator representations to recognize.
   //
   // Default: `ReadNewline::kNative`.

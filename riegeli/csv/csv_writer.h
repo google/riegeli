@@ -535,8 +535,7 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
     }
   }
   if (!standalone_record_) {
-    if (ABSL_PREDICT_FALSE(
-            !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
+    if (ABSL_PREDICT_FALSE(!WriteLine(dest, newline_))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     }
   }

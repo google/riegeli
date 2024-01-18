@@ -67,8 +67,7 @@ bool TextWriterImpl<newline>::WriteInternal(absl::string_view src) {
     if (lf_ptr == nullptr) break;
     const size_t length = PtrDistance(src.data(), lf_ptr);
     if (ABSL_PREDICT_FALSE(
-            !WriteLine(absl::string_view(src.data(), length), dest,
-                       WriteLineOptions().set_newline(newline)))) {
+            !WriteLine(absl::string_view(src.data(), length), dest, newline))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     }
     src.remove_prefix(length + 1);

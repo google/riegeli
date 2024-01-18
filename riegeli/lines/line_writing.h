@@ -36,6 +36,9 @@ class WriteLineOptions {
  public:
   WriteLineOptions() noexcept {}
 
+  // Options can also be specified by the line terminator alone.
+  /*implicit*/ WriteLineOptions(WriteNewline newline) : newline_(newline) {}
+
   // Line terminator representation to write.
   //
   // Default: `WriteNewline::kNative`.
