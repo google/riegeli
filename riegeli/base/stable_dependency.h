@@ -56,13 +56,15 @@ class StableDependencyImpl {
   StableDependencyImpl() = default;
 
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_copy_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<const DependentManager&,
+                                                 DependentManager>::value,
+                             int> = 0>
   explicit StableDependencyImpl(const Manager& manager)
       : dep_(new Dependency<Ptr, Manager>(manager)) {}
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_move_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<DependentManager&&,
+                                                 DependentManager>::value,
+                             int> = 0>
   explicit StableDependencyImpl(Manager&& manager) noexcept
       : dep_(new Dependency<Ptr, Manager>(std::move(manager))) {}
 
@@ -86,8 +88,9 @@ class StableDependencyImpl {
   }
 
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_copy_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<const DependentManager&,
+                                                 DependentManager>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
     Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {
@@ -99,8 +102,9 @@ class StableDependencyImpl {
     }
   }
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_move_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<DependentManager&&,
+                                                 DependentManager>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     Dependency<Ptr, Manager>* const dep = dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {

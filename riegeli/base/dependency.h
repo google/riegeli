@@ -609,12 +609,14 @@ class DependencyBase {
             RiegeliDependencySentinel(static_cast<Manager*>(nullptr))) {}
 
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_copy_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<const DependentManager&,
+                                                 DependentManager>::value,
+                             int> = 0>
   explicit DependencyBase(const Manager& manager) : manager_(manager) {}
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_move_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<DependentManager&&,
+                                                 DependentManager>::value,
+                             int> = 0>
   explicit DependencyBase(Manager&& manager) noexcept
       : manager_(std::move(manager)) {}
 
@@ -635,14 +637,16 @@ class DependencyBase {
   }
 
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_copy_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<const DependentManager&,
+                                                 DependentManager>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
     manager_ = manager;
   }
   template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_move_constructible<DependentManager>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<DependentManager&&,
+                                                 DependentManager>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     manager_ = std::move(manager);
   }

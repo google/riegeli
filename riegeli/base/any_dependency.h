@@ -230,7 +230,7 @@ class
               absl::negation<
                   std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
               IsValidDependency<Ptr, std::decay_t<Manager>>,
-              std::is_constructible<std::decay_t<Manager>, Manager&&>>::value,
+              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
           int> = 0>
   /*implicit*/ AnyDependencyImpl(Manager&& manager);
   template <
@@ -240,7 +240,7 @@ class
               absl::negation<
                   std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
               IsValidDependency<Ptr, std::decay_t<Manager>>,
-              std::is_constructible<std::decay_t<Manager>, Manager&&>>::value,
+              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
           int> = 0>
   AnyDependencyImpl& operator=(Manager&& manager);
 
@@ -269,8 +269,8 @@ class
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<IsValidDependency<Ptr, std::decay_t<Manager>>,
-                                  std::is_constructible<std::decay_t<Manager>,
-                                                        Manager&&>>::value,
+                                  std::is_convertible<
+                                      Manager&&, std::decay_t<Manager>>>::value,
                 int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
   template <typename Manager, typename ManagerArg,
@@ -953,32 +953,30 @@ inline AnyDependencyImpl<Ptr, inline_size,
       ptr_(any_dependency_internal::SentinelPtr<Ptr>()) {}
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<
-                std::decay_t<Manager>,
-                AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-            IsValidDependency<Ptr, std::decay_t<Manager>>,
-            std::is_constructible<std::decay_t<Manager>, Manager&&>>::value,
-        int>>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<std::is_same<
+                      std::decay_t<Manager>,
+                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
+                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+              int>>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
     Manager&& manager) {
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<
-                std::decay_t<Manager>,
-                AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-            IsValidDependency<Ptr, std::decay_t<Manager>>,
-            std::is_constructible<std::decay_t<Manager>, Manager&&>>::value,
-        int>>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<std::is_same<
+                      std::decay_t<Manager>,
+                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
+                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+              int>>
 inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
 AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
     Manager&& manager) {
@@ -1034,9 +1032,9 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset() {
 template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
-              absl::conjunction<IsValidDependency<Ptr, std::decay_t<Manager>>,
-                                std::is_constructible<std::decay_t<Manager>,
-                                                      Manager&&>>::value,
+              absl::conjunction<
+                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
               int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
     Manager&& manager) {
