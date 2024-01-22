@@ -289,11 +289,11 @@ explicit LimitingWriter(
     LimitingWriterBase::Options options = LimitingWriterBase::Options())
     -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 template <typename Dest>
-explicit LimitingWriter(const Dest& dest, Position max_pos)
-    -> LimitingWriter<std::decay_t<Dest>>;
+explicit LimitingWriter(const Dest& dest,
+                        Position max_pos) -> LimitingWriter<std::decay_t<Dest>>;
 template <typename Dest>
-explicit LimitingWriter(Dest&& dest, Position max_pos)
-    -> LimitingWriter<std::decay_t<Dest>>;
+explicit LimitingWriter(Dest&& dest,
+                        Position max_pos) -> LimitingWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
 explicit LimitingWriter(std::tuple<DestArgs...> dest_args, Position max_pos)
     -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;

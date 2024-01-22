@@ -797,7 +797,11 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
   context.buffers.reserve(num_buffers);
   std::vector<chunk_encoding_internal::Decompressor<ChainReader<Chain>>>
       bucket_decompressors;
-  if (ABSL_PREDICT_FALSE(num_buckets > bucket_decompressors.max_size())) {
+  // Explicitly convert `num_buckets` to `size_t` to avoid a warning
+  // `[-Wtautological-constant-out-of-range-compare]` if `max_size()` is
+  // constexpr.
+  if (ABSL_PREDICT_FALSE(size_t{num_buckets} >
+                         bucket_decompressors.max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many buckets"));
   }
   bucket_decompressors.reserve(num_buckets);

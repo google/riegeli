@@ -121,8 +121,8 @@ struct SearchGuide {
 // Support CTAD.
 #if __cpp_deduction_guides
 template <typename Pos, typename Ordering>
-explicit SearchGuide(Ordering ordering, Pos next)
-    -> SearchGuide<std::decay_t<Pos>>;
+explicit SearchGuide(Ordering ordering,
+                     Pos next) -> SearchGuide<std::decay_t<Pos>>;
 #endif
 
 namespace binary_search_internal {

@@ -164,20 +164,23 @@ class ArrayWriter : public ArrayWriterBase {
 #if __cpp_deduction_guides
 explicit ArrayWriter(Closed) -> ArrayWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit ArrayWriter(const Dest& dest) -> ArrayWriter<std::conditional_t<
-    absl::conjunction<
-        absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
-        std::is_constructible<absl::Span<char>, const Dest&>,
-        absl::negation<std::is_pointer<Dest>>>::value,
-    DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
+explicit ArrayWriter(const Dest& dest)
+    -> ArrayWriter<std::conditional_t<
+        absl::conjunction<
+            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
+            std::is_constructible<absl::Span<char>, const Dest&>,
+            absl::negation<std::is_pointer<Dest>>>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename Dest>
-explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
-    absl::conjunction<
-        absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
-        std::is_lvalue_reference<Dest>,
-        std::is_constructible<absl::Span<char>, Dest>,
-        absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::value,
-    DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
+explicit ArrayWriter(Dest&& dest)
+    -> ArrayWriter<std::conditional_t<
+        absl::conjunction<
+            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
+            std::is_lvalue_reference<Dest>,
+            std::is_constructible<absl::Span<char>, Dest>,
+            absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::
+            value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit ArrayWriter(std::tuple<DestArgs...> dest_args)
     -> ArrayWriter<DeleteCtad<std::tuple<DestArgs...>>>;

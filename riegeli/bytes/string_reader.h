@@ -155,17 +155,19 @@ class StringReader : public StringReaderBase {
 #if __cpp_deduction_guides
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit StringReader(const Src& src) -> StringReader<std::conditional_t<
-    std::is_convertible<const Src&, absl::string_view>::value,
-    absl::string_view, std::decay_t<Src>>>;
+explicit StringReader(const Src& src)
+    -> StringReader<std::conditional_t<
+        std::is_convertible<const Src&, absl::string_view>::value,
+        absl::string_view, std::decay_t<Src>>>;
 template <typename Src>
-explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
-    absl::disjunction<
-        absl::conjunction<std::is_lvalue_reference<Src>,
-                          std::is_convertible<std::remove_reference_t<Src>,
-                                              absl::string_view>>,
-        std::is_convertible<Src&&, const char*>>::value,
-    absl::string_view, std::decay_t<Src>>>;
+explicit StringReader(Src&& src)
+    -> StringReader<std::conditional_t<
+        absl::disjunction<
+            absl::conjunction<std::is_lvalue_reference<Src>,
+                              std::is_convertible<std::remove_reference_t<Src>,
+                                                  absl::string_view>>,
+            std::is_convertible<Src&&, const char*>>::value,
+        absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit StringReader(std::tuple<SrcArgs...> src_args)
     -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;
