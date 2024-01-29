@@ -40,7 +40,7 @@ namespace riegeli {
 #endif
 #endif
 
-namespace internal {
+namespace assert_internal {
 
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_unreachable) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(4, 5)
@@ -181,7 +181,7 @@ inline T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
-}  // namespace internal
+}  // namespace assert_internal
 
 // `RIEGELI_CHECK(expr)` checks that `expr` is `true`, terminating the program
 // if not.
@@ -189,9 +189,10 @@ inline T AssertNotNull(T&& value) {
 // `RIEGELI_CHECK_{EQ,NE,LT,GT,LE,GE}(a, b)` check the relationship between `a`
 // and `b`, and include values of `a` and `b` in the failure message.
 //
-// `RIEGELI_CHECK_NOTNULL(expr)` checks that `expr` is not `nullptr`.
+// `RIEGELI_CHECK_NOTNULL(expr)` checks that `expr` is not `nullptr` and returns
+// `expr`.
 //
-// `RIEGELI_CHECK_UNREACHABLE()` checks  that this expression is not reached.
+// `RIEGELI_CHECK_UNREACHABLE()` checks that this expression is not reached.
 //
 // `RIEGELI_CHECK_NOTNULL(expr)` is an expression which evaluates to `expr`.
 // The remaining `RIEGELI_CHECK*` macros can be followed by streaming `<<`
@@ -211,18 +212,18 @@ inline T AssertNotNull(T&& value) {
 #define RIEGELI_INTERNAL_FUNCTION __func__
 #endif
 
-#define RIEGELI_INTERNAL_CHECK_OP(name, op, a, b)                       \
-  while (::riegeli::internal::CheckResult riegeli_internal_check =      \
-             ::riegeli::internal::Check##name(#a " " #op " " #b, a, b)) \
-  ::riegeli::internal::CheckFailed(__FILE__, __LINE__,                  \
-                                   RIEGELI_INTERNAL_FUNCTION,           \
-                                   riegeli_internal_check.message())    \
+#define RIEGELI_INTERNAL_CHECK_OP(name, op, a, b)                              \
+  while (::riegeli::assert_internal::CheckResult riegeli_internal_check =      \
+             ::riegeli::assert_internal::Check##name(#a " " #op " " #b, a, b)) \
+  ::riegeli::assert_internal::CheckFailed(__FILE__, __LINE__,                  \
+                                          RIEGELI_INTERNAL_FUNCTION,           \
+                                          riegeli_internal_check.message())    \
       .stream()
 
-#define RIEGELI_CHECK(expr)                                          \
-  while (ABSL_PREDICT_FALSE(!(expr)))                                \
-  ::riegeli::internal::CheckFailed(__FILE__, __LINE__,               \
-                                   RIEGELI_INTERNAL_FUNCTION, #expr) \
+#define RIEGELI_CHECK(expr)                                                 \
+  while (ABSL_PREDICT_FALSE(!(expr)))                                       \
+  ::riegeli::assert_internal::CheckFailed(__FILE__, __LINE__,               \
+                                          RIEGELI_INTERNAL_FUNCTION, #expr) \
       .stream()
 #define RIEGELI_CHECK_EQ(a, b) RIEGELI_INTERNAL_CHECK_OP(Eq, ==, a, b)
 #define RIEGELI_CHECK_NE(a, b) RIEGELI_INTERNAL_CHECK_OP(Ne, !=, a, b)
@@ -230,13 +231,13 @@ inline T AssertNotNull(T&& value) {
 #define RIEGELI_CHECK_GT(a, b) RIEGELI_INTERNAL_CHECK_OP(Gt, >, a, b)
 #define RIEGELI_CHECK_LE(a, b) RIEGELI_INTERNAL_CHECK_OP(Le, <=, a, b)
 #define RIEGELI_CHECK_GE(a, b) RIEGELI_INTERNAL_CHECK_OP(Ge, >=, a, b)
-#define RIEGELI_CHECK_NOTNULL(expr)                            \
-  ::riegeli::internal::CheckNotNull(__FILE__, __LINE__,        \
-                                    RIEGELI_INTERNAL_FUNCTION, \
-                                    #expr " != nullptr", expr)
-#define RIEGELI_CHECK_UNREACHABLE()                                         \
-  ::riegeli::internal::CheckFailed(__FILE__, __LINE__,                      \
-                                   RIEGELI_INTERNAL_FUNCTION, "Impossible") \
+#define RIEGELI_CHECK_NOTNULL(expr)                                   \
+  ::riegeli::assert_internal::CheckNotNull(__FILE__, __LINE__,        \
+                                           RIEGELI_INTERNAL_FUNCTION, \
+                                           #expr " != nullptr", expr)
+#define RIEGELI_CHECK_UNREACHABLE()                                \
+  ::riegeli::assert_internal::CheckFailed(                         \
+      __FILE__, __LINE__, RIEGELI_INTERNAL_FUNCTION, "Impossible") \
       .stream()
 
 #if RIEGELI_DEBUG
@@ -254,7 +255,7 @@ inline T AssertNotNull(T&& value) {
 #else  // !RIEGELI_DEBUG
 
 #define RIEGELI_ASSERT(expr) \
-  while (false && !(expr)) ::riegeli::internal::UnreachableStream()
+  while (false && !(expr)) ::riegeli::assert_internal::UnreachableStream()
 
 #define RIEGELI_ASSERT_EQ(a, b) RIEGELI_ASSERT((a) == (b))
 #define RIEGELI_ASSERT_NE(a, b) RIEGELI_ASSERT((a) != (b))
@@ -262,8 +263,10 @@ inline T AssertNotNull(T&& value) {
 #define RIEGELI_ASSERT_GT(a, b) RIEGELI_ASSERT((a) > (b))
 #define RIEGELI_ASSERT_LE(a, b) RIEGELI_ASSERT((a) <= (b))
 #define RIEGELI_ASSERT_GE(a, b) RIEGELI_ASSERT((a) >= (b))
-#define RIEGELI_ASSERT_NOTNULL(expr) ::riegeli::internal::AssertNotNull(expr)
-#define RIEGELI_ASSERT_UNREACHABLE() ::riegeli::internal::UnreachableStream()
+#define RIEGELI_ASSERT_NOTNULL(expr) \
+  ::riegeli::assert_internal::AssertNotNull(expr)
+#define RIEGELI_ASSERT_UNREACHABLE() \
+  ::riegeli::assert_internal::UnreachableStream()
 
 #endif  // !RIEGELI_DEBUG
 

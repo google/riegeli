@@ -2714,7 +2714,8 @@ Chain ChainOfZeros(size_t length) {
       std::memset(buffer.data(), '\0', buffer.size());
     } else {
       result.Append(Chain::FromExternal<ZeroRef>(
-          std::forward_as_tuple(), kArrayOfZeros.substr(0, length)));
+          std::forward_as_tuple(),
+          absl::string_view(kArrayOfZeros.data(), length)));
     }
   }
   return result;

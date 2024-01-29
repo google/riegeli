@@ -36,8 +36,8 @@ namespace copy_all_internal {
 
 namespace {
 
-ABSL_ATTRIBUTE_COLD
-absl::Status MaxLengthExceeded(Reader& src, Position max_length) {
+ABSL_ATTRIBUTE_COLD absl::Status MaxLengthExceeded(Reader& src,
+                                                   Position max_length) {
   return src.AnnotateStatus(absl::ResourceExhaustedError(
       absl::StrCat("Maximum length exceeded: ", max_length)));
 }

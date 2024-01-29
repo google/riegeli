@@ -41,13 +41,14 @@ absl::Status ObjectState::status() const {
   return reinterpret_cast<const FailedStatus*>(status_ptr_)->status;
 }
 
-void ObjectState::FailImpl(absl::Status status) {
+bool ObjectState::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of ObjectState::FailImpl(): status not failed";
+      << "Failed precondition of ObjectState::Fail(): status not failed";
   if (status_ptr_ == kOk || status_ptr_ == kClosedSuccessfully) {
     status_ptr_ = reinterpret_cast<uintptr_t>(new FailedStatus{
         status_ptr_ == kClosedSuccessfully, std::move(status)});
   }
+  return false;
 }
 
 void ObjectState::SetStatus(absl::Status status) {
@@ -61,12 +62,12 @@ void ObjectState::SetStatus(absl::Status status) {
 
 void Object::Done() {}
 
-void Object::FailImpl(absl::Status status) {
+bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::FailImpl(): status not failed";
+      << "Failed precondition of Object::Fail(): status not failed";
   status = AnnotateStatus(std::move(status));
   OnFail();
-  state_.Fail(std::move(status));
+  return state_.Fail(std::move(status));
 }
 
 void Object::SetStatus(absl::Status status) {

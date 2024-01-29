@@ -23,7 +23,7 @@
 #include <tuple>
 #include <type_traits>
 #include <typeindex>
-#include <typeinfo>
+#include <typeinfo>  // IWYU pragma: keep
 #include <utility>
 #include <vector>
 

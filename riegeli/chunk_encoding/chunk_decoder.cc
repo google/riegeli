@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,7 +28,6 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/types.h"
 #include "riegeli/bytes/array_backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"

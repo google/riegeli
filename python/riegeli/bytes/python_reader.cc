@@ -107,7 +107,7 @@ void PythonReader::Done() {
   }
 }
 
-bool PythonReader::FailOperation(absl::string_view operation) {
+inline bool PythonReader::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of PythonReader::FailOperation(): "
          "Object closed";

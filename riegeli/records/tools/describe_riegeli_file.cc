@@ -29,6 +29,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"

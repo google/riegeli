@@ -28,6 +28,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pushable_backward_writer.h"
 
 namespace riegeli {

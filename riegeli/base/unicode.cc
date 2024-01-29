@@ -16,7 +16,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include "riegeli/base/unicode.h"
+#include "riegeli/base/unicode.h"  // IWYU pragma: keep
 
 #ifdef _WIN32
 

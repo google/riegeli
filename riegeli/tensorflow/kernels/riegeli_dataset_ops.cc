@@ -34,7 +34,6 @@
 #include "riegeli/tensorflow/io/file_reader.h"
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/dataset.h"
-#include "tensorflow/core/framework/kernel_def_builder.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op_requires.h"
 #include "tensorflow/core/framework/tensor.h"

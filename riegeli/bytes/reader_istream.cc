@@ -16,6 +16,8 @@
 
 #include <stddef.h>
 
+#include <ios>
+#include <iosfwd>
 #include <limits>
 
 #include "absl/base/optimization.h"

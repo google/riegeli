@@ -75,8 +75,8 @@ void Bzip2WriterBase::Done() {
   compressor_.reset();
 }
 
-bool Bzip2WriterBase::FailOperation(absl::string_view operation,
-                                    int bzlib_code) {
+inline bool Bzip2WriterBase::FailOperation(absl::string_view operation,
+                                           int bzlib_code) {
   RIEGELI_ASSERT(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
                  bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
       << "Failed precondition of Bzip2WriterBase::FailOperation(): "

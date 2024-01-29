@@ -22,9 +22,9 @@
 namespace riegeli {
 namespace zlib_internal {
 
-ABSL_ATTRIBUTE_COLD
-absl::Status ZlibErrorToStatus(absl::string_view operation, int zlib_code,
-                               const char* details);
+ABSL_ATTRIBUTE_COLD absl::Status ZlibErrorToStatus(absl::string_view operation,
+                                                   int zlib_code,
+                                                   const char* details);
 
 }  // namespace zlib_internal
 }  // namespace riegeli

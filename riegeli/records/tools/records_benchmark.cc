@@ -52,6 +52,7 @@
 #include "riegeli/bytes/std_io.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/line_writing.h"
+#include "riegeli/lines/newline.h"
 #include "riegeli/lines/text_writer.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"

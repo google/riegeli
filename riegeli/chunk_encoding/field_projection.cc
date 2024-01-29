@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/chunk_encoding/field_projection.h"
+#include "riegeli/chunk_encoding/field_projection.h"  // IWYU pragma: keep
 
 namespace riegeli {
 

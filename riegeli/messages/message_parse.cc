@@ -46,15 +46,14 @@ namespace riegeli {
 
 namespace {
 
-ABSL_ATTRIBUTE_COLD
-inline absl::Status ParseError(google::protobuf::MessageLite& dest) {
+ABSL_ATTRIBUTE_COLD inline absl::Status ParseError(
+    google::protobuf::MessageLite& dest) {
   return absl::InvalidArgumentError(
       absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
 }
 
-ABSL_ATTRIBUTE_COLD
-inline absl::Status ParseError(Reader& src,
-                               google::protobuf::MessageLite& dest) {
+ABSL_ATTRIBUTE_COLD inline absl::Status ParseError(
+    Reader& src, google::protobuf::MessageLite& dest) {
   return src.AnnotateStatus(ParseError(dest));
 }
 

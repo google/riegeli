@@ -16,8 +16,9 @@
 
 #include <stddef.h>
 
+#include <ios>
+#include <iosfwd>
 #include <limits>
-#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"

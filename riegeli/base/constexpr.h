@@ -16,7 +16,7 @@
 #define RIEGELI_BASE_CONSTEXPR_H_
 
 #include "riegeli/base/port.h"
-#include "riegeli/base/type_traits.h"
+#include "riegeli/base/type_traits.h"  // IWYU pragma: keep
 
 namespace riegeli {
 

@@ -19,6 +19,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "highwayhash/compiler_specific.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
 #include "highwayhash/instruction_sets.h"

@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <new>
 #include <utility>
 
 #include "absl/base/attributes.h"

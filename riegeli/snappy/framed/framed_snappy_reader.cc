@@ -68,7 +68,8 @@ void FramedSnappyReaderBase::Done() {
   uncompressed_ = Buffer();
 }
 
-bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
+inline bool FramedSnappyReaderBase::FailInvalidStream(
+    absl::string_view message) {
   return Fail(absl::InvalidArgumentError(
       absl::StrCat("Invalid FramedSnappy-compressed stream: ", message)));
 }

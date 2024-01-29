@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_READER_ISTREAM_H_
 #define RIEGELI_BYTES_READER_ISTREAM_H_
 
+#include <ios>
+#include <iosfwd>
 #include <istream>
 #include <streambuf>
 #include <tuple>

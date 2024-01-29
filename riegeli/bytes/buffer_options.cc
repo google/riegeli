@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"

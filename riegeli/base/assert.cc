@@ -20,7 +20,7 @@
 #include <sstream>
 
 namespace riegeli {
-namespace internal {
+namespace assert_internal {
 
 CheckFailed::CheckFailed(const char* file, int line, const char* function,
                          const char* message) {
@@ -33,5 +33,5 @@ CheckFailed::~CheckFailed() {
   std::terminate();
 }
 
-}  // namespace internal
+}  // namespace assert_internal
 }  // namespace riegeli

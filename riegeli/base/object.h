@@ -24,7 +24,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/type_id.h"
 
@@ -89,7 +88,7 @@ class
   // Always returns `false`.
   //
   // Precondition: `!status.ok()`
-  bool Fail(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
 
   // Marks the `ObjectState` as not failed, keeping its `is_open()` state
   // unchanged.
@@ -114,8 +113,6 @@ class
   static constexpr uintptr_t kClosedSuccessfully = 1;
 
   static void DeleteStatus(uintptr_t status_ptr);
-
-  ABSL_ATTRIBUTE_COLD void FailImpl(absl::Status status);
 
   // `status_ptr_` is `kOk`, or `kClosedSuccessfully`, or a `FailedStatus*`
   // `reinterpret_cast` to `uintptr_t`.
@@ -307,8 +304,6 @@ class Object {
   }
 
  private:
-  ABSL_ATTRIBUTE_COLD void FailImpl(absl::Status status);
-
   ObjectState state_;
 };
 
@@ -362,13 +357,6 @@ inline bool ObjectState::MarkClosed() {
   return false;
 }
 
-inline bool ObjectState::Fail(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of ObjectState::Fail(): status not failed";
-  FailImpl(std::move(status));
-  return false;
-}
-
 inline void ObjectState::MarkNotFailed() {
   DeleteStatus(
       std::exchange(status_ptr_, is_open() ? kOk : kClosedSuccessfully));
@@ -378,13 +366,6 @@ inline bool Object::Close() {
   if (ABSL_PREDICT_FALSE(!state_.is_open())) return state_.not_failed();
   Done();
   return state_.MarkClosed();
-}
-
-inline bool Object::Fail(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  FailImpl(std::move(status));
-  return false;
 }
 
 inline absl::Status Object::AnnotateStatus(absl::Status status) {

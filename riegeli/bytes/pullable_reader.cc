@@ -19,10 +19,12 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"

@@ -46,6 +46,7 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -73,6 +74,7 @@ cc_binary(
         "//riegeli/bytes:std_io",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
+        "//riegeli/lines:newline",
         "//riegeli/lines:text_writer",
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",

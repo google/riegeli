@@ -126,7 +126,8 @@ void ZlibWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
+inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
+                                          int zlib_code) {
   RIEGELI_ASSERT_NE(zlib_code, Z_OK)
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "zlib error code not failed";

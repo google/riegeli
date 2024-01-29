@@ -136,8 +136,8 @@ void XzWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-bool XzWriterBase::FailOperation(absl::string_view operation,
-                                 lzma_ret liblzma_code) {
+inline bool XzWriterBase::FailOperation(absl::string_view operation,
+                                        lzma_ret liblzma_code) {
   RIEGELI_ASSERT_NE(liblzma_code, LZMA_OK)
       << "Failed precondition of XzWriterBase::FailOperation(): "
          "liblzma error code not failed";

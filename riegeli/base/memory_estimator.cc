@@ -15,7 +15,7 @@
 #include "riegeli/base/memory_estimator.h"
 
 #ifdef __GXX_RTTI
-#include <cxxabi.h>
+#include <cxxabi.h>  // IWYU pragma: keep
 #endif
 #include <stddef.h>
 

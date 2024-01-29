@@ -58,7 +58,8 @@ void HadoopSnappyReaderBase::Done() {
   uncompressed_ = Buffer();
 }
 
-bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {
+inline bool HadoopSnappyReaderBase::FailInvalidStream(
+    absl::string_view message) {
   return Fail(absl::InvalidArgumentError(
       absl::StrCat("Invalid HadoopSnappy-compressed stream: ", message)));
 }

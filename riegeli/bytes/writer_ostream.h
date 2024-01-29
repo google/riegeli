@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_WRITER_OSTREAM_H_
 #define RIEGELI_BYTES_WRITER_OSTREAM_H_
 
+#include <ios>
+#include <iosfwd>
 #include <istream>
 #include <streambuf>
 #include <tuple>
