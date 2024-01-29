@@ -106,6 +106,10 @@ namespace {
 // Define `RIEGELI_DISABLE_COPY_FILE_RANGE` to disable using it even if it
 // appears to be available.
 
+#if defined(__wasm__) && !defined(RIEGELI_DISABLE_COPY_FILE_RANGE)
+#define RIEGELI_DISABLE_COPY_FILE_RANGE 1
+#endif
+
 #if !RIEGELI_DISABLE_COPY_FILE_RANGE
 
 // `copy_file_range()` is supported by Linux and FreeBSD.
