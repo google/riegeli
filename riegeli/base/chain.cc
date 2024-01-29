@@ -402,7 +402,8 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
            "non-zero extra size of external block";
     return false;
   }
-  return Wasteful(capacity(), size() + extra_size);
+  return Wasteful(kInternalAllocatedOffset() + capacity(),
+                  kInternalAllocatedOffset() + size() + extra_size);
 }
 
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
