@@ -168,7 +168,7 @@ class UnreachableStream {
   }
 
   template <typename T>
-  UnreachableStream& operator<<(T&& value) {
+  UnreachableStream& operator<<(ABSL_ATTRIBUTE_UNUSED T&& value) {
     return *this;
   }
 };
