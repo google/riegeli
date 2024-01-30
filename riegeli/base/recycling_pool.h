@@ -135,9 +135,8 @@ class RecyclingPool : public BackgroundCleanee {
   class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
-  // deleting it. If a particular object is not suitable for recycling, the
-  // `Handle` should have `release()` called and the object can be deleted using
-  // the original `Deleter`.
+  // deleting it. If a particular object is not suitable for recycling,
+  // `DoNotRecycle()` can be used.
   using Handle = std::unique_ptr<T, Recycler>;
 
   // A `std::unique_ptr` which deletes the object. If a particular object is
@@ -181,6 +180,14 @@ class RecyclingPool : public BackgroundCleanee {
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
   Handle Get(Factory&& factory,
              Refurbisher&& refurbisher = DefaultRefurbisher());
+
+  // Deletes the object immediately, does not return it into the pool.
+  //
+  // This can be called on the result of `Get()` if the object turned out to be
+  // not suitable for recycling.
+  //
+  // Equivalent to calling the original `Deleter` if `object != nullptr`.
+  static void DoNotRecycle(Handle object);
 
   // Like `Get()`, but the object is not returned into the pool by the
   // destructor of its handle. If the object is suitable for recycling, it can
@@ -234,9 +241,8 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
-  // deleting it. If a particular object is not suitable for recycling, the
-  // `Handle` should have `release()` called and the object can be deleted using
-  // the original `Deleter`.
+  // deleting it. If a particular object is not suitable for recycling,
+  // `DoNotRecycle()` can be used.
   using Handle = std::unique_ptr<T, Recycler>;
 
   // A `std::unique_ptr` which deletes the object. If a particular object is
@@ -281,6 +287,14 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
   Handle Get(Key key, Factory&& factory,
              Refurbisher&& refurbisher = DefaultRefurbisher());
+
+  // Deletes the object immediately, does not return it into the pool.
+  //
+  // This can be called on the result of `Get()` if the object turned out to be
+  // not suitable for recycling.
+  //
+  // Equivalent to calling the original `Deleter` if `object != nullptr`.
+  static void DoNotRecycle(Handle object);
 
   // Like `Get()`, but the object is not returned into the pool by the
   // destructor of its handle. If the object is suitable for recycling, it can
@@ -508,6 +522,12 @@ typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
 }
 
 template <typename T, typename Deleter>
+void RecyclingPool<T, Deleter>::DoNotRecycle(Handle object) {
+  T* const ptr = object.release();
+  if (ptr != nullptr) object.get_deleter().original_deleter()(ptr);
+}
+
+template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
     Factory&& factory, Refurbisher&& refurbisher) {
@@ -681,6 +701,12 @@ KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
   return Handle(
       returned.release(),
       Recycler(this, std::move(key), std::move(returned.get_deleter())));
+}
+
+template <typename T, typename Key, typename Deleter>
+void KeyedRecyclingPool<T, Key, Deleter>::DoNotRecycle(Handle object) {
+  T* const ptr = object.release();
+  if (ptr != nullptr) object.get_deleter().original_deleter()(ptr);
 }
 
 template <typename T, typename Key, typename Deleter>
