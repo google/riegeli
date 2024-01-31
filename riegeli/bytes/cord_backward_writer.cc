@@ -61,7 +61,8 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
         PtrDistance(cord_buffer_.data(), data.data());
     if (prefix_to_remove == 0) {
       dest.Prepend(std::move(cord_buffer_));
-    } else if (!Wasteful(cord_buffer_.capacity(), data.size()) &&
+    } else if (!Wasteful(kFlatCordOverhead + cord_buffer_.capacity(),
+                         data.size()) &&
                data.size() > MaxBytesToCopyToCord(dest)) {
       dest.Prepend(std::move(cord_buffer_));
       dest.RemovePrefix(prefix_to_remove);

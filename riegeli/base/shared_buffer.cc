@@ -49,9 +49,9 @@ inline absl::Cord SharedBufferToCord(SharedBufferRef&& src, const char* data,
         << "Failed precondition of SharedBuffer::ToCord(): "
            "substring not contained in the buffer";
   }
-  // `absl::cord_internal::kMaxInline`.
-  static constexpr size_t kMaxInline = 15;
-  if (length <= kMaxInline || Wasteful(src.capacity(), length)) {
+  if (length <= kMaxInlineCordSize ||
+      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+               length)) {
     return MakeBlockyCord(absl::string_view(data, length));
   }
   return absl::MakeCordFromExternal(
@@ -72,7 +72,8 @@ inline void AppendSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
            "substring not contained in the buffer";
   }
   if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(src.capacity(), length)) {
+      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+               length)) {
     AppendToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
@@ -94,7 +95,8 @@ inline void PrependSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
            "substring not contained in the buffer";
   }
   if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(src.capacity(), length)) {
+      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+               length)) {
     PrependToBlockyCord(absl::string_view(data, length), dest);
     return;
   }

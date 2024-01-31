@@ -112,6 +112,7 @@ cc_library(
     srcs = ["cord_utils.cc"],
     hdrs = ["cord_utils.h"],
     deps = [
+        ":constexpr",
         ":string_utils",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",

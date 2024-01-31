@@ -402,8 +402,7 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
            "non-zero extra size of external block";
     return false;
   }
-  return Wasteful(kInternalAllocatedOffset() + capacity(),
-                  kInternalAllocatedOffset() + size() + extra_size);
+  return Wasteful(kInternalAllocatedOffset() + capacity(), size() + extra_size);
 }
 
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
@@ -1746,7 +1745,10 @@ void Chain::Append(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy ||
+      Wasteful(
+          RawBlock::kExternalAllocatedSize<StringRef>() + src.capacity() + 1,
+          src.size())) {
     // Not `std::move(src)`: forward to `Append(absl::string_view)`.
     Append(src, options);
     return;
@@ -2037,7 +2039,10 @@ inline void Chain::AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
       << "Failed precondition of Chain::Append(): "
          "Chain size overflow";
   const absl::string_view data(src);
-  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy ||
+      Wasteful(
+          RawBlock::kExternalAllocatedSize<SharedBufferRef>() + src.capacity(),
+          src.size())) {
     Append(data, options);
     return;
   }
@@ -2067,7 +2072,10 @@ void Chain::Prepend(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy ||
+      Wasteful(
+          RawBlock::kExternalAllocatedSize<StringRef>() + src.capacity() + 1,
+          src.size())) {
     // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
     Prepend(src, options);
     return;
@@ -2329,7 +2337,10 @@ inline void Chain::PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
       << "Failed precondition of Chain::Prepend(): "
          "Chain size overflow";
   const absl::string_view data(src);
-  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy ||
+      Wasteful(
+          RawBlock::kExternalAllocatedSize<SharedBufferRef>() + src.capacity(),
+          src.size())) {
     Prepend(data, options);
     return;
   }

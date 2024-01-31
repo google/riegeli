@@ -89,7 +89,10 @@ bool BackwardWriter::WriteStringSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), kMaxBytesToCopy)
       << "Failed precondition of BackwardWriter::WriteStringSlow(): "
          "string too short, use Write() instead";
-  if (PrefersCopying() || Wasteful(src.capacity(), src.size())) {
+  if (PrefersCopying() ||
+      Wasteful(
+          Chain::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
+          src.size())) {
     return Write(absl::string_view(src));
   }
   AssertInitialized(src.data(), src.size());

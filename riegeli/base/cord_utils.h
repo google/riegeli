@@ -16,13 +16,26 @@
 #define RIEGELI_BASE_CORD_UTILS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <string>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
+
+// `absl::cord_internal::kMaxInline`. Does not have to be accurate.
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxInlineCordSize, 15);
+
+// `absl::cord_internal::kFlatOverhead`. Does not have to be accurate.
+RIEGELI_INLINE_CONSTEXPR(size_t, kFlatCordOverhead,
+                         sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t));
+
+// `sizeof(absl::cord_internal::CordRepExternal)`. Does not have to be
+// accurate.
+RIEGELI_INLINE_CONSTEXPR(size_t, kSizeOfCordRepExternal, 4 * sizeof(void*));
 
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length.
@@ -31,11 +44,9 @@ namespace riegeli {
 // this length, so it is better to avoid constructing the source as `absl::Cord`
 // if it will not be shared anyway.
 inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
-  // `absl::cord_internal::kMaxInline`.
-  static constexpr size_t kMaxInline = 15;
-  // `absl::cord_internal::kMaxBytesToCopy`.
+  // `absl::cord_internal::kMaxBytesToCopy`. Does not have to be accurate.
   static constexpr size_t kCordMaxBytesToCopy = 511;
-  return dest.empty() ? kMaxInline : kCordMaxBytesToCopy;
+  return dest.empty() ? kMaxInlineCordSize : kCordMaxBytesToCopy;
 }
 
 // Copies `src` to `dest[]`.

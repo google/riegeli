@@ -187,6 +187,11 @@ class Chain : public WithCompare<Chain> {
   template <typename T, typename... Args>
   static Chain FromExternal(std::tuple<Args...> args, absl::string_view data);
 
+  // Allocated size of an external block containing an external object of type
+  // `T`.
+  template <typename T>
+  static constexpr size_t kExternalAllocatedSize();
+
   constexpr Chain() = default;
 
   // Converts from a string-like type.
@@ -918,18 +923,23 @@ class Chain::RawBlock {
   // `SizeReturningNewAligned()`.
   explicit RawBlock(const size_t* raw_capacity);
 
-  // Constructs an external block containing an external object constructed from
-  // args, and sets block data to `absl::string_view(object)`. This constructor
-  // is public for `NewAligned()`.
+  // Constructs an external block containing an external object of type `T`
+  // constructed from `args`, and sets block data to
+  // `absl::string_view(object)`. This constructor is public for `NewAligned()`.
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
 
-  // Constructs an external block containing an external object constructed from
-  // args, and sets block data to the data parameter. This constructor is public
-  // for `NewAligned()`.
+  // Constructs an external block containing an external object of type `T`
+  // constructed from `args`, and sets block data to the data parameter.
+  // This constructor is public for `NewAligned()`.
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args,
                     absl::string_view data);
+
+  // Allocated size of an external block containing an external object of type
+  // `T`.
+  template <typename T>
+  static constexpr size_t kExternalAllocatedSize();
 
   template <Ownership ownership = Ownership::kShare>
   RawBlock* Ref();
@@ -1226,8 +1236,8 @@ template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     std::tuple<Args...> args) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalObjectOffset<T>() + sizeof(T),
-      RawBlock::ExternalType<T>(), std::move(args));
+      RawBlock::kExternalAllocatedSize<T>(), RawBlock::ExternalType<T>(),
+      std::move(args));
 }
 
 template <typename T>
@@ -1235,8 +1245,8 @@ template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     std::tuple<Args...> args, absl::string_view data) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalObjectOffset<T>() + sizeof(T),
-      RawBlock::ExternalType<T>(), std::move(args), data);
+      RawBlock::kExternalAllocatedSize<T>(), RawBlock::ExternalType<T>(),
+      std::move(args), data);
 }
 
 template <typename T>
@@ -1249,7 +1259,7 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
                                absl::string_view(*block));
   block->unchecked_external_object<T>().~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      block, RawBlock::kExternalObjectOffset<T>() + sizeof(T));
+      block, RawBlock::kExternalAllocatedSize<T>());
 }
 
 template <typename T>
@@ -1261,7 +1271,7 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
 
 template <typename T>
 constexpr size_t Chain::ExternalMethodsFor<T>::DynamicSizeOf() {
-  return RawBlock::kExternalObjectOffset<T>() + sizeof(T);
+  return RawBlock::kExternalAllocatedSize<T>();
 }
 
 template <typename T>
@@ -1311,6 +1321,11 @@ template <typename T>
 constexpr size_t Chain::RawBlock::kExternalObjectOffset() {
   return RoundUp<alignof(T)>(offsetof(RawBlock, external_) +
                              offsetof(External, object_lower_bound));
+}
+
+template <typename T>
+constexpr size_t Chain::RawBlock::kExternalAllocatedSize() {
+  return kExternalObjectOffset<T>() + sizeof(T);
 }
 
 template <Chain::Ownership ownership>
@@ -1684,6 +1699,11 @@ template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args,
                                  absl::string_view data) {
   return Chain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
+}
+
+template <typename T>
+constexpr size_t Chain::kExternalAllocatedSize() {
+  return RawBlock::kExternalAllocatedSize<T>();
 }
 
 inline Chain::Chain(RawBlock* block) {

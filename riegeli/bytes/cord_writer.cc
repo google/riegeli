@@ -68,7 +68,8 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
   const absl::string_view data(start(), start_to_cursor());
   if (start() == cord_buffer_.data()) {
     cord_buffer_.SetLength(data.size());
-    if (!Wasteful(cord_buffer_.capacity(), cord_buffer_.length())) {
+    if (!Wasteful(kFlatCordOverhead + cord_buffer_.capacity(),
+                  cord_buffer_.length())) {
       dest.Append(std::move(cord_buffer_));
     } else {
       AppendToBlockyCord(data, dest);
