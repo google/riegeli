@@ -48,7 +48,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
     dest->WriteZeros(length);
     pos += length;
   }
-  ChunkWriter::Initialize(pos);
+  set_pos(pos);
   if (ABSL_PREDICT_FALSE(!dest->ok())) FailWithoutAnnotation(dest->status());
 }
 
@@ -66,13 +66,11 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
       << "Failed precondition of ChunkWriter::WriteChunk(): "
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   Writer& dest = *DestWriter();
   StringReader<> header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader<> data_reader(&chunk.data);
-  const Position chunk_begin = pos_;
-  const Position chunk_end =
-      records_internal::ChunkEnd(chunk.header, chunk_begin);
+  const Position chunk_begin = pos();
+  const Position chunk_end = PosAfterWriteChunk(chunk.header);
   if (ABSL_PREDICT_FALSE(
           !WriteSection(header_reader, chunk_begin, chunk_end, dest))) {
     return false;
@@ -84,7 +82,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!WritePadding(chunk_begin, chunk_end, dest))) {
     return false;
   }
-  RIEGELI_ASSERT_EQ(pos_, chunk_end)
+  RIEGELI_ASSERT_EQ(pos(), chunk_end)
       << "Unexpected position after writing chunk";
   return true;
 }
@@ -100,22 +98,22 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
   }
   RIEGELI_ASSERT_EQ(src.pos(), 0u) << "Non-zero section reader position";
   while (src.pos() < *size) {
-    if (records_internal::IsBlockBoundary(pos_)) {
+    if (records_internal::IsBlockBoundary(pos())) {
       records_internal::BlockHeader block_header(
-          IntCast<uint64_t>(pos_ - chunk_begin),
-          IntCast<uint64_t>(chunk_end - pos_));
+          IntCast<uint64_t>(pos() - chunk_begin),
+          IntCast<uint64_t>(chunk_end - pos()));
       if (ABSL_PREDICT_FALSE(!dest.Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return FailWithoutAnnotation(dest.status());
       }
-      pos_ += block_header.size();
+      move_pos(block_header.size());
     }
     const Position length = UnsignedMin(
-        *size - src.pos(), records_internal::RemainingInBlock(pos_));
+        *size - src.pos(), records_internal::RemainingInBlock(pos()));
     if (ABSL_PREDICT_FALSE(!src.Copy(length, dest))) {
       return FailWithoutAnnotation(dest.status());
     }
-    pos_ += length;
+    move_pos(length);
   }
   if (!src.Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
@@ -127,31 +125,31 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
 inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
                                                  Position chunk_end,
                                                  Writer& dest) {
-  while (pos_ < chunk_end) {
-    if (records_internal::IsBlockBoundary(pos_)) {
+  while (pos() < chunk_end) {
+    if (records_internal::IsBlockBoundary(pos())) {
       records_internal::BlockHeader block_header(
-          IntCast<uint64_t>(pos_ - chunk_begin),
-          IntCast<uint64_t>(chunk_end - pos_));
+          IntCast<uint64_t>(pos() - chunk_begin),
+          IntCast<uint64_t>(chunk_end - pos()));
       if (ABSL_PREDICT_FALSE(!dest.Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return FailWithoutAnnotation(dest.status());
       }
-      pos_ += block_header.size();
+      move_pos(block_header.size());
     }
-    const Position length =
-        UnsignedMin(chunk_end - pos_, records_internal::RemainingInBlock(pos_));
+    const Position length = UnsignedMin(
+        chunk_end - pos(), records_internal::RemainingInBlock(pos()));
     if (ABSL_PREDICT_FALSE(!dest.WriteZeros(length))) {
       return FailWithoutAnnotation(dest.status());
     }
-    pos_ += length;
+    move_pos(length);
   }
   return true;
 }
 
 bool DefaultChunkWriterBase::PadToBlockBoundary() {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
-  size_t length = IntCast<size_t>(records_internal::RemainingInBlock(pos_));
+  // Matches `ChunkWriter::PosAfterPadToBlockBoundary()`.
+  size_t length = IntCast<size_t>(records_internal::RemainingInBlock(pos()));
   if (length == 0) return true;
   if (length < ChunkHeader::size()) {
     // Not enough space for a padding chunk in this block. Write one more block.

@@ -15,6 +15,7 @@
 #ifndef RIEGELI_RECORDS_CHUNK_WRITER_H_
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
+#include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -23,11 +24,13 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/records/block.h"
 
 namespace riegeli {
 
@@ -93,9 +96,22 @@ class ChunkWriter : public Object {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Position pos) { pos_ = pos; }
+  void set_pos(Position pos) { pos_ = pos; }
+  void move_pos(Position length) {
+    RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - pos_)
+        << "Failed precondition of ChunkWriter::move_pos(): position overflow";
+    pos_ += length;
+  }
   virtual bool FlushImpl(FlushType flush_type) = 0;
 
+  // Returns the expected position after `WriteChunk()` at the current position.
+  Position PosAfterWriteChunk(const ChunkHeader& chunk_header) const;
+
+  // Returns the expected position after `PadToBlockBoundary()` at the current
+  // position.
+  Position PosAfterPadToBlockBoundary() const;
+
+ private:
   Position pos_ = 0;
 };
 
@@ -307,6 +323,21 @@ inline void ChunkWriter::Reset() {
 
 inline bool ChunkWriter::Flush(FlushType flush_type) {
   return FlushImpl(flush_type);
+}
+
+inline Position ChunkWriter::PosAfterWriteChunk(
+    const ChunkHeader& chunk_header) const {
+  return records_internal::ChunkEnd(chunk_header, pos_);
+}
+
+inline Position ChunkWriter::PosAfterPadToBlockBoundary() const {
+  Position length = records_internal::RemainingInBlock(pos_);
+  if (length == 0) return pos_;
+  if (length < ChunkHeader::size()) {
+    // Not enough space for a padding chunk in this block. Write one more block.
+    length += records_internal::kBlockSize;
+  }
+  return pos_ + length;
 }
 
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(

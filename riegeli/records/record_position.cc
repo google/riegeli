@@ -119,14 +119,18 @@ inline FutureChunkBegin::Unresolved::Unresolved(Position pos_before_chunks,
 void FutureChunkBegin::Unresolved::Resolve() const {
   struct Visitor {
     void operator()(const std::shared_future<ChunkHeader>& chunk_header) {
-      // Matches `DefaultChunkWriterBase::WriteChunk()`.
+      // Matches `ChunkWriter::PosAfterWriteChunk()`.
       pos = records_internal::ChunkEnd(chunk_header.get(), pos);
     }
     void operator()(const PadToBlockBoundary&) {
-      // Matches `DefaultChunkWriterBase::PadToBlockBoundary()`.
+      // Matches `ChunkWriter::PosAfterPadToBlockBoundary()`.
       Position length = records_internal::RemainingInBlock(pos);
       if (length == 0) return;
-      if (length < ChunkHeader::size()) length += records_internal::kBlockSize;
+      if (length < ChunkHeader::size()) {
+        // Not enough space for a padding chunk in this block. Write one more
+        // block.
+        length += records_internal::kBlockSize;
+      }
       pos += length;
     }
 
