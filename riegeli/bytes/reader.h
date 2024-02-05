@@ -219,24 +219,19 @@ class Reader : public Object {
 
   // Reads a fixed number of bytes from the buffer and/or the source to `dest`.
   //
-  // `Copy(Writer&)` writes as much as could be read if reading failed, and
-  // reads an unspecified length (between what could be written and the
-  // requested length) if writing failed.
-  //
-  // `Copy(BackwardWriter&)` writes nothing if reading failed, and reads an
-  // unspecified length (between what could be written and the requested length)
-  // if writing failed.
-  //
   // If `length_read != nullptr` then sets `*length_read` to the length read.
   // This is equal to the difference between `pos()` after and before the call,
   // and is equal to `length` if `Copy()` returned `true`.
   //
   // Return values:
-  //  * `true`                               - success (`length` bytes copied)
-  //  * `false` (when `dest.ok() && ok()`)   - source ends
-  //                                           (less than `length` bytes copied)
-  //  * `false` (when `!dest.ok() || !ok()`) - failure
-  //                                           (less than `length` bytes copied)
+  //  * `true`                             - success (`length` bytes copied)
+  //  * `false` (when `dest.ok() && ok()`) - source ends (`Writer`: less than
+  //                                         `length` bytes copied;
+  //                                         `BackwardWriter`: nothing copied)
+  //  * `false` (when `!dest.ok()`)        - destination failed (data lost)
+  //  * `false` (when `!ok()`)             - source failed (`Writer`: less than
+  //                                         `length` bytes copied;
+  //                                         `BackwardWriter`: nothing copied)
   bool Copy(Position length, Writer& dest, Position* length_read = nullptr);
   bool Copy(size_t length, BackwardWriter& dest);
 
@@ -305,12 +300,14 @@ class Reader : public Object {
   // This is equal to the difference between `pos()` after and before the call.
   //
   // Return values:
-  //  * `true`                               - success
-  //                                      (some bytes read or `max_length == 0`)
-  //  * `false` (when `dest.ok() && ok()`)   - source ends
-  //                                        (no bytes read and `max_length > 0`)
-  //  * `false` (when `!dest.ok() || !ok()`) - failure
-  //                        (`!dest.ok()` or no bytes read and `max_length > 0`)
+  //  * `true`                             - success (some bytes copied
+  //                                         or `max_length == 0`)
+  //  * `false` (when `dest.ok() && ok()`) - source ends (no bytes copied
+  //                                         and `max_length > 0`)
+  //  * `false` (when `!dest.ok()`)        - destination failed (no bytes copied
+  //                                         and `max_length > 0`)
+  //  * `false` (when `!ok()`)             - source failed (no bytes copied
+  //                                         and `max_length > 0`)
   bool CopySome(size_t max_length, Writer& dest, size_t* length_read = nullptr);
 
   // Either reads at most `max_length` bytes from the source directly to
@@ -318,40 +315,34 @@ class Reader : public Object {
   // which strategy is considered better.
   //
   // This is used to implement `ReadSome(char*)`, `ReadSome(std::string&)`,
-  // `CopySome(Writer&)`, and to delegate `ReadSomeDirectly()` to another
+  // `CopySome(Writer&)`, and to delegate `ReadOrPullSome()` to another
   // `Reader`. It is not designed to be used otherwise.
   //
-  // `ReadSomeDirectly()` uses one of the following strategies:
+  // `max_length` might be decreased before calling `get_dest(max_length)` if
+  // more bytes will not be read anyway (e.g. the source ends soon). Calling
+  // `get_dest(max_length)` might decrease `max_length` further (e.g. the
+  // destination has less space immediately available), possibly to 0 which
+  // indicates that the destination failed.
   //
-  //  * Calls `get_dest(max_length)` to obtain a pointer to read to. Reads at
-  //    most `max_length` bytes from the source directly to that pointer,
-  //    incrementing `limit_pos()` by the length read. Returns `true`.
-  //
-  //    `max_length` might be decreased before calling `get_dest(max_length)`
-  //    if more bytes will not be read anyway (e.g. the source ends soon),
-  //    possibly to 0 (but in that case `ReadSomeDirectly()` can return `false`
-  //    instead). Calling `get_dest(max_length)` might decrease `max_length`
-  //    further (e.g. the destination has less space immediately available),
-  //    possibly to 0 which indicates that the destination failed.
-  //
-  //    `ReadSomeDirectly()` returning `true` implies that `max_length > 0`
-  //    before the call, that `available() == 0` before and after the call, and
-  //    that `get_dest(max_length)` was called at least once (possibly multiple
-  //    times). If the length read is 0, the source ends or either the
-  //    destination or the source failed.
-  //
-  //  * Pulls some data to the buffer unless `max_length == 0`. Returns `false`.
-  //
-  //    `ReadSomeDirectly()` returning `false` implies that `pos()` did not
-  //    change. `get_dest(max_length)` might have been called though.
-  //    If `max_length > 0` before the call and `available() == 0` after the
-  //    call, the source ends or failed.
-  //
-  // If `length_read != nullptr` then sets `*length_read` to the length read.
-  // This is equal to the difference between `pos()` after and before the call.
-  bool ReadSomeDirectly(size_t max_length,
-                        absl::FunctionRef<char*(size_t&)> get_dest,
-                        size_t* length_read = nullptr);
+  // Return values:
+  //  * `true` (when `*length_read > 0`)   - success (some bytes copied to
+  //                                         `get_dest(max_length)`,
+  //                                         `available() == 0`)
+  //  * `true` (when `*length_read == 0`)  - success (some bytes pulled to the
+  //                                         buffer, i.e. `available() > 0`,
+  //                                         or `max_length == 0`)
+  //  * `false` (when `get_dest(max_length)`
+  //    did not decrease `max_length` to 0
+  //    and `ok()`)                        - source ends (no bytes copied
+  //                                         and `max_length > 0`)
+  //  * `false` (when `get_dest(max_length)`
+  //    decreased `max_length` to 0)       - destination failed (no bytes copied
+  //                                         and `max_length > 0`)
+  //  * `false` (when `!ok()`)             - source failed (no bytes copied
+  //                                         and `max_length > 0`)
+  bool ReadOrPullSome(size_t max_length,
+                      absl::FunctionRef<char*(size_t&)> get_dest,
+                      size_t* length_read = nullptr);
 
   // Hints that several consecutive `Pull()`, `Read()`, or `Copy()` calls will
   // follow, reading this amount of data in total.
@@ -565,25 +556,25 @@ class Reader : public Object {
 
   // Implementations of the slow part of `Read()`, `ReadAndAppend()`, `Copy()`,
   // `ReadSome()`, `ReadAndAppendSome()`, `CopySome()`, and
-  // `ReadSomeDirectly()`.
+  // `ReadOrPullSome()`.
   //
   // `ReadSlow(std::string&)`, `ReadSlow(Chain&)`, and `ReadSlow(absl::Cord&)`
   // append to any existing data in `dest`.
   //
   // By default:
-  //  * `ReadSlow(char*)`, `CopySlow(Writer&)`, and `ReadSomeDirectlySlow()` are
+  //  * `ReadSlow(char*)`, `CopySlow(Writer&)`, and `ReadOrPullSomeSlow()` are
   //    implemented in terms of `PullSlow()`
   //  * `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)` are implemented in terms
   //    of `ReadSlow(char*)`
   //  * `CopySlow(BackwardWriter&)` is implemented in terms of `ReadSlow(char*)`
   //    and `ReadSlow(Chain&)`
   //  * `ReadSomeSlow(char*)` and `ReadSomeSlow(std::string&)` are implemented
-  //    in terms of `ReadSomeDirectlySlow()`
+  //    in terms of `ReadOrPullSomeSlow()`
   //  * `ReadSomeSlow(Chain&)` is implemented in terms of `ReadSlow(Chain&)`
   //  * `ReadSomeSlow(absl::Cord&)` is implemented in terms of
   //    `ReadSlow(absl::Cord&)`
   //  * `CopySomeSlow(Writer&)` is implemented in terms of
-  //    `ReadSomeDirectlySlow()` and `CopySlow(Writer&)`.
+  //    `ReadOrPullSomeSlow()` and `CopySlow(Writer&)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string&)`:
   //   `available() < length`
@@ -599,7 +590,7 @@ class Reader : public Object {
   // `CopySomeSlow(Writer&)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < max_length`
   //
-  // Preconditions for `ReadSomeDirectlySlow()`:
+  // Preconditions for `ReadOrPullSomeSlow()`:
   //   `max_length > 0`
   //   `available() > 0`
   //
@@ -636,11 +627,11 @@ class Reader : public Object {
   bool ReadSomeSlow(size_t max_length, absl::Cord& dest, size_t* length_read);
   bool CopySomeSlow(size_t max_length, Writer& dest);
   bool CopySomeSlow(size_t max_length, Writer& dest, size_t* length_read);
-  virtual bool ReadSomeDirectlySlow(size_t max_length,
-                                    absl::FunctionRef<char*(size_t&)> get_dest);
-  bool ReadSomeDirectlySlow(size_t max_length,
-                            absl::FunctionRef<char*(size_t&)> get_dest,
-                            size_t* length_read);
+  virtual bool ReadOrPullSomeSlow(size_t max_length,
+                                  absl::FunctionRef<char*(size_t&)> get_dest);
+  bool ReadOrPullSomeSlow(size_t max_length,
+                          absl::FunctionRef<char*(size_t&)> get_dest,
+                          size_t* length_read);
 
   // Implementation of the slow part of `ReadHint()`.
   //
@@ -1022,15 +1013,15 @@ inline bool Reader::CopySome(size_t max_length, Writer& dest,
   return CopySomeSlow(max_length, dest, length_read);
 }
 
-inline bool Reader::ReadSomeDirectly(size_t max_length,
-                                     absl::FunctionRef<char*(size_t&)> get_dest,
-                                     size_t* length_read) {
+inline bool Reader::ReadOrPullSome(size_t max_length,
+                                   absl::FunctionRef<char*(size_t&)> get_dest,
+                                   size_t* length_read) {
   if (ABSL_PREDICT_TRUE(available() > 0) ||
       ABSL_PREDICT_FALSE(max_length == 0)) {
     if (length_read != nullptr) *length_read = 0;
-    return false;
+    return true;
   }
-  return ReadSomeDirectlySlow(max_length, get_dest, length_read);
+  return ReadOrPullSomeSlow(max_length, get_dest, length_read);
 }
 
 inline void Reader::ReadHint(size_t min_length, size_t recommended_length) {

@@ -166,7 +166,10 @@ bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
   const Position length_to_copy = UnsignedMin(length, max_pos_ - pos());
   const bool copy_ok = src.Copy(length_to_copy, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!copy_ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!copy_ok)) {
+    if (dest.ok()) return CheckEnough();
+    return false;
+  }
   return length_to_copy == length;
 }
 
@@ -188,27 +191,38 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   }
   const bool copy_ok = src.Copy(length, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!copy_ok)) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!copy_ok)) {
+    if (dest.ok()) return CheckEnough();
+    return false;
+  }
   return true;
 }
 
-bool LimitingReaderBase::ReadSomeDirectlySlow(
+bool LimitingReaderBase::ReadOrPullSomeSlow(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "some data available, use ReadOrPullSome() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const Position remaining = max_pos_ - pos();
-  const bool read_directly =
-      src.ReadSomeDirectly(UnsignedMin(max_length, remaining), get_dest);
+  const Position max_length_to_copy = UnsignedMin(max_length, max_pos_ - pos());
+  bool write_ok = true;
+  const bool read_ok = src.ReadOrPullSome(
+      max_length_to_copy, [get_dest, &write_ok](size_t& length) {
+        char* const dest = get_dest(length);
+        if (ABSL_PREDICT_FALSE(length == 0)) write_ok = false;
+        return dest;
+      });
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(remaining == 0)) return CheckEnough();
-  return read_directly;
+  if (ABSL_PREDICT_FALSE(!read_ok)) {
+    if (write_ok) return CheckEnough();
+    return false;
+  }
+  return max_length_to_copy > 0;
 }
 
 void LimitingReaderBase::ReadHintSlow(size_t min_length,

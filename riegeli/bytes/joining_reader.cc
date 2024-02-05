@@ -320,16 +320,16 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   return true;
 }
 
-bool JoiningReaderBase::ReadSomeDirectlyBehindScratch(
+bool JoiningReaderBase::ReadOrPullSomeBehindScratch(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
+         "some data available, use ReadOrPullSome() instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
          "scratch used";
   Reader* shard = ShardReader();
   if (shard_is_open(shard)) {
@@ -341,17 +341,22 @@ bool JoiningReaderBase::ReadSomeDirectlyBehindScratch(
   const Position remaining = std::numeric_limits<Position>::max() - limit_pos();
   if (ABSL_PREDICT_FALSE(remaining == 0)) return FailOverflow();
   max_length = UnsignedMin(max_length, remaining);
-  bool read_directly;
   for (;;) {
     size_t length_read;
-    read_directly = shard->ReadSomeDirectly(max_length, get_dest, &length_read);
-    if (read_directly) {
-      if (ABSL_PREDICT_TRUE(length_read > 0)) {
-        move_limit_pos(length_read);
-        break;
-      }
-    } else {
-      if (ABSL_PREDICT_TRUE(shard->available() > 0)) break;
+    bool write_ok = true;
+    const bool read_ok = shard->ReadOrPullSome(
+        max_length,
+        [get_dest, &write_ok](size_t& length) {
+          char* const dest = get_dest(length);
+          if (ABSL_PREDICT_FALSE(length == 0)) write_ok = false;
+          return dest;
+        },
+        &length_read);
+    move_limit_pos(length_read);
+    if (ABSL_PREDICT_TRUE(read_ok)) break;
+    if (ABSL_PREDICT_FALSE(!write_ok)) {
+      MakeBuffer(*shard);
+      return false;
     }
     if (ABSL_PREDICT_FALSE(!shard->ok())) {
       return FailWithoutAnnotation(AnnotateOverShard(shard->status()));
@@ -361,7 +366,7 @@ bool JoiningReaderBase::ReadSomeDirectlyBehindScratch(
     shard = ShardReader();
   }
   MakeBuffer(*shard);
-  return read_directly;
+  return true;
 }
 
 void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,

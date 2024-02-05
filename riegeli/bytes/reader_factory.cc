@@ -65,8 +65,8 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
-  using PullableReader::ReadSomeDirectlyBehindScratch;
-  bool ReadSomeDirectlyBehindScratch(
+  using PullableReader::ReadOrPullSomeBehindScratch;
+  bool ReadOrPullSomeBehindScratch(
       size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;
@@ -418,16 +418,16 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   }
 }
 
-bool ReaderFactoryBase::ConcurrentReader::ReadSomeDirectlyBehindScratch(
+bool ReaderFactoryBase::ConcurrentReader::ReadOrPullSomeBehindScratch(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
+         "some data available, use ReadOrPullSome() instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of Reader::ReadSomeDirectlyBehindScratch(): "
+      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
   set_buffer();
@@ -436,7 +436,7 @@ bool ReaderFactoryBase::ConcurrentReader::ReadSomeDirectlyBehindScratch(
       if (ABSL_PREDICT_TRUE(!iter_->empty())) {
         set_buffer(iter_->data(), iter_->size());
         move_limit_pos(available());
-        return false;
+        return true;
       }
       ++iter_;
     }
@@ -449,15 +449,16 @@ bool ReaderFactoryBase::ConcurrentReader::ReadSomeDirectlyBehindScratch(
     if (max_length >= buffer_sizer_.BufferLength(pos())) {
       // Read directly to `get_dest(max_length)`.
       size_t length_read;
-      if (shared_->reader->ReadSomeDirectly(max_length, get_dest,
-                                            &length_read)) {
-        if (ABSL_PREDICT_FALSE(length_read == 0 && !shared_->reader->ok())) {
-          FailWithoutAnnotation(shared_->reader->status());
-          return true;
+      const bool read_ok =
+          shared_->reader->ReadOrPullSome(max_length, get_dest, &length_read);
+      move_limit_pos(length_read);
+      if (ABSL_PREDICT_FALSE(!read_ok)) {
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
         }
-        move_limit_pos(length_read);
-        return true;
+        return false;
       }
+      if (length_read > 0) return true;
     }
     if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
   }

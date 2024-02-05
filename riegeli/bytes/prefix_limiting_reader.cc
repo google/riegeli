@@ -146,20 +146,20 @@ bool PrefixLimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return copy_ok;
 }
 
-bool PrefixLimitingReaderBase::ReadSomeDirectlySlow(
+bool PrefixLimitingReaderBase::ReadOrPullSomeSlow(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "some data available, use ReadOrPullSome() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const bool read_directly = src.ReadSomeDirectly(max_length, get_dest);
+  const bool read_ok = src.ReadOrPullSome(max_length, get_dest);
   MakeBuffer(src);
-  return read_directly;
+  return read_ok;
 }
 
 void PrefixLimitingReaderBase::ReadHintSlow(size_t min_length,

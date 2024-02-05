@@ -92,7 +92,7 @@ class PullableReader : public Reader {
   //   `!scratch_used()`
   virtual bool PullBehindScratch(size_t recommended_length) = 0;
 
-  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadSomeDirectlySlow()`,
+  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadOrPullSomeSlow()`,
   // `ReadHintSlow()`, `SyncImpl()`, and `SeekSlow()`, called while scratch is
   // not used.
   //
@@ -111,7 +111,7 @@ class PullableReader : public Reader {
   virtual bool ReadBehindScratch(size_t length, absl::Cord& dest);
   virtual bool CopyBehindScratch(Position length, Writer& dest);
   virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
-  virtual bool ReadSomeDirectlyBehindScratch(
+  virtual bool ReadOrPullSomeBehindScratch(
       size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest);
   virtual void ReadHintBehindScratch(size_t min_length,
                                      size_t recommended_length);
@@ -126,9 +126,9 @@ class PullableReader : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  using Reader::ReadSomeDirectlySlow;
-  bool ReadSomeDirectlySlow(
-      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
+  using Reader::ReadOrPullSomeSlow;
+  bool ReadOrPullSomeSlow(size_t max_length,
+                          absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;

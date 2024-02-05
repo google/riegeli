@@ -1254,9 +1254,10 @@ struct TransposeDecoder::DecodingState {
     }
     if (ABSL_PREDICT_FALSE(
             !node->buffer->Copy(length_length + length, *dest))) {
-      if (!dest->ok()) return decoder->Fail(dest->status());
-      return decoder->Fail(node->buffer->StatusOrAnnotate(
-          InvalidArgumentError("Reading string field failed")));
+      return decoder->Fail(
+          !dest->ok() ? dest->status()
+                      : node->buffer->StatusOrAnnotate(InvalidArgumentError(
+                            "Reading string field failed")));
     }
     if (ABSL_PREDICT_FALSE(
             !dest->Write(absl::string_view(node->tag_data, tag_length)))) {
@@ -1322,9 +1323,10 @@ struct TransposeDecoder::DecodingState {
           InvalidArgumentError("Reading non-proto record length failed")));
     }
     if (ABSL_PREDICT_FALSE(!node->buffer->Copy(length, *dest))) {
-      if (!dest->ok()) return decoder->Fail(dest->status());
-      return decoder->Fail(node->buffer->StatusOrAnnotate(
-          InvalidArgumentError("Reading non-proto record failed")));
+      return decoder->Fail(
+          !dest->ok() ? dest->status()
+                      : node->buffer->StatusOrAnnotate(InvalidArgumentError(
+                            "Reading non-proto record failed")));
     }
     return MessageStartCallback();
   }

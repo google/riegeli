@@ -582,14 +582,14 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-bool FileReaderBase::ReadSomeDirectlySlow(
+bool FileReaderBase::ReadOrPullSomeSlow(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "some data available, use ReadOrPullSome() instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
     // Read directly to `get_dest(max_length)`.
     SyncBuffer();
@@ -600,12 +600,12 @@ bool FileReaderBase::ReadSomeDirectlySlow(
       max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
     }
     char* const dest = get_dest(max_length);
-    if (ABSL_PREDICT_FALSE(max_length == 0)) return true;
+    if (ABSL_PREDICT_FALSE(max_length == 0)) return false;
+    const Position pos_before = limit_pos();
     ReadToDest(max_length, src, dest);
-    return true;
+    return limit_pos() > pos_before;
   }
-  PullSlow(1, max_length);
-  return false;
+  return PullSlow(1, max_length);
 }
 
 bool FileReaderBase::SyncImpl(SyncType sync_type) {

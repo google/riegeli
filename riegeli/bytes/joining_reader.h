@@ -144,8 +144,8 @@ class JoiningReaderBase : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
-  using PullableReader::ReadSomeDirectlyBehindScratch;
-  bool ReadSomeDirectlyBehindScratch(
+  using PullableReader::ReadOrPullSomeBehindScratch;
+  bool ReadOrPullSomeBehindScratch(
       size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;

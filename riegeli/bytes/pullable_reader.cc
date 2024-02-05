@@ -342,22 +342,21 @@ bool PullableReader::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-bool PullableReader::ReadSomeDirectlyBehindScratch(
+bool PullableReader::ReadOrPullSomeBehindScratch(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of "
-         "PullableReader::ReadSomeDirectlyBehindScratch(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+         "PullableReader::ReadOrPullSomeBehindScratch(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of "
-         "PullableReader::ReadSomeDirectlyBehindScratch(): "
-         "some data available, use ReadSomeDirectly() instead";
+         "PullableReader::ReadOrPullSomeBehindScratch(): "
+         "some data available, use ReadOrPullSome() instead";
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of "
-         "PullableReader::ReadSomeDirectlyBehindScratch(): "
+         "PullableReader::ReadOrPullSomeBehindScratch(): "
          "scratch used";
-  PullBehindScratch(max_length);
-  return false;
+  return PullBehindScratch(max_length);
 }
 
 void PullableReader::ReadHintBehindScratch(size_t min_length,
@@ -544,19 +543,19 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
   return CopyBehindScratch(length, dest);
 }
 
-bool PullableReader::ReadSomeDirectlySlow(
+bool PullableReader::ReadOrPullSomeSlow(
     size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "nothing to read, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "nothing to read, use ReadOrPullSome() instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadSomeDirectlySlow(): "
-         "some data available, use ReadSomeDirectly() instead";
+      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
+         "some data available, use ReadOrPullSome() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     SyncScratch();
-    if (available() > 0) return false;
+    if (available() > 0) return true;
   }
-  return ReadSomeDirectlyBehindScratch(max_length, get_dest);
+  return ReadOrPullSomeBehindScratch(max_length, get_dest);
 }
 
 void PullableReader::ReadHintSlow(size_t min_length,
