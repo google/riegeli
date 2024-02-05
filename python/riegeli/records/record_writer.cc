@@ -716,8 +716,7 @@ Seeking to any equivalent position leads to reading the same record.
 last_pos.numeric returns the position as an int.
 
 Precondition:
-  a record was successfully written and there was no intervening call to
-  close() or flush().
+  a record was successfully written
 )doc"),
      nullptr},
     {const_cast<char*>("pos"), reinterpret_cast<getter>(RecordWriterPos),

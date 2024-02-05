@@ -337,6 +337,7 @@ class RecordsTest(parameterized.TestCase):
           positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
+        self.assertEqual(writer.last_pos, positions[-1])
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
@@ -375,6 +376,7 @@ class RecordsTest(parameterized.TestCase):
           positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
+        self.assertEqual(writer.last_pos, positions[-1])
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,

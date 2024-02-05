@@ -811,7 +811,7 @@ void RecordWriterBase::Reset(Closed) {
   Object::Reset(kClosed);
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
-  last_record_is_valid_ = false;
+  last_record_ = LastRecordIsInvalid();
   worker_.reset();
 }
 
@@ -819,7 +819,7 @@ void RecordWriterBase::Reset() {
   Object::Reset();
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
-  last_record_is_valid_ = false;
+  last_record_ = LastRecordIsInvalid();
   worker_.reset();
 }
 
@@ -827,7 +827,7 @@ RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
     : Object(static_cast<Object&&>(that)),
       desired_chunk_size_(that.desired_chunk_size_),
       chunk_size_so_far_(that.chunk_size_so_far_),
-      last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
+      last_record_(std::exchange(that.last_record_, LastRecordIsInvalid())),
       worker_(std::move(that.worker_)) {}
 
 RecordWriterBase& RecordWriterBase::operator=(
@@ -835,7 +835,7 @@ RecordWriterBase& RecordWriterBase::operator=(
   Object::operator=(static_cast<Object&&>(that));
   desired_chunk_size_ = that.desired_chunk_size_;
   chunk_size_so_far_ = that.chunk_size_so_far_;
-  last_record_is_valid_ = std::exchange(that.last_record_is_valid_, false);
+  last_record_ = std::exchange(that.last_record_, LastRecordIsInvalid());
   worker_ = std::move(that.worker_);
   return *this;
 }
@@ -868,8 +868,10 @@ void RecordWriterBase::Done() {
                                   "null worker_ but RecordWriterBase is_open()";
     return;
   }
-  last_record_is_valid_ = false;
-  if (chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ > 0) {
+    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+      last_record_ = LastRecordIsValidAt{worker_->LastPos()};
+    }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       FailWithoutAnnotation(worker_->status());
     }
@@ -902,73 +904,58 @@ absl::Status RecordWriterBase::AnnotateOverDest(absl::Status status) {
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
                                    SerializeOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  last_record_is_valid_ = false;
-  // Decoding a chunk writes records to one array, and their positions to
-  // another array. We limit the size of both arrays together, to include
-  // attempts to accumulate an unbounded number of empty records.
   const size_t size = serialize_options.GetByteSize(record);
-  const uint64_t added_size =
-      SaturatingAdd(IntCast<uint64_t>(size), uint64_t{sizeof(uint64_t)});
-  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ > desired_chunk_size_ ||
-                         added_size >
-                             desired_chunk_size_ - chunk_size_so_far_) &&
-      chunk_size_so_far_ > 0) {
-    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
-      return FailWithoutAnnotation(worker_->status());
-    }
-    worker_->OpenChunk();
-    chunk_size_so_far_ = 0;
-  }
-  chunk_size_so_far_ += added_size;
-  if (ABSL_PREDICT_FALSE(!worker_->AddRecord(record, serialize_options))) {
-    return FailWithoutAnnotation(worker_->status());
-  }
-  last_record_is_valid_ = true;
-  return true;
+  return WriteRecordImpl(size, record, std::move(serialize_options));
 }
 
 bool RecordWriterBase::WriteRecord(absl::string_view record) {
-  return WriteRecordImpl(record);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  return WriteRecordImpl(record.size(), record);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 bool RecordWriterBase::WriteRecord(Src&& record) {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = record.size();
   // `std::move(record)` is correct and `std::forward<Src>(record)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  return WriteRecordImpl(std::move(record));
+  return WriteRecordImpl(size, std::move(record));
 }
 
 template bool RecordWriterBase::WriteRecord(std::string&& record);
 
 bool RecordWriterBase::WriteRecord(const Chain& record) {
-  return WriteRecordImpl(record);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  return WriteRecordImpl(record.size(), record);
 }
 
 bool RecordWriterBase::WriteRecord(Chain&& record) {
-  return WriteRecordImpl(std::move(record));
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = record.size();
+  return WriteRecordImpl(size, std::move(record));
 }
 
 bool RecordWriterBase::WriteRecord(const absl::Cord& record) {
-  return WriteRecordImpl(record);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  return WriteRecordImpl(record.size(), record);
 }
 
 bool RecordWriterBase::WriteRecord(absl::Cord&& record) {
-  return WriteRecordImpl(std::move(record));
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = record.size();
+  return WriteRecordImpl(size, std::move(record));
 }
 
-template <typename Record>
-inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  last_record_is_valid_ = false;
+template <typename... Args>
+inline bool RecordWriterBase::WriteRecordImpl(size_t size, Args&&... args) {
+  last_record_ = LastRecordIsInvalid();
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
-  const uint64_t added_size = SaturatingAdd(IntCast<uint64_t>(record.size()),
-                                            uint64_t{sizeof(uint64_t)});
-  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ > desired_chunk_size_ ||
-                         added_size >
-                             desired_chunk_size_ - chunk_size_so_far_) &&
+  const uint64_t added_size = uint64_t{size} + uint64_t{sizeof(uint64_t)};
+  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ + added_size >
+                         desired_chunk_size_) &&
       chunk_size_so_far_ > 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       return FailWithoutAnnotation(worker_->status());
@@ -977,17 +964,32 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
-  if (ABSL_PREDICT_FALSE(!worker_->AddRecord(std::forward<Record>(record)))) {
+  if (ABSL_PREDICT_FALSE(!worker_->AddRecord(std::forward<Args>(args)...))) {
     return FailWithoutAnnotation(worker_->status());
   }
-  last_record_is_valid_ = true;
+  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ + uint64_t{sizeof(uint64_t)} >
+                         desired_chunk_size_)) {
+    // No more records will fit in this chunk, most likely a single record
+    // exceeds the desired chunk size. Write the chunk now to avoid keeping a
+    // large chunk in memory.
+    last_record_ = LastRecordIsValidAt{worker_->LastPos()};
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
+      return FailWithoutAnnotation(worker_->status());
+    }
+    worker_->OpenChunk();
+    chunk_size_so_far_ = 0;
+    return true;
+  }
+  last_record_ = LastRecordIsValid();
   return true;
 }
 
 bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  last_record_is_valid_ = false;
-  if (chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ > 0) {
+    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+      last_record_ = LastRecordIsValidAt{worker_->LastPos()};
+    }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       return FailWithoutAnnotation(worker_->status());
     }
@@ -1000,7 +1002,7 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
       return FailWithoutAnnotation(worker_->status());
     }
   }
-  if (chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ > 0) {
     worker_->OpenChunk();
     chunk_size_so_far_ = 0;
   }
@@ -1014,8 +1016,10 @@ RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
     promise.set_value(status());
     return promise.get_future();
   }
-  last_record_is_valid_ = false;
-  if (chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ > 0) {
+    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+      last_record_ = LastRecordIsValidAt{worker_->LastPos()};
+    }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       FailWithoutAnnotation(worker_->status());
       std::promise<absl::Status> promise;
@@ -1037,7 +1041,7 @@ RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
   } else {
     result = worker_->FutureFlush(flush_type);
   }
-  if (chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ > 0) {
     worker_->OpenChunk();
     chunk_size_so_far_ = 0;
   }
@@ -1048,6 +1052,13 @@ FutureRecordPosition RecordWriterBase::LastPos() const {
   RIEGELI_ASSERT(last_record_is_valid())
       << "Failed precondition of RecordWriterBase::LastPos(): "
          "no record was recently written";
+  {
+    const LastRecordIsValidAt* const last_record_at_pos =
+        absl::get_if<LastRecordIsValidAt>(&last_record_);
+    if (last_record_at_pos != nullptr) {
+      return last_record_at_pos->pos;
+    }
+  }
   RIEGELI_ASSERT(worker_ != nullptr)
       << "Failed invariant of RecordWriterBase: "
          "last position should be valid but worker is null";

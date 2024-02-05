@@ -15,6 +15,7 @@
 #ifndef RIEGELI_RECORDS_RECORD_WRITER_H_
 #define RIEGELI_RECORDS_RECORD_WRITER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <future>
@@ -30,6 +31,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/variant.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/assert.h"
@@ -529,13 +531,14 @@ class RecordWriterBase : public Object {
   // `LastPos().get().numeric()` returns the position as an integer of type
   // `Position`.
   //
-  // Precondition: a record was successfully written and there was no
-  // intervening call to `Close()`, `Flush()` or `FutureFlush()` (this can be
-  // checked with `last_record_is_valid()`).
+  // Precondition: a record was successfully written (this can be checked with
+  // `last_record_is_valid()`).
   FutureRecordPosition LastPos() const;
 
   // Returns `true` if calling `LastPos()` is valid.
-  bool last_record_is_valid() const { return last_record_is_valid_; }
+  bool last_record_is_valid() const {
+    return !absl::holds_alternative<LastRecordIsInvalid>(last_record_);
+  }
 
   // Returns a position of the next record (or the end of file if there is no
   // next record).
@@ -591,12 +594,19 @@ class RecordWriterBase : public Object {
   class SerialWorker;
   class Worker;
 
-  template <typename Record>
-  bool WriteRecordImpl(Record&& record);
+  struct LastRecordIsInvalid {};
+  struct LastRecordIsValid {};  // At one record before `Pos()`.
+  struct LastRecordIsValidAt {
+    FutureRecordPosition pos;
+  };
+
+  template <typename... Args>
+  bool WriteRecordImpl(size_t size, Args&&... args);
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
-  bool last_record_is_valid_ = false;
+  absl::variant<LastRecordIsInvalid, LastRecordIsValid, LastRecordIsValidAt>
+      last_record_ = LastRecordIsInvalid();
   // Invariant: if `is_open()` then `worker_ != nullptr`.
   std::unique_ptr<Worker> worker_;
 };
