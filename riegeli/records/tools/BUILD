@@ -16,6 +16,7 @@ cc_binary(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
+        "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_backward_writer",

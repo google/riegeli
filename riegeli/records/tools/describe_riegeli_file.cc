@@ -34,6 +34,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -59,7 +60,7 @@
 #include "riegeli/records/tools/riegeli_summary.pb.h"
 #include "riegeli/varint/varint_reading.h"
 
-ABSL_FLAG(bool, show_records_metadata, true,
+ABSL_FLAG(bool, show_records_metadata, false,
           "If true, show parsed file metadata.");
 ABSL_FLAG(bool, show_record_sizes, false,
           "If true, show the list of record sizes in each chunk.");
@@ -275,7 +276,7 @@ absl::Status DescribeTransposedChunk(
   return absl::OkStatus();
 }
 
-void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
+void DescribeFile(absl::string_view filename, Writer& report) {
   WriteLine("file {", report);
   WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
   DefaultChunkReader<FdReader<>> chunk_reader(std::forward_as_tuple(filename));
@@ -294,7 +295,7 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        WriteLine(skipped_region.message(), errors);
+        WriteLine("  # FILE CORRUPTED: ", skipped_region.ToString(), report);
         continue;
       }
       break;
@@ -326,16 +327,24 @@ void DescribeFile(absl::string_view filename, Writer& report, Writer& errors) {
         default:
           break;
       }
-      if (ABSL_PREDICT_FALSE(!status.ok())) WriteLine(status.message(), errors);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        WriteLine("  # FILE CORRUPTED: ",
+                  Annotate(chunk_reader.AnnotateStatus(status),
+                           absl::StrCat("at record ", chunk_begin, "/0"))
+                      .message(),
+                  report);
+      }
     }
     WriteLine("  chunk {", report);
     TextPrintToWriter(chunk_summary, TextWriter<>(&report), print_options)
         .IgnoreError();
     WriteLine("  }", report);
   }
+  if (!chunk_reader.Close()) {
+    WriteLine("  # FILE READ ERROR: ", chunk_reader.status().message(), report);
+  }
   WriteLine('}', report);
   report.Flush();
-  if (!chunk_reader.Close()) WriteLine(chunk_reader.status().message(), errors);
 }
 
 const char kUsage[] =
@@ -351,10 +360,8 @@ int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   riegeli::StdOut std_out;
-  riegeli::StdErr std_err;
   for (size_t i = 1; i < args.size(); ++i) {
-    riegeli::tools::DescribeFile(args[i], std_out, std_err);
+    riegeli::tools::DescribeFile(args[i], std_out);
   }
   std_out.Close();
-  std_err.Close();
 }
