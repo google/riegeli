@@ -25,6 +25,11 @@ config_setting(
     values = {"cpu": "aarch64"},
 )
 
+config_setting(
+    name = "cpu_darwin_arm64",
+    values = {"cpu": "darwin_arm64"},
+)
+
 #-----------------------------------------------------------------------------
 # Platform-specific
 
@@ -198,6 +203,7 @@ cc_library(
     hdrs = ["highwayhash/highwayhash_target.h"],
     copts = select({
         ":cpu_aarch64": [],
+        ":cpu_darwin_arm64": [],
         "//conditions:default": ["-DHH_DISABLE_TARGET_SPECIFIC"],
     }),
     textual_hdrs = [
@@ -264,6 +270,7 @@ cc_library(
     ] + select({
         ":cpu_ppc": [":hh_vsx"],
         ":cpu_aarch64": [":hh_neon"],
+        ":cpu_darwin_arm64": [":hh_neon"],
         "//conditions:default": [
             ":hh_avx2",
             ":hh_sse41",
@@ -283,6 +290,7 @@ cc_library(
         ":hh_types",
     ] + select({
         ":cpu_aarch64": [":hh_neon"],
+        ":cpu_darwin_arm64": [":hh_neon"],
         "//conditions:default": [
             ":hh_avx2",
             ":hh_sse41",
