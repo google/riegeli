@@ -64,9 +64,16 @@ void DefaultChunkReaderBase::Done() {
            "have been read for the chunk to be considered incomplete";
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = src.pos();
-    Fail(absl::InvalidArgumentError(
-        absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
-                     pos_, " with length ", recoverable_pos_ - pos_)));
+    const Position chunk_header_read =
+        records_internal::DistanceWithoutOverhead(pos_, recoverable_pos_);
+    Fail(absl::InvalidArgumentError(absl::StrCat(
+        "Truncated Riegeli/records file, incomplete chunk at ", pos_,
+        " with length ", recoverable_pos_ - pos_,
+        chunk_header_read < chunk_.header.size()
+            ? std::string()
+            : absl::StrCat(
+                  " < ",
+                  records_internal::ChunkEnd(chunk_.header, pos_) - pos_))));
   }
   chunk_.Reset();
 }
