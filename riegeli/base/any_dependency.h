@@ -77,7 +77,7 @@ class AnyDependencyRefImpl;
 // The optional `InlineManagers` parameters specify the size of inline storage,
 // which allows to avoid heap allocation if `Manager` is among `InlineManagers`
 // or if `Dependency<Ptr, Manager>` fits there regarding size and alignment.
-// By default inline storage is enough for a pointer or a `Ptr`.
+// By default inline storage is enough for a pointer.
 template <typename Ptr, typename... InlineManagers>
 using AnyDependency = AnyDependencyImpl<
     Ptr, UnsignedMax(size_t{0}, sizeof(Dependency<Ptr, InlineManagers>)...),
@@ -124,9 +124,8 @@ namespace any_dependency_internal {
 template <typename Ptr, size_t inline_size, size_t inline_align>
 struct Repr {
   alignas(UnsignedMax(
-      alignof(void*), alignof(Ptr),
-      inline_align)) char storage[UnsignedMax(sizeof(void*), sizeof(Ptr),
-                                              inline_size)];
+      alignof(void*),
+      inline_align)) char storage[UnsignedMax(sizeof(void*), inline_size)];
 };
 
 // By convention, a parameter of type `Storage` points to
