@@ -193,8 +193,16 @@ class BackwardWriter : public Object {
   bool Write(float src);
   bool Write(double src);
   bool Write(long double src);
-  template <typename Src,
-            std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+  template <
+      typename Src,
+      std::enable_if_t<
+          absl::conjunction<
+              HasAbslStringify<Src>,
+              absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+              absl::negation<std::is_convertible<Src&&, const Chain&>>,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+              value,
+          int> = 0>
   bool Write(Src&& src);
 
   // Other integer types are is not supported. Delete overloads to avoid
@@ -742,7 +750,15 @@ inline bool BackwardWriter::Write(absl::uint128 src) {
   return write_int_internal::WriteUnsigned(src, *this);
 }
 
-template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>
+template <typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  HasAbslStringify<Src>,
+                  absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
+                  absl::negation<
+                      std::is_convertible<Src&&, const absl::Cord&>>>::value,
+              int>>
 inline bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
   WriterAbslStringifySink sink(&chain_writer);

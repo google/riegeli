@@ -58,8 +58,16 @@ class DigesterBase {
   void Write(const char* src) { Write(absl::string_view(src)); }
   void Write(const Chain& src);
   void Write(const absl::Cord& src);
-  template <typename Src,
-            std::enable_if_t<HasAbslStringify<Src>::value, int> = 0>
+  template <
+      typename Src,
+      std::enable_if_t<
+          absl::conjunction<
+              HasAbslStringify<Src>,
+              absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+              absl::negation<std::is_convertible<Src&&, const Chain&>>,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+              value,
+          int> = 0>
   void Write(Src&& src);
 
   // Numeric types supported by `Writer::Write()` are not supported by
@@ -318,7 +326,15 @@ class DigesterBase::DigesterAbslStringifySink {
   DigesterBase* digester_;
 };
 
-template <typename Src, std::enable_if_t<HasAbslStringify<Src>::value, int>>
+template <typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  HasAbslStringify<Src>,
+                  absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
+                  absl::negation<
+                      std::is_convertible<Src&&, const absl::Cord&>>>::value,
+              int>>
 inline void DigesterBase::Write(Src&& src) {
   DigesterAbslStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
