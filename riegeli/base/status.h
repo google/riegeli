@@ -45,8 +45,8 @@ absl::Status Annotate(const absl::Status& status, absl::string_view detail);
 // `StatusOrMaker<T>::type` and `StatusOrMakerT<T>` generalize
 // `absl::StatusOr<T>` for types where that is not applicable:
 //  * `absl::StatusOr<const T>`           -> `absl::StatusOr<T>`
-//  * `absl::StatusOr<T&>`                -> rejected
-//  * `absl::StatusOr<T&&>`               -> rejected
+//  * `absl::StatusOr<T&>`                -> `absl::StatusOr<T>`
+//  * `absl::StatusOr<T&&>`               -> `absl::StatusOr<T>`
 //  * `absl::StatusOr<void>`              -> `absl::Status`
 //  * `absl::StatusOr<absl::Status>`      -> `absl::Status`
 //  * `absl::StatusOr<absl::StatusOr<T>>` -> `absl::StatusOr<T>`
@@ -79,16 +79,10 @@ template <typename T>
 struct StatusOrMaker<const T> : StatusOrMaker<T> {};
 
 template <typename T>
-struct StatusOrMaker<T&> {
-  static_assert(sizeof(T) < 0,
-                "StatusOrMaker does not support reference types");
-};
+struct StatusOrMaker<T&> : StatusOrMaker<T> {};
 
 template <typename T>
-struct StatusOrMaker<T&&> {
-  static_assert(sizeof(T) < 0,
-                "StatusOrMaker does not support reference types");
-};
+struct StatusOrMaker<T&&> : StatusOrMaker<T> {};
 
 template <>
 struct StatusOrMaker<void> {

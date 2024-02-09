@@ -35,40 +35,9 @@ namespace riegeli {
 
 namespace read_all_internal {
 
-// Combines a status with the result of calling a function of type `Work` with
-// the first parameter of type `absl::string_view`.
-//
-// See `ReadAll()` below for details.
-
-template <typename Work, typename Enable = void>
-struct StringViewCallResult;
-
 template <typename Work>
-struct StringViewCallResult<
-    Work, std::enable_if_t<!std::is_reference<decltype(std::declval<Work&&>()(
-              std::declval<absl::string_view>()))>::value>> {
- private:
-  using WorkResult =
-      decltype(std::declval<Work&&>()(std::declval<absl::string_view>()));
-
-  using Maker = StatusOrMaker<WorkResult>;
-
- public:
-  using type = typename Maker::type;
-
-  static type Call(absl::Status&& status, Work&& work, absl::string_view dest) {
-    if (!status.ok()) return Maker::FromStatus(std::move(status));
-    return Maker::FromWork(
-        [&]() -> WorkResult { return std::forward<Work>(work)(dest); });
-  }
-
-  static void Update(type& result, const absl::Status& status) {
-    return Maker::Update(result, status);
-  }
-};
-
-template <typename Work>
-using StringViewCallResultT = typename StringViewCallResult<Work>::type;
+using StringViewCallResult =
+    decltype(std::declval<Work&&>()(std::declval<absl::string_view>()));
 
 }  // namespace read_all_internal
 
@@ -104,8 +73,8 @@ using StringViewCallResultT = typename StringViewCallResult<Work>::type;
 //     `ReadAll()` generalizes `absl::StatusOr<T>` for types where that is not
 //     applicable:
 //      * `absl::StatusOr<const T>`           -> `absl::StatusOr<T>`
-//      * `absl::StatusOr<T&>`                -> rejected
-//      * `absl::StatusOr<T&&>`               -> rejected
+//      * `absl::StatusOr<T&>`                -> `absl::StatusOr<T>`
+//      * `absl::StatusOr<T&&>`               -> `absl::StatusOr<T>`
 //      * `absl::StatusOr<void>`              -> `absl::Status`
 //      * `absl::StatusOr<absl::Status>`      -> `absl::Status`
 //      * `absl::StatusOr<absl::StatusOr<T>>` -> `absl::StatusOr<T>`
@@ -118,14 +87,14 @@ absl::Status ReadAll(Reader& src, absl::string_view& dest,
 absl::Status ReadAll(Reader& src, absl::string_view& dest, size_t* length_read);
 template <typename Src, typename Work,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-read_all_internal::StringViewCallResultT<Work> ReadAll(
+StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
     Src&& src, Work&& work,
     size_t max_length = std::numeric_limits<size_t>::max(),
     size_t* length_read = nullptr);
 template <typename Src, typename Work,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
-read_all_internal::StringViewCallResultT<Work> ReadAll(Src&& src, Work&& work,
-                                                       size_t* length_read);
+StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
+    Src&& src, Work&& work, size_t* length_read);
 
 // Combines creating a `Reader` (optionally), reading all remaining data to
 // `dest` (clearing any existing data in `dest`), and `VerifyEndAndClose()`
@@ -275,19 +244,23 @@ inline absl::Status ReadAll(Reader& src, absl::string_view& dest,
 
 template <typename Src, typename Work,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline read_all_internal::StringViewCallResultT<Work> ReadAll(
+inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
     Src&& src, Work&& work, size_t max_length, size_t* length_read) {
+  using WorkResult = read_all_internal::StringViewCallResult<Work>;
+  using Maker = StatusOrMaker<WorkResult>;
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  using ResultWithStatus = read_all_internal::StringViewCallResult<Work>;
   absl::string_view dest;
   absl::Status status =
       read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
-  typename ResultWithStatus::type result =
-      ResultWithStatus::Call(std::move(status), std::forward<Work>(work), dest);
+  typename Maker::type result = ABSL_PREDICT_FALSE(!status.ok())
+                                    ? Maker::FromStatus(std::move(status))
+                                    : Maker::FromWork([&]() -> WorkResult {
+                                        return std::forward<Work>(work)(dest);
+                                      });
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      ResultWithStatus::Update(result, src_dep->status());
+      Maker::Update(result, src_dep->status());
     }
   }
   return result;
@@ -295,7 +268,7 @@ inline read_all_internal::StringViewCallResultT<Work> ReadAll(
 
 template <typename Src, typename Work,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
-inline read_all_internal::StringViewCallResultT<Work> ReadAll(
+inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
     Src&& src, Work&& work, size_t* length_read) {
   return ReadAll(std::forward<Src>(src), std::forward<Work>(work),
                  std::numeric_limits<size_t>::max(), length_read);
