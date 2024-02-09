@@ -22,7 +22,7 @@ namespace riegeli {
 
 // `RIEGELI_INLINE_CONSTEXPR(type, name, init)` emulates namespace-scope
 // `inline constexpr type name = init;` from C++17, but is available since
-// C++11.
+// C++14.
 
 #if __cpp_inline_variables
 
@@ -31,16 +31,12 @@ namespace riegeli {
 
 #else
 
-#define RIEGELI_INLINE_CONSTEXPR(type, name, init)                            \
-  template <typename RiegeliInternalDummy>                                    \
-  struct RiegeliInternalInlineConstexpr_##name {                              \
-    static constexpr ::riegeli::type_identity_t<type> kInstance = init;       \
-  };                                                                          \
-  template <typename RiegeliInternalDummy>                                    \
-  constexpr ::riegeli::type_identity_t<type>                                  \
-      RiegeliInternalInlineConstexpr_##name<RiegeliInternalDummy>::kInstance; \
-  static constexpr const ::riegeli::type_identity_t<type>& name =             \
-      RiegeliInternalInlineConstexpr_##name<void>::kInstance;                 \
+#define RIEGELI_INLINE_CONSTEXPR(type, name, init)                \
+  template <typename RiegeliInternalDummy>                        \
+  constexpr ::riegeli::type_identity_t<type>                      \
+      kRiegeliInternalInlineConstexpr_##name = init;              \
+  static constexpr const ::riegeli::type_identity_t<type>& name = \
+      kRiegeliInternalInlineConstexpr_##name<void>;               \
   static_assert(sizeof(name) != 0, "Silence unused variable warnings.")
 
 #endif
