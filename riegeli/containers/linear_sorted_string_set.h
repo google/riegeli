@@ -780,9 +780,8 @@ inline absl::Status LinearSortedStringSet::Decode(Src&& src,
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status = DecodeImpl(*src_dep, options);
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }

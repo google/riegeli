@@ -207,9 +207,8 @@ inline absl::Status ReadAllInternal(Src&& src, Dest& dest, size_t max_length,
   if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
   absl::Status status = ReadAllImpl(*src_dep, dest, max_length, length_read);
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }
@@ -223,9 +222,8 @@ inline absl::Status ReadAndAppendAllInternal(Src&& src, Dest& dest,
   absl::Status status =
       ReadAndAppendAllImpl(*src_dep, dest, max_length, length_read);
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }
@@ -259,7 +257,8 @@ inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
                                         return std::forward<Work>(work)(dest);
                                       });
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
+    if (ABSL_PREDICT_TRUE(result.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
       Maker::Update(result, src_dep->status());
     }
   }
@@ -283,9 +282,8 @@ absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
   absl::Status status =
       read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }

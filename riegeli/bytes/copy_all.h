@@ -113,9 +113,8 @@ inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
     }
   }
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }
@@ -148,9 +147,8 @@ inline absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
     }
   }
   if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->VerifyEndAndClose())) {
-      status.Update(src_dep->status());
-    }
+    if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
 }
