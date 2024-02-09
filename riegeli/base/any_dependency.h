@@ -434,14 +434,17 @@ class
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_reference<Manager>>,
+                    absl::negation<std::is_rvalue_reference<Manager>>,
                     absl::negation<any_dependency_internal::IsAnyDependency<
                         Ptr, Manager>>>::value,
                 int> = 0>
   void Initialize(const Manager& manager);
   template <typename Manager,
             std::enable_if_t<
-                !any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
+                absl::conjunction<
+                    absl::negation<std::is_lvalue_reference<Manager>>,
+                    absl::negation<any_dependency_internal::IsAnyDependency<
+                        Ptr, Manager>>>::value,
                 int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager,
@@ -870,16 +873,19 @@ template <typename Ptr, size_t inline_size, size_t inline_align,
 struct MethodsFor {
   static const Methods<Ptr> methods;
 
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
+                             int> = 0>
   static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
     new (self) Dependency<Ptr, Manager>*(new Dependency<Ptr, Manager>(manager));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
+                             int> = 0>
   static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
     new (self) Dependency<Ptr, Manager>*(
-        new Dependency<Ptr, Manager>(std::forward<Manager>(manager)));
+        new Dependency<Ptr, Manager>(std::move(manager)));
     new (self_ptr) Ptr(dep_ptr(self)->get());
   }
   template <
@@ -938,15 +944,18 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
                                             Manager>::value>> {
   static const Methods<Ptr> methods;
 
-  template <
-      typename DependentManager = Manager,
-      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
+                             int> = 0>
   static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
     new (self) Dependency<Ptr, Manager>(manager);
     new (self_ptr) Ptr(dep(self).get());
   }
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
+                             int> = 0>
   static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
-    new (self) Dependency<Ptr, Manager>(std::forward<Manager>(manager));
+    new (self) Dependency<Ptr, Manager>(std::move(manager));
     new (self_ptr) Ptr(dep(self).get());
   }
   template <
@@ -1184,7 +1193,7 @@ template <typename Ptr, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
-                  absl::negation<std::is_reference<Manager>>,
+                  absl::negation<std::is_rvalue_reference<Manager>>,
                   absl::negation<any_dependency_internal::IsAnyDependency<
                       Ptr, Manager>>>::value,
               int>>
@@ -1195,15 +1204,20 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
-template <
-    typename Manager,
-    std::enable_if_t<
-        !any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<std::is_lvalue_reference<Manager>>,
+                  absl::negation<any_dependency_internal::IsAnyDependency<
+                      Ptr, Manager>>>::value,
+              int>>
 inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, &ptr_,
-                                 std::forward<Manager>(manager));
+  // `std::move(manager)` is correct and `std::forward<Manager>(manager)` is not
+  // necessary: `Manager` is never an lvalue reference because this is excluded
+  // in the constraint.
+  MethodsFor<Manager>::Construct(repr_.storage, &ptr_, std::move(manager));
 }
 
 template <typename Ptr, size_t inline_size, size_t inline_align>
