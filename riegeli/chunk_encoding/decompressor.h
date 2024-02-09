@@ -111,8 +111,9 @@ class Decompressor : public Object {
   void Done() override;
 
  private:
-  template <typename SrcInit>
-  void Initialize(SrcInit&& src_init, CompressionType compression_type);
+  template <typename... SrcArgs>
+  void Initialize(std::tuple<SrcArgs...>&& src_args,
+                  CompressionType compression_type);
 
   AnyDependency<Reader*, Src, BrotliReader<Src>, ZstdReader<Src>,
                 SnappyReader<Src>>
@@ -124,13 +125,13 @@ class Decompressor : public Object {
 template <typename Src>
 inline Decompressor<Src>::Decompressor(const Src& src,
                                        CompressionType compression_type) {
-  Initialize(src, compression_type);
+  Initialize(std::forward_as_tuple(src), compression_type);
 }
 
 template <typename Src>
 inline Decompressor<Src>::Decompressor(Src&& src,
                                        CompressionType compression_type) {
-  Initialize(std::move(src), compression_type);
+  Initialize(std::forward_as_tuple(std::move(src)), compression_type);
 }
 
 template <typename Src>
@@ -150,14 +151,14 @@ template <typename Src>
 inline void Decompressor<Src>::Reset(const Src& src,
                                      CompressionType compression_type) {
   Object::Reset();
-  Initialize(src, compression_type);
+  Initialize(std::forward_as_tuple(src), compression_type);
 }
 
 template <typename Src>
 inline void Decompressor<Src>::Reset(Src&& src,
                                      CompressionType compression_type) {
   Object::Reset();
-  Initialize(std::move(src), compression_type);
+  Initialize(std::forward_as_tuple(std::move(src)), compression_type);
 }
 
 template <typename Src>
@@ -169,15 +170,19 @@ inline void Decompressor<Src>::Reset(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
-template <typename SrcInit>
-void Decompressor<Src>::Initialize(SrcInit&& src_init,
+template <typename... SrcArgs>
+void Decompressor<Src>::Initialize(std::tuple<SrcArgs...>&& src_args,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    decompressed_.Reset(absl::in_place_type<Src>,
-                        std::forward<SrcInit>(src_init));
+    absl::apply(
+        [&](SrcArgs&&... src_args) {
+          decompressed_.template Emplace<Src>(
+              std::forward<SrcArgs>(src_args)...);
+        },
+        std::move(src_args));
     return;
   }
-  Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
+  Dependency<Reader*, Src> compressed_reader(std::move(src_args));
   uint64_t uncompressed_size;
   if (ABSL_PREDICT_FALSE(
           !ReadVarint64(*compressed_reader, uncompressed_size))) {
