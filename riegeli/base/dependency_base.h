@@ -113,6 +113,12 @@ class DependencyBase {
   Manager& manager() { return manager_; }
   const Manager& manager() const { return manager_; }
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const DependencyBase& self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(self.manager_);
+  }
+
  protected:
   DependencyBase(const DependencyBase& that) = default;
   DependencyBase& operator=(const DependencyBase& that) = default;
@@ -149,6 +155,11 @@ class DependencyBase<Manager&> {
 
   Manager& manager() const { return manager_; }
 
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(
+      ABSL_ATTRIBUTE_UNUSED const DependencyBase& self,
+      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
+
  protected:
   DependencyBase(const DependencyBase& that) = default;
   DependencyBase& operator=(const DependencyBase&) = delete;
@@ -172,6 +183,11 @@ class DependencyBase<Manager&&> {
   explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 
   Manager& manager() const { return manager_; }
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(
+      ABSL_ATTRIBUTE_UNUSED const DependencyBase& self,
+      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  protected:
   DependencyBase(const DependencyBase& that) = default;
