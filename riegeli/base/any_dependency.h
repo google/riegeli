@@ -57,42 +57,43 @@ constexpr in_place_template_t<T> in_place_template = {};
 
 #endif
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 class AnyDependencyImpl;
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 class AnyDependencyRefImpl;
 
-// `AnyDependency<Ptr>` refers to an optionally owned object which is accessed
-// as `Ptr` and stored as some `Manager` type decided when the `AnyDependency`
-// is initialized.
+// `AnyDependency<Handle>` refers to an optionally owned object which is
+// accessed as `Handle` and stored as some `Manager` type decided when the
+// `AnyDependency` is initialized.
 //
-// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
-// `M*` (not owned), `M` (owned), or `std::unique_ptr<M>` (owned), with `M`
-// derived from `P`.
+// Often `Handle` is some pointer `Base*`, and then `Manager` can be e.g.
+// `T*` (not owned), `T` (owned), or `std::unique_ptr<T>` (owned), with some `T`
+// derived from `Base`.
 //
-// `AnyDependency<Ptr>` holds a `Dependency<Ptr, Manager>` for some `Manager`
-// type, erasing the `Manager` parameter from the type of the `AnyDependency`,
-// or is empty.
+// `AnyDependency<Handle>` holds a `Dependency<Handle, Manager>` for some
+// `Manager` type, erasing the `Manager` parameter from the type of the
+// `AnyDependency`, or is empty.
 //
 // The optional `InlineManagers` parameters specify the size of inline storage,
 // which allows to avoid heap allocation if `Manager` is among `InlineManagers`
-// or if `Dependency<Ptr, Manager>` fits there regarding size and alignment.
+// or if `Dependency<Handle, Manager>` fits there regarding size and alignment.
 // By default inline storage is enough for a pointer.
-template <typename Ptr, typename... InlineManagers>
+template <typename Handle, typename... InlineManagers>
 using AnyDependency = AnyDependencyImpl<
-    Ptr, UnsignedMax(size_t{0}, sizeof(Dependency<Ptr, InlineManagers>)...),
-    UnsignedMax(size_t{0}, alignof(Dependency<Ptr, InlineManagers>)...)>;
+    Handle,
+    UnsignedMax(size_t{0}, sizeof(Dependency<Handle, InlineManagers>)...),
+    UnsignedMax(size_t{0}, alignof(Dependency<Handle, InlineManagers>)...)>;
 
-// `AnyDependencyRef<Ptr>` refers to an optionally owned object which is
-// accessed as `Ptr` and was passed as some `Manager` type decided when the
+// `AnyDependencyRef<Handle>` refers to an optionally owned object which is
+// accessed as `Handle` and was passed as some `Manager` type decided when the
 // `AnyDependencyRef` was initialized.
 //
-// Often `Ptr` is some pointer `P*`, and then `Manager` can be e.g.
-// `M&` (not owned), `M&&` (owned), or `std::unique_ptr<M>` (owned), with `M`
-// derived from `P`.
+// Often `Handle` is some pointer `Base*`, and then `Manager` can be e.g.
+// `T&` (not owned), `T&&` (owned), or `std::unique_ptr<T>` (owned), with some
+// `T` derived from `Base`.
 //
-// `AnyDependencyRef<Ptr>` derives from `AnyDependency<Ptr>`, replacing the
-// constructors such that the `Manager` type is deduced from the constructor
+// `AnyDependencyRef<Handle>` derives from `AnyDependency<Handle>`, replacing
+// the constructors such that the `Manager` type is deduced from the constructor
 // argument as a reference type rather than a value type.
 //
 // This is meant to be used only when the dependency is a function parameter
@@ -108,20 +109,21 @@ using AnyDependency = AnyDependencyImpl<
 //
 // In contrast to `AnyDependency`, for `AnyDependencyRef` it is rare that
 // specifying `InlineManagers` is useful, because a typical
-// `Dependency<Ptr, Manager&&>` deduced by `AnyDependencyRef` fits in the
+// `Dependency<Handle, Manager&&>` deduced by `AnyDependencyRef` fits in the
 // default inline storage.
-template <typename Ptr, typename... InlineManagers>
+template <typename Handle, typename... InlineManagers>
 using AnyDependencyRef = AnyDependencyRefImpl<
-    Ptr, UnsignedMax(size_t{0}, sizeof(Dependency<Ptr, InlineManagers>)...),
-    UnsignedMax(size_t{0}, alignof(Dependency<Ptr, InlineManagers>)...)>;
+    Handle,
+    UnsignedMax(size_t{0}, sizeof(Dependency<Handle, InlineManagers>)...),
+    UnsignedMax(size_t{0}, alignof(Dependency<Handle, InlineManagers>)...)>;
 
 namespace any_dependency_internal {
 
 // Variants of `Repr`:
 //  * Empty `AnyDependency`: `Repr` is not used
-//  * Held by pointer: `storage` holds `Dependency<Ptr, Manager>*`
-//  * Stored inline: `storage` holds `Dependency<Ptr, Manager>`
-template <typename Ptr, size_t inline_size, size_t inline_align>
+//  * Held by pointer: `storage` holds `Dependency<Handle, Manager>*`
+//  * Stored inline: `storage` holds `Dependency<Handle, Manager>`
+template <typename Handle, size_t inline_size, size_t inline_align>
 struct Repr {
   alignas(UnsignedMax(
       alignof(void*),
@@ -129,38 +131,38 @@ struct Repr {
 };
 
 // By convention, a parameter of type `Storage` points to
-// `Repr<Ptr, inline_size, inline_align>::storage`.
+// `Repr<Handle, inline_size, inline_align>::storage`.
 using Storage = char[];
 
-// A `Dependency<Ptr, Manager>` is stored inline in
-// `Repr<Ptr, inline_size, inline_align>` if it fits in that storage and is
+// A `Dependency<Handle, Manager>` is stored inline in
+// `Repr<Handle, inline_size, inline_align>` if it fits in that storage and is
 // movable. If `inline_size == 0`, the dependency is also required to be stable
 // (because then `AnyDependency` declares itself stable) and trivially
 // relocatable (because then `AnyDependency` declares itself with trivial ABI).
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
 struct IsInline : std::false_type {};
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager>
 struct IsInline<
-    Ptr, inline_size, inline_align, Manager,
+    Handle, inline_size, inline_align, Manager,
     std::enable_if_t<absl::conjunction<
         std::integral_constant<
-            bool, sizeof(Dependency<Ptr, Manager>) <=
-                          sizeof(Repr<Ptr, inline_size, inline_align>) &&
-                      alignof(Dependency<Ptr, Manager>) <=
-                          alignof(Repr<Ptr, inline_size, inline_align>)>,
-        std::is_move_constructible<Dependency<Ptr, Manager>>,
+            bool, sizeof(Dependency<Handle, Manager>) <=
+                          sizeof(Repr<Handle, inline_size, inline_align>) &&
+                      alignof(Dependency<Handle, Manager>) <=
+                          alignof(Repr<Handle, inline_size, inline_align>)>,
+        std::is_move_constructible<Dependency<Handle, Manager>>,
         absl::disjunction<
             std::integral_constant<bool, (inline_size > 0)>,
             absl::conjunction<
                 std::integral_constant<bool,
-                                       Dependency<Ptr, Manager>::kIsStable>
+                                       Dependency<Handle, Manager>::kIsStable>
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
                 ,
-                absl::is_trivially_relocatable<Dependency<Ptr, Manager>>
+                absl::is_trivially_relocatable<Dependency<Handle, Manager>>
 #endif
                 >>>::value>> : std::true_type {
 };
@@ -180,15 +182,15 @@ template <>
 class ConditionallyTrivialAbi<true> {};
 
 // Method pointers.
-template <typename Ptr>
+template <typename Handle>
 struct Methods {
   // Destroys `self`.
   void (*destroy)(Storage self);
   size_t inline_size_used;   // Or 0 if inline storage is not used.
   size_t inline_align_used;  // Or 0 if inline storage is not used.
-  // Constructs `self` and `*self_ptr` by moving from `that`, and destroys
+  // Constructs `self` and `*self_handle` by moving from `that`, and destroys
   // `that`.
-  void (*move)(Storage self, Ptr* self_ptr, Storage that);
+  void (*move)(Storage self, Handle* self_handle, Storage that);
   bool (*is_owning)(const Storage self);
   // Returns the `std::remove_reference_t<Manager>*` if `type_id` matches
   // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
@@ -198,22 +200,23 @@ struct Methods {
                               MemoryEstimator& memory_estimator);
 };
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable = void>
 struct MethodsFor;
-template <typename Ptr>
+template <typename Handle>
 struct NullMethods;
 
 // `IsAnyDependency` detects `AnyDependencyImpl` or `AnyDependencyRefImpl` type
-// with the given `Ptr`.
-template <typename Ptr, typename T>
+// with the given `Handle`.
+template <typename Handle, typename T>
 struct IsAnyDependency : std::false_type {};
-template <typename Ptr, size_t inline_size, size_t inline_align>
-struct IsAnyDependency<Ptr, AnyDependencyImpl<Ptr, inline_size, inline_align>>
+template <typename Handle, size_t inline_size, size_t inline_align>
+struct IsAnyDependency<Handle,
+                       AnyDependencyImpl<Handle, inline_size, inline_align>>
     : std::true_type {};
-template <typename Ptr, size_t inline_size, size_t inline_align>
-struct IsAnyDependency<Ptr,
-                       AnyDependencyRefImpl<Ptr, inline_size, inline_align>>
+template <typename Handle, size_t inline_size, size_t inline_align>
+struct IsAnyDependency<Handle,
+                       AnyDependencyRefImpl<Handle, inline_size, inline_align>>
     : std::true_type {};
 
 }  // namespace any_dependency_internal
@@ -222,22 +225,22 @@ struct IsAnyDependency<Ptr,
 // been reduced to their maximum size and alignment.
 //
 // `ABSL_ATTRIBUTE_TRIVIAL_ABI` is effective if `inline_size == 0`.
-template <typename Ptr, size_t inline_size, size_t inline_align = 0>
+template <typename Handle, size_t inline_size, size_t inline_align = 0>
 class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
         AnyDependencyImpl
-    : public WithEqual<AnyDependencyImpl<Ptr, inline_size, inline_align>>,
+    : public WithEqual<AnyDependencyImpl<Handle, inline_size, inline_align>>,
       public ConditionallyAbslNullabilityCompatible<
-          std::is_pointer<Ptr>::value>,
+          std::is_pointer<Handle>::value>,
       public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
                                                               0> {
  public:
   // Creates an empty `AnyDependencyImpl`.
   AnyDependencyImpl() noexcept;
 
-  // Holds a `Dependency<Ptr, std::decay_t<Manager>>`.
+  // Holds a `Dependency<Handle, std::decay_t<Manager>>`.
   //
   // The `Manager` type is deduced from the constructor argument.
   template <
@@ -246,7 +249,7 @@ class
           absl::conjunction<
               absl::negation<
                   std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
-              IsValidDependency<Ptr, std::decay_t<Manager>>,
+              IsValidDependency<Handle, std::decay_t<Manager>>,
               std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
           int> = 0>
   /*implicit*/ AnyDependencyImpl(Manager&& manager);
@@ -256,18 +259,19 @@ class
           absl::conjunction<
               absl::negation<
                   std::is_same<std::decay_t<Manager>, AnyDependencyImpl>>,
-              IsValidDependency<Ptr, std::decay_t<Manager>>,
+              IsValidDependency<Handle, std::decay_t<Manager>>,
               std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
           int> = 0>
   AnyDependencyImpl& operator=(Manager&& manager);
 
-  // Holds a `Dependency<Ptr, Manager>`.
+  // Holds a `Dependency<Handle, Manager>`.
   //
   // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
   // because constructor templates do not support specifying template arguments
   // explicitly. The `Manager` is constructed from `manager_args`.
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   /*implicit*/ AnyDependencyImpl(absl::in_place_type_t<Manager>,
                                  ManagerArgs&&... manager_args);
 
@@ -278,10 +282,10 @@ class
   // Only templates with solely type template parameters are supported.
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                     ManagerTemplate, ManagerArgs...>>::value,
-          int> = 0>
+      std::enable_if_t<IsValidDependency<
+                           Handle, DeduceClassTemplateArgumentsT<
+                                       ManagerTemplate, ManagerArgs...>>::value,
+                       int> = 0>
   /*implicit*/ AnyDependencyImpl(in_place_template_t<ManagerTemplate>,
                                  ManagerArgs&&... manager_args);
 #endif
@@ -294,37 +298,40 @@ class
   // Makes `*this` equivalent to a newly constructed `AnyDependencyImpl`. This
   // avoids constructing a temporary `AnyDependencyImpl` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<IsValidDependency<Ptr, std::decay_t<Manager>>,
-                                  std::is_convertible<
-                                      Manager&&, std::decay_t<Manager>>>::value,
-                int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<
+          absl::conjunction<
+              IsValidDependency<Handle, std::decay_t<Manager>>,
+              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
                                           ManagerArgs&&... manager_args);
 #if __cpp_deduction_guides
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                     ManagerTemplate, ManagerArgs...>>::value,
-          int> = 0>
+      std::enable_if_t<IsValidDependency<
+                           Handle, DeduceClassTemplateArgumentsT<
+                                       ManagerTemplate, ManagerArgs...>>::value,
+                       int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(in_place_template_t<ManagerTemplate>,
                                           ManagerArgs&&... manager_args);
 #endif
 
-  // Holds a `Dependency<Ptr, Manager>`.
+  // Holds a `Dependency<Handle, Manager>`.
   //
   // The `Manager` is constructed from the given constructor arguments.
   //
   // Same as `Reset(absl::in_place_type<Manager>,
   //                std::forward<ManagerArgs>(manager_args)...)`,
   // returning a reference to the constructed `Manager`.
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES Manager& Emplace(ManagerArgs&&... manager_args);
 
 #if __cpp_deduction_guides
@@ -334,40 +341,40 @@ class
   // Only templates with solely type template parameters are supported.
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                     ManagerTemplate, ManagerArgs...>>::value,
-          int> = 0>
+      std::enable_if_t<IsValidDependency<
+                           Handle, DeduceClassTemplateArgumentsT<
+                                       ManagerTemplate, ManagerArgs...>>::value,
+                       int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES
       DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
       Emplace(ManagerArgs&&... manager_args);
 #endif
 
-  // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
+  // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyDependencyImpl`.
-  Ptr get() const { return ptr_; }
+  Handle get() const { return handle_; }
 
-  // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be used as a smart pointer to
-  // `P`, for convenience.
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<DependentPtr>& operator*() const {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+  // If `Handle` is `Base*`, `AnyDependencyImpl<Base*>` can be used as a smart
+  // pointer to `Base`, for convenience.
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
+  std::remove_pointer_t<DependentHandle>& operator*() const {
+    RIEGELI_ASSERT(handle_ != nullptr)
         << "Failed precondition of AnyDependency::operator*: null pointer";
-    return *ptr_;
+    return *handle_;
   }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  Ptr operator->() const {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
+  Handle operator->() const {
+    RIEGELI_ASSERT(handle_ != nullptr)
         << "Failed precondition of AnyDependency::operator->: null pointer";
-    return ptr_;
+    return handle_;
   }
 
-  // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be compared against
+  // If `Handle` is `Base*`, `AnyDependencyImpl<Base*>` can be compared against
   // `nullptr`.
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
   friend bool operator==(const AnyDependencyImpl& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
@@ -383,11 +390,13 @@ class
   // pointer to the `Manager`. If the `Manager` is an `AnyDependency` (possibly
   // wrapped in an rvalue reference or `std::unique_ptr`), propagates `GetIf()`
   // to it. Otherwise returns `nullptr`.
-  template <typename Manager,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   Manager* GetIf();
-  template <typename Manager,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   const Manager* GetIf() const;
 
   // A variant of `GetIf()` with the expected type passed as a `TypeId`.
@@ -402,18 +411,18 @@ class
  private:
   // For adopting `methods_` and `repr_` from an instantiation with a different
   // `inline_size` and `inline_align.
-  template <typename OtherPtr, size_t other_inline_size,
+  template <typename OtherHandle, size_t other_inline_size,
             size_t other_inline_align>
   friend class AnyDependencyImpl;
 
-  using Repr = any_dependency_internal::Repr<Ptr, inline_size, inline_align>;
-  using Methods = any_dependency_internal::Methods<Ptr>;
-  using NullMethods = any_dependency_internal::NullMethods<Ptr>;
+  using Repr = any_dependency_internal::Repr<Handle, inline_size, inline_align>;
+  using Methods = any_dependency_internal::Methods<Handle>;
+  using NullMethods = any_dependency_internal::NullMethods<Handle>;
   template <typename Manager>
-  using MethodsFor = any_dependency_internal::MethodsFor<Ptr, inline_size,
+  using MethodsFor = any_dependency_internal::MethodsFor<Handle, inline_size,
                                                          inline_align, Manager>;
 
-  // Initializes `methods_`, `repr_`, and `ptr_`, avoiding a redundant
+  // Initializes `methods_`, `repr_`, and `handle_`, avoiding a redundant
   // indirection and adopting them from `manager` instead if `Manager` is
   // already a compatible `AnyDependencyImpl` or `AnyDependencyRefImpl`.
   template <typename Manager,
@@ -421,7 +430,7 @@ class
                 absl::conjunction<
                     absl::negation<std::is_rvalue_reference<Manager>>,
                     absl::negation<any_dependency_internal::IsAnyDependency<
-                        Ptr, Manager>>>::value,
+                        Handle, Manager>>>::value,
                 int> = 0>
   void Initialize(const Manager& manager);
   template <typename Manager,
@@ -429,13 +438,13 @@ class
                 absl::conjunction<
                     absl::negation<std::is_lvalue_reference<Manager>>,
                     absl::negation<any_dependency_internal::IsAnyDependency<
-                        Ptr, Manager>>>::value,
+                        Handle, Manager>>>::value,
                 int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager,
-            std::enable_if_t<
-                any_dependency_internal::IsAnyDependency<Ptr, Manager>::value,
-                int> = 0>
+            std::enable_if_t<any_dependency_internal::IsAnyDependency<
+                                 Handle, Manager>::value,
+                             int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager, typename... ManagerArgs,
             std::enable_if_t<!std::is_reference<Manager>::value, int> = 0>
@@ -445,26 +454,26 @@ class
   // The union disables implicit construction and destruction which is done
   // manually here.
   union {
-    Ptr ptr_;
+    Handle handle_;
   };
   Repr repr_;
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<P>>` when `P` is
-// convertible to `Ptr`.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>,
-                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
-    : public DependencyBase<AnyDependencyImpl<P, inline_size, inline_align>> {
+// Specialization of `DependencyImpl<Handle, AnyDependencyImpl<T>>` when `T` is
+// convertible to `Handle`.
+template <typename Handle, typename T, size_t inline_size, size_t inline_align>
+class DependencyImpl<Handle, AnyDependencyImpl<T, inline_size, inline_align>,
+                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
+    : public DependencyBase<AnyDependencyImpl<T, inline_size, inline_align>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager().get(); }
+  T get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable =
-      AnyDependencyImpl<Ptr, inline_size, inline_align>::kIsStable;
+      AnyDependencyImpl<Handle, inline_size, inline_align>::kIsStable;
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
@@ -478,19 +487,19 @@ class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>,
   ~DependencyImpl() = default;
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyImpl<P>&&>` when `P` is
-// convertible to `Ptr`.
+// Specialization of `DependencyImpl<Handle, AnyDependencyImpl<T>&&>` when `T`
+// is convertible to `Handle`.
 //
-// It is defined explicitly because `AnyDependencyImpl<P>` can be heavy and is
+// It is defined explicitly because `AnyDependencyImpl<T>` can be heavy and is
 // better kept by reference.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>&&,
-                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
-    : public DependencyBase<AnyDependencyImpl<P, inline_size, inline_align>&&> {
+template <typename Handle, typename T, size_t inline_size, size_t inline_align>
+class DependencyImpl<Handle, AnyDependencyImpl<T, inline_size, inline_align>&&,
+                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
+    : public DependencyBase<AnyDependencyImpl<T, inline_size, inline_align>&&> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager().get(); }
+  T get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -509,22 +518,22 @@ class DependencyImpl<Ptr, AnyDependencyImpl<P, inline_size, inline_align>&&,
 };
 
 // Specialization of
-// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyImpl<P>, Deleter>>` when
-// `P` is convertible to `Ptr`.
+// `DependencyImpl<Handle, std::unique_ptr<AnyDependencyImpl<T>, Deleter>>` when
+// `T` is convertible to `Handle`.
 //
 // It covers `ClosingPtrType<AnyDependency>`.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align,
+template <typename Handle, typename T, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
-    Ptr,
-    std::unique_ptr<AnyDependencyImpl<P, inline_size, inline_align>, Deleter>,
-    std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+    Handle,
+    std::unique_ptr<AnyDependencyImpl<T, inline_size, inline_align>, Deleter>,
+    std::enable_if_t<std::is_convertible<T, Handle>::value>>
     : public DependencyBase<std::unique_ptr<
-          AnyDependencyImpl<P, inline_size, inline_align>, Deleter>> {
+          AnyDependencyImpl<T, inline_size, inline_align>, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager()->get(); }
+  T get() const { return this->manager()->get(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
@@ -550,15 +559,15 @@ class DependencyImpl<
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
 // have been reduced to their maximum size and alignment.
-template <typename Ptr, size_t inline_size, size_t inline_align = 0>
+template <typename Handle, size_t inline_size, size_t inline_align = 0>
 class AnyDependencyRefImpl
-    : public AnyDependencyImpl<Ptr, inline_size, inline_align> {
+    : public AnyDependencyImpl<Handle, inline_size, inline_align> {
  public:
   // Creates an empty `AnyDependencyRefImpl`.
   AnyDependencyRefImpl() = default;
 
-  // Holds a `Dependency<Ptr, Manager&&>` (which collapses to
-  // `Dependency<Ptr, Manager&>` if `Manager` is itself an lvalue reference).
+  // Holds a `Dependency<Handle, Manager&&>` (which collapses to
+  // `Dependency<Handle, Manager&>` if `Manager` is itself an lvalue reference).
   //
   // The `Manager` type is deduced from the constructor argument.
   template <
@@ -566,7 +575,7 @@ class AnyDependencyRefImpl
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
                                                         AnyDependencyRefImpl>>,
-                            IsValidDependency<Ptr, Manager&&>>::value,
+                            IsValidDependency<Handle, Manager&&>>::value,
           int> = 0>
   /*implicit*/ AnyDependencyRefImpl(Manager&& manager)
       : AnyDependencyRefImpl::AnyDependencyImpl(
@@ -576,7 +585,7 @@ class AnyDependencyRefImpl
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
                                                         AnyDependencyRefImpl>>,
-                            IsValidDependency<Ptr, Manager&&>>::value,
+                            IsValidDependency<Handle, Manager&&>>::value,
           int> = 0>
   AnyDependencyRefImpl& operator=(Manager&& manager) {
     AnyDependencyRefImpl::AnyDependencyImpl::Reset(
@@ -584,13 +593,14 @@ class AnyDependencyRefImpl
     return *this;
   }
 
-  // Holds a `Dependency<Ptr, Manager>`.
+  // Holds a `Dependency<Handle, Manager>`.
   //
   // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
   // because constructor templates do not support specifying template arguments
   // explicitly. The `Manager` is constructed from `manager_args`.
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   explicit AnyDependencyRefImpl(absl::in_place_type_t<Manager>,
                                 ManagerArgs&&... manager_args)
       : AnyDependencyRefImpl::AnyDependencyImpl(
@@ -604,10 +614,10 @@ class AnyDependencyRefImpl
   // Only templates with solely type template parameters are supported.
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                     ManagerTemplate, ManagerArgs...>>::value,
-          int> = 0>
+      std::enable_if_t<IsValidDependency<
+                           Handle, DeduceClassTemplateArgumentsT<
+                                       ManagerTemplate, ManagerArgs...>>::value,
+                       int> = 0>
   explicit AnyDependencyRefImpl(in_place_template_t<ManagerTemplate>,
                                 ManagerArgs&&... manager_args)
       : AnyDependencyRefImpl::AnyDependencyImpl(
@@ -624,14 +634,16 @@ class AnyDependencyRefImpl
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     AnyDependencyRefImpl::AnyDependencyImpl::Reset();
   }
-  template <typename Manager,
-            std::enable_if_t<IsValidDependency<Ptr, Manager&&>::value, int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<IsValidDependency<Handle, Manager&&>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     AnyDependencyRefImpl::AnyDependencyImpl::Reset(
         absl::in_place_type<Manager&&>, std::forward<Manager>(manager));
   }
-  template <typename Manager, typename... ManagerArgs,
-            std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int> = 0>
+  template <
+      typename Manager, typename... ManagerArgs,
+      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
                                           ManagerArgs&&... manager_args) {
     AnyDependencyRefImpl::AnyDependencyImpl::Reset(
@@ -641,10 +653,10 @@ class AnyDependencyRefImpl
 #if __cpp_deduction_guides
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                     ManagerTemplate, ManagerArgs...>>::value,
-          int> = 0>
+      std::enable_if_t<IsValidDependency<
+                           Handle, DeduceClassTemplateArgumentsT<
+                                       ManagerTemplate, ManagerArgs...>>::value,
+                       int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(in_place_template_t<ManagerTemplate>,
                                           ManagerArgs&&... manager_args) {
     AnyDependencyRefImpl::AnyDependencyImpl::Reset(
@@ -654,22 +666,22 @@ class AnyDependencyRefImpl
 #endif
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<P>>` when `P` is
-// convertible to `Ptr`.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>,
-                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+// Specialization of `DependencyImpl<Handle, AnyDependencyRefImpl<T>>` when `T`
+// is convertible to `Handle`.
+template <typename Handle, typename T, size_t inline_size, size_t inline_align>
+class DependencyImpl<Handle, AnyDependencyRefImpl<T, inline_size, inline_align>,
+                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
     : public DependencyBase<
-          AnyDependencyRefImpl<P, inline_size, inline_align>> {
+          AnyDependencyRefImpl<T, inline_size, inline_align>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager().get(); }
+  T get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable =
-      AnyDependencyRefImpl<Ptr, inline_size, inline_align>::kIsStable;
+      AnyDependencyRefImpl<Handle, inline_size, inline_align>::kIsStable;
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
   const void* GetIf(TypeId type_id) const {
@@ -683,20 +695,21 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>,
   ~DependencyImpl() = default;
 };
 
-// Specialization of `DependencyImpl<Ptr, AnyDependencyRefImpl<P>&&>` when `P`
-// is convertible to `Ptr`.
+// Specialization of `DependencyImpl<Handle, AnyDependencyRefImpl<T>&&>` when
+// `T` is convertible to `Handle`.
 //
-// It is defined explicitly because `AnyDependencyRefImpl<P>` can be heavy and
+// It is defined explicitly because `AnyDependencyRefImpl<T>` can be heavy and
 // is better kept by reference.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align>
-class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>&&,
-                     std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+template <typename Handle, typename T, size_t inline_size, size_t inline_align>
+class DependencyImpl<Handle,
+                     AnyDependencyRefImpl<T, inline_size, inline_align>&&,
+                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
     : public DependencyBase<
-          AnyDependencyRefImpl<P, inline_size, inline_align>&&> {
+          AnyDependencyRefImpl<T, inline_size, inline_align>&&> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager().get(); }
+  T get() const { return this->manager().get(); }
 
   bool is_owning() const { return this->manager().is_owning(); }
 
@@ -715,23 +728,23 @@ class DependencyImpl<Ptr, AnyDependencyRefImpl<P, inline_size, inline_align>&&,
 };
 
 // Specialization of
-// `DependencyImpl<Ptr, std::unique_ptr<AnyDependencyRefImpl<P>, Deleter>>` when
-// `P` is convertible to `Ptr`.
+// `DependencyImpl<Handle, std::unique_ptr<AnyDependencyRefImpl<T>, Deleter>>`
+// when `T` is convertible to `Handle`.
 //
 // It covers `ClosingPtrType<AnyDependencyRef>`.
-template <typename Ptr, typename P, size_t inline_size, size_t inline_align,
+template <typename Handle, typename T, size_t inline_size, size_t inline_align,
           typename Deleter>
 class DependencyImpl<
-    Ptr,
-    std::unique_ptr<AnyDependencyRefImpl<P, inline_size, inline_align>,
+    Handle,
+    std::unique_ptr<AnyDependencyRefImpl<T, inline_size, inline_align>,
                     Deleter>,
-    std::enable_if_t<std::is_convertible<P, Ptr>::value>>
+    std::enable_if_t<std::is_convertible<T, Handle>::value>>
     : public DependencyBase<std::unique_ptr<
-          AnyDependencyRefImpl<P, inline_size, inline_align>, Deleter>> {
+          AnyDependencyRefImpl<T, inline_size, inline_align>, Deleter>> {
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  P get() const { return this->manager()->get(); }
+  T get() const { return this->manager()->get(); }
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
@@ -759,44 +772,46 @@ class DependencyImpl<
 
 namespace any_dependency_internal {
 
-// `any_dependency_internal::SentinelPtr<Ptr>()` returns a sentinel `Ptr`
-// constructed from `RiegeliDependencySentinel(static_cast<Ptr*>(nullptr))`.
+// `any_dependency_internal::SentinelHandle<Handle>()` returns a sentinel
+// `Handle` constructed from
+// `RiegeliDependencySentinel(static_cast<Handle*>(nullptr))`.
 
-template <typename Ptr>
-inline Ptr SentinelPtrInternal(const Ptr& ptr) {
-  return ptr;
+template <typename Handle>
+inline Handle SentinelHandleInternal(const Handle& handle) {
+  return handle;
 }
 
-template <typename Ptr>
-inline Ptr SentinelPtrInternal(Ptr&& ptr) {
-  // `std::move(ptr)` is correct and `std::forward<Ptr>(ptr)` is not necessary:
-  // `Ptr` is always specified explicitly and is never an lvalue reference.
-  return std::move(ptr);
+template <typename Handle>
+inline Handle SentinelHandleInternal(Handle&& handle) {
+  // `std::move(handle)` is correct and `std::forward<Handle>(handle)` is not
+  // necessary: `Handle` is always specified explicitly and is never an lvalue
+  // reference.
+  return std::move(handle);
 }
 
 #if !__cpp_lib_make_from_tuple
-template <typename Ptr, typename... PtrArgs, size_t... indices>
-inline Ptr SentinelPtrInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<PtrArgs...>&& ptr_args,
+template <typename Handle, typename... HandleArgs, size_t... indices>
+inline Handle SentinelHandleInternal(
+    ABSL_ATTRIBUTE_UNUSED std::tuple<HandleArgs...>&& handle_args,
     std::index_sequence<indices...>) {
-  return Ptr(std::forward<PtrArgs>(std::get<indices>(ptr_args))...);
+  return Handle(std::forward<HandleArgs>(std::get<indices>(handle_args))...);
 }
 #endif
 
-template <typename Ptr, typename... PtrArgs>
-inline Ptr SentinelPtrInternal(std::tuple<PtrArgs...> ptr_args) {
+template <typename Handle, typename... HandleArgs>
+inline Handle SentinelHandleInternal(std::tuple<HandleArgs...> handle_args) {
 #if __cpp_lib_make_from_tuple
-  return std::make_from_tuple<Ptr>(std::move(ptr_args));
+  return std::make_from_tuple<Handle>(std::move(handle_args));
 #else
-  return SentinelPtrInternal<Ptr>(std::move(ptr_args),
-                                  std::index_sequence_for<PtrArgs...>());
+  return SentinelHandleInternal<Handle>(
+      std::move(handle_args), std::index_sequence_for<HandleArgs...>());
 #endif
 }
 
-template <typename Ptr>
-inline Ptr SentinelPtr() {
-  return SentinelPtrInternal<Ptr>(
-      RiegeliDependencySentinel(static_cast<Ptr*>(nullptr)));
+template <typename Handle>
+inline Handle SentinelHandle() {
+  return SentinelHandleInternal<Handle>(
+      RiegeliDependencySentinel(static_cast<Handle*>(nullptr)));
 }
 
 // `any_dependency_internal::IsOwning(dep)` calls `dep.is_owning()` if that is
@@ -810,27 +825,27 @@ struct HasIsOwning<T,
     : std::true_type {};
 
 template <
-    typename Ptr, typename Manager,
-    std::enable_if_t<HasIsOwning<Dependency<Ptr, Manager>>::value, int> = 0>
-bool IsOwning(const Dependency<Ptr, Manager>& dep) {
+    typename Handle, typename Manager,
+    std::enable_if_t<HasIsOwning<Dependency<Handle, Manager>>::value, int> = 0>
+bool IsOwning(const Dependency<Handle, Manager>& dep) {
   return dep.is_owning();
 }
 template <
-    typename Ptr, typename Manager,
-    std::enable_if_t<!HasIsOwning<Dependency<Ptr, Manager>>::value, int> = 0>
-bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Dependency<Ptr, Manager>& dep) {
+    typename Handle, typename Manager,
+    std::enable_if_t<!HasIsOwning<Dependency<Handle, Manager>>::value, int> = 0>
+bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Dependency<Handle, Manager>& dep) {
   return false;
 }
 
-template <typename Ptr>
+template <typename Handle>
 struct NullMethods {
-  static const Methods<Ptr> methods;
+  static const Methods<Handle> methods;
 
  private:
   static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
-  static void Move(ABSL_ATTRIBUTE_UNUSED Storage self, Ptr* self_ptr,
+  static void Move(ABSL_ATTRIBUTE_UNUSED Storage self, Handle* self_handle,
                    ABSL_ATTRIBUTE_UNUSED Storage that) {
-    new (self_ptr) Ptr(SentinelPtr<Ptr>());
+    new (self_handle) Handle(SentinelHandle<Handle>());
   }
   static bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Storage self) {
     return false;
@@ -848,56 +863,58 @@ struct NullMethods {
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 };
 
-template <typename Ptr>
-const Methods<Ptr> NullMethods<Ptr>::methods = {
+template <typename Handle>
+const Methods<Handle> NullMethods<Handle>::methods = {
     Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
     RegisterSubobjects};
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 struct MethodsFor {
-  static const Methods<Ptr> methods;
+  static const Methods<Handle> methods;
 
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
                              int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
-    new (self) Dependency<Ptr, Manager>*(new Dependency<Ptr, Manager>(manager));
-    new (self_ptr) Ptr(dep_ptr(self)->get());
+  static void Construct(Storage self, Handle* self_handle,
+                        const Manager& manager) {
+    new (self)
+        Dependency<Handle, Manager>*(new Dependency<Handle, Manager>(manager));
+    new (self_handle) Handle(dep_ptr(self)->get());
   }
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
                              int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
-    new (self) Dependency<Ptr, Manager>*(
-        new Dependency<Ptr, Manager>(std::move(manager)));
-    new (self_ptr) Ptr(dep_ptr(self)->get());
+  static void Construct(Storage self, Handle* self_handle, Manager&& manager) {
+    new (self) Dependency<Handle, Manager>*(
+        new Dependency<Handle, Manager>(std::move(manager)));
+    new (self_handle) Handle(dep_ptr(self)->get());
   }
   template <
       typename... ManagerArgs, typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr,
+  static void Construct(Storage self, Handle* self_handle,
                         std::tuple<ManagerArgs...> manager_args) {
-    new (self) Dependency<Ptr, Manager>*(
-        new Dependency<Ptr, Manager>(std::move(manager_args)));
-    new (self_ptr) Ptr(dep_ptr(self)->get());
+    new (self) Dependency<Handle, Manager>*(
+        new Dependency<Handle, Manager>(std::move(manager_args)));
+    new (self_handle) Handle(dep_ptr(self)->get());
   }
 
   static Manager& GetManager(Storage self) { return dep_ptr(self)->manager(); }
 
  private:
-  static Dependency<Ptr, Manager>* dep_ptr(const Storage self) {
+  static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
     return *
 #if __cpp_lib_launder >= 201606
         std::launder
 #endif
-        (reinterpret_cast<Dependency<Ptr, Manager>* const*>(self));
+        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
   }
 
   static void Destroy(Storage self) { delete dep_ptr(self); }
-  static void Move(Storage self, Ptr* self_ptr, Storage that) {
-    new (self) Dependency<Ptr, Manager>*(dep_ptr(that));
-    new (self_ptr) Ptr(dep_ptr(self)->get());
+  static void Move(Storage self, Handle* self_handle, Storage that) {
+    new (self) Dependency<Handle, Manager>*(dep_ptr(that));
+    new (self_handle) Handle(dep_ptr(self)->get());
   }
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(*dep_ptr(self));
@@ -906,7 +923,8 @@ struct MethodsFor {
     return dep_ptr(self)->GetIf(type_id);
   }
   static const void* ConstGetIf(const Storage self, TypeId type_id) {
-    return absl::implicit_cast<const Dependency<Ptr, Manager>*>(dep_ptr(self))
+    return absl::implicit_cast<const Dependency<Handle, Manager>*>(
+               dep_ptr(self))
         ->GetIf(type_id);
   }
   static void RegisterSubobjects(const Storage self,
@@ -915,66 +933,69 @@ struct MethodsFor {
   }
 };
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
-const Methods<Ptr>
-    MethodsFor<Ptr, inline_size, inline_align, Manager, Enable>::methods = {
+const Methods<Handle>
+    MethodsFor<Handle, inline_size, inline_align, Manager, Enable>::methods = {
         Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
         RegisterSubobjects};
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager>
-struct MethodsFor<Ptr, inline_size, inline_align, Manager,
-                  std::enable_if_t<IsInline<Ptr, inline_size, inline_align,
+struct MethodsFor<Handle, inline_size, inline_align, Manager,
+                  std::enable_if_t<IsInline<Handle, inline_size, inline_align,
                                             Manager>::value>> {
-  static const Methods<Ptr> methods;
+  static const Methods<Handle> methods;
 
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
                              int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr, const Manager& manager) {
-    new (self) Dependency<Ptr, Manager>(manager);
-    new (self_ptr) Ptr(dep(self).get());
+  static void Construct(Storage self, Handle* self_handle,
+                        const Manager& manager) {
+    new (self) Dependency<Handle, Manager>(manager);
+    new (self_handle) Handle(dep(self).get());
   }
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
                              int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr, Manager&& manager) {
-    new (self) Dependency<Ptr, Manager>(std::move(manager));
-    new (self_ptr) Ptr(dep(self).get());
+  static void Construct(Storage self, Handle* self_handle, Manager&& manager) {
+    new (self) Dependency<Handle, Manager>(std::move(manager));
+    new (self_handle) Handle(dep(self).get());
   }
   template <
       typename... ManagerArgs, typename DependentManager = Manager,
       std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, Ptr* self_ptr,
+  static void Construct(Storage self, Handle* self_handle,
                         std::tuple<ManagerArgs...> manager_args) {
-    new (self) Dependency<Ptr, Manager>(std::move(manager_args));
-    new (self_ptr) Ptr(dep(self).get());
+    new (self) Dependency<Handle, Manager>(std::move(manager_args));
+    new (self_handle) Handle(dep(self).get());
   }
 
   static Manager& GetManager(Storage self) { return dep(self).manager(); }
 
  private:
-  static Dependency<Ptr, Manager>& dep(Storage self) {
+  static Dependency<Handle, Manager>& dep(Storage self) {
     return *
 #if __cpp_lib_launder >= 201606
         std::launder
 #endif
-        (reinterpret_cast<Dependency<Ptr, Manager>*>(self));
+        (reinterpret_cast<Dependency<Handle, Manager>*>(self));
   }
-  static const Dependency<Ptr, Manager>& dep(const Storage self) {
+  static const Dependency<Handle, Manager>& dep(const Storage self) {
     return *
 #if __cpp_lib_launder >= 201606
         std::launder
 #endif
-        (reinterpret_cast<const Dependency<Ptr, Manager>*>(self));
+        (reinterpret_cast<const Dependency<Handle, Manager>*>(self));
   }
 
-  static void Destroy(Storage self) { dep(self).~Dependency<Ptr, Manager>(); }
-  static void Move(Storage self, Ptr* self_ptr, Storage that) {
-    new (self) Dependency<Ptr, Manager>(std::move(dep(that)));
-    dep(that).~Dependency<Ptr, Manager>();
-    new (self_ptr) Ptr(dep(self).get());
+  static void Destroy(Storage self) {
+    dep(self).~Dependency<Handle, Manager>();
+  }
+  static void Move(Storage self, Handle* self_handle, Storage that) {
+    new (self) Dependency<Handle, Manager>(std::move(dep(that)));
+    dep(that).~Dependency<Handle, Manager>();
+    new (self_handle) Handle(dep(self).get());
   }
   static bool IsOwning(const Storage self) {
     return any_dependency_internal::IsOwning(dep(self));
@@ -991,15 +1012,15 @@ struct MethodsFor<Ptr, inline_size, inline_align, Manager,
   }
 };
 
-template <typename Ptr, size_t inline_size, size_t inline_align,
+template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager>
-const Methods<Ptr>
-    MethodsFor<Ptr, inline_size, inline_align, Manager,
-               std::enable_if_t<IsInline<Ptr, inline_size, inline_align,
+const Methods<Handle>
+    MethodsFor<Handle, inline_size, inline_align, Manager,
+               std::enable_if_t<IsInline<Handle, inline_size, inline_align,
                                          Manager>::value>>::methods = {
         Destroy,
-        sizeof(Dependency<Ptr, Manager>),
-        alignof(Dependency<Ptr, Manager>),
+        sizeof(Dependency<Handle, Manager>),
+        alignof(Dependency<Handle, Manager>),
         Move,
         IsOwning,
         MutableGetIf,
@@ -1008,63 +1029,63 @@ const Methods<Ptr>
 
 }  // namespace any_dependency_internal
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline AnyDependencyImpl<Ptr, inline_size,
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependencyImpl<Handle, inline_size,
                          inline_align>::AnyDependencyImpl() noexcept
     : methods_(&NullMethods::methods),
-      ptr_(any_dependency_internal::SentinelPtr<Ptr>()) {}
+      handle_(any_dependency_internal::SentinelHandle<Handle>()) {}
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
                   absl::negation<std::is_same<
                       std::decay_t<Manager>,
-                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                      AnyDependencyImpl<Handle, inline_size, inline_align>>>,
+                  IsValidDependency<Handle, std::decay_t<Manager>>,
                   std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
               int>>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
+inline AnyDependencyImpl<Handle, inline_size, inline_align>::AnyDependencyImpl(
     Manager&& manager) {
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
                   absl::negation<std::is_same<
                       std::decay_t<Manager>,
-                      AnyDependencyImpl<Ptr, inline_size, inline_align>>>,
-                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                      AnyDependencyImpl<Handle, inline_size, inline_align>>>,
+                  IsValidDependency<Handle, std::decay_t<Manager>>,
                   std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
               int>>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
-AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
+inline AnyDependencyImpl<Handle, inline_size, inline_align>&
+AnyDependencyImpl<Handle, inline_size, inline_align>::operator=(
     Manager&& manager) {
-  ptr_.~Ptr();
+  handle_.~Handle();
   methods_->destroy(repr_.storage);
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
   return *this;
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
+          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+inline AnyDependencyImpl<Handle, inline_size, inline_align>::AnyDependencyImpl(
     absl::in_place_type_t<Manager>, ManagerArgs&&... manager_args) {
   Initialize<Manager>(std::forward<ManagerArgs>(manager_args)...);
 }
 
 #if __cpp_deduction_guides
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     template <typename...> class ManagerTemplate, typename... ManagerArgs,
     std::enable_if_t<
-        IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                   ManagerTemplate, ManagerArgs...>>::value,
+        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
+                                      ManagerTemplate, ManagerArgs...>>::value,
         int>>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
+inline AnyDependencyImpl<Handle, inline_size, inline_align>::AnyDependencyImpl(
     in_place_template_t<ManagerTemplate>, ManagerArgs&&... manager_args)
     : AnyDependencyImpl(
           absl::in_place_type<
@@ -1072,74 +1093,75 @@ inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
           std::forward<ManagerArgs>(manager_args)...) {}
 #endif
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>::AnyDependencyImpl(
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependencyImpl<Handle, inline_size, inline_align>::AnyDependencyImpl(
     AnyDependencyImpl&& that) noexcept {
-  that.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
+  that.handle_ = any_dependency_internal::SentinelHandle<Handle>();
   methods_ = std::exchange(that.methods_, &NullMethods::methods);
-  methods_->move(repr_.storage, &ptr_, that.repr_.storage);
+  methods_->move(repr_.storage, &handle_, that.repr_.storage);
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>&
-AnyDependencyImpl<Ptr, inline_size, inline_align>::operator=(
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependencyImpl<Handle, inline_size, inline_align>&
+AnyDependencyImpl<Handle, inline_size, inline_align>::operator=(
     AnyDependencyImpl&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
-    ptr_.~Ptr();
+    handle_.~Handle();
     methods_->destroy(repr_.storage);
-    that.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
+    that.handle_ = any_dependency_internal::SentinelHandle<Handle>();
     methods_ = std::exchange(that.methods_, &NullMethods::methods);
-    methods_->move(repr_.storage, &ptr_, that.repr_.storage);
+    methods_->move(repr_.storage, &handle_, that.repr_.storage);
   }
   return *this;
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline AnyDependencyImpl<Ptr, inline_size, inline_align>::~AnyDependencyImpl() {
-  ptr_.~Ptr();
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependencyImpl<Handle, inline_size,
+                         inline_align>::~AnyDependencyImpl() {
+  handle_.~Handle();
   methods_->destroy(repr_.storage);
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset() {
-  ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Reset() {
+  handle_ = any_dependency_internal::SentinelHandle<Handle>();
   methods_->destroy(repr_.storage);
   methods_ = &NullMethods::methods;
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
-                  IsValidDependency<Ptr, std::decay_t<Manager>>,
+                  IsValidDependency<Handle, std::decay_t<Manager>>,
                   std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
               int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Reset(
     Manager&& manager) {
-  ptr_.~Ptr();
+  handle_.~Handle();
   methods_->destroy(repr_.storage);
   Initialize<std::decay_t<Manager>>(std::forward<Manager>(manager));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Reset(
     absl::in_place_type_t<Manager>, ManagerArgs&&... manager_args) {
-  ptr_.~Ptr();
+  handle_.~Handle();
   methods_->destroy(repr_.storage);
   Initialize<Manager>(std::forward<ManagerArgs>(manager_args)...);
 }
 
 #if __cpp_deduction_guides
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     template <typename...> class ManagerTemplate, typename... ManagerArgs,
     std::enable_if_t<
-        IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                   ManagerTemplate, ManagerArgs...>>::value,
+        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
+                                      ManagerTemplate, ManagerArgs...>>::value,
         int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Reset(
     in_place_template_t<ManagerTemplate>, ManagerArgs&&... manager_args) {
   Reset(absl::in_place_type<
             DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>,
@@ -1147,10 +1169,10 @@ inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Reset(
 }
 #endif
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
-inline Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
+          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+inline Manager& AnyDependencyImpl<Handle, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
   Reset(absl::in_place_type<Manager>,
         std::forward<ManagerArgs>(manager_args)...);
@@ -1158,15 +1180,15 @@ inline Manager& AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
 }
 
 #if __cpp_deduction_guides
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     template <typename...> class ManagerTemplate, typename... ManagerArgs,
     std::enable_if_t<
-        IsValidDependency<Ptr, DeduceClassTemplateArgumentsT<
-                                   ManagerTemplate, ManagerArgs...>>::value,
+        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
+                                      ManagerTemplate, ManagerArgs...>>::value,
         int>>
 inline DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
-AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
+AnyDependencyImpl<Handle, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
   return Emplace<
       DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>(
@@ -1174,93 +1196,93 @@ AnyDependencyImpl<Ptr, inline_size, inline_align>::Emplace(
 }
 #endif
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
                   absl::negation<std::is_rvalue_reference<Manager>>,
                   absl::negation<any_dependency_internal::IsAnyDependency<
-                      Ptr, Manager>>>::value,
+                      Handle, Manager>>>::value,
               int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     const Manager& manager) {
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, &ptr_, manager);
+  MethodsFor<Manager>::Construct(repr_.storage, &handle_, manager);
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
                   absl::negation<std::is_lvalue_reference<Manager>>,
                   absl::negation<any_dependency_internal::IsAnyDependency<
-                      Ptr, Manager>>>::value,
+                      Handle, Manager>>>::value,
               int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   methods_ = &MethodsFor<Manager>::methods;
   // `std::move(manager)` is correct and `std::forward<Manager>(manager)` is not
   // necessary: `Manager` is never an lvalue reference because this is excluded
   // in the constraint.
-  MethodsFor<Manager>::Construct(repr_.storage, &ptr_, std::move(manager));
+  MethodsFor<Manager>::Construct(repr_.storage, &handle_, std::move(manager));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        any_dependency_internal::IsAnyDependency<Ptr, Manager>::value, int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+        any_dependency_internal::IsAnyDependency<Handle, Manager>::value, int>>
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   if ((sizeof(typename Manager::Repr) <= sizeof(Repr) ||
        manager.methods_->inline_size_used <= sizeof(Repr)) &&
       (alignof(typename Manager::Repr) <= alignof(Repr) ||
        manager.methods_->inline_align_used <= alignof(Repr))) {
     // Adopt `manager` instead of wrapping it.
-    manager.ptr_ = any_dependency_internal::SentinelPtr<Ptr>();
+    manager.handle_ = any_dependency_internal::SentinelHandle<Handle>();
     methods_ = std::exchange(manager.methods_, &NullMethods::methods);
-    methods_->move(repr_.storage, &ptr_, manager.repr_.storage);
+    methods_->move(repr_.storage, &handle_, manager.repr_.storage);
     return;
   }
   methods_ = &MethodsFor<Manager>::methods;
-  MethodsFor<Manager>::Construct(repr_.storage, &ptr_,
+  MethodsFor<Manager>::Construct(repr_.storage, &handle_,
                                  std::forward<Manager>(manager));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
           std::enable_if_t<!std::is_reference<Manager>::value, int>>
-inline void AnyDependencyImpl<Ptr, inline_size, inline_align>::Initialize(
+inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     ManagerArgs&&... manager_args) {
   methods_ = &MethodsFor<Manager>::methods;
   MethodsFor<Manager>::Construct(
-      repr_.storage, &ptr_,
+      repr_.storage, &handle_,
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
-Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf() {
+          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+Manager* AnyDependencyImpl<Handle, inline_size, inline_align>::GetIf() {
   return static_cast<Manager*>(GetIf(TypeId::For<Manager>()));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
+template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<IsValidDependency<Ptr, Manager>::value, int>>
-const Manager* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf()
+          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+const Manager* AnyDependencyImpl<Handle, inline_size, inline_align>::GetIf()
     const {
   return static_cast<const Manager*>(GetIf(TypeId::For<Manager>()));
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline void* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf(
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline void* AnyDependencyImpl<Handle, inline_size, inline_align>::GetIf(
     TypeId type_id) {
   return methods_->mutable_get_if(repr_.storage, type_id);
 }
 
-template <typename Ptr, size_t inline_size, size_t inline_align>
-inline const void* AnyDependencyImpl<Ptr, inline_size, inline_align>::GetIf(
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline const void* AnyDependencyImpl<Handle, inline_size, inline_align>::GetIf(
     TypeId type_id) const {
   return methods_->const_get_if(repr_.storage, type_id);
 }

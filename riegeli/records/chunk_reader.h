@@ -310,39 +310,43 @@ explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args)
     -> DefaultChunkReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
-// Specialization of `DependencyImpl<ChunkReader*, M>` adapted from
-// `DependencyImpl<Reader*, M>` by wrapping `M` in `DefaultChunkReader<M>`.
-template <typename M>
-class DependencyImpl<ChunkReader*, M,
-                     std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
+// Specialization of `DependencyImpl<ChunkReader*, Manager>` adapted from
+// `DependencyImpl<Reader*, Manager>` by wrapping `Manager` in
+// `DefaultChunkReader<Manager>`.
+template <typename Manager>
+class DependencyImpl<
+    ChunkReader*, Manager,
+    std::enable_if_t<IsValidDependency<Reader*, Manager>::value>> {
  public:
   DependencyImpl() noexcept : chunk_reader_(kClosed) {}
 
-  explicit DependencyImpl(const M& manager) : chunk_reader_(manager) {}
-  explicit DependencyImpl(M&& manager) : chunk_reader_(std::move(manager)) {}
+  explicit DependencyImpl(const Manager& manager) : chunk_reader_(manager) {}
+  explicit DependencyImpl(Manager&& manager)
+      : chunk_reader_(std::move(manager)) {}
 
-  template <typename... MArgs>
-  explicit DependencyImpl(std::tuple<MArgs...> manager_args)
+  template <typename... ManagerArgs>
+  explicit DependencyImpl(std::tuple<ManagerArgs...> manager_args)
       : chunk_reader_(std::move(manager_args)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_reader_.Reset(kClosed); }
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
     chunk_reader_.Reset(manager);
   }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     chunk_reader_.Reset(std::move(manager));
   }
 
-  template <typename... MArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<MArgs...> manager_args) {
+  template <typename... ManagerArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::tuple<ManagerArgs...> manager_args) {
     chunk_reader_.Reset(std::move(manager_args));
   }
 
-  M& manager() { return chunk_reader_.src(); }
-  const M& manager() const { return chunk_reader_.src(); }
+  Manager& manager() { return chunk_reader_.src(); }
+  const Manager& manager() const { return chunk_reader_.src(); }
 
-  DefaultChunkReader<M>* get() const { return &chunk_reader_; }
+  DefaultChunkReader<Manager>* get() const { return &chunk_reader_; }
 
   bool is_owning() const { return true; }
 
@@ -355,7 +359,7 @@ class DependencyImpl<ChunkReader*, M,
   ~DependencyImpl() = default;
 
  private:
-  mutable DefaultChunkReader<M> chunk_reader_;
+  mutable DefaultChunkReader<Manager> chunk_reader_;
 };
 
 // Implementation details follow.

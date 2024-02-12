@@ -249,39 +249,43 @@ explicit DefaultChunkWriter(
     -> DefaultChunkWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
-// Specialization of `DependencyImpl<ChunkWriter*, M>` adapted from
-// `DependencyImpl<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
-template <typename M>
-class DependencyImpl<ChunkWriter*, M,
-                     std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
+// Specialization of `DependencyImpl<ChunkWriter*, Manager>` adapted from
+// `DependencyImpl<Writer*, Manager>` by wrapping `Manager` in
+// `DefaultChunkWriter<Manager>`.
+template <typename Manager>
+class DependencyImpl<
+    ChunkWriter*, Manager,
+    std::enable_if_t<IsValidDependency<Writer*, Manager>::value>> {
  public:
   DependencyImpl() noexcept : chunk_writer_(kClosed) {}
 
-  explicit DependencyImpl(const M& manager) : chunk_writer_(manager) {}
-  explicit DependencyImpl(M&& manager) : chunk_writer_(std::move(manager)) {}
+  explicit DependencyImpl(const Manager& manager) : chunk_writer_(manager) {}
+  explicit DependencyImpl(Manager&& manager)
+      : chunk_writer_(std::move(manager)) {}
 
-  template <typename... MArgs>
-  explicit DependencyImpl(std::tuple<MArgs...> manager_args)
+  template <typename... ManagerArgs>
+  explicit DependencyImpl(std::tuple<ManagerArgs...> manager_args)
       : chunk_writer_(std::move(manager_args)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_writer_.Reset(kClosed); }
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const M& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
     chunk_writer_.Reset(manager);
   }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(M&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
     chunk_writer_.Reset(std::move(manager));
   }
 
-  template <typename... MArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<MArgs...> manager_args) {
+  template <typename... ManagerArgs>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::tuple<ManagerArgs...> manager_args) {
     chunk_writer_.Reset(std::move(manager_args));
   }
 
-  M& manager() { return chunk_writer_.dest(); }
-  const M& manager() const { return chunk_writer_.dest(); }
+  Manager& manager() { return chunk_writer_.dest(); }
+  const Manager& manager() const { return chunk_writer_.dest(); }
 
-  DefaultChunkWriter<M>* get() const { return &chunk_writer_; }
+  DefaultChunkWriter<Manager>* get() const { return &chunk_writer_; }
 
   bool is_owning() const { return true; }
 
@@ -294,7 +298,7 @@ class DependencyImpl<ChunkWriter*, M,
   ~DependencyImpl() = default;
 
  private:
-  mutable DefaultChunkWriter<M> chunk_writer_;
+  mutable DefaultChunkWriter<Manager> chunk_writer_;
 };
 
 // Implementation details follow.
