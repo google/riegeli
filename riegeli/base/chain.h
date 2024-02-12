@@ -36,6 +36,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -1054,7 +1055,7 @@ class Chain::RawBlock {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
-#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
+#if !__cpp_guaranteed_copy_elision
   template <typename T, typename... Args, size_t... indices>
   void ConstructExternal(std::tuple<Args...>&& args,
                          std::index_sequence<indices...>);
@@ -1284,10 +1285,10 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
 
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
-#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+#if __cpp_guaranteed_copy_elision
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (&unchecked_external_object<T>())
-      T(std::make_from_tuple<T>(std::move(args)));
+      T(absl::make_from_tuple<T>(std::move(args)));
 #else
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
 #endif
@@ -1302,10 +1303,10 @@ template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
                                  absl::string_view data)
     : data_(data.data()), size_(data.size()) {
-#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
+#if __cpp_guaranteed_copy_elision
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (&unchecked_external_object<T>())
-      T(std::make_from_tuple<T>(std::move(args)));
+      T(absl::make_from_tuple<T>(std::move(args)));
 #else
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
 #endif
@@ -1347,7 +1348,7 @@ void Chain::RawBlock::Unref() {
   }
 }
 
-#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
+#if !__cpp_guaranteed_copy_elision
 template <typename T, typename... Args, size_t... indices>
 inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,

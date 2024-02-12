@@ -27,6 +27,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/reset.h"
@@ -235,8 +236,8 @@ class DependencyBase {
   template <typename... ManagerArgs>
   explicit DependencyBase(std::tuple<ManagerArgs...> manager_args)
       :
-#if __cpp_guaranteed_copy_elision && __cpp_lib_make_from_tuple
-        manager_(std::make_from_tuple<Manager>(std::move(manager_args)))
+#if __cpp_guaranteed_copy_elision
+        manager_(absl::make_from_tuple<Manager>(std::move(manager_args)))
 #else
         DependencyBase(std::move(manager_args),
                        std::index_sequence_for<ManagerArgs...>())
@@ -266,16 +267,11 @@ class DependencyBase {
   template <typename... ManagerArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::tuple<ManagerArgs...> manager_args) {
-#if __cpp_lib_apply
-    std::apply(
+    absl::apply(
         [&](ManagerArgs&&... args) {
           riegeli::Reset(manager_, std::forward<ManagerArgs>(args)...);
         },
         std::move(manager_args));
-#else
-    ResetInternal(std::move(manager_args),
-                  std::index_sequence_for<ManagerArgs...>());
-#endif
   }
 
   Manager& manager() { return manager_; }
@@ -293,23 +289,13 @@ class DependencyBase {
   Manager& mutable_manager() const { return manager_; }
 
  private:
-#if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
+#if !__cpp_guaranteed_copy_elision
   template <typename... ManagerArgs, size_t... indices>
   explicit DependencyBase(
       ABSL_ATTRIBUTE_UNUSED std::tuple<ManagerArgs...>&& manager_args,
       std::index_sequence<indices...>)
       : manager_(
             std::forward<ManagerArgs>(std::get<indices>(manager_args))...) {}
-#endif
-
-#if !__cpp_lib_apply
-  template <typename... ManagerArgs, size_t... indices>
-  void ResetInternal(
-      ABSL_ATTRIBUTE_UNUSED std::tuple<ManagerArgs...>&& manager_args,
-      std::index_sequence<indices...>) {
-    riegeli::Reset(manager_, std::forward<ManagerArgs>(
-                                 std::get<indices>(manager_args))...);
-  }
 #endif
 
   mutable Manager manager_;

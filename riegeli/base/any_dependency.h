@@ -789,23 +789,9 @@ inline Handle SentinelHandleInternal(Handle&& handle) {
   return std::move(handle);
 }
 
-#if !__cpp_lib_make_from_tuple
-template <typename Handle, typename... HandleArgs, size_t... indices>
-inline Handle SentinelHandleInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<HandleArgs...>&& handle_args,
-    std::index_sequence<indices...>) {
-  return Handle(std::forward<HandleArgs>(std::get<indices>(handle_args))...);
-}
-#endif
-
 template <typename Handle, typename... HandleArgs>
 inline Handle SentinelHandleInternal(std::tuple<HandleArgs...> handle_args) {
-#if __cpp_lib_make_from_tuple
-  return std::make_from_tuple<Handle>(std::move(handle_args));
-#else
-  return SentinelHandleInternal<Handle>(
-      std::move(handle_args), std::index_sequence_for<HandleArgs...>());
-#endif
+  return absl::make_from_tuple<Handle>(std::move(handle_args));
 }
 
 template <typename Handle>
