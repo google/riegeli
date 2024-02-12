@@ -345,21 +345,6 @@ class
 
   // Returns a `Ptr` to the `Manager`, or a default `Ptr` for an empty
   // `AnyDependencyImpl`.
-  //
-  // A caveat regarding const:
-  //
-  // This `get()` is a const method, even though it does not require the
-  // `Dependency<Ptr, Manager>::get()` to be const.
-  //
-  // This is because there are two variants of `Dependency<P*, Manager>`
-  // specializations. `Dependency<P*, P>` stores `P` by value and thus
-  // provides `P* get()` and `const P* get() const`, while some users of
-  // `Dependency<P*, Manager>` do not support a `Manager` storing `P` by value
-  // anyway and expect `P* get() const` to be available.
-  //
-  // To avoid having two variants of `AnyDependencyImpl<P*>` based on this
-  // subtle distinction, its only variant is more permissive regarding the
-  // `Dependency` while also more permissive regarding its usage.
   Ptr get() const { return ptr_; }
 
   // If `Ptr` is `P*`, `AnyDependencyImpl<P*>` can be used as a smart pointer to

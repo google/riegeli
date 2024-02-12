@@ -46,12 +46,10 @@ class Reader;
 class DigestingWriterBase : public Writer {
  public:
   // Returns the `DigesterBase`. Unchanged by `Close()`.
-  virtual DigesterBase* GetDigester() = 0;
-  virtual const DigesterBase* GetDigester() const = 0;
+  virtual DigesterBase* GetDigester() const = 0;
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() = 0;
-  virtual const Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const = 0;
 
   bool PrefersCopying() const override;
   bool SupportsReadMode() override;
@@ -200,15 +198,13 @@ class DigestingWriter : public DigestingWriterBase {
   // Unchanged by `Close()`.
   DigesterType& digester() { return digester_.manager(); }
   const DigesterType& digester() const { return digester_.manager(); }
-  DigesterBase* GetDigester() override { return digester_.get(); }
-  const DigesterBase* GetDigester() const override { return digester_.get(); }
+  DigesterBase* GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() override { return dest_.get(); }
-  const Writer* DestWriter() const override { return dest_.get(); }
+  Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

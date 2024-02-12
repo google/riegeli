@@ -42,8 +42,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   class Options {};
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
@@ -135,8 +134,7 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

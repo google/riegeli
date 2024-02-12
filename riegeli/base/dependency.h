@@ -154,42 +154,27 @@ inline int RiegeliDependencySentinel(int*) { return -1; }
 //
 //   // Returns a `Ptr` to the `Manager`.
 //   //
-//   // This method might be const, and if `Ptr` is `P*` then this method might
-//   // return a pointer to a derived class.
-//   Ptr get();
-//
-//   // If `Ptr` is `P*`, `get()` has a const variant returning `const P*`,
-//   // which is present if `get()` returning `P*` is not const.
+//   // If `Ptr` is `P*` then this method might return a pointer to a derived
+//   // class.
 //   //
-//   // This method might return a pointer to a derived class.
-//   const P* get() const;
+//   // The result is non-const even if the `Manager` is stored inside the
+//   // `Dependency`.
+//   Ptr get() const;
 //
 //   // If `Ptr` is `P*`, `Dependency<P*, Manager>` can be used as a smart
 //   // pointer to `P`, for convenience.
 //   //
-//   // These methods might be const, and might return a pointer to a derived
-//   // class.
+//   // These methods might return a pointer to a derived class.
 //   //
 //   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
-//   P& operator*() { return *get(); }
-//   const P& operator*() const { return *get(); }
-//   P* operator->() { return get(); }
-//   const P* operator->() const { return get(); }
+//   P& operator*() const { return *get(); }
+//   P* operator->() const { return get(); }
 //
 //   // If `Ptr` is `P*`, the dependency can be compared against `nullptr`.
 //   //
-//   // These methods are provided by `Dependency` itself, not `DependencyImpl`.
+//   // This method is provided by `Dependency` itself, not `DependencyImpl`.
 //   friend bool operator==(const Dependency& a, std::nullptr_t) {
 //     return a.get() == nullptr;
-//   }
-//   friend bool operator!=(const Dependency& a, std::nullptr_t) {
-//     return a.get() != nullptr;
-//   }
-//   friend bool operator==(std::nullptr_t, const Dependency& b) {
-//     return nullptr == b.get();
-//   }
-//   friend bool operator!=(std::nullptr_t, const Dependency& b) {
-//     return nullptr != b.get();
 //   }
 //
 //   // If `true`, the `Dependency` owns the dependent object, i.e. closing the
@@ -238,7 +223,8 @@ struct IsValidDependencyProbe : std::false_type {};
 template <typename Ptr, typename Manager>
 struct IsValidDependencyProbe<
     Ptr, Manager,
-    absl::void_t<decltype(std::declval<DependencyImpl<Ptr, Manager>&>().get())>>
+    absl::void_t<
+        decltype(std::declval<const DependencyImpl<Ptr, Manager>&>().get())>>
     : std::true_type {};
 
 }  // namespace dependency_internal
@@ -428,14 +414,6 @@ class DependencyDerived
 
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  std::remove_pointer_t<decltype(std::declval<Base&>().get())>& operator*() {
-    const auto ptr = this->get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of Dependency::operator*: null pointer";
-    return *ptr;
-  }
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   std::remove_pointer_t<decltype(std::declval<const Base&>().get())>&
   operator*() const {
     const auto ptr = this->get();
@@ -444,14 +422,6 @@ class DependencyDerived
     return *ptr;
   }
 
-  template <typename DependentPtr = Ptr,
-            std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
-  decltype(std::declval<Base&>().get()) operator->() {
-    const auto ptr = this->get();
-    RIEGELI_ASSERT(ptr != nullptr)
-        << "Failed precondition of Dependency::operator->: null pointer";
-    return ptr;
-  }
   template <typename DependentPtr = Ptr,
             std::enable_if_t<std::is_pointer<DependentPtr>::value, int> = 0>
   decltype(std::declval<const Base&>().get()) operator->() const {
@@ -678,6 +648,8 @@ class DependencyBase {
 
   ~DependencyBase() = default;
 
+  Manager& mutable_manager() const { return manager_; }
+
  private:
 #if !__cpp_guaranteed_copy_elision || !__cpp_lib_make_from_tuple
   template <typename... ManagerArgs, size_t... indices>
@@ -698,7 +670,7 @@ class DependencyBase {
   }
 #endif
 
-  Manager manager_;
+  mutable Manager manager_;
 };
 
 template <typename Ptr, typename Manager, typename Enable = void>
@@ -731,6 +703,8 @@ class DependencyBase<Manager&> {
 
   ~DependencyBase() = default;
 
+  Manager& mutable_manager() const { return manager_; }
+
  private:
   Manager& manager_;
 };
@@ -752,6 +726,8 @@ class DependencyBase<Manager&&> {
   DependencyBase& operator=(const DependencyBase&) = delete;
 
   ~DependencyBase() = default;
+
+  Manager& mutable_manager() const { return manager_; }
 
  private:
   Manager& manager_;
@@ -834,8 +810,7 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  M* get() { return &this->manager(); }
-  const M* get() const { return &this->manager(); }
+  M* get() const { return &this->mutable_manager(); }
 
   bool is_owning() const { return true; }
 
@@ -1031,8 +1006,7 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  M& get() { return this->manager(); }
-  const M& get() const { return this->manager(); }
+  M& get() const { return this->mutable_manager(); }
 
   static constexpr bool kIsStable = std::is_same<P, M>::value;
 
@@ -1225,10 +1199,7 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyBase::DependencyBase;
 
-  absl::Span<T> get() { return absl::Span<T>(this->manager()); }
-  absl::Span<const T> get() const {
-    return absl::Span<const T>(this->manager());
-  }
+  absl::Span<T> get() const { return absl::Span<T>(this->mutable_manager()); }
 
   static constexpr bool kIsStable = false;
 

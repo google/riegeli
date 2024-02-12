@@ -144,8 +144,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
   };
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
-  virtual Writer* DestWriter() = 0;
-  virtual const Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const = 0;
 
   bool WriteChunk(const Chunk& chunk) override;
   bool PadToBlockBoundary() override;
@@ -218,8 +217,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() override { return dest_.get(); }
-  const Writer* DestWriter() const override { return dest_.get(); }
+  Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -283,8 +281,7 @@ class DependencyImpl<ChunkWriter*, M,
   M& manager() { return chunk_writer_.dest(); }
   const M& manager() const { return chunk_writer_.dest(); }
 
-  DefaultChunkWriter<M>* get() { return &chunk_writer_; }
-  const DefaultChunkWriter<M>* get() const { return &chunk_writer_; }
+  DefaultChunkWriter<M>* get() const { return &chunk_writer_; }
 
   bool is_owning() const { return true; }
 
@@ -297,7 +294,7 @@ class DependencyImpl<ChunkWriter*, M,
   ~DependencyImpl() = default;
 
  private:
-  DefaultChunkWriter<M> chunk_writer_;
+  mutable DefaultChunkWriter<M> chunk_writer_;
 };
 
 // Implementation details follow.

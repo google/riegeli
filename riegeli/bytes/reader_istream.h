@@ -88,8 +88,7 @@ class ReaderIStreamBase : public std::istream {
   };
 
   // Returns the `Reader`. Unchanged by `close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   // If `!is_open()`, does nothing. Otherwise:
   //  * Synchronizes the current `ReaderIStream` position to the `Reader`.
@@ -194,8 +193,7 @@ class ReaderIStream : public ReaderIStreamBase {
   // `close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

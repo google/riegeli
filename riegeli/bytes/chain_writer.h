@@ -104,9 +104,8 @@ class ChainWriterBase : public Writer {
     uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
-  // Returns the `Chain` being written to.
-  virtual Chain* DestChain() = 0;
-  virtual const Chain* DestChain() const = 0;
+  // Returns the `Chain` being written to. Unchanged by `Close()`.
+  virtual Chain* DestChain() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -264,8 +263,7 @@ class ChainWriter : public ChainWriterBase {
   // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Chain* DestChain() override { return dest_.get(); }
-  const Chain* DestChain() const override { return dest_.get(); }
+  Chain* DestChain() const override { return dest_.get(); }
 
  private:
   // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from

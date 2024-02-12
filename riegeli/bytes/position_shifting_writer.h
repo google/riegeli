@@ -66,8 +66,7 @@ class PositionShiftingWriterBase : public Writer {
   };
 
   // Returns the new `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() = 0;
-  virtual const Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const = 0;
 
   // Returns the base position of the original `Writer`.
   Position base_pos() const { return base_pos_; }
@@ -188,8 +187,7 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() override { return dest_.get(); }
-  const Writer* DestWriter() const override { return dest_.get(); }
+  Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

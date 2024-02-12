@@ -140,8 +140,7 @@ class LimitingReaderBase : public Reader {
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   // Accesses the limit expressed as an absolute position.
   //
@@ -334,8 +333,7 @@ class LimitingReader : public LimitingReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

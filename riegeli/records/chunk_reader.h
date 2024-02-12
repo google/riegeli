@@ -37,8 +37,7 @@ namespace riegeli {
 class DefaultChunkReaderBase : public Object {
  public:
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -287,8 +286,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -344,8 +342,7 @@ class DependencyImpl<ChunkReader*, M,
   M& manager() { return chunk_reader_.src(); }
   const M& manager() const { return chunk_reader_.src(); }
 
-  DefaultChunkReader<M>* get() { return &chunk_reader_; }
-  const DefaultChunkReader<M>* get() const { return &chunk_reader_; }
+  DefaultChunkReader<M>* get() const { return &chunk_reader_; }
 
   bool is_owning() const { return true; }
 
@@ -358,7 +355,7 @@ class DependencyImpl<ChunkReader*, M,
   ~DependencyImpl() = default;
 
  private:
-  DefaultChunkReader<M> chunk_reader_;
+  mutable DefaultChunkReader<M> chunk_reader_;
 };
 
 // Implementation details follow.

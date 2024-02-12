@@ -175,8 +175,7 @@ class RecordReaderBase : public Object {
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual ChunkReader* SrcChunkReader() = 0;
-  virtual const ChunkReader* SrcChunkReader() const = 0;
+  virtual ChunkReader* SrcChunkReader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -603,8 +602,7 @@ class RecordReader : public RecordReaderBase {
   // `ChunkReader`. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  ChunkReader* SrcChunkReader() override { return src_.get(); }
-  const ChunkReader* SrcChunkReader() const override { return src_.get(); }
+  ChunkReader* SrcChunkReader() const override { return src_.get(); }
 
   // An optimized implementation in a derived class, avoiding a virtual call.
   RecordPosition pos() const;

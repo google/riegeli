@@ -106,8 +106,7 @@ class StringWriterBase : public Writer {
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
-  virtual std::string* DestString() = 0;
-  virtual const std::string* DestString() const = 0;
+  virtual std::string* DestString() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
@@ -274,8 +273,7 @@ class StringWriter : public StringWriterBase {
   // written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  std::string* DestString() override { return dest_.get(); }
-  const std::string* DestString() const override { return dest_.get(); }
+  std::string* DestString() const override { return dest_.get(); }
 
  private:
   // Moves `that.dest_` to `dest_`, and `that.secondary_buffer_` to

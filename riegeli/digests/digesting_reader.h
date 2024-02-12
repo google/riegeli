@@ -45,12 +45,10 @@ namespace riegeli {
 class DigestingReaderBase : public Reader {
  public:
   // Returns the `DigesterBase`. Unchanged by `Close()`.
-  virtual DigesterBase* GetDigester() = 0;
-  virtual const DigesterBase* GetDigester() const = 0;
+  virtual DigesterBase* GetDigester() const = 0;
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   bool SupportsSize() override;
   bool SupportsNewReader() override;
@@ -195,15 +193,13 @@ class DigestingReader : public DigestingReaderBase {
   // Unchanged by `Close()`.
   DigesterType& digester() { return digester_.manager(); }
   const DigesterType& digester() const { return digester_.manager(); }
-  DigesterBase* GetDigester() override { return digester_.get(); }
-  const DigesterBase* GetDigester() const override { return digester_.get(); }
+  DigesterBase* GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

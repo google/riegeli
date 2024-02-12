@@ -77,8 +77,7 @@ class BrotliReaderBase : public PullableReader {
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() = 0;
-  virtual const Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const = 0;
 
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
@@ -184,8 +183,7 @@ class BrotliReader : public BrotliReaderBase {
   // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() override { return src_.get(); }
-  const Reader* SrcReader() const override { return src_.get(); }
+  Reader* SrcReader() const override { return src_.get(); }
 
  protected:
   void Done() override;

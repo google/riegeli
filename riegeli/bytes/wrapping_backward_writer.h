@@ -40,8 +40,7 @@ namespace riegeli {
 class WrappingBackwardWriterBase : public BackwardWriter {
  public:
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
-  virtual BackwardWriter* DestWriter() = 0;
-  virtual const BackwardWriter* DestWriter() const = 0;
+  virtual BackwardWriter* DestWriter() const = 0;
 
   bool PrefersCopying() const override;
   bool SupportsTruncate() override;
@@ -135,8 +134,7 @@ class WrappingBackwardWriter : public WrappingBackwardWriterBase {
   // `BackwardWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  BackwardWriter* DestWriter() override { return dest_.get(); }
-  const BackwardWriter* DestWriter() const override { return dest_.get(); }
+  BackwardWriter* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;

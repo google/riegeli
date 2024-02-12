@@ -161,8 +161,7 @@ class ZlibWriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() = 0;
-  virtual const Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const = 0;
 
   bool SupportsReadMode() override;
 
@@ -280,8 +279,7 @@ class ZlibWriter : public ZlibWriterBase {
   // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() override { return dest_.get(); }
-  const Writer* DestWriter() const override { return dest_.get(); }
+  Writer* DestWriter() const override { return dest_.get(); }
 
  protected:
   void Done() override;
