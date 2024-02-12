@@ -33,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/dependency_base.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"

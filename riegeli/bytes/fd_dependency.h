@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/dependency_base.h"
 #include "riegeli/bytes/fd_internal_for_headers.h"
 
 namespace riegeli {

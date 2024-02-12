@@ -27,6 +27,7 @@
 #include "absl/base/attributes.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/dependency_base.h"
 
 namespace riegeli {
 

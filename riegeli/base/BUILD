@@ -197,7 +197,10 @@ cc_library(
 
 cc_library(
     name = "dependency",
-    hdrs = ["dependency.h"],
+    hdrs = [
+        "dependency.h",
+        "dependency_base.h",
+    ],
     deps = [
         ":assert",
         ":compare",
