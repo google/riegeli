@@ -826,8 +826,6 @@ bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Dependency<Handle, Manager>& dep) {
 
 template <typename Handle>
 struct NullMethods {
-  static const Methods<Handle> methods;
-
  private:
   static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
   static void Move(ABSL_ATTRIBUTE_UNUSED Storage self, Handle* self_handle,
@@ -848,18 +846,24 @@ struct NullMethods {
   static void RegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const Storage self,
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
+
+ public:
+  static constexpr Methods<Handle> kMethods = {
+      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
+      RegisterSubobjects};
 };
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
 template <typename Handle>
-const Methods<Handle> NullMethods<Handle>::methods = {
-    Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
-    RegisterSubobjects};
+constexpr Methods<Handle> NullMethods<Handle>::kMethods;
+#endif
 
 template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
 struct MethodsFor {
-  static const Methods<Handle> methods;
-
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
                              int> = 0>
@@ -918,22 +922,28 @@ struct MethodsFor {
                                  MemoryEstimator& memory_estimator) {
     memory_estimator.RegisterDynamicObject(*dep_ptr(self));
   }
+
+ public:
+  static constexpr Methods<Handle> kMethods = {
+      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
+      RegisterSubobjects};
 };
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
 template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager, typename Enable>
-const Methods<Handle>
-    MethodsFor<Handle, inline_size, inline_align, Manager, Enable>::methods = {
-        Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
-        RegisterSubobjects};
+constexpr Methods<Handle>
+    MethodsFor<Handle, inline_size, inline_align, Manager, Enable>::kMethods;
+#endif
 
 template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager>
 struct MethodsFor<Handle, inline_size, inline_align, Manager,
                   std::enable_if_t<IsInline<Handle, inline_size, inline_align,
                                             Manager>::value>> {
-  static const Methods<Handle> methods;
-
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
                              int> = 0>
@@ -997,29 +1007,37 @@ struct MethodsFor<Handle, inline_size, inline_align, Manager,
                                  MemoryEstimator& memory_estimator) {
     memory_estimator.RegisterSubobjects(dep(self));
   }
+
+ public:
+  static constexpr Methods<Handle> kMethods = {
+      Destroy,
+      sizeof(Dependency<Handle, Manager>),
+      alignof(Dependency<Handle, Manager>),
+      Move,
+      IsOwning,
+      MutableGetIf,
+      ConstGetIf,
+      RegisterSubobjects};
 };
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
 template <typename Handle, size_t inline_size, size_t inline_align,
           typename Manager>
-const Methods<Handle>
+constexpr Methods<Handle>
     MethodsFor<Handle, inline_size, inline_align, Manager,
                std::enable_if_t<IsInline<Handle, inline_size, inline_align,
-                                         Manager>::value>>::methods = {
-        Destroy,
-        sizeof(Dependency<Handle, Manager>),
-        alignof(Dependency<Handle, Manager>),
-        Move,
-        IsOwning,
-        MutableGetIf,
-        ConstGetIf,
-        RegisterSubobjects};
+                                         Manager>::value>>::kMethods;
+#endif
 
 }  // namespace any_dependency_internal
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Handle, inline_size,
                          inline_align>::AnyDependencyImpl() noexcept
-    : methods_(&NullMethods::methods),
+    : methods_(&NullMethods::kMethods),
       handle_(any_dependency_internal::SentinelHandle<Handle>()) {}
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -1084,7 +1102,7 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyDependencyImpl<Handle, inline_size, inline_align>::AnyDependencyImpl(
     AnyDependencyImpl&& that) noexcept {
   that.handle_ = any_dependency_internal::SentinelHandle<Handle>();
-  methods_ = std::exchange(that.methods_, &NullMethods::methods);
+  methods_ = std::exchange(that.methods_, &NullMethods::kMethods);
   methods_->move(repr_.storage, &handle_, that.repr_.storage);
 }
 
@@ -1096,7 +1114,7 @@ AnyDependencyImpl<Handle, inline_size, inline_align>::operator=(
     handle_.~Handle();
     methods_->destroy(repr_.storage);
     that.handle_ = any_dependency_internal::SentinelHandle<Handle>();
-    methods_ = std::exchange(that.methods_, &NullMethods::methods);
+    methods_ = std::exchange(that.methods_, &NullMethods::kMethods);
     methods_->move(repr_.storage, &handle_, that.repr_.storage);
   }
   return *this;
@@ -1113,7 +1131,7 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Reset() {
   handle_ = any_dependency_internal::SentinelHandle<Handle>();
   methods_->destroy(repr_.storage);
-  methods_ = &NullMethods::methods;
+  methods_ = &NullMethods::kMethods;
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -1193,7 +1211,7 @@ template <typename Manager,
               int>>
 inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     const Manager& manager) {
-  methods_ = &MethodsFor<Manager>::methods;
+  methods_ = &MethodsFor<Manager>::kMethods;
   MethodsFor<Manager>::Construct(repr_.storage, &handle_, manager);
 }
 
@@ -1207,7 +1225,7 @@ template <typename Manager,
               int>>
 inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
-  methods_ = &MethodsFor<Manager>::methods;
+  methods_ = &MethodsFor<Manager>::kMethods;
   // `std::move(manager)` is correct and `std::forward<Manager>(manager)` is not
   // necessary: `Manager` is never an lvalue reference because this is excluded
   // in the constraint.
@@ -1227,11 +1245,11 @@ inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
        manager.methods_->inline_align_used <= alignof(Repr))) {
     // Adopt `manager` instead of wrapping it.
     manager.handle_ = any_dependency_internal::SentinelHandle<Handle>();
-    methods_ = std::exchange(manager.methods_, &NullMethods::methods);
+    methods_ = std::exchange(manager.methods_, &NullMethods::kMethods);
     methods_->move(repr_.storage, &handle_, manager.repr_.storage);
     return;
   }
-  methods_ = &MethodsFor<Manager>::methods;
+  methods_ = &MethodsFor<Manager>::kMethods;
   MethodsFor<Manager>::Construct(repr_.storage, &handle_,
                                  std::forward<Manager>(manager));
 }
@@ -1241,7 +1259,7 @@ template <typename Manager, typename... ManagerArgs,
           std::enable_if_t<!std::is_reference<Manager>::value, int>>
 inline void AnyDependencyImpl<Handle, inline_size, inline_align>::Initialize(
     ManagerArgs&&... manager_args) {
-  methods_ = &MethodsFor<Manager>::methods;
+  methods_ = &MethodsFor<Manager>::kMethods;
   MethodsFor<Manager>::Construct(
       repr_.storage, &handle_,
       std::forward_as_tuple(std::forward<ManagerArgs>(manager_args)...));

@@ -1222,15 +1222,25 @@ struct Chain::ExternalMethodsFor {
   template <typename... Args>
   static RawBlock* NewBlock(std::tuple<Args...> args, absl::string_view data);
 
-  static const Chain::ExternalMethods methods;
-
  private:
   static void DeleteBlock(RawBlock* block);
   static void DumpStructure(const RawBlock& block, std::ostream& out);
   static constexpr size_t DynamicSizeOf();
   static void RegisterSubobjects(const RawBlock& block,
                                  MemoryEstimator& memory_estimator);
+
+ public:
+  static constexpr ExternalMethods kMethods = {
+      DeleteBlock, DumpStructure, DynamicSizeOf(), RegisterSubobjects};
 };
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+template <typename T>
+constexpr Chain::ExternalMethods Chain::ExternalMethodsFor<T>::kMethods;
+#endif
 
 template <typename T>
 template <typename... Args>
@@ -1249,10 +1259,6 @@ inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
       RawBlock::kExternalAllocatedSize<T>(), RawBlock::ExternalType<T>(),
       std::move(args), data);
 }
-
-template <typename T>
-const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
-    DeleteBlock, DumpStructure, DynamicSizeOf(), RegisterSubobjects};
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
@@ -1286,7 +1292,7 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
 #if __cpp_guaranteed_copy_elision
-  external_.methods = &ExternalMethodsFor<T>::methods;
+  external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>())
       T(absl::make_from_tuple<T>(std::move(args)));
 #else
@@ -1304,7 +1310,7 @@ inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
                                  absl::string_view data)
     : data_(data.data()), size_(data.size()) {
 #if __cpp_guaranteed_copy_elision
-  external_.methods = &ExternalMethodsFor<T>::methods;
+  external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>())
       T(absl::make_from_tuple<T>(std::move(args)));
 #else
@@ -1353,7 +1359,7 @@ template <typename T, typename... Args, size_t... indices>
 inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
     std::index_sequence<indices...>) {
-  external_.methods = &ExternalMethodsFor<T>::methods;
+  external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>())
       T(std::forward<Args>(std::get<indices>(args))...);
 }
@@ -1398,7 +1404,7 @@ inline const T& Chain::RawBlock::unchecked_external_object() const {
 
 template <typename T>
 inline const T* Chain::RawBlock::checked_external_object() const {
-  return is_external() && external_.methods == &ExternalMethodsFor<T>::methods
+  return is_external() && external_.methods == &ExternalMethodsFor<T>::kMethods
              ? &unchecked_external_object<T>()
              : nullptr;
 }
@@ -1406,7 +1412,7 @@ inline const T* Chain::RawBlock::checked_external_object() const {
 template <typename T>
 inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
   return is_external() &&
-                 external_.methods == &ExternalMethodsFor<T>::methods &&
+                 external_.methods == &ExternalMethodsFor<T>::kMethods &&
                  has_unique_owner()
              ? &unchecked_external_object<T>()
              : nullptr;
