@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <iterator>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -412,6 +413,50 @@ template <typename Src, typename Iterator,
 inline std::move_iterator<Iterator> MaybeMakeMoveIterator(Iterator iterator) {
   return std::move_iterator<Iterator>(iterator);
 }
+
+// `HasDereference<T>::value` is `true` if a value of type `T` can be
+// dereferenced with `operator*`.
+
+template <typename T, typename Enable = void>
+struct HasDereference : std::false_type {};
+
+template <typename T>
+struct HasDereference<T, absl::void_t<decltype(*std::declval<T>())>>
+    : std::true_type {};
+
+// `HasArrow<T>::value` is `true` if a value of type `T` can be dereferenced
+// with `operator->`.
+
+template <typename T, typename Enable = void>
+struct HasArrow : std::false_type {};
+
+template <typename T>
+struct HasArrow<T, std::enable_if_t<std::is_pointer<
+                       std::decay_t<decltype(std::declval<T>())>>::value>>
+    : std::true_type {};
+
+template <typename T>
+struct HasArrow<T, absl::void_t<decltype(std::declval<T>().operator->())>>
+    : std::true_type {};
+
+// `IsComparableAgainstNullptr<T>::value` is `true` if a value of type `T` can
+// be compared against `nullptr`.
+
+template <typename T, typename Enable = void>
+struct IsComparableAgainstNullptr : std::false_type {};
+
+template <typename CharT, typename Traits, typename Alloc>
+struct IsComparableAgainstNullptr<std::basic_string<CharT, Traits, Alloc>>
+    : std::false_type {};
+
+template <>
+struct IsComparableAgainstNullptr<absl::string_view> : std::false_type {};
+
+template <typename T>
+struct IsComparableAgainstNullptr<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<T>() == nullptr), bool>::value>>
+    : std::true_type {};
 
 namespace type_traits_internal {
 

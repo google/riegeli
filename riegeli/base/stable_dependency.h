@@ -136,8 +136,7 @@ class StableDependencyImpl {
   Manager& manager() { return EnsureAllocated()->manager(); }
   const Manager& manager() const { return EnsureAllocated()->manager(); }
 
-  decltype(std::declval<const Dependency<Handle, Manager>&>().get()) get()
-      const {
+  typename Dependency<Handle, Manager>::Subhandle get() const {
     return EnsureAllocated()->get();
   }
 

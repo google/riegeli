@@ -28,12 +28,14 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/dependency_base.h"
+#include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
@@ -234,7 +236,7 @@ class
         AnyDependencyImpl
     : public WithEqual<AnyDependencyImpl<Handle, inline_size, inline_align>>,
       public ConditionallyAbslNullabilityCompatible<
-          std::is_pointer<Handle>::value>,
+          IsComparableAgainstNullptr<Handle>::value>,
       public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
                                                               0> {
  public:
@@ -358,24 +360,26 @@ class
   // If `Handle` is `Base*`, `AnyDependencyImpl<Base*>` can be used as a smart
   // pointer to `Base`, for convenience.
   template <typename DependentHandle = Handle,
-            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
-  std::remove_pointer_t<DependentHandle>& operator*() const {
-    RIEGELI_ASSERT(handle_ != nullptr)
-        << "Failed precondition of AnyDependency::operator*: null pointer";
-    return *handle_;
+            std::enable_if_t<HasDereference<DependentHandle>::value, int> = 0>
+  decltype(*std::declval<DependentHandle>()) operator*() const {
+    AssertNotNull(
+        "Failed precondition of AnyDependency::operator*: null handle");
+    return *get();
   }
+
   template <typename DependentHandle = Handle,
-            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
+            std::enable_if_t<HasArrow<DependentHandle>::value, int> = 0>
   Handle operator->() const {
-    RIEGELI_ASSERT(handle_ != nullptr)
-        << "Failed precondition of AnyDependency::operator->: null pointer";
-    return handle_;
+    AssertNotNull(
+        "Failed precondition of AnyDependency::operator->: null handle");
+    return get();
   }
 
   // If `Handle` is `Base*`, `AnyDependencyImpl<Base*>` can be compared against
   // `nullptr`.
   template <typename DependentHandle = Handle,
-            std::enable_if_t<std::is_pointer<DependentHandle>::value, int> = 0>
+            std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
+                             int> = 0>
   friend bool operator==(const AnyDependencyImpl& a, std::nullptr_t) {
     return a.get() == nullptr;
   }
@@ -389,8 +393,8 @@ class
 
   // If the `Manager` has exactly this type or a reference to it, returns a
   // pointer to the `Manager`. If the `Manager` is an `AnyDependency` (possibly
-  // wrapped in an rvalue reference or `std::unique_ptr`), propagates `GetIf()`
-  // to it. Otherwise returns `nullptr`.
+  // wrapped in a reference or `std::unique_ptr`), propagates `GetIf()` to it.
+  // Otherwise returns `nullptr`.
   template <
       typename Manager,
       std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
@@ -451,6 +455,17 @@ class
             std::enable_if_t<!std::is_reference<Manager>::value, int> = 0>
   void Initialize(ManagerArgs&&... manager_args);
 
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
+                             int> = 0>
+  void AssertNotNull(absl::string_view message) const {
+    RIEGELI_ASSERT(get() != nullptr) << message;
+  }
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<
+                !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
+  void AssertNotNull(ABSL_ATTRIBUTE_UNUSED absl::string_view message) const {}
+
   const Methods* methods_;
   // The union disables implicit construction and destruction which is done
   // manually here.
@@ -460,20 +475,20 @@ class
   Repr repr_;
 };
 
-// Specialization of `DependencyImpl<Handle, AnyDependencyImpl<T>>` when `T` is
-// convertible to `Handle`.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align>
-class DependencyImpl<Handle, AnyDependencyImpl<T, inline_size, inline_align>,
-                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<AnyDependencyImpl<T, inline_size, inline_align>> {
+// Specialization of `DependencyManagerImpl<AnyDependency<Handle>>`:
+// a dependency with ownership determined at runtime.
+template <typename Handle, size_t inline_size, size_t inline_align,
+          typename ManagerStorage>
+class DependencyManagerImpl<
+    AnyDependencyImpl<Handle, inline_size, inline_align>, ManagerStorage>
+    : public DependencyBase<ManagerStorage> {
  public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager().get(); }
+  using DependencyManagerImpl::DependencyBase::DependencyBase;
 
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable =
+      DependencyManagerImpl::DependencyBase::kIsStable ||
       AnyDependencyImpl<Handle, inline_size, inline_align>::kIsStable;
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
@@ -482,59 +497,32 @@ class DependencyImpl<Handle, AnyDependencyImpl<T, inline_size, inline_align>,
   }
 
  protected:
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
+  DependencyManagerImpl(DependencyManagerImpl&& that) = default;
+  DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
 
-  ~DependencyImpl() = default;
-};
+  ~DependencyManagerImpl() = default;
 
-// Specialization of `DependencyImpl<Handle, AnyDependencyImpl<T>&&>` when `T`
-// is convertible to `Handle`.
-//
-// It is defined explicitly because `AnyDependencyImpl<T>` can be heavy and is
-// better kept by reference.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align>
-class DependencyImpl<Handle, AnyDependencyImpl<T, inline_size, inline_align>&&,
-                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<AnyDependencyImpl<T, inline_size, inline_align>&&> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager().get(); }
-
-  bool is_owning() const { return this->manager().is_owning(); }
-
-  static constexpr bool kIsStable = true;
-
-  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
-  const void* GetIf(TypeId type_id) const {
-    return this->manager().GetIf(type_id);
-  }
-
- protected:
-  DependencyImpl(const DependencyImpl& that) = default;
-  DependencyImpl& operator=(const DependencyImpl& that) = delete;
-
-  ~DependencyImpl() = default;
+  Handle ptr() const { return this->manager().get(); }
 };
 
 // Specialization of
-// `DependencyImpl<Handle, std::unique_ptr<AnyDependencyImpl<T>, Deleter>>` when
-// `T` is convertible to `Handle`.
+// `DependencyManagerImpl<std::unique_ptr<AnyDependency<Handle>, Deleter>>`:
+// a dependency with ownership determined at runtime.
 //
-// It covers `ClosingPtrType<AnyDependency>`.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align,
-          typename Deleter>
-class DependencyImpl<
-    Handle,
-    std::unique_ptr<AnyDependencyImpl<T, inline_size, inline_align>, Deleter>,
-    std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<std::unique_ptr<
-          AnyDependencyImpl<T, inline_size, inline_align>, Deleter>> {
+// It covers `ClosingPtrType<AnyDependency<Handle>>`.
+template <typename Handle, size_t inline_size, size_t inline_align,
+          typename Deleter, typename ManagerStorage>
+class DependencyManagerImpl<
+    std::unique_ptr<AnyDependencyImpl<Handle, inline_size, inline_align>,
+                    Deleter>,
+    ManagerStorage>
+    : public DependencyBase<std::conditional_t<
+          std::is_empty<Deleter>::value,
+          std::unique_ptr<AnyDependencyImpl<Handle, inline_size, inline_align>,
+                          Deleter>,
+          ManagerStorage>> {
  public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager()->get(); }
+  using DependencyManagerImpl::DependencyBase::DependencyBase;
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
@@ -552,10 +540,12 @@ class DependencyImpl<
   }
 
  protected:
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
+  DependencyManagerImpl(DependencyManagerImpl&& that) = default;
+  DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
 
-  ~DependencyImpl() = default;
+  ~DependencyManagerImpl() = default;
+
+  Handle ptr() const { return this->manager()->get(); }
 };
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
@@ -667,21 +657,20 @@ class AnyDependencyRefImpl
 #endif
 };
 
-// Specialization of `DependencyImpl<Handle, AnyDependencyRefImpl<T>>` when `T`
-// is convertible to `Handle`.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align>
-class DependencyImpl<Handle, AnyDependencyRefImpl<T, inline_size, inline_align>,
-                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<
-          AnyDependencyRefImpl<T, inline_size, inline_align>> {
+// Specialization of `DependencyManagerImpl<AnyDependencyRef<Handle>>`:
+// a dependency with ownership determined at runtime.
+template <typename Handle, size_t inline_size, size_t inline_align,
+          typename ManagerStorage>
+class DependencyManagerImpl<
+    AnyDependencyRefImpl<Handle, inline_size, inline_align>, ManagerStorage>
+    : public DependencyBase<ManagerStorage> {
  public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager().get(); }
+  using DependencyManagerImpl::DependencyBase::DependencyBase;
 
   bool is_owning() const { return this->manager().is_owning(); }
 
   static constexpr bool kIsStable =
+      DependencyManagerImpl::DependencyBase::kIsStable ||
       AnyDependencyRefImpl<Handle, inline_size, inline_align>::kIsStable;
 
   void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
@@ -690,62 +679,32 @@ class DependencyImpl<Handle, AnyDependencyRefImpl<T, inline_size, inline_align>,
   }
 
  protected:
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
+  DependencyManagerImpl(DependencyManagerImpl&& that) = default;
+  DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
 
-  ~DependencyImpl() = default;
-};
+  ~DependencyManagerImpl() = default;
 
-// Specialization of `DependencyImpl<Handle, AnyDependencyRefImpl<T>&&>` when
-// `T` is convertible to `Handle`.
-//
-// It is defined explicitly because `AnyDependencyRefImpl<T>` can be heavy and
-// is better kept by reference.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align>
-class DependencyImpl<Handle,
-                     AnyDependencyRefImpl<T, inline_size, inline_align>&&,
-                     std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<
-          AnyDependencyRefImpl<T, inline_size, inline_align>&&> {
- public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager().get(); }
-
-  bool is_owning() const { return this->manager().is_owning(); }
-
-  static constexpr bool kIsStable = true;
-
-  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
-  const void* GetIf(TypeId type_id) const {
-    return this->manager().GetIf(type_id);
-  }
-
- protected:
-  DependencyImpl(const DependencyImpl& that) = default;
-  DependencyImpl& operator=(const DependencyImpl& that) = delete;
-
-  ~DependencyImpl() = default;
+  Handle ptr() const { return this->manager().get(); }
 };
 
 // Specialization of
-// `DependencyImpl<Handle, std::unique_ptr<AnyDependencyRefImpl<T>, Deleter>>`
-// when `T` is convertible to `Handle`.
+// `DependencyManagerImpl<std::unique_ptr<AnyDependencyRef<Handle>, Deleter>>`:
+// a dependency with ownership determined at runtime.
 //
-// It covers `ClosingPtrType<AnyDependencyRef>`.
-template <typename Handle, typename T, size_t inline_size, size_t inline_align,
-          typename Deleter>
-class DependencyImpl<
-    Handle,
-    std::unique_ptr<AnyDependencyRefImpl<T, inline_size, inline_align>,
+// It covers `ClosingPtrType<AnyDependencyRef<Handle>>`.
+template <typename Handle, size_t inline_size, size_t inline_align,
+          typename Deleter, typename ManagerStorage>
+class DependencyManagerImpl<
+    std::unique_ptr<AnyDependencyRefImpl<Handle, inline_size, inline_align>,
                     Deleter>,
-    std::enable_if_t<std::is_convertible<T, Handle>::value>>
-    : public DependencyBase<std::unique_ptr<
-          AnyDependencyRefImpl<T, inline_size, inline_align>, Deleter>> {
+    ManagerStorage>
+    : public DependencyBase<std::conditional_t<
+          std::is_empty<Deleter>::value,
+          std::unique_ptr<
+              AnyDependencyRefImpl<Handle, inline_size, inline_align>, Deleter>,
+          ManagerStorage>> {
  public:
-  using DependencyImpl::DependencyBase::DependencyBase;
-
-  T get() const { return this->manager()->get(); }
+  using DependencyManagerImpl::DependencyBase::DependencyBase;
 
   bool is_owning() const {
     return this->manager() != nullptr && this->manager()->is_owning();
@@ -763,10 +722,12 @@ class DependencyImpl<
   }
 
  protected:
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
+  DependencyManagerImpl(DependencyManagerImpl&& that) = default;
+  DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
 
-  ~DependencyImpl() = default;
+  ~DependencyManagerImpl() = default;
+
+  Handle ptr() const { return this->manager()->get(); }
 };
 
 // Implementation details follow.

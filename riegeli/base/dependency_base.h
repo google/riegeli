@@ -46,10 +46,11 @@ inline std::tuple<> RiegeliDependencySentinel(void*) { return {}; }
 
 inline int RiegeliDependencySentinel(int*) { return -1; }
 
-// Implementation shared between most specializations of `DependencyImpl` which
-// store `manager()` in a member variable.
+// Implementation shared between most specializations of `DependencyManagerImpl`
+// and `DependencyImpl` which store `manager()` in a member variable.
 //
-// Provides constructors, `Reset()`, and `manager()`.
+// `DependencyBase` provides constructors, `Reset()`, `manager()`, `kIsStable`,
+// and protected `mutable_manager()`.
 template <typename Manager>
 class DependencyBase {
  public:
@@ -113,6 +114,8 @@ class DependencyBase {
   Manager& manager() { return manager_; }
   const Manager& manager() const { return manager_; }
 
+  static constexpr bool kIsStable = false;
+
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const DependencyBase& self,
                                         MemoryEstimator& memory_estimator) {
@@ -155,6 +158,8 @@ class DependencyBase<Manager&> {
 
   Manager& manager() const { return manager_; }
 
+  static constexpr bool kIsStable = true;
+
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const DependencyBase& self,
@@ -183,6 +188,8 @@ class DependencyBase<Manager&&> {
   explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
 
   Manager& manager() const { return manager_; }
+
+  static constexpr bool kIsStable = true;
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
