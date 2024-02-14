@@ -6,10 +6,21 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "digest_converter",
+    hdrs = ["digest_converter.h"],
+    deps = [
+        "//riegeli/endian:endian_writing",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/numeric:int128",
+    ],
+)
+
+cc_library(
     name = "digester_handle",
     srcs = ["digester_handle.cc"],
     hdrs = ["digester_handle.h"],
     deps = [
+        ":digest_converter",
         "//riegeli/base:arithmetic",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
@@ -30,6 +41,7 @@ cc_library(
     srcs = ["digester.cc"],
     hdrs = ["digester.h"],
     deps = [
+        ":digest_converter",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
@@ -48,10 +60,12 @@ cc_library(
     name = "wrapping_digester",
     hdrs = ["wrapping_digester.h"],
     deps = [
+        ":digest_converter",
         ":digester",
         ":digester_handle",
         "//riegeli/base:dependency",
         "//riegeli/base:types",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -61,6 +75,7 @@ cc_library(
     srcs = ["digesting_reader.cc"],
     hdrs = ["digesting_reader.h"],
     deps = [
+        ":digest_converter",
         ":digester_handle",
         ":wrapping_digester",
         "//riegeli/base:arithmetic",
@@ -87,6 +102,7 @@ cc_library(
     srcs = ["digesting_writer.cc"],
     hdrs = ["digesting_writer.h"],
     deps = [
+        ":digest_converter",
         ":digester_handle",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",

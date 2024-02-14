@@ -21,9 +21,11 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/types.h"
+#include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester.h"
 #include "riegeli/digests/digester_handle.h"
 
@@ -31,17 +33,25 @@ namespace riegeli {
 
 namespace wrapping_digester_internal {
 
+// The type of a function converting a digest, taking it by value, except that
+// conversion from `void` takes no parameters.
+
+template <typename From, typename To, typename Enable = void>
+struct DigestConverterFunction {
+  using type = To (*)(From);
+};
+
 template <typename From, typename To>
-inline To ConvertDigest(From value) {
-  return To(std::move(value));
-}
+struct DigestConverterFunction<From, To,
+                               std::enable_if_t<std::is_void<From>::value>> {
+  using type = To (*)();
+};
 
 }  // namespace wrapping_digester_internal
 
-// Wraps an object providing and possibly owning a digester in a concrete class
-// deriving from `Digester<DigestType>`. Possibly converts the digest returned
-// by `Digest()` and/or changes its type. Propagates calls to `Close()` if the
-// base digester is owned.
+// Wraps an object providing and possibly owning a digester in a concrete
+// digester type. Propagates calls to `Close()` if the base digester is owned.
+// Possibly converts the type of the digest returned by `Digest()`.
 //
 // `BaseDigester` must support `Dependency<DigesterBaseHandle, BaseDigester>`.
 //
@@ -49,11 +59,11 @@ inline To ConvertDigest(From value) {
 // i.e. unchanged.
 //
 // `digest_converter` is a function used to convert a digest, by default using
-// explicit constructor of `DigestType` from `DigestOf<BaseDigester>`.
+// `DigestConverter`.
 template <typename BaseDigester, typename DigestType = DigestOf<BaseDigester>,
-          DigestType (*digest_converter)(DigestOf<BaseDigester>) =
-              wrapping_digester_internal::ConvertDigest<DigestOf<BaseDigester>,
-                                                        DigestType>>
+          typename wrapping_digester_internal::DigestConverterFunction<
+              DigestOf<BaseDigester>, DigestType>::type digest_converter =
+              nullptr>
 class WrappingDigester : public Digester<DigestType> {
  public:
   // Default-constructs the `BaseDigester`.
@@ -85,8 +95,38 @@ class WrappingDigester : public Digester<DigestType> {
   void Done() override {
     if (base_.is_owning()) base_.get().Close();
   }
-  DigestType DigestImpl() override {
+  DigestType DigestImpl() override { return DigestImplImpl(); }
+
+ private:
+  template <typename DependentBaseDigester = BaseDigester,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::integral_constant<bool, digest_converter == nullptr>,
+                    HasDigestConverter<DigestOf<DependentBaseDigester>,
+                                       DigestType>>::value,
+                int> = 0>
+  DigestType DigestImplImpl() {
+    return base_.get().template Digest<DigestType>();
+  }
+  template <typename DependentBaseDigester = BaseDigester,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::integral_constant<bool, digest_converter != nullptr>,
+                    absl::negation<
+                        std::is_void<DigestOf<DependentBaseDigester>>>>::value,
+                int> = 0>
+  DigestType DigestImplImpl() {
     return digest_converter(base_.get().Digest());
+  }
+  template <typename DependentBaseDigester = BaseDigester,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::integral_constant<bool, digest_converter != nullptr>,
+                    std::is_void<DigestOf<DependentBaseDigester>>>::value,
+                int> = 0>
+  DigestType DigestImplImpl() {
+    base_.get().Digest();
+    return digest_converter();
   }
 
  private:

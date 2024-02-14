@@ -36,6 +36,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/null_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"
 
 namespace riegeli {
@@ -191,7 +192,21 @@ class DigestingWriter : public DigestingWriterBase {
       std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
 
   // Digests buffered data if needed, and returns the digest.
-  DigestType Digest();
+  //
+  // The digest is converted to `DesiredDigestType` using `DigestConverter`.
+  template <
+      typename DesiredDigestType = DigestType,
+      std::enable_if_t<HasDigestConverter<DigestType, DesiredDigestType>::value,
+                       int> = 0>
+  DesiredDigestType Digest() {
+    if (start_to_cursor() > 0) {
+      digester_.get().Write(absl::string_view(start(), start_to_cursor()));
+      set_start_pos(pos());
+      set_buffer(cursor(), available());
+      dest_->set_cursor(cursor());
+    }
+    return digester_.get().template Digest<DesiredDigestType>();
+  }
 
   // Returns the object providing and possibly owning the digester. Unchanged by
   // `Close()`.
@@ -276,15 +291,23 @@ explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
-template <
-    typename... Args,
-    std::enable_if_t<absl::conjunction<
-                         IsValidDependency<DigesterBaseHandle,
-                                           GetTypeFromEndT<1, Args&&...>>,
-                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                              IsStringifiable>>::value,
-                     int> = 0>
-DigestOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args);
+//
+// The digest is converted to `DesiredDigestType` using `DigestConverter`.
+template <typename DesiredDigestType = digest_converter_internal::NoConversion,
+          typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<DigesterBaseHandle,
+                                    GetTypeFromEndT<1, Args&&...>>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<GetTypeFromEndT<1, Args&&...>>,
+                      DesiredDigestType>>::value,
+              int> = 0>
+digest_converter_internal::ResolveNoConversion<
+    DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>
+DigestFrom(Args&&... args);
 
 // Implementation details follow.
 
@@ -527,18 +550,6 @@ void DigestingWriter<DigesterType, Dest>::Done() {
 }
 
 template <typename DigesterType, typename Dest>
-inline typename DigestingWriter<DigesterType, Dest>::DigestType
-DigestingWriter<DigesterType, Dest>::Digest() {
-  if (start_to_cursor() > 0) {
-    digester_.get().Write(absl::string_view(start(), start_to_cursor()));
-    set_start_pos(pos());
-    set_buffer(cursor(), available());
-    dest_->set_cursor(cursor());
-  }
-  return digester_.get().Digest();
-}
-
-template <typename DigesterType, typename Dest>
 void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.is_owning()) {
@@ -585,24 +596,24 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline void WriteTuple(
 }
 
 template <
-    typename DigesterType, typename... Srcs,
+    typename DesiredDigestType, typename DigesterType, typename... Srcs,
     std::enable_if_t<
         absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
-inline DigestOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
-                                               DigesterType&& digester) {
+inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
+                                        DigesterType&& digester) {
   Dependency<DigesterBaseHandle, DigesterType&&> digester_dep(
       std::forward<DigesterType>(digester));
   WriteTuple<0>(srcs, digester_dep.get());
   if (digester_dep.is_owning()) digester_dep.get().Close();
-  return digester_dep.get().Digest();
+  return digester_dep.get().template Digest<DesiredDigestType>();
 }
 
 template <
-    typename DigesterType, typename... Srcs,
+    typename DesiredDigestType, typename DigesterType, typename... Srcs,
     std::enable_if_t<
         !absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
-inline DigestOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
-                                               DigesterType&& digester) {
+inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
+                                        DigesterType&& digester) {
   DigestingWriter<DigesterType&&, NullWriter> writer(
       std::forward_as_tuple(), std::forward<DigesterType>(digester));
   writer.WriteTuple(srcs);
@@ -610,21 +621,28 @@ inline DigestOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
       << "DigestingWriter<DigesterType, NullWriter> can fail only "
          "if the size overflows: "
       << writer.status();
-  return writer.Digest();
+  return writer.template Digest<DesiredDigestType>();
 }
 
 }  // namespace digesting_writer_internal
 
-template <
-    typename... Args,
-    std::enable_if_t<absl::conjunction<
-                         IsValidDependency<DigesterBaseHandle,
-                                           GetTypeFromEndT<1, Args&&...>>,
-                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                              IsStringifiable>>::value,
-                     int>>
-DigestOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args) {
-  return digesting_writer_internal::DigestFromImpl(
+template <typename DesiredDigestType, typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<DigesterBaseHandle,
+                                    GetTypeFromEndT<1, Args&&...>>,
+                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                       IsStringifiable>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<GetTypeFromEndT<1, Args&&...>>,
+                      DesiredDigestType>>::value,
+              int>>
+digest_converter_internal::ResolveNoConversion<
+    DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>
+DigestFrom(Args&&... args) {
+  return digesting_writer_internal::DigestFromImpl<
+      digest_converter_internal::ResolveNoConversion<
+          DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }

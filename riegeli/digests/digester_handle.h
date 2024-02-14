@@ -31,6 +31,7 @@
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
+#include "riegeli/digests/digest_converter.h"
 
 namespace riegeli {
 
@@ -322,7 +323,7 @@ struct IsValidDigesterTarget<
     T, DigestType,
     std::enable_if_t<absl::conjunction<
         IsValidDigesterBaseTarget<T>,
-        std::is_convertible<
+        HasDigestConverter<
             typename digester_handle_internal::DigestOfDigesterTarget<T>::type,
             DigestType>>::value>> : std::true_type {};
 
@@ -334,7 +335,10 @@ struct IsValidDigesterTarget<
 // ```
 //   // Returns the digest of data written so far. Its type and meaning depends
 //   // on the concrete digester. Unchanged by `Close()`.
-//   DigestType Digest();
+//   //
+//   // `OriginalDigestType` can be any type convertible to `DigestType` using
+//   // `DigestConverter`.
+//   OriginalDigestType Digest();
 // ```
 //
 // `DigestType` can be `void` for digesters used for their side effects.
@@ -360,7 +364,16 @@ class DigesterHandle : public DigesterBaseHandle {
 
   // Returns the digest of data written so far. Its type and meaning depends on
   // the concrete digester. Unchanged by `Close()`.
-  DigestType Digest() { return methods()->digest(target()); }
+  //
+  // The digest is converted to `DesiredDigestType` using `DigestConverter`.
+  template <
+      typename DesiredDigestType = DigestType,
+      std::enable_if_t<HasDigestConverter<DigestType, DesiredDigestType>::value,
+                       int> = 0>
+  DesiredDigestType Digest() {
+    return ConvertDigest<DesiredDigestType>(
+        [&]() -> DigestType { return methods()->digest(target()); });
+  }
 
  private:
   template <typename T, typename Enable = void>
@@ -374,14 +387,13 @@ class DigesterHandle : public DigesterBaseHandle {
   template <typename T,
             std::enable_if_t<DigesterTargetHasDigest<T>::value, int> = 0>
   static DigestType DigestMethod(void* target) {
-    return static_cast<T*>(target)->Digest();
+    return ConvertDigest<DigestType>(
+        [&]() -> decltype(auto) { return static_cast<T*>(target)->Digest(); });
   }
   template <typename T,
             std::enable_if_t<!DigesterTargetHasDigest<T>::value, int> = 0>
   static DigestType DigestMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
-    static_assert(std::is_void<DigestType>::value,
-                  "A digester target with no Digest() "
-                  "is compatible only with a void digest type");
+    return ConvertDigest<DigestType>([] {});
   }
 
   struct Methods : DigesterBaseHandle::Methods {

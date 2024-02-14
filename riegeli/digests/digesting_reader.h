@@ -37,6 +37,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"
 #include "riegeli/digests/wrapping_digester.h"  // IWYU pragma: export
 
@@ -187,7 +188,20 @@ class DigestingReader : public DigestingReaderBase {
       std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
 
   // Digests buffered data if needed, and returns the digest.
-  DigestType Digest();
+  //
+  // The digest is converted to `DesiredDigestType` using `DigestConverter`.
+  template <
+      typename DesiredDigestType = DigestType,
+      std::enable_if_t<HasDigestConverter<DigestType, DesiredDigestType>::value,
+                       int> = 0>
+  DesiredDigestType Digest() {
+    if (start_to_cursor() > 0) {
+      digester_.get().Write(absl::string_view(start(), start_to_cursor()));
+      set_buffer(cursor(), available());
+      src_->set_cursor(cursor());
+    }
+    return digester_.get().template Digest<DesiredDigestType>();
+  }
 
   // Returns the object providing and possibly owning the digester. Unchanged by
   // `Close()`.
@@ -280,14 +294,21 @@ explicit DigestingReader(std::tuple<SrcArgs...> src_args,
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
-template <
-    typename DigesterType, typename Src,
-    std::enable_if_t<
-        absl::conjunction<IsValidDependency<DigesterBaseHandle, DigesterType&&>,
-                          IsValidDependency<Reader*, Src&&>>::value,
-        int> = 0>
-StatusOrMakerT<DigestOf<DigesterType&&>> DigestFromReader(
-    Src&& src, DigesterType&& digester, Position* length_read = nullptr);
+//
+// The digest is converted to `DesiredDigestType` using `DigestConverter`.
+template <typename DesiredDigestType = digest_converter_internal::NoConversion,
+          typename DigesterType, typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<DigesterBaseHandle, DigesterType&&>,
+                  IsValidDependency<Reader*, Src&&>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<DigesterType&&>, DesiredDigestType>>::value,
+              int> = 0>
+StatusOrMakerT<std::decay_t<digest_converter_internal::ResolveNoConversion<
+    DigestOf<DigesterType&&>, DesiredDigestType>>>
+DigestFromReader(Src&& src, DigesterType&& digester,
+                 Position* length_read = nullptr);
 
 // Implementation details follow.
 
@@ -517,17 +538,6 @@ inline void DigestingReader<DigesterType, Src>::MoveSrc(
 }
 
 template <typename DigesterType, typename Src>
-inline typename DigestingReader<DigesterType, Src>::DigestType
-DigestingReader<DigesterType, Src>::Digest() {
-  if (start_to_cursor() > 0) {
-    digester_.get().Write(absl::string_view(start(), start_to_cursor()));
-    set_buffer(cursor(), available());
-    src_->set_cursor(cursor());
-  }
-  return digester_.get().Digest();
-}
-
-template <typename DigesterType, typename Src>
 void DigestingReader<DigesterType, Src>::Done() {
   DigestingReaderBase::Done();
   if (src_.is_owning()) {
@@ -571,16 +581,22 @@ bool DigestingReader<DigesterType, Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-template <
-    typename DigesterType, typename Src,
-    std::enable_if_t<
-        absl::conjunction<IsValidDependency<DigesterBaseHandle, DigesterType&&>,
-                          IsValidDependency<Reader*, Src&&>>::value,
-        int>>
-inline StatusOrMakerT<DigestOf<DigesterType&&>> DigestFromReader(
-    Src&& src, DigesterType&& digester, Position* length_read) {
-  using DigestType = DigestOf<DigesterType&&>;
-  using Maker = StatusOrMaker<DigestType>;
+template <typename DesiredDigestType, typename DigesterType, typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  IsValidDependency<DigesterBaseHandle, DigesterType&&>,
+                  IsValidDependency<Reader*, Src&&>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<DigesterType&&>, DesiredDigestType>>::value,
+              int>>
+inline StatusOrMakerT<
+    std::decay_t<digest_converter_internal::ResolveNoConversion<
+        DigestOf<DigesterType&&>, DesiredDigestType>>>
+DigestFromReader(Src&& src, DigesterType&& digester, Position* length_read) {
+  using DigestType =
+      digest_converter_internal::ResolveNoConversion<DigestOf<DigesterType&&>,
+                                                     DesiredDigestType>;
+  using Maker = StatusOrMaker<std::decay_t<DigestType>>;
   DigestingReader<DigesterType&&, Src&&> reader(
       std::forward<Src>(src), std::forward<DigesterType&&>(digester));
   reader.SetReadAllHint(true);
@@ -594,7 +610,8 @@ inline StatusOrMakerT<DigestOf<DigesterType&&>> DigestFromReader(
   if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) {
     return Maker::FromStatus(reader.status());
   }
-  return Maker::FromWork([&]() -> DigestType { return reader.Digest(); });
+  return Maker::FromWork(
+      [&]() -> DigestType { return reader.template Digest<DigestType>(); });
 }
 
 }  // namespace riegeli
