@@ -19,19 +19,16 @@
 
 #include <array>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 
@@ -173,21 +170,6 @@ class Digester : public DigesterBase {
   virtual DigestType DigestImpl() = 0;
 };
 
-// The type of the digest returned by the digester provided by `DigesterType`.
-template <typename DigesterType>
-using DigestTypeOf =
-    decltype(std::declval<Dependency<DigesterBase*, DigesterType>&>()
-                 ->Digest());
-
-namespace digester_internal {
-
-template <typename From, typename To>
-inline To ConvertDigest(From value) {
-  return To(std::move(value));
-}
-
-}  // namespace digester_internal
-
 // Converts a digest from `std::array<char, size>` to `std::string`.
 // Intended to be used with `WrappingDigester`.
 //
@@ -197,90 +179,6 @@ template <size_t size>
 std::string ArrayToString(std::array<char, size> digest) {
   return std::string(digest.data(), digest.size());
 }
-
-// Wraps an object providing and possibly owning a digester in a concrete class
-// deriving from `Digester<DigestType>`. Possibly converts the digest returned
-// by `Digest()` and/or changes its type. Propagates calls to `Close()` if the
-// base digester is owned.
-//
-// `BaseDigesterType` must support `Dependency<DigesterBase*, BaseDigesterType>`
-// and must provide a member function `BaseDigestType Digest()` for some
-// `BaseDigestType`.
-//
-// `DigestType` is the new digest type, by default `BaseDigestType`.
-//
-// `digest_converter` is a function used to convert a digest, by default using
-// explicit constructor of `DigestType` from `BaseDigestType`.
-template <typename BaseDigesterType,
-          typename DigestType = DigestTypeOf<BaseDigesterType>,
-          DigestType (*digest_converter)(DigestTypeOf<BaseDigesterType>) =
-              digester_internal::ConvertDigest<DigestTypeOf<BaseDigesterType>,
-                                               DigestType>,
-          typename Enable = void>
-class WrappingDigester : public Digester<DigestType> {
- public:
-  // Default-constructs the base `DigesterType`.
-  WrappingDigester() : base_(std::forward_as_tuple()) {}
-
-  // Forwards constructor arguments to the base `DigesterType`.
-  template <typename... Args>
-  explicit WrappingDigester(Args&&... args)
-      : base_(std::forward_as_tuple(std::forward<Args>(args)...)) {}
-
-  WrappingDigester(const WrappingDigester& that) = default;
-  WrappingDigester& operator=(const WrappingDigester& that) = default;
-
-  WrappingDigester(WrappingDigester&& that) = default;
-  WrappingDigester& operator=(WrappingDigester&& that) = default;
-
- protected:
-  // Returns the `BaseDigesterType`.
-  BaseDigesterType& base() { return base_.manager(); }
-  const BaseDigesterType& base() const { return base_.manager(); }
-
-  void WriteImpl(absl::string_view src) override { base_->Write(src); }
-  void WriteZerosImpl(riegeli::Position length) override {
-    base_->WriteZeros(length);
-  }
-  void Done() override {
-    if (base_.is_owning()) base_->Close();
-  }
-  DigestType DigestImpl() override { return digest_converter(base_->Digest()); }
-
- private:
-  Dependency<DigesterBase*, BaseDigesterType> base_;
-};
-
-// A specialization of `WrappingDigester` when `DigestType` is not changing and
-// `BaseDigesterType` is a concrete class deriving from `Digester<DigestType>`.
-// Use inheritance instead of delegation for optimization.
-template <typename BaseDigesterType, typename DigestType,
-          DigestType (*digest_converter)(DigestTypeOf<BaseDigesterType>)>
-class WrappingDigester<
-    BaseDigesterType, DigestType, digest_converter,
-    std::enable_if_t<absl::conjunction<
-        std::is_base_of<Digester<DigestType>, BaseDigesterType>,
-        absl::negation<std::is_final<BaseDigesterType>>>::value>>
-    : public BaseDigesterType {
- public:
-  using BaseDigesterType::BaseDigesterType;
-
-  WrappingDigester(const WrappingDigester& that) = default;
-  WrappingDigester& operator=(const WrappingDigester& that) = default;
-
-  WrappingDigester(WrappingDigester&& that) = default;
-  WrappingDigester& operator=(WrappingDigester&& that) = default;
-
- protected:
-  // Returns the `BaseDigesterType`. The dynamic type is actually
-  // `WrappingDigester`.
-  BaseDigesterType& base() { return *this; }
-  const BaseDigesterType& base() const { return *this; }
-
-  DigestType DigestImpl() override {
-    return digest_converter(BaseDigesterType::DigestImpl());
-  }
-};
 
 // Implementation details follow.
 

@@ -37,15 +37,16 @@
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/digests/digester.h"
+#include "riegeli/digests/digester_handle.h"
+#include "riegeli/digests/wrapping_digester.h"  // IWYU pragma: export
 
 namespace riegeli {
 
 // Template parameter independent part of `DigestingReader`.
 class DigestingReaderBase : public Reader {
  public:
-  // Returns the `DigesterBase`. Unchanged by `Close()`.
-  virtual DigesterBase* GetDigester() const = 0;
+  // Returns the `DigesterBaseHandle`. Unchanged by `Close()`.
+  virtual DigesterBaseHandle GetDigester() const = 0;
 
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* SrcReader() const = 0;
@@ -64,6 +65,8 @@ class DigestingReaderBase : public Reader {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+
+  virtual void WriteToDigester(absl::string_view src) = 0;
 
   // Sets cursor of `src` to cursor of `*this`, digesting what has been read
   // from the buffer (until `cursor()`).
@@ -96,11 +99,9 @@ class DigestingReaderBase : public Reader {
 //
 // The `DigesterType` template parameter specifies the type of the object
 // providing and possibly owning the digester. `DigesterType` must support
-// `Dependency<DigesterBase*, DigesterType>` and must provide a member function
-// `DigestType Digest()` for some `DigestType`, e.g.
-// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
-// `std::unique_ptr<Digester<uint32_t>>` (owned),
-// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
+// `Dependency<DigesterBaseHandle, DigesterType>`, e.g.
+// `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
+// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
@@ -119,14 +120,13 @@ template <typename DigesterType, typename Src = Reader*>
 class DigestingReader : public DigestingReaderBase {
  public:
   // The type of the digest.
-  using DigestType = DigestTypeOf<DigesterType>;
+  using DigestType = DigestOf<DigesterType>;
 
   // Creates a closed `DigestingReader`.
   explicit DigestingReader(Closed) noexcept : DigestingReaderBase(kClosed) {}
 
-  // Will read from the original `Reader` provided by `src`, using the
-  // `DigesterBase` provided by `digester` or constructed from elements of
-  // `digester_args`.
+  // Will read from the original `Reader` provided by `src`, using the digester
+  // provided by `digester` or constructed from elements of`digester_args`.
   explicit DigestingReader(const Src& src, const DigesterType& digester);
   explicit DigestingReader(const Src& src, DigesterType&& digester);
   template <typename... DigesterArgs>
@@ -189,11 +189,11 @@ class DigestingReader : public DigestingReaderBase {
   // Digests buffered data if needed, and returns the digest.
   DigestType Digest();
 
-  // Returns the object providing and possibly owning the `DigesterBase`.
-  // Unchanged by `Close()`.
+  // Returns the object providing and possibly owning the digester. Unchanged by
+  // `Close()`.
   DigesterType& digester() { return digester_.manager(); }
   const DigesterType& digester() const { return digester_.manager(); }
-  DigesterBase* GetDigester() const override { return digester_.get(); }
+  DigesterBaseHandle GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
@@ -203,6 +203,9 @@ class DigestingReader : public DigestingReaderBase {
 
  protected:
   void Done() override;
+  void WriteToDigester(absl::string_view src) override {
+    digester_.get().Write(src);
+  }
   void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
   bool SyncImpl(SyncType sync_type) override;
@@ -212,8 +215,8 @@ class DigestingReader : public DigestingReaderBase {
   // to `*this`; adjust them to match `src_`.
   void MoveSrc(DigestingReader&& that);
 
-  // The object providing and possibly owning the `DigesterBase`.
-  Dependency<DigesterBase*, DigesterType> digester_;
+  // The object providing and possibly owning the digester.
+  Dependency<DigesterBaseHandle, DigesterType> digester_;
   // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
 };
@@ -267,23 +270,23 @@ explicit DigestingReader(std::tuple<SrcArgs...> src_args,
 //
 // The `DigesterType` template parameter specifies the type of the object
 // providing and possibly owning the digester. `DigesterType` must support
-// `Dependency<DigesterBase*, DigesterType&&>` and must provide a member
+// `Dependency<DigesterBaseHandle, DigesterType&&>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
-// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
-// `std::unique_ptr<Digester<uint32_t>>` (owned),
-// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
+// `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
+// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
-template <typename DigesterType, typename Src,
-          std::enable_if_t<absl::conjunction<
-                               IsValidDependency<DigesterBase*, DigesterType&&>,
-                               IsValidDependency<Reader*, Src&&>>::value,
-                           int> = 0>
-StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
+template <
+    typename DigesterType, typename Src,
+    std::enable_if_t<
+        absl::conjunction<IsValidDependency<DigesterBaseHandle, DigesterType&&>,
+                          IsValidDependency<Reader*, Src&&>>::value,
+        int> = 0>
+StatusOrMakerT<DigestOf<DigesterType&&>> DigestFromReader(
     Src&& src, DigesterType&& digester, Position* length_read = nullptr);
 
 // Implementation details follow.
@@ -309,8 +312,7 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(absl::string_view(start(), start_to_cursor()));
+    WriteToDigester(absl::string_view(start(), start_to_cursor()));
     src.set_cursor(cursor());
   }
 }
@@ -518,11 +520,11 @@ template <typename DigesterType, typename Src>
 inline typename DigestingReader<DigesterType, Src>::DigestType
 DigestingReader<DigesterType, Src>::Digest() {
   if (start_to_cursor() > 0) {
-    digester_->Write(absl::string_view(start(), start_to_cursor()));
+    digester_.get().Write(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
     src_->set_cursor(cursor());
   }
-  return digester_->Digest();
+  return digester_.get().Digest();
 }
 
 template <typename DigesterType, typename Src>
@@ -533,7 +535,7 @@ void DigestingReader<DigesterType, Src>::Done() {
       FailWithoutAnnotation(src_->status());
     }
   }
-  if (digester_.is_owning()) digester_->Close();
+  if (digester_.is_owning()) digester_.get().Close();
 }
 
 template <typename DigesterType, typename Src>
@@ -569,14 +571,15 @@ bool DigestingReader<DigesterType, Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-template <typename DigesterType, typename Src,
-          std::enable_if_t<absl::conjunction<
-                               IsValidDependency<DigesterBase*, DigesterType&&>,
-                               IsValidDependency<Reader*, Src&&>>::value,
-                           int>>
-inline StatusOrMakerT<DigestTypeOf<DigesterType&&>> DigestFromReader(
+template <
+    typename DigesterType, typename Src,
+    std::enable_if_t<
+        absl::conjunction<IsValidDependency<DigesterBaseHandle, DigesterType&&>,
+                          IsValidDependency<Reader*, Src&&>>::value,
+        int>>
+inline StatusOrMakerT<DigestOf<DigesterType&&>> DigestFromReader(
     Src&& src, DigesterType&& digester, Position* length_read) {
-  using DigestType = DigestTypeOf<DigesterType&&>;
+  using DigestType = DigestOf<DigesterType&&>;
   using Maker = StatusOrMaker<DigestType>;
   DigestingReader<DigesterType&&, Src&&> reader(
       std::forward<Src>(src), std::forward<DigesterType&&>(digester));

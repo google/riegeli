@@ -29,7 +29,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/digests/digester.h"
+#include "riegeli/digests/digester_handle.h"
 
 namespace riegeli {
 
@@ -69,7 +69,13 @@ bool DigestingWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
-  return WriteInternal(src);
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Writer& dest = *DestWriter();
+  SyncBuffer(dest);
+  WriteToDigester(src);
+  const bool write_ok = dest.Write(src);
+  MakeBuffer(dest);
+  return write_ok;
 }
 
 bool DigestingWriterBase::WriteSlow(const Chain& src) {
@@ -105,8 +111,8 @@ inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  DigesterBase* const digester = GetDigester();
-  digester->Write(src);
+  DigesterBaseHandle digester = GetDigester();
+  digester.Write(src);
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return write_ok;
@@ -119,8 +125,8 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  DigesterBase* const digester = GetDigester();
-  digester->WriteZeros(length);
+  DigesterBaseHandle digester = GetDigester();
+  digester.WriteZeros(length);
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;

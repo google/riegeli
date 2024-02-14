@@ -32,7 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/digests/digester.h"
+#include "riegeli/digests/digester_handle.h"
 
 namespace riegeli {
 
@@ -78,8 +78,7 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   size_t length_read;
   const bool read_ok = src.Read(length, dest, &length_read);
   if (length_read > 0) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(absl::string_view(dest, length_read));
+    WriteToDigester(absl::string_view(dest, length_read));
   }
   MakeBuffer(src);
   return read_ok;
@@ -98,8 +97,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
   Chain data;
   const bool read_ok = src.Read(length, data);
   if (!data.empty()) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(data);
+    DigesterBaseHandle digester = GetDigester();
+    digester.Write(data);
     dest.Append(std::move(data));
   }
   MakeBuffer(src);
@@ -119,8 +118,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   absl::Cord data;
   const bool read_ok = src.Read(length, data);
   if (!data.empty()) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(data);
+    DigesterBaseHandle digester = GetDigester();
+    digester.Write(data);
     dest.Append(std::move(data));
   }
   MakeBuffer(src);
@@ -148,8 +147,7 @@ bool DigestingReaderBase::ReadOrPullSomeSlow(
       },
       &length_read);
   if (length_read > 0) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(absl::string_view(dest, length_read));
+    WriteToDigester(absl::string_view(dest, length_read));
   }
   MakeBuffer(src);
   return read_ok;

@@ -6,12 +6,11 @@ package(
 licenses(["notice"])
 
 cc_library(
-    name = "digester",
-    srcs = ["digester.cc"],
-    hdrs = ["digester.h"],
+    name = "digester_handle",
+    srcs = ["digester_handle.cc"],
+    hdrs = ["digester_handle.h"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:type_traits",
@@ -27,11 +26,43 @@ cc_library(
 )
 
 cc_library(
+    name = "digester",
+    srcs = ["digester.cc"],
+    hdrs = ["digester.h"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:chain",
+        "//riegeli/base:type_traits",
+        "//riegeli/base:types",
+        "//riegeli/base:zeros",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "wrapping_digester",
+    hdrs = ["wrapping_digester.h"],
+    deps = [
+        ":digester",
+        ":digester_handle",
+        "//riegeli/base:dependency",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "digesting_reader",
     srcs = ["digesting_reader.cc"],
     hdrs = ["digesting_reader.h"],
     deps = [
-        ":digester",
+        ":digester_handle",
+        ":wrapping_digester",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
@@ -56,7 +87,7 @@ cc_library(
     srcs = ["digesting_writer.cc"],
     hdrs = ["digesting_writer.h"],
     deps = [
-        ":digester",
+        ":digester_handle",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",

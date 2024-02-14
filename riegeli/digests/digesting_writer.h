@@ -36,7 +36,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/null_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/digests/digester.h"
+#include "riegeli/digests/digester_handle.h"
 
 namespace riegeli {
 
@@ -45,8 +45,8 @@ class Reader;
 // Template parameter independent part of `DigestingWriter`.
 class DigestingWriterBase : public Writer {
  public:
-  // Returns the `DigesterBase`. Unchanged by `Close()`.
-  virtual DigesterBase* GetDigester() const = 0;
+  // Returns the `DigesterBaseHandle`. Unchanged by `Close()`.
+  virtual DigesterBaseHandle GetDigester() const = 0;
 
   // Returns the original `Writer`. Unchanged by `Close()`.
   virtual Writer* DestWriter() const = 0;
@@ -65,6 +65,8 @@ class DigestingWriterBase : public Writer {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
+
+  virtual void WriteToDigester(absl::string_view src) = 0;
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).
@@ -100,11 +102,9 @@ class DigestingWriterBase : public Writer {
 //
 // The `DigesterType` template parameter specifies the type of the object
 // providing and possibly owning the digester. `DigesterType` must support
-// `Dependency<DigesterBase*, DigesterType>` and must provide a member function
-// `DigestType Digest()` for some `DigestType`, e.g.
-// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
-// `std::unique_ptr<Digester<uint32_t>>` (owned),
-// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
+// `Dependency<DigesterBaseHandle, DigesterType>`, e.g.
+// `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
+// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the original `Writer`. `Dest` must support
@@ -124,14 +124,13 @@ template <typename DigesterType, typename Dest = Writer*>
 class DigestingWriter : public DigestingWriterBase {
  public:
   // The type of the digest.
-  using DigestType = DigestTypeOf<DigesterType>;
+  using DigestType = DigestOf<DigesterType>;
 
   // Creates a closed `DigestingWriter`.
   explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
 
-  // Will write to the original `Writer` provided by `dest`, using the
-  // `DigesterBase` provided by `digester` or constructed from elements of
-  // `digester_args`.
+  // Will write to the original `Writer` provided by `dest`, using the digester
+  // provided by `digester` or constructed from elements of `digester_args`.
   explicit DigestingWriter(const Dest& dest, const DigesterType& digester);
   explicit DigestingWriter(const Dest& dest, DigesterType&& digester);
   template <typename... DigesterArgs>
@@ -194,11 +193,11 @@ class DigestingWriter : public DigestingWriterBase {
   // Digests buffered data if needed, and returns the digest.
   DigestType Digest();
 
-  // Returns the object providing and possibly owning the `DigesterBase`.
-  // Unchanged by `Close()`.
+  // Returns the object providing and possibly owning the digester. Unchanged by
+  // `Close()`.
   DigesterType& digester() { return digester_.manager(); }
   const DigesterType& digester() const { return digester_.manager(); }
-  DigesterBase* GetDigester() const override { return digester_.get(); }
+  DigesterBaseHandle GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
@@ -208,6 +207,9 @@ class DigestingWriter : public DigestingWriterBase {
 
  protected:
   void Done() override;
+  void WriteToDigester(absl::string_view src) override {
+    digester_.get().Write(src);
+  }
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
@@ -216,8 +218,8 @@ class DigestingWriter : public DigestingWriterBase {
   // `dest_` to `*this`; adjust them to match `dest_`.
   void MoveDest(DigestingWriter&& that);
 
-  // The object providing and possibly owning the `DigesterBase`.
-  Dependency<DigesterBase*, DigesterType> digester_;
+  // The object providing and possibly owning the digester.
+  Dependency<DigesterBaseHandle, DigesterType> digester_;
   // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
@@ -270,20 +272,19 @@ explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
 //
 // `DigesterType` specifies the type of the object providing and possibly owning
 // the digester. `DigesterType` must support
-// `Dependency<DigesterBase*, DigesterType&&>` and must provide a member
+// `Dependency<DigesterBaseHandle, DigesterType&&>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
-// `Digester<uint32_t>*` (not owned), `Crc32cDigester` (owned),
-// `std::unique_ptr<Digester<uint32_t>>` (owned),
-// `AnyDependency<Digester<uint32_t>*>` (maybe owned).
+// `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
+// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 template <
     typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            IsValidDependency<DigesterBase*, GetTypeFromEndT<1, Args&&...>>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
-        int> = 0>
-DigestTypeOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args);
+    std::enable_if_t<absl::conjunction<
+                         IsValidDependency<DigesterBaseHandle,
+                                           GetTypeFromEndT<1, Args&&...>>,
+                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                              IsStringifiable>>::value,
+                     int> = 0>
+DigestOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args);
 
 // Implementation details follow.
 
@@ -308,8 +309,7 @@ inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
       << "Failed invariant of DigestingWriterBase: "
          "cursor of the original Writer changed unexpectedly";
   if (start_to_cursor() > 0) {
-    DigesterBase* const digester = GetDigester();
-    digester->Write(absl::string_view(start(), start_to_cursor()));
+    WriteToDigester(absl::string_view(start(), start_to_cursor()));
     dest.set_cursor(cursor());
   }
 }
@@ -523,19 +523,19 @@ void DigestingWriter<DigesterType, Dest>::Done() {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  if (digester_.is_owning()) digester_->Close();
+  if (digester_.is_owning()) digester_.get().Close();
 }
 
 template <typename DigesterType, typename Dest>
 inline typename DigestingWriter<DigesterType, Dest>::DigestType
 DigestingWriter<DigesterType, Dest>::Digest() {
   if (start_to_cursor() > 0) {
-    digester_->Write(absl::string_view(start(), start_to_cursor()));
+    digester_.get().Write(absl::string_view(start(), start_to_cursor()));
     set_start_pos(pos());
     set_buffer(cursor(), available());
     dest_->set_cursor(cursor());
   }
-  return digester_->Digest();
+  return digester_.get().Digest();
 }
 
 template <typename DigesterType, typename Dest>
@@ -563,43 +563,46 @@ bool DigestingWriter<DigesterType, Dest>::FlushImpl(FlushType flush_type) {
 namespace digesting_writer_internal {
 
 template <typename T, typename Enable = void>
-struct SupportedByDigester : std::false_type {};
+struct SupportedByDigesterHandle : std::false_type {};
+
 template <typename T>
-struct SupportedByDigester<
-    T, absl::void_t<decltype(std::declval<DigesterBase&>().Write(
+struct SupportedByDigesterHandle<
+    T, absl::void_t<decltype(std::declval<DigesterBaseHandle&>().Write(
            std::declval<const T&>()))>> : std::true_type {};
 
 template <size_t index, typename... Srcs,
           std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void WriteTuple(
     ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs,
-    ABSL_ATTRIBUTE_UNUSED DigesterBase& digester) {}
+    ABSL_ATTRIBUTE_UNUSED DigesterBaseHandle digester) {}
 
 template <size_t index, typename... Srcs,
           std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void WriteTuple(
-    const std::tuple<Srcs...>& srcs, DigesterBase& digester) {
+    const std::tuple<Srcs...>& srcs, DigesterBaseHandle digester) {
   digester.Write(std::get<index>(srcs));
   WriteTuple<index + 1>(srcs, digester);
 }
 
-template <typename DigesterType, typename... Srcs,
-          std::enable_if_t<
-              absl::conjunction<SupportedByDigester<Srcs>...>::value, int> = 0>
-inline DigestTypeOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
-                                                   DigesterType&& digester) {
-  Dependency<DigesterBase*, DigesterType&&> digester_dep(
+template <
+    typename DigesterType, typename... Srcs,
+    std::enable_if_t<
+        absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
+inline DigestOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
+                                               DigesterType&& digester) {
+  Dependency<DigesterBaseHandle, DigesterType&&> digester_dep(
       std::forward<DigesterType>(digester));
-  WriteTuple<0>(srcs, *digester_dep);
-  if (digester_dep.is_owning()) digester_dep->Close();
-  return digester_dep->Digest();
+  WriteTuple<0>(srcs, digester_dep.get());
+  if (digester_dep.is_owning()) digester_dep.get().Close();
+  return digester_dep.get().Digest();
 }
 
-template <typename DigesterType, typename... Srcs,
-          std::enable_if_t<
-              !absl::conjunction<SupportedByDigester<Srcs>...>::value, int> = 0>
-inline DigestTypeOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
-                                                   DigesterType&& digester) {
+template <
+    typename DigesterType, typename... Srcs,
+    std::enable_if_t<
+        !absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
+inline DigestOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
+                                               DigesterType&& digester) {
   DigestingWriter<DigesterType&&, NullWriter> writer(
       std::forward_as_tuple(), std::forward<DigesterType>(digester));
   writer.WriteTuple(srcs);
@@ -614,13 +617,13 @@ inline DigestTypeOf<DigesterType&&> DigestFromImpl(std::tuple<Srcs...> srcs,
 
 template <
     typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            IsValidDependency<DigesterBase*, GetTypeFromEndT<1, Args&&...>>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
-        int>>
-DigestTypeOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args) {
+    std::enable_if_t<absl::conjunction<
+                         IsValidDependency<DigesterBaseHandle,
+                                           GetTypeFromEndT<1, Args&&...>>,
+                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                              IsStringifiable>>::value,
+                     int>>
+DigestOf<GetTypeFromEndT<1, Args&&...>> DigestFrom(Args&&... args) {
   return digesting_writer_internal::DigestFromImpl(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
