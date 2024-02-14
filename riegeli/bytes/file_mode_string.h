@@ -83,7 +83,7 @@ void SetTextWriting(bool text, std::string& mode);
 // `_O_TEXT` / 0.
 int GetTextAsFlags(absl::string_view mode);
 
-#endif
+#endif  // _WIN32
 
 // Implementation details follow.
 

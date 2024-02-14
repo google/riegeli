@@ -57,7 +57,7 @@ inline int FStat(int fd, StatInfo* stat_info) { return fstat(fd, stat_info); }
 
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "fstat()");
 
-#else
+#else  // _WIN32
 
 using Offset = __int64;
 
@@ -77,7 +77,7 @@ inline int FStat(int fd, StatInfo* stat_info) {
 
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "_fstat64()");
 
-#endif
+#endif  // _WIN32
 
 }  // namespace fd_internal
 }  // namespace riegeli

@@ -100,7 +100,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
   }
 #ifdef _WIN32
   int text_mode = file_internal::GetTextAsFlags(options.mode());
-#endif
+#endif  // _WIN32
   if (mode_was_passed_to_fopen) {
     if (!file_internal::GetRead(options.mode())) {
       supports_read_mode_ = LazyBoolState::kFalse;
@@ -143,7 +143,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
     }
     if (text_mode != _O_BINARY) options.set_assumed_pos(0);
   }
-#endif
+#endif  // _WIN32
   if (options.assumed_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *options.assumed_pos() >
@@ -214,7 +214,7 @@ void CFileWriterBase::Done() {
       FailOperation("_setmode()");
     }
   }
-#endif
+#endif  // _WIN32
   random_access_status_ = absl::OkStatus();
   read_mode_status_.Update(absl::OkStatus());
   associated_reader_.Reset();
@@ -249,7 +249,7 @@ inline absl::Status CFileWriterBase::SizeStatus() {
     // recognize them, so `CFileWriter` checks the filename.
     return absl::UnimplementedError("/sys files do not support random access");
   }
-#endif
+#endif  // !_WIN32
   FILE* const dest = DestFile();
   if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     // Not supported.
@@ -279,7 +279,7 @@ inline absl::Status CFileWriterBase::SizeStatus() {
     return absl::UnimplementedError(
         "/proc files claiming zero size do not support random access");
   }
-#endif
+#endif  // !_WIN32
   // Supported.
   return absl::OkStatus();
 }
@@ -312,9 +312,9 @@ bool CFileWriterBase::SupportsTruncate() {
   FILE* const dest = DestFile();
 #ifndef _WIN32
   return fileno(dest) >= 0;
-#else
+#else   // _WIN32
   return _fileno(dest) >= 0;
-#endif
+#endif  // _WIN32
 }
 
 bool CFileWriterBase::SupportsReadMode() {
@@ -493,10 +493,10 @@ bool CFileWriterBase::TruncateBehindBuffer(Position new_size) {
 #ifndef _WIN32
   const int fd = fileno(dest);
   if (ABSL_PREDICT_FALSE(fd < 0)) return FailOperation("fileno()");
-#else
+#else   // _WIN32
   const int fd = _fileno(dest);
   if (ABSL_PREDICT_FALSE(fd < 0)) return FailOperation("_fileno()");
-#endif
+#endif  // _WIN32
   if (new_size >= start_pos()) {
     // Seeking forwards.
     if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
@@ -518,11 +518,11 @@ again:
     if (errno == EINTR) goto again;
     return FailOperation("ftruncate()");
   }
-#else
+#else   // _WIN32
   if (ABSL_PREDICT_FALSE(_chsize_s(fd, IntCast<__int64>(new_size)) != 0)) {
     return FailOperation("_chsize_s()");
   }
-#endif
+#endif  // _WIN32
   if (ABSL_PREDICT_FALSE(
           cfile_internal::FSeek(dest, IntCast<cfile_internal::Offset>(new_size),
                                 SEEK_SET) != 0)) {

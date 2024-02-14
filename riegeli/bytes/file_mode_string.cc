@@ -219,7 +219,7 @@ inline void SetTextImpl(bool text, std::string& mode) {
     while (mode.size() > position && mode[position] == '+') ++position;
     mode.insert(position, to_add);
   }
-#endif
+#endif  // _WIN32
 }
 
 }  // namespace
@@ -245,7 +245,7 @@ int GetTextAsFlags(absl::string_view mode) {
   return 0;
 }
 
-#endif
+#endif  // _WIN32
 
 }  // namespace file_internal
 }  // namespace riegeli

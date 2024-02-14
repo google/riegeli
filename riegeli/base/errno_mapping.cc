@@ -110,7 +110,7 @@ absl::StatusCode WindowsErrorToStatusCode(DWORD error_number) {
 
 }  // namespace
 
-#endif
+#endif  // _WIN32
 
 int StatusCodeToErrno(absl::StatusCode status_code) {
   switch (status_code) {
@@ -165,7 +165,6 @@ int StatusCodeToErrno(absl::StatusCode status_code) {
 }
 
 #ifdef _WIN32
-
 absl::Status WindowsErrorToStatus(uint32_t error_number,
                                   absl::string_view message) {
   LPWSTR os_message;
@@ -182,7 +181,6 @@ absl::Status WindowsErrorToStatus(uint32_t error_number,
   LocalFree(os_message);
   return status;
 }
-
-#endif
+#endif  // _WIN32
 
 }  // namespace riegeli

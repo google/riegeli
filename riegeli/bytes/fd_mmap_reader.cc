@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/base/attributes.h"
 #ifndef _WIN32
 
 // Make `posix_fadvise()` available.
@@ -30,9 +31,9 @@
 
 #endif
 
-#include "riegeli/bytes/fd_mmap_reader.h"
-
 #include <fcntl.h>
+
+#include "riegeli/bytes/fd_mmap_reader.h"
 #ifdef _WIN32
 #include <io.h>
 #include <share.h>
@@ -107,7 +108,7 @@ struct HandleDeleter {
 
 using UniqueHandle = std::unique_ptr<void, HandleDeleter>;
 
-#endif
+#endif  // _WIN32
 
 #ifndef _WIN32
 
@@ -119,7 +120,7 @@ inline absl::StatusOr<Position> GetPageSize() {
   return IntCast<Position>(page_size);
 }
 
-#else
+#else  // _WIN32
 
 inline Position GetPageSize() {
   SYSTEM_INFO system_info;
@@ -127,7 +128,7 @@ inline Position GetPageSize() {
   return IntCast<Position>(system_info.dwAllocationGranularity);
 }
 
-#endif
+#endif  // _WIN32
 
 #ifndef _WIN32
 
@@ -145,7 +146,8 @@ struct HavePosixFadvise<
 
 template <typename FirstArg,
           std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
 #ifdef POSIX_FADV_SEQUENTIAL
   posix_fadvise(src, 0, 0,
                 read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
@@ -154,9 +156,10 @@ inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
 
 template <typename FirstArg,
           std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {}
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {}
 
-#endif
+#endif  // !_WIN32
 
 class MMapRef {
  public:
@@ -181,12 +184,12 @@ void MMapRef::operator()(absl::string_view data) const {
                           data.size() + PtrDistance(addr_, data.data())),
                    0)
       << absl::ErrnoToStatus(errno, "munmap() failed").message();
-#else
+#else   // _WIN32
   RIEGELI_CHECK(UnmapViewOfFile(addr_))
       << WindowsErrorToStatus(IntCast<uint32_t>(GetLastError()),
                               "UnmapViewOfFile() failed")
              .message();
-#endif
+#endif  // _WIN32
 }
 
 void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
@@ -245,10 +248,10 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
       return;
     }
     rounded_base_pos &= ~(**kPageSize - 1);
-#else
+#else   // _WIN32
     static const Position kPageSize = GetPageSize();
     rounded_base_pos &= ~(kPageSize - 1);
-#endif
+#endif  // _WIN32
   }
   const Position rounding = base_pos - rounded_base_pos;
   const Position rounded_length = length + rounding;
@@ -263,7 +266,7 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
     FailOperation("mmap()");
     return;
   }
-#else
+#else   // _WIN32
   const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(src));
   if (ABSL_PREDICT_FALSE(file_handle == INVALID_HANDLE_VALUE ||
                          file_handle == reinterpret_cast<HANDLE>(-2))) {
@@ -285,7 +288,7 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
     FailWindowsOperation("MapViewOfFile()");
     return;
   }
-#endif
+#endif  // _WIN32
 
   // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
   // Set it now.
@@ -322,7 +325,7 @@ bool FdMMapReaderBase::FailWindowsOperation(absl::string_view operation) {
                                    absl::StrCat(operation, " failed")));
 }
 
-#endif
+#endif  // _WIN32
 
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (!filename_.empty()) {
@@ -340,7 +343,7 @@ void FdMMapReaderBase::SetReadAllHintImpl(bool read_all_hint) {
   FdSetReadAllHint(src, read_all_hint);
 }
 
-#endif
+#endif  // !_WIN32
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;

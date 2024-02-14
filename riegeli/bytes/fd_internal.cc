@@ -37,7 +37,7 @@ void FilenameForFd(int fd, std::string& filename) {
       filename.clear();
       absl::StrAppend(&filename, "/proc/self/fd/", fd);
       break;
-#else
+#else   // _WIN32
     case 0:
       filename = "CONIN$";
       break;
@@ -51,7 +51,7 @@ void FilenameForFd(int fd, std::string& filename) {
       filename.clear();
       absl::StrAppend(&filename, "<fd ", fd, ">");
       break;
-#endif
+#endif  // _WIN32
   }
 }
 

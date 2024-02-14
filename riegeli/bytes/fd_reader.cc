@@ -60,6 +60,7 @@
 #endif
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #ifndef _WIN32
 #include "absl/meta/type_traits.h"
@@ -140,7 +141,7 @@ inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
   return -1;
 }
 
-#endif
+#endif  // !RIEGELI_DISABLE_COPY_FILE_RANGE
 
 // `posix_fadvise()` is supported by POSIX systems but not MacOS.
 
@@ -156,7 +157,8 @@ struct HavePosixFadvise<
 
 template <typename FirstArg,
           std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
 #ifdef POSIX_FADV_SEQUENTIAL
   posix_fadvise(src, 0, 0,
                 read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
@@ -165,7 +167,8 @@ inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {
 
 template <typename FirstArg,
           std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(FirstArg src, bool read_all_hint) {}
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {}
 
 }  // namespace
 
@@ -236,7 +239,7 @@ void FdReaderBase::InitializePos(int src, Options&& options
       options.set_assumed_pos(0);
     }
   }
-#endif
+#endif  // _WIN32
   if (options.assumed_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
       Fail(absl::InvalidArgumentError(
@@ -289,7 +292,7 @@ void FdReaderBase::InitializePos(int src, Options&& options
       random_access_status_ =
           absl::UnimplementedError("/sys files do not support random access");
     } else
-#endif
+#endif  // !_WIN32
     {
       const fd_internal::Offset file_size =
           fd_internal::LSeek(src, 0, SEEK_END);
@@ -323,7 +326,7 @@ void FdReaderBase::Done() {
       FailOperation("_setmode()");
     }
   }
-#endif
+#endif  // _WIN32
   random_access_status_ = absl::OkStatus();
 }
 
@@ -351,7 +354,7 @@ bool FdReaderBase::FailWindowsOperation(absl::string_view operation) {
                                    absl::StrCat(operation, " failed")));
 }
 
-#endif
+#endif  // _WIN32
 
 absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
   if (!filename_.empty()) {
@@ -369,7 +372,7 @@ void FdReaderBase::SetReadAllHintImpl(bool read_all_hint) {
   FdSetReadAllHint(src, read_all_hint);
 }
 
-#endif
+#endif  // !_WIN32
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                 char* dest) {
@@ -406,7 +409,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       if (errno == EINTR) goto again;
       return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
-#else
+#else   // _WIN32
     DWORD length_read;
     if (has_independent_pos_) {
       const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(src));
@@ -439,7 +442,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       }
       length_read = IntCast<DWORD>(length_read_int);
     }
-#endif
+#endif  // _WIN32
     if (ABSL_PREDICT_FALSE(length_read == 0)) {
       if (!growing_source_) set_exact_size(limit_pos());
       return false;
@@ -523,11 +526,11 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
       }
     }
   }
-#endif
+#endif  // !RIEGELI_DISABLE_COPY_FILE_RANGE
   return BufferedReader::CopyInternal(length, dest);
 }
 
-#endif
+#endif  // !_WIN32
 
 inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
   RIEGELI_ASSERT_EQ(available(), 0u)

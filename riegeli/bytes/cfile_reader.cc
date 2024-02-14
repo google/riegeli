@@ -168,7 +168,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
     }
     if (text_mode != _O_BINARY) options.set_assumed_pos(0);
   }
-#endif
+#endif  // _WIN32
   if (options.assumed_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *options.assumed_pos() >
@@ -203,7 +203,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
       random_access_status_ =
           absl::UnimplementedError("/sys files do not support random access");
     } else
-#endif
+#endif  // !_WIN32
     {
       FILE* const src = SrcFile();
       if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
@@ -236,7 +236,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
           random_access_status_ = absl::UnimplementedError(
               "/proc files claiming zero size do not support random access");
         } else
-#endif
+#endif  // !_WIN32
         {
           // Supported.
           supports_random_access_ = true;
@@ -260,7 +260,7 @@ void CFileReaderBase::Done() {
       FailOperation("_setmode()");
     }
   }
-#endif
+#endif  // !_WIN32
   random_access_status_ = absl::OkStatus();
 }
 

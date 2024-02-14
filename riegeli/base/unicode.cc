@@ -83,4 +83,4 @@ std::string WideToUtf8Lossy(absl::Span<const wchar_t> src) {
 
 }  // namespace riegeli
 
-#endif
+#endif  // _WIN32

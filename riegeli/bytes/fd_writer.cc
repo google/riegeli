@@ -121,7 +121,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
         absl::UnimplementedError("Mode does not include O_RDWR"));
     read_mode_status_ = *status;
   }
-#else
+#else   // _WIN32
   RIEGELI_ASSERT(original_mode_ == absl::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
@@ -164,7 +164,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
       options.set_assumed_pos(0);
     }
   }
-#endif
+#endif  // _WIN32
   if (options.assumed_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
       Fail(absl::InvalidArgumentError(
@@ -253,7 +253,7 @@ void FdWriterBase::Done() {
       FailOperation("_setmode()");
     }
   }
-#endif
+#endif  // _WIN32
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
   associated_reader_.Reset();
@@ -288,7 +288,7 @@ bool FdWriterBase::FailWindowsOperation(absl::string_view operation) {
   return Fail(FailedWindowsOperationStatus(operation));
 }
 
-#endif
+#endif  // _WIN32
 
 absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (!filename_.empty()) {
@@ -309,7 +309,7 @@ inline absl::Status FdWriterBase::SizeStatus() {
     // recognized by a failing `fd_internal::LSeek(SEEK_END)`.
     return absl::UnimplementedError("/sys files do not support random access");
   }
-#endif
+#endif  // !_WIN32
   const int dest = DestFd();
   if (fd_internal::LSeek(dest, 0, SEEK_END) < 0) {
     // Not supported.
@@ -371,7 +371,7 @@ bool FdWriterBase::SupportsReadMode() {
   supports_random_access_ = LazyBoolState::kTrue;
   supports_read_mode_ = LazyBoolState::kTrue;
   return true;
-#else
+#else   // _WIN32
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (supports_random_access_ == LazyBoolState::kUnknown) {
     // It is unknown whether even size is supported.
@@ -436,7 +436,7 @@ bool FdWriterBase::SupportsReadMode() {
     }
     return supports_read_mode_ == LazyBoolState::kTrue;
   }
-#endif
+#endif  // _WIN32
 }
 
 inline bool FdWriterBase::WriteMode() {
@@ -478,7 +478,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       if (errno == EINTR) goto again;
       return FailOperation(has_independent_pos_ ? "pwrite()" : "write()");
     }
-#else
+#else   // _WIN32
     DWORD length_written;
     if (has_independent_pos_) {
       const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(dest));
@@ -505,7 +505,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       }
       length_written = IntCast<DWORD>(length_written_int);
     }
-#endif
+#endif  // _WIN32
     RIEGELI_ASSERT_GT(length_written, 0)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pwrite()" : "write()")
@@ -573,11 +573,11 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
       if (ABSL_PREDICT_FALSE(fsync(dest) < 0)) {
         return FailOperation("fsync()");
       }
-#else
+#else   // _WIN32
       if (ABSL_PREDICT_FALSE(_commit(dest) < 0)) {
         return FailOperation("_commit()");
       }
-#endif
+#endif  // _WIN32
       return true;
     }
   }
@@ -672,12 +672,12 @@ again:
     if (errno == EINTR) goto again;
     return FailOperation("ftruncate()");
   }
-#else
+#else   // _WIN32
   if (ABSL_PREDICT_FALSE(
           _chsize_s(dest, IntCast<fd_internal::Offset>(new_size)) != 0)) {
     return FailOperation("_chsize_s()");
   }
-#endif
+#endif  // _WIN32
   return true;
 }
 

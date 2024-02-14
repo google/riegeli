@@ -30,11 +30,9 @@ namespace riegeli {
 int StatusCodeToErrno(absl::StatusCode status_code);
 
 #ifdef _WIN32
-
 absl::Status WindowsErrorToStatus(uint32_t error_number,
                                   absl::string_view message);
-
-#endif
+#endif  // _WIN32
 
 }  // namespace riegeli
 
