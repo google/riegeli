@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/base/attributes.h"
 #ifndef _WIN32
 
 // Make `posix_fadvise()` available.
@@ -31,9 +30,9 @@
 
 #endif
 
-#include <fcntl.h>
-
 #include "riegeli/bytes/fd_mmap_reader.h"
+
+#include <fcntl.h>
 #ifdef _WIN32
 #include <io.h>
 #include <share.h>
@@ -64,6 +63,7 @@
 #endif
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #ifndef _WIN32
 #include "absl/meta/type_traits.h"
