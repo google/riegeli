@@ -54,13 +54,10 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/no_destructor.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
-#ifdef _WIN32
-#include "riegeli/base/unicode.h"
-#endif
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/cfile_internal.h"
 #include "riegeli/bytes/cfile_reader.h"
 #include "riegeli/bytes/file_mode_string.h"
@@ -76,44 +73,6 @@ void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
     cfile_internal::FilenameForCFile(dest, filename_);
   }
   InitializePos(dest, std::move(options), /*mode_was_passed_to_fopen=*/false);
-}
-
-FILE* CFileWriterBase::OpenFile(absl::string_view filename,
-                                const std::string& mode) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
-#ifndef _WIN32
-  absl::string_view failed_function_name;
-  FILE* const dest = cfile_internal::FOpen(filename_.c_str(), mode.c_str(),
-                                           failed_function_name);
-  if (ABSL_PREDICT_FALSE(dest == nullptr)) {
-    BufferedWriter::Reset(kClosed);
-    FailOperation(failed_function_name);
-    return nullptr;
-  }
-#else
-  std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
-    BufferedWriter::Reset(kClosed);
-    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
-    return nullptr;
-  }
-  std::wstring mode_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode, mode_wide))) {
-    BufferedWriter::Reset(kClosed);
-    Fail(absl::InvalidArgumentError(
-        absl::StrCat("Mode not valid UTF-8: ", mode)));
-    return nullptr;
-  }
-  FILE* const dest = _wfopen(filename_wide.c_str(), mode_wide.c_str());
-  if (ABSL_PREDICT_FALSE(dest == nullptr)) {
-    BufferedWriter::Reset(kClosed);
-    FailOperation("_wfopen()");
-    return nullptr;
-  }
-#endif
-  return dest;
 }
 
 void CFileWriterBase::InitializePos(FILE* dest, Options&& options,

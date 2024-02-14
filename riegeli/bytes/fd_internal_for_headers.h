@@ -19,38 +19,22 @@
 #include <fcntl.h>
 #endif
 
-#include "absl/strings/string_view.h"
-#include "riegeli/base/constexpr.h"
+#include "riegeli/base/constexpr.h"  // IWYU pragma: keep
 
 namespace riegeli {
 namespace fd_internal {
 
-#ifdef __APPLE__
+#ifndef _WIN32
+#ifndef __APPLE__
+RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, O_CLOEXEC);
+#else   // __APPLE__
 // On Darwin `O_CLOEXEC` is available conditionally, so `kCloseOnExec` is
 // defined out of line.
 extern const int kCloseOnExec;
-#else
-#ifndef _WIN32
-RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, O_CLOEXEC);
-#else
+#endif  // __APPLE__
+#else   // _WIN32
 RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, _O_NOINHERIT);
-#endif
-#endif
-
-// Closes a file descriptor, taking interruption by signals into account.
-//
-// Return value:
-//  * 0  - success
-//  * -1 - failure (`errno` is set, `fd` is closed anyway)
-int Close(int fd);
-
-#ifndef _WIN32
-// Not on Windows `posix_close()` is available conditionally, so
-// `kFStatFunctionName` is defined out of line.
-extern const absl::string_view kCloseFunctionName;
-#else
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName, "close()");
-#endif
+#endif  // _WIN32
 
 }  // namespace fd_internal
 }  // namespace riegeli

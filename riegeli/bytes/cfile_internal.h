@@ -28,9 +28,6 @@
 #include <type_traits>
 #include <utility>
 
-#ifndef __APPLE__
-#include "absl/base/optimization.h"
-#endif
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/constexpr.h"
@@ -45,24 +42,6 @@ namespace cfile_internal {
 void FilenameForCFile(FILE* file, std::string& filename);
 
 #ifndef _WIN32
-
-#ifdef __APPLE__
-
-// Emulate `fopen()` with `open()` + `fdopen()`, adding support for 'e'
-// (`O_CLOEXEC`).
-FILE* FOpen(const char* filename, const char* mode,
-            absl::string_view& failed_function_name);
-
-#else
-
-inline FILE* FOpen(const char* filename, const char* mode,
-                   absl::string_view& failed_function_name) {
-  FILE* file = ::fopen(filename, mode);
-  if (ABSL_PREDICT_FALSE(file == nullptr)) failed_function_name = "fopen()";
-  return file;
-}
-
-#endif
 
 // Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
 // `ftell()`.
@@ -105,7 +84,7 @@ inline Offset FTell(File* file) {
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName,
                          HaveFSeekO<FILE>::value ? "ftello()" : "ftell()");
 
-#else
+#else  // _WIN32
 
 using Offset = __int64;
 
@@ -119,7 +98,7 @@ inline Offset FTell(FILE* file) { return _ftelli64(file); }
 
 RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName, "_ftelli64()");
 
-#endif
+#endif  // _WIN32
 
 }  // namespace cfile_internal
 }  // namespace riegeli

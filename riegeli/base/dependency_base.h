@@ -41,11 +41,6 @@ namespace riegeli {
 
 inline std::tuple<> RiegeliDependencySentinel(void*) { return {}; }
 
-// Specialization of `RiegeliDependencySentinel(int*)`, used for file
-// descriptors.
-
-inline int RiegeliDependencySentinel(int*) { return -1; }
-
 // Implementation shared between most specializations of `DependencyManagerImpl`
 // and `DependencyImpl` which store `manager()` in a member variable.
 //

@@ -54,12 +54,8 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/no_destructor.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
-#ifdef _WIN32
-#include "riegeli/base/unicode.h"
-#endif
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_internal.h"
 
@@ -114,44 +110,6 @@ void CFileReaderBase::Initialize(FILE* src, Options&& options) {
                 /*mode_was_passed_to_fopen=*/false
 #endif
   );
-}
-
-FILE* CFileReaderBase::OpenFile(absl::string_view filename,
-                                const std::string& mode) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
-#ifndef _WIN32
-  absl::string_view failed_function_name;
-  FILE* const src = cfile_internal::FOpen(filename_.c_str(), mode.c_str(),
-                                          failed_function_name);
-  if (ABSL_PREDICT_FALSE(src == nullptr)) {
-    BufferedReader::Reset(kClosed);
-    FailOperation(failed_function_name);
-    return nullptr;
-  }
-#else
-  std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
-    BufferedReader::Reset(kClosed);
-    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
-    return nullptr;
-  }
-  std::wstring mode_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode, mode_wide))) {
-    BufferedReader::Reset(kClosed);
-    Fail(absl::InvalidArgumentError(
-        absl::StrCat("Mode not valid UTF-8: ", mode)));
-    return nullptr;
-  }
-  FILE* const src = _wfopen(filename_wide.c_str(), mode_wide.c_str());
-  if (ABSL_PREDICT_FALSE(src == nullptr)) {
-    BufferedReader::Reset(kClosed);
-    FailOperation("_wfopen()");
-    return nullptr;
-  }
-#endif
-  return src;
 }
 
 void CFileReaderBase::InitializePos(FILE* src, Options&& options

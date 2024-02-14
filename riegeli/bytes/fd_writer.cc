@@ -66,14 +66,11 @@
 #include "riegeli/base/errno_mapping.h"
 #endif
 #include "riegeli/base/no_destructor.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
-#ifdef _WIN32
-#include "riegeli/base/unicode.h"
-#endif
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -90,48 +87,6 @@ void FdWriterBase::Initialize(int dest, Options&& options) {
     fd_internal::FilenameForFd(dest, filename_);
   }
   InitializePos(dest, std::move(options), /*mode_was_passed_to_open=*/false);
-}
-
-int FdWriterBase::OpenFd(absl::string_view filename, int mode,
-                         Options::Permissions permissions) {
-#ifndef _WIN32
-  RIEGELI_ASSERT((mode & O_ACCMODE) == O_WRONLY || (mode & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdWriter: "
-         "mode must include either O_WRONLY or O_RDWR";
-#else
-  RIEGELI_ASSERT((mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_WRONLY ||
-                 (mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDWR)
-      << "Failed precondition of FdWriter: "
-         "mode must include either _O_WRONLY or _O_RDWR";
-#endif
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
-#ifndef _WIN32
-again:
-  const int dest = open(filename_.c_str(), mode, permissions);
-  if (ABSL_PREDICT_FALSE(dest < 0)) {
-    if (errno == EINTR) goto again;
-    BufferedWriter::Reset(kClosed);
-    FailOperation("open()");
-    return -1;
-  }
-#else
-  std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
-    BufferedWriter::Reset(kClosed);
-    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
-    return -1;
-  }
-  int dest;
-  if (ABSL_PREDICT_FALSE(_wsopen_s(&dest, filename_wide.c_str(), mode,
-                                   _SH_DENYNO, permissions) != 0)) {
-    BufferedWriter::Reset(kClosed);
-    FailOperation("_wsopen_s()");
-    return -1;
-  }
-#endif
-  return dest;
 }
 
 void FdWriterBase::InitializePos(int dest, Options&& options,

@@ -77,13 +77,10 @@
 #include "riegeli/base/errno_mapping.h"
 #endif
 #include "riegeli/base/no_destructor.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
-#ifdef _WIN32
-#include "riegeli/base/unicode.h"
-#endif
 #include "riegeli/bytes/buffered_reader.h"
+#include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal.h"
 #ifndef _WIN32
 #include "riegeli/bytes/fd_writer.h"
@@ -186,47 +183,6 @@ void FdReaderBase::Initialize(int src, Options&& options) {
                 /*mode_was_passed_to_open=*/false
 #endif
   );
-}
-
-int FdReaderBase::OpenFd(absl::string_view filename, int mode) {
-#ifndef _WIN32
-  RIEGELI_ASSERT((mode & O_ACCMODE) == O_RDONLY || (mode & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdReader: "
-         "mode must include either O_RDONLY or O_RDWR";
-#else
-  RIEGELI_ASSERT((mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDONLY ||
-                 (mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) == _O_RDWR)
-      << "Failed precondition of FdReader: "
-         "mode must include either _O_RDONLY or _O_RDWR";
-#endif
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
-#ifndef _WIN32
-again:
-  const int src = open(filename_.c_str(), mode, 0666);
-  if (ABSL_PREDICT_FALSE(src < 0)) {
-    if (errno == EINTR) goto again;
-    BufferedReader::Reset(kClosed);
-    FailOperation("open()");
-    return -1;
-  }
-#else
-  std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename_, filename_wide))) {
-    BufferedReader::Reset(kClosed);
-    Fail(absl::InvalidArgumentError("Filename not valid UTF-8"));
-    return -1;
-  }
-  int src;
-  if (ABSL_PREDICT_FALSE(_wsopen_s(&src, filename_wide.c_str(), mode,
-                                   _SH_DENYNO, _S_IREAD) != 0)) {
-    BufferedReader::Reset(kClosed);
-    FailOperation("_wsopen_s()");
-    return -1;
-  }
-#endif
-  return src;
 }
 
 void FdReaderBase::InitializePos(int src, Options&& options

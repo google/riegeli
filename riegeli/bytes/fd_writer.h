@@ -39,7 +39,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/fd_dependency.h"  // IWYU pragma: export
+#include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal_for_headers.h"
 #include "riegeli/bytes/writer.h"
 
@@ -54,12 +54,6 @@ class FdWriterBase : public BufferedWriter {
  public:
   class Options : public BufferOptionsBase<Options> {
    public:
-#ifndef _WIN32
-    using Permissions = mode_t;
-#else
-    using Permissions = int;
-#endif
-
     Options() noexcept {}
 
     // `assumed_filename()` allows to override the filename which is included in
@@ -305,14 +299,14 @@ class FdWriterBase : public BufferedWriter {
     // effective permissions are modified by the process' umask.
     //
     // Default: `0666` (on Windows: `_S_IREAD | _S_IWRITE`).
-    Options& set_permissions(Permissions permissions) & {
+    Options& set_permissions(OwnedFd::Permissions permissions) & {
       permissions_ = permissions;
       return *this;
     }
-    Options&& set_permissions(Permissions permissions) && {
+    Options&& set_permissions(OwnedFd::Permissions permissions) && {
       return std::move(set_permissions(permissions));
     }
-    Permissions permissions() const { return permissions_; }
+    OwnedFd::Permissions permissions() const { return permissions_; }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
     // to the current fd position if possible, otherwise 0 is assumed as the
@@ -365,15 +359,17 @@ class FdWriterBase : public BufferedWriter {
     absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     int mode_ = O_WRONLY | O_CREAT | O_TRUNC | fd_internal::kCloseOnExec;
-    Permissions permissions_ = 0666;
 #else
     int mode_ =
         _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY | fd_internal::kCloseOnExec;
-    Permissions permissions_ = _S_IREAD | _S_IWRITE;
 #endif
+    OwnedFd::Permissions permissions_ = OwnedFd::kDefaultPermissions;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
   };
+
+  // Returns the `FdHandle` being written to. Unchanged by `Close()`.
+  virtual FdHandle DestFdHandle() const = 0;
 
   // Returns the fd being written to. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
@@ -399,8 +395,7 @@ class FdWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
   void Initialize(int dest, Options&& options);
-  int OpenFd(absl::string_view filename, int mode,
-             Options::Permissions permissions);
+  const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
   void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -521,10 +516,8 @@ class FdWriterBase : public BufferedWriter {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
-// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default),
-// `UnownedFd` (not owned), `AnyDependency<int>` (maybe owned).
-// The only supported owning `Dest` is `OwnedFd`, possibly wrapped in
-// `AnyDependency`.
+// `Dependency<FdHandle, Dest>`, e.g. `OwnedFd` (owned, default),
+// `UnownedFd` (not owned), `AnyDependency<FdHandle>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value
@@ -545,6 +538,9 @@ class FdWriter : public FdWriterBase {
   // Will write to the fd provided by `dest`.
   explicit FdWriter(const Dest& dest, Options options = Options());
   explicit FdWriter(Dest&& dest, Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_constructible<DependentDest, int>::value,
+                             int> = 0>
   explicit FdWriter(int dest, Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
@@ -558,10 +554,9 @@ class FdWriter : public FdWriterBase {
   //
   // If opening the file fails, `FdWriter` will be failed and closed.
   //
-  // This constructor is present only if `Dest` is `OwnedFd`.
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int> = 0>
+  // This constructor is present only if `Dest` supports `Open()`.
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
   explicit FdWriter(absl::string_view filename, Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
@@ -574,32 +569,32 @@ class FdWriter : public FdWriterBase {
                                           Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
                                           Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_constructible<DependentDest, int>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
                                           Options options = Options());
   template <typename... DestArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
                                           Options options = Options());
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
-  // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  int DestFd() const override { return dest_.get(); }
+  FdHandle DestFdHandle() const override { return dest_.get(); }
+  int DestFd() const override { return *dest_; }
 
  protected:
-  using FdWriterBase::Initialize;
-  void Initialize(absl::string_view filename, Options&& options);
-
   void Done() override;
 
  private:
   // The object providing and possibly owning the fd being written to.
-  Dependency<int, Dest> dest_;
+  Dependency<FdHandle, Dest> dest_;
 };
 
 // Support CTAD.
@@ -684,7 +679,7 @@ inline void FdWriterBase::Reset(Closed) {
 
 inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `OpenFd()`, or
+  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
   // `InitializeAssumedFilename()`.
   has_independent_pos_ = false;
   supports_random_access_ = LazyBoolState::kUnknown;
@@ -696,6 +691,14 @@ inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
+}
+
+inline const std::string& FdWriterBase::InitializeFilename(
+    absl::string_view filename) {
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // `filename_ = filename`
+  filename_.assign(filename.data(), filename.size());
+  return filename_;
 }
 
 inline bool FdWriterBase::InitializeAssumedFilename(Options& options) {
@@ -710,16 +713,19 @@ inline bool FdWriterBase::InitializeAssumedFilename(Options& options) {
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
 inline FdWriter<Dest>::FdWriter(int dest, Options options)
     : FdWriter(std::forward_as_tuple(dest), std::move(options)) {}
 
@@ -728,15 +734,24 @@ template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
+          std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int>>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
     : FdWriterBase(options.buffer_options()) {
-  Initialize(filename, std::move(options));
+  absl::Status status = dest_.manager().Open(
+      InitializeFilename(filename), options.mode(), options.permissions());
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>
@@ -761,17 +776,20 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
 inline void FdWriter<Dest>::Reset(int dest, Options options) {
   Reset(std::forward_as_tuple(dest), std::move(options));
 }
@@ -782,41 +800,35 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, OwnedFd>::value, int>>
+          std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int>>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   FdWriterBase::Reset(options.buffer_options());
-  dest_.Reset();
-  Initialize(filename, std::move(options));
-}
-
-template <typename Dest>
-void FdWriter<Dest>::Initialize(absl::string_view filename, Options&& options) {
-  const int dest = OpenFd(filename, options.mode(), options.permissions());
+  absl::Status status = dest_.manager().Open(
+      InitializeFilename(filename), options.mode(), options.permissions());
   InitializeAssumedFilename(options);
-  if (ABSL_PREDICT_FALSE(dest < 0)) return;
-  dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), std::move(options),
-                /*mode_was_passed_to_open=*/true);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>
 void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
-  {
-    OwnedFd* const dest = dest_.template GetIf<OwnedFd>();
-    if (dest != nullptr) {
-      if (ABSL_PREDICT_FALSE(fd_internal::Close(dest->Release()) < 0) &&
-          ABSL_PREDICT_TRUE(ok())) {
-        FailOperation(fd_internal::kCloseFunctionName);
+  if (dest_.is_owning()) {
+    {
+      absl::Status status = dest_.get().Close();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        Fail(std::move(status));
       }
-    } else if (dest_.is_owning()) {
-      Fail(absl::InvalidArgumentError(
-          "FdWriter dependency owns the fd but does not contain OwnedFd"));
     }
   }
 }

@@ -955,11 +955,27 @@ cc_library(
 )
 
 cc_library(
-    name = "fd_reader",
-    srcs = [
-        "fd_dependency.h",
-        "fd_reader.cc",
+    name = "fd_handle",
+    srcs = ["fd_handle.cc"],
+    hdrs = ["fd_handle.h"],
+    deps = [
+        "//riegeli/base:compare",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ] + select({
+        "@platforms//os:windows": [
+            "//riegeli/base:unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "fd_reader",
+    srcs = ["fd_reader.cc"] + select({
         "@platforms//os:windows": [],
         "//conditions:default": ["fd_writer.h"],
     }),
@@ -970,6 +986,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
+        ":fd_handle",
         ":fd_internal",
         ":fd_internal_for_headers",
         ":reader",
@@ -986,9 +1003,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ] + select({
-        "@platforms//os:windows": [
-            "//riegeli/base:unicode",
-        ],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             ":buffered_writer",
             ":writer",
@@ -999,16 +1014,14 @@ cc_library(
 
 cc_library(
     name = "fd_mmap_reader",
-    srcs = [
-        "fd_dependency.h",
-        "fd_mmap_reader.cc",
-    ],
+    srcs = ["fd_mmap_reader.cc"],
     hdrs = ["fd_mmap_reader.h"],
     # fd_mmap_reader.cc has #define before #include to influence what the
     # included files provide.
     features = ["-use_header_modules"],
     deps = [
         ":chain_reader",
+        ":fd_handle",
         ":fd_internal",
         ":fd_internal_for_headers",
         ":reader",
@@ -1025,9 +1038,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ] + select({
-        "@platforms//os:windows": [
-            "//riegeli/base:unicode",
-        ],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "//riegeli/base:no_destructor",
             "@com_google_absl//absl/status:statusor",
@@ -1037,10 +1048,7 @@ cc_library(
 
 cc_library(
     name = "fd_writer",
-    srcs = [
-        "fd_dependency.h",
-        "fd_writer.cc",
-    ],
+    srcs = ["fd_writer.cc"],
     hdrs = ["fd_writer.h"],
     # fd_writer.cc has #define before #include to influence what the included
     # files provide.
@@ -1048,6 +1056,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_writer",
+        ":fd_handle",
         ":fd_internal",
         ":fd_internal_for_headers",
         ":fd_reader",
@@ -1067,12 +1076,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-    ] + select({
-        "@platforms//os:windows": [
-            "//riegeli/base:unicode",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
@@ -1094,11 +1098,7 @@ cc_library(
     # the included files provide.
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//riegeli/base:constexpr",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
-    ],
+    deps = ["//riegeli/base:constexpr"],
 )
 
 cc_library(
@@ -1204,11 +1204,30 @@ cc_library(
 )
 
 cc_library(
+    name = "cfile_handle",
+    srcs = ["cfile_handle.cc"],
+    hdrs = ["cfile_handle.h"],
+    # cfile_handle.cc has #define before #include to influence what the
+    # included files provide.
+    features = ["-use_header_modules"],
+    deps = [
+        "//riegeli/base:compare",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ] + select({
+        "@platforms//os:windows": [
+            "//riegeli/base:unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "cfile_reader",
-    srcs = [
-        "cfile_dependency.h",
-        "cfile_reader.cc",
-    ],
+    srcs = ["cfile_reader.cc"],
     hdrs = ["cfile_reader.h"],
     features = select({
         "@platforms//os:windows": [],
@@ -1219,11 +1238,11 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_reader",
+        ":cfile_handle",
         ":cfile_internal",
         ":file_mode_string",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compare",
         "//riegeli/base:dependency",
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
@@ -1235,20 +1254,12 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-    ] + select({
-        "@platforms//os:windows": [
-            "//riegeli/base:unicode",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
     name = "cfile_writer",
-    srcs = [
-        "cfile_dependency.h",
-        "cfile_writer.cc",
-    ],
+    srcs = ["cfile_writer.cc"],
     hdrs = ["cfile_writer.h"],
     features = select({
         "@platforms//os:windows": [],
@@ -1259,6 +1270,7 @@ cc_library(
     deps = [
         ":buffer_options",
         ":buffered_writer",
+        ":cfile_handle",
         ":cfile_internal",
         ":cfile_reader",
         ":file_mode_string",
@@ -1266,7 +1278,7 @@ cc_library(
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compare",
+        "//riegeli/base:constexpr",
         "//riegeli/base:dependency",
         "//riegeli/base:no_destructor",
         "//riegeli/base:object",
@@ -1289,9 +1301,6 @@ cc_library(
     name = "cfile_internal",
     srcs = ["cfile_internal.cc"],
     hdrs = ["cfile_internal.h"],
-    # cfile_internal.cc has #define before #include to influence what the
-    # included files provide.
-    features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
         ":fd_internal",
@@ -1304,10 +1313,7 @@ cc_library(
 
 cc_library(
     name = "reader_cfile",
-    srcs = [
-        "cfile_dependency.h",
-        "reader_cfile.cc",
-    ],
+    srcs = ["reader_cfile.cc"],
     hdrs = ["reader_cfile.h"],
     # reader_cfile.cc has #define before #include to influence what the included
     # files provide.
@@ -1316,7 +1322,6 @@ cc_library(
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compare",
         "//riegeli/base:dependency",
         "//riegeli/base:status",
         "//riegeli/base:types",
@@ -1329,7 +1334,6 @@ cc_library(
 cc_library(
     name = "writer_cfile",
     srcs = [
-        "cfile_dependency.h",
         "writer_cfile.cc",
     ],
     hdrs = ["writer_cfile.h"],
@@ -1341,7 +1345,6 @@ cc_library(
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compare",
         "//riegeli/base:dependency",
         "//riegeli/base:status",
         "//riegeli/base:types",

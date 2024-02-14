@@ -35,7 +35,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/cfile_dependency.h"  // IWYU pragma: export
+#include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/file_mode_string.h"
 #include "riegeli/bytes/writer.h"
 
@@ -277,8 +277,11 @@ class CFileWriterBase : public BufferedWriter {
     absl::optional<Position> assumed_pos_;
   };
 
-  // Returns the `FILE` being written to. If the `FILE` is owned then changed to
-  // `nullptr` by `Close()`, otherwise unchanged.
+  // Returns the `CFileHandle` being written to. Unchanged by `Close()`.
+  virtual CFileHandle DestCFileHandle() const = 0;
+
+  // Returns the `FILE*` being written to. If the `FILE*` is owned then changed
+  // to `nullptr` by `Close()`, otherwise unchanged.
   virtual FILE* DestFile() const = 0;
 
   // Returns the original name of the file being written to. Unchanged by
@@ -300,7 +303,7 @@ class CFileWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(const BufferOptions& buffer_options);
   void Initialize(FILE* dest, Options&& options);
-  FILE* OpenFile(absl::string_view filename, const std::string& mode);
+  const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
   void InitializePos(FILE* dest, Options&& options,
                      bool mode_was_passed_to_fopen);
@@ -370,10 +373,8 @@ class CFileWriterBase : public BufferedWriter {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `FILE` being written to. `Dest` must support
-// `Dependency<FILE*, Dest>`, e.g. `OwnedCFile` (owned, default),
-// `UnownedCFile` (not owned), `AnyDependency<FILE*>` (maybe owned).
-// The only supported owning `Dest` is `OwnedCFile`, possibly wrapped in
-// `AnyDependency`.
+// `Dependency<CFileHandle, Dest>`, e.g. `OwnedCFile` (owned, default),
+// `UnownedCFile` (not owned), `AnyDependency<CFileHandle>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as the
@@ -393,6 +394,9 @@ class CFileWriter : public CFileWriterBase {
   // Will write to the `FILE` provided by `dest`.
   explicit CFileWriter(const Dest& dest, Options options = Options());
   explicit CFileWriter(Dest&& dest, Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
+                             int> = 0>
   explicit CFileWriter(FILE* dest, Options options = Options());
 
   // Will write to the `FILE` provided by a `Dest` constructed from elements of
@@ -406,10 +410,9 @@ class CFileWriter : public CFileWriterBase {
   //
   // If opening the file fails, `CFileWriter` will be failed and closed.
   //
-  // This constructor is present only if `Dest` is `OwnedCFile`.
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int> = 0>
+  // This constructor is present only if `Dest` supports `Open()`.
+  template <typename DependentDest = Dest,
+            std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
   explicit CFileWriter(absl::string_view filename, Options options = Options());
 
   CFileWriter(CFileWriter&& that) noexcept;
@@ -422,34 +425,33 @@ class CFileWriter : public CFileWriterBase {
                                           Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
                                           Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
                                           Options options = Options());
   template <typename... DestArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
                                           Options options = Options());
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
-  // to. If the `FILE` is owned then changed to `nullptr` by `Close()`,
-  // otherwise unchanged.
+  // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  FILE* DestFile() const override { return dest_.get(); }
+  CFileHandle DestCFileHandle() const override { return dest_.get(); }
+  FILE* DestFile() const override { return *dest_; }
 
  protected:
-  using CFileWriterBase::Initialize;
-  void Initialize(absl::string_view filename, Options&& options);
-
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
   // The object providing and possibly owning the `FILE` being written to.
-  Dependency<FILE*, Dest> dest_;
+  Dependency<CFileHandle, Dest> dest_;
 };
 
 // Support CTAD.
@@ -533,7 +535,7 @@ inline void CFileWriterBase::Reset(Closed) {
 
 inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `OpenFile()`, or
+  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
   // `InitializeAssumedFilename()`.
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
@@ -544,6 +546,14 @@ inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
+}
+
+inline const std::string& CFileWriterBase::InitializeFilename(
+    absl::string_view filename) {
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // `filename_ = filename`
+  filename_.assign(filename.data(), filename.size());
+  return filename_;
 }
 
 inline bool CFileWriterBase::InitializeAssumedFilename(Options& options) {
@@ -558,16 +568,19 @@ inline bool CFileWriterBase::InitializeAssumedFilename(Options& options) {
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(const Dest& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
     : CFileWriter(std::forward_as_tuple(dest), std::move(options)) {}
 
@@ -576,16 +589,25 @@ template <typename... DestArgs>
 inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
+          std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
                                       Options options)
     : CFileWriterBase(options.buffer_options()) {
-  Initialize(filename, std::move(options));
+  absl::Status status =
+      dest_.manager().Open(InitializeFilename(filename), options.mode());
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `CFileWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_fopen=*/true);
 }
 
 template <typename Dest>
@@ -611,17 +633,20 @@ template <typename Dest>
 inline void CFileWriter<Dest>::Reset(const Dest& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
   Reset(std::forward_as_tuple(dest), std::move(options));
 }
@@ -632,44 +657,36 @@ inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options));
+  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, OwnedCFile>::value, int>>
+          std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
 inline void CFileWriter<Dest>::Reset(absl::string_view filename,
                                      Options options) {
   CFileWriterBase::Reset(options.buffer_options());
-  dest_.Reset();
-  Initialize(filename, std::move(options));
-}
-
-template <typename Dest>
-void CFileWriter<Dest>::Initialize(absl::string_view filename,
-                                   Options&& options) {
-  FILE* const dest = OpenFile(filename, options.mode());
+  absl::Status status =
+      dest_.manager().Open(InitializeFilename(filename), options.mode());
   InitializeAssumedFilename(options);
-  if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
-  dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), std::move(options),
-                /*mode_was_passed_to_fopen=*/true);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `CFileWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_fopen=*/true);
 }
 
 template <typename Dest>
 void CFileWriter<Dest>::Done() {
   CFileWriterBase::Done();
-  {
-    OwnedCFile* const dest = dest_.template GetIf<OwnedCFile>();
-    if (dest != nullptr) {
-      if (ABSL_PREDICT_FALSE((fclose(dest->Release())) != 0) &&
-          ABSL_PREDICT_TRUE(ok())) {
-        FailOperation("fclose()");
+  if (dest_.is_owning()) {
+    {
+      absl::Status status = dest_.get().Close();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        Fail(std::move(status));
       }
-    } else if (dest_.is_owning()) {
-      Fail(
-          absl::InvalidArgumentError("CFileWriter dependency owns the FILE "
-                                     "but does not contain OwnedCFile"));
     }
   }
 }
@@ -679,11 +696,11 @@ bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
-      if (!dest_.is_owning()) return true;
+      if (!dest_.is_owning() || !dest_.get().is_owning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
-      if (ABSL_PREDICT_FALSE(fflush(dest_.get()) != 0)) {
+      if (ABSL_PREDICT_FALSE(fflush(*dest_) != 0)) {
         return FailOperation("fflush()");
       }
       return true;
