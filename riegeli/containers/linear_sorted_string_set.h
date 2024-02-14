@@ -762,9 +762,9 @@ template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
 inline absl::Status LinearSortedStringSet::Encode(Dest&& dest) const {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.is_owning()) dest_dep->SetWriteSizeHint(EncodedSize());
+  if (dest_dep.IsOwning()) dest_dep->SetWriteSizeHint(EncodedSize());
   absl::Status status = EncodeImpl(*dest_dep);
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
@@ -777,9 +777,9 @@ template <typename Src,
 inline absl::Status LinearSortedStringSet::Decode(Src&& src,
                                                   DecodeOptions options) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = DecodeImpl(*src_dep, options);
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }

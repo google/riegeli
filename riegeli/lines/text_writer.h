@@ -308,7 +308,7 @@ inline void TextWriter<newline, Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <WriteNewline newline, typename Dest>
 void TextWriter<newline, Dest>::Done() {
   TextWriter::TextWriterImpl::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       this->FailWithoutAnnotation(this->AnnotateOverDest(dest_->status()));
     }
@@ -320,7 +320,7 @@ bool TextWriter<newline, Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!TextWriter::TextWriterImpl::FlushImpl(flush_type))) {
     return false;
   }
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return this->FailWithoutAnnotation(
           this->AnnotateOverDest(dest_->status()));

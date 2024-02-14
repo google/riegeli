@@ -196,7 +196,7 @@ struct CFileTargetHasOpen<
 //   //
 //   // Optional. If absent, the presence of `Close()` determines whether the
 //   // target is considered to own the `FILE*`.
-//   bool is_owning() const;
+//   bool IsOwning() const;
 //
 //   // Opens a new `FILE*`, like with `fopen()` but returning `absl::Status`.
 //   //
@@ -204,9 +204,9 @@ struct CFileTargetHasOpen<
 //   // filename.
 //   absl::Status Open(const char* filename, const char* mode);
 //
-//   // Closes the `FILE*` if `is_owning()`.
+//   // Closes the `FILE*` if `IsOwning()`.
 //   //
-//   // Returns `absl::OkStatus()` if `!is_owning()`.
+//   // Returns `absl::OkStatus()` if `!IsOwning()`.
 //   //
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
@@ -239,11 +239,11 @@ class CFileHandle : public WithEqual<CFileHandle> {
 
   // Returns `true` if the `CFileHandle` owns the `FILE*`, i.e. is responsible
   // for closing it and the `FILE*` is present.
-  bool is_owning() const { return methods_->is_owning(target_); }
+  bool IsOwning() const { return methods_->is_owning(target_); }
 
-  // Closes the `FILE*` if `is_owning()`.
+  // Closes the `FILE*` if `IsOwning()`.
   //
-  // Returns `absl::OkStatus()` if `!is_owning()`.
+  // Returns `absl::OkStatus()` if `!IsOwning()`.
   absl::Status Close() { return methods_->close(target_); }
 
  private:
@@ -260,7 +260,7 @@ class CFileHandle : public WithEqual<CFileHandle> {
   template <typename T>
   struct CFileTargetHasIsOwning<
       T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<const T&>().is_owning()), bool>::value>>
+             decltype(std::declval<const T&>().IsOwning()), bool>::value>>
       : std::true_type {};
 
   template <typename T>
@@ -271,7 +271,7 @@ class CFileHandle : public WithEqual<CFileHandle> {
   template <typename T,
             std::enable_if_t<CFileTargetHasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(const void* target) {
-    return static_cast<const T*>(target)->is_owning();
+    return static_cast<const T*>(target)->IsOwning();
   }
   template <typename T,
             std::enable_if_t<!CFileTargetHasIsOwning<T>::value, int> = 0>

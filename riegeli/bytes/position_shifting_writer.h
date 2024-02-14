@@ -365,7 +365,7 @@ inline void PositionShiftingWriter<Dest>::MoveDest(
 template <typename Dest>
 void PositionShiftingWriter<Dest>::Done() {
   PositionShiftingWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -375,7 +375,7 @@ void PositionShiftingWriter<Dest>::Done() {
 template <typename Dest>
 void PositionShiftingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(
         write_size_hint == absl::nullopt
@@ -390,7 +390,7 @@ bool PositionShiftingWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
   bool flush_ok = true;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);

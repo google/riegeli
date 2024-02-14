@@ -104,15 +104,15 @@ inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
                             Position* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = copy_all_internal::CopyAllImpl(
-      *src_dep, *dest_dep, max_length, length_read, dest_dep.is_owning());
-  if (dest_dep.is_owning()) {
+      *src_dep, *dest_dep, max_length, length_read, dest_dep.IsOwning());
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
   }
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
@@ -138,15 +138,15 @@ template <
 inline absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = copy_all_internal::CopyAllImpl(
-      *src_dep, *dest_dep, max_length, dest_dep.is_owning());
-  if (dest_dep.is_owning()) {
+      *src_dep, *dest_dep, max_length, dest_dep.IsOwning());
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
   }
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }

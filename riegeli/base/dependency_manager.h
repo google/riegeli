@@ -50,8 +50,8 @@ namespace riegeli {
 // `Manager` is cheap to move).
 //
 // `DependencyManager` provides what `DependencyBase` provides (constructors,
-// `Reset()`, `manager()`, and `kIsStable`), and also `ptr()`, `is_owning()`,
-// and optionally `GetIf()`.
+// `Reset()`, `manager()`, and `kIsStable`), and also `ptr()`, `IsOwning()`,
+// `kIsOwning`, and optionally `GetIf()`.
 
 // This template is specialized but does not have a primary definition.
 template <typename Manager, typename ManagerStorage, typename Enable = void>
@@ -64,7 +64,7 @@ class DependencyManagerImpl<T*, ManagerStorage> : public DependencyBase<T*> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return false; }
+  static constexpr bool kIsOwning = false;
 
   static constexpr bool kIsStable = true;
 
@@ -89,7 +89,7 @@ class DependencyManagerImpl<std::nullptr_t, ManagerStorage>
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return false; }
+  static constexpr bool kIsOwning = false;
 
   static constexpr bool kIsStable = true;
 
@@ -116,7 +116,9 @@ class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return this->manager() != nullptr; }
+  bool IsOwning() const { return this->manager() != nullptr; }
+
+  static constexpr bool kIsOwning = true;
 
   static constexpr bool kIsStable = true;
 
@@ -201,7 +203,7 @@ class DependencyManager<
  public:
   using DependencyManager::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return true; }
+  static constexpr bool kIsOwning = true;
 
  protected:
   DependencyManager(const DependencyManager& that) = default;
@@ -262,7 +264,7 @@ class DependencyManager<
  public:
   using DependencyManager::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return false; }
+  static constexpr bool kIsOwning = false;
 
  protected:
   DependencyManager(const DependencyManager& that) = default;
@@ -320,7 +322,7 @@ class DependencyManager<
  public:
   using DependencyManager::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return true; }
+  static constexpr bool kIsOwning = true;
 
  protected:
   DependencyManager(const DependencyManager& that) = default;

@@ -276,7 +276,7 @@ inline void SnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void SnappyReader<Src>::Done() {
   SnappyReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -286,7 +286,7 @@ void SnappyReader<Src>::Done() {
 template <typename Src>
 void SnappyReader<Src>::VerifyEndImpl() {
   SnappyReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 namespace snappy_internal {
@@ -303,18 +303,18 @@ template <typename Src, typename Dest,
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
-  if (dest_dep.is_owning()) {
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
+  if (dest_dep.IsOwning()) {
     dest_dep->SetWriteSizeHint(SnappyUncompressedSize(*src_dep));
   }
   absl::Status status =
       snappy_internal::SnappyDecompressImpl(*src_dep, *dest_dep);
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
   }
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }

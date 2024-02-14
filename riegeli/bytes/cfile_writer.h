@@ -681,7 +681,7 @@ inline void CFileWriter<Dest>::Reset(absl::string_view filename,
 template <typename Dest>
 void CFileWriter<Dest>::Done() {
   CFileWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     {
       absl::Status status = dest_.get().Close();
       if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -696,7 +696,7 @@ bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
-      if (!dest_.is_owning() || !dest_.get().is_owning()) return true;
+      if (!dest_.IsOwning() || !dest_.get().IsOwning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:

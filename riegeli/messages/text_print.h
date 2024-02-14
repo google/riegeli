@@ -153,7 +153,7 @@ inline absl::Status TextPrintToWriter(const google::protobuf::Message& src,
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   absl::Status status =
       messages_internal::TextPrintToWriterImpl(src, *dest_dep, options);
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }

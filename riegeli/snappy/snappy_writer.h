@@ -347,7 +347,7 @@ inline void SnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void SnappyWriter<Dest>::Done() {
   SnappyWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -368,15 +368,15 @@ template <typename Src, typename Dest,
 inline absl::Status SnappyCompress(Src&& src, Dest&& dest) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
       snappy_internal::SnappyCompressImpl(*src_dep, *dest_dep);
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
   }
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }

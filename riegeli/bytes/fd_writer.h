@@ -880,7 +880,7 @@ inline void FdWriter<Dest>::Reset(int dir_fd, absl::string_view filename,
 template <typename Dest>
 void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     {
       absl::Status status = dest_.get().Close();
       if (ABSL_PREDICT_FALSE(!status.ok())) {

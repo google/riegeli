@@ -348,7 +348,7 @@ class DependencyImpl<
 
   DefaultChunkReader<Manager>* get() const { return &chunk_reader_; }
 
-  bool is_owning() const { return true; }
+  static constexpr bool kIsOwning = true;
 
   static constexpr bool kIsStable = false;
 
@@ -469,7 +469,7 @@ inline void DefaultChunkReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 template <typename Src>
 void DefaultChunkReader<Src>::Done() {
   DefaultChunkReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }

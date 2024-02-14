@@ -730,7 +730,7 @@ inline void CsvReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void CsvReader<Src>::Done() {
   CsvReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }

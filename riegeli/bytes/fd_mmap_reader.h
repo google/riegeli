@@ -589,7 +589,7 @@ void FdMMapReader<Src>::InitializeWithExistingData(int src,
 template <typename Src>
 void FdMMapReader<Src>::Done() {
   FdMMapReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     {
       absl::Status status = src_.get().Close();
       if (ABSL_PREDICT_FALSE(!status.ok())) {

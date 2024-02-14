@@ -125,7 +125,7 @@ class ReaderCFileCookie : public ReaderCFileCookieBase {
 
 template <typename Src>
 int ReaderCFileCookie<Src>::Close() {
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       return StatusCodeToErrno(src_->status().code());
     }

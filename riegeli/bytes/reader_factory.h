@@ -268,7 +268,7 @@ inline void ReaderFactory<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void ReaderFactory<Src>::Done() {
   ReaderFactoryBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }

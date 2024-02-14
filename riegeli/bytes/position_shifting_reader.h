@@ -360,7 +360,7 @@ inline void PositionShiftingReader<Src>::MoveSrc(
 template <typename Src>
 void PositionShiftingReader<Src>::Done() {
   PositionShiftingReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -369,7 +369,7 @@ void PositionShiftingReader<Src>::Done() {
 
 template <typename Src>
 void PositionShiftingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     SyncBuffer(*src_);
     src_->SetReadAllHint(read_all_hint);
     MakeBuffer(*src_);
@@ -378,7 +378,7 @@ void PositionShiftingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
 
 template <typename Src>
 void PositionShiftingReader<Src>::VerifyEndImpl() {
-  if (!src_.is_owning()) {
+  if (!src_.IsOwning()) {
     PositionShiftingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
@@ -392,7 +392,7 @@ bool PositionShiftingReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
-  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+  if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);

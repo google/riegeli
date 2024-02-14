@@ -331,7 +331,7 @@ inline void BrotliReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void BrotliReader<Src>::Done() {
   BrotliReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -340,13 +340,13 @@ void BrotliReader<Src>::Done() {
 
 template <typename Src>
 void BrotliReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void BrotliReader<Src>::VerifyEndImpl() {
   BrotliReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

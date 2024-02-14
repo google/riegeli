@@ -233,8 +233,8 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   absl::Status status = messages_internal::SerializeToWriterImpl(
-      src, *dest_dep, std::move(options), dest_dep.is_owning());
-  if (dest_dep.is_owning()) {
+      src, *dest_dep, std::move(options), dest_dep.IsOwning());
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }

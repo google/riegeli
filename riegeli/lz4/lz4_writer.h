@@ -531,7 +531,7 @@ inline void Lz4Writer<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void Lz4Writer<Dest>::Done() {
   Lz4WriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -541,7 +541,7 @@ void Lz4Writer<Dest>::Done() {
 template <typename Dest>
 bool Lz4Writer<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!Lz4WriterBase::FlushImpl(flush_type))) return false;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

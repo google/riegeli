@@ -51,7 +51,8 @@ class StableDependency<Handle, Manager,
 namespace dependency_internal {
 
 template <typename Handle, typename Manager>
-class StableDependencyImpl {
+class StableDependencyImpl
+    : public PropagateStaticIsOwning<Dependency<Handle, Manager>> {
  public:
   StableDependencyImpl() = default;
 
@@ -140,7 +141,7 @@ class StableDependencyImpl {
     return EnsureAllocated()->get();
   }
 
-  bool is_owning() const { return EnsureAllocated()->is_owning(); }
+  bool IsOwning() const { return EnsureAllocated()->IsOwning(); }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StableDependencyImpl& self,

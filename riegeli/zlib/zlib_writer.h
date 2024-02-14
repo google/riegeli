@@ -448,7 +448,7 @@ inline void ZlibWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void ZlibWriter<Dest>::Done() {
   ZlibWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -458,7 +458,7 @@ void ZlibWriter<Dest>::Done() {
 template <typename Dest>
 bool ZlibWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ZlibWriterBase::FlushImpl(flush_type))) return false;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

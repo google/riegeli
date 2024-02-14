@@ -412,7 +412,7 @@ inline void XzReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void XzReader<Src>::Done() {
   XzReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -422,13 +422,13 @@ void XzReader<Src>::Done() {
 template <typename Src>
 void XzReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   XzReaderBase::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void XzReader<Src>::VerifyEndImpl() {
   XzReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

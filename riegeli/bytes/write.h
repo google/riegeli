@@ -89,7 +89,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
     std::index_sequence<indices...>) {
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
   }
   absl::Status status;
@@ -97,7 +97,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
           !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
     status = dest_dep->status();
   }
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }
@@ -110,7 +110,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
     std::index_sequence<indices...>) {
   Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
   }
   absl::Status status;
@@ -118,7 +118,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
           !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
     status = dest_dep->status();
   }
-  if (dest_dep.is_owning()) {
+  if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
     }

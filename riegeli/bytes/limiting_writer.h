@@ -385,13 +385,13 @@ inline void LimitingWriterBase::MakeBuffer(Writer& dest) {
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Options options)
     : LimitingWriterBase(options.exact()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Options options)
     : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
@@ -399,7 +399,7 @@ template <typename... DestArgs>
 inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
                                             Options options)
     : LimitingWriterBase(options.exact()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
@@ -426,14 +426,14 @@ template <typename Dest>
 inline void LimitingWriter<Dest>::Reset(const Dest& dest, Options options) {
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
 inline void LimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
@@ -442,7 +442,7 @@ inline void LimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                         Options options) {
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), std::move(options), dest_.is_owning());
+  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
 template <typename Dest>
@@ -461,7 +461,7 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
 template <typename Dest>
 void LimitingWriter<Dest>::Done() {
   LimitingWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(dest_->status());
     }
@@ -471,7 +471,7 @@ void LimitingWriter<Dest>::Done() {
 template <typename Dest>
 void LimitingWriter<Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  if (dest_.is_owning() && !exact()) {
+  if (dest_.IsOwning() && !exact()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(
         write_size_hint == absl::nullopt
@@ -486,7 +486,7 @@ bool LimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
   bool flush_ok = true;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);

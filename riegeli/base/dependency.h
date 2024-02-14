@@ -23,7 +23,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency_manager.h"
@@ -181,8 +180,25 @@ namespace riegeli {
 //   // If `true`, the `Dependency` owns the dependent object, i.e. closing the
 //   // host object should close the dependent object.
 //   //
+//   // Provided by `DependencyManagerImpl`, `DependencyImpl`, or `Dependency`.
+//   // In `Dependency` implemented in terms of `kIsOwning`.
+//   bool IsOwning() const;
+//
+//   // The value of `IsOwning()` if known statically or mostly statically.
+//   //
+//   // This constant is optional.
+//   //
+//   // If `IsOwning()` returns a statically known constant, `kIsOwning` should
+//   // be defined. `Dependency` will provide `IsOwning()`.
+//   //
+//   // If `IsOwning()` returns `true` except for a sentinel value like
+//   // `nullptr`, e.g. for `std::unique_ptr`, `kIsOwning` can still be defined
+//   // in addition to `IsOwning()`. This allows to use the static
+//   // approximatimation when static selection is needed, with the caveat that
+//   // it will return `true` also for the sentinel value.
+//   //
 //   // Provided by `DependencyManagerImpl` or `DependencyImpl`.
-//   bool is_owning() const;
+//   static constexpt bool kIsOwning;
 //
 //   // If `true`, `get()` stays unchanged when a `Dependency` is moved.
 //   //
@@ -215,7 +231,7 @@ namespace riegeli {
 
 // `DependencyImpl` specializations provide what `DependencyBase` provides
 // (constructors, `Reset()`, `manager()`, and `kIsStable`), and also `get()`,
-// `is_owning()`, and optionally `GetIf()`.
+// `IsOwning()`, `kIsOwning`, and optionally `GetIf()`.
 
 // This template is specialized but does not have a primary definition.
 template <typename Handle, typename Manager, typename Enable = void>
@@ -557,11 +573,52 @@ struct IsValidDependency
 
 namespace dependency_internal {
 
+template <bool value>
+struct IsConstexprBool : std::true_type {};
+
+}  // namespace dependency_internal
+
+// `HasStaticIsOwning<T>::value` is `true` if `T` defines
+// `static constexpr bool kIsOwning`.
+
+template <typename T, typename Enable = void>
+struct HasStaticIsOwning : std::false_type {};
+
+template <typename T>
+struct HasStaticIsOwning<
+    T,
+    std::enable_if_t<dependency_internal::IsConstexprBool<T::kIsOwning>::value>>
+    : std::true_type {};
+
+// Deriving a class from `PropagateStaticIsOwning<T>` defines
+// `static constexpr bool kIsOwning = T::kIsOwning` if `T` defines `kIsOwning`.
+
+template <typename T, typename Enable = void>
+class PropagateStaticIsOwning {};
+
+template <typename T>
+class PropagateStaticIsOwning<T,
+                              std::enable_if_t<HasStaticIsOwning<T>::value>> {
+ public:
+  static constexpr bool kIsOwning = T::kIsOwning;
+};
+
+namespace dependency_internal {
+
+template <typename T, typename Enable = void>
+struct HasDynamicIsOwning : std::false_type {};
+
+template <typename T>
+struct HasDynamicIsOwning<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<const T&>().IsOwning()), bool>::value>>
+    : std::true_type {};
+
 template <typename T, typename OtherManager, typename Enable = void>
-struct HasGetIfStatic : std::false_type {};
+struct HasStaticGetIf : std::false_type {};
 
 template <typename T, typename OtherManager>
-struct HasGetIfStatic<
+struct HasStaticGetIf<
     T, OtherManager,
     std::enable_if_t<absl::disjunction<
         std::is_convertible<
@@ -583,10 +640,10 @@ struct HasGetIfStatic<
 };
 
 template <typename T, typename Enable = void>
-struct HasGetIfDynamic : std::false_type {};
+struct HasDynamicGetIf : std::false_type {};
 
 template <typename T>
-struct HasGetIfDynamic<
+struct HasDynamicGetIf<
     T,
     std::enable_if_t<absl::disjunction<
         std::is_convertible<
@@ -649,6 +706,21 @@ class DependencyDerived
     return a.get() == nullptr;
   }
 
+  template <typename DependentBase = Base,
+            std::enable_if_t<HasDynamicIsOwning<DependentBase>::value, int> = 0>
+  bool IsOwning() const {
+    return Base::IsOwning();
+  }
+  template <
+      typename DependentBase = Base,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<HasDynamicIsOwning<DependentBase>>,
+                            HasStaticIsOwning<DependentBase>>::value,
+          int> = 0>
+  bool IsOwning() const {
+    return Base::kIsOwning;
+  }
+
   template <
       typename OtherManager,
       std::enable_if_t<IsValidDependency<Handle, OtherManager>::value, int> = 0>
@@ -689,7 +761,7 @@ class DependencyDerived
                             ABSL_ATTRIBUTE_UNUSED absl::string_view message) {}
 
   template <typename OtherManager, typename DependentBase = Base,
-            std::enable_if_t<HasGetIfStatic<DependentBase, OtherManager>::value,
+            std::enable_if_t<HasStaticGetIf<DependentBase, OtherManager>::value,
                              int> = 0>
   OtherManager* GetIfImpl() {
     return Base::template GetIf<OtherManager>();
@@ -697,8 +769,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    HasGetIfDynamic<DependentBase>>::value,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    HasDynamicGetIf<DependentBase>>::value,
                 int> = 0>
   OtherManager* GetIfImpl() {
     return static_cast<OtherManager*>(Base::GetIf(TypeId::For<OtherManager>()));
@@ -706,8 +778,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    absl::negation<HasDynamicGetIf<DependentBase>>,
                     std::is_same<std::decay_t<Manager>, OtherManager>>::value,
                 int> = 0>
   OtherManager* GetIfImpl() {
@@ -716,8 +788,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    absl::negation<HasDynamicGetIf<DependentBase>>,
                     absl::negation<std::is_same<std::decay_t<Manager>,
                                                 OtherManager>>>::value,
                 int> = 0>
@@ -725,7 +797,7 @@ class DependencyDerived
     return nullptr;
   }
   template <typename OtherManager, typename DependentBase = Base,
-            std::enable_if_t<HasGetIfStatic<DependentBase, OtherManager>::value,
+            std::enable_if_t<HasStaticGetIf<DependentBase, OtherManager>::value,
                              int> = 0>
   const OtherManager* GetIfImpl() const {
     return Base::template GetIf<OtherManager>();
@@ -733,8 +805,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    HasGetIfDynamic<DependentBase>>::value,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    HasDynamicGetIf<DependentBase>>::value,
                 int> = 0>
   const OtherManager* GetIfImpl() const {
     return static_cast<const OtherManager*>(
@@ -743,8 +815,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    absl::negation<HasDynamicGetIf<DependentBase>>,
                     std::is_same<std::decay_t<Manager>, OtherManager>>::value,
                 int> = 0>
   const OtherManager* GetIfImpl() const {
@@ -753,8 +825,8 @@ class DependencyDerived
   template <typename OtherManager, typename DependentBase = Base,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<HasGetIfStatic<DependentBase, OtherManager>>,
-                    absl::negation<HasGetIfDynamic<DependentBase>>,
+                    absl::negation<HasStaticGetIf<DependentBase, OtherManager>>,
+                    absl::negation<HasDynamicGetIf<DependentBase>>,
                     absl::negation<std::is_same<std::decay_t<Manager>,
                                                 OtherManager>>>::value,
                 int> = 0>
@@ -763,12 +835,12 @@ class DependencyDerived
   }
 
   template <typename DependentBase = Base,
-            std::enable_if_t<HasGetIfDynamic<DependentBase>::value, int> = 0>
+            std::enable_if_t<HasDynamicGetIf<DependentBase>::value, int> = 0>
   void* GetIfImpl(TypeId type_id) {
     return Base::GetIf(type_id);
   }
   template <typename DependentBase = Base,
-            std::enable_if_t<!HasGetIfDynamic<DependentBase>::value, int> = 0>
+            std::enable_if_t<!HasDynamicGetIf<DependentBase>::value, int> = 0>
   void* GetIfImpl(TypeId type_id) {
     if (TypeId::For<std::decay_t<Manager>>() == type_id) {
       return &this->manager();
@@ -776,12 +848,12 @@ class DependencyDerived
     return nullptr;
   }
   template <typename DependentBase = Base,
-            std::enable_if_t<HasGetIfDynamic<DependentBase>::value, int> = 0>
+            std::enable_if_t<HasDynamicGetIf<DependentBase>::value, int> = 0>
   const void* GetIfImpl(TypeId type_id) const {
     return Base::GetIf(type_id);
   }
   template <typename DependentBase = Base,
-            std::enable_if_t<!HasGetIfDynamic<DependentBase>::value, int> = 0>
+            std::enable_if_t<!HasDynamicGetIf<DependentBase>::value, int> = 0>
   const void* GetIfImpl(TypeId type_id) const {
     if (TypeId::For<std::decay_t<Manager>>() == type_id) {
       return &this->manager();

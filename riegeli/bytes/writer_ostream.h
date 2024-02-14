@@ -399,7 +399,7 @@ template <typename Dest>
 void WriterOStream<Dest>::Done() {
   if (ABSL_PREDICT_TRUE(is_open())) {
     streambuf_.Done();
-    if (dest_.is_owning()) {
+    if (dest_.IsOwning()) {
       if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.FailWriter();
     }
     if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);

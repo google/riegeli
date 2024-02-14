@@ -540,18 +540,18 @@ inline void DigestingReader<DigesterType, Src>::MoveSrc(
 template <typename DigesterType, typename Src>
 void DigestingReader<DigesterType, Src>::Done() {
   DigestingReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }
   }
-  if (digester_.is_owning()) digester_.get().Close();
+  if (digester_.IsOwning()) digester_.get().Close();
 }
 
 template <typename DigesterType, typename Src>
 void DigestingReader<DigesterType, Src>::SetReadAllHintImpl(
     bool read_all_hint) {
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     SyncBuffer(*src_);
     src_->SetReadAllHint(read_all_hint);
     MakeBuffer(*src_);
@@ -560,7 +560,7 @@ void DigestingReader<DigesterType, Src>::SetReadAllHintImpl(
 
 template <typename DigesterType, typename Src>
 void DigestingReader<DigesterType, Src>::VerifyEndImpl() {
-  if (!src_.is_owning()) {
+  if (!src_.IsOwning()) {
     DigestingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
@@ -574,7 +574,7 @@ bool DigestingReader<DigesterType, Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
-  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+  if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);

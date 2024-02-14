@@ -396,7 +396,7 @@ template <typename Src>
 void ReaderIStream<Src>::Done() {
   if (ABSL_PREDICT_TRUE(is_open())) {
     streambuf_.Done();
-    if (src_.is_owning()) {
+    if (src_.IsOwning()) {
       if (ABSL_PREDICT_FALSE(!src_->Close())) streambuf_.Fail();
     }
     if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);

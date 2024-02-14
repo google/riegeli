@@ -409,7 +409,7 @@ inline void FileWriter<Dest>::Initialize(absl::string_view filename,
 template <typename Dest>
 void FileWriter<Dest>::Done() {
   FileWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     {
       const ::tensorflow::Status status = dest_->Close();
       if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(ok())) {
@@ -424,7 +424,7 @@ bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!FileWriterBase::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
-      if (!dest_.is_owning()) return true;
+      if (!dest_.IsOwning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess: {
       const ::tensorflow::Status status = dest_->Flush();

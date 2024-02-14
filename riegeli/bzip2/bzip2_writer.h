@@ -288,7 +288,7 @@ inline void Bzip2Writer<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void Bzip2Writer<Dest>::Done() {
   Bzip2WriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -298,7 +298,7 @@ void Bzip2Writer<Dest>::Done() {
 template <typename Dest>
 bool Bzip2Writer<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!Bzip2WriterBase::FlushImpl(flush_type))) return false;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

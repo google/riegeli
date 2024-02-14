@@ -168,7 +168,7 @@ class WriterCFileCookie : public WriterCFileCookieBase {
 
 template <typename Dest>
 int WriterCFileCookie<Dest>::Close() {
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       return StatusCodeToErrno(dest_->status().code());
     }

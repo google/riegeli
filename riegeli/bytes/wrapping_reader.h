@@ -273,7 +273,7 @@ inline void WrappingReader<Src>::MoveSrc(WrappingReader&& that) {
 template <typename Src>
 void WrappingReader<Src>::Done() {
   WrappingReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }
@@ -283,7 +283,7 @@ void WrappingReader<Src>::Done() {
 template <typename Src>
 void WrappingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   WrappingReaderBase::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     SyncBuffer(*src_);
     src_->SetReadAllHint(read_all_hint);
     MakeBuffer(*src_);
@@ -292,7 +292,7 @@ void WrappingReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
 
 template <typename Src>
 void WrappingReader<Src>::VerifyEndImpl() {
-  if (!src_.is_owning()) {
+  if (!src_.IsOwning()) {
     WrappingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
     SyncBuffer(*src_);
@@ -306,7 +306,7 @@ bool WrappingReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
-  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+  if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);

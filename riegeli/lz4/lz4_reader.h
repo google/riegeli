@@ -419,7 +419,7 @@ inline void Lz4Reader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void Lz4Reader<Src>::Done() {
   Lz4ReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -429,13 +429,13 @@ void Lz4Reader<Src>::Done() {
 template <typename Src>
 void Lz4Reader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   Lz4ReaderBase::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void Lz4Reader<Src>::VerifyEndImpl() {
   Lz4ReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

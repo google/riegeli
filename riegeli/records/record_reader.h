@@ -775,7 +775,7 @@ inline void RecordReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void RecordReader<Src>::Done() {
   RecordReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));

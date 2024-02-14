@@ -296,7 +296,7 @@ inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
 template <typename Src>
 void FramedSnappyReader<Src>::Done() {
   FramedSnappyReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -305,13 +305,13 @@ void FramedSnappyReader<Src>::Done() {
 
 template <typename Src>
 void FramedSnappyReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void FramedSnappyReader<Src>::VerifyEndImpl() {
   FramedSnappyReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

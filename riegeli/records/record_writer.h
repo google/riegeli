@@ -578,7 +578,7 @@ class RecordWriterBase : public Object {
   void Reset(Closed);
   void Reset();
 
-  virtual bool is_owning() const = 0;
+  virtual bool IsOwning() const = 0;
 
   void Initialize(ChunkWriter* dest, Options&& options);
   void DoneBackground();
@@ -688,7 +688,7 @@ class RecordWriter : public RecordWriterBase {
  protected:
   void Done() override;
 
-  bool is_owning() const override { return dest_.is_owning(); }
+  bool IsOwning() const override { return dest_.IsOwning(); }
 
  private:
   // The object providing and possibly owning the byte `Writer` or
@@ -784,7 +784,7 @@ inline void RecordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void RecordWriter<Dest>::Done() {
   RecordWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

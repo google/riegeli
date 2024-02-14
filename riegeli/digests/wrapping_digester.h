@@ -93,7 +93,7 @@ class WrappingDigester : public Digester<DigestType> {
     base_.get().WriteZeros(length);
   }
   void Done() override {
-    if (base_.is_owning()) base_.get().Close();
+    if (base_.IsOwning()) base_.get().Close();
   }
   DigestType DigestImpl() override { return DigestImplImpl(); }
 

@@ -398,7 +398,7 @@ inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void ZstdReader<Src>::Done() {
   ZstdReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -408,13 +408,13 @@ void ZstdReader<Src>::Done() {
 template <typename Src>
 void ZstdReader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   ZstdReaderBase::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void ZstdReader<Src>::VerifyEndImpl() {
   ZstdReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

@@ -278,7 +278,7 @@ inline void HadoopSnappyWriter<Dest>::Reset(
 template <typename Dest>
 void HadoopSnappyWriter<Dest>::Done() {
   HadoopSnappyWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -290,7 +290,7 @@ bool HadoopSnappyWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!HadoopSnappyWriterBase::FlushImpl(flush_type))) {
     return false;
   }
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

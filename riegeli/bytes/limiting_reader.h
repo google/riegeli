@@ -610,7 +610,7 @@ inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
 template <typename Src>
 void LimitingReader<Src>::Done() {
   LimitingReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(src_->status());
     }
@@ -622,7 +622,7 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*src_);
   bool sync_ok = true;
-  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+  if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
   }
   MakeBuffer(*src_);

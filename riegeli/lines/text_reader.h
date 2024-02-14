@@ -352,7 +352,7 @@ inline void TextReader<newline, Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <ReadNewline newline, typename Src>
 void TextReader<newline, Src>::Done() {
   TextReader::TextReaderImpl::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       this->FailWithoutAnnotation(this->AnnotateOverSrc(src_->status()));
     }
@@ -362,13 +362,13 @@ void TextReader<newline, Src>::Done() {
 template <ReadNewline newline, typename Src>
 void TextReader<newline, Src>::SetReadAllHintImpl(bool read_all_hint) {
   TextReader::TextReaderImpl::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <ReadNewline newline, typename Src>
 void TextReader<newline, Src>::VerifyEndImpl() {
   TextReader::TextReaderImpl::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(this->ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(this->ok())) src_->VerifyEnd();
 }
 
 template <typename Src>

@@ -331,7 +331,7 @@ inline void Bzip2Reader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void Bzip2Reader<Src>::Done() {
   Bzip2ReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
     }
@@ -341,13 +341,13 @@ void Bzip2Reader<Src>::Done() {
 template <typename Src>
 void Bzip2Reader<Src>::SetReadAllHintImpl(bool read_all_hint) {
   Bzip2ReaderBase::SetReadAllHintImpl(read_all_hint);
-  if (src_.is_owning()) src_->SetReadAllHint(read_all_hint);
+  if (src_.IsOwning()) src_->SetReadAllHint(read_all_hint);
 }
 
 template <typename Src>
 void Bzip2Reader<Src>::VerifyEndImpl() {
   Bzip2ReaderBase::VerifyEndImpl();
-  if (src_.is_owning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
+  if (src_.IsOwning() && ABSL_PREDICT_TRUE(ok())) src_->VerifyEnd();
 }
 
 }  // namespace riegeli

@@ -287,7 +287,7 @@ class DependencyImpl<
 
   DefaultChunkWriter<Manager>* get() const { return &chunk_writer_; }
 
-  bool is_owning() const { return true; }
+  static constexpr bool kIsOwning = true;
 
   static constexpr bool kIsStable = false;
 
@@ -420,7 +420,7 @@ inline void DefaultChunkWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void DefaultChunkWriter<Dest>::Done() {
   DefaultChunkWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(dest_->status());
     }
@@ -430,7 +430,7 @@ void DefaultChunkWriter<Dest>::Done() {
 template <typename Dest>
 bool DefaultChunkWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(dest_->status());
     }

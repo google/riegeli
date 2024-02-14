@@ -474,7 +474,7 @@ inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
 template <typename Src>
 void FileReader<Src>::Done() {
   FileReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     // The only way to close a `::tensorflow::RandomAccessFile` is to delete it.
     src_.Reset();
   }

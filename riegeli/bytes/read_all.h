@@ -204,9 +204,9 @@ template <typename Src, typename Dest>
 inline absl::Status ReadAllInternal(Src&& src, Dest& dest, size_t max_length,
                                     size_t* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = ReadAllImpl(*src_dep, dest, max_length, length_read);
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
@@ -218,10 +218,10 @@ inline absl::Status ReadAndAppendAllInternal(Src&& src, Dest& dest,
                                              size_t max_length,
                                              size_t* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
       ReadAndAppendAllImpl(*src_dep, dest, max_length, length_read);
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
@@ -247,7 +247,7 @@ inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
   using WorkResult = read_all_internal::StringViewCallResult<Work>;
   using Maker = StatusOrMaker<WorkResult>;
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::string_view dest;
   absl::Status status =
       read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
@@ -256,7 +256,7 @@ inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
                                     : Maker::FromWork([&]() -> WorkResult {
                                         return std::forward<Work>(work)(dest);
                                       });
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(result.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
       Maker::Update(result, src_dep->status());
@@ -278,10 +278,10 @@ template <typename Src,
 absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
                      size_t* length_read) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  if (src_dep.is_owning()) src_dep->SetReadAllHint(true);
+  if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
       read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
-  if (src_dep.is_owning()) {
+  if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }

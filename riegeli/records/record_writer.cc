@@ -997,7 +997,7 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
     return FailWithoutAnnotation(worker_->status());
   }
-  if (flush_type != FlushType::kFromObject || is_owning()) {
+  if (flush_type != FlushType::kFromObject || IsOwning()) {
     if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) {
       return FailWithoutAnnotation(worker_->status());
     }
@@ -1034,7 +1034,7 @@ RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
     return promise.get_future();
   }
   FutureStatus result;
-  if (flush_type == FlushType::kFromObject && !is_owning()) {
+  if (flush_type == FlushType::kFromObject && !IsOwning()) {
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
     result = promise.get_future();

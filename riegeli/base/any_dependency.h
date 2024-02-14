@@ -211,8 +211,10 @@ struct NullMethods;
 
 // `IsAnyDependency` detects `AnyDependencyImpl` or `AnyDependencyRefImpl` type
 // with the given `Handle`.
+
 template <typename Handle, typename T>
 struct IsAnyDependency : std::false_type {};
+
 template <typename Handle, size_t inline_size, size_t inline_align>
 struct IsAnyDependency<Handle,
                        AnyDependencyImpl<Handle, inline_size, inline_align>>
@@ -386,7 +388,7 @@ class
 
   // If `true`, the `AnyDependencyImpl` owns the dependent object, i.e. closing
   // the host object should close the dependent object.
-  bool is_owning() const { return methods_->is_owning(repr_.storage); }
+  bool IsOwning() const { return methods_->is_owning(repr_.storage); }
 
   // If `true`, `get()` stays unchanged when an `AnyDependencyImpl` is moved.
   static constexpr bool kIsStable = inline_size == 0;
@@ -485,7 +487,7 @@ class DependencyManagerImpl<
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return this->manager().is_owning(); }
+  bool IsOwning() const { return this->manager().IsOwning(); }
 
   static constexpr bool kIsStable =
       DependencyManagerImpl::DependencyBase::kIsStable ||
@@ -524,8 +526,8 @@ class DependencyManagerImpl<
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const {
-    return this->manager() != nullptr && this->manager()->is_owning();
+  bool IsOwning() const {
+    return this->manager() != nullptr && this->manager()->IsOwning();
   }
 
   static constexpr bool kIsStable = true;
@@ -667,7 +669,7 @@ class DependencyManagerImpl<
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const { return this->manager().is_owning(); }
+  bool IsOwning() const { return this->manager().IsOwning(); }
 
   static constexpr bool kIsStable =
       DependencyManagerImpl::DependencyBase::kIsStable ||
@@ -706,8 +708,8 @@ class DependencyManagerImpl<
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
-  bool is_owning() const {
-    return this->manager() != nullptr && this->manager()->is_owning();
+  bool IsOwning() const {
+    return this->manager() != nullptr && this->manager()->IsOwning();
   }
 
   static constexpr bool kIsStable = true;
@@ -760,29 +762,6 @@ template <typename Handle>
 inline Handle SentinelHandle() {
   return SentinelHandleInternal<Handle>(
       RiegeliDependencySentinel(static_cast<Handle*>(nullptr)));
-}
-
-// `any_dependency_internal::IsOwning(dep)` calls `dep.is_owning()` if that is
-// defined, otherwise returns `false`.
-
-template <typename T, typename Enable = void>
-struct HasIsOwning : std::false_type {};
-template <typename T>
-struct HasIsOwning<T,
-                   absl::void_t<decltype(std::declval<const T>().is_owning())>>
-    : std::true_type {};
-
-template <
-    typename Handle, typename Manager,
-    std::enable_if_t<HasIsOwning<Dependency<Handle, Manager>>::value, int> = 0>
-bool IsOwning(const Dependency<Handle, Manager>& dep) {
-  return dep.is_owning();
-}
-template <
-    typename Handle, typename Manager,
-    std::enable_if_t<!HasIsOwning<Dependency<Handle, Manager>>::value, int> = 0>
-bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Dependency<Handle, Manager>& dep) {
-  return false;
 }
 
 template <typename Handle>
@@ -868,9 +847,7 @@ struct MethodsFor {
     new (self) Dependency<Handle, Manager>*(dep_ptr(that));
     new (self_handle) Handle(dep_ptr(self)->get());
   }
-  static bool IsOwning(const Storage self) {
-    return any_dependency_internal::IsOwning(*dep_ptr(self));
-  }
+  static bool IsOwning(const Storage self) { return dep_ptr(self)->IsOwning(); }
   static void* MutableGetIf(Storage self, TypeId type_id) {
     return dep_ptr(self)->GetIf(type_id);
   }
@@ -955,9 +932,7 @@ struct MethodsFor<Handle, inline_size, inline_align, Manager,
     dep(that).~Dependency<Handle, Manager>();
     new (self_handle) Handle(dep(self).get());
   }
-  static bool IsOwning(const Storage self) {
-    return any_dependency_internal::IsOwning(dep(self));
-  }
+  static bool IsOwning(const Storage self) { return dep(self).IsOwning(); }
   static void* MutableGetIf(Storage self, TypeId type_id) {
     return dep(self).GetIf(type_id);
   }

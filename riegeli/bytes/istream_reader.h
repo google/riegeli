@@ -326,7 +326,7 @@ inline void IStreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 void IStreamReader<Src>::Done() {
   IStreamReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     errno = 0;
     iostream_internal::Close(*src_);
     if (ABSL_PREDICT_FALSE(src_->fail()) && ABSL_PREDICT_TRUE(ok())) {
@@ -338,7 +338,7 @@ void IStreamReader<Src>::Done() {
 template <typename Src>
 bool IStreamReader<Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SyncImpl(sync_type))) return false;
-  if ((sync_type != SyncType::kFromObject || src_.is_owning()) &&
+  if ((sync_type != SyncType::kFromObject || src_.IsOwning()) &&
       IStreamReaderBase::SupportsRandomAccess()) {
     if (ABSL_PREDICT_FALSE(src_->sync() != 0)) {
       return FailOperation("istream::sync()");

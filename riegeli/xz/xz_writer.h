@@ -471,7 +471,7 @@ inline void XzWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void XzWriter<Dest>::Done() {
   XzWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }
@@ -481,7 +481,7 @@ void XzWriter<Dest>::Done() {
 template <typename Dest>
 bool XzWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!XzWriterBase::FlushImpl(flush_type))) return false;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
       return FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

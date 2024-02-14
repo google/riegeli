@@ -579,7 +579,7 @@ inline void CFileReader<Src>::Reset(absl::string_view filename,
 template <typename Src>
 void CFileReader<Src>::Done() {
   CFileReaderBase::Done();
-  if (src_.is_owning()) {
+  if (src_.IsOwning()) {
     {
       absl::Status status = src_.get().Close();
       if (ABSL_PREDICT_FALSE(!status.ok())) {

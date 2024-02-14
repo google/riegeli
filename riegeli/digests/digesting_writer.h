@@ -541,18 +541,18 @@ inline void DigestingWriter<DigesterType, Dest>::MoveDest(
 template <typename DigesterType, typename Dest>
 void DigestingWriter<DigesterType, Dest>::Done() {
   DigestingWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  if (digester_.is_owning()) digester_.get().Close();
+  if (digester_.IsOwning()) digester_.get().Close();
 }
 
 template <typename DigesterType, typename Dest>
 void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(write_size_hint);
     MakeBuffer(*dest_);
@@ -564,7 +564,7 @@ bool DigestingWriter<DigesterType, Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer(*dest_);
   bool flush_ok = true;
-  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+  if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     flush_ok = dest_->Flush(flush_type);
   }
   MakeBuffer(*dest_);
@@ -604,7 +604,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
   Dependency<DigesterBaseHandle, DigesterType&&> digester_dep(
       std::forward<DigesterType>(digester));
   WriteTuple<0>(srcs, digester_dep.get());
-  if (digester_dep.is_owning()) digester_dep.get().Close();
+  if (digester_dep.IsOwning()) digester_dep.get().Close();
   return digester_dep.get().template Digest<DesiredDigestType>();
 }
 

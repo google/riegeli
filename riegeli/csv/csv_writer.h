@@ -612,7 +612,7 @@ inline void CsvWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 void CsvWriter<Dest>::Done() {
   CsvWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
       FailWithoutAnnotation(AnnotateOverDest(dest_->status()));
     }

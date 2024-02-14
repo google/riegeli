@@ -361,7 +361,7 @@ inline std::istream* OStreamWriter<Dest>::SrcStream() const {
 template <typename Dest>
 void OStreamWriter<Dest>::Done() {
   OStreamWriterBase::Done();
-  if (dest_.is_owning()) {
+  if (dest_.IsOwning()) {
     errno = 0;
     iostream_internal::Close(*dest_);
     if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(ok())) {
@@ -377,7 +377,7 @@ bool OStreamWriter<Dest>::FlushImpl(FlushType flush_type) {
   }
   switch (flush_type) {
     case FlushType::kFromObject:
-      if (!dest_.is_owning()) return true;
+      if (!dest_.IsOwning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:

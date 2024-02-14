@@ -217,7 +217,7 @@ struct FdTargetHasOpenAt<
 //   //
 //   // Optional. If absent, the presence of `Close()` determines whether the
 //   // target is considered to own the fd.
-//   bool is_owning() const;
+//   bool IsOwning() const;
 //
 //   // Opens a new fd, like with `open()` but returning `absl::Status`.
 //   //
@@ -226,9 +226,9 @@ struct FdTargetHasOpenAt<
 //   absl::Status Open(const char* filename, int mode,
 //                     OwnedFd::Permissions permissions);
 //
-//   // Closes the fd if `is_owning()`.
+//   // Closes the fd if `IsOwning()`.
 //   //
-//   // Returns `absl::OkStatus()` if `!is_owning()`.
+//   // Returns `absl::OkStatus()` if `!IsOwning()`.
 //   //
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
@@ -261,11 +261,11 @@ class FdHandle : public WithEqual<FdHandle> {
 
   // Returns `true` if the `FdHandle` owns the fd, i.e. is responsible for
   // closing it and the fd is present.
-  bool is_owning() const { return methods_->is_owning(target_); }
+  bool IsOwning() const { return methods_->is_owning(target_); }
 
-  // Closes the fd if `is_owning()`.
+  // Closes the fd if `IsOwning()`.
   //
-  // Returns `absl::OkStatus()` if `!is_owning()`.
+  // Returns `absl::OkStatus()` if `!IsOwning()`.
   absl::Status Close() { return methods_->close(target_); }
 
  private:
@@ -284,7 +284,7 @@ class FdHandle : public WithEqual<FdHandle> {
   template <typename T>
   struct FdTargetHasIsOwning<
       T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<const T&>().is_owning()), bool>::value>>
+             decltype(std::declval<const T&>().IsOwning()), bool>::value>>
       : std::true_type {};
 
   template <typename T>
@@ -295,7 +295,7 @@ class FdHandle : public WithEqual<FdHandle> {
   template <typename T,
             std::enable_if_t<FdTargetHasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(const void* target) {
-    return static_cast<const T*>(target)->is_owning();
+    return static_cast<const T*>(target)->IsOwning();
   }
   template <typename T,
             std::enable_if_t<!FdTargetHasIsOwning<T>::value, int> = 0>
