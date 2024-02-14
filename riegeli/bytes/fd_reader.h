@@ -386,6 +386,17 @@ class FdReader : public FdReaderBase {
             std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
   explicit FdReader(absl::string_view filename, Options options = Options());
 
+  // Opens a file for reading, with the filename interpreted relatively to the
+  // directory specified by an existing fd.
+  //
+  // If opening the file fails, `FdReader` will be failed and closed.
+  //
+  // This constructor is present only if `Src` supports `OpenAt()`.
+  template <typename DependentSrc = Src,
+            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+  explicit FdReader(int dir_fd, absl::string_view filename,
+                    Options options = Options());
+
   FdReader(FdReader&& that) noexcept;
   FdReader& operator=(FdReader&& that) noexcept;
 
@@ -406,6 +417,11 @@ class FdReader : public FdReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
+  template <typename DependentSrc = Src,
+            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dir_fd,
+                                          absl::string_view filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from.
@@ -441,6 +457,9 @@ explicit FdReader(Src&& src,
         absl::disjunction<std::is_convertible<Src&&, int>,
                           std::is_convertible<Src&&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Src>>>;
+explicit FdReader(int dir_fd, absl::string_view filename,
+                  FdReaderBase::Options options = FdReaderBase::Options())
+    -> FdReader<OwnedFd>;
 template <typename... SrcArgs>
 explicit FdReader(std::tuple<SrcArgs...> src_args,
                   FdReaderBase::Options options = FdReaderBase::Options())
@@ -577,6 +596,30 @@ inline FdReader<Src>::FdReader(absl::string_view filename, Options options)
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+inline FdReader<Src>::FdReader(int dir_fd, absl::string_view filename,
+                               Options options)
+    : FdReaderBase(options.buffer_options(), options.growing_source()) {
+  absl::Status status =
+      src_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                            options.mode(), OwnedFd::kDefaultPermissions);
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdReaderBase::Reset()` to preserve `filename()`.
+    BufferedReader::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*src_, std::move(options)
+#ifdef _WIN32
+                           ,
+                /*mode_was_passed_to_open=*/true
+#endif
+  );
+}
+
+template <typename Src>
 inline FdReader<Src>::FdReader(FdReader&& that) noexcept
     : FdReaderBase(static_cast<FdReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
@@ -633,6 +676,30 @@ inline void FdReader<Src>::Reset(absl::string_view filename, Options options) {
   absl::Status status =
       src_.manager().Open(InitializeFilename(filename), options.mode(),
                           OwnedFd::kDefaultPermissions);
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdReaderBase::Reset()` to preserve `filename()`.
+    BufferedReader::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*src_, std::move(options)
+#ifdef _WIN32
+                           ,
+                /*mode_was_passed_to_open=*/true
+#endif
+  );
+}
+
+template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+inline void FdReader<Src>::Reset(int dir_fd, absl::string_view filename,
+                                 Options options) {
+  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
+  absl::Status status =
+      src_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                            options.mode(), OwnedFd::kDefaultPermissions);
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdReaderBase::Reset()` to preserve `filename()`.

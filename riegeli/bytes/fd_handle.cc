@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Make `openat()` available.
+#if !defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809
+#endif
+
 #include "riegeli/bytes/fd_handle.h"
 
 #include <fcntl.h>
@@ -76,6 +82,23 @@ absl::Status OwnedFd::Open(absl::string_view filename, int mode,
   return absl::OkStatus();
 }
 #endif  // _WIN32
+
+#ifndef _WIN32
+absl::Status OwnedFd::OpenAt(int dir_fd, const char* filename, int mode,
+                             Permissions permissions) {
+  Reset();
+again:
+  const int fd = openat(dir_fd, filename, mode, permissions);
+  if (ABSL_PREDICT_FALSE(fd < 0)) {
+    const int error_number = errno;
+    if (error_number == EINTR) goto again;
+    return Annotate(absl::ErrnoToStatus(error_number, "openat() failed"),
+                    absl::StrCat("opening ", filename));
+  }
+  Reset(fd);
+  return absl::OkStatus();
+}
+#endif  // !_WIN32
 
 absl::Status OwnedFd::Close() {
   if (is_open()) {

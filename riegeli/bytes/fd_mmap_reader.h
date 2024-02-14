@@ -287,6 +287,17 @@ class FdMMapReader : public FdMMapReaderBase {
   explicit FdMMapReader(absl::string_view filename,
                         Options options = Options());
 
+  // Opens a file for reading, with the filename interpreted relatively to the
+  // directory specified by an existing fd.
+  //
+  // If opening the file fails, `FdMMapReader` will be failed and closed.
+  //
+  // This constructor is present only if `Src` supports `Open()`.
+  template <typename DependentSrc = Src,
+            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+  explicit FdMMapReader(int dir_fd, absl::string_view filename,
+                        Options options = Options());
+
   FdMMapReader(FdMMapReader&& that) noexcept;
   FdMMapReader& operator=(FdMMapReader&& that) noexcept;
 
@@ -307,6 +318,11 @@ class FdMMapReader : public FdMMapReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
+  template <typename DependentSrc = Src,
+            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dir_fd,
+                                          absl::string_view filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from.
@@ -347,6 +363,9 @@ explicit FdMMapReader(
         absl::disjunction<std::is_convertible<Src&&, int>,
                           std::is_convertible<Src&&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Src>>>;
+explicit FdMMapReader(int dir_fd, absl::string_view filename,
+                      FdMMapReaderBase::Options options =
+                          FdMMapReaderBase::Options()) -> FdMMapReader<OwnedFd>;
 template <typename... SrcArgs>
 explicit FdMMapReader(
     std::tuple<SrcArgs...> src_args,
@@ -452,6 +471,24 @@ inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename,
 }
 
 template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+inline FdMMapReader<Src>::FdMMapReader(int dir_fd, absl::string_view filename,
+                                       Options options) {
+  absl::Status status =
+      src_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                            options.mode(), OwnedFd::kDefaultPermissions);
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
+    ChainReader::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*src_, std::move(options));
+}
+
+template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
     : FdMMapReaderBase(static_cast<FdMMapReaderBase&&>(that)),
       src_(std::move(that.src_)) {}
@@ -510,6 +547,25 @@ inline void FdMMapReader<Src>::Reset(absl::string_view filename,
   absl::Status status =
       src_.manager().Open(InitializeFilename(filename), options.mode(),
                           OwnedFd::kDefaultPermissions);
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
+    ChainReader::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*src_, std::move(options));
+}
+
+template <typename Src>
+template <typename DependentSrc,
+          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+inline void FdMMapReader<Src>::Reset(int dir_fd, absl::string_view filename,
+                                     Options options) {
+  FdMMapReaderBase::Reset();
+  absl::Status status =
+      src_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                            options.mode(), OwnedFd::kDefaultPermissions);
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.

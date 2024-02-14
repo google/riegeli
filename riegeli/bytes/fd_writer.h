@@ -559,6 +559,17 @@ class FdWriter : public FdWriterBase {
             std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
   explicit FdWriter(absl::string_view filename, Options options = Options());
 
+  // Opens a file for writing, with the filename interpreted relatively to the
+  // directory specified by an existing fd.
+  //
+  // If opening the file fails, `FdWriter` will be failed and closed.
+  //
+  // This constructor is present only if `Dest` supports `OpenAt()`.
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int> = 0>
+  explicit FdWriter(int dir_fd, absl::string_view filename,
+                    Options options = Options());
+
   FdWriter(FdWriter&& that) noexcept;
   FdWriter& operator=(FdWriter&& that) noexcept;
 
@@ -580,6 +591,11 @@ class FdWriter : public FdWriterBase {
   template <typename DependentDest = Dest,
             std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
+                                          Options options = Options());
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dir_fd,
+                                          absl::string_view filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
@@ -616,6 +632,9 @@ explicit FdWriter(Dest&& dest,
             std::is_convertible<Dest&&, int>,
             std::is_convertible<Dest&&, absl::string_view>>::value,
         OwnedFd, std::decay_t<Dest>>>;
+explicit FdWriter(int dir_fd, absl::string_view filename,
+                  FdWriterBase::Options options = FdWriterBase::Options())
+    -> FdWriter<OwnedFd>;
 template <typename... DestArgs>
 explicit FdWriter(std::tuple<DestArgs...> dest_args,
                   FdWriterBase::Options options = FdWriterBase::Options())
@@ -755,6 +774,25 @@ inline FdWriter<Dest>::FdWriter(absl::string_view filename, Options options)
 }
 
 template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int>>
+inline FdWriter<Dest>::FdWriter(int dir_fd, absl::string_view filename,
+                                Options options)
+    : FdWriterBase(options.buffer_options()) {
+  absl::Status status =
+      dest_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                             options.mode(), options.permissions());
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+}
+
+template <typename Dest>
 inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
     : FdWriterBase(static_cast<FdWriterBase&&>(that)),
       dest_(std::move(that.dest_)) {}
@@ -810,6 +848,25 @@ inline void FdWriter<Dest>::Reset(absl::string_view filename, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   absl::Status status = dest_.manager().Open(
       InitializeFilename(filename), options.mode(), options.permissions());
+  InitializeAssumedFilename(options);
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    // Not `FdWriterBase::Reset()` to preserve `filename()`.
+    BufferedWriter::Reset(kClosed);
+    FailWithoutAnnotation(std::move(status));
+    return;
+  }
+  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+}
+
+template <typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int>>
+inline void FdWriter<Dest>::Reset(int dir_fd, absl::string_view filename,
+                                  Options options) {
+  FdWriterBase::Reset(options.buffer_options());
+  absl::Status status =
+      dest_.manager().OpenAt(dir_fd, InitializeFilename(filename),
+                             options.mode(), options.permissions());
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdWriterBase::Reset()` to preserve `filename()`.

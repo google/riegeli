@@ -102,6 +102,25 @@ class
       Permissions permissions = kDefaultPermissions);
 #endif
 
+#ifndef _WIN32
+  // Opens a new fd with the filename interpreted relatively to the directory
+  // specified by an existing fd, like with `openat()` but taking
+  // `absl::string_view filename` and returning `absl::Status`.
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
+      int dir_fd, absl::string_view filename, int mode,
+      Permissions permissions = kDefaultPermissions) {
+    return OpenAt(dir_fd, std::string(filename).c_str(), mode, permissions);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
+      int dir_fd, const std::string& filename, int mode,
+      Permissions permissions = kDefaultPermissions) {
+    return OpenAt(dir_fd, filename.c_str(), mode, permissions);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
+      int dir_fd, const char* filename, int mode,
+      Permissions permissions = kDefaultPermissions);
+#endif  // !_WIN32
+
   // Closes the fd if present.
   //
   // Returns `absl::OkStatus()` if absent.
@@ -168,6 +187,20 @@ struct FdTargetHasOpen<
            decltype(std::declval<T&>().Open(
                std::declval<absl::string_view>(), std::declval<int>(),
                std::declval<OwnedFd::Permissions>())),
+           absl::Status>::value>> : std::true_type {};
+
+// `FdTargetHasOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
+// signature like in `OwnedFd` (with `permissions` present).
+
+template <typename T, typename Enable = void>
+struct FdTargetHasOpenAt : std::false_type {};
+
+template <typename T>
+struct FdTargetHasOpenAt<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<T&>().OpenAt(
+               std::declval<int>(), std::declval<absl::string_view>(),
+               std::declval<int>(), std::declval<OwnedFd::Permissions>())),
            absl::Status>::value>> : std::true_type {};
 
 // Type-erased pointer to a target object like `OwnedFd` or `UnownedFd` which
