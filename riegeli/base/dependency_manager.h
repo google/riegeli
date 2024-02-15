@@ -218,8 +218,9 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&>` when
-// `DependencyManagerImpl<std::decay_t<Manager>>` is defined: delegate to it,
-// but store `std::decay_t<Manager>` by reference to avoid moving it.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined: delegate
+// to it, but store `absl::remove_cvref_t<Manager>` by reference to avoid moving
+// it.
 //
 // This handles cases where `Manager` is deduced from a function parameter
 // as a reference type, but the type under the reference determines the
@@ -228,18 +229,18 @@ template <typename Manager>
 class DependencyManager<
     Manager&,
     std::enable_if_t<dependency_manager_internal::IsValidDependencyManagerImpl<
-        std::decay_t<Manager>>::value>>
-    : public DependencyManagerImpl<std::decay_t<Manager>,
-                                   std::decay_t<Manager>&> {
+        absl::remove_cvref_t<Manager>>::value>>
+    : public DependencyManagerImpl<absl::remove_cvref_t<Manager>,
+                                   absl::remove_cvref_t<Manager>&> {
  public:
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<
-          decltype(std::declval<DependencyManagerImpl<
-                       std::decay_t<Manager>, std::decay_t<Manager>&>&>()
-                       .manager()),
-          Manager&>::value,
+      std::is_convertible<decltype(std::declval<DependencyManagerImpl<
+                                       absl::remove_cvref_t<Manager>,
+                                       absl::remove_cvref_t<Manager>&>&>()
+                                       .manager()),
+                          Manager&>::value,
       "DependencyManagerImpl<Manager, Manager&>::manager() "
       "must return Manager&");
 
@@ -254,13 +255,14 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&>` when
-// `DependencyManagerImpl<std::decay_t<Manager>>` is not defined: an unowned
-// dependency stored by lvalue reference.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is not defined: an
+// unowned dependency stored by lvalue reference.
 template <typename Manager>
 class DependencyManager<
     Manager&,
     std::enable_if_t<!dependency_manager_internal::IsValidDependencyManagerImpl<
-        std::decay_t<Manager>>::value>> : public DependencyBase<Manager&> {
+        absl::remove_cvref_t<Manager>>::value>>
+    : public DependencyBase<Manager&> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
 
@@ -276,8 +278,9 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&&>` when
-// `DependencyManagerImpl<std::decay_t<Manager>>` is defined: delegate to it,
-// but store `std::decay_t<Manager>` by reference to avoid moving it.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined: delegate
+// to it, but store `absl::remove_cvref_t<Manager>` by reference to avoid moving
+// it.
 //
 // This handles cases where `Manager` is deduced from a function parameter
 // as a reference type, but the type under the reference determines the
@@ -286,18 +289,18 @@ template <typename Manager>
 class DependencyManager<
     Manager&&,
     std::enable_if_t<dependency_manager_internal::IsValidDependencyManagerImpl<
-        std::decay_t<Manager>>::value>>
-    : public DependencyManagerImpl<std::decay_t<Manager>,
-                                   std::decay_t<Manager>&&> {
+        absl::remove_cvref_t<Manager>>::value>>
+    : public DependencyManagerImpl<absl::remove_cvref_t<Manager>,
+                                   absl::remove_cvref_t<Manager>&&> {
  public:
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<
-          decltype(std::declval<DependencyManagerImpl<
-                       std::decay_t<Manager>, std::decay_t<Manager>&&>&>()
-                       .manager()),
-          Manager&>::value,
+      std::is_convertible<decltype(std::declval<DependencyManagerImpl<
+                                       absl::remove_cvref_t<Manager>,
+                                       absl::remove_cvref_t<Manager>&&>&>()
+                                       .manager()),
+                          Manager&>::value,
       "DependencyManagerImpl<Manager, Manager&&>::manager() "
       "must return Manager&");
 
@@ -312,13 +315,14 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&&>` when
-// `DependencyManagerImpl<std::decay_t<Manager>>` is not defined: an owned
-// dependency stored by rvalue reference.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is not defined: an
+// owned dependency stored by rvalue reference.
 template <typename Manager>
 class DependencyManager<
     Manager&&,
     std::enable_if_t<!dependency_manager_internal::IsValidDependencyManagerImpl<
-        std::decay_t<Manager>>::value>> : public DependencyBase<Manager&&> {
+        absl::remove_cvref_t<Manager>>::value>>
+    : public DependencyBase<Manager&&> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
 
