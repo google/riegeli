@@ -22,11 +22,12 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/types.h"
 #include "riegeli/digests/digest_converter.h"
-#include "riegeli/digests/digester.h"
 #include "riegeli/digests/digester_handle.h"
 
 namespace riegeli {
@@ -64,7 +65,7 @@ template <typename BaseDigester, typename DigestType = DigestOf<BaseDigester>,
           typename wrapping_digester_internal::DigestConverterFunction<
               DigestOf<BaseDigester>, DigestType>::type digest_converter =
               nullptr>
-class WrappingDigester : public Digester<DigestType> {
+class WrappingDigester {
  public:
   // Default-constructs the `BaseDigester`.
   template <
@@ -87,17 +88,14 @@ class WrappingDigester : public Digester<DigestType> {
   WrappingDigester(WrappingDigester&& that) = default;
   WrappingDigester& operator=(WrappingDigester&& that) = default;
 
- protected:
-  void WriteImpl(absl::string_view src) override { base_.get().Write(src); }
-  void WriteZerosImpl(riegeli::Position length) override {
-    base_.get().WriteZeros(length);
-  }
-  void Done() override {
+  void Write(absl::string_view src) { base_.get().Write(src); }
+  void Write(const Chain& src) { base_.get().Write(src); }
+  void Write(const absl::Cord& src) { base_.get().Write(src); }
+  void WriteZeros(riegeli::Position length) { base_.get().WriteZeros(length); }
+  void Close() {
     if (base_.IsOwning()) base_.get().Close();
   }
-  DigestType DigestImpl() override { return DigestImplImpl(); }
 
- private:
   template <typename DependentBaseDigester = BaseDigester,
             std::enable_if_t<
                 absl::conjunction<
@@ -105,7 +103,7 @@ class WrappingDigester : public Digester<DigestType> {
                     HasDigestConverter<DigestOf<DependentBaseDigester>,
                                        DigestType>>::value,
                 int> = 0>
-  DigestType DigestImplImpl() {
+  DigestType Digest() {
     return base_.get().template Digest<DigestType>();
   }
   template <typename DependentBaseDigester = BaseDigester,
@@ -115,7 +113,7 @@ class WrappingDigester : public Digester<DigestType> {
                     absl::negation<
                         std::is_void<DigestOf<DependentBaseDigester>>>>::value,
                 int> = 0>
-  DigestType DigestImplImpl() {
+  DigestType Digest() {
     return digest_converter(base_.get().Digest());
   }
   template <typename DependentBaseDigester = BaseDigester,
@@ -124,7 +122,7 @@ class WrappingDigester : public Digester<DigestType> {
                     std::integral_constant<bool, digest_converter != nullptr>,
                     std::is_void<DigestOf<DependentBaseDigester>>>::value,
                 int> = 0>
-  DigestType DigestImplImpl() {
+  DigestType Digest() {
     base_.get().Digest();
     return digest_converter();
   }

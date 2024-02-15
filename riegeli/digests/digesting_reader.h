@@ -39,7 +39,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"
-#include "riegeli/digests/wrapping_digester.h"  // IWYU pragma: export
 
 namespace riegeli {
 

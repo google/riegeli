@@ -29,7 +29,7 @@ Adler32Digester::Adler32Digester(uint32_t seed) : adler_(seed) {
   adler32_z(0, nullptr, 0);
 }
 
-void Adler32Digester::WriteImpl(absl::string_view src) {
+void Adler32Digester::Write(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(src.empty())) {
     // `adler32_z(state, nullptr, 0)` exceptionally returns 1, not `state`.
     return;

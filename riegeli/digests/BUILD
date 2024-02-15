@@ -61,12 +61,13 @@ cc_library(
     hdrs = ["wrapping_digester.h"],
     deps = [
         ":digest_converter",
-        ":digester",
         ":digester_handle",
+        "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:types",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -77,7 +78,6 @@ cc_library(
     deps = [
         ":digest_converter",
         ":digester_handle",
-        ":wrapping_digester",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
@@ -128,7 +128,6 @@ cc_library(
     name = "crc32c_digester",
     hdrs = ["crc32c_digester.h"],
     deps = [
-        ":digester",
         "//riegeli/base:arithmetic",
         "@com_google_absl//absl/strings",
         "@crc32c",
@@ -140,7 +139,6 @@ cc_library(
     srcs = ["crc32_digester.cc"],
     hdrs = ["crc32_digester.h"],
     deps = [
-        ":digester",
         "//riegeli/base:arithmetic",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -153,7 +151,6 @@ cc_library(
     srcs = ["adler32_digester.cc"],
     hdrs = ["adler32_digester.h"],
     deps = [
-        ":digester",
         "//riegeli/base:arithmetic",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",

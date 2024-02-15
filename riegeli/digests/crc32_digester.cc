@@ -29,7 +29,7 @@ Crc32Digester::Crc32Digester(uint32_t seed) : crc_(seed) {
   crc32_z(0, nullptr, 0);
 }
 
-void Crc32Digester::WriteImpl(absl::string_view src) {
+void Crc32Digester::Write(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(src.empty())) {
     // `crc32_z(state, nullptr, 0)` exceptionally returns 0, not `state`.
     return;

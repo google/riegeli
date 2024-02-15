@@ -18,11 +18,10 @@
 #include <stdint.h>
 
 #include "absl/strings/string_view.h"
-#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
-// A Digester computing CRC32 checksums, for `DigestingReader` and
+// A digester computing CRC32 checksums, for `DigestingReader` and
 // `DigestingWriter`.
 //
 // This uses the polynomial x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11 +
@@ -30,7 +29,7 @@ namespace riegeli {
 //
 // This polynomial is used e.g. by gzip, zip, and png:
 // https://en.wikipedia.org/wiki/Cyclic_redundancy_check#Polynomial_representations_of_cyclic_redundancy_checks
-class Crc32Digester : public Digester<uint32_t> {
+class Crc32Digester {
  public:
   Crc32Digester() : Crc32Digester(0) {}
 
@@ -39,13 +38,8 @@ class Crc32Digester : public Digester<uint32_t> {
   Crc32Digester(const Crc32Digester& that) = default;
   Crc32Digester& operator=(const Crc32Digester& that) = default;
 
-  Crc32Digester(Crc32Digester&& that) = default;
-  Crc32Digester& operator=(Crc32Digester&& that) = default;
-
- protected:
-  void WriteImpl(absl::string_view src) override;
-
-  uint32_t DigestImpl() override { return crc_; }
+  void Write(absl::string_view src);
+  uint32_t Digest() { return crc_; }
 
  private:
   uint32_t crc_;

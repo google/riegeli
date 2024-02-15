@@ -18,13 +18,12 @@
 #include <stdint.h>
 
 #include "absl/strings/string_view.h"
-#include "riegeli/digests/digester.h"
 
 namespace riegeli {
 
-// A Digester computing Adler32 checksums, for `DigestingReader` and
+// A digester computing Adler32 checksums, for `DigestingReader` and
 // `DigestingWriter`.
-class Adler32Digester : public Digester<uint32_t> {
+class Adler32Digester {
  public:
   Adler32Digester() : Adler32Digester(1) {}
 
@@ -33,12 +32,8 @@ class Adler32Digester : public Digester<uint32_t> {
   Adler32Digester(const Adler32Digester& that) = default;
   Adler32Digester& operator=(const Adler32Digester& that) = default;
 
-  Adler32Digester(Adler32Digester&& that) = default;
-  Adler32Digester& operator=(Adler32Digester&& that) = default;
-
- protected:
-  void WriteImpl(absl::string_view src) override;
-  uint32_t DigestImpl() override { return adler_; }
+  void Write(absl::string_view src);
+  uint32_t Digest() { return adler_; }
 
  private:
   uint32_t adler_;
