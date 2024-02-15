@@ -38,7 +38,6 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/type_traits.h"
 
 namespace google {
 namespace protobuf {
@@ -314,8 +313,9 @@ struct RegisterSubobjectsIsTrivial
 
 template <typename T>
 inline void MemoryEstimator::RegisterSubobjectsOfElements(const T& iterable) {
+  using std::begin;
   if (!RegisterSubobjectsIsTrivial<
-          adl_begin_sandbox::DereferenceIterableT<T>>::value) {
+          std::remove_reference_t<decltype(*begin(iterable))>>::value) {
     for (const auto& element : iterable) {
       RegisterSubobjects(element);
     }

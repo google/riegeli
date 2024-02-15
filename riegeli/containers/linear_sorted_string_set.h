@@ -35,7 +35,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/type_traits.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -689,7 +689,7 @@ LinearSortedStringSet LinearSortedStringSet::FromSorted(Src&& src) {
   auto end_iter = end(src);
   LinearSortedStringSet::Builder builder;
   for (; iter != end_iter; ++iter) {
-    builder.InsertNext(MaybeMoveElement<Src>(*iter));
+    builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
   return std::move(builder).Build();
 }
@@ -718,7 +718,7 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
 
   LinearSortedStringSet::Builder builder;
   for (const SrcIterator& iter : iterators) {
-    builder.InsertNext(MaybeMoveElement<Src>(*iter));
+    builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
   return std::move(builder).Build();
 }

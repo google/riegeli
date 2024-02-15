@@ -42,8 +42,8 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/base/no_destructor.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -1444,7 +1444,7 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
     if (this_iter == this->end() || this_iter->first != src_iter->first) break;
-    csv_internal::AssignToString(MaybeMoveElement<Src>(src_iter->second),
+    csv_internal::AssignToString((*MaybeMakeMoveIterator<Src>(src_iter)).second,
                                  this_iter->second);
     ++this_iter;
     ++src_iter;
@@ -1460,8 +1460,8 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       missing_names.emplace_back(src_iter->first);
     } else {
-      csv_internal::AssignToString(MaybeMoveElement<Src>(src_iter->second),
-                                   this_iter->second);
+      csv_internal::AssignToString(
+          (*MaybeMakeMoveIterator<Src>(src_iter)).second, this_iter->second);
     }
     ++src_iter;
   } while (src_iter != src_end_iter);

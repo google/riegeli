@@ -36,7 +36,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/type_traits.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/containers/linear_sorted_string_set.h"
@@ -625,7 +625,7 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   }
   ChunkedSortedStringSet::Builder builder(std::move(options));
   for (; iter != end_iter; ++iter) {
-    builder.InsertNext(MaybeMoveElement<Src>(*iter));
+    builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
   return std::move(builder).Build();
 }
@@ -657,7 +657,7 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   options.set_size_hint(iterators.size());
   ChunkedSortedStringSet::Builder builder(std::move(options));
   for (const SrcIterator& iter : iterators) {
-    builder.InsertNext(MaybeMoveElement<Src>(*iter));
+    builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
   return std::move(builder).Build();
 }
