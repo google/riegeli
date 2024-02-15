@@ -61,17 +61,18 @@ class DigestingWriterBase : public Writer {
   DigestingWriterBase(DigestingWriterBase&& that) noexcept;
   DigestingWriterBase& operator=(DigestingWriterBase&& that) noexcept;
 
-  void Initialize(Writer* dest);
+  void Initialize(Writer* dest, DigesterBaseHandle digester);
+  ABSL_ATTRIBUTE_COLD bool FailFromDigester();
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
 
-  virtual void WriteToDigester(absl::string_view src) = 0;
+  virtual bool WriteToDigester(absl::string_view src) = 0;
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).
-  void SyncBuffer(Writer& dest);
+  bool SyncBuffer(Writer& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`, adjusting
   // `start()` to hide data already digested. Fails `*this` if `dest` failed.
@@ -200,10 +201,14 @@ class DigestingWriter : public DigestingWriterBase {
                        int> = 0>
   DesiredDigestType Digest() {
     if (start_to_cursor() > 0) {
-      digester_.get().Write(absl::string_view(start(), start_to_cursor()));
-      set_start_pos(pos());
-      set_buffer(cursor(), available());
-      dest_->set_cursor(cursor());
+      if (ABSL_PREDICT_FALSE(!digester_.get().Write(
+              absl::string_view(start(), start_to_cursor())))) {
+        FailFromDigester();
+      } else {
+        set_start_pos(pos());
+        set_buffer(cursor(), available());
+        dest_->set_cursor(cursor());
+      }
     }
     return digester_.get().template Digest<DesiredDigestType>();
   }
@@ -222,8 +227,8 @@ class DigestingWriter : public DigestingWriterBase {
 
  protected:
   void Done() override;
-  void WriteToDigester(absl::string_view src) override {
-    digester_.get().Write(src);
+  bool WriteToDigester(absl::string_view src) override {
+    return digester_.get().Write(src);
   }
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
@@ -292,6 +297,9 @@ explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 //
+// The digester should not be expected to fail. If it fails, the process
+// terminates.
+//
 // The digest is converted to `DesiredDigestType` using `DigestConverter`.
 template <typename DesiredDigestType = digest_converter_internal::NoConversion,
           typename... Args,
@@ -321,20 +329,28 @@ inline DigestingWriterBase& DigestingWriterBase::operator=(
   return *this;
 }
 
-inline void DigestingWriterBase::Initialize(Writer* dest) {
+inline void DigestingWriterBase::Initialize(Writer* dest,
+                                            DigesterBaseHandle digester) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of DigestingWriter: null Writer pointer";
   MakeBuffer(*dest);
+  absl::Status status = digester.status();
+  if (ABSL_PREDICT_FALSE(!status.ok())) Fail(std::move(status));
 }
 
-inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
+inline bool DigestingWriterBase::SyncBuffer(Writer& dest) {
   RIEGELI_ASSERT(start() == dest.cursor())
       << "Failed invariant of DigestingWriterBase: "
          "cursor of the original Writer changed unexpectedly";
   if (start_to_cursor() > 0) {
-    WriteToDigester(absl::string_view(start(), start_to_cursor()));
+    if (ABSL_PREDICT_FALSE(
+            !WriteToDigester(absl::string_view(start(), start_to_cursor())))) {
+      if (FailFromDigester()) RIEGELI_ASSERT_UNREACHABLE();
+      return false;
+    }
     dest.set_cursor(cursor());
   }
+  return true;
 }
 
 inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
@@ -347,14 +363,14 @@ template <typename DigesterType, typename Dest>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     const Dest& dest, const DigesterType& digester)
     : digester_(digester), dest_(dest) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     const Dest& dest, DigesterType&& digester)
     : digester_(std::move(digester)), dest_(dest) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -362,21 +378,21 @@ template <typename... DigesterArgs>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     const Dest& dest, std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), dest_(dest) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     Dest&& dest, const DigesterType& digester)
     : digester_(digester), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     Dest&& dest, DigesterType&& digester)
     : digester_(std::move(digester)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -384,7 +400,7 @@ template <typename... DigesterArgs>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     Dest&& dest, std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -392,7 +408,7 @@ template <typename... DestArgs>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     std::tuple<DestArgs...> dest_args, const DigesterType& digester)
     : digester_(digester), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -400,7 +416,7 @@ template <typename... DestArgs>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     std::tuple<DestArgs...> dest_args, DigesterType&& digester)
     : digester_(std::move(digester)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -409,7 +425,7 @@ inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
     std::tuple<DestArgs...> dest_args,
     std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -443,7 +459,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(digester);
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -452,7 +468,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -462,7 +478,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester_args));
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -471,7 +487,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(digester);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -480,7 +496,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -490,7 +506,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester_args));
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -500,7 +516,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(digester);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -510,7 +526,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -521,7 +537,7 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester_args));
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Dest>
@@ -532,9 +548,9 @@ inline void DigestingWriter<DigesterType, Dest>::MoveDest(
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(*that.dest_);
+    const bool sync_buffer_ok = SyncBuffer(*that.dest_);
     dest_ = std::move(that.dest_);
-    MakeBuffer(*dest_);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*dest_);
   }
 }
 
@@ -546,14 +562,16 @@ void DigestingWriter<DigesterType, Dest>::Done() {
       FailWithoutAnnotation(dest_->status());
     }
   }
-  if (digester_.IsOwning()) digester_.get().Close();
+  if (digester_.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!digester_.get().Close())) FailFromDigester();
+  }
 }
 
 template <typename DigesterType, typename Dest>
 void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
-    SyncBuffer(*dest_);
+    if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(write_size_hint);
     MakeBuffer(*dest_);
   }
@@ -562,7 +580,7 @@ void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
 template <typename DigesterType, typename Dest>
 bool DigestingWriter<DigesterType, Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  SyncBuffer(*dest_);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
   bool flush_ok = true;
   if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     flush_ok = dest_->Flush(flush_type);
@@ -572,6 +590,8 @@ bool DigestingWriter<DigesterType, Dest>::FlushImpl(FlushType flush_type) {
 }
 
 namespace digesting_writer_internal {
+
+ABSL_ATTRIBUTE_COLD absl::Status FailedStatus(DigesterBaseHandle digester);
 
 template <typename T, typename Enable = void>
 struct SupportedByDigesterHandle : std::false_type {};
@@ -583,16 +603,18 @@ struct SupportedByDigesterHandle<
 
 template <size_t index, typename... Srcs,
           std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void WriteTuple(
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
     ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs,
-    ABSL_ATTRIBUTE_UNUSED DigesterBaseHandle digester) {}
+    ABSL_ATTRIBUTE_UNUSED DigesterBaseHandle digester) {
+  return true;
+}
 
 template <size_t index, typename... Srcs,
           std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void WriteTuple(
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
     const std::tuple<Srcs...>& srcs, DigesterBaseHandle digester) {
-  digester.Write(std::get<index>(srcs));
-  WriteTuple<index + 1>(srcs, digester);
+  return digester.Write(std::get<index>(srcs)) &&
+         WriteTuple<index + 1>(srcs, digester);
 }
 
 template <
@@ -603,8 +625,11 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         DigesterType&& digester) {
   Dependency<DigesterBaseHandle, DigesterType&&> digester_dep(
       std::forward<DigesterType>(digester));
-  WriteTuple<0>(srcs, digester_dep.get());
-  if (digester_dep.IsOwning()) digester_dep.get().Close();
+  bool ok = WriteTuple<0>(srcs, digester_dep.get());
+  if (digester_dep.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!digester_dep.get().Close())) ok = false;
+  }
+  RIEGELI_CHECK(ok) << FailedStatus(digester_dep.get());
   return digester_dep.get().template Digest<DesiredDigestType>();
 }
 
@@ -617,10 +642,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
   DigestingWriter<DigesterType&&, NullWriter> writer(
       std::forward_as_tuple(), std::forward<DigesterType>(digester));
   writer.WriteTuple(srcs);
-  RIEGELI_CHECK(writer.Close())
-      << "DigestingWriter<DigesterType, NullWriter> can fail only "
-         "if the size overflows: "
-      << writer.status();
+  RIEGELI_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();
 }
 

@@ -60,17 +60,18 @@ class DigestingReaderBase : public Reader {
   DigestingReaderBase(DigestingReaderBase&& that) noexcept;
   DigestingReaderBase& operator=(DigestingReaderBase&& that) noexcept;
 
-  void Initialize(Reader* src);
+  void Initialize(Reader* src, DigesterBaseHandle digester);
+  ABSL_ATTRIBUTE_COLD bool FailFromDigester();
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
 
-  virtual void WriteToDigester(absl::string_view src) = 0;
+  virtual bool WriteToDigester(absl::string_view src) = 0;
 
   // Sets cursor of `src` to cursor of `*this`, digesting what has been read
   // from the buffer (until `cursor()`).
-  void SyncBuffer(Reader& src);
+  bool SyncBuffer(Reader& src);
 
   // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
   // `start()` to hide data already digested. Fails `*this` if `src` failed.
@@ -195,9 +196,13 @@ class DigestingReader : public DigestingReaderBase {
                        int> = 0>
   DesiredDigestType Digest() {
     if (start_to_cursor() > 0) {
-      digester_.get().Write(absl::string_view(start(), start_to_cursor()));
-      set_buffer(cursor(), available());
-      src_->set_cursor(cursor());
+      if (ABSL_PREDICT_FALSE(!digester_.get().Write(
+              absl::string_view(start(), start_to_cursor())))) {
+        FailFromDigester();
+      } else {
+        set_buffer(cursor(), available());
+        src_->set_cursor(cursor());
+      }
     }
     return digester_.get().template Digest<DesiredDigestType>();
   }
@@ -216,8 +221,8 @@ class DigestingReader : public DigestingReaderBase {
 
  protected:
   void Done() override;
-  void WriteToDigester(absl::string_view src) override {
-    digester_.get().Write(src);
+  bool WriteToDigester(absl::string_view src) override {
+    return digester_.get().Write(src);
   }
   void SetReadAllHintImpl(bool read_all_hint) override;
   void VerifyEndImpl() override;
@@ -304,8 +309,8 @@ template <typename DesiredDigestType = digest_converter_internal::NoConversion,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
                       DigestOf<DigesterType&&>, DesiredDigestType>>::value,
               int> = 0>
-StatusOrMakerT<std::decay_t<digest_converter_internal::ResolveNoConversion<
-    DigestOf<DigesterType&&>, DesiredDigestType>>>
+StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
+    DigestOf<DigesterType&&>, DesiredDigestType>>
 DigestFromReader(Src&& src, DigesterType&& digester,
                  Position* length_read = nullptr);
 
@@ -321,20 +326,28 @@ inline DigestingReaderBase& DigestingReaderBase::operator=(
   return *this;
 }
 
-inline void DigestingReaderBase::Initialize(Reader* src) {
+inline void DigestingReaderBase::Initialize(Reader* src,
+                                            DigesterBaseHandle digester) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of DigestingReader: null Reader pointer";
   MakeBuffer(*src);
+  absl::Status status = digester.status();
+  if (ABSL_PREDICT_FALSE(!status.ok())) Fail(std::move(status));
 }
 
-inline void DigestingReaderBase::SyncBuffer(Reader& src) {
+inline bool DigestingReaderBase::SyncBuffer(Reader& src) {
   RIEGELI_ASSERT(start() == src.cursor())
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {
-    WriteToDigester(absl::string_view(start(), start_to_cursor()));
+    if (ABSL_PREDICT_FALSE(
+            !WriteToDigester(absl::string_view(start(), start_to_cursor())))) {
+      if (FailFromDigester()) RIEGELI_ASSERT_UNREACHABLE();
+      return false;
+    }
     src.set_cursor(cursor());
   }
+  return true;
 }
 
 inline void DigestingReaderBase::MakeBuffer(Reader& src) {
@@ -347,14 +360,14 @@ template <typename DigesterType, typename Src>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     const Src& src, const DigesterType& digester)
     : digester_(digester), src_(src) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     const Src& src, DigesterType&& digester)
     : digester_(std::move(digester)), src_(src) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -362,21 +375,21 @@ template <typename... DigesterArgs>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     const Src& src, std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), src_(src) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     Src&& src, const DigesterType& digester)
     : digester_(digester), src_(std::move(src)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     Src&& src, DigesterType&& digester)
     : digester_(std::move(digester)), src_(std::move(src)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -384,7 +397,7 @@ template <typename... DigesterArgs>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     Src&& src, std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), src_(std::move(src)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -392,7 +405,7 @@ template <typename... SrcArgs>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     std::tuple<SrcArgs...> src_args, const DigesterType& digester)
     : digester_(digester), src_(std::move(src_args)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -400,7 +413,7 @@ template <typename... SrcArgs>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     std::tuple<SrcArgs...> src_args, DigesterType&& digester)
     : digester_(std::move(digester)), src_(std::move(src_args)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -408,7 +421,7 @@ template <typename... SrcArgs, typename... DigesterArgs>
 inline DigestingReader<DigesterType, Src>::DigestingReader(
     std::tuple<SrcArgs...> src_args, std::tuple<DigesterArgs...> digester_args)
     : digester_(std::move(digester_args)), src_(std::move(src_args)) {
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -441,7 +454,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(digester);
   src_.Reset(src);
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -450,7 +463,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(const Src& src,
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester));
   src_.Reset(src);
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -460,7 +473,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester_args));
   src_.Reset(src);
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -469,7 +482,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(digester);
   src_.Reset(std::move(src));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -478,7 +491,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(Src&& src,
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester));
   src_.Reset(std::move(src));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -488,7 +501,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester_args));
   src_.Reset(std::move(src));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -498,7 +511,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(digester);
   src_.Reset(std::move(src_args));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -508,7 +521,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester));
   src_.Reset(std::move(src_args));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -519,7 +532,7 @@ inline void DigestingReader<DigesterType, Src>::Reset(
   DigestingReaderBase::Reset();
   digester_.Reset(std::move(digester_args));
   src_.Reset(std::move(src_args));
-  Initialize(src_.get());
+  Initialize(src_.get(), digester_.get());
 }
 
 template <typename DigesterType, typename Src>
@@ -530,9 +543,9 @@ inline void DigestingReader<DigesterType, Src>::MoveSrc(
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(*that.src_);
+    const bool sync_buffer_ok = SyncBuffer(*that.src_);
     src_ = std::move(that.src_);
-    MakeBuffer(*src_);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*src_);
   }
 }
 
@@ -544,14 +557,16 @@ void DigestingReader<DigesterType, Src>::Done() {
       FailWithoutAnnotation(src_->status());
     }
   }
-  if (digester_.IsOwning()) digester_.get().Close();
+  if (digester_.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!digester_.get().Close())) FailFromDigester();
+  }
 }
 
 template <typename DigesterType, typename Src>
 void DigestingReader<DigesterType, Src>::SetReadAllHintImpl(
     bool read_all_hint) {
   if (src_.IsOwning()) {
-    SyncBuffer(*src_);
+    if (ABSL_PREDICT_FALSE(!SyncBuffer(*src_))) return;
     src_->SetReadAllHint(read_all_hint);
     MakeBuffer(*src_);
   }
@@ -562,7 +577,7 @@ void DigestingReader<DigesterType, Src>::VerifyEndImpl() {
   if (!src_.IsOwning()) {
     DigestingReaderBase::VerifyEndImpl();
   } else if (ABSL_PREDICT_TRUE(ok())) {
-    SyncBuffer(*src_);
+    if (ABSL_PREDICT_FALSE(!SyncBuffer(*src_))) return;
     src_->VerifyEnd();
     MakeBuffer(*src_);
   }
@@ -571,7 +586,7 @@ void DigestingReader<DigesterType, Src>::VerifyEndImpl() {
 template <typename DigesterType, typename Src>
 bool DigestingReader<DigesterType, Src>::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  SyncBuffer(*src_);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(*src_))) return false;
   bool sync_ok = true;
   if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
@@ -588,14 +603,13 @@ template <typename DesiredDigestType, typename DigesterType, typename Src,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
                       DigestOf<DigesterType&&>, DesiredDigestType>>::value,
               int>>
-inline StatusOrMakerT<
-    std::decay_t<digest_converter_internal::ResolveNoConversion<
-        DigestOf<DigesterType&&>, DesiredDigestType>>>
+inline StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
+    DigestOf<DigesterType&&>, DesiredDigestType>>
 DigestFromReader(Src&& src, DigesterType&& digester, Position* length_read) {
   using DigestType =
       digest_converter_internal::ResolveNoConversion<DigestOf<DigesterType&&>,
                                                      DesiredDigestType>;
-  using Maker = StatusOrMaker<std::decay_t<DigestType>>;
+  using Maker = StatusOrMaker<DigestType>;
   DigestingReader<DigesterType&&, Src&&> reader(
       std::forward<Src>(src), std::forward<DigesterType&&>(digester));
   reader.SetReadAllHint(true);

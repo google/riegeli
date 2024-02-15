@@ -88,13 +88,13 @@ class WrappingDigester {
   WrappingDigester(WrappingDigester&& that) = default;
   WrappingDigester& operator=(WrappingDigester&& that) = default;
 
-  void Write(absl::string_view src) { base_.get().Write(src); }
-  void Write(const Chain& src) { base_.get().Write(src); }
-  void Write(const absl::Cord& src) { base_.get().Write(src); }
-  void WriteZeros(riegeli::Position length) { base_.get().WriteZeros(length); }
-  void Close() {
-    if (base_.IsOwning()) base_.get().Close();
+  bool Write(absl::string_view src) { return base_.get().Write(src); }
+  bool Write(const Chain& src) { return base_.get().Write(src); }
+  bool Write(const absl::Cord& src) { return base_.get().Write(src); }
+  bool WriteZeros(riegeli::Position length) {
+    return base_.get().WriteZeros(length);
   }
+  bool Close() { return !base_.IsOwning() || base_.get().Close(); }
 
   template <typename DependentBaseDigester = BaseDigester,
             std::enable_if_t<

@@ -33,6 +33,21 @@
 
 namespace riegeli {
 
+namespace digesting_writer_internal {
+
+absl::Status FailedStatus(DigesterBaseHandle digester) {
+  absl::Status status = digester.status();
+  if (status.ok()) status = absl::UnknownError("Digester failed");
+  return status;
+}
+
+}  // namespace digesting_writer_internal
+
+bool DigestingWriterBase::FailFromDigester() {
+  const DigesterBaseHandle digester = GetDigester();
+  return Fail(digesting_writer_internal::FailedStatus(digester));
+}
+
 void DigestingWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *DestWriter();
@@ -45,9 +60,9 @@ absl::Status DigestingWriterBase::AnnotateStatusImpl(absl::Status status) {
   // Fully delegate annotations to `*DestWriter()`.
   if (is_open()) {
     Writer& dest = *DestWriter();
-    SyncBuffer(dest);
+    const bool sync_buffer_ok = SyncBuffer(dest);
     status = dest.AnnotateStatus(std::move(status));
-    MakeBuffer(dest);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(dest);
   }
   return status;
 }
@@ -59,7 +74,7 @@ bool DigestingWriterBase::PushSlow(size_t min_length,
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const bool push_ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
   return push_ok;
@@ -71,8 +86,8 @@ bool DigestingWriterBase::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
-  SyncBuffer(dest);
-  WriteToDigester(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
+  if (ABSL_PREDICT_FALSE(!WriteToDigester(src))) return FailFromDigester();
   const bool write_ok = dest.Write(src);
   MakeBuffer(dest);
   return write_ok;
@@ -110,9 +125,9 @@ template <typename Src>
 inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   DigesterBaseHandle digester = GetDigester();
-  digester.Write(src);
+  if (ABSL_PREDICT_FALSE(!digester.Write(src))) return FailFromDigester();
   const bool write_ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return write_ok;
@@ -124,9 +139,11 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
          "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   DigesterBaseHandle digester = GetDigester();
-  digester.WriteZeros(length);
+  if (ABSL_PREDICT_FALSE(!digester.WriteZeros(length))) {
+    return FailFromDigester();
+  }
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;
@@ -145,7 +162,7 @@ bool DigestingWriterBase::SupportsReadMode() {
 Reader* DigestingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   Writer& dest = *DestWriter();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return nullptr;
   Reader* const reader = dest.ReadMode(initial_pos);
   MakeBuffer(dest);
   return reader;

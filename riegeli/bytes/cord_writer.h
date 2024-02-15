@@ -110,6 +110,10 @@ class CordWriterBase : public Writer {
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
   virtual absl::Cord* DestCord() const = 0;
+  absl::Cord& Digest() {
+    Flush();
+    return *DestCord();
+  }
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }

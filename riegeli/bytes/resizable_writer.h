@@ -344,6 +344,10 @@ class ResizableWriter : public ResizableWriterBase {
 
   // Returns the `Resizable` being written to. Unchanged by `Close()`.
   Resizable* DestResizable() const { return dest_.get(); }
+  Resizable& Digest() {
+    Flush();
+    return *DestResizable();
+  }
 
  protected:
   void Initialize(Resizable* dest, bool append);

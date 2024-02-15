@@ -22,8 +22,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
@@ -55,31 +57,34 @@ struct IsValidDigesterBaseTarget<
 // The target should support:
 //
 // ```
+//   // All of the following methods returning `bool` return `true` on success.
+//   // They may also return `void` which is treated as `true`.
+//
 //   // Called with consecutive fragments of data.
 //   //
 //   // Precondition: the digester is open.
-//   void Write(absl::string_view src);
+//   bool Write(absl::string_view src);
 //
 //   // Called with consecutive fragments of data.
 //   //
 //   // Precondition: the digester is open.
 //   //
 //   // Optional. If absent, implemented in terms of `Write(absl::string_view)`.
-//   void Write(const Chain& src);
+//   bool Write(const Chain& src);
 //
 //   // Called with consecutive fragments of data.
 //   //
 //   // Precondition: the digester is open.
 //   //
 //   // Optional. If absent, implemented in terms of `Write(absl::string_view)`.
-//   void Write(const absl::Cord& src);
+//   bool Write(const absl::Cord& src);
 //
 //   // Can be called instead of `Write()` when data consists of zeros.
 //   //
 //   // Precondition: the digester is open.
 //   //
 //   // Optional. If absent, implemented in terms of `Write(absl::string_view)`.
-//   void WriteZeros(Position length);
+//   bool WriteZeros(Position length);
 //
 //   // Called when nothing more will be digested. This can make `Digest()` more
 //   // efficient. Resources can be freed. Marks the digester as not open.
@@ -87,7 +92,15 @@ struct IsValidDigesterBaseTarget<
 //   // Does nothing if the digester is not open.
 //   //
 //   // Optional. If absent, does nothing.
-//   void Close();
+//   bool Close();
+//
+//   // Returns an `absl::Status` describing the failure if the digester is
+//   // failed.
+//   //
+//   // Can return `absl::OkStatus()` if tracking the status is not supported.
+//   //
+//   // Optional. If absent, `absl::OkStatus()` is assumed.
+//   absl::Status status() const;
 // ```
 //
 // `DigesterHandle<DigestType>` extends `DigesterBaseHandle` with `Digest()`
@@ -120,15 +133,17 @@ class DigesterBaseHandle {
   // Called with consecutive fragments of data.
   //
   // Precondition: the digester is open.
-  void Write(char src) { Write(absl::string_view(&src, 1)); }
+  bool Write(char src) { return Write(absl::string_view(&src, 1)); }
 #if __cpp_char8_t
-  void Write(char8_t src) { Write(static_cast<char>(src)); }
+  bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
-  void Write(absl::string_view src) { methods()->write(target(), src); }
+  bool Write(absl::string_view src) { return methods()->write(target(), src); }
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  void Write(const char* src) { Write(absl::string_view(src)); }
-  void Write(const Chain& src) { methods()->write_chain(target(), src); }
-  void Write(const absl::Cord& src) { methods()->write_cord(target(), src); }
+  bool Write(const char* src) { return Write(absl::string_view(src)); }
+  bool Write(const Chain& src) { return methods()->write_chain(target(), src); }
+  bool Write(const absl::Cord& src) {
+    return methods()->write_cord(target(), src);
+  }
   template <
       typename Src,
       std::enable_if_t<
@@ -139,45 +154,68 @@ class DigesterBaseHandle {
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
               value,
           int> = 0>
-  void Write(Src&& src);
+  bool Write(Src&& src);
 
   // Numeric types supported by `Writer::Write()` are not supported by
   // `DigesterBaseHandle::Write()`. Use `DigestingWriter` instead or convert
   // them to strings.
-  void Write(signed char) = delete;
-  void Write(unsigned char) = delete;
-  void Write(short) = delete;
-  void Write(unsigned short) = delete;
-  void Write(int) = delete;
-  void Write(unsigned) = delete;
-  void Write(long) = delete;
-  void Write(unsigned long) = delete;
-  void Write(long long) = delete;
-  void Write(unsigned long long) = delete;
-  void Write(absl::int128) = delete;
-  void Write(absl::uint128) = delete;
-  void Write(float) = delete;
-  void Write(double) = delete;
-  void Write(long double) = delete;
-  void Write(bool) = delete;
-  void Write(wchar_t) = delete;
-  void Write(char16_t) = delete;
-  void Write(char32_t) = delete;
+  bool Write(signed char) = delete;
+  bool Write(unsigned char) = delete;
+  bool Write(short) = delete;
+  bool Write(unsigned short) = delete;
+  bool Write(int) = delete;
+  bool Write(unsigned) = delete;
+  bool Write(long) = delete;
+  bool Write(unsigned long) = delete;
+  bool Write(long long) = delete;
+  bool Write(unsigned long long) = delete;
+  bool Write(absl::int128) = delete;
+  bool Write(absl::uint128) = delete;
+  bool Write(float) = delete;
+  bool Write(double) = delete;
+  bool Write(long double) = delete;
+  bool Write(bool) = delete;
+  bool Write(wchar_t) = delete;
+  bool Write(char16_t) = delete;
+  bool Write(char32_t) = delete;
 
   // Can be called instead of `Write()` when data consists of zeros.
   //
   // Precondition: the digester is open.
-  void WriteZeros(riegeli::Position length) const {
-    methods()->write_zeros(target(), length);
+  bool WriteZeros(riegeli::Position length) const {
+    return methods()->write_zeros(target(), length);
   }
 
   // Called when nothing more will be digested. This can make `Digest()` more
   // efficient. Resources can be freed. Marks the digester as not open.
   //
   // Does nothing if the digester is not open.
-  void Close() { methods()->close(target()); }
+  bool Close() { return methods()->close(target()); }
+
+  // Returns an `absl::Status` describing the failure if the digester is
+  // failed.
+  //
+  // Can return `absl::OkStatus()` if tracking the status is not supported.
+  absl::Status status() const { return methods()->status(target()); }
 
  private:
+  template <
+      typename Function,
+      std::enable_if_t<
+          std::is_same<decltype(std::declval<Function&&>()()), bool>::value,
+          int> = 0>
+  static bool ConvertToBool(Function&& function) {
+    return std::forward<Function>(function)();
+  }
+  template <
+      typename Function,
+      std::enable_if_t<
+          std::is_void<decltype(std::declval<Function&&>()())>::value, int> = 0>
+  static bool ConvertToBool(Function&& function) {
+    std::forward<Function>(function)();
+    return true;
+  }
+
   template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteChain : std::false_type {};
 
@@ -210,78 +248,119 @@ class DigesterBaseHandle {
       T, absl::void_t<decltype(std::declval<T&>().Close())>> : std::true_type {
   };
 
+  template <typename T, typename Enable = void>
+  struct DigesterTargetHasStatus : std::false_type {};
+
   template <typename T>
-  static void WriteMethod(void* target, absl::string_view src) {
-    static_cast<T*>(target)->Write(src);
+  struct DigesterTargetHasStatus<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(std::declval<const T&>().status()), absl::Status>::value>>
+      : std::true_type {};
+
+  template <typename T>
+  static auto RawWriteMethod(void* target, absl::string_view src) {
+    return static_cast<T*>(target)->Write(src);
   }
 
+  template <typename T>
+  static bool WriteMethod(void* target, absl::string_view src) {
+    return ConvertToBool([&] { return RawWriteMethod<T>(target, src); });
+  }
+
+  static bool WriteChainFallback(void* target, const Chain& src,
+                                 bool (*write)(void* target,
+                                               absl::string_view src));
   static void WriteChainFallback(void* target, const Chain& src,
                                  void (*write)(void* target,
                                                absl::string_view src));
 
   template <typename T,
             std::enable_if_t<DigesterTargetHasWriteChain<T>::value, int> = 0>
-  static void WriteChainMethod(void* target, const Chain& src) {
-    static_cast<T*>(target)->Write(src);
+  static bool WriteChainMethod(void* target, const Chain& src) {
+    return ConvertToBool([&] { return static_cast<T*>(target)->Write(src); });
   }
   template <typename T,
             std::enable_if_t<!DigesterTargetHasWriteChain<T>::value, int> = 0>
-  static void WriteChainMethod(void* target, const Chain& src) {
-    WriteChainFallback(target, src, WriteMethod<T>);
+  static bool WriteChainMethod(void* target, const Chain& src) {
+    return ConvertToBool(
+        [&] { return WriteChainFallback(target, src, RawWriteMethod<T>); });
   }
 
+  static bool WriteCordFallback(void* target, const absl::Cord& src,
+                                bool (*write)(void* target,
+                                              absl::string_view src));
   static void WriteCordFallback(void* target, const absl::Cord& src,
                                 void (*write)(void* target,
                                               absl::string_view src));
 
   template <typename T,
             std::enable_if_t<DigesterTargetHasWriteCord<T>::value, int> = 0>
-  static void WriteCordMethod(void* target, const absl::Cord& src) {
-    static_cast<T*>(target)->Write(src);
+  static bool WriteCordMethod(void* target, const absl::Cord& src) {
+    return ConvertToBool([&] { return static_cast<T*>(target)->Write(src); });
   }
   template <typename T,
             std::enable_if_t<!DigesterTargetHasWriteCord<T>::value, int> = 0>
-  static void WriteCordMethod(void* target, const absl::Cord& src) {
-    WriteCordFallback(target, src, WriteMethod<T>);
+  static bool WriteCordMethod(void* target, const absl::Cord& src) {
+    return ConvertToBool(
+        [&] { return WriteCordFallback(target, src, RawWriteMethod<T>); });
   }
 
+  static bool WriteZerosFallback(void* target, Position length,
+                                 bool (*write)(void* target,
+                                               absl::string_view src));
   static void WriteZerosFallback(void* target, Position length,
                                  void (*write)(void* target,
                                                absl::string_view src));
 
   template <typename T,
             std::enable_if_t<DigesterTargetHasWriteZeros<T>::value, int> = 0>
-  static void WriteZerosMethod(void* target, Position length) {
-    static_cast<T*>(target)->WriteZeros(length);
+  static bool WriteZerosMethod(void* target, Position length) {
+    return ConvertToBool(
+        [&] { return static_cast<T*>(target)->WriteZeros(length); });
   }
   template <typename T,
             std::enable_if_t<!DigesterTargetHasWriteZeros<T>::value, int> = 0>
-  static void WriteZerosMethod(void* target, Position length) {
-    WriteZerosFallback(target, length, WriteMethod<T>);
+  static bool WriteZerosMethod(void* target, Position length) {
+    return ConvertToBool(
+        [&] { return WriteZerosFallback(target, length, RawWriteMethod<T>); });
   }
 
   template <typename T,
             std::enable_if_t<DigesterTargetHasClose<T>::value, int> = 0>
-  static void CloseMethod(void* target) {
-    static_cast<T*>(target)->Close();
+  static bool CloseMethod(void* target) {
+    return ConvertToBool([&] { return static_cast<T*>(target)->Close(); });
   }
   template <typename T,
             std::enable_if_t<!DigesterTargetHasClose<T>::value, int> = 0>
-  static void CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {}
+  static bool CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
+    return true;
+  }
+
+  template <typename T,
+            std::enable_if_t<DigesterTargetHasStatus<T>::value, int> = 0>
+  static absl::Status StatusMethod(const void* target) {
+    return static_cast<const T*>(target)->status();
+  }
+  template <typename T,
+            std::enable_if_t<!DigesterTargetHasStatus<T>::value, int> = 0>
+  static absl::Status StatusMethod(ABSL_ATTRIBUTE_UNUSED const void* target) {
+    return absl::OkStatus();
+  }
 
  protected:
   struct Methods {
-    void (*write)(void* target, absl::string_view src);
-    void (*write_chain)(void* target, const Chain& src);
-    void (*write_cord)(void* target, const absl::Cord& src);
-    void (*write_zeros)(void* target, riegeli::Position length);
-    void (*close)(void* target);
+    bool (*write)(void* target, absl::string_view src);
+    bool (*write_chain)(void* target, const Chain& src);
+    bool (*write_cord)(void* target, const absl::Cord& src);
+    bool (*write_zeros)(void* target, riegeli::Position length);
+    bool (*close)(void* target);
+    absl::Status (*status)(const void* target);
   };
 
   template <typename T>
-  static constexpr Methods kMethods = {WriteMethod<T>, WriteChainMethod<T>,
+  static constexpr Methods kMethods = {WriteMethod<T>,     WriteChainMethod<T>,
                                        WriteCordMethod<T>, WriteZerosMethod<T>,
-                                       CloseMethod<T>};
+                                       CloseMethod<T>,     StatusMethod<T>};
 
   template <typename T>
   explicit DigesterBaseHandle(const Methods* methods, T* target)
@@ -497,14 +576,19 @@ class DigesterBaseHandle::DigesterAbslStringifySink {
       : digester_(digester) {}
 
   void Append(size_t length, char src);
-  void Append(absl::string_view src) { digester_.Write(src); }
+  void Append(absl::string_view src) {
+    if (ABSL_PREDICT_FALSE(!digester_.Write(src))) ok_ = false;
+  }
   friend void AbslFormatFlush(DigesterAbslStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
   }
 
+  bool ok() const { return ok_; }
+
  private:
   DigesterBaseHandle digester_;
+  bool ok_ = true;
 };
 
 template <typename Src,
@@ -516,9 +600,10 @@ template <typename Src,
                   absl::negation<
                       std::is_convertible<Src&&, const absl::Cord&>>>::value,
               int>>
-inline void DigesterBaseHandle::Write(Src&& src) {
+inline bool DigesterBaseHandle::Write(Src&& src) {
   DigesterAbslStringifySink sink(*this);
   AbslStringify(sink, std::forward<Src>(src));
+  return sink.ok();
 }
 
 }  // namespace riegeli

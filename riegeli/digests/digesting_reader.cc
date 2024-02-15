@@ -20,6 +20,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
@@ -36,6 +37,21 @@
 
 namespace riegeli {
 
+namespace {
+
+ABSL_ATTRIBUTE_COLD absl::Status FailedStatus(DigesterBaseHandle digester) {
+  absl::Status status = digester.status();
+  if (status.ok()) status = absl::UnknownError("Digester failed");
+  return status;
+}
+
+}  // namespace
+
+bool DigestingReaderBase::FailFromDigester() {
+  const DigesterBaseHandle digester = GetDigester();
+  return Fail(FailedStatus(digester));
+}
+
 void DigestingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
     Reader& src = *SrcReader();
@@ -48,9 +64,9 @@ absl::Status DigestingReaderBase::AnnotateStatusImpl(absl::Status status) {
   // Fully delegate annotations to `*SrcReader()`.
   if (is_open()) {
     Reader& src = *SrcReader();
-    SyncBuffer(src);
+    const bool sync_buffer_ok = SyncBuffer(src);
     status = src.AnnotateStatus(std::move(status));
-    MakeBuffer(src);
+    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(src);
   }
   return status;
 }
@@ -62,7 +78,7 @@ bool DigestingReaderBase::PullSlow(size_t min_length,
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
   const bool pull_ok = src.Pull(min_length, recommended_length);
   MakeBuffer(src);
   return pull_ok;
@@ -74,11 +90,15 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
          "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
   size_t length_read;
-  const bool read_ok = src.Read(length, dest, &length_read);
+  bool read_ok = src.Read(length, dest, &length_read);
   if (length_read > 0) {
-    WriteToDigester(absl::string_view(dest, length_read));
+    if (ABSL_PREDICT_FALSE(
+            !WriteToDigester(absl::string_view(dest, length_read)))) {
+      read_ok = FailFromDigester();
+      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+    }
   }
   MakeBuffer(src);
   return read_ok;
@@ -93,13 +113,17 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
   Chain data;
-  const bool read_ok = src.Read(length, data);
+  bool read_ok = src.Read(length, data);
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
-    digester.Write(data);
-    dest.Append(std::move(data));
+    if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
+      read_ok = FailFromDigester();
+      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+    } else {
+      dest.Append(std::move(data));
+    }
   }
   MakeBuffer(src);
   return read_ok;
@@ -114,13 +138,17 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
   absl::Cord data;
-  const bool read_ok = src.Read(length, data);
+  bool read_ok = src.Read(length, data);
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
-    digester.Write(data);
-    dest.Append(std::move(data));
+    if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
+      read_ok = FailFromDigester();
+      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+    } else {
+      dest.Append(std::move(data));
+    }
   }
   MakeBuffer(src);
   return read_ok;
@@ -136,7 +164,7 @@ bool DigestingReaderBase::ReadOrPullSomeSlow(
          "some data available, use ReadOrPullSome() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
   char* dest;
   size_t length_read;
   const bool read_ok = src.ReadOrPullSome(
@@ -147,7 +175,10 @@ bool DigestingReaderBase::ReadOrPullSomeSlow(
       },
       &length_read);
   if (length_read > 0) {
-    WriteToDigester(absl::string_view(dest, length_read));
+    if (ABSL_PREDICT_FALSE(
+            !WriteToDigester(absl::string_view(dest, length_read)))) {
+      FailFromDigester();
+    }
   }
   MakeBuffer(src);
   return read_ok;
@@ -160,7 +191,7 @@ void DigestingReaderBase::ReadHintSlow(size_t min_length,
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return;
   src.ReadHint(min_length, recommended_length);
   MakeBuffer(src);
 }
@@ -173,7 +204,7 @@ bool DigestingReaderBase::SupportsSize() {
 absl::optional<Position> DigestingReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
   Reader& src = *SrcReader();
-  SyncBuffer(src);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return absl::nullopt;
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
   return size;

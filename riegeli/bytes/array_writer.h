@@ -47,6 +47,10 @@ class ArrayWriterBase : public PushableWriter {
   // Returns written data in a prefix of the original array. Valid only after
   // `Close()` or `Flush()`.
   absl::Span<char> written() const { return written_; }
+  absl::Span<char> Digest() {
+    Flush();
+    return written();
+  }
 
   bool PrefersCopying() const override { return true; }
   bool SupportsRandomAccess() override { return true; }

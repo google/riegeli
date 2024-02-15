@@ -106,6 +106,10 @@ class ChainWriterBase : public Writer {
 
   // Returns the `Chain` being written to. Unchanged by `Close()`.
   virtual Chain* DestChain() const = 0;
+  Chain& Digest() {
+    Flush();
+    return *DestChain();
+  }
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }

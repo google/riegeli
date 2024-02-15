@@ -107,6 +107,10 @@ class StringWriterBase : public Writer {
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
   virtual std::string* DestString() const = 0;
+  std::string& Digest() {
+    Flush();
+    return *DestString();
+  }
 
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
