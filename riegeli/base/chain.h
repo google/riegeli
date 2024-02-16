@@ -101,6 +101,15 @@ class ChainOptions {
   }
   size_t max_block_size() const { return max_block_size_; }
 
+  // A shortcut for `set_min_block_size(block_size)` with
+  // `set_max_block_size(block_size)`.
+  ChainOptions& set_block_size(size_t block_size) & {
+    return set_min_block_size(block_size).set_max_block_size(block_size);
+  }
+  ChainOptions&& set_block_size(size_t block_size) && {
+    return std::move(set_block_size(block_size));
+  }
+
  private:
   size_t size_hint_ = 0;
   // Use `uint32_t` instead of `size_t` to reduce the object size.

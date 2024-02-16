@@ -221,9 +221,7 @@ size_t SnappyMaxCompressedSize(size_t uncompressed_size);
 // Implementation details follow.
 
 inline SnappyWriterBase::SnappyWriterBase()
-    : options_(Chain::Options()
-                   .set_min_block_size(kBlockSize)
-                   .set_max_block_size(kBlockSize)) {}
+    : options_(Chain::Options().set_block_size(kBlockSize)) {}
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
@@ -250,9 +248,7 @@ inline void SnappyWriterBase::Reset(Closed) {
 
 inline void SnappyWriterBase::Reset() {
   Writer::Reset();
-  options_ = Chain::Options()
-                 .set_min_block_size(kBlockSize)
-                 .set_max_block_size(kBlockSize);
+  options_ = Chain::Options().set_block_size(kBlockSize);
   uncompressed_.Clear();
   associated_reader_.Reset();
 }

@@ -100,6 +100,15 @@ class CordWriterBase : public Writer {
     }
     size_t max_block_size() const { return max_block_size_; }
 
+    // A shortcut for `set_min_block_size(block_size)` with
+    // `set_max_block_size(block_size)`.
+    Options& set_block_size(size_t block_size) & {
+      return set_min_block_size(block_size).set_max_block_size(block_size);
+    }
+    Options&& set_block_size(size_t block_size) && {
+      return std::move(set_block_size(block_size));
+    }
+
    private:
     bool append_ = false;
     // Use `uint32_t` instead of `size_t` to reduce the object size.
