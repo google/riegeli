@@ -19,7 +19,6 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "highwayhash/compiler_specific.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
 #include "highwayhash/instruction_sets.h"
@@ -30,8 +29,7 @@ namespace chunk_encoding_internal {
 
 namespace {
 
-HH_ALIGNAS(32)
-const highwayhash::HHKey kHashKey = {
+alignas(32) const highwayhash::HHKey kHashKey = {
     0x2f696c6567656952,  // 'Riegeli/'
     0x0a7364726f636572,  // 'records\n'
     0x2f696c6567656952,  // 'Riegeli/'

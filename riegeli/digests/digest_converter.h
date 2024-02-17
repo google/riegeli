@@ -122,6 +122,22 @@ struct DigestConverterImpl<
   }
 };
 
+// `std::array<uint64_t, size>` can be converted to
+// `std::array<char, size * sizeof(uint64_t)>`.
+template <size_t size, typename To>
+struct DigestConverterImpl<
+    std::array<uint64_t, size>, To,
+    std::enable_if_t<HasDigestConverterImpl<
+        std::array<char, size * sizeof(uint64_t)>, To>::value>> {
+  static To Convert(const std::array<uint64_t, size>& digest) {
+    std::array<char, size * sizeof(uint64_t)> result;
+    riegeli::WriteBigEndian64s(absl::MakeConstSpan(digest.data(), size),
+                               result.data());
+    return DigestConverterImpl<std::array<char, size * sizeof(uint64_t)>,
+                               To>::Convert(result);
+  }
+};
+
 // `DigestConverter<From, To>` extends `DigestConverterImpl<From, To>` with the
 // case of `To` being a reference.
 
@@ -139,12 +155,13 @@ struct DigestConverter<
     From, To,
     std::enable_if_t<absl::conjunction<
         absl::negation<std::is_reference<To>>,
-        HasDigestConverterImpl<std::decay_t<From>, To>>::value>>
-    : DigestConverterImpl<std::decay_t<From>, To> {
+        HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>::value>>
+    : DigestConverterImpl<absl::remove_cvref_t<From>, To> {
   static_assert(
-      std::is_convertible<decltype(DigestConverterImpl<std::decay_t<From>, To>::
-                                       Convert(std::declval<From>())),
-                          To>::value,
+      std::is_convertible<
+          decltype(DigestConverterImpl<absl::remove_cvref_t<From>, To>::Convert(
+              std::declval<From>())),
+          To>::value,
       "DigestConverterImpl<From, To>::Convert() must return To");
 };
 
@@ -158,8 +175,9 @@ struct HasDigestConverter
                             std::is_lvalue_reference<From>,
                             std::is_convertible<std::remove_reference_t<From>*,
                                                 std::remove_reference_t<To>*>>,
-          absl::conjunction<absl::negation<std::is_reference<To>>,
-                            HasDigestConverterImpl<std::decay_t<From>, To>>> {};
+          absl::conjunction<
+              absl::negation<std::is_reference<To>>,
+              HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>> {};
 
 // Converts a digest returned by `digest_function` to another supported type.
 //

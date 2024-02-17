@@ -85,7 +85,6 @@ cc_library(
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@highwayhash//:compiler_specific",
         "@highwayhash//:hh_types",
         "@highwayhash//:highwayhash_dynamic",
         "@highwayhash//:instruction_sets",
