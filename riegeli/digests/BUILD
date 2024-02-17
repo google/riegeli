@@ -158,3 +158,58 @@ cc_library(
         "@zlib",
     ],
 )
+
+cc_library(
+    name = "openssl_digester",
+    hdrs = ["openssl_digester.h"],
+    deps = ["@com_google_absl//absl/strings"],
+)
+
+# Warning: MD5 as a cryptographic hash function is broken.
+# Use this only if a preexisting format has already decided to use MD5.
+cc_library(
+    name = "md5_digester",
+    hdrs = ["md5_digester.h"],
+    deps = [
+        ":openssl_digester",
+        "@boringssl//:crypto",
+    ],
+)
+
+# Warning: SHA-1 as a cryptographic hash function is broken.
+# Use this only if a preexisting format has already decided to use SHA-1.
+cc_library(
+    name = "sha1_digester",
+    hdrs = ["sha1_digester.h"],
+    deps = [
+        ":openssl_digester",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_library(
+    name = "sha256_digester",
+    hdrs = ["sha256_digester.h"],
+    deps = [
+        ":openssl_digester",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_library(
+    name = "sha512_digester",
+    hdrs = ["sha512_digester.h"],
+    deps = [
+        ":openssl_digester",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_library(
+    name = "sha512_256_digester",
+    hdrs = ["sha512_256_digester.h"],
+    deps = [
+        ":openssl_digester",
+        "@boringssl//:crypto",
+    ],
+)

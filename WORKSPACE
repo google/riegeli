@@ -83,6 +83,13 @@ http_archive(
 )
 
 http_archive(
+    name = "boringssl",
+    sha256 = "10a04bde6b953a94e8006c1122b11b209bb33575be40e5370d0da88888042819",
+    strip_prefix = "boringssl-1b6fe250a3b8b66aa4990a6ec59f20f5bf52df5d",
+    urls = ["https://github.com/google/boringssl/archive/1b6fe250a3b8b66aa4990a6ec59f20f5bf52df5d.zip"],  # 2024-02-17 (main-with-bazel)
+)
+
+http_archive(
     name = "com_google_protobuf",
     patch_args = ["-p1"],
     patches = ["//third_party:protobuf.patch"],
