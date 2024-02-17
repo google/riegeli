@@ -117,7 +117,10 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
         cord_buffer_.capacity() >= buffer_length
             ? std::move(cord_buffer_)
             : absl::CordBuffer::CreateWithCustomLimit(
-                  cord_internal::kCordBufferBlockSize, buffer_length);
+                  cord_internal::kCordBufferBlockSize,
+                  UnsignedMax(buffer_length,
+                              cord_internal::CordBufferCapacityForMinLength(
+                                  cursor_index + min_length)));
     if (new_cord_buffer.capacity() >= cursor_index + min_length) {
       new_cord_buffer.SetLength(
           UnsignedMin(new_cord_buffer.capacity(),

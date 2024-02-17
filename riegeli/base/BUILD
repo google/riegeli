@@ -113,9 +113,11 @@ cc_library(
     hdrs = ["cord_utils.h"],
     deps = [
         ":arithmetic",
+        ":assert",
         ":buffering",
         ":constexpr",
         ":string_utils",
+        "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],

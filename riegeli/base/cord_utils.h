@@ -20,10 +20,12 @@
 
 #include <string>
 
+#include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/constexpr.h"
 
@@ -81,6 +83,19 @@ void AppendCordToString(const absl::Cord& src, std::string& dest);
 absl::Cord MakeBlockyCord(absl::string_view src);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
+
+// The `capacity` parameter for `absl::CordBuffer::CreateWithCustomLimit()`
+// sufficient to let it return a block with at least `min_length` of space.
+// Does not have to be accurate.
+inline size_t CordBufferCapacityForMinLength(size_t min_length) {
+  RIEGELI_ASSERT_LE(min_length, kCordBufferMaxSize)
+      << "Failed precondition of CordBufferCapacityForMinLength(): "
+         "min_length larger than what CordBuffer supports";
+  if (min_length <= absl::CordBuffer::kDefaultLimit) return min_length;
+  const size_t capacity = min_length + kFlatOverhead;
+  const size_t rounded_up = size_t{1} << absl::bit_width(capacity - 1);
+  return rounded_up - kFlatOverhead;
+}
 
 }  // namespace cord_internal
 }  // namespace riegeli
