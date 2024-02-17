@@ -38,26 +38,6 @@ cc_library(
 )
 
 cc_library(
-    name = "digester",
-    srcs = ["digester.cc"],
-    hdrs = ["digester.h"],
-    deps = [
-        ":digest_converter",
-        "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
-        "//riegeli/base:chain",
-        "//riegeli/base:type_traits",
-        "//riegeli/base:types",
-        "//riegeli/base:zeros",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
     name = "wrapping_digester",
     hdrs = ["wrapping_digester.h"],
     deps = [
