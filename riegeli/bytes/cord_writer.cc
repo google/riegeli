@@ -40,14 +40,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t CordWriterBase::kCordBufferBlockSize;
-constexpr size_t CordWriterBase::kCordBufferMaxSize;
-#endif
-
 void CordWriterBase::Done() {
   CordWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
@@ -68,11 +60,11 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
   const absl::string_view data(start(), start_to_cursor());
   if (start() == cord_buffer_.data()) {
     cord_buffer_.SetLength(data.size());
-    if (!Wasteful(kFlatCordOverhead + cord_buffer_.capacity(),
+    if (!Wasteful(cord_internal::kFlatOverhead + cord_buffer_.capacity(),
                   cord_buffer_.length())) {
       dest.Append(std::move(cord_buffer_));
     } else {
-      AppendToBlockyCord(data, dest);
+      cord_internal::AppendToBlockyCord(data, dest);
     }
   } else {
     std::move(buffer_).AppendSubstrTo(data.data(), data.size(), dest);
@@ -181,7 +173,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                     start_pos()),
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
-  if (buffer_length <= kCordBufferMaxSize) {
+  if (buffer_length <= cord_internal::kCordBufferMaxSize) {
     RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
                    start() != cord_buffer_.data())
         << "Failed invariant of CordWriter: "
@@ -189,8 +181,8 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     absl::CordBuffer new_cord_buffer =
         cord_buffer_.capacity() >= buffer_length
             ? std::move(cord_buffer_)
-            : absl::CordBuffer::CreateWithCustomLimit(kCordBufferBlockSize,
-                                                      buffer_length);
+            : absl::CordBuffer::CreateWithCustomLimit(
+                  cord_internal::kCordBufferBlockSize, buffer_length);
     if (new_cord_buffer.capacity() >= cursor_index + min_length) {
       new_cord_buffer.SetLength(
           UnsignedMin(new_cord_buffer.capacity(),

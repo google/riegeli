@@ -679,7 +679,7 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());
@@ -695,7 +695,7 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());

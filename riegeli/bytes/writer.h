@@ -899,7 +899,7 @@ inline bool Writer::Write(const absl::Cord& src) {
 #endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     move_cursor(src.size());
     return true;
   }
@@ -915,7 +915,7 @@ inline bool Writer::Write(absl::Cord&& src) {
 #endif
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     move_cursor(src.size());
     return true;
   }

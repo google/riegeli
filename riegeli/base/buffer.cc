@@ -48,12 +48,11 @@ absl::Cord Buffer::ToCord(const char* data, size_t length) && {
         << "Failed precondition of Buffer::ToCord(): "
            "substring not contained in the buffer";
   }
-  // `sizeof(absl::cord_internal::CordRepExternal)`. Does not have to be
-  // accurate.
-  static constexpr size_t kSizeOfCordRepExternal = 4 * sizeof(void*);
-  if (length <= kMaxInlineCordSize ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + capacity_, length)) {
-    return MakeBlockyCord(absl::string_view(data, length));
+  if (length <= cord_internal::kMaxInline ||
+      Wasteful(
+          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
+          length)) {
+    return cord_internal::MakeBlockyCord(absl::string_view(data, length));
   }
   return absl::MakeCordFromExternal(absl::string_view(data, length),
                                     Releaser{std::move(*this)});
@@ -69,9 +68,11 @@ void Buffer::AppendSubstrTo(const char* data, size_t length,
         << "Failed precondition of Buffer::AppendSubstrTo(): "
            "substring not contained in the buffer";
   }
-  if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + capacity_, length)) {
-    AppendToBlockyCord(absl::string_view(data, length), dest);
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
+      Wasteful(
+          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
+          length)) {
+    cord_internal::AppendToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   dest.Append(absl::MakeCordFromExternal(absl::string_view(data, length),
@@ -88,9 +89,11 @@ void Buffer::PrependSubstrTo(const char* data, size_t length,
         << "Failed precondition of Buffer::PrependSubstrTo(): "
            "substring not contained in the buffer";
   }
-  if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + capacity_, length)) {
-    PrependToBlockyCord(absl::string_view(data, length), dest);
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
+      Wasteful(
+          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
+          length)) {
+    cord_internal::PrependToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   dest.Prepend(absl::MakeCordFromExternal(absl::string_view(data, length),

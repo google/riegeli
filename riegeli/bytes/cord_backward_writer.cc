@@ -37,14 +37,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t CordBackwardWriterBase::kCordBufferBlockSize;
-constexpr size_t CordBackwardWriterBase::kCordBufferMaxSize;
-#endif
-
 void CordBackwardWriterBase::Done() {
   CordBackwardWriterBase::FlushImpl(FlushType::kFromObject);
   BackwardWriter::Done();
@@ -61,13 +53,13 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
         PtrDistance(cord_buffer_.data(), data.data());
     if (prefix_to_remove == 0) {
       dest.Prepend(std::move(cord_buffer_));
-    } else if (!Wasteful(kFlatCordOverhead + cord_buffer_.capacity(),
+    } else if (!Wasteful(cord_internal::kFlatOverhead + cord_buffer_.capacity(),
                          data.size()) &&
-               data.size() > MaxBytesToCopyToCord(dest)) {
+               data.size() > cord_internal::MaxBytesToCopyToCord(dest)) {
       dest.Prepend(std::move(cord_buffer_));
       dest.RemovePrefix(prefix_to_remove);
     } else {
-      PrependToBlockyCord(data, dest);
+      cord_internal::PrependToBlockyCord(data, dest);
     }
   } else {
     std::move(buffer_).PrependSubstrTo(data.data(), data.size(), dest);
@@ -116,7 +108,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                     start_pos()),
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
-  if (buffer_length <= kCordBufferMaxSize) {
+  if (buffer_length <= cord_internal::kCordBufferMaxSize) {
     RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
                    limit() != cord_buffer_.data())
         << "Failed invariant of CordBackwardWriter: "
@@ -124,8 +116,8 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     absl::CordBuffer new_cord_buffer =
         cord_buffer_.capacity() >= buffer_length
             ? std::move(cord_buffer_)
-            : absl::CordBuffer::CreateWithCustomLimit(kCordBufferBlockSize,
-                                                      buffer_length);
+            : absl::CordBuffer::CreateWithCustomLimit(
+                  cord_internal::kCordBufferBlockSize, buffer_length);
     if (new_cord_buffer.capacity() >= cursor_index + min_length) {
       new_cord_buffer.SetLength(
           UnsignedMin(new_cord_buffer.capacity(),

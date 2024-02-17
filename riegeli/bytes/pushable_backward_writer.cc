@@ -232,7 +232,7 @@ bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
   }
   if (src.size() <= available()) {
     move_cursor(src.size());
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     return true;
   }
   std::vector<absl::string_view> fragments(src.chunk_begin(), src.chunk_end());
@@ -358,7 +358,7 @@ bool PushableBackwardWriter::WriteSlow(const absl::Cord& src) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       move_cursor(src.size());
-      CopyCordToArray(src, cursor());
+      cord_internal::CopyCordToArray(src, cursor());
       return true;
     }
   }
@@ -373,7 +373,7 @@ bool PushableBackwardWriter::WriteSlow(absl::Cord&& src) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       move_cursor(src.size());
-      CopyCordToArray(src, cursor());
+      cord_internal::CopyCordToArray(src, cursor());
       return true;
     }
   }

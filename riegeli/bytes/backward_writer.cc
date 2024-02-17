@@ -131,7 +131,7 @@ bool BackwardWriter::WriteSlow(const absl::Cord& src) {
   }
   if (src.size() <= available()) {
     move_cursor(src.size());
-    CopyCordToArray(src, cursor());
+    cord_internal::CopyCordToArray(src, cursor());
     return true;
   }
   std::vector<absl::string_view> fragments(src.chunk_begin(), src.chunk_end());

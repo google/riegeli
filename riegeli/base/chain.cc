@@ -572,8 +572,8 @@ inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendTo(Cord&): "
          "Cord size overflow";
-  if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    AppendToBlockyCord(absl::string_view(*this), dest);
+  if (size() <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
+    cord_internal::AppendToBlockyCord(absl::string_view(*this), dest);
     Unref<ownership>();
     return;
   }
@@ -634,8 +634,8 @@ inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "Cord size overflow";
-  if (length <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    AppendToBlockyCord(absl::string_view(data, length), dest);
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
+    cord_internal::AppendToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   if (const FlatCordRef* const cord_ref =
@@ -660,8 +660,8 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::PrependTo(Cord&): "
          "Chain size overflow";
-  if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    PrependToBlockyCord(absl::string_view(*this), dest);
+  if (size() <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
+    cord_internal::PrependToBlockyCord(absl::string_view(*this), dest);
     Unref<ownership>();
     return;
   }
@@ -722,8 +722,8 @@ inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Cord&): "
          "Cord size overflow";
-  if (length <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    PrependToBlockyCord(absl::string_view(data, length), dest);
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
+    cord_internal::PrependToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   if (const FlatCordRef* const cord_ref =

@@ -21,21 +21,35 @@
 #include <string>
 
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/constexpr.h"
 
 namespace riegeli {
+namespace cord_internal {
 
 // `absl::cord_internal::kMaxInline`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxInlineCordSize, 15);
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxInline, 15);
 
 // `absl::cord_internal::kFlatOverhead`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kFlatCordOverhead,
+RIEGELI_INLINE_CONSTEXPR(size_t, kFlatOverhead,
                          sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t));
 
 // `sizeof(absl::cord_internal::CordRepExternal)`. Does not have to be
 // accurate.
 RIEGELI_INLINE_CONSTEXPR(size_t, kSizeOfCordRepExternal, 4 * sizeof(void*));
+
+// The `block_size` parameter for `absl::CordBuffer::CreateWithCustomLimit()`.
+RIEGELI_INLINE_CONSTEXPR(size_t, kCordBufferBlockSize,
+                         UnsignedMin(kDefaultMaxBlockSize,
+                                     absl::CordBuffer::kCustomLimit));
+
+// Maximum usable size supported by `absl::CordBuffer`.
+RIEGELI_INLINE_CONSTEXPR(
+    size_t, kCordBufferMaxSize,
+    absl::CordBuffer::MaximumPayload(kCordBufferBlockSize));
 
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length.
@@ -45,8 +59,8 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kSizeOfCordRepExternal, 4 * sizeof(void*));
 // if it will not be shared anyway.
 inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
   // `absl::cord_internal::kMaxBytesToCopy`. Does not have to be accurate.
-  static constexpr size_t kCordMaxBytesToCopy = 511;
-  return dest.empty() ? kMaxInlineCordSize : kCordMaxBytesToCopy;
+  static constexpr size_t kMaxBytesToCopy = 511;
+  return dest.empty() ? kMaxInline : kMaxBytesToCopy;
 }
 
 // Copies `src` to `dest[]`.
@@ -68,6 +82,7 @@ absl::Cord MakeBlockyCord(absl::string_view src);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 
+}  // namespace cord_internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_CORD_UTILS_H_

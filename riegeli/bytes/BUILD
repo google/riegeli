@@ -199,6 +199,7 @@ cc_library(
         "//riegeli/base:buffer",
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
+        "//riegeli/base:cord_utils",
         "//riegeli/base:object",
         "//riegeli/base:sized_shared_buffer",
         "//riegeli/base:types",

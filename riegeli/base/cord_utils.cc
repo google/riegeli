@@ -15,17 +15,19 @@
 #include "riegeli/base/cord_utils.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <cstring>
-#include <new>
 #include <string>
+#include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/string_utils.h"
 
 namespace riegeli {
+namespace cord_internal {
 
 void CopyCordToArray(const absl::Cord& src, char* dest) {
   for (const absl::string_view fragment : src.Chunks()) {
@@ -41,49 +43,47 @@ void AppendCordToString(const absl::Cord& src, std::string& dest) {
 }
 
 absl::Cord MakeBlockyCord(absl::string_view src) {
-  // `absl::cord_internal::kMaxFlatLength`.
-  static constexpr size_t kMaxFlatLength =
-      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
-  if (src.size() <= kMaxFlatLength) {
-    // `absl::Cord(absl::string_view)` allocates a single node of that length.
-    return absl::Cord(src);
-  }
-  char* const ptr = static_cast<char*>(operator new(src.size()));
-  std::memcpy(ptr, src.data(), src.size());
-  return absl::MakeCordFromExternal(
-      absl::string_view(ptr, src.size()), [](absl::string_view data) {
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-        operator delete(const_cast<char*>(data.data()), data.size());
-#else
-        operator delete(const_cast<char*>(data.data()));
-#endif
-      });
+  absl::Cord dest;
+  AppendToBlockyCord(src, dest);
+  return dest;
 }
 
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest) {
-  // `absl::cord_internal::kMaxFlatLength`.
-  static constexpr size_t kMaxFlatLength =
-      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
-  if (src.size() <= kMaxFlatLength) {
-    // `absl::Cord::Append(absl::string_view)` can allocate a single node of
-    // that length.
-    dest.Append(src);
-    return;
+  if (src.empty()) return;
+  {
+    absl::CordBuffer buffer = dest.GetAppendBuffer(0, 1);
+    const size_t existing_length = buffer.length();
+    if (existing_length > 0) {
+      buffer.SetLength(
+          UnsignedMin(existing_length + src.size(), buffer.capacity()));
+      std::memcpy(buffer.data() + existing_length, src.data(),
+                  buffer.length() - existing_length);
+      src.remove_prefix(buffer.length() - existing_length);
+      dest.Append(std::move(buffer));
+      if (src.empty()) return;
+    }
   }
-  dest.Append(MakeBlockyCord(src));
+  do {
+    absl::CordBuffer buffer = absl::CordBuffer::CreateWithCustomLimit(
+        kCordBufferBlockSize, src.size());
+    buffer.SetLength(UnsignedMin(src.size(), buffer.capacity()));
+    std::memcpy(buffer.data(), src.data(), buffer.length());
+    src.remove_prefix(buffer.length());
+    dest.Append(std::move(buffer));
+  } while (!src.empty());
 }
 
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest) {
-  // `absl::cord_internal::kMaxFlatLength`.
-  static constexpr size_t kMaxFlatLength =
-      4096 - (sizeof(size_t) + sizeof(int32_t) + sizeof(uint8_t));
-  if (src.size() <= kMaxFlatLength) {
-    // `absl::Cord::Prepend(absl::string_view)` can allocate a single node of
-    // that length.
-    dest.Prepend(src);
-    return;
+  while (!src.empty()) {
+    absl::CordBuffer buffer = absl::CordBuffer::CreateWithCustomLimit(
+        kCordBufferBlockSize, src.size());
+    buffer.SetLength(UnsignedMin(src.size(), buffer.capacity()));
+    std::memcpy(buffer.data(), src.data() + src.size() - buffer.length(),
+                buffer.length());
+    src.remove_suffix(buffer.length());
+    dest.Prepend(std::move(buffer));
   }
-  dest.Prepend(MakeBlockyCord(src));
 }
 
+}  // namespace cord_internal
 }  // namespace riegeli

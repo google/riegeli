@@ -142,11 +142,6 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
-  static constexpr size_t kCordBufferBlockSize =
-      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
-  static constexpr size_t kCordBufferMaxSize =
-      absl::CordBuffer::MaximumPayload(kCordBufferBlockSize);
-
   // If the buffer is not empty, prepends it to `dest`.
   void SyncBuffer(absl::Cord& dest);
 

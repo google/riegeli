@@ -244,10 +244,10 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        CopyCordToArray(src, &dest[cursor_index]);
+        cord_internal::CopyCordToArray(src, &dest[cursor_index]);
       } else {
         dest.erase(cursor_index);
-        AppendCordToString(src, dest);
+        cord_internal::AppendCordToString(src, dest);
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
@@ -282,10 +282,10 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        CopyCordToArray(src, &dest[cursor_index]);
+        cord_internal::CopyCordToArray(src, &dest[cursor_index]);
       } else {
         dest.erase(cursor_index);
-        AppendCordToString(src, dest);
+        cord_internal::AppendCordToString(src, dest);
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;

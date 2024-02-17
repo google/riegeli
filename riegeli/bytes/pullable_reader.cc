@@ -35,6 +35,7 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/cord_utils.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -234,14 +235,12 @@ template <
     std::enable_if_t<HasGetCustomAppendBuffer<DependentCord>::value, int> = 0>
 inline bool ReadBehindScratchToCord(Reader& src, size_t length,
                                     DependentCord& dest) {
-  static constexpr size_t kCordBufferBlockSize =
-      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
-  absl::CordBuffer buffer =
-      dest.GetCustomAppendBuffer(kCordBufferBlockSize, length, 1);
+  absl::CordBuffer buffer = dest.GetCustomAppendBuffer(
+      cord_internal::kCordBufferBlockSize, length, 1);
   absl::Span<char> span = buffer.available_up_to(length);
   if (buffer.capacity() < kDefaultMinBlockSize && length > span.size()) {
     absl::CordBuffer new_buffer = absl::CordBuffer::CreateWithCustomLimit(
-        kCordBufferBlockSize, buffer.length() + length);
+        cord_internal::kCordBufferBlockSize, buffer.length() + length);
     std::memcpy(new_buffer.data(), buffer.data(), buffer.length());
     new_buffer.SetLength(buffer.length());
     buffer = std::move(new_buffer);
@@ -255,8 +254,8 @@ inline bool ReadBehindScratchToCord(Reader& src, size_t length,
     if (ABSL_PREDICT_FALSE(!read_ok)) return false;
     length -= length_read;
     if (length == 0) return true;
-    buffer =
-        absl::CordBuffer::CreateWithCustomLimit(kCordBufferBlockSize, length);
+    buffer = absl::CordBuffer::CreateWithCustomLimit(
+        cord_internal::kCordBufferBlockSize, length);
     span = buffer.available_up_to(length);
   }
 }

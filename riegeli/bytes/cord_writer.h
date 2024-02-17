@@ -155,11 +155,6 @@ class CordWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
-  static constexpr size_t kCordBufferBlockSize =
-      UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
-  static constexpr size_t kCordBufferMaxSize =
-      absl::CordBuffer::MaximumPayload(kCordBufferBlockSize);
-
   // If the buffer is not empty, appends it to `dest`. Ensures that data which
   // follow the current position are separated in `*tail_`.
   void SyncBuffer(absl::Cord& dest);

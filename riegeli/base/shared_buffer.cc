@@ -49,10 +49,11 @@ inline absl::Cord SharedBufferToCord(SharedBufferRef&& src, const char* data,
         << "Failed precondition of SharedBuffer::ToCord(): "
            "substring not contained in the buffer";
   }
-  if (length <= kMaxInlineCordSize ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+  if (length <= cord_internal::kMaxInline ||
+      Wasteful(cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) +
+                   src.capacity(),
                length)) {
-    return MakeBlockyCord(absl::string_view(data, length));
+    return cord_internal::MakeBlockyCord(absl::string_view(data, length));
   }
   return absl::MakeCordFromExternal(
       absl::string_view(data, length),
@@ -71,10 +72,11 @@ inline void AppendSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
         << "Failed precondition of SharedBuffer::AppendSubstrTo(): "
            "substring not contained in the buffer";
   }
-  if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
+      Wasteful(cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) +
+                   src.capacity(),
                length)) {
-    AppendToBlockyCord(absl::string_view(data, length), dest);
+    cord_internal::AppendToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   dest.Append(
@@ -94,10 +96,11 @@ inline void PrependSharedBufferSubstrTo(SharedBufferRef&& src, const char* data,
         << "Failed precondition of SharedBuffer::PrependSubstrTo(): "
            "substring not contained in the buffer";
   }
-  if (length <= MaxBytesToCopyToCord(dest) ||
-      Wasteful(kSizeOfCordRepExternal + sizeof(Releaser) + src.capacity(),
+  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
+      Wasteful(cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) +
+                   src.capacity(),
                length)) {
-    PrependToBlockyCord(absl::string_view(data, length), dest);
+    cord_internal::PrependToBlockyCord(absl::string_view(data, length), dest);
     return;
   }
   dest.Prepend(
