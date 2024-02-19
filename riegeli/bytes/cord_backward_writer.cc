@@ -108,7 +108,9 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                     start_pos()),
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
-  if (buffer_length <= cord_internal::kCordBufferMaxSize) {
+  if (buffer_length <= cord_internal::kCordBufferMaxSize &&
+      cord_internal::CordBufferSizeForCapacity(buffer_length) >=
+          cursor_index + min_length) {
     RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
                    limit() != cord_buffer_.data())
         << "Failed invariant of CordBackwardWriter: "
@@ -117,10 +119,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
         cord_buffer_.capacity() >= buffer_length
             ? std::move(cord_buffer_)
             : absl::CordBuffer::CreateWithCustomLimit(
-                  cord_internal::kCordBufferBlockSize,
-                  UnsignedMax(buffer_length,
-                              cord_internal::CordBufferCapacityForMinLength(
-                                  cursor_index + min_length)));
+                  cord_internal::kCordBufferBlockSize, buffer_length);
     if (new_cord_buffer.capacity() >= cursor_index + min_length) {
       new_cord_buffer.SetLength(
           UnsignedMin(new_cord_buffer.capacity(),

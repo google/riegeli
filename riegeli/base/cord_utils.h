@@ -25,7 +25,6 @@
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/constexpr.h"
 
@@ -84,17 +83,24 @@ absl::Cord MakeBlockyCord(absl::string_view src);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 
-// The `capacity` parameter for `absl::CordBuffer::CreateWithCustomLimit()`
-// sufficient to let it return a block with at least `min_length` of space.
-// Does not have to be accurate.
-inline size_t CordBufferCapacityForMinLength(size_t min_length) {
-  RIEGELI_ASSERT_LE(min_length, kCordBufferMaxSize)
-      << "Failed precondition of CordBufferCapacityForMinLength(): "
-         "min_length larger than what CordBuffer supports";
-  if (min_length <= absl::CordBuffer::kDefaultLimit) return min_length;
-  const size_t capacity = min_length + kFlatOverhead;
-  const size_t rounded_up = size_t{1} << absl::bit_width(capacity - 1);
-  return rounded_up - kFlatOverhead;
+// Returns usable size provided by `absl::CordBuffer::CreateWithCustomLimit()`
+// called with `kCordBufferBlockSize` and `capacity`. Does not have to be
+// accurate.
+inline size_t CordBufferSizeForCapacity(size_t capacity) {
+  if (capacity >= kCordBufferMaxSize) return kCordBufferMaxSize;
+  if (capacity <= absl::CordBuffer::kDefaultLimit) return capacity;
+  if (!absl::has_single_bit(capacity)) {
+    static constexpr size_t kMaxPageSlop = 128;
+    const size_t rounded_up = size_t{1} << absl::bit_width(capacity - 1);
+    const size_t slop = rounded_up - capacity;
+    if (slop >= kFlatOverhead && slop <= kMaxPageSlop + kFlatOverhead) {
+      capacity = rounded_up;
+    } else {
+      const size_t rounded_down = size_t{1} << (absl::bit_width(capacity) - 1);
+      capacity = rounded_down;
+    }
+  }
+  return capacity - kFlatOverhead;
 }
 
 }  // namespace cord_internal

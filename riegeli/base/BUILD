@@ -113,7 +113,6 @@ cc_library(
     hdrs = ["cord_utils.h"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffering",
         ":constexpr",
         ":string_utils",
