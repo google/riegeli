@@ -173,29 +173,37 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                     start_pos()),
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
-  if (buffer_length <= cord_internal::kCordBufferMaxSize &&
-      cord_internal::CordBufferSizeForCapacity(buffer_length) >=
-          cursor_index + min_length) {
+  if (buffer_length <= cord_internal::kCordBufferMaxSize) {
     RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
                    start() != cord_buffer_.data())
         << "Failed invariant of CordWriter: "
            "cord_buffer_ has enough capacity but was used only partially";
-    absl::CordBuffer new_cord_buffer =
-        cord_buffer_.capacity() >= buffer_length
-            ? std::move(cord_buffer_)
-            : absl::CordBuffer::CreateWithCustomLimit(
-                  cord_internal::kCordBufferBlockSize, buffer_length);
-    if (new_cord_buffer.capacity() >= cursor_index + min_length) {
-      new_cord_buffer.SetLength(
-          UnsignedMin(new_cord_buffer.capacity(),
-                      std::numeric_limits<size_t>::max() - dest.size()));
-      // `std::memcpy(_, nullptr, 0)` is undefined.
-      if (cursor_index > 0) {
-        std::memcpy(new_cord_buffer.data(), start(), cursor_index);
+    const size_t predicted_cord_buffer_size =
+        cord_internal::CordBufferSizeForCapacity(buffer_length);
+    if (predicted_cord_buffer_size >= cursor_index + min_length) {
+      // Reuse the existing `cord_buffer_` if it has at least the same capacity
+      // as a new one would have.
+      absl::CordBuffer new_cord_buffer =
+          cord_buffer_.capacity() >= predicted_cord_buffer_size
+              ? std::move(cord_buffer_)
+              : absl::CordBuffer::CreateWithCustomLimit(
+                    cord_internal::kCordBufferBlockSize, buffer_length);
+      if (ABSL_PREDICT_FALSE(new_cord_buffer.capacity() <
+                             cursor_index + min_length)) {
+        // The size prediction turned out to be wrong, and the actual size is
+        // insufficient even for what is required. Ignore `new_cord_buffer`.
+      } else {
+        new_cord_buffer.SetLength(
+            UnsignedMin(new_cord_buffer.capacity(),
+                        std::numeric_limits<size_t>::max() - dest.size()));
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        if (cursor_index > 0) {
+          std::memcpy(new_cord_buffer.data(), start(), cursor_index);
+        }
+        cord_buffer_ = std::move(new_cord_buffer);
+        set_buffer(cord_buffer_.data(), cord_buffer_.length(), cursor_index);
+        return true;
       }
-      cord_buffer_ = std::move(new_cord_buffer);
-      set_buffer(cord_buffer_.data(), cord_buffer_.length(), cursor_index);
-      return true;
     }
   }
   RIEGELI_ASSERT(buffer_.capacity() < buffer_length ||
