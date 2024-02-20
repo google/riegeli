@@ -38,6 +38,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -49,7 +50,7 @@ class StringReader;
 // Template parameter independent part of `ResizableWriter`.
 class ResizableWriterBase : public Writer {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -68,44 +69,8 @@ class ResizableWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    // Minimal size of a block of buffered data after the initial capacity of
-    // the destination.
-    //
-    // This is used initially, while data buffered after the destination is
-    // small.
-    //
-    // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_buffer_size(size_t min_buffer_size) & {
-      min_buffer_size_ = UnsignedMin(min_buffer_size, uint32_t{1} << 31);
-      return *this;
-    }
-    Options&& set_min_buffer_size(size_t min_buffer_size) && {
-      return std::move(set_min_buffer_size(min_buffer_size));
-    }
-    size_t min_buffer_size() const { return min_buffer_size_; }
-
-    // Maximal size of a block of buffered data after the initial capacity of
-    // the destination.
-    //
-    // Default: `kDefaultMaxBlockSize` (64K).
-    Options& set_max_buffer_size(size_t max_buffer_size) & {
-      RIEGELI_ASSERT_GT(max_buffer_size, 0u)
-          << "Failed precondition of "
-             "ResizableWriterBase::Options::set_max_buffer_size(): "
-             "zero buffer size";
-      max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
-      return *this;
-    }
-    Options&& set_max_buffer_size(size_t max_buffer_size) && {
-      return std::move(set_max_buffer_size(max_buffer_size));
-    }
-    size_t max_buffer_size() const { return max_buffer_size_; }
-
    private:
     bool append_ = false;
-    // Use `uint32_t` instead of `size_t` to reduce the object size.
-    uint32_t min_buffer_size_ = uint32_t{kDefaultMinBlockSize};
-    uint32_t max_buffer_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   bool SupportsRandomAccess() override { return true; }
@@ -114,13 +79,13 @@ class ResizableWriterBase : public Writer {
  protected:
   explicit ResizableWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit ResizableWriterBase(size_t min_buffer_size, size_t max_buffer_size);
+  explicit ResizableWriterBase(BufferOptions buffer_options);
 
   ResizableWriterBase(ResizableWriterBase&& that) noexcept;
   ResizableWriterBase& operator=(ResizableWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(size_t min_buffer_size, size_t max_buffer_size);
+  void Reset(BufferOptions buffer_options);
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
   void MoveSecondaryBuffer(ResizableWriterBase&& that);
   void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
@@ -477,11 +442,10 @@ struct VectorResizableTraits {
 
 // Implementation details follow.
 
-inline ResizableWriterBase::ResizableWriterBase(size_t min_buffer_size,
-                                                size_t max_buffer_size)
+inline ResizableWriterBase::ResizableWriterBase(BufferOptions buffer_options)
     : options_(Chain::Options()
-                   .set_min_block_size(min_buffer_size)
-                   .set_max_block_size(max_buffer_size)) {}
+                   .set_min_block_size(buffer_options.min_buffer_size())
+                   .set_max_block_size(buffer_options.max_buffer_size())) {}
 
 inline ResizableWriterBase::ResizableWriterBase(
     ResizableWriterBase&& that) noexcept
@@ -510,12 +474,11 @@ inline void ResizableWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void ResizableWriterBase::Reset(size_t min_buffer_size,
-                                       size_t max_buffer_size) {
+inline void ResizableWriterBase::Reset(BufferOptions buffer_options) {
   Writer::Reset();
   options_ = Chain::Options()
-                 .set_min_block_size(min_buffer_size)
-                 .set_max_block_size(max_buffer_size);
+                 .set_min_block_size(buffer_options.min_buffer_size())
+                 .set_max_block_size(buffer_options.max_buffer_size());
   secondary_buffer_.Clear();
   written_size_ = 0;
   associated_reader_.Reset();
@@ -568,16 +531,14 @@ inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
 template <typename ResizableTraits, typename Dest>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(const Dest& dest,
                                                                Options options)
-    : ResizableWriterBase(options.min_buffer_size(), options.max_buffer_size()),
-      dest_(dest) {
+    : ResizableWriterBase(options.buffer_options()), dest_(dest) {
   Initialize(dest_.get(), options.append());
 }
 
 template <typename ResizableTraits, typename Dest>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Dest&& dest,
                                                                Options options)
-    : ResizableWriterBase(options.min_buffer_size(), options.max_buffer_size()),
-      dest_(std::move(dest)) {
+    : ResizableWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -585,7 +546,7 @@ template <typename ResizableTraits, typename Dest>
 template <typename... DestArgs>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : ResizableWriterBase(options.min_buffer_size(), options.max_buffer_size()),
+    : ResizableWriterBase(options.buffer_options()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append());
 }
@@ -628,8 +589,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(const Dest& dest,
                                                           Options options) {
-  ResizableWriterBase::Reset(options.min_buffer_size(),
-                             options.max_buffer_size());
+  ResizableWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.append());
 }
@@ -637,8 +597,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(const Dest& dest,
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Dest&& dest,
                                                           Options options) {
-  ResizableWriterBase::Reset(options.min_buffer_size(),
-                             options.max_buffer_size());
+  ResizableWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.append());
 }
@@ -647,8 +606,7 @@ template <typename ResizableTraits, typename Dest>
 template <typename... DestArgs>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(
     std::tuple<DestArgs...> dest_args, Options options) {
-  ResizableWriterBase::Reset(options.min_buffer_size(),
-                             options.max_buffer_size());
+  ResizableWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }

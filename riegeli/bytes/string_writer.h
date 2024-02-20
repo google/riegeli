@@ -35,6 +35,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -46,7 +47,7 @@ class StringReader;
 // Template parameter independent part of `StringWriter`.
 class StringWriterBase : public Writer {
  public:
-  class Options {
+  class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
 
@@ -65,44 +66,8 @@ class StringWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    // Minimal size of a block of buffered data after the initial capacity of
-    // the destination.
-    //
-    // This is used initially, while data buffered after the destination is
-    // small.
-    //
-    // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_buffer_size(size_t min_buffer_size) & {
-      min_buffer_size_ = UnsignedMin(min_buffer_size, uint32_t{1} << 31);
-      return *this;
-    }
-    Options&& set_min_buffer_size(size_t min_buffer_size) && {
-      return std::move(set_min_buffer_size(min_buffer_size));
-    }
-    size_t min_buffer_size() const { return min_buffer_size_; }
-
-    // Maximal size of a block of buffered data after the initial capacity of
-    // the destination.
-    //
-    // Default: `kDefaultMaxBlockSize` (64K).
-    Options& set_max_buffer_size(size_t max_buffer_size) & {
-      RIEGELI_ASSERT_GT(max_buffer_size, 0u)
-          << "Failed precondition of "
-             "StringWriterBase::Options::set_max_buffer_size(): "
-             "zero buffer size";
-      max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
-      return *this;
-    }
-    Options&& set_max_buffer_size(size_t max_buffer_size) && {
-      return std::move(set_max_buffer_size(max_buffer_size));
-    }
-    size_t max_buffer_size() const { return max_buffer_size_; }
-
    private:
     bool append_ = false;
-    // Use `uint32_t` instead of `size_t` to reduce the object size.
-    uint32_t min_buffer_size_ = uint32_t{kDefaultMinBlockSize};
-    uint32_t max_buffer_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
@@ -118,13 +83,13 @@ class StringWriterBase : public Writer {
  protected:
   explicit StringWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit StringWriterBase(size_t min_buffer_size, size_t max_buffer_size);
+  explicit StringWriterBase(BufferOptions buffer_options);
 
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(size_t min_buffer_size, size_t max_buffer_size);
+  void Reset(BufferOptions buffer_options);
   void Initialize(std::string* dest, bool append);
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
   void MoveSecondaryBuffer(StringWriterBase&& that);
@@ -320,11 +285,10 @@ explicit StringWriter(
 
 // Implementation details follow.
 
-inline StringWriterBase::StringWriterBase(size_t min_buffer_size,
-                                          size_t max_buffer_size)
+inline StringWriterBase::StringWriterBase(BufferOptions buffer_options)
     : options_(Chain::Options()
-                   .set_min_block_size(min_buffer_size)
-                   .set_max_block_size(max_buffer_size)) {}
+                   .set_min_block_size(buffer_options.min_buffer_size())
+                   .set_max_block_size(buffer_options.max_buffer_size())) {}
 
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
@@ -351,12 +315,11 @@ inline void StringWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void StringWriterBase::Reset(size_t min_buffer_size,
-                                    size_t max_buffer_size) {
+inline void StringWriterBase::Reset(BufferOptions buffer_options) {
   Writer::Reset();
   options_ = Chain::Options()
-                 .set_min_block_size(min_buffer_size)
-                 .set_max_block_size(max_buffer_size);
+                 .set_min_block_size(buffer_options.min_buffer_size())
+                 .set_max_block_size(buffer_options.max_buffer_size());
   secondary_buffer_.Clear();
   written_size_ = 0;
   associated_reader_.Reset();
@@ -389,15 +352,13 @@ inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
-    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
-      dest_(dest) {
+    : StringWriterBase(options.buffer_options()), dest_(dest) {
   Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
-    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
-      dest_(std::move(dest)) {
+    : StringWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -405,8 +366,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : StringWriterBase(options.min_buffer_size(), options.max_buffer_size()),
-      dest_(std::move(dest_args)) {
+    : StringWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -439,14 +399,14 @@ inline void StringWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
-  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
+  StringWriterBase::Reset(options.buffer_options());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
-  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
+  StringWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.append());
 }
@@ -455,7 +415,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  StringWriterBase::Reset(options.min_buffer_size(), options.max_buffer_size());
+  StringWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }

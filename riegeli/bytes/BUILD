@@ -734,6 +734,7 @@ cc_library(
     srcs = ["string_writer.cc"],
     hdrs = ["string_writer.h"],
     deps = [
+        ":buffer_options",
         ":reader",
         ":string_reader",
         ":writer",
@@ -759,6 +760,7 @@ cc_library(
     srcs = ["resizable_writer.cc"],
     hdrs = ["resizable_writer.h"],
     deps = [
+        ":buffer_options",
         ":reader",
         ":string_reader",
         ":writer",
