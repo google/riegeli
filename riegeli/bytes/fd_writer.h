@@ -387,13 +387,13 @@ class FdWriterBase : public BufferedWriter {
  protected:
   explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit FdWriterBase(const BufferOptions& buffer_options);
+  explicit FdWriterBase(BufferOptions buffer_options);
 
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options);
+  void Reset(BufferOptions buffer_options);
   void Initialize(int dest, Options&& options);
   const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
@@ -643,7 +643,7 @@ explicit FdWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline FdWriterBase::FdWriterBase(const BufferOptions& buffer_options)
+inline FdWriterBase::FdWriterBase(BufferOptions buffer_options)
     : BufferedWriter(buffer_options) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
@@ -696,7 +696,7 @@ inline void FdWriterBase::Reset(Closed) {
   read_mode_ = false;
 }
 
-inline void FdWriterBase::Reset(const BufferOptions& buffer_options) {
+inline void FdWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
   // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
   // `InitializeAssumedFilename()`.

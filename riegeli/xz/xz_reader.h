@@ -133,16 +133,15 @@ class XzReaderBase : public BufferedReader {
  protected:
   explicit XzReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit XzReaderBase(const BufferOptions& buffer_options,
-                        Container container, uint32_t flags,
+  explicit XzReaderBase(BufferOptions buffer_options, Container container,
+                        uint32_t flags,
                         const RecyclingPoolOptions& recycling_pool_options);
 
   XzReaderBase(XzReaderBase&& that) noexcept;
   XzReaderBase& operator=(XzReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, Container container,
-             uint32_t flags,
+  void Reset(BufferOptions buffer_options, Container container, uint32_t flags,
              const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
@@ -285,7 +284,7 @@ bool RecognizeXz(Reader& src);
 // Implementation details follow.
 
 inline XzReaderBase::XzReaderBase(
-    const BufferOptions& buffer_options, Container container, uint32_t flags,
+    BufferOptions buffer_options, Container container, uint32_t flags,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       container_(container),
@@ -323,7 +322,7 @@ inline void XzReaderBase::Reset(Closed) {
 }
 
 inline void XzReaderBase::Reset(
-    const BufferOptions& buffer_options, Container container, uint32_t flags,
+    BufferOptions buffer_options, Container container, uint32_t flags,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   container_ = container;

@@ -142,7 +142,7 @@ class BrotliWriterBase : public BufferedWriter {
  protected:
   explicit BrotliWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit BrotliWriterBase(const BufferOptions& buffer_options,
+  explicit BrotliWriterBase(BufferOptions buffer_options,
                             BrotliDictionary&& dictionary,
                             BrotliAllocator&& allocator);
 
@@ -150,7 +150,7 @@ class BrotliWriterBase : public BufferedWriter {
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, BrotliDictionary&& dictionary,
+  void Reset(BufferOptions buffer_options, BrotliDictionary&& dictionary,
              BrotliAllocator&& allocator);
   void Initialize(Writer* dest, int compression_level, int window_log);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -263,7 +263,7 @@ explicit BrotliWriter(
 
 // Implementation details follow.
 
-inline BrotliWriterBase::BrotliWriterBase(const BufferOptions& buffer_options,
+inline BrotliWriterBase::BrotliWriterBase(BufferOptions buffer_options,
                                           BrotliDictionary&& dictionary,
                                           BrotliAllocator&& allocator)
     : BufferedWriter(buffer_options),
@@ -298,7 +298,7 @@ inline void BrotliWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void BrotliWriterBase::Reset(const BufferOptions& buffer_options,
+inline void BrotliWriterBase::Reset(BufferOptions buffer_options,
                                     BrotliDictionary&& dictionary,
                                     BrotliAllocator&& allocator) {
   BufferedWriter::Reset(buffer_options);

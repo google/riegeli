@@ -214,14 +214,13 @@ class CFileReaderBase : public BufferedReader {
  protected:
   explicit CFileReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit CFileReaderBase(const BufferOptions& buffer_options,
-                           bool growing_source);
+  explicit CFileReaderBase(BufferOptions buffer_options, bool growing_source);
 
   CFileReaderBase(CFileReaderBase&& that) noexcept;
   CFileReaderBase& operator=(CFileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool growing_source);
+  void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(FILE* src, Options&& options);
   const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
@@ -378,7 +377,7 @@ explicit CFileReader(
 
 // Implementation details follow.
 
-inline CFileReaderBase::CFileReaderBase(const BufferOptions& buffer_options,
+inline CFileReaderBase::CFileReaderBase(BufferOptions buffer_options,
                                         bool growing_source)
     : BufferedReader(buffer_options), growing_source_(growing_source) {}
 
@@ -420,7 +419,7 @@ inline void CFileReaderBase::Reset(Closed) {
 #endif
 }
 
-inline void CFileReaderBase::Reset(const BufferOptions& buffer_options,
+inline void CFileReaderBase::Reset(BufferOptions buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
   // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or

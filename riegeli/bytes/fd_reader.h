@@ -251,14 +251,13 @@ class FdReaderBase : public BufferedReader {
  protected:
   explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit FdReaderBase(const BufferOptions& buffer_options,
-                        bool growing_source);
+  explicit FdReaderBase(BufferOptions buffer_options, bool growing_source);
 
   FdReaderBase(FdReaderBase&& that) noexcept;
   FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool growing_source);
+  void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(int src, Options&& options);
   const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
@@ -468,7 +467,7 @@ explicit FdReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline FdReaderBase::FdReaderBase(const BufferOptions& buffer_options,
+inline FdReaderBase::FdReaderBase(BufferOptions buffer_options,
                                   bool growing_source)
     : BufferedReader(buffer_options), growing_source_(growing_source) {}
 
@@ -512,7 +511,7 @@ inline void FdReaderBase::Reset(Closed) {
 #endif
 }
 
-inline void FdReaderBase::Reset(const BufferOptions& buffer_options,
+inline void FdReaderBase::Reset(BufferOptions buffer_options,
                                 bool growing_source) {
   BufferedReader::Reset(buffer_options);
   // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or

@@ -295,13 +295,13 @@ class CFileWriterBase : public BufferedWriter {
  protected:
   explicit CFileWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit CFileWriterBase(const BufferOptions& buffer_options);
+  explicit CFileWriterBase(BufferOptions buffer_options);
 
   CFileWriterBase(CFileWriterBase&& that) noexcept;
   CFileWriterBase& operator=(CFileWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options);
+  void Reset(BufferOptions buffer_options);
   void Initialize(FILE* dest, Options&& options);
   const std::string& InitializeFilename(absl::string_view filename);
   bool InitializeAssumedFilename(Options& options);
@@ -482,7 +482,7 @@ explicit CFileWriter(
 
 // Implementation details follow.
 
-inline CFileWriterBase::CFileWriterBase(const BufferOptions& buffer_options)
+inline CFileWriterBase::CFileWriterBase(BufferOptions buffer_options)
     : BufferedWriter(buffer_options) {}
 
 inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
@@ -533,7 +533,7 @@ inline void CFileWriterBase::Reset(Closed) {
   read_mode_ = false;
 }
 
-inline void CFileWriterBase::Reset(const BufferOptions& buffer_options) {
+inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
   // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
   // `InitializeAssumedFilename()`.

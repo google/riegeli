@@ -174,7 +174,7 @@ class ZlibReaderBase : public BufferedReader {
  protected:
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit ZlibReaderBase(const BufferOptions& buffer_options, int window_bits,
+  explicit ZlibReaderBase(BufferOptions buffer_options, int window_bits,
                           ZlibDictionary&& dictionary, bool concatenate,
                           const RecyclingPoolOptions& recycling_pool_options);
 
@@ -182,7 +182,7 @@ class ZlibReaderBase : public BufferedReader {
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, int window_bits,
+  void Reset(BufferOptions buffer_options, int window_bits,
              ZlibDictionary&& dictionary, bool concatenate,
              const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
@@ -337,9 +337,8 @@ absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 // Implementation details follow.
 
 inline ZlibReaderBase::ZlibReaderBase(
-    const BufferOptions& buffer_options, int window_bits,
-    ZlibDictionary&& dictionary, bool concatenate,
-    const RecyclingPoolOptions& recycling_pool_options)
+    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
+    bool concatenate, const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       window_bits_(window_bits),
       concatenate_(concatenate),
@@ -384,9 +383,8 @@ inline void ZlibReaderBase::Reset(Closed) {
 }
 
 inline void ZlibReaderBase::Reset(
-    const BufferOptions& buffer_options, int window_bits,
-    ZlibDictionary&& dictionary, bool concatenate,
-    const RecyclingPoolOptions& recycling_pool_options) {
+    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
+    bool concatenate, const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   window_bits_ = window_bits;
   concatenate_ = concatenate;

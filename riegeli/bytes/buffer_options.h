@@ -137,15 +137,15 @@ class BufferOptionsBase {
   }
 
   // Grouped options related to buffering.
-  Options& set_buffer_options(const BufferOptions& buffer_options) & {
+  Options& set_buffer_options(BufferOptions buffer_options) & {
     buffer_options_ = buffer_options;
     return static_cast<Options&>(*this);
   }
-  Options&& set_buffer_options(const BufferOptions& buffer_options) && {
+  Options&& set_buffer_options(BufferOptions buffer_options) && {
     return std::move(set_buffer_options(buffer_options));
   }
   BufferOptions& buffer_options() { return buffer_options_; }
-  const BufferOptions& buffer_options() const { return buffer_options_; }
+  BufferOptions buffer_options() const { return buffer_options_; }
 
  protected:
   BufferOptionsBase(const BufferOptionsBase& that) = default;
@@ -176,16 +176,16 @@ class ReadBufferSizer {
  public:
   ReadBufferSizer() = default;
 
-  explicit ReadBufferSizer(const BufferOptions& buffer_options);
+  explicit ReadBufferSizer(BufferOptions buffer_options);
 
   ReadBufferSizer(const ReadBufferSizer& that) = default;
   ReadBufferSizer& operator=(const ReadBufferSizer& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(BufferOptions buffer_options);
 
   // Returns the options passed to the constructor.
-  const BufferOptions& buffer_options() const { return buffer_options_; }
+  BufferOptions buffer_options() const { return buffer_options_; }
 
   // Intended storage for the hint set by `Reader::SetReadAllHint()`.
   //
@@ -267,16 +267,16 @@ class WriteBufferSizer {
  public:
   WriteBufferSizer() = default;
 
-  explicit WriteBufferSizer(const BufferOptions& buffer_options);
+  explicit WriteBufferSizer(BufferOptions buffer_options);
 
   WriteBufferSizer(const WriteBufferSizer& that) = default;
   WriteBufferSizer& operator=(const WriteBufferSizer& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const BufferOptions& buffer_options);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(BufferOptions buffer_options);
 
   // Returns the options passed to the constructor.
-  const BufferOptions& buffer_options() const { return buffer_options_; }
+  BufferOptions buffer_options() const { return buffer_options_; }
 
   // Intended storage for the hint set by
   // `{,Backward}Writer::SetWriteSizeHint()`.
@@ -342,7 +342,7 @@ template <typename Options>
 constexpr size_t BufferOptionsBase<Options>::kDefaultMaxBufferSize;
 #endif
 
-inline ReadBufferSizer::ReadBufferSizer(const BufferOptions& buffer_options)
+inline ReadBufferSizer::ReadBufferSizer(BufferOptions buffer_options)
     : buffer_options_(buffer_options) {}
 
 inline void ReadBufferSizer::Reset() {
@@ -353,7 +353,7 @@ inline void ReadBufferSizer::Reset() {
   exact_size_ = absl::nullopt;
 }
 
-inline void ReadBufferSizer::Reset(const BufferOptions& buffer_options) {
+inline void ReadBufferSizer::Reset(BufferOptions buffer_options) {
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
@@ -373,7 +373,7 @@ inline void ReadBufferSizer::EndRun(Position pos) {
   buffer_length_from_last_run_ = SaturatingAdd(length, length - 1);
 }
 
-inline WriteBufferSizer::WriteBufferSizer(const BufferOptions& buffer_options)
+inline WriteBufferSizer::WriteBufferSizer(BufferOptions buffer_options)
     : buffer_options_(buffer_options) {}
 
 inline void WriteBufferSizer::Reset() {
@@ -383,7 +383,7 @@ inline void WriteBufferSizer::Reset() {
   size_hint_ = absl::nullopt;
 }
 
-inline void WriteBufferSizer::Reset(const BufferOptions& buffer_options) {
+inline void WriteBufferSizer::Reset(BufferOptions buffer_options) {
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;

@@ -115,15 +115,15 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit ZstdReaderBase(const BufferOptions& buffer_options,
-                          bool growing_source, ZstdDictionary&& dictionary,
+  explicit ZstdReaderBase(BufferOptions buffer_options, bool growing_source,
+                          ZstdDictionary&& dictionary,
                           const RecyclingPoolOptions& recycling_pool_options);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool growing_source,
+  void Reset(BufferOptions buffer_options, bool growing_source,
              ZstdDictionary&& dictionary,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Reader* src);
@@ -263,7 +263,7 @@ absl::optional<uint32_t> ZstdDictId(Reader& src);
 // Implementation details follow.
 
 inline ZstdReaderBase::ZstdReaderBase(
-    const BufferOptions& buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source,
     ZstdDictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
@@ -306,7 +306,7 @@ inline void ZstdReaderBase::Reset(Closed) {
 }
 
 inline void ZstdReaderBase::Reset(
-    const BufferOptions& buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source,
     ZstdDictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);

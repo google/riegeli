@@ -236,7 +236,7 @@ class Lz4WriterBase : public BufferedWriter {
  protected:
   explicit Lz4WriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit Lz4WriterBase(const BufferOptions& buffer_options,
+  explicit Lz4WriterBase(BufferOptions buffer_options,
                          Lz4Dictionary&& dictionary,
                          absl::optional<Position> pledged_size,
                          bool reserve_max_size,
@@ -246,7 +246,7 @@ class Lz4WriterBase : public BufferedWriter {
   Lz4WriterBase& operator=(Lz4WriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
+  void Reset(BufferOptions buffer_options, Lz4Dictionary&& dictionary,
              absl::optional<Position> pledged_size, bool reserve_max_size,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log,
@@ -372,7 +372,7 @@ explicit Lz4Writer(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline Lz4WriterBase::Lz4WriterBase(
-    const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
+    BufferOptions buffer_options, Lz4Dictionary&& dictionary,
     absl::optional<Position> pledged_size, bool reserve_max_size,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedWriter(buffer_options),
@@ -424,7 +424,7 @@ inline void Lz4WriterBase::Reset(Closed) {
 }
 
 inline void Lz4WriterBase::Reset(
-    const BufferOptions& buffer_options, Lz4Dictionary&& dictionary,
+    BufferOptions buffer_options, Lz4Dictionary&& dictionary,
     absl::optional<Position> pledged_size, bool reserve_max_size,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);

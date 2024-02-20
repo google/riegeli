@@ -128,15 +128,15 @@ class Lz4ReaderBase : public BufferedReader {
  protected:
   explicit Lz4ReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit Lz4ReaderBase(const BufferOptions& buffer_options,
-                         bool growing_source, Lz4Dictionary&& dictionary,
+  explicit Lz4ReaderBase(BufferOptions buffer_options, bool growing_source,
+                         Lz4Dictionary&& dictionary,
                          const RecyclingPoolOptions& recycling_pool_options);
 
   Lz4ReaderBase(Lz4ReaderBase&& that) noexcept;
   Lz4ReaderBase& operator=(Lz4ReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool growing_source,
+  void Reset(BufferOptions buffer_options, bool growing_source,
              Lz4Dictionary&& dictionary,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Reader* src);
@@ -285,7 +285,7 @@ absl::optional<Position> Lz4UncompressedSize(
 // Implementation details follow.
 
 inline Lz4ReaderBase::Lz4ReaderBase(
-    const BufferOptions& buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source,
     Lz4Dictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
@@ -327,7 +327,7 @@ inline void Lz4ReaderBase::Reset(Closed) {
 }
 
 inline void Lz4ReaderBase::Reset(
-    const BufferOptions& buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source,
     Lz4Dictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);

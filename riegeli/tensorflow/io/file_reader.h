@@ -123,14 +123,14 @@ class FileReaderBase : public Reader {
  protected:
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  explicit FileReaderBase(const BufferOptions& buffer_options,
-                          ::tensorflow::Env* env, bool growing_source);
+  explicit FileReaderBase(BufferOptions buffer_options, ::tensorflow::Env* env,
+                          bool growing_source);
 
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, ::tensorflow::Env* env,
+  void Reset(BufferOptions buffer_options, ::tensorflow::Env* env,
              bool growing_source);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
@@ -320,7 +320,7 @@ explicit FileReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline FileReaderBase::FileReaderBase(const BufferOptions& buffer_options,
+inline FileReaderBase::FileReaderBase(BufferOptions buffer_options,
                                       ::tensorflow::Env* env,
                                       bool growing_source)
     : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
@@ -358,7 +358,7 @@ inline void FileReaderBase::Reset(Closed) {
   buffer_ = SizedSharedBuffer();
 }
 
-inline void FileReaderBase::Reset(const BufferOptions& buffer_options,
+inline void FileReaderBase::Reset(BufferOptions buffer_options,
                                   ::tensorflow::Env* env, bool growing_source) {
   Reader::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();

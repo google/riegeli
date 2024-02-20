@@ -77,13 +77,13 @@ class Bzip2WriterBase : public BufferedWriter {
  protected:
   explicit Bzip2WriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit Bzip2WriterBase(const BufferOptions& buffer_options);
+  explicit Bzip2WriterBase(BufferOptions buffer_options);
 
   Bzip2WriterBase(Bzip2WriterBase&& that) noexcept;
   Bzip2WriterBase& operator=(Bzip2WriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options);
+  void Reset(BufferOptions buffer_options);
   void Initialize(Writer* dest, int compression_level);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -195,7 +195,7 @@ explicit Bzip2Writer(
 
 // Implementation details follow.
 
-inline Bzip2WriterBase::Bzip2WriterBase(const BufferOptions& buffer_options)
+inline Bzip2WriterBase::Bzip2WriterBase(BufferOptions buffer_options)
     : BufferedWriter(buffer_options) {}
 
 inline Bzip2WriterBase::Bzip2WriterBase(Bzip2WriterBase&& that) noexcept
@@ -217,7 +217,7 @@ inline void Bzip2WriterBase::Reset(Closed) {
   compressor_.reset();
 }
 
-inline void Bzip2WriterBase::Reset(const BufferOptions& buffer_options) {
+inline void Bzip2WriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
   initial_compressed_pos_ = 0;
   compressor_.reset();

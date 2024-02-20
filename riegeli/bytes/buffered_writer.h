@@ -46,7 +46,7 @@ class BufferedWriter : public Writer {
   explicit BufferedWriter(Closed) noexcept : Writer(kClosed) {}
 
   explicit BufferedWriter(
-      const BufferOptions& buffer_options = BufferOptions()) noexcept;
+      BufferOptions buffer_options = BufferOptions()) noexcept;
 
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
@@ -56,12 +56,12 @@ class BufferedWriter : public Writer {
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedWriter::Reset()`.
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options = BufferOptions());
+  void Reset(BufferOptions buffer_options = BufferOptions());
 
   void Done() override;
 
   // Returns the options passed to the constructor.
-  const BufferOptions& buffer_options() const {
+  BufferOptions buffer_options() const {
     return buffer_sizer_.buffer_options();
   }
 
@@ -143,8 +143,7 @@ class BufferedWriter : public Writer {
 
 // Implementation details follow.
 
-inline BufferedWriter::BufferedWriter(
-    const BufferOptions& buffer_options) noexcept
+inline BufferedWriter::BufferedWriter(BufferOptions buffer_options) noexcept
     : buffer_sizer_(buffer_options) {}
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
@@ -169,7 +168,7 @@ inline void BufferedWriter::Reset(Closed) {
   written_ = 0;
 }
 
-inline void BufferedWriter::Reset(const BufferOptions& buffer_options) {
+inline void BufferedWriter::Reset(BufferOptions buffer_options) {
   Writer::Reset();
   buffer_sizer_.Reset(buffer_options);
   written_ = 0;

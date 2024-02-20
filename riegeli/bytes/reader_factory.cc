@@ -604,8 +604,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::ConcurrentReader::NewReaderImpl(
   return std::make_unique<ConcurrentReader>(shared_, initial_pos);
 }
 
-void ReaderFactoryBase::Initialize(const BufferOptions& buffer_options,
-                                   Reader* src) {
+void ReaderFactoryBase::Initialize(BufferOptions buffer_options, Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ReaderFactory: null Reader pointer";
   RIEGELI_ASSERT(src->SupportsRandomAccess())

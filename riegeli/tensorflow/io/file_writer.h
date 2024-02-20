@@ -107,14 +107,13 @@ class FileWriterBase : public Writer {
  protected:
   explicit FileWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit FileWriterBase(const BufferOptions& buffer_options,
-                          ::tensorflow::Env* env);
+  explicit FileWriterBase(BufferOptions buffer_options, ::tensorflow::Env* env);
 
   FileWriterBase(FileWriterBase&& that) noexcept;
   FileWriterBase& operator=(FileWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, ::tensorflow::Env* env);
+  void Reset(BufferOptions buffer_options, ::tensorflow::Env* env);
   void Initialize(::tensorflow::WritableFile* dest);
   bool InitializeFilename(::tensorflow::WritableFile* dest);
   bool InitializeFilename(absl::string_view filename);
@@ -266,7 +265,7 @@ explicit FileWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline FileWriterBase::FileWriterBase(const BufferOptions& buffer_options,
+inline FileWriterBase::FileWriterBase(BufferOptions buffer_options,
                                       ::tensorflow::Env* env)
     : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
       buffer_sizer_(buffer_options) {}
@@ -302,7 +301,7 @@ inline void FileWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void FileWriterBase::Reset(const BufferOptions& buffer_options,
+inline void FileWriterBase::Reset(BufferOptions buffer_options,
                                   ::tensorflow::Env* env) {
   Writer::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();

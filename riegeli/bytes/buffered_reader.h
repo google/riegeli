@@ -54,7 +54,7 @@ class BufferedReader : public Reader {
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
 
   explicit BufferedReader(
-      const BufferOptions& buffer_options = BufferOptions()) noexcept;
+      BufferOptions buffer_options = BufferOptions()) noexcept;
 
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
@@ -64,12 +64,12 @@ class BufferedReader : public Reader {
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedReader::Reset()`.
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options = BufferOptions());
+  void Reset(BufferOptions buffer_options = BufferOptions());
 
   void Done() override;
 
   // Returns the options passed to the constructor.
-  const BufferOptions& buffer_options() const {
+  BufferOptions buffer_options() const {
     return buffer_sizer_.buffer_options();
   }
 
@@ -216,8 +216,7 @@ class BufferedReader : public Reader {
 
 // Implementation details follow.
 
-inline BufferedReader::BufferedReader(
-    const BufferOptions& buffer_options) noexcept
+inline BufferedReader::BufferedReader(BufferOptions buffer_options) noexcept
     : buffer_sizer_(buffer_options) {}
 
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
@@ -239,7 +238,7 @@ inline void BufferedReader::Reset(Closed) {
   buffer_ = SizedSharedBuffer();
 }
 
-inline void BufferedReader::Reset(const BufferOptions& buffer_options) {
+inline void BufferedReader::Reset(BufferOptions buffer_options) {
   Reader::Reset();
   buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();

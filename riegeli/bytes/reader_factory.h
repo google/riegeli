@@ -72,7 +72,7 @@ class ReaderFactoryBase : public Object {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(const BufferOptions& buffer_options, Reader* src);
+  void Initialize(BufferOptions buffer_options, Reader* src);
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
@@ -82,7 +82,7 @@ class ReaderFactoryBase : public Object {
   class ConcurrentReader;
 
   struct Shared {
-    explicit Shared(const BufferOptions& buffer_options, Reader* reader)
+    explicit Shared(BufferOptions buffer_options, Reader* reader)
         : buffer_options(buffer_options), reader(reader) {}
 
     BufferOptions buffer_options;

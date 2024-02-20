@@ -103,13 +103,13 @@ class OStreamWriterBase : public BufferedWriter {
  protected:
   explicit OStreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit OStreamWriterBase(const BufferOptions& buffer_options);
+  explicit OStreamWriterBase(BufferOptions buffer_options);
 
   OStreamWriterBase(OStreamWriterBase&& that) noexcept;
   OStreamWriterBase& operator=(OStreamWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options);
+  void Reset(BufferOptions buffer_options);
   void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos,
                   bool assumed_append);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -236,7 +236,7 @@ explicit OStreamWriter(
 
 // Implementation details follow.
 
-inline OStreamWriterBase::OStreamWriterBase(const BufferOptions& buffer_options)
+inline OStreamWriterBase::OStreamWriterBase(BufferOptions buffer_options)
     : BufferedWriter(buffer_options) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
@@ -278,7 +278,7 @@ inline void OStreamWriterBase::Reset(Closed) {
   read_mode_ = false;
 }
 
-inline void OStreamWriterBase::Reset(const BufferOptions& buffer_options) {
+inline void OStreamWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;

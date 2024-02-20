@@ -86,14 +86,13 @@ class Bzip2ReaderBase : public BufferedReader {
  protected:
   explicit Bzip2ReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit Bzip2ReaderBase(const BufferOptions& buffer_options,
-                           bool concatenate);
+  explicit Bzip2ReaderBase(BufferOptions buffer_options, bool concatenate);
 
   Bzip2ReaderBase(Bzip2ReaderBase&& that) noexcept;
   Bzip2ReaderBase& operator=(Bzip2ReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool concatenate);
+  void Reset(BufferOptions buffer_options, bool concatenate);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -221,7 +220,7 @@ bool RecognizeBzip2(Reader& src);
 
 // Implementation details follow.
 
-inline Bzip2ReaderBase::Bzip2ReaderBase(const BufferOptions& buffer_options,
+inline Bzip2ReaderBase::Bzip2ReaderBase(BufferOptions buffer_options,
                                         bool concatenate)
     : BufferedReader(buffer_options), concatenate_(concatenate) {}
 
@@ -253,7 +252,7 @@ inline void Bzip2ReaderBase::Reset(Closed) {
   decompressor_.reset();
 }
 
-inline void Bzip2ReaderBase::Reset(const BufferOptions& buffer_options,
+inline void Bzip2ReaderBase::Reset(BufferOptions buffer_options,
                                    bool concatenate) {
   BufferedReader::Reset(buffer_options);
   concatenate_ = concatenate;

@@ -196,15 +196,14 @@ class XzWriterBase : public BufferedWriter {
  protected:
   explicit XzWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit XzWriterBase(const BufferOptions& buffer_options,
-                        Container container,
+  explicit XzWriterBase(BufferOptions buffer_options, Container container,
                         const RecyclingPoolOptions& recycling_pool_options);
 
   XzWriterBase(XzWriterBase&& that) noexcept;
   XzWriterBase& operator=(XzWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, Container container,
+  void Reset(BufferOptions buffer_options, Container container,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Writer* dest, uint32_t preset, Check check, int parallelism);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -344,7 +343,7 @@ explicit XzWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline XzWriterBase::XzWriterBase(
-    const BufferOptions& buffer_options, Container container,
+    BufferOptions buffer_options, Container container,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedWriter(buffer_options),
       container_(container),
@@ -381,7 +380,7 @@ inline void XzWriterBase::Reset(Closed) {
 }
 
 inline void XzWriterBase::Reset(
-    const BufferOptions& buffer_options, Container container,
+    BufferOptions buffer_options, Container container,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   container_ = container;

@@ -96,14 +96,13 @@ class IStreamReaderBase : public BufferedReader {
  protected:
   explicit IStreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
-  explicit IStreamReaderBase(const BufferOptions& buffer_options,
-                             bool growing_source);
+  explicit IStreamReaderBase(BufferOptions buffer_options, bool growing_source);
 
   IStreamReaderBase(IStreamReaderBase&& that) noexcept;
   IStreamReaderBase& operator=(IStreamReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const BufferOptions& buffer_options, bool growing_source);
+  void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
@@ -216,7 +215,7 @@ explicit IStreamReader(
 
 // Implementation details follow.
 
-inline IStreamReaderBase::IStreamReaderBase(const BufferOptions& buffer_options,
+inline IStreamReaderBase::IStreamReaderBase(BufferOptions buffer_options,
                                             bool growing_source)
     : BufferedReader(buffer_options), growing_source_(growing_source) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
@@ -247,7 +246,7 @@ inline void IStreamReaderBase::Reset(Closed) {
   random_access_status_ = absl::OkStatus();
 }
 
-inline void IStreamReaderBase::Reset(const BufferOptions& buffer_options,
+inline void IStreamReaderBase::Reset(BufferOptions buffer_options,
                                      bool growing_source) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
