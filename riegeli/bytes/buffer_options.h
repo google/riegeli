@@ -145,7 +145,7 @@ class BufferOptionsBase {
     return std::move(set_buffer_options(buffer_options));
   }
   BufferOptions& buffer_options() { return buffer_options_; }
-  BufferOptions buffer_options() const { return buffer_options_; }
+  const BufferOptions& buffer_options() const { return buffer_options_; }
 
  protected:
   BufferOptionsBase(const BufferOptionsBase& that) = default;
