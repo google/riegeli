@@ -240,6 +240,7 @@ class CFileReaderBase : public BufferedReader {
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
+  void CheckRandomAccess(FILE* src);
 
   std::string filename_;
   bool growing_source_ = false;

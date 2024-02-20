@@ -272,12 +272,17 @@ inline absl::Status CFileWriterBase::SizeStatus() {
 #ifndef _WIN32
   if (file_size == 0 &&
       ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-    // Some "/proc" files do not support random access. It is hard to
-    // reliably recognize them using the `FILE` API, so `CFileWriter`
-    // checks the filename. Random access is assumed to be unsupported if
-    // they claim to have a zero size.
-    return absl::UnimplementedError(
-        "/proc files claiming zero size do not support random access");
+    // Some "/proc" files do not support random access. It is hard to reliably
+    // recognize them using the `FILE` API, so `CFileWriter` checks the
+    // filename. Random access is assumed to be unsupported if they claim to
+    // have a zero size, except for "/proc/*/fd" files.
+    const absl::string_view after_proc = filename().substr(6);
+    const size_t slash = after_proc.find('/');
+    if (slash == absl::string_view::npos ||
+        !absl::StartsWith(after_proc.substr(slash), "/fd/")) {
+      return absl::UnimplementedError(
+          "/proc files claiming zero size do not support random access");
+    }
   }
 #endif  // !_WIN32
   // Supported.

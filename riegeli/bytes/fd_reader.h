@@ -287,6 +287,7 @@ class FdReaderBase : public BufferedReader {
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
+  void CheckRandomAccess(int src);
 
   bool SeekInternal(int src, Position new_pos);
 

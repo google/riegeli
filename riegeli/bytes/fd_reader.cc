@@ -278,41 +278,7 @@ void FdReaderBase::InitializePos(int src, Options&& options
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
-
-    // Check if random access is supported.
-#ifndef _WIN32
-    if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-      // "/sys" files do not support random access. It is hard to reliably
-      // recognize them, so `FdReader` checks the filename.
-      //
-      // Some "/proc" files also do not support random access, but they are
-      // recognized by a failing `fd_internal::LSeek(SEEK_END)`.
-      //
-      // `supports_random_access_` is left as `false`.
-      random_access_status_ =
-          absl::UnimplementedError("/sys files do not support random access");
-    } else
-#endif  // !_WIN32
-    {
-      const fd_internal::Offset file_size =
-          fd_internal::LSeek(src, 0, SEEK_END);
-      if (file_size < 0) {
-        // Not supported. `supports_random_access_` is left as `false`.
-        random_access_status_ =
-            FailedOperationStatus(fd_internal::kLSeekFunctionName);
-      } else {
-        // Supported.
-        supports_random_access_ = true;
-        if (ABSL_PREDICT_FALSE(
-                fd_internal::LSeek(src,
-                                   IntCast<fd_internal::Offset>(limit_pos()),
-                                   SEEK_SET) < 0)) {
-          FailOperation(fd_internal::kLSeekFunctionName);
-          return;
-        }
-        if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
-      }
-    }
+    CheckRandomAccess(src);
   }
   BeginRun();
 }
@@ -361,6 +327,39 @@ absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
     status = Annotate(status, absl::StrCat("reading ", filename_));
   }
   return BufferedReader::AnnotateStatusImpl(std::move(status));
+}
+
+inline void FdReaderBase::CheckRandomAccess(int src) {
+#ifndef _WIN32
+  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
+    // "/sys" files do not support random access. It is hard to reliably
+    // recognize them, so `FdReader` checks the filename.
+    //
+    // Some "/proc" files also do not support random access, but they are
+    // recognized by a failing `fd_internal::LSeek(SEEK_END)`.
+    //
+    // `supports_random_access_` is left as `false`.
+    random_access_status_ =
+        absl::UnimplementedError("/sys files do not support random access");
+    return;
+  }
+#endif  // !_WIN32
+  const fd_internal::Offset file_size = fd_internal::LSeek(src, 0, SEEK_END);
+  if (file_size < 0) {
+    // Not supported. `supports_random_access_` is left as `false`.
+    random_access_status_ =
+        FailedOperationStatus(fd_internal::kLSeekFunctionName);
+    return;
+  }
+  // Supported.
+  supports_random_access_ = true;
+  if (ABSL_PREDICT_FALSE(
+          fd_internal::LSeek(src, IntCast<fd_internal::Offset>(limit_pos()),
+                             SEEK_SET) < 0)) {
+    FailOperation(fd_internal::kLSeekFunctionName);
+    return;
+  }
+  if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
 }
 
 #ifndef _WIN32
