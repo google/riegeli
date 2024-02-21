@@ -43,6 +43,7 @@ void BackgroundCleaner::Unregister(Token token) {
 void BackgroundCleaner::CancelCleaning(Token token) {
   absl::MutexLock lock(&mutex_);
   CancelCleaningInternal(token);
+  // Move `token.iter()` anywhere before `next_`.
   if (next_ == token.iter()) {
     ++next_;
   } else {
@@ -64,11 +65,21 @@ inline void BackgroundCleaner::CancelCleaningInternal(Token token) {
       &args));
 }
 
-void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {
+void BackgroundCleaner::ScheduleCleaning(Token token, absl::Time deadline) {
   absl::MutexLock lock(&mutex_);
-
-  // Update `entries_` by moving `token.iter()` into the right place, and update
+  // Update `entries_` by moving `token.iter()` to the right place, and update
   // `next_`.
+
+  if (deadline == absl::InfiniteFuture()) {
+    // Move `token.iter()` anywhere before `next_`.
+    if (next_ == token.iter()) {
+      ++next_;
+    } else {
+      entries_.splice(entries_.begin(), entries_, token.iter());
+    }
+    return;
+  }
+
   Entries::iterator iter = entries_.end();
   for (;;) {
     if (iter == next_) {
