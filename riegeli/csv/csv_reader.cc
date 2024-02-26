@@ -50,18 +50,19 @@ std::string ShowEscaped(char ch) {
 }  // namespace
 
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of CsvReader: null Reader pointer";
+  // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
+  // uses this as a precondition.
   if (options.required_header() != absl::nullopt ||
       options.assumed_header() != absl::nullopt) {
-    // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
-    // uses this as a precondition.
-    has_header_ = true;
     RIEGELI_ASSERT(options.required_header() == absl::nullopt ||
                    options.assumed_header() == absl::nullopt)
         << "Failed precondition of CsvReader: "
            "required_header() and assumed_header() both set";
+    has_header_ = true;
   }
-  RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of CsvReader: null Reader pointer";
+
   if (options.comment() != absl::nullopt &&
       ABSL_PREDICT_FALSE(*options.comment() == '\n' ||
                          *options.comment() == '\r')) {

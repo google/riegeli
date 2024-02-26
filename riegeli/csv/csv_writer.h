@@ -88,6 +88,33 @@ class CsvWriterBase : public Object {
     absl::optional<CsvHeader>& header() { return header_; }
     const absl::optional<CsvHeader>& header() const { return header_; }
 
+    // If not `absl::nullopt`, a header is not written to the file, but
+    // `WriteRecord(CsvRecord&)` is supported as if this header was written as
+    // the first record.
+    //
+    // `header()` and `assumed_header()` must not be both set.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_assumed_header(absl::optional<CsvHeader> header) & {
+      assumed_header_ = std::move(header);
+      return *this;
+    }
+    Options&& set_assumed_header(absl::optional<CsvHeader> header) && {
+      return std::move(set_assumed_header(std::move(header)));
+    }
+    Options& set_assumed_header(
+        std::initializer_list<absl::string_view> names) & {
+      return set_assumed_header(CsvHeader(names));
+    }
+    Options&& set_assumed_header(
+        std::initializer_list<absl::string_view> names) && {
+      return std::move(set_assumed_header(names));
+    }
+    absl::optional<CsvHeader>& assumed_header() { return assumed_header_; }
+    const absl::optional<CsvHeader>& assumed_header() const {
+      return assumed_header_;
+    }
+
     // If `false`, does not write initial UTF-8 BOM. This conforms to RFC4180
     // and UTF-8 BOM is normally not used on Unix.
     //
@@ -182,6 +209,7 @@ class CsvWriterBase : public Object {
 
    private:
     absl::optional<CsvHeader> header_;
+    absl::optional<CsvHeader> assumed_header_;
     bool write_utf8_bom_ = false;
     WriteNewline newline_ = WriteNewline::kNative;
     absl::optional<char> comment_;
