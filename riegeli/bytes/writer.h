@@ -33,6 +33,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -96,6 +97,17 @@ inline Position StringifiedSize(absl::string_view src) { return src.size(); }
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
   return std::strlen(src);
 }
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
+                          absl::negation<std::is_convertible<
+                              Src&&, absl::string_view>>>::value,
+        int> = 0>
+inline Position StringifiedSize(Src&& src) {
+  const absl::Span<const char> span = std::forward<Src>(src);
+  return span.size();
+}
 inline Position StringifiedSize(const Chain& src) { return src.size(); }
 inline Position StringifiedSize(const absl::Cord& src) { return src.size(); }
 void StringifiedSize(signed char);
@@ -113,15 +125,17 @@ void StringifiedSize(absl::uint128 src);
 void StringifiedSize(float);
 void StringifiedSize(double);
 void StringifiedSize(long double);
-template <typename Src,
-          std::enable_if_t<
-              absl::conjunction<
-                  HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<
-                      std::is_convertible<Src&&, const absl::Cord&>>>::value,
-              int> = 0>
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<
+            HasAbslStringify<Src>,
+            absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+            absl::negation<std::is_convertible<Src&&, absl::Span<const char>>>,
+            absl::negation<std::is_convertible<Src&&, const Chain&>>,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+            value,
+        int> = 0>
 void StringifiedSize(Src&&);
 void StringifiedSize(bool) = delete;
 void StringifiedSize(wchar_t) = delete;
@@ -268,6 +282,9 @@ class Writer : public Object {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   //
+  // `absl::Span<const char>` is accepted with a template to avoid ambiguity
+  // with `absl::string_view` (e.g. `std::string`).
+  //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
   //  * `false` - failure (less than `src.size()` bytes written, `!ok()`)
@@ -280,6 +297,14 @@ class Writer : public Object {
   bool Write(const char* src) { return Write(absl::string_view(src)); }
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  bool Write(Src&& src);
+  template <
+      typename Src,
+      std::enable_if_t<
+          absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
+                            absl::negation<std::is_convertible<
+                                Src&&, absl::string_view>>>::value,
+          int> = 0>
   bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
@@ -312,6 +337,8 @@ class Writer : public Object {
           absl::conjunction<
               HasAbslStringify<Src>,
               absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+              absl::negation<
+                  std::is_convertible<Src&&, absl::Span<const char>>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
               value,
@@ -859,6 +886,18 @@ inline bool Writer::Write(Src&& src) {
   return WriteStringSlow(std::move(src));
 }
 
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
+                          absl::negation<std::is_convertible<
+                              Src&&, absl::string_view>>>::value,
+        int>>
+inline bool Writer::Write(Src&& src) {
+  const absl::Span<const char> span = std::forward<Src>(src);
+  return Write(absl::string_view(span.data(), span.size()));
+}
+
 inline bool Writer::Write(const Chain& src) {
 #ifdef MEMORY_SANITIZER
   for (const absl::string_view fragment : src.blocks()) {
@@ -971,15 +1010,17 @@ inline bool Writer::Write(absl::uint128 src) {
   return write_int_internal::WriteUnsigned(src, *this);
 }
 
-template <typename Src,
-          std::enable_if_t<
-              absl::conjunction<
-                  HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<
-                      std::is_convertible<Src&&, const absl::Cord&>>>::value,
-              int>>
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<
+            HasAbslStringify<Src>,
+            absl::negation<std::is_convertible<Src&&, absl::string_view>>,
+            absl::negation<std::is_convertible<Src&&, absl::Span<const char>>>,
+            absl::negation<std::is_convertible<Src&&, const Chain&>>,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+            value,
+        int>>
 inline bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
