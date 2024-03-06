@@ -29,7 +29,7 @@ BackgroundCleanee::~BackgroundCleanee() = default;  // Key method.
 BackgroundCleaner::Token BackgroundCleaner::Register(
     BackgroundCleanee* cleanee) {
   absl::MutexLock lock(&mutex_);
-  entries_.emplace_front(cleanee, absl::InfinitePast());
+  entries_.emplace_front(cleanee, absl::InfiniteFuture());
   return Token(entries_.begin());
 }
 
@@ -43,12 +43,14 @@ void BackgroundCleaner::Unregister(Token token) {
 void BackgroundCleaner::CancelCleaning(Token token) {
   absl::MutexLock lock(&mutex_);
   CancelCleaningInternal(token);
-  // Move `token.iter()` anywhere before `next_`.
+  if (token.iter()->deadline == absl::InfiniteFuture()) return;
+  // Move `token.iter()` before `next_`.
   if (next_ == token.iter()) {
     ++next_;
   } else {
-    entries_.splice(entries_.begin(), entries_, token.iter());
+    entries_.splice(next_, entries_, token.iter());
   }
+  token.iter()->deadline = absl::InfiniteFuture();
 }
 
 // Waits until this cleanee is not being cleaned.
@@ -65,54 +67,35 @@ inline void BackgroundCleaner::CancelCleaningInternal(Token token) {
       &args));
 }
 
-void BackgroundCleaner::ScheduleCleaning(Token token, absl::Time deadline) {
+void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {
   absl::MutexLock lock(&mutex_);
-  // Update `entries_` by moving `token.iter()` to the right place, and update
-  // `next_`.
-
-  if (deadline == absl::InfiniteFuture()) {
-    // Move `token.iter()` anywhere before `next_`.
-    if (next_ == token.iter()) {
-      ++next_;
-    } else {
-      entries_.splice(entries_.begin(), entries_, token.iter());
-    }
+  if (token.iter()->deadline <= deadline) {
+    // Cleaning is already scheduled with the same or earlier deadline.
     return;
   }
 
-  Entries::iterator iter = entries_.end();
+  // Move `token.iter()` to the right place after `next_`.
+  Entries::iterator iter =
+      token.iter()->deadline == absl::InfiniteFuture()
+          ? entries_.end()  // Schedule new cleaning: move from before `next_`.
+          : token.iter();   // Reduce deadline: move backwards.
   for (;;) {
     if (iter == next_) {
-      RIEGELI_ASSERT(iter != token.iter())
-          << "token.iter() staying at its current place "
-             "must have been handled by the previous iteration";
       // Insert `token.iter()` before `iter` which is `next_`.
       next_ = token.iter();
       deadline_reduced_ = true;
       break;
     }
-  skip:
     const Entries::iterator last_iter = iter;
     --iter;
-    if (iter == token.iter()) {
-      if (iter == next_) {
-        // `token.iter()` stays at its current place which is `next_`.
-        if (deadline < token.iter()->deadline) deadline_reduced_ = true;
-        goto done;
-      }
-      // Skip the old place of `token.iter()`.
-      goto skip;
-    }
-    if (deadline >= iter->deadline) {
+    if (iter->deadline <= deadline) {
       // Insert `token.iter()` after `iter`, i.e. before `last_iter`.
       // This might be its old place, then `splice()` does nothing.
       iter = last_iter;
-      if (token.iter() == next_) ++next_;
       break;
     }
   }
   entries_.splice(iter, entries_, token.iter());
-done:
   RIEGELI_ASSERT(next_ != entries_.end())
       << "next_ must cover at least token.iter()";
   token.iter()->deadline = deadline;
@@ -143,6 +126,7 @@ inline void BackgroundCleaner::BackgroundThread()
       const absl::Time now = TimeNow();
       if (next_->deadline > now) break;
       BackgroundCleanee* const cleanee = next_->cleanee;
+      next_->deadline = absl::InfiniteFuture();
       ++next_;
       current_cleanee_ = cleanee;
       mutex_.Unlock();

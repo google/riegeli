@@ -116,7 +116,8 @@ class BackgroundCleaner {
   // If `deadline` is in the past, cleaning will be scheduled immediately.
   //
   // If `ScheduleCleaning()` is called again for the same cleanee with a pending
-  // cleaning, its deadline is replaced.
+  // cleaning, its deadline can be reduced, but extending the deadline has no
+  // effect.
   //
   // Thread safe.
   void ScheduleCleaning(Token token, absl::Time deadline);
@@ -131,12 +132,15 @@ class BackgroundCleaner {
   void CancelCleaningInternal(Token token)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  void ScheduleCleaningSlow(Token token, absl::Time deadline);
+
   void BackgroundThread();
 
   absl::Mutex mutex_;
   // Registered cleanees, partitioned so that `entries_` before `next_` do not
-  // have pending cleaning, while `entries_` at and after `next_` have pending
-  // cleaning and are sorted by their `deadline`.
+  // have pending cleaning and have `deadline == absl::InfiniteFuture()`, while
+  // `entries_` at and after `next_` have pending cleaning and are sorted by
+  // their `deadline` which is never `absl::InfiniteFuture()`.
   Entries entries_ ABSL_GUARDED_BY(mutex_);
   Entries::iterator next_ ABSL_GUARDED_BY(mutex_) = entries_.begin();
   // If not `nullptr`, this cleanee is currently being cleaned. This is used to
@@ -154,6 +158,12 @@ class BackgroundCleaner {
 };
 
 // Implementation details follow.
+
+inline void BackgroundCleaner::ScheduleCleaning(Token token,
+                                                absl::Time deadline) {
+  if (deadline == absl::InfiniteFuture()) return;
+  ScheduleCleaningSlow(token, deadline);
+}
 
 inline absl::Time BackgroundCleaner::TimeNow() { return absl::Now(); }
 
