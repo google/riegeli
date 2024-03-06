@@ -14,6 +14,7 @@
 
 #include "riegeli/base/recycling_pool.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <thread>
@@ -27,6 +28,7 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if !__cpp_inline_variables
+constexpr size_t RecyclingPoolOptions::kDefaultThreadShards;
 constexpr absl::Duration RecyclingPoolOptions::kDefaultMaxAge;
 #endif
 
