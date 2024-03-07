@@ -188,9 +188,9 @@ explicit TextWriter(std::tuple<DestArgs...> dest_args,
 // Wraps a `TextWriter` for a line terminator specified at runtime.
 template <typename Dest = Writer*>
 using AnyTextWriter =
-    AnyDependency<Writer*, TextWriter<WriteNewline::kLf, Dest>,
-                  TextWriter<WriteNewline::kCr, Dest>,
-                  TextWriter<WriteNewline::kCrLf, Dest>>;
+    AnyDependency<Writer*>::Inlining<TextWriter<WriteNewline::kLf, Dest>,
+                                     TextWriter<WriteNewline::kCr, Dest>,
+                                     TextWriter<WriteNewline::kCrLf, Dest>>;
 
 // Options for `MakeAnyTextWriter()`.
 class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {

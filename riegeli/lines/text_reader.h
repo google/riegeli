@@ -241,9 +241,10 @@ explicit TextReader(std::tuple<SrcArgs...> src_args,
 
 // Wraps a `TextReader` for a line terminator specified at runtime.
 template <typename Src = Reader*>
-using AnyTextReader = AnyDependency<Reader*, TextReader<ReadNewline::kLf, Src>,
-                                    TextReader<ReadNewline::kCrLfOrLf, Src>,
-                                    TextReader<ReadNewline::kAny, Src>>;
+using AnyTextReader =
+    AnyDependency<Reader*>::Inlining<TextReader<ReadNewline::kLf, Src>,
+                                     TextReader<ReadNewline::kCrLfOrLf, Src>,
+                                     TextReader<ReadNewline::kAny, Src>>;
 
 // Options for `MakeAnyTextReader()`.
 class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {

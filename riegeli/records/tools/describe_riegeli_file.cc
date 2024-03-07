@@ -227,7 +227,8 @@ absl::Status DescribeTransposedChunk(
     src.Seek(0);
     TransposeDecoder transpose_decoder;
     Chain dest;
-    AnyDependency<BackwardWriter*, ChainBackwardWriter<>, NullBackwardWriter>
+    AnyDependency<BackwardWriter*>::Inlining<ChainBackwardWriter<>,
+                                             NullBackwardWriter>
         dest_writer;
     if (show_records) {
       dest_writer.Emplace<ChainBackwardWriter<>>(&dest);

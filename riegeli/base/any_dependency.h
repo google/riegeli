@@ -77,10 +77,8 @@ class AnyDependencyRefImpl;
 // `Manager` type, erasing the `Manager` parameter from the type of the
 // `AnyDependency`, or is empty.
 //
-// The optional `InlineManagers` parameters specify the size of inline storage,
-// which allows to avoid heap allocation if `Manager` is among `InlineManagers`
-// or if `Dependency<Handle, Manager>` fits there regarding size and alignment.
-// By default inline storage is enough for a pointer.
+// Specifying `InlineManagers` here is deprecated.
+// Use `AnyDependency<Handle>::Inlining<InlineManagers...>` instead.
 template <typename Handle, typename... InlineManagers>
 using AnyDependency = AnyDependencyImpl<
     Handle,
@@ -110,10 +108,8 @@ using AnyDependency = AnyDependencyImpl<
 // an owned dependency by rvalue reference instead of by value, which avoids
 // moving it.
 //
-// In contrast to `AnyDependency`, for `AnyDependencyRef` it is rare that
-// specifying `InlineManagers` is useful, because a typical
-// `Dependency<Handle, Manager&&>` deduced by `AnyDependencyRef` fits in the
-// default inline storage.
+// Specifying `InlineManagers` here is deprecated.
+// Use `AnyDependencyRef<Handle>::Inlining<InlineManagers...>` instead.
 template <typename Handle, typename... InlineManagers>
 using AnyDependencyRef = AnyDependencyRefImpl<
     Handle,
@@ -230,7 +226,7 @@ struct IsAnyDependency<Handle,
 // been reduced to their maximum size and alignment.
 //
 // `ABSL_ATTRIBUTE_TRIVIAL_ABI` is effective if `inline_size == 0`.
-template <typename Handle, size_t inline_size, size_t inline_align = 0>
+template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
 class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
@@ -242,6 +238,20 @@ class
       public any_dependency_internal::ConditionallyTrivialAbi<inline_size ==
                                                               0> {
  public:
+  // `AnyDependency<Handle>::Inlining<InlineManagers...>` enlarges inline
+  // storage of `AnyDependency<Handle>`.
+  //
+  // `InlineManagers` specify the size of inline storage, which allows to avoid
+  // heap allocation if `Manager` is among `InlineManagers`, or if
+  // `Dependency<Handle, Manager>` fits there regarding size and alignment.
+  // By default inline storage is enough for a pointer.
+  template <typename... InlineManagers>
+  using Inlining = AnyDependencyImpl<
+      Handle,
+      UnsignedMax(inline_size, sizeof(Dependency<Handle, InlineManagers>)...),
+      UnsignedMax(inline_align,
+                  alignof(Dependency<Handle, InlineManagers>)...)>;
+
   // Creates an empty `AnyDependencyImpl`.
   AnyDependencyImpl() noexcept;
 
@@ -552,10 +562,24 @@ class DependencyManagerImpl<
 
 // `AnyDependencyRefImpl` implements `AnyDependencyRef` after `InlineManagers`
 // have been reduced to their maximum size and alignment.
-template <typename Handle, size_t inline_size, size_t inline_align = 0>
+template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
 class AnyDependencyRefImpl
     : public AnyDependencyImpl<Handle, inline_size, inline_align> {
  public:
+  // `AnyDependencyRef<Handle>::Inlining<InlineManagers...>` enlarges inline
+  // storage of `AnyDependencyRef<Handle>`.
+  //
+  // In contrast to `AnyDependency`, for `AnyDependencyRef` it is rare that
+  // specifying `InlineManagers` is useful, because a typical
+  // `Dependency<Handle, Manager&&>` deduced by `AnyDependencyRef` fits in the
+  // default inline storage.
+  template <typename... InlineManagers>
+  using Inlining = AnyDependencyRefImpl<
+      Handle,
+      UnsignedMax(inline_size, sizeof(Dependency<Handle, InlineManagers>)...),
+      UnsignedMax(inline_align,
+                  alignof(Dependency<Handle, InlineManagers>)...)>;
+
   // Creates an empty `AnyDependencyRefImpl`.
   AnyDependencyRefImpl() = default;
 

@@ -39,7 +39,7 @@ bool TFRecordRecognizer::CheckFileFormat(
     return false;
   }
 
-  AnyDependency<Reader*, ZlibReader<>> reader;
+  AnyDependency<Reader*>::Inlining<ZlibReader<>> reader;
   if (RecognizeZlib(*byte_reader_)) {
     record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::ZLIB_COMPRESSION;

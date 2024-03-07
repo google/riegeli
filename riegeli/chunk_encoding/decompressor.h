@@ -115,8 +115,8 @@ class Decompressor : public Object {
   void Initialize(std::tuple<SrcArgs...>&& src_args,
                   CompressionType compression_type);
 
-  AnyDependency<Reader*, Src, BrotliReader<Src>, ZstdReader<Src>,
-                SnappyReader<Src>>
+  AnyDependency<Reader*>::Inlining<Src, BrotliReader<Src>, ZstdReader<Src>,
+                                   SnappyReader<Src>>
       decompressed_;
 };
 
