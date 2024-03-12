@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "RiegeliTest",
+    srcs = ["RiegeliTest.kt"],
+    data = [
+        "//kotlin/test/test_data:single_id_model_riegeli_list",
+        "//kotlin/test/test_data:toy_model_riegeli_list",
+    ],
+    test_class = "com.google.riegeli.RiegeliTest",
+    deps = [
+        "//kotlin/src/com/google/riegeli:riegeli",
+        "@maven//:com_google_truth_extensions_truth_liteproto_extension",
+        "@maven//:com_google_truth_extensions_truth_proto_extension",
+        "@maven//:junit_junit",
+        "@maven//:org_jetbrains_kotlin_kotlin_test",
+    ],
+)

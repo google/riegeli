@@ -297,3 +297,8 @@ cc_library(
         ],
     }),
 )
+
+java_library(
+    name = "java",
+    srcs = ["java/com/google/highwayhash/HighwayHash.java"]
+)
