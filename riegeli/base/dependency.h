@@ -426,23 +426,24 @@ struct IsValidDependencyImpl<
         decltype(std::declval<const DependencyImpl<Handle, Manager>&>().get())>>
     : std::true_type {};
 
-// `DependencyCore<Handle, Manager>` extends `DependencyImpl<Handle, Manager>`
-// with the basic cases when `DependencyManagerRef<Manager>` or
-// `DependencyManagerPtr<Manager>` is explicitly convertible to `Handle`.
+// `DependencyDefault<Handle, Manager>` extends
+// `DependencyImpl<Handle, Manager>` with the basic cases when
+// `DependencyManagerRef<Manager>` or `DependencyManagerPtr<Manager>` is
+// explicitly convertible to `Handle`.
 
 // This template is specialized but does not have a primary definition.
 template <typename Handle, typename Manager, typename Enable = void>
-class DependencyCore;
+class DependencyDefault;
 
-// Specialization of `DependencyCore<Handle, Manager>` when
+// Specialization of `DependencyDefault<Handle, Manager>` when
 // `DependencyImpl<Handle, Manager>` is defined: delegate to it.
 template <typename Handle, typename Manager>
-class DependencyCore<
+class DependencyDefault<
     Handle, Manager,
     std::enable_if_t<IsValidDependencyImpl<Handle, Manager>::value>>
     : public DependencyImpl<Handle, Manager> {
  public:
-  using DependencyCore::DependencyImpl::DependencyImpl;
+  using DependencyDefault::DependencyImpl::DependencyImpl;
 
   static_assert(
       std::is_convertible<
@@ -452,21 +453,21 @@ class DependencyCore<
       "DependencyImpl<Handle, Manager>::get() must return a subtype of Handle");
 
  protected:
-  DependencyCore(const DependencyCore& that) = default;
-  DependencyCore& operator=(const DependencyCore& that) = default;
+  DependencyDefault(const DependencyDefault& that) = default;
+  DependencyDefault& operator=(const DependencyDefault& that) = default;
 
-  DependencyCore(DependencyCore&& that) = default;
-  DependencyCore& operator=(DependencyCore&& that) = default;
+  DependencyDefault(DependencyDefault&& that) = default;
+  DependencyDefault& operator=(DependencyDefault&& that) = default;
 
-  ~DependencyCore() = default;
+  ~DependencyDefault() = default;
 };
 
-// Specialization of `DependencyCore<Handle, Manager>` when
+// Specialization of `DependencyDefault<Handle, Manager>` when
 // `DependencyImpl<Handle, Manager>` is not defined and
 // `DependencyManagerRef<Manager>` is explicitly convertible to `Handle`:
 // let `get()` return `*ptr()`, as its original type if possible.
 template <typename Handle, typename Manager>
-class DependencyCore<
+class DependencyDefault<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
         absl::negation<IsValidDependencyImpl<Handle, Manager>>,
@@ -474,7 +475,7 @@ class DependencyCore<
         std::is_constructible<Handle, DependencyManagerRef<Manager>>>::value>>
     : public DependencyManager<Manager> {
  public:
-  using DependencyCore::DependencyManager::DependencyManager;
+  using DependencyDefault::DependencyManager::DependencyManager;
 
   // Return `DependencyManagerRef<Manager>` when it is a subclass of `Handle`.
   template <typename DependentManager = Manager,
@@ -495,26 +496,26 @@ class DependencyCore<
   }
 
   static constexpr bool kIsStable =
-      DependencyCore::DependencyManager::kIsStable ||
+      DependencyDefault::DependencyManager::kIsStable ||
       std::is_convertible<DependencyManagerRef<Manager>*, Handle*>::value;
 
  protected:
-  DependencyCore(const DependencyCore& that) = default;
-  DependencyCore& operator=(const DependencyCore& that) = default;
+  DependencyDefault(const DependencyDefault& that) = default;
+  DependencyDefault& operator=(const DependencyDefault& that) = default;
 
-  DependencyCore(DependencyCore&& that) = default;
-  DependencyCore& operator=(DependencyCore&& that) = default;
+  DependencyDefault(DependencyDefault&& that) = default;
+  DependencyDefault& operator=(DependencyDefault&& that) = default;
 
-  ~DependencyCore() = default;
+  ~DependencyDefault() = default;
 };
 
-// Specialization of `DependencyCore<Handle, Manager>` when
+// Specialization of `DependencyDefault<Handle, Manager>` when
 // `DependencyImpl<Handle, Manager>` is not defined,
 // `DependencyManagerRef<Manager>` is not convertible to `Handle`, and
 // `DependencyManagerPtr<Manager>` is explicitly convertible to `Handle`:
 // let `get()` return `ptr()`, as its original type if possible.
 template <typename Handle, typename Manager>
-class DependencyCore<
+class DependencyDefault<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
         absl::negation<IsValidDependencyImpl<Handle, Manager>>,
@@ -524,7 +525,7 @@ class DependencyCore<
         std::is_constructible<Handle, DependencyManagerPtr<Manager>>>::value>>
     : public DependencyManager<Manager> {
  public:
-  using DependencyCore::DependencyManager::DependencyManager;
+  using DependencyDefault::DependencyManager::DependencyManager;
 
   // Return `DependencyManagerPtr<Manager>` when it is a subclass of `Handle`.
   template <typename DependentManager = Manager,
@@ -545,17 +546,89 @@ class DependencyCore<
   }
 
   static constexpr bool kIsStable =
-      DependencyCore::DependencyManager::kIsStable ||
+      DependencyDefault::DependencyManager::kIsStable ||
       std::is_convertible<DependencyManagerPtr<Manager>*, Handle*>::value;
 
  protected:
-  DependencyCore(const DependencyCore& that) = default;
-  DependencyCore& operator=(const DependencyCore& that) = default;
+  DependencyDefault(const DependencyDefault& that) = default;
+  DependencyDefault& operator=(const DependencyDefault& that) = default;
 
-  DependencyCore(DependencyCore&& that) = default;
-  DependencyCore& operator=(DependencyCore&& that) = default;
+  DependencyDefault(DependencyDefault&& that) = default;
+  DependencyDefault& operator=(DependencyDefault&& that) = default;
 
-  ~DependencyCore() = default;
+  ~DependencyDefault() = default;
+};
+
+// `IsValidDependencyDefault<Handle, Manager>::value` is `true` when
+// `DependencyDefault<Handle, Manager, Manager&>` is defined.
+template <typename Handle, typename Manager>
+struct IsValidDependencyDefault
+    : absl::disjunction<
+          dependency_internal::IsValidDependencyImpl<Handle, Manager>,
+          absl::conjunction<
+              std::is_pointer<DependencyManagerPtr<Manager>>,
+              std::is_constructible<Handle, DependencyManagerRef<Manager>>>,
+          std::is_constructible<Handle, DependencyManagerPtr<Manager>>> {};
+
+// `DependencyDeref<Handle, Manager>` extends
+// `DependencyDefault<Handle, Manager>` with cases where `Manager` is
+// a reference, if `DependencyImpl<Handle, Manager>` is not defined.
+//
+// If `DependencyImpl<Handle, Manager>` uses `DependencyManager<Manager>`, then
+// this is already covered. Custom specializations might not cover this.
+
+// This template is specialized but does not have a primary definition.
+template <typename Handle, typename Manager, typename Enable = void>
+class DependencyDeref;
+
+// Specialization of `DependencyDeref<Handle, Manager>` when
+// `DependencyDefault<Handle, Manager>` is defined: delegate to it.
+template <typename Handle, typename Manager>
+class DependencyDeref<
+    Handle, Manager,
+    std::enable_if_t<IsValidDependencyDefault<Handle, Manager>::value>>
+    : public DependencyDefault<Handle, Manager> {
+ public:
+  using DependencyDeref::DependencyDefault::DependencyDefault;
+
+ protected:
+  DependencyDeref(const DependencyDeref& that) = default;
+  DependencyDeref& operator=(const DependencyDeref& that) = default;
+
+  DependencyDeref(DependencyDeref&& that) = default;
+  DependencyDeref& operator=(DependencyDeref&& that) = default;
+
+  ~DependencyDeref() = default;
+};
+
+// Specialization of `DependencyDeref<Handle, Manager>` when
+// `DependencyDefault<Handle, Manager>` is not defined,
+// `Manager` is a reference, and
+// `DependencyDefault<Handle,
+//                    std::remove_cv_t<std::remove_reference_t<Manager>>>`
+// is defined: delegate to the latter.
+template <typename Handle, typename Manager>
+class DependencyDeref<
+    Handle, Manager,
+    std::enable_if_t<absl::conjunction<
+        std::is_reference<Manager>,
+        absl::negation<IsValidDependencyDefault<Handle, Manager>>,
+        IsValidDependencyDefault<
+            Handle,
+            std::remove_cv_t<std::remove_reference_t<Manager>>>>::value>>
+    : public DependencyDefault<
+          Handle, std::remove_cv_t<std::remove_reference_t<Manager>>> {
+ public:
+  using DependencyDeref::DependencyDefault::DependencyDefault;
+
+ protected:
+  DependencyDeref(const DependencyDeref& that) = default;
+  DependencyDeref& operator=(const DependencyDeref& that) = default;
+
+  DependencyDeref(DependencyDeref&& that) = default;
+  DependencyDeref& operator=(DependencyDeref&& that) = default;
+
+  ~DependencyDeref() = default;
 };
 
 }  // namespace dependency_internal
@@ -565,11 +638,12 @@ class DependencyCore<
 template <typename Handle, typename Manager>
 struct IsValidDependency
     : absl::disjunction<
-          dependency_internal::IsValidDependencyImpl<Handle, Manager>,
+          dependency_internal::IsValidDependencyDefault<Handle, Manager>,
           absl::conjunction<
-              std::is_pointer<DependencyManagerPtr<Manager>>,
-              std::is_constructible<Handle, DependencyManagerRef<Manager>>>,
-          std::is_constructible<Handle, DependencyManagerPtr<Manager>>> {};
+              std::is_reference<Manager>,
+              dependency_internal::IsValidDependencyDefault<
+                  Handle,
+                  std::remove_cv_t<std::remove_reference_t<Manager>>>>> {};
 
 namespace dependency_internal {
 
@@ -667,7 +741,7 @@ struct HasDynamicGetIf<
 // `operator->`, comparisons against `nullptr`, and `GetIf()`.
 //
 // It derives from the template parameter `Base` so that it can be used in
-// `Dependency` (applied to `DependencyCore`) and `StableDependency`
+// `Dependency` (applied to `DependencyDeref`) and `StableDependency`
 // (applied to `StableDependencyImpl`).
 template <typename Base, typename Handle, typename Manager>
 class DependencyDerived
@@ -868,7 +942,7 @@ class DependencyDerived
 
 template <typename Handle, typename Manager>
 class Dependency : public dependency_internal::DependencyDerived<
-                       dependency_internal::DependencyCore<Handle, Manager>,
+                       dependency_internal::DependencyDeref<Handle, Manager>,
                        Handle, Manager> {
  public:
   using Dependency::DependencyDerived::DependencyDerived;
