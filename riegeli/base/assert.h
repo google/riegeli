@@ -159,6 +159,12 @@ inline T CheckNotNull(const char* file, int line, const char* function,
 
 #if !RIEGELI_DEBUG
 
+#ifdef _MSC_VER
+// Silence MSVC warning for destructor that does not return.
+#pragma warning(push)
+#pragma warning(disable : 4722)
+#endif
+
 class UnreachableStream {
  public:
   UnreachableStream() { RIEGELI_INTERNAL_UNREACHABLE(); }
@@ -172,6 +178,10 @@ class UnreachableStream {
     return *this;
   }
 };
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 template <typename T>
 inline T AssertNotNull(T&& value) {
