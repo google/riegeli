@@ -657,27 +657,26 @@ class Writer : public Object {
  private:
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
       ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs) {
     return true;
   }
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
       const std::tuple<Srcs...>& srcs) {
     return Write(std::get<index>(srcs)) && WriteInternal<index + 1>(srcs);
   }
 
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
       ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...>&& srcs) {
     return true;
   }
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteInternal(
-      std::tuple<Srcs...>&& srcs) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(std::tuple<Srcs...>&& srcs) {
     return Write(std::forward<std::tuple_element_t<index, std::tuple<Srcs...>>>(
                std::get<index>(srcs))) &&
            WriteInternal<index + 1>(std::move(srcs));

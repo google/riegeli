@@ -1113,14 +1113,14 @@ struct TransposeDecoder::DecodingState {
   DecodingState(const DecodingState&) = delete;
   DecodingState& operator=(const DecodingState&) = delete;
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SetCallbackType() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool SetCallbackType() {
     return decoder->SetCallbackType(*context, skipped_submessage_level,
                                     submessage_stack.NodeSpan(), *node);
   }
 
   // Copy tag from `*node` to `dest`.
   template <size_t tag_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CopyTagCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool CopyTagCallback() {
     if (ABSL_PREDICT_FALSE(
             !dest->Write(absl::string_view(node->tag_data, tag_length)))) {
       return decoder->Fail(dest->status());
@@ -1140,7 +1140,7 @@ struct TransposeDecoder::DecodingState {
   //
   // TODO: Replace with `if constexpr` in C++17.
   template <uint8_t data_length, EnableIfBetween<data_length, 9, 10> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
       const char* src, char* dest,
       std::integral_constant<uint8_t, data_length>) {
     uint64_t val;
@@ -1151,7 +1151,7 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <uint8_t data_length, EnableIfBetween<data_length, 5, 8> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
       const char* src, char* dest,
       std::integral_constant<uint8_t, data_length>) {
     uint32_t val;
@@ -1162,7 +1162,7 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <uint8_t data_length, EnableIfBetween<data_length, 3, 4> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
       const char* src, char* dest,
       std::integral_constant<uint8_t, data_length>) {
     uint16_t val;
@@ -1173,7 +1173,7 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <uint8_t data_length, EnableIfBetween<data_length, 2, 2> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
       const char* src, char* dest,
       std::integral_constant<uint8_t, data_length>) {
     *dest = static_cast<char>(static_cast<uint8_t>(*src) | uint8_t{0x80});
@@ -1181,7 +1181,7 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <uint8_t data_length, EnableIfBetween<data_length, 1, 1> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void MaskBuffer(
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
       const char* src, char* dest,
       std::integral_constant<uint8_t, data_length>) {
     *dest = *src;
@@ -1189,7 +1189,7 @@ struct TransposeDecoder::DecodingState {
 
   // Decode varint value from `*node` to `dest`.
   template <size_t tag_length, uint8_t data_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool VarintCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool VarintCallback() {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
@@ -1208,7 +1208,7 @@ struct TransposeDecoder::DecodingState {
 
   // Decode fixed32 or fixed64 value from `*node` to `dest`.
   template <size_t tag_length, size_t data_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedCallback() {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
@@ -1225,7 +1225,7 @@ struct TransposeDecoder::DecodingState {
 
   // Create zero fixed32 or fixed64 value in `dest`.
   template <size_t tag_length, size_t data_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FixedExistenceCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedExistenceCallback() {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
@@ -1238,7 +1238,7 @@ struct TransposeDecoder::DecodingState {
 
   // Decode string value from `*node` to `dest`.
   template <size_t tag_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StringCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback() {
     node->buffer->Pull(kMaxLengthVarint32);
     uint32_t length;
     const absl::optional<const char*> cursor =
@@ -1267,7 +1267,7 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <size_t tag_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool StartProjectionGroupCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool StartProjectionGroupCallback() {
     if (ABSL_PREDICT_FALSE(submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
     }
@@ -1276,12 +1276,12 @@ struct TransposeDecoder::DecodingState {
   }
 
   template <size_t tag_length>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool EndProjectionGroupCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool EndProjectionGroupCallback() {
     submessage_stack.Push(IntCast<size_t>(dest->pos()), node);
     return CopyTagCallback<tag_length>();
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SubmessageStartCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool SubmessageStartCallback() {
     if (ABSL_PREDICT_FALSE(submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
     }
@@ -1305,7 +1305,7 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool MessageStartCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool MessageStartCallback() {
     if (ABSL_PREDICT_FALSE(!submessage_stack.Empty())) {
       return decoder->Fail(InvalidArgumentError("Submessages still open"));
     }
@@ -1316,7 +1316,7 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool NonprotoCallback() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool NonprotoCallback() {
     uint32_t length;
     if (ABSL_PREDICT_FALSE(!ReadVarint32(*context->nonproto_lengths, length))) {
       return decoder->Fail(context->nonproto_lengths->StatusOrAnnotate(
@@ -1331,7 +1331,7 @@ struct TransposeDecoder::DecodingState {
     return MessageStartCallback();
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool HandleNode() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleNode() {
     // Use a loop instead of recursion to avoid unbounded stack growth.
     // for loop is only executed more than once in the case of kSelectCallback.
     for (;;) {
@@ -1425,7 +1425,7 @@ struct TransposeDecoder::DecodingState {
     }
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool TransitionNode() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool TransitionNode() {
     node = node->next_node;
     if (num_iters == 0) {
       uint8_t transition_byte;
@@ -1440,7 +1440,7 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Finish() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool Finish() {
     if (ABSL_PREDICT_FALSE(!context->transitions.VerifyEndAndClose())) {
       return decoder->Fail(context->transitions.status());
     }

@@ -349,9 +349,8 @@ struct DependencyManagerAccess : DependencyManager<Manager> {
 // `DependencyManager<Manager>::ptr()`.
 template <typename Manager, typename Enable = void>
 struct DependencyManagerPtrImpl {
-  using type = decltype(std::declval<const dependency_manager_internal::
-                                         DependencyManagerAccess<Manager>&>()
-                            .ptr());
+  using type =
+      decltype(std::declval<const DependencyManagerAccess<Manager>&>().ptr());
 };
 
 // In `DependencyManagerPtrImpl<Manager>` for `Manager` stored by value,
@@ -376,8 +375,7 @@ struct DependencyManagerPtrImpl<
     Manager,
     std::enable_if_t<absl::conjunction<
         absl::negation<std::is_reference<Manager>>,
-        absl::negation<dependency_manager_internal::
-                           IsValidDependencyManagerImpl<Manager>>>::value>> {
+        absl::negation<IsValidDependencyManagerImpl<Manager>>>::value>> {
   using type = Manager*;
 };
 
