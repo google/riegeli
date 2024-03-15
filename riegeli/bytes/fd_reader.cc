@@ -104,7 +104,7 @@ namespace {
 // Define `RIEGELI_DISABLE_COPY_FILE_RANGE` to disable using it even if it
 // appears to be available.
 
-#if defined(__wasm__) && !defined(RIEGELI_DISABLE_COPY_FILE_RANGE)
+#if defined(__EMSCRIPTEN__) && !defined(RIEGELI_DISABLE_COPY_FILE_RANGE)
 #define RIEGELI_DISABLE_COPY_FILE_RANGE 1
 #endif
 
