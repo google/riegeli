@@ -483,7 +483,7 @@ class DependencyDefault<
                 std::is_convertible<DependencyManagerRef<DependentManager>*,
                                     Handle*>::value,
                 int> = 0>
-  DependencyManagerRef<Manager> get() const {
+  DependencyManagerRef<DependentManager> get() const {
     return *this->ptr();
   }
   template <typename DependentManager = Manager,
@@ -533,7 +533,7 @@ class DependencyDefault<
                 std::is_convertible<DependencyManagerPtr<DependentManager>*,
                                     Handle*>::value,
                 int> = 0>
-  DependencyManagerPtr<Manager> get() const {
+  DependencyManagerPtr<DependentManager> get() const {
     return this->ptr();
   }
   template <typename DependentManager = Manager,
