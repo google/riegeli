@@ -919,7 +919,7 @@ class DependencyDerived
             std::enable_if_t<!HasDynamicGetIf<DependentBase>::value, int> = 0>
   void* GetIfImpl(TypeId type_id) {
     if (TypeId::For<absl::remove_cvref_t<Manager>>() == type_id) {
-      return &this->manager();
+      return const_cast<absl::remove_cvref_t<Manager>*>(&this->manager());
     }
     return nullptr;
   }
