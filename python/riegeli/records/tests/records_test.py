@@ -153,6 +153,8 @@ class BytesIOSpec(FileSpecBase):
     return False
 
   def _open_for_reading(self):
+    if self._file is None:
+      raise ValueError('file was not set')
     self._file.seek(0)
 
 
