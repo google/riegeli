@@ -218,9 +218,9 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&>` when
-// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined: delegate
-// to it, but store `absl::remove_cvref_t<Manager>` by reference to avoid moving
-// it.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined:
+// delegate to it, but store `absl::remove_cvref_t<Manager>` by reference
+// to avoid moving it.
 //
 // This handles cases where `Manager` is deduced from a function parameter
 // as a reference type, but the type under the reference determines the
@@ -255,8 +255,8 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&>` when
-// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is not defined: an
-// unowned dependency stored by lvalue reference.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is not defined:
+// an unowned dependency stored by lvalue reference.
 template <typename Manager>
 class DependencyManager<
     Manager&,
@@ -278,9 +278,9 @@ class DependencyManager<
 };
 
 // Specialization of `DependencyManager<Manager&&>` when
-// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined: delegate
-// to it, but store `absl::remove_cvref_t<Manager>` by reference to avoid moving
-// it.
+// `DependencyManagerImpl<absl::remove_cvref_t<Manager>>` is defined:
+// delegate to it, but store `absl::remove_cvref_t<Manager>` by reference
+// to avoid moving it.
 //
 // This handles cases where `Manager` is deduced from a function parameter
 // as a reference type, but the type under the reference determines the
@@ -329,8 +329,8 @@ class DependencyManager<
   static constexpr bool kIsOwning = true;
 
  protected:
-  DependencyManager(const DependencyManager& that) = default;
-  DependencyManager& operator=(const DependencyManager&) = delete;
+  DependencyManager(DependencyManager&& that) = default;
+  DependencyManager& operator=(DependencyManager&&) = delete;
 
   ~DependencyManager() = default;
 

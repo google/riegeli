@@ -182,7 +182,8 @@ class DependencyBase<Manager&> {
 template <typename Manager>
 class DependencyBase<Manager&&> {
  public:
-  explicit DependencyBase(Manager&& manager) noexcept : manager_(manager) {}
+  explicit DependencyBase(Manager&& manager) noexcept
+      : manager_(std::move(manager)) {}
 
   Manager& manager() const { return manager_; }
 
@@ -194,15 +195,15 @@ class DependencyBase<Manager&&> {
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  protected:
-  DependencyBase(const DependencyBase& that) = default;
-  DependencyBase& operator=(const DependencyBase&) = delete;
+  DependencyBase(DependencyBase&& that) = default;
+  DependencyBase& operator=(DependencyBase&&) = delete;
 
   ~DependencyBase() = default;
 
   Manager& mutable_manager() const { return manager_; }
 
  private:
-  Manager& manager_;
+  Manager&& manager_;
 };
 
 // Specialization of `DependencyBase` for arrays.
