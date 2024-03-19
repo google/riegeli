@@ -60,6 +60,37 @@ constexpr in_place_template_t<T> in_place_template = {};
 
 #endif
 
+// `TypeFromInPlaceTag<T, Args...>::type` and `TypeFromInPlaceTagT<T, Args...>`
+// extract the type from `absl::in_place_type` or `in_place_template`, given
+// types of arguments passed to the constructor.
+
+template <typename T, typename... Args>
+struct TypeFromInPlaceTag;
+
+template <typename T, typename... Args>
+struct TypeFromInPlaceTag<T&, Args...> : TypeFromInPlaceTag<T, Args...> {};
+
+template <typename T, typename... Args>
+struct TypeFromInPlaceTag<T&&, Args...> : TypeFromInPlaceTag<T, Args...> {};
+
+template <typename T, typename... Args>
+struct TypeFromInPlaceTag<const T, Args...> : TypeFromInPlaceTag<T, Args...> {};
+
+template <typename T, typename... Args>
+struct TypeFromInPlaceTag<absl::in_place_type_t<T>, Args...> {
+  using type = T;
+};
+
+#if __cpp_deduction_guides
+template <template <typename...> class Template, typename... Args>
+struct TypeFromInPlaceTag<in_place_template_t<Template>, Args...> {
+  using type = decltype(Template(std::declval<Args>()...));
+};
+#endif
+
+template <typename T, typename... Args>
+using TypeFromInPlaceTagT = typename TypeFromInPlaceTag<T, Args...>::type;
+
 template <typename Handle, size_t inline_size, size_t inline_align>
 class AnyDependency;
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -238,29 +269,18 @@ class
 
   // Holds a `Dependency<Handle, Manager>`.
   //
-  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
-  // because constructor templates do not support specifying template arguments
-  // explicitly. The `Manager` is constructed from `manager_args`.
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  /*implicit*/ AnyDependency(absl::in_place_type_t<Manager>,
-                             ManagerArgs&&... manager_args);
-
-#if __cpp_deduction_guides
-  // Like above, but the exact `Manager` type is deduced using CTAD from
-  // `ManagerTemplate(std::forward<ManagerArgs>(manager_args)...)`.
+  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`
+  // or `in_place_template<ManagerTemplate>`) because constructor templates do
+  // not support specifying template arguments explicitly.
   //
-  // Only templates with solely type template parameters are supported.
+  // The `Manager` is constructed from `manager_args`.
   template <
-      template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
-  /*implicit*/ AnyDependency(in_place_template_t<ManagerTemplate>,
-                             ManagerArgs&&... manager_args);
-#endif
+      typename InPlaceTag, typename... ManagerArgs,
+      std::enable_if_t<
+          IsValidDependency<
+              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>>::value,
+          int> = 0>
+  /*implicit*/ AnyDependency(InPlaceTag, ManagerArgs&&... manager_args);
 
   AnyDependency(AnyDependency&& that) noexcept;
   AnyDependency& operator=(AnyDependency&& that) noexcept;
@@ -279,24 +299,15 @@ class
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
   template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
+      typename InPlaceTag, typename... ManagerArgs,
+      std::enable_if_t<
+          IsValidDependency<
+              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>>::value,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(InPlaceTag,
                                           ManagerArgs&&... manager_args);
-#if __cpp_deduction_guides
-  template <
-      template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(in_place_template_t<ManagerTemplate>,
-                                          ManagerArgs&&... manager_args);
-#endif
 
   // Holds a `Dependency<Handle, Manager>`.
-  //
-  // The `Manager` is constructed from the given constructor arguments.
   //
   // Same as `Reset(absl::in_place_type<Manager>,
   //                std::forward<ManagerArgs>(manager_args)...)`,
@@ -313,12 +324,13 @@ class
   // Only templates with solely type template parameters are supported.
   template <
       template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          IsValidDependency<
+              Handle, TypeFromInPlaceTagT<in_place_template_t<ManagerTemplate>,
+                                          ManagerArgs...>>::value,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES
-      DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
+      TypeFromInPlaceTagT<in_place_template_t<ManagerTemplate>, ManagerArgs...>&
       Emplace(ManagerArgs&&... manager_args);
 #endif
 
@@ -584,37 +596,25 @@ class AnyDependencyRef
     return *this;
   }
 
-  // Holds a `Dependency<Handle, Manager>`.
+  // Holds a `Dependency<Handle, Manager&&>` (which collapses to
+  // `Dependency<Handle, Manager&>` if `Manager` is itself an lvalue reference).
   //
-  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`)
-  // because constructor templates do not support specifying template arguments
-  // explicitly. The `Manager` is constructed from `manager_args`.
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  explicit AnyDependencyRef(absl::in_place_type_t<Manager>,
-                            ManagerArgs&&... manager_args)
-      : AnyDependencyRef::AnyDependency(
-            absl::in_place_type<Manager>,
-            std::forward<ManagerArgs>(manager_args)...) {}
-
-#if __cpp_deduction_guides
-  // Like above, but the exact `Manager` type is deduced using CTAD from
-  // `ManagerTemplate(std::forward<ManagerArgs>(manager_args)...)`.
+  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`
+  // or `in_place_template<ManagerTemplate>`) because constructor templates do
+  // not support specifying template arguments explicitly.
   //
-  // Only templates with solely type template parameters are supported.
+  // The `Manager` is constructed from `manager_args`.
   template <
-      template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
-  explicit AnyDependencyRef(in_place_template_t<ManagerTemplate>,
-                            ManagerArgs&&... manager_args)
+      typename InPlaceTag, typename... ManagerArgs,
+      std::enable_if_t<
+          IsValidDependency<
+              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>::value,
+          int> = 0>
+  /*implicit*/ AnyDependencyRef(InPlaceTag, ManagerArgs&&... manager_args)
       : AnyDependencyRef::AnyDependency(
-            in_place_template<ManagerTemplate>,
+            absl::in_place_type<
+                TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>,
             std::forward<ManagerArgs>(manager_args)...) {}
-#endif
 
   AnyDependencyRef(AnyDependencyRef&& that) = default;
   AnyDependencyRef& operator=(AnyDependencyRef&& that) = default;
@@ -633,28 +633,16 @@ class AnyDependencyRef
                                            std::forward<Manager>(manager));
   }
   template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::in_place_type_t<Manager>,
-                                          ManagerArgs&&... manager_args) {
+      typename InPlaceTag, typename... ManagerArgs,
+      std::enable_if_t<
+          IsValidDependency<
+              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>::value,
+          int> = 0>
+  void Reset(InPlaceTag, ManagerArgs&&... manager_args) {
     AnyDependencyRef::AnyDependency::Reset(
-        absl::in_place_type<Manager>,
+        absl::in_place_type<TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>,
         std::forward<ManagerArgs>(manager_args)...);
   }
-#if __cpp_deduction_guides
-  template <
-      template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(in_place_template_t<ManagerTemplate>,
-                                          ManagerArgs&&... manager_args) {
-    AnyDependencyRef::AnyDependency::Reset(
-        in_place_template<ManagerTemplate>,
-        std::forward<ManagerArgs>(manager_args)...);
-  }
-#endif
 };
 
 // Specialization of `DependencyManagerImpl<AnyDependencyRef<Handle>>`:
@@ -1008,28 +996,16 @@ AnyDependency<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+template <typename InPlaceTag, typename... ManagerArgs,
+          std::enable_if_t<
+              IsValidDependency<Handle, TypeFromInPlaceTagT<
+                                            InPlaceTag, ManagerArgs...>>::value,
+              int>>
 inline AnyDependency<Handle, inline_size, inline_align>::AnyDependency(
-    absl::in_place_type_t<Manager>, ManagerArgs&&... manager_args) {
-  Initialize<Manager>(std::forward<ManagerArgs>(manager_args)...);
+    InPlaceTag, ManagerArgs&&... manager_args) {
+  Initialize<TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>>(
+      std::forward<ManagerArgs>(manager_args)...);
 }
-
-#if __cpp_deduction_guides
-template <typename Handle, size_t inline_size, size_t inline_align>
-template <
-    template <typename...> class ManagerTemplate, typename... ManagerArgs,
-    std::enable_if_t<
-        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
-                                      ManagerTemplate, ManagerArgs...>>::value,
-        int>>
-inline AnyDependency<Handle, inline_size, inline_align>::AnyDependency(
-    in_place_template_t<ManagerTemplate>, ManagerArgs&&... manager_args)
-    : AnyDependency(
-          absl::in_place_type<
-              DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>,
-          std::forward<ManagerArgs>(manager_args)...) {}
-#endif
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyDependency<Handle, inline_size, inline_align>::AnyDependency(
@@ -1081,30 +1057,18 @@ inline void AnyDependency<Handle, inline_size, inline_align>::Reset(
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+template <typename InPlaceTag, typename... ManagerArgs,
+          std::enable_if_t<
+              IsValidDependency<Handle, TypeFromInPlaceTagT<
+                                            InPlaceTag, ManagerArgs...>>::value,
+              int>>
 inline void AnyDependency<Handle, inline_size, inline_align>::Reset(
-    absl::in_place_type_t<Manager>, ManagerArgs&&... manager_args) {
+    InPlaceTag, ManagerArgs&&... manager_args) {
   handle_.~Handle();
   methods_->destroy(repr_.storage);
-  Initialize<Manager>(std::forward<ManagerArgs>(manager_args)...);
+  Initialize<TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>>(
+      std::forward<ManagerArgs>(manager_args)...);
 }
-
-#if __cpp_deduction_guides
-template <typename Handle, size_t inline_size, size_t inline_align>
-template <
-    template <typename...> class ManagerTemplate, typename... ManagerArgs,
-    std::enable_if_t<
-        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
-                                      ManagerTemplate, ManagerArgs...>>::value,
-        int>>
-inline void AnyDependency<Handle, inline_size, inline_align>::Reset(
-    in_place_template_t<ManagerTemplate>, ManagerArgs&&... manager_args) {
-  Reset(absl::in_place_type<
-            DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>,
-        std::forward<ManagerArgs>(manager_args)...);
-}
-#endif
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager, typename... ManagerArgs,
@@ -1121,14 +1085,16 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     template <typename...> class ManagerTemplate, typename... ManagerArgs,
     std::enable_if_t<
-        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
-                                      ManagerTemplate, ManagerArgs...>>::value,
+        IsValidDependency<
+            Handle, TypeFromInPlaceTagT<in_place_template_t<ManagerTemplate>,
+                                        ManagerArgs...>>::value,
         int>>
-inline DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
+inline TypeFromInPlaceTagT<in_place_template_t<ManagerTemplate>,
+                           ManagerArgs...>&
 AnyDependency<Handle, inline_size, inline_align>::Emplace(
     ManagerArgs&&... manager_args) {
-  return Emplace<
-      DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>(
+  return Emplace<TypeFromInPlaceTagT<in_place_template_t<ManagerTemplate>,
+                                     ManagerArgs...>>(
       std::forward<ManagerArgs>(manager_args)...);
 }
 #endif

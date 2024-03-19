@@ -217,25 +217,6 @@ inline DecayTupleTypeT<Tuple> DecayTuple(Tuple&& tuple) {
   return tuple;
 }
 
-#if __cpp_deduction_guides
-
-// `DeduceClassTemplateArguments<Template, Args...>::type` and
-// `DeduceClassTemplateArgumentsT<Template, Args...>` deduce class template
-// arguments using CTAD from constructor arguments.
-//
-// Only templates with solely type template parameters are supported.
-
-template <template <typename...> class Template, typename... Args>
-struct DeduceClassTemplateArguments {
-  using type = decltype(Template(std::declval<Args>()...));
-};
-
-template <template <typename...> class Template, typename... Args>
-using DeduceClassTemplateArgumentsT =
-    typename DeduceClassTemplateArguments<Template, Args...>::type;
-
-#endif
-
 // `IntersectionType<Ts...>::type` and `IntersectionTypeT<Ts...>` compute the
 // smallest of unsigned integer types.
 
