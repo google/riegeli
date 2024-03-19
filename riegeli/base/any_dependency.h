@@ -581,40 +581,7 @@ class AnyDependencyRef
                                       std::decay_t<Manager>, AnyDependencyRef>>,
                                   IsValidDependency<Handle, Manager&&>>::value,
                 int> = 0>
-  /*implicit*/ AnyDependencyRef(Manager&& manager)
-      : AnyDependencyRef::AnyDependency(absl::in_place_type<Manager&&>,
-                                        std::forward<Manager>(manager)) {}
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<
-                                      std::decay_t<Manager>, AnyDependencyRef>>,
-                                  IsValidDependency<Handle, Manager&&>>::value,
-                int> = 0>
-  AnyDependencyRef& operator=(Manager&& manager) {
-    AnyDependencyRef::AnyDependency::Reset(absl::in_place_type<Manager&&>,
-                                           std::forward<Manager>(manager));
-    return *this;
-  }
-
-  // Holds a `Dependency<Handle, Manager&&>` (which collapses to
-  // `Dependency<Handle, Manager&>` if `Manager` is itself an lvalue reference).
-  //
-  // The `Manager` type is specified with a tag (`absl::in_place_type<Manager>`
-  // or `in_place_template<ManagerTemplate>`) because constructor templates do
-  // not support specifying template arguments explicitly.
-  //
-  // The `Manager` is constructed from `manager_args`.
-  template <
-      typename InPlaceTag, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<
-              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>::value,
-          int> = 0>
-  /*implicit*/ AnyDependencyRef(InPlaceTag, ManagerArgs&&... manager_args)
-      : AnyDependencyRef::AnyDependency(
-            absl::in_place_type<
-                TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>,
-            std::forward<ManagerArgs>(manager_args)...) {}
+  /*implicit*/ AnyDependencyRef(Manager&& manager);
 
   AnyDependencyRef(AnyDependencyRef&& that) = default;
   AnyDependencyRef& operator=(AnyDependencyRef&& that) = default;
@@ -624,24 +591,6 @@ class AnyDependencyRef
   // it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     AnyDependencyRef::AnyDependency::Reset();
-  }
-  template <
-      typename Manager,
-      std::enable_if_t<IsValidDependency<Handle, Manager&&>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
-    AnyDependencyRef::AnyDependency::Reset(absl::in_place_type<Manager&&>,
-                                           std::forward<Manager>(manager));
-  }
-  template <
-      typename InPlaceTag, typename... ManagerArgs,
-      std::enable_if_t<
-          IsValidDependency<
-              Handle, TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>::value,
-          int> = 0>
-  void Reset(InPlaceTag, ManagerArgs&&... manager_args) {
-    AnyDependencyRef::AnyDependency::Reset(
-        absl::in_place_type<TypeFromInPlaceTagT<InPlaceTag, ManagerArgs...>&&>,
-        std::forward<ManagerArgs>(manager_args)...);
   }
 };
 
@@ -1188,6 +1137,20 @@ inline const void* AnyDependency<Handle, inline_size, inline_align>::GetIf(
     TypeId type_id) const {
   return methods_->const_get_if(repr_.storage, type_id);
 }
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<std::is_same<
+                      std::decay_t<Manager>,
+                      AnyDependencyRef<Handle, inline_size, inline_align>>>,
+                  IsValidDependency<Handle, Manager&&>>::value,
+              int>>
+inline AnyDependencyRef<Handle, inline_size, inline_align>::AnyDependencyRef(
+    Manager&& manager)
+    : AnyDependencyRef::AnyDependency(absl::in_place_type<Manager&&>,
+                                      std::forward<Manager>(manager)) {}
 
 }  // namespace riegeli
 
