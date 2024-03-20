@@ -100,8 +100,8 @@ namespace any_dependency_internal {
 
 // Variants of `Repr`:
 //  * Empty `AnyDependency`: `Repr` is not used
-//  * Held by pointer: `storage` holds `Dependency<Handle, Manager>*`
 //  * Stored inline: `storage` holds `Dependency<Handle, Manager>`
+//  * Held by pointer: `storage` holds `Dependency<Handle, Manager>*`
 template <typename Handle, size_t inline_size, size_t inline_align>
 struct Repr {
   alignas(UnsignedMax(
@@ -179,8 +179,7 @@ struct Methods {
                               MemoryEstimator& memory_estimator);
 };
 
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager, typename Enable = void>
+template <typename Handle, typename Manager, bool is_inline>
 struct MethodsFor;
 template <typename Handle>
 struct NullMethods;
@@ -405,8 +404,10 @@ class
   using Methods = any_dependency_internal::Methods<Handle>;
   using NullMethods = any_dependency_internal::NullMethods<Handle>;
   template <typename Manager>
-  using MethodsFor = any_dependency_internal::MethodsFor<Handle, inline_size,
-                                                         inline_align, Manager>;
+  using MethodsFor = any_dependency_internal::MethodsFor<
+      Handle, Manager,
+      any_dependency_internal::IsInline<Handle, inline_size, inline_align,
+                                        Manager>::value>;
 
   // Initializes `methods_`, `repr_`, and `handle_`, avoiding a redundant
   // indirection and adopting them from `manager` instead if `Manager` is
@@ -736,87 +737,8 @@ template <typename Handle>
 constexpr Methods<Handle> NullMethods<Handle>::kMethods;
 #endif
 
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager, typename Enable>
-struct MethodsFor {
-  template <typename DependentManager = Manager,
-            std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
-                             int> = 0>
-  static void Construct(Storage self, Handle* self_handle,
-                        const Manager& manager) {
-    new (self)
-        Dependency<Handle, Manager>*(new Dependency<Handle, Manager>(manager));
-    new (self_handle) Handle(dep_ptr(self)->get());
-  }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
-                             int> = 0>
-  static void Construct(Storage self, Handle* self_handle, Manager&& manager) {
-    new (self) Dependency<Handle, Manager>*(
-        new Dependency<Handle, Manager>(std::move(manager)));
-    new (self_handle) Handle(dep_ptr(self)->get());
-  }
-  template <
-      typename... ManagerArgs, typename DependentManager = Manager,
-      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
-  static void Construct(Storage self, Handle* self_handle,
-                        std::tuple<ManagerArgs...> manager_args) {
-    new (self) Dependency<Handle, Manager>*(
-        new Dependency<Handle, Manager>(std::move(manager_args)));
-    new (self_handle) Handle(dep_ptr(self)->get());
-  }
-
-  static Manager& GetManager(Storage self) { return dep_ptr(self)->manager(); }
-
- private:
-  static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
-  }
-
-  static void Destroy(Storage self) { delete dep_ptr(self); }
-  static void Move(Storage self, Handle* self_handle, Storage that) {
-    new (self) Dependency<Handle, Manager>*(dep_ptr(that));
-    new (self_handle) Handle(dep_ptr(self)->get());
-  }
-  static bool IsOwning(const Storage self) { return dep_ptr(self)->IsOwning(); }
-  static void* MutableGetIf(Storage self, TypeId type_id) {
-    return dep_ptr(self)->GetIf(type_id);
-  }
-  static const void* ConstGetIf(const Storage self, TypeId type_id) {
-    return absl::implicit_cast<const Dependency<Handle, Manager>*>(
-               dep_ptr(self))
-        ->GetIf(type_id);
-  }
-  static void RegisterSubobjects(const Storage self,
-                                 MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterDynamicObject(*dep_ptr(self));
-  }
-
- public:
-  static constexpr Methods<Handle> kMethods = {
-      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
-      RegisterSubobjects};
-};
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager, typename Enable>
-constexpr Methods<Handle>
-    MethodsFor<Handle, inline_size, inline_align, Manager, Enable>::kMethods;
-#endif
-
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager>
-struct MethodsFor<Handle, inline_size, inline_align, Manager,
-                  std::enable_if_t<IsInline<Handle, inline_size, inline_align,
-                                            Manager>::value>> {
+template <typename Handle, typename Manager>
+struct MethodsFor<Handle, Manager, true> {
   template <typename DependentManager = Manager,
             std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
                              int> = 0>
@@ -895,12 +817,81 @@ struct MethodsFor<Handle, inline_size, inline_align, Manager,
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if !__cpp_inline_variables
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager>
-constexpr Methods<Handle>
-    MethodsFor<Handle, inline_size, inline_align, Manager,
-               std::enable_if_t<IsInline<Handle, inline_size, inline_align,
-                                         Manager>::value>>::kMethods;
+template <typename Handle, typename Manager>
+constexpr Methods<Handle> MethodsFor<Handle, Manager, true>::kMethods;
+#endif
+
+template <typename Handle, typename Manager>
+struct MethodsFor<Handle, Manager, false> {
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_rvalue_reference<DependentManager>::value,
+                             int> = 0>
+  static void Construct(Storage self, Handle* self_handle,
+                        const Manager& manager) {
+    new (self)
+        Dependency<Handle, Manager>*(new Dependency<Handle, Manager>(manager));
+    new (self_handle) Handle(dep_ptr(self)->get());
+  }
+  template <typename DependentManager = Manager,
+            std::enable_if_t<!std::is_lvalue_reference<DependentManager>::value,
+                             int> = 0>
+  static void Construct(Storage self, Handle* self_handle, Manager&& manager) {
+    new (self) Dependency<Handle, Manager>*(
+        new Dependency<Handle, Manager>(std::move(manager)));
+    new (self_handle) Handle(dep_ptr(self)->get());
+  }
+  template <
+      typename... ManagerArgs, typename DependentManager = Manager,
+      std::enable_if_t<!std::is_reference<DependentManager>::value, int> = 0>
+  static void Construct(Storage self, Handle* self_handle,
+                        std::tuple<ManagerArgs...> manager_args) {
+    new (self) Dependency<Handle, Manager>*(
+        new Dependency<Handle, Manager>(std::move(manager_args)));
+    new (self_handle) Handle(dep_ptr(self)->get());
+  }
+
+  static Manager& GetManager(Storage self) { return dep_ptr(self)->manager(); }
+
+ private:
+  static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
+    return *
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
+  }
+
+  static void Destroy(Storage self) { delete dep_ptr(self); }
+  static void Move(Storage self, Handle* self_handle, Storage that) {
+    new (self) Dependency<Handle, Manager>*(dep_ptr(that));
+    new (self_handle) Handle(dep_ptr(self)->get());
+  }
+  static bool IsOwning(const Storage self) { return dep_ptr(self)->IsOwning(); }
+  static void* MutableGetIf(Storage self, TypeId type_id) {
+    return dep_ptr(self)->GetIf(type_id);
+  }
+  static const void* ConstGetIf(const Storage self, TypeId type_id) {
+    return absl::implicit_cast<const Dependency<Handle, Manager>*>(
+               dep_ptr(self))
+        ->GetIf(type_id);
+  }
+  static void RegisterSubobjects(const Storage self,
+                                 MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterDynamicObject(*dep_ptr(self));
+  }
+
+ public:
+  static constexpr Methods<Handle> kMethods = {
+      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
+      RegisterSubobjects};
+};
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+template <typename Handle, typename Manager>
+constexpr Methods<Handle> MethodsFor<Handle, Manager, false>::kMethods;
 #endif
 
 }  // namespace any_dependency_internal
