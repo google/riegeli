@@ -33,6 +33,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -185,14 +186,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
       : CordBackwardWriterBase(kClosed) {}
 
   // Will prepend to the `absl::Cord` provided by `dest`.
-  explicit CordBackwardWriter(const Dest& dest, Options options = Options());
-  explicit CordBackwardWriter(Dest&& dest, Options options = Options());
-
-  // Will prepend to the `absl::Cord` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit CordBackwardWriter(std::tuple<DestArgs...> dest_args,
+  explicit CordBackwardWriter(Initializer<Dest> dest,
                               Options options = Options());
 
   // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
@@ -208,12 +202,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `CordBackwardWriter`. This
   // avoids constructing a temporary `CordBackwardWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
@@ -325,24 +314,9 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
 }
 
 template <typename Dest>
-inline CordBackwardWriter<Dest>::CordBackwardWriter(const Dest& dest,
-                                                    Options options)
-    : CordBackwardWriterBase(options), dest_(dest) {
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-inline CordBackwardWriter<Dest>::CordBackwardWriter(Dest&& dest,
+inline CordBackwardWriter<Dest>::CordBackwardWriter(Initializer<Dest> dest,
                                                     Options options)
     : CordBackwardWriterBase(options), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline CordBackwardWriter<Dest>::CordBackwardWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : CordBackwardWriterBase(options), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.prepend());
 }
 
@@ -374,25 +348,10 @@ inline void CordBackwardWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void CordBackwardWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CordBackwardWriterBase::Reset(options);
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-inline void CordBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  CordBackwardWriterBase::Reset(options);
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void CordBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+inline void CordBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
                                             Options options) {
   CordBackwardWriterBase::Reset(options);
-  dest_.Reset(std::move(dest_args));
+  dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.prepend());
 }
 

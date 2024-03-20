@@ -31,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -364,18 +365,13 @@ class FdReader : public FdReaderBase {
   explicit FdReader(Closed) noexcept : FdReaderBase(kClosed) {}
 
   // Will read from the fd provided by `src`.
-  explicit FdReader(const Src& src, Options options = Options());
-  explicit FdReader(Src&& src, Options options = Options());
+  explicit FdReader(Initializer<Src> src, Options options = Options());
+
+  // Will read from `src`.
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
   explicit FdReader(int src, Options options = Options());
-
-  // Will read from the fd provided by a `Src` constructed from elements of
-  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit FdReader(std::tuple<SrcArgs...> src_args,
-                    Options options = Options());
 
   // Opens a file for reading.
   //
@@ -403,17 +399,12 @@ class FdReader : public FdReaderBase {
   // Makes `*this` equivalent to a newly constructed `FdReader`. This avoids
   // constructing a temporary `FdReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
-                                          Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
@@ -442,14 +433,6 @@ class FdReader : public FdReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit FdReader(Closed) -> FdReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit FdReader(const Src& src,
-                  FdReaderBase::Options options = FdReaderBase::Options())
-    -> FdReader<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<const Src&, int>,
-            std::is_convertible<const Src&, absl::string_view>>::value,
-        OwnedFd, std::decay_t<Src>>>;
 template <typename Src>
 explicit FdReader(Src&& src,
                   FdReaderBase::Options options = FdReaderBase::Options())
@@ -544,14 +527,7 @@ inline bool FdReaderBase::InitializeAssumedFilename(Options& options) {
 }
 
 template <typename Src>
-inline FdReader<Src>::FdReader(const Src& src, Options options)
-    : FdReaderBase(options.buffer_options(), options.growing_source()),
-      src_(src) {
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline FdReader<Src>::FdReader(Src&& src, Options options)
+inline FdReader<Src>::FdReader(Initializer<Src> src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(*src_, std::move(options));
@@ -563,14 +539,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline FdReader<Src>::FdReader(int src, Options options)
     : FdReader(std::forward_as_tuple(src), std::move(options)) {}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
-    : FdReaderBase(options.buffer_options(), options.growing_source()),
-      src_(std::move(src_args)) {
-  Initialize(*src_, std::move(options));
-}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -638,14 +606,7 @@ inline void FdReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FdReader<Src>::Reset(const Src& src, Options options) {
-  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(src);
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline void FdReader<Src>::Reset(Src&& src, Options options) {
+inline void FdReader<Src>::Reset(Initializer<Src> src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
   Initialize(*src_, std::move(options));
@@ -657,15 +618,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline void FdReader<Src>::Reset(int src, Options options) {
   Reset(std::forward_as_tuple(src), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                 Options options) {
-  FdReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(std::move(src_args));
-  Initialize(*src_, std::move(options));
 }
 
 template <typename Src>

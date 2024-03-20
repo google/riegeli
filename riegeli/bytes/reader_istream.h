@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
@@ -163,15 +164,7 @@ class ReaderIStream : public ReaderIStreamBase {
   explicit ReaderIStream(Closed) noexcept : ReaderIStreamBase(kClosed) {}
 
   // Will read from the `Reader` provided by `src`.
-  explicit ReaderIStream(const Src& src, Options options = Options());
-  explicit ReaderIStream(Src&& src, Options options = Options());
-
-  // Will read from the `Reader` provided by a `Src` constructed from elements
-  // of `src_args`. This avoids constructing a temporary `Src` and moving from
-  // it.
-  template <typename... SrcArgs>
-  explicit ReaderIStream(std::tuple<SrcArgs...> src_args,
-                         Options options = Options());
+  explicit ReaderIStream(Initializer<Src> src, Options options = Options());
 
   ReaderIStream(ReaderIStream&& that) noexcept;
   ReaderIStream& operator=(ReaderIStream&& that) noexcept;
@@ -181,12 +174,7 @@ class ReaderIStream : public ReaderIStreamBase {
   // Makes `*this` equivalent to a newly constructed `ReaderIStream`. This
   // avoids constructing a temporary `ReaderIStream` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the `Reader`. Unchanged by
@@ -210,10 +198,6 @@ class ReaderIStream : public ReaderIStreamBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ReaderIStream(Closed) -> ReaderIStream<DeleteCtad<Closed>>;
-template <typename Src>
-explicit ReaderIStream(const Src& src, ReaderIStreamBase::Options options =
-                                           ReaderIStreamBase::Options())
-    -> ReaderIStream<std::decay_t<Src>>;
 template <typename Src>
 explicit ReaderIStream(Src&& src, ReaderIStreamBase::Options options =
                                       ReaderIStreamBase::Options())
@@ -312,22 +296,8 @@ inline void ReaderIStreamBase::Initialize(Reader* src) {
 }
 
 template <typename Src>
-inline ReaderIStream<Src>::ReaderIStream(const Src& src, Options options)
-    : src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline ReaderIStream<Src>::ReaderIStream(Src&& src, Options options)
+inline ReaderIStream<Src>::ReaderIStream(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline ReaderIStream<Src>::ReaderIStream(std::tuple<SrcArgs...> src_args,
-                                         Options options)
-    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -356,28 +326,10 @@ inline void ReaderIStream<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void ReaderIStream<Src>::Reset(const Src& src, Options options) {
-  Done();
-  ReaderIStreamBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void ReaderIStream<Src>::Reset(Src&& src, Options options) {
+inline void ReaderIStream<Src>::Reset(Initializer<Src> src, Options options) {
   Done();
   ReaderIStreamBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void ReaderIStream<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                      Options options) {
-  Done();
-  ReaderIStreamBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -93,15 +94,7 @@ class SnappyReader : public SnappyReaderBase {
   explicit SnappyReader(Closed) noexcept : SnappyReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
-  explicit SnappyReader(const Src& src, Options options = Options());
-  explicit SnappyReader(Src&& src, Options options = Options());
-
-  // Will read from the compressed `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit SnappyReader(std::tuple<SrcArgs...> src_args,
-                        Options options = Options());
+  explicit SnappyReader(Initializer<Src> src, Options options = Options());
 
   SnappyReader(SnappyReader&& that) noexcept;
   SnappyReader& operator=(SnappyReader&& that) noexcept;
@@ -109,12 +102,7 @@ class SnappyReader : public SnappyReaderBase {
   // Makes `*this` equivalent to a newly constructed `SnappyReader`. This avoids
   // constructing a temporary `SnappyReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Reader`.
@@ -135,10 +123,6 @@ class SnappyReader : public SnappyReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit SnappyReader(Closed) -> SnappyReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit SnappyReader(const Src& src, SnappyReaderBase::Options options =
-                                          SnappyReaderBase::Options())
-    -> SnappyReader<std::decay_t<Src>>;
 template <typename Src>
 explicit SnappyReader(
     Src&& src, SnappyReaderBase::Options options = SnappyReaderBase::Options())
@@ -208,24 +192,9 @@ inline void SnappyReaderBase::Reset() {
 }
 
 template <typename Src>
-inline SnappyReader<Src>::SnappyReader(const Src& src,
-                                       ABSL_ATTRIBUTE_UNUSED Options options)
-    : src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline SnappyReader<Src>::SnappyReader(Src&& src,
+inline SnappyReader<Src>::SnappyReader(Initializer<Src> src,
                                        ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
-                                       ABSL_ATTRIBUTE_UNUSED Options options)
-    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -249,27 +218,10 @@ inline void SnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void SnappyReader<Src>::Reset(const Src& src,
-                                     ABSL_ATTRIBUTE_UNUSED Options options) {
-  SnappyReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void SnappyReader<Src>::Reset(Src&& src,
+inline void SnappyReader<Src>::Reset(Initializer<Src> src,
                                      ABSL_ATTRIBUTE_UNUSED Options options) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void SnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                     ABSL_ATTRIBUTE_UNUSED Options options) {
-  SnappyReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

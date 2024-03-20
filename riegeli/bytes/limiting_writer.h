@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -226,15 +227,7 @@ class LimitingWriter : public LimitingWriterBase {
   explicit LimitingWriter(Closed) noexcept : LimitingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit LimitingWriter(const Dest& dest, Options options = Options());
-  explicit LimitingWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
-                          Options options = Options());
+  explicit LimitingWriter(Initializer<Dest> dest, Options options = Options());
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
@@ -242,12 +235,7 @@ class LimitingWriter : public LimitingWriterBase {
   // Makes `*this` equivalent to a newly constructed `LimitingWriter`. This
   // avoids constructing a temporary `LimitingWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
@@ -273,10 +261,6 @@ class LimitingWriter : public LimitingWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit LimitingWriter(Closed) -> LimitingWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit LimitingWriter(const Dest& dest, LimitingWriterBase::Options options =
-                                              LimitingWriterBase::Options())
-    -> LimitingWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit LimitingWriter(Dest&& dest, LimitingWriterBase::Options options =
                                          LimitingWriterBase::Options())
@@ -374,22 +358,9 @@ inline void LimitingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Options options)
-    : LimitingWriterBase(options.exact()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Options options)
-    : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
+inline LimitingWriter<Dest>::LimitingWriter(Initializer<Dest> dest,
                                             Options options)
-    : LimitingWriterBase(options.exact()), dest_(std::move(dest_args)) {
+    : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
@@ -414,25 +385,10 @@ inline void LimitingWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void LimitingWriter<Dest>::Reset(const Dest& dest, Options options) {
-  LimitingWriterBase::Reset(options.exact());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline void LimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
-  LimitingWriterBase::Reset(options.exact());
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void LimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+inline void LimitingWriter<Dest>::Reset(Initializer<Dest> dest,
                                         Options options) {
   LimitingWriterBase::Reset(options.exact());
-  dest_.Reset(std::move(dest_args));
+  dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 

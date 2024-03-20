@@ -29,6 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -188,15 +189,7 @@ class WriterOStream : public WriterOStreamBase {
   explicit WriterOStream(Closed) noexcept : WriterOStreamBase(kClosed) {}
 
   // Will write to the `Writer` provided by `dest`.
-  explicit WriterOStream(const Dest& dest, Options options = Options());
-  explicit WriterOStream(Dest&& dest, Options options = Options());
-
-  // Will write to the `Writer` provided by a `Dest` constructed from elements
-  // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit WriterOStream(std::tuple<DestArgs...> dest_args,
-                         Options options = Options());
+  explicit WriterOStream(Initializer<Dest> dest, Options options = Options());
 
   WriterOStream(WriterOStream&& that) noexcept;
   WriterOStream& operator=(WriterOStream&& that) noexcept;
@@ -206,12 +199,7 @@ class WriterOStream : public WriterOStreamBase {
   // Makes `*this` equivalent to a newly constructed `WriterOStream`. This
   // avoids constructing a temporary `WriterOStream` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the `Writer`. Unchanged by
@@ -235,10 +223,6 @@ class WriterOStream : public WriterOStreamBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit WriterOStream(Closed) -> WriterOStream<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit WriterOStream(const Dest& dest, WriterOStreamBase::Options options =
-                                             WriterOStreamBase::Options())
-    -> WriterOStream<std::decay_t<Dest>>;
 template <typename Dest>
 explicit WriterOStream(Dest&& dest, WriterOStreamBase::Options options =
                                         WriterOStreamBase::Options())
@@ -315,22 +299,9 @@ inline void WriterOStreamBase::Initialize(Writer* dest) {
 }
 
 template <typename Dest>
-inline WriterOStream<Dest>::WriterOStream(const Dest& dest, Options options)
-    : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline WriterOStream<Dest>::WriterOStream(Dest&& dest, Options options)
-    : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline WriterOStream<Dest>::WriterOStream(std::tuple<DestArgs...> dest_args,
+inline WriterOStream<Dest>::WriterOStream(Initializer<Dest> dest,
                                           Options options)
-    : dest_(std::move(dest_args)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -359,28 +330,11 @@ inline void WriterOStream<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void WriterOStream<Dest>::Reset(const Dest& dest, Options options) {
-  Done();
-  WriterOStreamBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void WriterOStream<Dest>::Reset(Dest&& dest, Options options) {
-  Done();
-  WriterOStreamBase::Reset();
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void WriterOStream<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+inline void WriterOStream<Dest>::Reset(Initializer<Dest> dest,
                                        Options options) {
   Done();
   WriterOStreamBase::Reset();
-  dest_.Reset(std::move(dest_args));
+  dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
 

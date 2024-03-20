@@ -16,13 +16,13 @@
 #define RIEGELI_BASE_STABLE_DEPENDENCY_H_
 
 #include <atomic>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -56,22 +56,8 @@ class StableDependencyImpl
  public:
   StableDependencyImpl() = default;
 
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<const DependentManager&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  explicit StableDependencyImpl(const Manager& manager)
-      : dep_(new Dependency<Handle, Manager>(manager)) {}
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<DependentManager&&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  explicit StableDependencyImpl(Manager&& manager) noexcept
+  explicit StableDependencyImpl(Initializer<Manager> manager)
       : dep_(new Dependency<Handle, Manager>(std::move(manager))) {}
-
-  template <typename... ManagerArgs>
-  explicit StableDependencyImpl(std::tuple<ManagerArgs...> manager_args)
-      : dep_(new Dependency<Handle, Manager>(std::move(manager_args))) {}
 
   StableDependencyImpl(StableDependencyImpl&& that) noexcept
       : dep_(that.dep_.exchange(nullptr, std::memory_order_relaxed)) {}
@@ -89,26 +75,7 @@ class StableDependencyImpl
     if (dep != nullptr) riegeli::Reset(*dep);
   }
 
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<const DependentManager&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
-    Dependency<Handle, Manager>* const dep =
-        dep_.load(std::memory_order_relaxed);
-    if (dep == nullptr) {
-      // A race would violate the contract because this is not a const method.
-      dep_.store(new Dependency<Handle, Manager>(manager),
-                 std::memory_order_relaxed);
-    } else {
-      riegeli::Reset(*dep, manager);
-    }
-  }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<DependentManager&&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
     Dependency<Handle, Manager>* const dep =
         dep_.load(std::memory_order_relaxed);
     if (dep == nullptr) {
@@ -117,20 +84,6 @@ class StableDependencyImpl
                  std::memory_order_relaxed);
     } else {
       riegeli::Reset(*dep, std::move(manager));
-    }
-  }
-
-  template <typename... ManagerArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      std::tuple<ManagerArgs...> manager_args) {
-    Dependency<Handle, Manager>* const dep =
-        dep_.load(std::memory_order_relaxed);
-    if (dep == nullptr) {
-      // A race would violate the contract because this is not a const method.
-      dep_.store(new Dependency<Handle, Manager>(std::move(manager_args)),
-                 std::memory_order_relaxed);
-    } else {
-      riegeli::Reset(*dep, std::move(manager_args));
     }
   }
 

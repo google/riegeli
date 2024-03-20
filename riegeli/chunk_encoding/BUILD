@@ -143,6 +143,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/brotli:brotli_reader",
         "//riegeli/bytes:chain_reader",
@@ -154,7 +155,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/utility",
     ],
 )
 

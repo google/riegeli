@@ -172,6 +172,18 @@ cc_library(
 )
 
 cc_library(
+    name = "initializer",
+    hdrs = ["initializer.h"],
+    deps = [
+        ":assert",
+        ":reset",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/utility",
+    ],
+)
+
+cc_library(
     name = "memory_estimator",
     srcs = ["memory_estimator.cc"],
     hdrs = ["memory_estimator.h"],
@@ -207,6 +219,7 @@ cc_library(
     deps = [
         ":assert",
         ":compare",
+        ":initializer",
         ":reset",
         ":type_id",
         ":type_traits",
@@ -214,7 +227,6 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -223,6 +235,7 @@ cc_library(
     hdrs = ["stable_dependency.h"],
     deps = [
         ":dependency",
+        ":initializer",
         ":reset",
         "@com_google_absl//absl/base:core_headers",
     ],
@@ -236,6 +249,7 @@ cc_library(
         ":assert",
         ":compare",
         ":dependency",
+        ":initializer",
         ":memory_estimator",
         ":type_id",
         ":type_traits",

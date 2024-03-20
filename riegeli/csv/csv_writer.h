@@ -33,6 +33,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/string_writer.h"
@@ -387,15 +388,7 @@ class CsvWriter : public CsvWriterBase {
   explicit CsvWriter(Closed) noexcept : CsvWriterBase(kClosed) {}
 
   // Will write to the byte `Writer` provided by `dest`.
-  explicit CsvWriter(const Dest& dest, Options options = Options());
-  explicit CsvWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the byte `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit CsvWriter(std::tuple<DestArgs...> dest_args,
-                     Options options = Options());
+  explicit CsvWriter(Initializer<Dest> dest, Options options = Options());
 
   CsvWriter(CsvWriter&& that) noexcept;
   CsvWriter& operator=(CsvWriter&& that) noexcept;
@@ -403,12 +396,7 @@ class CsvWriter : public CsvWriterBase {
   // Makes `*this` equivalent to a newly constructed `CsvWriter`. This avoids
   // constructing a temporary `CsvWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Writer`.
@@ -428,10 +416,6 @@ class CsvWriter : public CsvWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CsvWriter(Closed) -> CsvWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit CsvWriter(const Dest& dest,
-                   CsvWriterBase::Options options = CsvWriterBase::Options())
-    -> CsvWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit CsvWriter(Dest&& dest,
                    CsvWriterBase::Options options = CsvWriterBase::Options())
@@ -577,22 +561,8 @@ inline uint64_t CsvWriterBase::last_record_index() const {
 }
 
 template <typename Dest>
-inline CsvWriter<Dest>::CsvWriter(const Dest& dest, Options options)
-    : dest_(dest) {
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline CsvWriter<Dest>::CsvWriter(Dest&& dest, Options options)
+inline CsvWriter<Dest>::CsvWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline CsvWriter<Dest>::CsvWriter(std::tuple<DestArgs...> dest_args,
-                                  Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -615,25 +585,9 @@ inline void CsvWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void CsvWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CsvWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline void CsvWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void CsvWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   CsvWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void CsvWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                   Options options) {
-  CsvWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options));
 }
 

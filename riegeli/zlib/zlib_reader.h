@@ -30,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
@@ -250,15 +251,7 @@ class ZlibReader : public ZlibReaderBase {
   explicit ZlibReader(Closed) noexcept : ZlibReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
-  explicit ZlibReader(const Src& src, Options options = Options());
-  explicit ZlibReader(Src&& src, Options options = Options());
-
-  // Will read from the compressed `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit ZlibReader(std::tuple<SrcArgs...> src_args,
-                      Options options = Options());
+  explicit ZlibReader(Initializer<Src> src, Options options = Options());
 
   ZlibReader(ZlibReader&&) noexcept;
   ZlibReader& operator=(ZlibReader&&) noexcept;
@@ -266,12 +259,7 @@ class ZlibReader : public ZlibReaderBase {
   // Makes `*this` equivalent to a newly constructed `ZlibReader`. This avoids
   // constructing a temporary `ZlibReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Reader`.
@@ -293,10 +281,6 @@ class ZlibReader : public ZlibReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ZlibReader(Closed) -> ZlibReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit ZlibReader(const Src& src,
-                    ZlibReaderBase::Options options = ZlibReaderBase::Options())
-    -> ZlibReader<std::decay_t<Src>>;
 template <typename Src>
 explicit ZlibReader(Src&& src,
                     ZlibReaderBase::Options options = ZlibReaderBase::Options())
@@ -403,31 +387,11 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 }
 
 template <typename Src>
-inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
-    : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate(),
-                     options.recycling_pool_options()),
-      src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
+inline ZlibReader<Src>::ZlibReader(Initializer<Src> src, Options options)
     : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
                      std::move(options.dictionary()), options.concatenate(),
                      options.recycling_pool_options()),
       src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
-                                   Options options)
-    : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate(),
-                     options.recycling_pool_options()),
-      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -450,31 +414,11 @@ inline void ZlibReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
-  ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate(),
-                        options.recycling_pool_options());
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
+inline void ZlibReader<Src>::Reset(Initializer<Src> src, Options options) {
   ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
                         std::move(options.dictionary()), options.concatenate(),
                         options.recycling_pool_options());
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                   Options options) {
-  ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate(),
-                        options.recycling_pool_options());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

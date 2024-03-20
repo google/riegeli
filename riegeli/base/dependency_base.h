@@ -22,7 +22,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/utility/utility.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -55,57 +55,17 @@ class DependencyBase {
       : DependencyBase(
             RiegeliDependencySentinel(static_cast<Manager*>(nullptr))) {}
 
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<const DependentManager&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  explicit DependencyBase(const Manager& manager) : manager_(manager) {}
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<DependentManager&&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  explicit DependencyBase(Manager&& manager) noexcept
-      : manager_(std::move(manager)) {}
-
-  template <typename... ManagerArgs>
-  explicit DependencyBase(std::tuple<ManagerArgs...> manager_args)
-      :
-#if __cpp_guaranteed_copy_elision
-        manager_(absl::make_from_tuple<Manager>(std::move(manager_args)))
-#else
-        DependencyBase(std::move(manager_args),
-                       std::index_sequence_for<ManagerArgs...>())
-#endif
-  {
-  }
+  explicit DependencyBase(Initializer<Manager> manager)
+      : manager_(std::move(manager).Construct()) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Reset(RiegeliDependencySentinel(static_cast<Manager*>(nullptr)));
   }
-
   template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<const DependentManager&,
-                                                 DependentManager>::value,
+            std::enable_if_t<std::is_move_assignable<DependentManager>::value,
                              int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
-    manager_ = manager;
-  }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<DependentManager&&,
-                                                 DependentManager>::value,
-                             int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
-    manager_ = std::move(manager);
-  }
-
-  template <typename... ManagerArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      std::tuple<ManagerArgs...> manager_args) {
-    absl::apply(
-        [&](ManagerArgs&&... args) {
-          riegeli::Reset(manager_, std::forward<ManagerArgs>(args)...);
-        },
-        std::move(manager_args));
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
+    std::move(manager).AssignTo(manager_);
   }
 
   Manager& manager() { return manager_; }
@@ -131,27 +91,18 @@ class DependencyBase {
   Manager& mutable_manager() const { return manager_; }
 
  private:
-#if !__cpp_guaranteed_copy_elision
-  template <typename... ManagerArgs, size_t... indices>
-  explicit DependencyBase(
-      ABSL_ATTRIBUTE_UNUSED std::tuple<ManagerArgs...>&& manager_args,
-      std::index_sequence<indices...>)
-      : manager_(
-            std::forward<ManagerArgs>(std::get<indices>(manager_args))...) {}
-#endif
-
   mutable Manager manager_;
 };
 
 // Specialization of `DependencyBase` for lvalue references.
 //
 // Only a subset of operations is provided: the dependency must be initialized,
-// assignment is not supported, and initialization from a tuple of constructor
-// arguments is not supported.
+// and assignment is not supported.
 template <typename Manager>
 class DependencyBase<Manager&> {
  public:
-  explicit DependencyBase(Manager& manager) noexcept : manager_(manager) {}
+  explicit DependencyBase(Initializer<Manager&> manager) noexcept
+      : manager_(std::move(manager).Construct()) {}
 
   Manager& manager() const { return manager_; }
 
@@ -177,13 +128,12 @@ class DependencyBase<Manager&> {
 // Specialization of `DependencyBase` for rvalue references.
 //
 // Only a subset of operations is provided: the dependency must be initialized,
-// assignment is not supported, and initialization from a tuple of constructor
-// arguments is not supported.
+// and assignment is not supported.
 template <typename Manager>
 class DependencyBase<Manager&&> {
  public:
-  explicit DependencyBase(Manager&& manager) noexcept
-      : manager_(std::move(manager)) {}
+  explicit DependencyBase(Initializer<Manager&&> manager) noexcept
+      : manager_(std::move(manager).Construct()) {}
 
   Manager& manager() const { return manager_; }
 

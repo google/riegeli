@@ -31,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -178,14 +179,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
       : ChainBackwardWriterBase(kClosed) {}
 
   // Will prepend to the `Chain` provided by `dest`.
-  explicit ChainBackwardWriter(const Dest& dest, Options options = Options());
-  explicit ChainBackwardWriter(Dest&& dest, Options options = Options());
-
-  // Will prepend to the `Chain` provided by a `Dest` constructed from elements
-  // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
+  explicit ChainBackwardWriter(Initializer<Dest> dest,
                                Options options = Options());
 
   // Will append to an owned `Chain` which can be accessed by `dest()`.
@@ -201,12 +195,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
   // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
@@ -234,13 +223,6 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ChainBackwardWriter(Closed) -> ChainBackwardWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit ChainBackwardWriter(const Dest& dest,
-                             ChainBackwardWriterBase::Options options =
-                                 ChainBackwardWriterBase::Options())
-    -> ChainBackwardWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const Chain*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit ChainBackwardWriter(Dest&& dest,
                              ChainBackwardWriterBase::Options options =
@@ -302,24 +284,9 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
 }
 
 template <typename Dest>
-inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
-                                                      Options options)
-    : ChainBackwardWriterBase(options), dest_(dest) {
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest&& dest,
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Initializer<Dest> dest,
                                                       Options options)
     : ChainBackwardWriterBase(options), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : ChainBackwardWriterBase(options), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.prepend());
 }
 
@@ -352,26 +319,10 @@ inline void ChainBackwardWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void ChainBackwardWriter<Dest>::Reset(const Dest& dest,
+inline void ChainBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(options);
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-inline void ChainBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
   ChainBackwardWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.prepend());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                             Options options) {
-  ChainBackwardWriterBase::Reset(options);
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.prepend());
 }
 

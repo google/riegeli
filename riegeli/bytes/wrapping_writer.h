@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -112,14 +113,7 @@ class WrappingWriter : public WrappingWriterBase {
   explicit WrappingWriter(Closed) noexcept : WrappingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit WrappingWriter(const Dest& dest);
-  explicit WrappingWriter(Dest&& dest);
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit WrappingWriter(std::tuple<DestArgs...> dest_args);
+  explicit WrappingWriter(Initializer<Dest> dest);
 
   WrappingWriter(WrappingWriter&& that) noexcept;
   WrappingWriter& operator=(WrappingWriter&& that) noexcept;
@@ -127,10 +121,7 @@ class WrappingWriter : public WrappingWriterBase {
   // Makes `*this` equivalent to a newly constructed `WrappingWriter`. This
   // avoids constructing a temporary `WrappingWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
@@ -155,8 +146,6 @@ class WrappingWriter : public WrappingWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit WrappingWriter(Closed) -> WrappingWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit WrappingWriter(const Dest& dest) -> WrappingWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit WrappingWriter(Dest&& dest) -> WrappingWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
@@ -193,20 +182,8 @@ inline void WrappingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline WrappingWriter<Dest>::WrappingWriter(const Dest& dest) : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline WrappingWriter<Dest>::WrappingWriter(Dest&& dest)
+inline WrappingWriter<Dest>::WrappingWriter(Initializer<Dest> dest)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline WrappingWriter<Dest>::WrappingWriter(std::tuple<DestArgs...> dest_args)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -231,24 +208,9 @@ inline void WrappingWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void WrappingWriter<Dest>::Reset(const Dest& dest) {
-  WrappingWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void WrappingWriter<Dest>::Reset(Dest&& dest) {
+inline void WrappingWriter<Dest>::Reset(Initializer<Dest> dest) {
   WrappingWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void WrappingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
-  WrappingWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

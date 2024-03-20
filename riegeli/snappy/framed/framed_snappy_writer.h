@@ -27,6 +27,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -113,14 +114,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
       : FramedSnappyWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit FramedSnappyWriter(const Dest& dest, Options options = Options());
-  explicit FramedSnappyWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit FramedSnappyWriter(std::tuple<DestArgs...> dest_args,
+  explicit FramedSnappyWriter(Initializer<Dest> dest,
                               Options options = Options());
 
   FramedSnappyWriter(FramedSnappyWriter&& that) noexcept;
@@ -129,12 +123,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
   // Makes `*this` equivalent to a newly constructed `FramedSnappyWriter`. This
   // avoids constructing a temporary `FramedSnappyWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -209,23 +198,8 @@ inline void FramedSnappyWriterBase::Reset() {
 
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options)
-    : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options)
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -252,26 +226,9 @@ inline void FramedSnappyWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void FramedSnappyWriter<Dest>::Reset(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
-  FramedSnappyWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void FramedSnappyWriter<Dest>::Reset(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   FramedSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void FramedSnappyWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options) {
-  FramedSnappyWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

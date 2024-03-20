@@ -35,6 +35,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/csv/csv_record.h"
@@ -535,15 +536,7 @@ class CsvReader : public CsvReaderBase {
   explicit CsvReader(Closed) noexcept : CsvReaderBase(kClosed) {}
 
   // Will read from the byte `Reader` provided by `src`.
-  explicit CsvReader(const Src& src, Options options = Options());
-  explicit CsvReader(Src&& src, Options options = Options());
-
-  // Will read from the byte `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit CsvReader(std::tuple<SrcArgs...> src_args,
-                     Options options = Options());
+  explicit CsvReader(Initializer<Src> src, Options options = Options());
 
   CsvReader(CsvReader&& that) noexcept;
   CsvReader& operator=(CsvReader&& that) noexcept;
@@ -551,12 +544,7 @@ class CsvReader : public CsvReaderBase {
   // Makes `*this` equivalent to a newly constructed `CsvReader`. This avoids
   // constructing a temporary `CsvReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Reader`.
@@ -576,10 +564,6 @@ class CsvReader : public CsvReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CsvReader(Closed) -> CsvReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit CsvReader(const Src& src,
-                   CsvReaderBase::Options options = CsvReaderBase::Options())
-    -> CsvReader<std::decay_t<Src>>;
 template <typename Src>
 explicit CsvReader(Src&& src,
                    CsvReaderBase::Options options = CsvReaderBase::Options())
@@ -668,21 +652,8 @@ inline uint64_t CsvReaderBase::last_record_index() const {
 }
 
 template <typename Src>
-inline CsvReader<Src>::CsvReader(const Src& src, Options options) : src_(src) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline CsvReader<Src>::CsvReader(Src&& src, Options options)
+inline CsvReader<Src>::CsvReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline CsvReader<Src>::CsvReader(std::tuple<SrcArgs...> src_args,
-                                 Options options)
-    : src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -705,25 +676,9 @@ inline void CsvReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void CsvReader<Src>::Reset(const Src& src, Options options) {
-  CsvReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline void CsvReader<Src>::Reset(Src&& src, Options options) {
+inline void CsvReader<Src>::Reset(Initializer<Src> src, Options options) {
   CsvReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void CsvReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                  Options options) {
-  CsvReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }
 

@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -158,14 +159,7 @@ class IStreamReader : public IStreamReaderBase {
   explicit IStreamReader(Closed) noexcept : IStreamReaderBase(kClosed) {}
 
   // Will read from the stream provided by `src`.
-  explicit IStreamReader(const Src& src, Options options = Options());
-  explicit IStreamReader(Src&& src, Options options = Options());
-
-  // Will read from the stream provided by a `Src` constructed from elements of
-  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit IStreamReader(std::tuple<SrcArgs...> src_args,
-                         Options options = Options());
+  explicit IStreamReader(Initializer<Src> src, Options options = Options());
 
   IStreamReader(IStreamReader&& that) noexcept;
   IStreamReader& operator=(IStreamReader&& that) noexcept;
@@ -173,12 +167,7 @@ class IStreamReader : public IStreamReaderBase {
   // Makes `*this` equivalent to a newly constructed `IStreamReader`. This
   // avoids constructing a temporary `IStreamReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the stream being read
@@ -198,10 +187,6 @@ class IStreamReader : public IStreamReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit IStreamReader(Closed) -> IStreamReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit IStreamReader(const Src& src, IStreamReaderBase::Options options =
-                                           IStreamReaderBase::Options())
-    -> IStreamReader<std::decay_t<Src>>;
 template <typename Src>
 explicit IStreamReader(Src&& src, IStreamReaderBase::Options options =
                                       IStreamReaderBase::Options())
@@ -258,25 +243,9 @@ inline void IStreamReaderBase::Reset(BufferOptions buffer_options,
 }
 
 template <typename Src>
-inline IStreamReader<Src>::IStreamReader(const Src& src, Options options)
-    : IStreamReaderBase(options.buffer_options(), options.growing_source()),
-      src_(src) {
-  Initialize(src_.get(), options.assumed_pos());
-}
-
-template <typename Src>
-inline IStreamReader<Src>::IStreamReader(Src&& src, Options options)
+inline IStreamReader<Src>::IStreamReader(Initializer<Src> src, Options options)
     : IStreamReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.assumed_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline IStreamReader<Src>::IStreamReader(std::tuple<SrcArgs...> src_args,
-                                         Options options)
-    : IStreamReaderBase(options.buffer_options(), options.growing_source()),
-      src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
@@ -300,25 +269,9 @@ inline void IStreamReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void IStreamReader<Src>::Reset(const Src& src, Options options) {
-  IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(src);
-  Initialize(src_.get(), options.assumed_pos());
-}
-
-template <typename Src>
-inline void IStreamReader<Src>::Reset(Src&& src, Options options) {
+inline void IStreamReader<Src>::Reset(Initializer<Src> src, Options options) {
   IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.assumed_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void IStreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                      Options options) {
-  IStreamReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_pos());
 }
 

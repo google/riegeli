@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/base/types.h"
@@ -120,15 +121,7 @@ class ReaderFactory : public ReaderFactoryBase {
   explicit ReaderFactory(Closed) noexcept : ReaderFactoryBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit ReaderFactory(const Src& src, Options options = Options());
-  explicit ReaderFactory(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit ReaderFactory(std::tuple<SrcArgs...> src_args,
-                         Options options = Options());
+  explicit ReaderFactory(Initializer<Src> src, Options options = Options());
 
   ReaderFactory(ReaderFactory&& that) noexcept;
   ReaderFactory& operator=(ReaderFactory&& that) noexcept;
@@ -136,12 +129,7 @@ class ReaderFactory : public ReaderFactoryBase {
   // Makes `*this` equivalent to a newly constructed `ReaderFactory`. This
   // avoids constructing a temporary `ReaderFactory` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
@@ -161,10 +149,6 @@ class ReaderFactory : public ReaderFactoryBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ReaderFactory(Closed) -> ReaderFactory<DeleteCtad<Closed>>;
-template <typename Src>
-explicit ReaderFactory(const Src& src, ReaderFactoryBase::Options options =
-                                           ReaderFactoryBase::Options())
-    -> ReaderFactory<std::decay_t<Src>>;
 template <typename Src>
 explicit ReaderFactory(Src&& src, ReaderFactoryBase::Options options =
                                       ReaderFactoryBase::Options())
@@ -204,22 +188,8 @@ inline void ReaderFactoryBase::Reset() {
 }
 
 template <typename Src>
-inline ReaderFactory<Src>::ReaderFactory(const Src& src, Options options)
-    : src_(src) {
-  Initialize(options.buffer_options(), src_.get());
-}
-
-template <typename Src>
-inline ReaderFactory<Src>::ReaderFactory(Src&& src, Options options)
+inline ReaderFactory<Src>::ReaderFactory(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
-  Initialize(options.buffer_options(), src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline ReaderFactory<Src>::ReaderFactory(std::tuple<SrcArgs...> src_args,
-                                         Options options)
-    : src_(std::move(src_args)) {
   Initialize(options.buffer_options(), src_.get());
 }
 
@@ -243,25 +213,9 @@ inline void ReaderFactory<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void ReaderFactory<Src>::Reset(const Src& src, Options options) {
-  ReaderFactoryBase::Reset();
-  src_.Reset(src);
-  Initialize(options.buffer_options(), src_.get());
-}
-
-template <typename Src>
-inline void ReaderFactory<Src>::Reset(Src&& src, Options options) {
+inline void ReaderFactory<Src>::Reset(Initializer<Src> src, Options options) {
   ReaderFactoryBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(options.buffer_options(), src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void ReaderFactory<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                      Options options) {
-  ReaderFactoryBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(options.buffer_options(), src_.get());
 }
 

@@ -38,6 +38,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -574,15 +575,7 @@ class RecordReader : public RecordReaderBase {
   explicit RecordReader(Closed) noexcept : RecordReaderBase(kClosed) {}
 
   // Will read from the byte `Reader` or `ChunkReader` provided by `src`.
-  explicit RecordReader(const Src& src, Options options = Options());
-  explicit RecordReader(Src&& src, Options options = Options());
-
-  // Will read from the byte `Reader` or `ChunkReader` provided by a `Src`
-  // constructed from elements of `src_args`. This avoids constructing a
-  // temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit RecordReader(std::tuple<SrcArgs...> src_args,
-                        Options options = Options());
+  explicit RecordReader(Initializer<Src> src, Options options = Options());
 
   RecordReader(RecordReader&& that) noexcept;
   RecordReader& operator=(RecordReader&& that) noexcept;
@@ -590,12 +583,7 @@ class RecordReader : public RecordReaderBase {
   // Makes `*this` equivalent to a newly constructed `RecordReader`. This avoids
   // constructing a temporary `RecordReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Reader` or
@@ -619,10 +607,6 @@ class RecordReader : public RecordReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit RecordReader(Closed) -> RecordReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit RecordReader(const Src& src, RecordReaderBase::Options options =
-                                          RecordReaderBase::Options())
-    -> RecordReader<std::decay_t<Src>>;
 template <typename Src>
 explicit RecordReader(
     Src&& src, RecordReaderBase::Options options = RecordReaderBase::Options())
@@ -711,22 +695,8 @@ absl::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
 }
 
 template <typename Src>
-inline RecordReader<Src>::RecordReader(const Src& src, Options options)
-    : src_(src) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline RecordReader<Src>::RecordReader(Src&& src, Options options)
+inline RecordReader<Src>::RecordReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline RecordReader<Src>::RecordReader(std::tuple<SrcArgs...> src_args,
-                                       Options options)
-    : src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -750,25 +720,9 @@ inline void RecordReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void RecordReader<Src>::Reset(const Src& src, Options options) {
-  RecordReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline void RecordReader<Src>::Reset(Src&& src, Options options) {
+inline void RecordReader<Src>::Reset(Initializer<Src> src, Options options) {
   RecordReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void RecordReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                     Options options) {
-  RecordReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }
 

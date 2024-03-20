@@ -16,7 +16,6 @@
 #define RIEGELI_BYTES_RESIZABLE_WRITER_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <memory>
 #include <string>
@@ -33,9 +32,9 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -259,6 +258,9 @@ class ResizableWriter : public ResizableWriterBase {
   // Creates a closed `ResizableWriter`.
   explicit ResizableWriter(Closed) noexcept : ResizableWriterBase(kClosed) {}
 
+  // Will append to the `Resizable` provided by `dest`.
+  explicit ResizableWriter(Initializer<Dest> dest, Options options = Options());
+
   // Will append to an owned `Resizable` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Resizable` which is
   // default-constructible.
@@ -270,23 +272,14 @@ class ResizableWriter : public ResizableWriterBase {
           int> = 0>
   explicit ResizableWriter(Options options = Options());
 
-  // Will append to the `Resizable` provided by `dest`.
-  explicit ResizableWriter(const Dest& dest, Options options = Options());
-  explicit ResizableWriter(Dest&& dest, Options options = Options());
-
-  // Will append to the `Resizable` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit ResizableWriter(std::tuple<DestArgs...> dest_args,
-                           Options options = Options());
-
   ResizableWriter(ResizableWriter&& that) noexcept;
   ResizableWriter& operator=(ResizableWriter&& that) noexcept;
 
   // Makes `*this` equivalent to a newly constructed `ResizableWriter`. This
   // avoids constructing a temporary `ResizableWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
+                                          Options options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<
@@ -294,13 +287,6 @@ class ResizableWriter : public ResizableWriterBase {
                             std::is_default_constructible<Resizable>>::value,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
-                                          Options options = Options());
 
   // Returns the object providing and possibly owning the `Resizable` being
   // written to. Unchanged by `Close()`.
@@ -517,6 +503,13 @@ inline size_t ResizableWriterBase::used_dest_size() const {
 }
 
 template <typename ResizableTraits, typename Dest>
+inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
+    Initializer<Dest> dest, Options options)
+    : ResizableWriterBase(options.buffer_options()), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.append());
+}
+
+template <typename ResizableTraits, typename Dest>
 template <
     typename DependentDest,
     std::enable_if_t<
@@ -527,29 +520,6 @@ template <
         int>>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
     : ResizableWriter(std::forward_as_tuple(), std::move(options)) {}
-
-template <typename ResizableTraits, typename Dest>
-inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(const Dest& dest,
-                                                               Options options)
-    : ResizableWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename ResizableTraits, typename Dest>
-inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Dest&& dest,
-                                                               Options options)
-    : ResizableWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename ResizableTraits, typename Dest>
-template <typename... DestArgs>
-inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : ResizableWriterBase(options.buffer_options()),
-      dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.append());
-}
 
 template <typename ResizableTraits, typename Dest>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
@@ -574,6 +544,14 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(Closed) {
 }
 
 template <typename ResizableTraits, typename Dest>
+inline void ResizableWriter<ResizableTraits, Dest>::Reset(
+    Initializer<Dest> dest, Options options) {
+  ResizableWriterBase::Reset(options.buffer_options());
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.append());
+}
+
+template <typename ResizableTraits, typename Dest>
 template <
     typename DependentDest,
     std::enable_if_t<
@@ -584,31 +562,6 @@ template <
         int>>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
   Reset(std::forward_as_tuple(), std::move(options));
-}
-
-template <typename ResizableTraits, typename Dest>
-inline void ResizableWriter<ResizableTraits, Dest>::Reset(const Dest& dest,
-                                                          Options options) {
-  ResizableWriterBase::Reset(options.buffer_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename ResizableTraits, typename Dest>
-inline void ResizableWriter<ResizableTraits, Dest>::Reset(Dest&& dest,
-                                                          Options options) {
-  ResizableWriterBase::Reset(options.buffer_options());
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename ResizableTraits, typename Dest>
-template <typename... DestArgs>
-inline void ResizableWriter<ResizableTraits, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, Options options) {
-  ResizableWriterBase::Reset(options.buffer_options());
-  dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.append());
 }
 
 template <typename ResizableTraits, typename Dest>

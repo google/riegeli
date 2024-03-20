@@ -34,6 +34,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
@@ -244,15 +245,7 @@ class FileReader : public FileReaderBase {
   explicit FileReader(Closed) noexcept : FileReaderBase(kClosed) {}
 
   // Will read from the `::tensorflow::RandomAccessFile` provided by `src`.
-  explicit FileReader(const Src& src, Options options = Options());
-  explicit FileReader(Src&& src, Options options = Options());
-
-  // Will read from the `::tensorflow::RandomAccessFile` provided by a `Src`
-  // constructed from elements of `src_args`. This avoids constructing a
-  // temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit FileReader(std::tuple<SrcArgs...> src_args,
-                      Options options = Options());
+  explicit FileReader(Initializer<Src> src, Options options = Options());
 
   // Opens a `::tensorflow::RandomAccessFile` for reading.
   //
@@ -265,15 +258,10 @@ class FileReader : public FileReaderBase {
   // Makes `*this` equivalent to a newly constructed `FileReader`. This avoids
   // constructing a temporary `FileReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
-                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES
+  void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from. If the
@@ -300,12 +288,6 @@ class FileReader : public FileReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit FileReader(Closed) -> FileReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit FileReader(const Src& src,
-                    FileReaderBase::Options options = FileReaderBase::Options())
-    -> FileReader<std::conditional_t<
-        std::is_convertible<const Src&, absl::string_view>::value,
-        std::unique_ptr<::tensorflow::RandomAccessFile>, std::decay_t<Src>>>;
 template <typename Src>
 explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
@@ -377,28 +359,10 @@ inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(const Src& src, Options options)
-    : FileReaderBase(options.buffer_options(), options.env(),
-                     options.growing_source()),
-      src_(src) {
-  Initialize(src_.get(), options.initial_pos());
-}
-
-template <typename Src>
-inline FileReader<Src>::FileReader(Src&& src, Options options)
+inline FileReader<Src>::FileReader(Initializer<Src> src, Options options)
     : FileReaderBase(options.buffer_options(), options.env(),
                      options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.initial_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
-                                   Options options)
-    : FileReaderBase(options.buffer_options(), options.env(),
-                     options.growing_source()),
-      src_(std::move(src_args)) {
   Initialize(src_.get(), options.initial_pos());
 }
 
@@ -416,28 +380,10 @@ inline void FileReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset(const Src& src, Options options) {
-  FileReaderBase::Reset(options.buffer_options(), options.env(),
-                        options.growing_source());
-  src_.Reset(src);
-  Initialize(src_.get(), options.initial_pos());
-}
-
-template <typename Src>
-inline void FileReader<Src>::Reset(Src&& src, Options options) {
+inline void FileReader<Src>::Reset(Initializer<Src> src, Options options) {
   FileReaderBase::Reset(options.buffer_options(), options.env(),
                         options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.initial_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                   Options options) {
-  FileReaderBase::Reset(options.buffer_options(), options.env(),
-                        options.growing_source());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.initial_pos());
 }
 

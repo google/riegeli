@@ -27,6 +27,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -115,14 +116,7 @@ class ArrayWriter : public ArrayWriterBase {
   explicit ArrayWriter(Closed) noexcept : ArrayWriterBase(kClosed) {}
 
   // Will write to the array provided by `dest`.
-  explicit ArrayWriter(const Dest& dest);
-  explicit ArrayWriter(Dest&& dest);
-
-  // Will write to the array provided by a `Dest` constructed from elements of
-  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit ArrayWriter(std::tuple<DestArgs...> dest_args);
+  explicit ArrayWriter(Initializer<Dest> dest);
 
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
@@ -137,10 +131,7 @@ class ArrayWriter : public ArrayWriterBase {
   // Makes `*this` equivalent to a newly constructed `ArrayWriter`. This avoids
   // constructing a temporary `ArrayWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
   template <typename DependentDest = Dest,
             std::enable_if_t<
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
@@ -164,14 +155,6 @@ class ArrayWriter : public ArrayWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ArrayWriter(Closed) -> ArrayWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit ArrayWriter(const Dest& dest)
-    -> ArrayWriter<std::conditional_t<
-        absl::conjunction<
-            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
-            std::is_constructible<absl::Span<char>, const Dest&>,
-            absl::negation<std::is_pointer<Dest>>>::value,
-        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit ArrayWriter(Dest&& dest)
     -> ArrayWriter<std::conditional_t<
@@ -220,19 +203,8 @@ inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
 }
 
 template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(const Dest& dest) : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(Dest&& dest) : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
-    : dest_(std::move(dest_args)) {
+inline ArrayWriter<Dest>::ArrayWriter(Initializer<Dest> dest)
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -264,24 +236,9 @@ inline void ArrayWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void ArrayWriter<Dest>::Reset(const Dest& dest) {
-  ArrayWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void ArrayWriter<Dest>::Reset(Dest&& dest) {
+inline void ArrayWriter<Dest>::Reset(Initializer<Dest> dest) {
   ArrayWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void ArrayWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
-  ArrayWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

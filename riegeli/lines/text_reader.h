@@ -27,6 +27,7 @@
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -138,15 +139,7 @@ class TextReader : public text_reader_internal::TextReaderImpl<newline> {
   explicit TextReader(Closed) noexcept : TextReader::TextReaderImpl(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit TextReader(const Src& src, Options options = Options());
-  explicit TextReader(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit TextReader(std::tuple<SrcArgs...> src_args,
-                      Options options = Options());
+  explicit TextReader(Initializer<Src> src, Options options = Options());
 
   TextReader(TextReader&& that) noexcept;
   TextReader& operator=(TextReader&& that) noexcept;
@@ -154,12 +147,7 @@ class TextReader : public text_reader_internal::TextReaderImpl<newline> {
   // Makes `*this` equivalent to a newly constructed `TextReader`. This avoids
   // constructing a temporary `TextReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
@@ -196,15 +184,7 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
   // Will read from the original `Reader` provided by `src`.
   //
   // `options` are ignored in this class template specialization.
-  explicit TextReader(const Src& src, Options options = Options());
-  explicit TextReader(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit TextReader(std::tuple<SrcArgs...> src_args,
-                      Options options = Options());
+  explicit TextReader(Initializer<Src> src, Options options = Options());
 
   TextReader(TextReader&& that) = default;
   TextReader& operator=(TextReader&& that) = default;
@@ -212,12 +192,7 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
   // Makes `*this` equivalent to a newly constructed `TextReader`. This avoids
   // constructing a temporary `TextReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 };
 
@@ -225,10 +200,6 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
 #if __cpp_deduction_guides
 explicit TextReader(Closed)
     -> TextReader<ReadNewline::kNative, DeleteCtad<Closed>>;
-template <typename Src>
-explicit TextReader(const Src& src,
-                    TextReaderBase::Options options = TextReaderBase::Options())
-    -> TextReader<ReadNewline::kNative, std::decay_t<Src>>;
 template <typename Src>
 explicit TextReader(Src&& src,
                     TextReaderBase::Options options = TextReaderBase::Options())
@@ -272,37 +243,19 @@ template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value,
                            int> = 0>
 AnyTextReader<Src> MakeAnyTextReader(
-    const Src& src, AnyTextReaderOptions options = AnyTextReaderOptions());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value,
-                           int> = 0>
-AnyTextReader<Src> MakeAnyTextReader(
     Src&& src, AnyTextReaderOptions options = AnyTextReaderOptions());
-template <typename Src, typename... SrcArgs,
+template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src>::value, int> = 0>
 AnyTextReader<Src> MakeAnyTextReader(
-    std::tuple<SrcArgs...> src_args,
+    Initializer<Src> src,
     AnyTextReaderOptions options = AnyTextReaderOptions());
 
 // Implementation details below.
 
 template <ReadNewline newline, typename Src>
-inline TextReader<newline, Src>::TextReader(const Src& src, Options options)
-    : TextReader::TextReaderImpl(options), src_(src) {
-  this->Initialize(src_.get());
-}
-
-template <ReadNewline newline, typename Src>
-inline TextReader<newline, Src>::TextReader(Src&& src, Options options)
-    : TextReader::TextReaderImpl(options), src_(std::forward<Src>(src)) {
-  this->Initialize(src_.get());
-}
-
-template <ReadNewline newline, typename Src>
-template <typename... SrcArgs>
-inline TextReader<newline, Src>::TextReader(std::tuple<SrcArgs...> src_args,
+inline TextReader<newline, Src>::TextReader(Initializer<Src> src,
                                             Options options)
-    : TextReader::TextReaderImpl(options), src_(std::move(src_args)) {
+    : TextReader::TextReaderImpl(options), src_(std::move(src)) {
   this->Initialize(src_.get());
 }
 
@@ -328,25 +281,10 @@ inline void TextReader<newline, Src>::Reset(Closed) {
 }
 
 template <ReadNewline newline, typename Src>
-inline void TextReader<newline, Src>::Reset(const Src& src, Options options) {
-  TextReader::TextReaderImpl::Reset(options);
-  src_.Reset(src);
-  this->Initialize(src_.get());
-}
-
-template <ReadNewline newline, typename Src>
-inline void TextReader<newline, Src>::Reset(Src&& src, Options options) {
-  TextReader::TextReaderImpl::Reset(options);
-  src_.Reset(std::move(src));
-  this->Initialize(src_.get());
-}
-
-template <ReadNewline newline, typename Src>
-template <typename... SrcArgs>
-inline void TextReader<newline, Src>::Reset(std::tuple<SrcArgs...> src_args,
+inline void TextReader<newline, Src>::Reset(Initializer<Src> src,
                                             Options options) {
   TextReader::TextReaderImpl::Reset(options);
-  src_.Reset(std::move(src_args));
+  src_.Reset(std::move(src));
   this->Initialize(src_.get());
 }
 
@@ -374,19 +312,8 @@ void TextReader<newline, Src>::VerifyEndImpl() {
 
 template <typename Src>
 inline TextReader<ReadNewline::kLf, Src>::TextReader(
-    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options)
-    : TextReader::PrefixLimitingReader(src) {}
-
-template <typename Src>
-inline TextReader<ReadNewline::kLf, Src>::TextReader(
-    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options)
+    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextReader::PrefixLimitingReader(std::move(src)) {}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline TextReader<ReadNewline::kLf, Src>::TextReader(
-    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options)
-    : TextReader::PrefixLimitingReader(std::move(src_args)) {}
 
 template <typename Src>
 inline void TextReader<ReadNewline::kLf, Src>::Reset(Closed) {
@@ -395,89 +322,36 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(Closed) {
 
 template <typename Src>
 inline void TextReader<ReadNewline::kLf, Src>::Reset(
-    const Src& src, ABSL_ATTRIBUTE_UNUSED Options options) {
-  TextReader::PrefixLimitingReader::Reset(src);
-}
-
-template <typename Src>
-inline void TextReader<ReadNewline::kLf, Src>::Reset(
-    Src&& src, ABSL_ATTRIBUTE_UNUSED Options options) {
+    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextReader::PrefixLimitingReader::Reset(std::move(src));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void TextReader<ReadNewline::kLf, Src>::Reset(
-    std::tuple<SrcArgs...> src_args, ABSL_ATTRIBUTE_UNUSED Options options) {
-  TextReader::PrefixLimitingReader::Reset(std::move(src_args));
-}
-
-template <
-    typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value, int>>
-AnyTextReader<Src> MakeAnyTextReader(const Src& src,
-                                     AnyTextReaderOptions options) {
-  AnyTextReader<Src> result;
-  switch (options.newline()) {
-    case ReadNewline::kLf:
-      result.template Emplace<TextReader<ReadNewline::kLf, std::decay_t<Src>>>(
-          src, options.buffer_options());
-      return result;
-    case ReadNewline::kCrLfOrLf:
-      result.template Emplace<
-          TextReader<ReadNewline::kCrLfOrLf, std::decay_t<Src>>>(
-          src, options.buffer_options());
-      return result;
-    case ReadNewline::kAny:
-      result.template Emplace<TextReader<ReadNewline::kAny, std::decay_t<Src>>>(
-          src, options.buffer_options());
-      return result;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
 }
 
 template <
     typename Src,
     std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value, int>>
 AnyTextReader<Src> MakeAnyTextReader(Src&& src, AnyTextReaderOptions options) {
-  AnyTextReader<Src> result;
-  switch (options.newline()) {
-    case ReadNewline::kLf:
-      result.template Emplace<TextReader<ReadNewline::kLf, std::decay_t<Src>>>(
-          std::forward<Src>(src), options.buffer_options());
-      return result;
-    case ReadNewline::kCrLfOrLf:
-      result.template Emplace<
-          TextReader<ReadNewline::kCrLfOrLf, std::decay_t<Src>>>(
-          std::forward<Src>(src), options.buffer_options());
-      return result;
-    case ReadNewline::kAny:
-      result.template Emplace<TextReader<ReadNewline::kAny, std::decay_t<Src>>>(
-          std::forward<Src>(src), options.buffer_options());
-      return result;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
+  return MakeAnyTextReader(
+      Initializer<std::decay_t<Src>>(std::forward<Src>(src)),
+      std::move(options));
 }
 
-template <typename Src, typename... SrcArgs,
+template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src>::value, int>>
-AnyTextReader<Src> MakeAnyTextReader(std::tuple<SrcArgs...> src_args,
+AnyTextReader<Src> MakeAnyTextReader(Initializer<Src> src,
                                      AnyTextReaderOptions options) {
   AnyTextReader<Src> result;
   switch (options.newline()) {
     case ReadNewline::kLf:
       result.template Emplace<TextReader<ReadNewline::kLf, Src>>(
-          std::move(src_args), options.buffer_options());
+          std::move(src), options.buffer_options());
       return result;
     case ReadNewline::kCrLfOrLf:
       result.template Emplace<TextReader<ReadNewline::kCrLfOrLf, Src>>(
-          std::move(src_args), options.buffer_options());
+          std::move(src), options.buffer_options());
       return result;
     case ReadNewline::kAny:
       result.template Emplace<TextReader<ReadNewline::kAny, Src>>(
-          std::move(src_args), options.buffer_options());
+          std::move(src), options.buffer_options());
       return result;
   }
   RIEGELI_ASSERT_UNREACHABLE()

@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -392,19 +393,13 @@ class CFileWriter : public CFileWriterBase {
   explicit CFileWriter(Closed) noexcept : CFileWriterBase(kClosed) {}
 
   // Will write to the `FILE` provided by `dest`.
-  explicit CFileWriter(const Dest& dest, Options options = Options());
-  explicit CFileWriter(Dest&& dest, Options options = Options());
+  explicit CFileWriter(Initializer<Dest> dest, Options options = Options());
+
+  // Will write to `dest`.
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
                              int> = 0>
   explicit CFileWriter(FILE* dest, Options options = Options());
-
-  // Will write to the `FILE` provided by a `Dest` constructed from elements of
-  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit CFileWriter(std::tuple<DestArgs...> dest_args,
-                       Options options = Options());
 
   // Opens a file for writing.
   //
@@ -421,17 +416,12 @@ class CFileWriter : public CFileWriterBase {
   // Makes `*this` equivalent to a newly constructed `CFileWriter`. This avoids
   // constructing a temporary `CFileWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
                                           Options options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
@@ -457,14 +447,6 @@ class CFileWriter : public CFileWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CFileWriter(Closed) -> CFileWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit CFileWriter(const Dest& dest, CFileWriterBase::Options options =
-                                           CFileWriterBase::Options())
-    -> CFileWriter<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<const Dest&, FILE*>,
-            std::is_convertible<const Dest&, absl::string_view>>::value,
-        OwnedCFile, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
@@ -566,13 +548,7 @@ inline bool CFileWriterBase::InitializeAssumedFilename(Options& options) {
 }
 
 template <typename Dest>
-inline CFileWriter<Dest>::CFileWriter(const Dest& dest, Options options)
-    : CFileWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(*dest_, std::move(options));
-}
-
-template <typename Dest>
-inline CFileWriter<Dest>::CFileWriter(Dest&& dest, Options options)
+inline CFileWriter<Dest>::CFileWriter(Initializer<Dest> dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(*dest_, std::move(options));
 }
@@ -583,14 +559,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
     : CFileWriter(std::forward_as_tuple(dest), std::move(options)) {}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline CFileWriter<Dest>::CFileWriter(std::tuple<DestArgs...> dest_args,
-                                      Options options)
-    : CFileWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
-  Initialize(*dest_, std::move(options));
-}
 
 template <typename Dest>
 template <typename DependentDest,
@@ -630,14 +598,7 @@ inline void CFileWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void CFileWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CFileWriterBase::Reset(options.buffer_options());
-  dest_.Reset(dest);
-  Initialize(*dest_, std::move(options));
-}
-
-template <typename Dest>
-inline void CFileWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void CFileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
   Initialize(*dest_, std::move(options));
@@ -649,15 +610,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
   Reset(std::forward_as_tuple(dest), std::move(options));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void CFileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                     Options options) {
-  CFileWriterBase::Reset(options.buffer_options());
-  dest_.Reset(std::move(dest_args));
-  Initialize(*dest_, std::move(options));
 }
 
 template <typename Dest>

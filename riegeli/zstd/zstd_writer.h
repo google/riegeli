@@ -29,6 +29,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
@@ -292,15 +293,7 @@ class ZstdWriter : public ZstdWriterBase {
   explicit ZstdWriter(Closed) noexcept : ZstdWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit ZstdWriter(const Dest& dest, Options options = Options());
-  explicit ZstdWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit ZstdWriter(std::tuple<DestArgs...> dest_args,
-                      Options options = Options());
+  explicit ZstdWriter(Initializer<Dest> dest, Options options = Options());
 
   ZstdWriter(ZstdWriter&& that) noexcept;
   ZstdWriter& operator=(ZstdWriter&& that) noexcept;
@@ -308,12 +301,7 @@ class ZstdWriter : public ZstdWriterBase {
   // Makes `*this` equivalent to a newly constructed `ZstdWriter`. This avoids
   // constructing a temporary `ZstdWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -334,10 +322,6 @@ class ZstdWriter : public ZstdWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ZstdWriter(Closed) -> ZstdWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit ZstdWriter(const Dest& dest,
-                    ZstdWriterBase::Options options = ZstdWriterBase::Options())
-    -> ZstdWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit ZstdWriter(Dest&& dest,
                     ZstdWriterBase::Options options = ZstdWriterBase::Options())
@@ -413,36 +397,12 @@ inline void ZstdWriterBase::Reset(
 }
 
 template <typename Dest>
-inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
-    : ZstdWriterBase(options.effective_buffer_options(),
-                     std::move(options.dictionary()), options.pledged_size(),
-                     options.reserve_max_size(),
-                     options.recycling_pool_options()),
-      dest_(dest) {
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_checksum());
-}
-
-template <typename Dest>
-inline ZstdWriter<Dest>::ZstdWriter(Dest&& dest, Options options)
+inline ZstdWriter<Dest>::ZstdWriter(Initializer<Dest> dest, Options options)
     : ZstdWriterBase(options.effective_buffer_options(),
                      std::move(options.dictionary()), options.pledged_size(),
                      options.reserve_max_size(),
                      options.recycling_pool_options()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_checksum());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
-                                    Options options)
-    : ZstdWriterBase(options.effective_buffer_options(),
-                     std::move(options.dictionary()), options.pledged_size(),
-                     options.reserve_max_size(),
-                     options.recycling_pool_options()),
-      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_checksum());
 }
@@ -467,36 +427,12 @@ inline void ZstdWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ZstdWriterBase::Reset(options.effective_buffer_options(),
-                        std::move(options.dictionary()), options.pledged_size(),
-                        options.reserve_max_size(),
-                        options.recycling_pool_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_checksum());
-}
-
-template <typename Dest>
-inline void ZstdWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void ZstdWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   ZstdWriterBase::Reset(options.effective_buffer_options(),
                         std::move(options.dictionary()), options.pledged_size(),
                         options.reserve_max_size(),
                         options.recycling_pool_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_checksum());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void ZstdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                    Options options) {
-  ZstdWriterBase::Reset(options.effective_buffer_options(),
-                        std::move(options.dictionary()), options.pledged_size(),
-                        options.reserve_max_size(),
-                        options.recycling_pool_options());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_checksum());
 }

@@ -94,9 +94,6 @@ class TextPrintOptions {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// With a `dest_args` parameter, writes to a `Dest` constructed from elements of
-// `dest_args`. This avoids constructing a temporary `Dest` and moving from it.
-//
 // Returns status:
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)

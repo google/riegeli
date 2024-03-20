@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -29,6 +28,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -50,20 +50,14 @@ class ReaderCFileOptions {
 // e.g. `Reader*` (not owned), `ChainReader<>` (owned),
 // `std::unique_ptr<Reader>` (owned), `AnyDependency<Reader*>` (maybe owned).
 //
-// With a `src_args` parameter, reads from a `Src` constructed from elements of
-// `src_args`. This avoids constructing a temporary `Src` and moving from it.
-//
 // The `Reader` must not be accessed until the `FILE` is closed. Warning: this
 // includes implicit closing of all `FILE` objects which are still open at
 // program exit, hence if the `FILE` persists until program exit, then the
 // `Reader` must do so as well.
 template <typename Src>
-FILE* ReaderCFile(const Src& src,
-                  ReaderCFileOptions options = ReaderCFileOptions());
-template <typename Src>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options = ReaderCFileOptions());
-template <typename Src, typename... SrcArgs>
-FILE* ReaderCFile(std::tuple<SrcArgs...> src_args,
+template <typename Src>
+FILE* ReaderCFile(Initializer<Src> src,
                   ReaderCFileOptions options = ReaderCFileOptions());
 
 // Implementation details follow.
@@ -102,15 +96,7 @@ inline void ReaderCFileCookieBase::Initialize(Reader* reader) {
 template <typename Src>
 class ReaderCFileCookie : public ReaderCFileCookieBase {
  public:
-  explicit ReaderCFileCookie(const Src& src) : src_(src) {
-    Initialize(src_.get());
-  }
-  explicit ReaderCFileCookie(Src&& src) : src_(std::move(src)) {
-    Initialize(src_.get());
-  }
-  template <typename... SrcArgs>
-  explicit ReaderCFileCookie(std::tuple<SrcArgs...> src_args)
-      : src_(std::move(src_args)) {
+  explicit ReaderCFileCookie(Initializer<Src> src) : src_(std::move(src)) {
     Initialize(src_.get());
   }
 
@@ -138,22 +124,15 @@ FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
 }  // namespace cfile_internal
 
 template <typename Src>
-FILE* ReaderCFile(const Src& src, ReaderCFileOptions options) {
-  return cfile_internal::ReaderCFileImpl(
-      new cfile_internal::ReaderCFileCookie<std::decay_t<Src>>(src));
+FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
+  return ReaderCFile(Initializer<std::decay_t<Src>>(std::forward<Src>(src)),
+                     std::move(options));
 }
 
 template <typename Src>
-FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
+FILE* ReaderCFile(Initializer<Src> src, ReaderCFileOptions options) {
   return cfile_internal::ReaderCFileImpl(
-      new cfile_internal::ReaderCFileCookie<std::decay_t<Src>>(
-          std::forward<Src>(src)));
-}
-
-template <typename Src, typename... SrcArgs>
-FILE* ReaderCFile(std::tuple<SrcArgs...> src_args, ReaderCFileOptions options) {
-  return cfile_internal::ReaderCFileImpl(
-      new cfile_internal::ReaderCFileCookie<Src>(std::move(src_args)));
+      new cfile_internal::ReaderCFileCookie<Src>(std::move(src)));
 }
 
 }  // namespace riegeli

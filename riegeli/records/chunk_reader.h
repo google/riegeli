@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -262,14 +263,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   explicit DefaultChunkReader(Closed) : DefaultChunkReaderBase(kClosed) {}
 
   // Will read from the byte `Reader` provided by `src`.
-  explicit DefaultChunkReader(const Src& src);
-  explicit DefaultChunkReader(Src&& src);
-
-  // Will read from the byte `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args);
+  explicit DefaultChunkReader(Initializer<Src> src);
 
   DefaultChunkReader(DefaultChunkReader&& that) noexcept;
   DefaultChunkReader& operator=(DefaultChunkReader&& that) noexcept;
@@ -277,10 +271,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // Makes `*this` equivalent to a newly constructed `DefaultChunkReader`. This
   // avoids constructing a temporary `DefaultChunkReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src);
 
   // Returns the object providing and possibly owning the byte `Reader`.
   // Unchanged by `Close()`.
@@ -301,9 +292,6 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 #if __cpp_deduction_guides
 explicit DefaultChunkReader(Closed) -> DefaultChunkReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit DefaultChunkReader(const Src& src)
-    -> DefaultChunkReader<std::decay_t<Src>>;
-template <typename Src>
 explicit DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
 explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args)
@@ -320,27 +308,13 @@ class DependencyImpl<
  public:
   DependencyImpl() noexcept : chunk_reader_(kClosed) {}
 
-  explicit DependencyImpl(const Manager& manager) : chunk_reader_(manager) {}
-  explicit DependencyImpl(Manager&& manager)
+  explicit DependencyImpl(Initializer<Manager> manager)
       : chunk_reader_(std::move(manager)) {}
-
-  template <typename... ManagerArgs>
-  explicit DependencyImpl(std::tuple<ManagerArgs...> manager_args)
-      : chunk_reader_(std::move(manager_args)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_reader_.Reset(kClosed); }
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
-    chunk_reader_.Reset(manager);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
     chunk_reader_.Reset(std::move(manager));
-  }
-
-  template <typename... ManagerArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      std::tuple<ManagerArgs...> manager_args) {
-    chunk_reader_.Reset(std::move(manager_args));
   }
 
   Manager& manager() { return chunk_reader_.src(); }
@@ -405,21 +379,8 @@ inline void DefaultChunkReaderBase::Reset() {
 }
 
 template <typename Src>
-inline DefaultChunkReader<Src>::DefaultChunkReader(const Src& src) : src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline DefaultChunkReader<Src>::DefaultChunkReader(Src&& src)
+inline DefaultChunkReader<Src>::DefaultChunkReader(Initializer<Src> src)
     : src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline DefaultChunkReader<Src>::DefaultChunkReader(
-    std::tuple<SrcArgs...> src_args)
-    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -445,24 +406,9 @@ inline void DefaultChunkReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void DefaultChunkReader<Src>::Reset(const Src& src) {
-  DefaultChunkReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void DefaultChunkReader<Src>::Reset(Src&& src) {
+inline void DefaultChunkReader<Src>::Reset(Initializer<Src> src) {
   DefaultChunkReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void DefaultChunkReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  DefaultChunkReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

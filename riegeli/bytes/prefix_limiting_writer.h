@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -154,14 +155,7 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
       : PrefixLimitingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit PrefixLimitingWriter(const Dest& dest, Options options = Options());
-  explicit PrefixLimitingWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit PrefixLimitingWriter(std::tuple<DestArgs...> dest_args,
+  explicit PrefixLimitingWriter(Initializer<Dest> dest,
                                 Options options = Options());
 
   PrefixLimitingWriter(PrefixLimitingWriter&& that) noexcept;
@@ -171,12 +165,7 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   // This avoids constructing a temporary `PrefixLimitingWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
@@ -203,11 +192,6 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
 #if __cpp_deduction_guides
 explicit PrefixLimitingWriter(Closed)
     -> PrefixLimitingWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit PrefixLimitingWriter(const Dest& dest,
-                              PrefixLimitingWriterBase::Options options =
-                                  PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit PrefixLimitingWriter(Dest&& dest,
                               PrefixLimitingWriterBase::Options options =
@@ -278,24 +262,9 @@ inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(const Dest& dest,
-                                                        Options options)
-    : dest_(dest) {
-  Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(Dest&& dest,
+inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(Initializer<Dest> dest,
                                                         Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.base_pos());
 }
 
@@ -322,26 +291,10 @@ inline void PrefixLimitingWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::Reset(const Dest& dest,
+inline void PrefixLimitingWriter<Dest>::Reset(Initializer<Dest> dest,
                                               Options options) {
-  PrefixLimitingWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
   PrefixLimitingWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void PrefixLimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                              Options options) {
-  PrefixLimitingWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.base_pos());
 }
 

@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "brotli/decode.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/brotli/brotli_allocator.h"   // IWYU pragma: export
@@ -155,15 +156,7 @@ class BrotliReader : public BrotliReaderBase {
   explicit BrotliReader(Closed) noexcept : BrotliReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
-  explicit BrotliReader(const Src& src, Options options = Options());
-  explicit BrotliReader(Src&& src, Options options = Options());
-
-  // Will read from the compressed `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit BrotliReader(std::tuple<SrcArgs...> src_args,
-                        Options options = Options());
+  explicit BrotliReader(Initializer<Src> src, Options options = Options());
 
   BrotliReader(BrotliReader&& that) noexcept;
   BrotliReader& operator=(BrotliReader&& that) noexcept;
@@ -171,12 +164,7 @@ class BrotliReader : public BrotliReaderBase {
   // Makes `*this` equivalent to a newly constructed `BrotliReader`. This avoids
   // constructing a temporary `BrotliReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Reader`.
@@ -198,10 +186,6 @@ class BrotliReader : public BrotliReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit BrotliReader(Closed) -> BrotliReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit BrotliReader(const Src& src, BrotliReaderBase::Options options =
-                                          BrotliReaderBase::Options())
-    -> BrotliReader<std::decay_t<Src>>;
 template <typename Src>
 explicit BrotliReader(
     Src&& src, BrotliReaderBase::Options options = BrotliReaderBase::Options())
@@ -258,28 +242,10 @@ inline void BrotliReaderBase::Reset(BrotliDictionary&& dictionary,
 }
 
 template <typename Src>
-inline BrotliReader<Src>::BrotliReader(const Src& src, Options options)
-    : BrotliReaderBase(std::move(options.dictionary()),
-                       std::move(options.allocator())),
-      src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline BrotliReader<Src>::BrotliReader(Src&& src, Options options)
+inline BrotliReader<Src>::BrotliReader(Initializer<Src> src, Options options)
     : BrotliReaderBase(std::move(options.dictionary()),
                        std::move(options.allocator())),
       src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
-                                       Options options)
-    : BrotliReaderBase(std::move(options.dictionary()),
-                       std::move(options.allocator())),
-      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -303,28 +269,10 @@ inline void BrotliReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void BrotliReader<Src>::Reset(const Src& src, Options options) {
-  BrotliReaderBase::Reset(std::move(options.dictionary()),
-                          std::move(options.allocator()));
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void BrotliReader<Src>::Reset(Src&& src, Options options) {
+inline void BrotliReader<Src>::Reset(Initializer<Src> src, Options options) {
   BrotliReaderBase::Reset(std::move(options.dictionary()),
                           std::move(options.allocator()));
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void BrotliReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                     Options options) {
-  BrotliReaderBase::Reset(std::move(options.dictionary()),
-                          std::move(options.allocator()));
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

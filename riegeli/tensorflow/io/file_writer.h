@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/types.h"
@@ -192,15 +193,7 @@ class FileWriter : public FileWriterBase {
   explicit FileWriter(Closed) noexcept : FileWriterBase(kClosed) {}
 
   // Will write to the `::tensorflow::WritableFile` provided by `dest`.
-  explicit FileWriter(const Dest& dest, Options options = Options());
-  explicit FileWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the `::tensorflow::WritableFile` provided by a `Dest`
-  // constructed from elements of `dest_args`. This avoids constructing a
-  // temporary `Dest` and moving from it.
-  template <typename... DestArgs>
-  explicit FileWriter(std::tuple<DestArgs...> dest_args,
-                      Options options = Options());
+  explicit FileWriter(Initializer<Dest> dest, Options options = Options());
 
   // Opens a `::tensorflow::WritableFile` for writing.
   //
@@ -213,15 +206,10 @@ class FileWriter : public FileWriterBase {
   // Makes `*this` equivalent to a newly constructed `FileWriter`. This avoids
   // constructing a temporary `FileWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
-                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES
+  void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
@@ -245,12 +233,6 @@ class FileWriter : public FileWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit FileWriter(Closed) -> FileWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit FileWriter(const Dest& dest,
-                    FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<std::conditional_t<
-        std::is_convertible<const Dest&, absl::string_view>::value,
-        std::unique_ptr<::tensorflow::WritableFile>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit FileWriter(Dest&& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
@@ -318,24 +300,9 @@ inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(const Dest& dest, Options options)
-    : FileWriterBase(options.buffer_options(), options.env()), dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline FileWriter<Dest>::FileWriter(Dest&& dest, Options options)
+inline FileWriter<Dest>::FileWriter(Initializer<Dest> dest, Options options)
     : FileWriterBase(options.buffer_options(), options.env()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
-                                    Options options)
-    : FileWriterBase(options.buffer_options(), options.env()),
-      dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -366,25 +333,9 @@ inline void FileWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FileWriterBase::Reset(options.buffer_options(), options.env());
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void FileWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void FileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   FileWriterBase::Reset(options.buffer_options(), options.env());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                    Options options) {
-  FileWriterBase::Reset(options.buffer_options(), options.env());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -157,14 +158,7 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
       : PositionShiftingReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit PositionShiftingReader(const Src& src, Options options = Options());
-  explicit PositionShiftingReader(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit PositionShiftingReader(std::tuple<SrcArgs...> src_args,
+  explicit PositionShiftingReader(Initializer<Src> src,
                                   Options options = Options());
 
   PositionShiftingReader(PositionShiftingReader&& that) noexcept;
@@ -174,12 +168,7 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
   // This avoids constructing a temporary `PositionShiftingReader` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
@@ -207,11 +196,6 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
 #if __cpp_deduction_guides
 explicit PositionShiftingReader(Closed)
     -> PositionShiftingReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit PositionShiftingReader(const Src& src,
-                                PositionShiftingReaderBase::Options options =
-                                    PositionShiftingReaderBase::Options())
-    -> PositionShiftingReader<std::decay_t<Src>>;
 template <typename Src>
 explicit PositionShiftingReader(Src&& src,
                                 PositionShiftingReaderBase::Options options =
@@ -274,25 +258,9 @@ inline void PositionShiftingReaderBase::MakeBuffer(Reader& src) {
 }
 
 template <typename Src>
-inline PositionShiftingReader<Src>::PositionShiftingReader(const Src& src,
-                                                           Options options)
-    : PositionShiftingReaderBase(options.base_pos()), src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline PositionShiftingReader<Src>::PositionShiftingReader(Src&& src,
+inline PositionShiftingReader<Src>::PositionShiftingReader(Initializer<Src> src,
                                                            Options options)
     : PositionShiftingReaderBase(options.base_pos()), src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline PositionShiftingReader<Src>::PositionShiftingReader(
-    std::tuple<SrcArgs...> src_args, Options options)
-    : PositionShiftingReaderBase(options.base_pos()),
-      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -320,26 +288,10 @@ inline void PositionShiftingReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void PositionShiftingReader<Src>::Reset(const Src& src,
+inline void PositionShiftingReader<Src>::Reset(Initializer<Src> src,
                                                Options options) {
-  PositionShiftingReaderBase::Reset(options.base_pos());
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void PositionShiftingReader<Src>::Reset(Src&& src, Options options) {
   PositionShiftingReaderBase::Reset(options.base_pos());
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void PositionShiftingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                               Options options) {
-  PositionShiftingReaderBase::Reset(options.base_pos());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

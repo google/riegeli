@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
@@ -131,34 +132,11 @@ class DigestingWriter : public DigestingWriterBase {
   // Creates a closed `DigestingWriter`.
   explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
 
-  // Will write to the original `Writer` provided by `dest`, using the digester
-  // provided by `digester` or constructed from elements of `digester_args`.
-  explicit DigestingWriter(const Dest& dest, const DigesterType& digester);
-  explicit DigestingWriter(const Dest& dest, DigesterType&& digester);
-  template <typename... DigesterArgs>
+  // Will write to the original `Writer` provided by `dest`, using the
+  // digester provided by `digester`.
   explicit DigestingWriter(
-      const Dest& dest,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
-  explicit DigestingWriter(Dest&& dest, const DigesterType& digester);
-  explicit DigestingWriter(Dest&& dest, DigesterType&& digester);
-  template <typename... DigesterArgs>
-  explicit DigestingWriter(
-      Dest&& dest,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
-                           const DigesterType& digester);
-  template <typename... DestArgs>
-  explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
-                           DigesterType&& digester);
-  template <typename... DestArgs, typename... DigesterArgs>
-  explicit DigestingWriter(
-      std::tuple<DestArgs...> dest_args,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
+      Initializer<Dest> dest,
+      Initializer<DigesterType> digester = std::forward_as_tuple());
 
   DigestingWriter(DigestingWriter&& that) noexcept;
   DigestingWriter& operator=(DigestingWriter&& that) noexcept;
@@ -166,31 +144,9 @@ class DigestingWriter : public DigestingWriterBase {
   // Makes `*this` equivalent to a newly constructed `DigestingWriter`. This
   // avoids constructing a temporary `DigestingWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          const DigesterType& digester);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          DigesterType&& digester);
-  template <typename... DigesterArgs>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      const Dest& dest,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          const DigesterType& digester);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest, DigesterType&& digester);
-  template <typename... DigesterArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Dest&& dest,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
-                                          const DigesterType& digester);
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
-                                          DigesterType&& digester);
-  template <typename... DestArgs, typename... DigesterArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      std::tuple<DestArgs...> dest_args,
-      std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple());
+      Initializer<Dest> dest,
+      Initializer<DigesterType> digester = std::forward_as_tuple());
 
   // Digests buffered data if needed, and returns the digest.
   //
@@ -248,39 +204,23 @@ class DigestingWriter : public DigestingWriterBase {
 #if __cpp_deduction_guides
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename DigesterType, typename Dest>
-explicit DigestingWriter(const Dest& dest, const DigesterType& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>, std::decay_t<Dest>>;
-template <typename DigesterType, typename Dest>
-explicit DigestingWriter(const Dest& dest, DigesterType&& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>, std::decay_t<Dest>>;
-template <typename... DigesterArgs, typename Dest>
-explicit DigestingWriter(const Dest& dest,
-                         std::tuple<DigesterArgs...> digester_args)
-    -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
-                       std::decay_t<Dest>>;
-template <typename DigesterType, typename Dest>
-explicit DigestingWriter(Dest&& dest, const DigesterType& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>, std::decay_t<Dest>>;
-template <typename DigesterType, typename Dest>
 explicit DigestingWriter(Dest&& dest, DigesterType&& digester)
     -> DigestingWriter<std::decay_t<DigesterType>, std::decay_t<Dest>>;
 template <typename... DigesterArgs, typename Dest>
-explicit DigestingWriter(Dest&& dest, std::tuple<DigesterArgs...> digester_args)
+explicit DigestingWriter(
+    Dest&& dest,
+    std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
     -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
                        std::decay_t<Dest>>;
-template <typename DigesterType, typename... DestArgs>
-explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
-                         const DigesterType& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>,
-                       DeleteCtad<std::tuple<DestArgs...>>>;
 template <typename DigesterType, typename... DestArgs>
 explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
                          DigesterType&& digester)
     -> DigestingWriter<std::decay_t<DigesterType>,
                        DeleteCtad<std::tuple<DestArgs...>>>;
 template <typename... DigesterArgs, typename... DestArgs>
-explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
-                         std::tuple<DigesterArgs...> digester_args)
+explicit DigestingWriter(
+    std::tuple<DestArgs...> dest_args,
+    std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
     -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
                        DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
@@ -361,70 +301,8 @@ inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
 
 template <typename DigesterType, typename Dest>
 inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    const Dest& dest, const DigesterType& digester)
-    : digester_(digester), dest_(dest) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    const Dest& dest, DigesterType&& digester)
-    : digester_(std::move(digester)), dest_(dest) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DigesterArgs>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    const Dest& dest, std::tuple<DigesterArgs...> digester_args)
-    : digester_(std::move(digester_args)), dest_(dest) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    Dest&& dest, const DigesterType& digester)
-    : digester_(digester), dest_(std::move(dest)) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    Dest&& dest, DigesterType&& digester)
+    Initializer<Dest> dest, Initializer<DigesterType> digester)
     : digester_(std::move(digester)), dest_(std::move(dest)) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DigesterArgs>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    Dest&& dest, std::tuple<DigesterArgs...> digester_args)
-    : digester_(std::move(digester_args)), dest_(std::move(dest)) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    std::tuple<DestArgs...> dest_args, const DigesterType& digester)
-    : digester_(digester), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    std::tuple<DestArgs...> dest_args, DigesterType&& digester)
-    : digester_(std::move(digester)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs, typename... DigesterArgs>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    std::tuple<DestArgs...> dest_args,
-    std::tuple<DigesterArgs...> digester_args)
-    : digester_(std::move(digester_args)), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), digester_.get());
 }
 
@@ -455,88 +333,10 @@ inline void DigestingWriter<DigesterType, Dest>::Reset(Closed) {
 
 template <typename DigesterType, typename Dest>
 inline void DigestingWriter<DigesterType, Dest>::Reset(
-    const Dest& dest, const DigesterType& digester) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(digester);
-  dest_.Reset(dest);
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    const Dest& dest, DigesterType&& digester) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(std::move(digester));
-  dest_.Reset(dest);
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DigesterArgs>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    const Dest& dest, std::tuple<DigesterArgs...> digester_args) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(std::move(digester_args));
-  dest_.Reset(dest);
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    Dest&& dest, const DigesterType& digester) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(digester);
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    Dest&& dest, DigesterType&& digester) {
+    Initializer<Dest> dest, Initializer<DigesterType> digester) {
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DigesterArgs>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    Dest&& dest, std::tuple<DigesterArgs...> digester_args) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(std::move(digester_args));
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, const DigesterType& digester) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(digester);
-  dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, DigesterType&& digester) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(std::move(digester));
-  dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), digester_.get());
-}
-
-template <typename DigesterType, typename Dest>
-template <typename... DestArgs, typename... DigesterArgs>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args,
-    std::tuple<DigesterArgs...> digester_args) {
-  DigestingWriterBase::Reset();
-  digester_.Reset(std::move(digester_args));
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), digester_.get());
 }
 

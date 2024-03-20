@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -224,15 +225,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
       : LimitingBackwardWriterBase(kClosed) {}
 
   // Will write to the original `BackwardWriter` provided by `dest`.
-  explicit LimitingBackwardWriter(const Dest& dest,
-                                  Options options = Options());
-  explicit LimitingBackwardWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `BackwardWriter` provided by a `Dest`
-  // constructed from elements of `dest_args`. This avoids constructing a
-  // temporary `Dest` and moving from it.
-  template <typename... DestArgs>
-  explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
+  explicit LimitingBackwardWriter(Initializer<Dest> dest,
                                   Options options = Options());
 
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
@@ -242,12 +235,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // This avoids constructing a temporary `LimitingBackwardWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original
@@ -274,11 +262,6 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 #if __cpp_deduction_guides
 explicit LimitingBackwardWriter(Closed)
     -> LimitingBackwardWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit LimitingBackwardWriter(const Dest& dest,
-                                LimitingBackwardWriterBase::Options options =
-                                    LimitingBackwardWriterBase::Options())
-    -> LimitingBackwardWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit LimitingBackwardWriter(Dest&& dest,
                                 LimitingBackwardWriterBase::Options options =
@@ -380,24 +363,9 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
 }
 
 template <typename Dest>
-inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(const Dest& dest,
-                                                            Options options)
-    : LimitingBackwardWriterBase(options.exact()), dest_(dest) {
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest&& dest,
-                                                            Options options)
-    : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest_args)) {
+    Initializer<Dest> dest, Options options)
+    : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 
@@ -425,26 +393,10 @@ inline void LimitingBackwardWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void LimitingBackwardWriter<Dest>::Reset(const Dest& dest,
+inline void LimitingBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
                                                 Options options) {
   LimitingBackwardWriterBase::Reset(options.exact());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline void LimitingBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void LimitingBackwardWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, Options options) {
-  LimitingBackwardWriterBase::Reset(options.exact());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
 }
 

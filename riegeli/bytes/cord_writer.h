@@ -35,6 +35,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -244,15 +245,7 @@ class CordWriter : public CordWriterBase {
   explicit CordWriter(Closed) noexcept : CordWriterBase(kClosed) {}
 
   // Will append to the `absl::Cord` provided by `dest`.
-  explicit CordWriter(const Dest& dest, Options options = Options());
-  explicit CordWriter(Dest&& dest, Options options = Options());
-
-  // Will append to the `absl::Cord` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit CordWriter(std::tuple<DestArgs...> dest_args,
-                      Options options = Options());
+  explicit CordWriter(Initializer<Dest> dest, Options options = Options());
 
   // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `absl::Cord`.
@@ -267,12 +260,7 @@ class CordWriter : public CordWriterBase {
   // Makes `*this` equivalent to a newly constructed `CordWriter`. This avoids
   // constructing a temporary `CordWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
@@ -293,12 +281,6 @@ class CordWriter : public CordWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CordWriter(Closed) -> CordWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit CordWriter(const Dest& dest,
-                    CordWriterBase::Options options = CordWriterBase::Options())
-    -> CordWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const absl::Cord*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit CordWriter(Dest&& dest,
                     CordWriterBase::Options options = CordWriterBase::Options())
@@ -397,22 +379,8 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
 }
 
 template <typename Dest>
-inline CordWriter<Dest>::CordWriter(const Dest& dest, Options options)
-    : CordWriterBase(options), dest_(dest) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline CordWriter<Dest>::CordWriter(Dest&& dest, Options options)
+inline CordWriter<Dest>::CordWriter(Initializer<Dest> dest, Options options)
     : CordWriterBase(options), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline CordWriter<Dest>::CordWriter(std::tuple<DestArgs...> dest_args,
-                                    Options options)
-    : CordWriterBase(options), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -442,25 +410,9 @@ inline void CordWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void CordWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CordWriterBase::Reset(options);
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline void CordWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void CordWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   CordWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void CordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                    Options options) {
-  CordWriterBase::Reset(options);
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }
 

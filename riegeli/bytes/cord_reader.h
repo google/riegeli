@@ -31,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -131,14 +132,7 @@ class CordReader : public CordReaderBase {
   explicit CordReader(Closed) noexcept : CordReaderBase(kClosed) {}
 
   // Will read from the `absl::Cord` provided by `src`.
-  explicit CordReader(const Src& src);
-  explicit CordReader(Src&& src);
-
-  // Will read from the `absl::Cord` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit CordReader(std::tuple<SrcArgs...> src_args);
+  explicit CordReader(Initializer<Src> src);
 
   CordReader(CordReader&& that) noexcept;
   CordReader& operator=(CordReader&& that) noexcept;
@@ -146,10 +140,7 @@ class CordReader : public CordReaderBase {
   // Makes `*this` equivalent to a newly constructed `CordReader`. This avoids
   // constructing a temporary `CordReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src);
 
   // Returns the object providing and possibly owning the `absl::Cord` being
   // read from. Unchanged by `Close()`.
@@ -169,8 +160,6 @@ class CordReader : public CordReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CordReader(Closed) -> CordReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit CordReader(const Src& src) -> CordReader<std::decay_t<Src>>;
 template <typename Src>
 explicit CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
@@ -230,19 +219,8 @@ inline void CordReaderBase::MakeBuffer(const absl::Cord& src) {
 }
 
 template <typename Src>
-inline CordReader<Src>::CordReader(const Src& src) : src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline CordReader<Src>::CordReader(Src&& src) : src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline CordReader<Src>::CordReader(std::tuple<SrcArgs...> src_args)
-    : src_(std::move(src_args)) {
+inline CordReader<Src>::CordReader(Initializer<Src> src)
+    : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -266,24 +244,9 @@ inline void CordReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void CordReader<Src>::Reset(const Src& src) {
-  CordReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void CordReader<Src>::Reset(Src&& src) {
+inline void CordReader<Src>::Reset(Initializer<Src> src) {
   CordReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void CordReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  CordReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

@@ -353,23 +353,18 @@ struct DependencyManagerPtrImpl {
       decltype(std::declval<const DependencyManagerAccess<Manager>&>().ptr());
 };
 
-// In `DependencyManagerPtrImpl<Manager>` for `Manager` stored by value,
-// avoid instantiating `DependencyManager<Manager>`. This could lead to
-// subtle compile errors for types involving implicit conversions like
-// `testing::Matcher<AnyDependency<std::string*>>`, causing the following
-// chain of template instantiations:
+// In `DependencyManagerPtrImpl<Manager>` for `Manager` stored by value, avoid
+// instantiating `DependencyManager<Manager>` just to see what its `ptr()` would
+// return. This could lead to subtle compile errors, causing the following chain
+// of template instantiations:
 //
-//  * IsValidDependency<string*, Matcher<AnyDependency<string*>>>
-//  * DependencyManagerPtr<Matcher<AnyDependency<string*>>>
-//  * DependencyManager<Matcher<AnyDependency<string*>>>
-//  * DependencyBase<Matcher<AnyDependency<string*>>>
-//  * is_convertible<Matcher<AnyDependency<string*>>&&,
-//                   Matcher<AnyDependency<string*>>>
-//  * Matcher<AnyDependency<string*>>::Matcher(AnyDependency<string*>) +
-//    AnyDependency<string*>::AnyDependency(Matcher<AnyDependency<string*>>&&)
-//  * IsValidDependency<string*, Matcher<AnyDependency<string*>>>
+//  * IsValidDependency<BackwardWriter*, Writer&>
+//  * IsValidDependencyDefault<BackwardWriter*, Writer>
+//  * DependencyManagerPtr<Writer>
+//  * DependencyManager<Writer>
+//  * DependencyBase<Writer>
 //
-// where an instantiation depends on itself.
+// which contains a member variable of an incomplete type.
 template <typename Manager>
 struct DependencyManagerPtrImpl<
     Manager,

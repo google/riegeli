@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -157,15 +158,7 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
       : PositionShiftingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit PositionShiftingWriter(const Dest& dest,
-                                  Options options = Options());
-  explicit PositionShiftingWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit PositionShiftingWriter(std::tuple<DestArgs...> dest_args,
+  explicit PositionShiftingWriter(Initializer<Dest> dest,
                                   Options options = Options());
 
   PositionShiftingWriter(PositionShiftingWriter&& that) noexcept;
@@ -175,12 +168,7 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
   // This avoids constructing a temporary `PositionShiftingWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
@@ -207,11 +195,6 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
 #if __cpp_deduction_guides
 explicit PositionShiftingWriter(Closed)
     -> PositionShiftingWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit PositionShiftingWriter(const Dest& dest,
-                                PositionShiftingWriterBase::Options options =
-                                    PositionShiftingWriterBase::Options())
-    -> PositionShiftingWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit PositionShiftingWriter(Dest&& dest,
                                 PositionShiftingWriterBase::Options options =
@@ -279,25 +262,9 @@ inline void PositionShiftingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline PositionShiftingWriter<Dest>::PositionShiftingWriter(const Dest& dest,
-                                                            Options options)
-    : PositionShiftingWriterBase(options.base_pos()), dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline PositionShiftingWriter<Dest>::PositionShiftingWriter(Dest&& dest,
-                                                            Options options)
-    : PositionShiftingWriterBase(options.base_pos()), dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
 inline PositionShiftingWriter<Dest>::PositionShiftingWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : PositionShiftingWriterBase(options.base_pos()),
-      dest_(std::move(dest_args)) {
+    Initializer<Dest> dest, Options options)
+    : PositionShiftingWriterBase(options.base_pos()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -325,26 +292,10 @@ inline void PositionShiftingWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void PositionShiftingWriter<Dest>::Reset(const Dest& dest,
+inline void PositionShiftingWriter<Dest>::Reset(Initializer<Dest> dest,
                                                 Options options) {
   PositionShiftingWriterBase::Reset(options.base_pos());
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void PositionShiftingWriter<Dest>::Reset(Dest&& dest, Options options) {
-  PositionShiftingWriterBase::Reset(options.base_pos());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void PositionShiftingWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, Options options) {
-  PositionShiftingWriterBase::Reset(options.base_pos());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

@@ -26,6 +26,7 @@
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -85,15 +86,7 @@ class TextWriter : public text_writer_internal::TextWriterImpl<newline> {
   explicit TextWriter(Closed) noexcept : TextWriter::TextWriterImpl(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
-  explicit TextWriter(const Dest& dest, Options options = Options());
-  explicit TextWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit TextWriter(std::tuple<DestArgs...> dest_args,
-                      Options options = Options());
+  explicit TextWriter(Initializer<Dest> dest, Options options = Options());
 
   TextWriter(TextWriter&& that) noexcept;
   TextWriter& operator=(TextWriter&& that) noexcept;
@@ -101,12 +94,7 @@ class TextWriter : public text_writer_internal::TextWriterImpl<newline> {
   // Makes `*this` equivalent to a newly constructed `TextWriter`. This avoids
   // constructing a temporary `TextWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
@@ -142,15 +130,7 @@ class TextWriter<WriteNewline::kLf, Dest> : public PrefixLimitingWriter<Dest> {
   // Will write to the original `Writer` provided by `dest`.
   //
   // `options` are ignored in this class template specialization.
-  explicit TextWriter(const Dest& dest, Options options = Options());
-  explicit TextWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the original `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit TextWriter(std::tuple<DestArgs...> dest_args,
-                      Options options = Options());
+  explicit TextWriter(Initializer<Dest> dest, Options options = Options());
 
   TextWriter(TextWriter&& that) = default;
   TextWriter& operator=(TextWriter&& that) = default;
@@ -158,12 +138,7 @@ class TextWriter<WriteNewline::kLf, Dest> : public PrefixLimitingWriter<Dest> {
   // Makes `*this` equivalent to a newly constructed `TextWriter`. This avoids
   // constructing a temporary `TextWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 };
 
@@ -171,10 +146,6 @@ class TextWriter<WriteNewline::kLf, Dest> : public PrefixLimitingWriter<Dest> {
 #if __cpp_deduction_guides
 explicit TextWriter(Closed)
     -> TextWriter<WriteNewline::kNative, DeleteCtad<Closed>>;
-template <typename Dest>
-explicit TextWriter(const Dest& dest,
-                    TextWriterBase::Options options = TextWriterBase::Options())
-    -> TextWriter<WriteNewline::kNative, std::decay_t<Dest>>;
 template <typename Dest>
 explicit TextWriter(Dest&& dest,
                     TextWriterBase::Options options = TextWriterBase::Options())
@@ -218,16 +189,11 @@ template <typename Dest,
           std::enable_if_t<
               IsValidDependency<Writer*, std::decay_t<Dest>>::value, int> = 0>
 AnyTextWriter<Dest> MakeAnyTextWriter(
-    const Dest& dest, AnyTextWriterOptions options = AnyTextWriterOptions());
-template <typename Dest,
-          std::enable_if_t<
-              IsValidDependency<Writer*, std::decay_t<Dest>>::value, int> = 0>
-AnyTextWriter<Dest> MakeAnyTextWriter(
     Dest&& dest, AnyTextWriterOptions options = AnyTextWriterOptions());
-template <typename Dest, typename... DestArgs,
+template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest>::value, int> = 0>
 AnyTextWriter<Dest> MakeAnyTextWriter(
-    std::tuple<DestArgs...> dest_args,
+    Initializer<Dest> dest,
     AnyTextWriterOptions options = AnyTextWriterOptions());
 
 // Implementation details below.
@@ -241,22 +207,9 @@ inline void TextWriterBase::Initialize(Writer* dest) {
 }
 
 template <WriteNewline newline, typename Dest>
-inline TextWriter<newline, Dest>::TextWriter(const Dest& dest, Options options)
-    : TextWriter::TextWriterImpl(options), dest_(dest) {
-  this->Initialize(dest_.get());
-}
-
-template <WriteNewline newline, typename Dest>
-inline TextWriter<newline, Dest>::TextWriter(Dest&& dest, Options options)
-    : TextWriter::TextWriterImpl(options), dest_(std::forward<Dest>(dest)) {
-  this->Initialize(dest_.get());
-}
-
-template <WriteNewline newline, typename Dest>
-template <typename... DestArgs>
-inline TextWriter<newline, Dest>::TextWriter(std::tuple<DestArgs...> dest_args,
+inline TextWriter<newline, Dest>::TextWriter(Initializer<Dest> dest,
                                              Options options)
-    : TextWriter::TextWriterImpl(options), dest_(std::move(dest_args)) {
+    : TextWriter::TextWriterImpl(options), dest_(std::move(dest)) {
   this->Initialize(dest_.get());
 }
 
@@ -282,26 +235,10 @@ inline void TextWriter<newline, Dest>::Reset(Closed) {
 }
 
 template <WriteNewline newline, typename Dest>
-inline void TextWriter<newline, Dest>::Reset(const Dest& dest,
+inline void TextWriter<newline, Dest>::Reset(Initializer<Dest> dest,
                                              Options options) {
-  TextWriter::TextWriterImpl::Reset(options);
-  dest_.Reset(dest);
-  this->Initialize(dest_.get());
-}
-
-template <WriteNewline newline, typename Dest>
-inline void TextWriter<newline, Dest>::Reset(Dest&& dest, Options options) {
   TextWriter::TextWriterImpl::Reset(options);
   dest_.Reset(std::move(dest));
-  this->Initialize(dest_.get());
-}
-
-template <WriteNewline newline, typename Dest>
-template <typename... DestArgs>
-inline void TextWriter<newline, Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                             Options options) {
-  TextWriter::TextWriterImpl::Reset(options);
-  dest_.Reset(std::move(dest_args));
   this->Initialize(dest_.get());
 }
 
@@ -331,19 +268,8 @@ bool TextWriter<newline, Dest>::FlushImpl(FlushType flush_type) {
 
 template <typename Dest>
 inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options)
-    : TextWriter::PrefixLimitingWriter(dest) {}
-
-template <typename Dest>
-inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options)
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : TextWriter::PrefixLimitingWriter(std::move(dest)) {}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options)
-    : TextWriter::PrefixLimitingWriter(std::move(dest_args)) {}
 
 template <typename Dest>
 inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Closed) {
@@ -352,48 +278,8 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
-  TextWriter::PrefixLimitingWriter::Reset(dest);
-}
-
-template <typename Dest>
-inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options) {
-  TextWriter::PrefixLimitingWriter::Reset(std::move(dest_args));
-}
-
-template <typename Dest,
-          std::enable_if_t<
-              IsValidDependency<Writer*, std::decay_t<Dest>>::value, int>>
-AnyTextWriter<Dest> MakeAnyTextWriter(const Dest& dest,
-                                      AnyTextWriterOptions options) {
-  AnyTextWriter<Dest> result;
-  switch (options.newline()) {
-    case WriteNewline::kLf:
-      result
-          .template Emplace<TextWriter<WriteNewline::kLf, std::decay_t<Dest>>>(
-              dest, options.buffer_options());
-      return result;
-    case WriteNewline::kCr:
-      result
-          .template Emplace<TextWriter<WriteNewline::kCr, std::decay_t<Dest>>>(
-              dest, options.buffer_options());
-      return result;
-    case WriteNewline::kCrLf:
-      result.template Emplace<
-          TextWriter<WriteNewline::kCrLf, std::decay_t<Dest>>>(
-          dest, options.buffer_options());
-      return result;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
 }
 
 template <typename Dest,
@@ -401,45 +287,28 @@ template <typename Dest,
               IsValidDependency<Writer*, std::decay_t<Dest>>::value, int>>
 AnyTextWriter<Dest> MakeAnyTextWriter(Dest&& dest,
                                       AnyTextWriterOptions options) {
-  AnyTextWriter<Dest> result;
-  switch (options.newline()) {
-    case WriteNewline::kLf:
-      result
-          .template Emplace<TextWriter<WriteNewline::kLf, std::decay_t<Dest>>>(
-              std::forward<Dest>(dest), options.buffer_options());
-      return result;
-    case WriteNewline::kCr:
-      result
-          .template Emplace<TextWriter<WriteNewline::kCr, std::decay_t<Dest>>>(
-              std::forward<Dest>(dest), options.buffer_options());
-      return result;
-    case WriteNewline::kCrLf:
-      result.template Emplace<
-          TextWriter<WriteNewline::kCrLf, std::decay_t<Dest>>>(
-          std::forward<Dest>(dest), options.buffer_options());
-      return result;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
+  return MakeAnyTextWriter(
+      Initializer<std::decay_t<Dest>>(std::forward<Dest>(dest)),
+      std::move(options));
 }
 
-template <typename Dest, typename... DestArgs,
+template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest>::value, int>>
-AnyTextWriter<Dest> MakeAnyTextWriter(std::tuple<DestArgs...> dest_args,
+AnyTextWriter<Dest> MakeAnyTextWriter(Initializer<Dest> dest,
                                       AnyTextWriterOptions options) {
   AnyTextWriter<Dest> result;
   switch (options.newline()) {
     case WriteNewline::kLf:
       result.template Emplace<TextWriter<WriteNewline::kLf, Dest>>(
-          std::move(dest_args), options.buffer_options());
+          std::move(dest), options.buffer_options());
       return result;
     case WriteNewline::kCr:
       result.template Emplace<TextWriter<WriteNewline::kCr, Dest>>(
-          std::move(dest_args), options.buffer_options());
+          std::move(dest), options.buffer_options());
       return result;
     case WriteNewline::kCrLf:
       result.template Emplace<TextWriter<WriteNewline::kCrLf, Dest>>(
-          std::move(dest_args), options.buffer_options());
+          std::move(dest), options.buffer_options());
       return result;
   }
   RIEGELI_ASSERT_UNREACHABLE()

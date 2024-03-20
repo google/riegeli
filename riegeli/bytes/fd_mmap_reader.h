@@ -32,6 +32,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -264,18 +265,13 @@ class FdMMapReader : public FdMMapReaderBase {
   explicit FdMMapReader(Closed) noexcept : FdMMapReaderBase(kClosed) {}
 
   // Will read from the fd provided by `src`.
-  explicit FdMMapReader(const Src& src, Options options = Options());
-  explicit FdMMapReader(Src&& src, Options options = Options());
+  explicit FdMMapReader(Initializer<Src> src, Options options = Options());
+
+  // Will read from `src`.
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
   explicit FdMMapReader(int src, Options options = Options());
-
-  // Will read from the fd provided by a `Src` constructed from elements of
-  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit FdMMapReader(std::tuple<SrcArgs...> src_args,
-                        Options options = Options());
 
   // Opens a file for reading.
   //
@@ -304,17 +300,12 @@ class FdMMapReader : public FdMMapReaderBase {
   // Makes `*this` equivalent to a newly constructed `FdMMapReader`. This avoids
   // constructing a temporary `FdMMapReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
-                                          Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
@@ -348,14 +339,6 @@ class FdMMapReader : public FdMMapReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit FdMMapReader(Closed) -> FdMMapReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit FdMMapReader(const Src& src, FdMMapReaderBase::Options options =
-                                          FdMMapReaderBase::Options())
-    -> FdMMapReader<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<const Src&, int>,
-            std::is_convertible<const Src&, absl::string_view>>::value,
-        OwnedFd, std::decay_t<Src>>>;
 template <typename Src>
 explicit FdMMapReader(
     Src&& src, FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
@@ -426,13 +409,7 @@ inline bool FdMMapReaderBase::InitializeAssumedFilename(Options& options) {
 }
 
 template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(const Src& src, Options options)
-    : src_(src) {
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(Src&& src, Options options)
+inline FdMMapReader<Src>::FdMMapReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
   Initialize(*src_, std::move(options));
 }
@@ -443,14 +420,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(int src, Options options)
     : FdMMapReader(std::forward_as_tuple(src), std::move(options)) {}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
-                                       Options options)
-    : src_(std::move(src_args)) {
-  Initialize(*src_, std::move(options));
-}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -508,14 +477,7 @@ inline void FdMMapReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FdMMapReader<Src>::Reset(const Src& src, Options options) {
-  FdMMapReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
+inline void FdMMapReader<Src>::Reset(Initializer<Src> src, Options options) {
   FdMMapReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(*src_, std::move(options));
@@ -527,15 +489,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline void FdMMapReader<Src>::Reset(int src, Options options) {
   Reset(std::forward_as_tuple(src), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                     Options options) {
-  FdMMapReaderBase::Reset();
-  src_.Reset(std::move(src_args));
-  Initialize(*src_, std::move(options));
 }
 
 template <typename Src>

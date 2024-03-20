@@ -30,6 +30,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -291,18 +292,13 @@ class CFileReader : public CFileReaderBase {
   explicit CFileReader(Closed) noexcept : CFileReaderBase(kClosed) {}
 
   // Will read from the `FILE` provided by `src`.
-  explicit CFileReader(const Src& src, Options options = Options());
-  explicit CFileReader(Src&& src, Options options = Options());
+  explicit CFileReader(Initializer<Src> src, Options options = Options());
+
+  // Will read from `src`.
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value,
                              int> = 0>
   explicit CFileReader(FILE* src, Options options = Options());
-
-  // Will read from the `FILE` provided by a `Src` constructed from elements of
-  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
-  template <typename... SrcArgs>
-  explicit CFileReader(std::tuple<SrcArgs...> src_args,
-                       Options options = Options());
 
   // Opens a file for reading.
   //
@@ -319,17 +315,12 @@ class CFileReader : public CFileReaderBase {
   // Makes `*this` equivalent to a newly constructed `CFileReader`. This avoids
   // constructing a temporary `CFileReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int> = 0>
@@ -354,14 +345,6 @@ class CFileReader : public CFileReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CFileReader(Closed) -> CFileReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit CFileReader(const Src& src, CFileReaderBase::Options options =
-                                         CFileReaderBase::Options())
-    -> CFileReader<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<const Src&, FILE*>,
-            std::is_convertible<const Src&, absl::string_view>>::value,
-        OwnedCFile, std::decay_t<Src>>>;
 template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
@@ -451,14 +434,7 @@ inline bool CFileReaderBase::InitializeAssumedFilename(Options& options) {
 }
 
 template <typename Src>
-inline CFileReader<Src>::CFileReader(const Src& src, Options options)
-    : CFileReaderBase(options.buffer_options(), options.growing_source()),
-      src_(src) {
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline CFileReader<Src>::CFileReader(Src&& src, Options options)
+inline CFileReader<Src>::CFileReader(Initializer<Src> src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(*src_, std::move(options));
@@ -470,15 +446,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value, int>>
 inline CFileReader<Src>::CFileReader(FILE* src, Options options)
     : CFileReader(std::forward_as_tuple(src), std::move(options)) {}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline CFileReader<Src>::CFileReader(std::tuple<SrcArgs...> src_args,
-                                     Options options)
-    : CFileReaderBase(options.buffer_options(), options.growing_source()),
-      src_(std::move(src_args)) {
-  Initialize(*src_, std::move(options));
-}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -523,14 +490,7 @@ inline void CFileReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void CFileReader<Src>::Reset(const Src& src, Options options) {
-  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(src);
-  Initialize(*src_, std::move(options));
-}
-
-template <typename Src>
-inline void CFileReader<Src>::Reset(Src&& src, Options options) {
+inline void CFileReader<Src>::Reset(Initializer<Src> src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
   Initialize(*src_, std::move(options));
@@ -542,15 +502,6 @@ template <
     std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value, int>>
 inline void CFileReader<Src>::Reset(FILE* src, Options options) {
   Reset(std::forward_as_tuple(src), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void CFileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                    Options options) {
-  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  src_.Reset(std::move(src_args));
-  Initialize(*src_, std::move(options));
 }
 
 template <typename Src>

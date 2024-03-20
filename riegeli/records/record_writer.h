@@ -37,6 +37,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/base/types.h"
@@ -653,15 +654,7 @@ class RecordWriter : public RecordWriterBase {
   explicit RecordWriter(Closed) noexcept : RecordWriterBase(kClosed) {}
 
   // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
-  explicit RecordWriter(const Dest& dest, Options options = Options());
-  explicit RecordWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the byte `Writer` or `ChunkWriter` provided by a `Dest`
-  // constructed from elements of `dest_args`. This avoids constructing a
-  // temporary `Dest` and moving from it.
-  template <typename... DestArgs>
-  explicit RecordWriter(std::tuple<DestArgs...> dest_args,
-                        Options options = Options());
+  explicit RecordWriter(Initializer<Dest> dest, Options options = Options());
 
   RecordWriter(RecordWriter&& that) noexcept;
   RecordWriter& operator=(RecordWriter&& that) noexcept;
@@ -671,12 +664,7 @@ class RecordWriter : public RecordWriterBase {
   // Makes `*this` equivalent to a newly constructed `RecordWriter`. This avoids
   // constructing a temporary `RecordWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Writer` or
@@ -700,10 +688,6 @@ class RecordWriter : public RecordWriterBase {
 #if __cpp_deduction_guides
 explicit RecordWriter(Closed) -> RecordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit RecordWriter(const Dest& dest, RecordWriterBase::Options options =
-                                            RecordWriterBase::Options())
-    -> RecordWriter<std::decay_t<Dest>>;
-template <typename Dest>
 explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
                                        RecordWriterBase::Options())
     -> RecordWriter<std::decay_t<Dest>>;
@@ -719,22 +703,8 @@ explicit RecordWriter(
 extern template bool RecordWriterBase::WriteRecord(std::string&& record);
 
 template <typename Dest>
-inline RecordWriter<Dest>::RecordWriter(const Dest& dest, Options options)
-    : dest_(dest) {
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline RecordWriter<Dest>::RecordWriter(Dest&& dest, Options options)
+inline RecordWriter<Dest>::RecordWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline RecordWriter<Dest>::RecordWriter(std::tuple<DestArgs...> dest_args,
-                                        Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -759,25 +729,9 @@ inline void RecordWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void RecordWriter<Dest>::Reset(const Dest& dest, Options options) {
-  RecordWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline void RecordWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void RecordWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   RecordWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void RecordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                      Options options) {
-  RecordWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options));
 }
 

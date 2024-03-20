@@ -33,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -305,15 +306,7 @@ class LimitingReader : public LimitingReaderBase {
   explicit LimitingReader(Closed) noexcept : LimitingReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit LimitingReader(const Src& src, Options options = Options());
-  explicit LimitingReader(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit LimitingReader(std::tuple<SrcArgs...> src_args,
-                          Options options = Options());
+  explicit LimitingReader(Initializer<Src> src, Options options = Options());
 
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;
@@ -321,12 +314,7 @@ class LimitingReader : public LimitingReaderBase {
   // Makes `*this` equivalent to a newly constructed `LimitingReader`. This
   // avoids constructing a temporary `LimitingReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
@@ -351,10 +339,6 @@ class LimitingReader : public LimitingReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit LimitingReader(Closed) -> LimitingReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit LimitingReader(const Src& src, LimitingReaderBase::Options options =
-                                            LimitingReaderBase::Options())
-    -> LimitingReader<std::decay_t<Src>>;
 template <typename Src>
 explicit LimitingReader(Src&& src, LimitingReaderBase::Options options =
                                        LimitingReaderBase::Options())
@@ -530,24 +514,10 @@ inline bool LimitingReaderBase::CheckEnough() {
 }
 
 template <typename Src>
-inline LimitingReader<Src>::LimitingReader(const Src& src, Options options)
-    : LimitingReaderBase(options.exact(), options.fail_if_longer()), src_(src) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline LimitingReader<Src>::LimitingReader(Src&& src, Options options)
-    : LimitingReaderBase(options.exact(), options.fail_if_longer()),
-      src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
+inline LimitingReader<Src>::LimitingReader(Initializer<Src> src,
                                            Options options)
     : LimitingReaderBase(options.exact(), options.fail_if_longer()),
-      src_(std::move(src_args)) {
+      src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -572,25 +542,9 @@ inline void LimitingReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void LimitingReader<Src>::Reset(const Src& src, Options options) {
-  LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
-  src_.Reset(src);
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline void LimitingReader<Src>::Reset(Src&& src, Options options) {
+inline void LimitingReader<Src>::Reset(Initializer<Src> src, Options options) {
   LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void LimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                       Options options) {
-  LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }
 

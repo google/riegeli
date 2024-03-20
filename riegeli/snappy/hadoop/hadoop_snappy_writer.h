@@ -27,6 +27,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -113,14 +114,7 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
       : HadoopSnappyWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit HadoopSnappyWriter(const Dest& dest, Options options = Options());
-  explicit HadoopSnappyWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit HadoopSnappyWriter(std::tuple<DestArgs...> dest_args,
+  explicit HadoopSnappyWriter(Initializer<Dest> dest,
                               Options options = Options());
 
   HadoopSnappyWriter(HadoopSnappyWriter&& that) noexcept;
@@ -129,12 +123,7 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
   // Makes `*this` equivalent to a newly constructed `HadoopSnappyWriter`. This
   // avoids constructing a temporary `HadoopSnappyWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -209,23 +198,8 @@ inline void HadoopSnappyWriterBase::Reset() {
 
 template <typename Dest>
 inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options)
-    : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options)
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -252,26 +226,9 @@ inline void HadoopSnappyWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void HadoopSnappyWriter<Dest>::Reset(
-    const Dest& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
-  HadoopSnappyWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void HadoopSnappyWriter<Dest>::Reset(
-    Dest&& dest, ABSL_ATTRIBUTE_UNUSED Options options) {
+    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options) {
   HadoopSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void HadoopSnappyWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, ABSL_ATTRIBUTE_UNUSED Options options) {
-  HadoopSnappyWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

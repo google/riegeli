@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -109,14 +110,7 @@ class WrappingBackwardWriter : public WrappingBackwardWriterBase {
       : WrappingBackwardWriterBase(kClosed) {}
 
   // Will write to the original `BackwardWriter` provided by `dest`.
-  explicit WrappingBackwardWriter(const Dest& dest);
-  explicit WrappingBackwardWriter(Dest&& dest);
-
-  // Will write to the original `BackwardWriter` provided by a `Dest`
-  // constructed from elements of `dest_args`. This avoids constructing a
-  // temporary `Dest` and moving from it.
-  template <typename... DestArgs>
-  explicit WrappingBackwardWriter(std::tuple<DestArgs...> dest_args);
+  explicit WrappingBackwardWriter(Initializer<Dest> dest);
 
   WrappingBackwardWriter(WrappingBackwardWriter&& that) noexcept;
   WrappingBackwardWriter& operator=(WrappingBackwardWriter&& that) noexcept;
@@ -125,10 +119,7 @@ class WrappingBackwardWriter : public WrappingBackwardWriterBase {
   // This avoids constructing a temporary `WrappingBackwardWriter` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
 
   // Returns the object providing and possibly owning the original
   // `BackwardWriter`. Unchanged by `Close()`.
@@ -154,9 +145,6 @@ class WrappingBackwardWriter : public WrappingBackwardWriterBase {
 #if __cpp_deduction_guides
 explicit WrappingBackwardWriter(Closed)
     -> WrappingBackwardWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit WrappingBackwardWriter(const Dest& dest)
-    -> WrappingBackwardWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit WrappingBackwardWriter(Dest&& dest)
     -> WrappingBackwardWriter<std::decay_t<Dest>>;
@@ -195,22 +183,9 @@ inline void WrappingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
 }
 
 template <typename Dest>
-inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(const Dest& dest)
-    : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(Dest&& dest)
-    : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
 inline WrappingBackwardWriter<Dest>::WrappingBackwardWriter(
-    std::tuple<DestArgs...> dest_args)
-    : dest_(std::move(dest_args)) {
+    Initializer<Dest> dest)
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -238,25 +213,9 @@ inline void WrappingBackwardWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void WrappingBackwardWriter<Dest>::Reset(const Dest& dest) {
-  WrappingBackwardWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void WrappingBackwardWriter<Dest>::Reset(Dest&& dest) {
+inline void WrappingBackwardWriter<Dest>::Reset(Initializer<Dest> dest) {
   WrappingBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void WrappingBackwardWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args) {
-  WrappingBackwardWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 

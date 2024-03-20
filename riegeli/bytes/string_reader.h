@@ -27,6 +27,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -92,14 +93,7 @@ class StringReader : public StringReaderBase {
   explicit StringReader(Closed) noexcept : StringReaderBase(kClosed) {}
 
   // Will read from the `std::string` or array provided by `src`.
-  explicit StringReader(const Src& src);
-  explicit StringReader(Src&& src);
-
-  // Will read from the `std::string` or array provided by a `Src` constructed
-  // from elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit StringReader(std::tuple<SrcArgs...> src_args);
+  explicit StringReader(Initializer<Src> src);
 
   // Will read from an empty `absl::string_view`. This constructor is present
   // only if `Src` is `absl::string_view`.
@@ -121,10 +115,7 @@ class StringReader : public StringReaderBase {
   // Makes `*this` equivalent to a newly constructed `StringReader`. This avoids
   // constructing a temporary `StringReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src);
   template <typename DependentSrc = Src,
             std::enable_if_t<
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
@@ -154,17 +145,11 @@ class StringReader : public StringReaderBase {
 #if __cpp_deduction_guides
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit StringReader(const Src& src)
-    -> StringReader<std::conditional_t<
-        std::is_convertible<const Src&, absl::string_view>::value,
-        absl::string_view, std::decay_t<Src>>>;
-template <typename Src>
 explicit StringReader(Src&& src)
     -> StringReader<std::conditional_t<
         absl::disjunction<
             absl::conjunction<std::is_lvalue_reference<Src>,
-                              std::is_convertible<std::remove_reference_t<Src>,
-                                                  absl::string_view>>,
+                              std::is_convertible<Src, absl::string_view>>,
             std::is_convertible<Src&&, const char*>>::value,
         absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
@@ -191,19 +176,8 @@ inline void StringReaderBase::Initialize(absl::string_view src) {
 }
 
 template <typename Src>
-inline StringReader<Src>::StringReader(const Src& src) : src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline StringReader<Src>::StringReader(Src&& src) : src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
-    : src_(std::move(src_args)) {
+inline StringReader<Src>::StringReader(Initializer<Src> src)
+    : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -241,24 +215,9 @@ inline void StringReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void StringReader<Src>::Reset(const Src& src) {
-  StringReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void StringReader<Src>::Reset(Src&& src) {
+inline void StringReader<Src>::Reset(Initializer<Src> src) {
   StringReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  StringReaderBase::Reset();
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

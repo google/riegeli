@@ -26,6 +26,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -189,14 +190,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
       : DefaultChunkWriterBase(kClosed) {}
 
   // Will write to the byte `Writer` provided by `dest`.
-  explicit DefaultChunkWriter(const Dest& dest, Options options = Options());
-  explicit DefaultChunkWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the byte `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit DefaultChunkWriter(std::tuple<DestArgs...> dest_args,
+  explicit DefaultChunkWriter(Initializer<Dest> dest,
                               Options options = Options());
 
   DefaultChunkWriter(DefaultChunkWriter&& that) noexcept;
@@ -205,12 +199,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   // Makes `*this` equivalent to a newly constructed `DefaultChunkWriter`. This
   // avoids constructing a temporary `DefaultChunkWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the byte `Writer`.
@@ -234,11 +223,6 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 explicit DefaultChunkWriter(Closed) -> DefaultChunkWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit DefaultChunkWriter(
-    const Dest& dest,
-    DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<std::decay_t<Dest>>;
-template <typename Dest>
-explicit DefaultChunkWriter(
     Dest&& dest,
     DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
     -> DefaultChunkWriter<std::decay_t<Dest>>;
@@ -259,27 +243,13 @@ class DependencyImpl<
  public:
   DependencyImpl() noexcept : chunk_writer_(kClosed) {}
 
-  explicit DependencyImpl(const Manager& manager) : chunk_writer_(manager) {}
-  explicit DependencyImpl(Manager&& manager)
+  explicit DependencyImpl(Initializer<Manager> manager)
       : chunk_writer_(std::move(manager)) {}
-
-  template <typename... ManagerArgs>
-  explicit DependencyImpl(std::tuple<ManagerArgs...> manager_args)
-      : chunk_writer_(std::move(manager_args)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { chunk_writer_.Reset(kClosed); }
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager) {
-    chunk_writer_.Reset(manager);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
     chunk_writer_.Reset(std::move(manager));
-  }
-
-  template <typename... ManagerArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      std::tuple<ManagerArgs...> manager_args) {
-    chunk_writer_.Reset(std::move(manager_args));
   }
 
   Manager& manager() { return chunk_writer_.dest(); }
@@ -352,24 +322,9 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 }
 
 template <typename Dest>
-inline DefaultChunkWriter<Dest>::DefaultChunkWriter(const Dest& dest,
-                                                    Options options)
-    : dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
-}
-
-template <typename Dest>
-inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest&& dest,
+inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Initializer<Dest> dest,
                                                     Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
-    std::tuple<DestArgs...> dest_args, Options options)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
@@ -395,25 +350,10 @@ inline void DefaultChunkWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void DefaultChunkWriter<Dest>::Reset(const Dest& dest, Options options) {
-  DefaultChunkWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
-}
-
-template <typename Dest>
-inline void DefaultChunkWriter<Dest>::Reset(Dest&& dest, Options options) {
-  DefaultChunkWriterBase::Reset();
-  dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void DefaultChunkWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+inline void DefaultChunkWriter<Dest>::Reset(Initializer<Dest> dest,
                                             Options options) {
   DefaultChunkWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
+  dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 

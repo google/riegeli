@@ -29,6 +29,7 @@
 #include "bzlib.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -155,15 +156,7 @@ class Bzip2Reader : public Bzip2ReaderBase {
   explicit Bzip2Reader(Closed) noexcept : Bzip2ReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
-  explicit Bzip2Reader(const Src& src, Options options = Options());
-  explicit Bzip2Reader(Src&& src, Options options = Options());
-
-  // Will read from the compressed `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit Bzip2Reader(std::tuple<SrcArgs...> src_args,
-                       Options options = Options());
+  explicit Bzip2Reader(Initializer<Src> src, Options options = Options());
 
   Bzip2Reader(Bzip2Reader&&) noexcept;
   Bzip2Reader& operator=(Bzip2Reader&&) noexcept;
@@ -171,12 +164,7 @@ class Bzip2Reader : public Bzip2ReaderBase {
   // Makes `*this` equivalent to a newly constructed `Bzip2Reader`. This avoids
   // constructing a temporary `Bzip2Reader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Reader`.
@@ -198,10 +186,6 @@ class Bzip2Reader : public Bzip2ReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit Bzip2Reader(Closed) -> Bzip2Reader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit Bzip2Reader(const Src& src, Bzip2ReaderBase::Options options =
-                                         Bzip2ReaderBase::Options())
-    -> Bzip2Reader<std::decay_t<Src>>;
 template <typename Src>
 explicit Bzip2Reader(
     Src&& src, Bzip2ReaderBase::Options options = Bzip2ReaderBase::Options())
@@ -263,25 +247,9 @@ inline void Bzip2ReaderBase::Reset(BufferOptions buffer_options,
 }
 
 template <typename Src>
-inline Bzip2Reader<Src>::Bzip2Reader(const Src& src, Options options)
-    : Bzip2ReaderBase(options.buffer_options(), options.concatenate()),
-      src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline Bzip2Reader<Src>::Bzip2Reader(Src&& src, Options options)
+inline Bzip2Reader<Src>::Bzip2Reader(Initializer<Src> src, Options options)
     : Bzip2ReaderBase(options.buffer_options(), options.concatenate()),
       src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline Bzip2Reader<Src>::Bzip2Reader(std::tuple<SrcArgs...> src_args,
-                                     Options options)
-    : Bzip2ReaderBase(options.buffer_options(), options.concatenate()),
-      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -305,25 +273,9 @@ inline void Bzip2Reader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void Bzip2Reader<Src>::Reset(const Src& src, Options options) {
-  Bzip2ReaderBase::Reset(options.buffer_options(), options.concatenate());
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void Bzip2Reader<Src>::Reset(Src&& src, Options options) {
+inline void Bzip2Reader<Src>::Reset(Initializer<Src> src, Options options) {
   Bzip2ReaderBase::Reset(options.buffer_options(), options.concatenate());
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void Bzip2Reader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                    Options options) {
-  Bzip2ReaderBase::Reset(options.buffer_options(), options.concatenate());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

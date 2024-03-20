@@ -27,6 +27,7 @@
 #include "bzlib.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -136,15 +137,7 @@ class Bzip2Writer : public Bzip2WriterBase {
   explicit Bzip2Writer(Closed) noexcept : Bzip2WriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit Bzip2Writer(const Dest& dest, Options options = Options());
-  explicit Bzip2Writer(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit Bzip2Writer(std::tuple<DestArgs...> dest_args,
-                       Options options = Options());
+  explicit Bzip2Writer(Initializer<Dest> dest, Options options = Options());
 
   Bzip2Writer(Bzip2Writer&& that) noexcept;
   Bzip2Writer& operator=(Bzip2Writer&& that) noexcept;
@@ -152,12 +145,7 @@ class Bzip2Writer : public Bzip2WriterBase {
   // Makes `*this` equivalent to a newly constructed `Bzip2Writer`. This avoids
   // constructing a temporary `Bzip2Writer` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -178,10 +166,6 @@ class Bzip2Writer : public Bzip2WriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit Bzip2Writer(Closed) -> Bzip2Writer<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit Bzip2Writer(const Dest& dest, Bzip2WriterBase::Options options =
-                                           Bzip2WriterBase::Options())
-    -> Bzip2Writer<std::decay_t<Dest>>;
 template <typename Dest>
 explicit Bzip2Writer(
     Dest&& dest, Bzip2WriterBase::Options options = Bzip2WriterBase::Options())
@@ -224,22 +208,8 @@ inline void Bzip2WriterBase::Reset(BufferOptions buffer_options) {
 }
 
 template <typename Dest>
-inline Bzip2Writer<Dest>::Bzip2Writer(const Dest& dest, Options options)
-    : Bzip2WriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline Bzip2Writer<Dest>::Bzip2Writer(Dest&& dest, Options options)
+inline Bzip2Writer<Dest>::Bzip2Writer(Initializer<Dest> dest, Options options)
     : Bzip2WriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline Bzip2Writer<Dest>::Bzip2Writer(std::tuple<DestArgs...> dest_args,
-                                      Options options)
-    : Bzip2WriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level());
 }
 
@@ -263,25 +233,9 @@ inline void Bzip2Writer<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void Bzip2Writer<Dest>::Reset(const Dest& dest, Options options) {
-  Bzip2WriterBase::Reset(options.buffer_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline void Bzip2Writer<Dest>::Reset(Dest&& dest, Options options) {
+inline void Bzip2Writer<Dest>::Reset(Initializer<Dest> dest, Options options) {
   Bzip2WriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void Bzip2Writer<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                     Options options) {
-  Bzip2WriterBase::Reset(options.buffer_options());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level());
 }
 

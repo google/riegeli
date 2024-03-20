@@ -101,18 +101,7 @@ namespace riegeli {
 //   // dependent object.
 //   //
 //   // Provided by `DependencyBase` and explicitly inherited.
-//   explicit Dependency(const Manager& manager);
-//   explicit Dependency(Manager&& manager);
-//
-//   // Constructs a `Manager` from elements of `manager_args`. Used to specify
-//   // the initial value of the dependent object. This avoids constructing a
-//   // temporary `Manager` and moving from it.
-//   //
-//   // Supported optionally.
-//   //
-//   // Provided by `DependencyBase` and explicitly inherited.
-//   template <typename... ManagerArgs>
-//   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
+//   explicit Dependency(Initializer<Manager> manager);
 //
 //   // Copies the dependency.
 //   //
@@ -133,11 +122,7 @@ namespace riegeli {
 //   //
 //   // Provided by `DependencyBase`.
 //   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Manager& manager);
-//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
-//   template <typename... ManagerArgs>
-//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-//       std::tuple<ManagerArgs...> manager_args);
+//   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager);
 //
 //   // Exposes the stored `Manager`.
 //   //
@@ -604,8 +589,7 @@ class DependencyDeref<
 // Specialization of `DependencyDeref<Handle, Manager>` when
 // `DependencyDefault<Handle, Manager>` is not defined,
 // `Manager` is a reference, and
-// `DependencyDefault<Handle,
-//                    std::remove_cv_t<std::remove_reference_t<Manager>>>`
+// `DependencyDefault<Handle, absl::remove_cvref_t<Manager>>`
 // is defined: delegate to the latter.
 template <typename Handle, typename Manager>
 class DependencyDeref<
@@ -613,11 +597,9 @@ class DependencyDeref<
     std::enable_if_t<absl::conjunction<
         std::is_reference<Manager>,
         absl::negation<IsValidDependencyDefault<Handle, Manager>>,
-        IsValidDependencyDefault<
-            Handle,
-            std::remove_cv_t<std::remove_reference_t<Manager>>>>::value>>
-    : public DependencyDefault<
-          Handle, std::remove_cv_t<std::remove_reference_t<Manager>>> {
+        IsValidDependencyDefault<Handle,
+                                 absl::remove_cvref_t<Manager>>>::value>>
+    : public DependencyDefault<Handle, absl::remove_cvref_t<Manager>> {
  public:
   using DependencyDeref::DependencyDefault::DependencyDefault;
 
@@ -639,11 +621,9 @@ template <typename Handle, typename Manager>
 struct IsValidDependency
     : absl::disjunction<
           dependency_internal::IsValidDependencyDefault<Handle, Manager>,
-          absl::conjunction<
-              std::is_reference<Manager>,
-              dependency_internal::IsValidDependencyDefault<
-                  Handle,
-                  std::remove_cv_t<std::remove_reference_t<Manager>>>>> {};
+          absl::conjunction<std::is_reference<Manager>,
+                            dependency_internal::IsValidDependencyDefault<
+                                Handle, absl::remove_cvref_t<Manager>>>> {};
 
 namespace dependency_internal {
 

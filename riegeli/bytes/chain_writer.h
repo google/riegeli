@@ -32,6 +32,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -237,15 +238,7 @@ class ChainWriter : public ChainWriterBase {
   explicit ChainWriter(Closed) noexcept : ChainWriterBase(kClosed) {}
 
   // Will append to the `Chain` provided by `dest`.
-  explicit ChainWriter(const Dest& dest, Options options = Options());
-  explicit ChainWriter(Dest&& dest, Options options = Options());
-
-  // Will append to the `Chain` provided by a `Dest` constructed from elements
-  // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit ChainWriter(std::tuple<DestArgs...> dest_args,
-                       Options options = Options());
+  explicit ChainWriter(Initializer<Dest> dest, Options options = Options());
 
   // Will append to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
@@ -260,12 +253,7 @@ class ChainWriter : public ChainWriterBase {
   // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
   // constructing a temporary `ChainWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
@@ -293,12 +281,6 @@ class ChainWriter : public ChainWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ChainWriter(Closed) -> ChainWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit ChainWriter(const Dest& dest, ChainWriterBase::Options options =
-                                           ChainWriterBase::Options())
-    -> ChainWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const Chain*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit ChainWriter(
     Dest&& dest, ChainWriterBase::Options options = ChainWriterBase::Options())
@@ -365,22 +347,8 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
 }
 
 template <typename Dest>
-inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
-    : ChainWriterBase(options), dest_(dest) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline ChainWriter<Dest>::ChainWriter(Dest&& dest, Options options)
+inline ChainWriter<Dest>::ChainWriter(Initializer<Dest> dest, Options options)
     : ChainWriterBase(options), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
-                                      Options options)
-    : ChainWriterBase(options), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -411,25 +379,9 @@ inline void ChainWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void ChainWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ChainWriterBase::Reset(options);
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline void ChainWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void ChainWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   ChainWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                     Options options) {
-  ChainWriterBase::Reset(options);
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }
 

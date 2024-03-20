@@ -99,13 +99,6 @@ class CompactStringWriter
 #if __cpp_deduction_guides
 explicit CompactStringWriter(Closed) -> CompactStringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit CompactStringWriter(const Dest& dest,
-                             CompactStringWriterBase::Options options =
-                                 CompactStringWriterBase::Options())
-    -> CompactStringWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const CompactString*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
-template <typename Dest>
 explicit CompactStringWriter(Dest&& dest,
                              CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())

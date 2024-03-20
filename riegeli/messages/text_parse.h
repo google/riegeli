@@ -100,9 +100,6 @@ class TextParseOptions {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// With a `src_args` parameter, reads from a `Src` constructed from elements of
-// `src_args`. This avoids constructing a temporary `Src` and moving from it.
-//
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)

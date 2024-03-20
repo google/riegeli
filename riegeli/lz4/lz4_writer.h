@@ -30,6 +30,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
@@ -313,15 +314,7 @@ class Lz4Writer : public Lz4WriterBase {
   explicit Lz4Writer(Closed) noexcept : Lz4WriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit Lz4Writer(const Dest& dest, Options options = Options());
-  explicit Lz4Writer(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit Lz4Writer(std::tuple<DestArgs...> dest_args,
-                     Options options = Options());
+  explicit Lz4Writer(Initializer<Dest> dest, Options options = Options());
 
   Lz4Writer(Lz4Writer&& that) noexcept;
   Lz4Writer& operator=(Lz4Writer&& that) noexcept;
@@ -329,12 +322,7 @@ class Lz4Writer : public Lz4WriterBase {
   // Makes `*this` equivalent to a newly constructed `Lz4Writer`. This avoids
   // constructing a temporary `Lz4Writer` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -355,10 +343,6 @@ class Lz4Writer : public Lz4WriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit Lz4Writer(Closed) -> Lz4Writer<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit Lz4Writer(const Dest& dest,
-                   Lz4WriterBase::Options options = Lz4WriterBase::Options())
-    -> Lz4Writer<std::decay_t<Dest>>;
 template <typename Dest>
 explicit Lz4Writer(Dest&& dest,
                    Lz4WriterBase::Options options = Lz4WriterBase::Options())
@@ -441,36 +425,12 @@ inline void Lz4WriterBase::Reset(
 }
 
 template <typename Dest>
-inline Lz4Writer<Dest>::Lz4Writer(const Dest& dest, Options options)
-    : Lz4WriterBase(options.effective_buffer_options(),
-                    std::move(options.dictionary()), options.pledged_size(),
-                    options.reserve_max_size(),
-                    options.recycling_pool_options()),
-      dest_(dest) {
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_content_checksum(), options.store_block_checksum());
-}
-
-template <typename Dest>
-inline Lz4Writer<Dest>::Lz4Writer(Dest&& dest, Options options)
+inline Lz4Writer<Dest>::Lz4Writer(Initializer<Dest> dest, Options options)
     : Lz4WriterBase(options.effective_buffer_options(),
                     std::move(options.dictionary()), options.pledged_size(),
                     options.reserve_max_size(),
                     options.recycling_pool_options()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_content_checksum(), options.store_block_checksum());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline Lz4Writer<Dest>::Lz4Writer(std::tuple<DestArgs...> dest_args,
-                                  Options options)
-    : Lz4WriterBase(options.effective_buffer_options(),
-                    std::move(options.dictionary()), options.pledged_size(),
-                    options.reserve_max_size(),
-                    options.recycling_pool_options()),
-      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
 }
@@ -494,36 +454,12 @@ inline void Lz4Writer<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void Lz4Writer<Dest>::Reset(const Dest& dest, Options options) {
-  Lz4WriterBase::Reset(options.effective_buffer_options(),
-                       std::move(options.dictionary()), options.pledged_size(),
-                       options.reserve_max_size(),
-                       options.recycling_pool_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_content_checksum(), options.store_block_checksum());
-}
-
-template <typename Dest>
-inline void Lz4Writer<Dest>::Reset(Dest&& dest, Options options) {
+inline void Lz4Writer<Dest>::Reset(Initializer<Dest> dest, Options options) {
   Lz4WriterBase::Reset(options.effective_buffer_options(),
                        std::move(options.dictionary()), options.pledged_size(),
                        options.reserve_max_size(),
                        options.recycling_pool_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.store_content_checksum(), options.store_block_checksum());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void Lz4Writer<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                   Options options) {
-  Lz4WriterBase::Reset(options.effective_buffer_options(),
-                       std::move(options.dictionary()), options.pledged_size(),
-                       options.reserve_max_size(),
-                       options.recycling_pool_options());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
 }

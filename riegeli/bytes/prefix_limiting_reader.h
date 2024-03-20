@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -154,14 +155,7 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
       : PrefixLimitingReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
-  explicit PrefixLimitingReader(const Src& src, Options options = Options());
-  explicit PrefixLimitingReader(Src&& src, Options options = Options());
-
-  // Will read from the original `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit PrefixLimitingReader(std::tuple<SrcArgs...> src_args,
+  explicit PrefixLimitingReader(Initializer<Src> src,
                                 Options options = Options());
 
   PrefixLimitingReader(PrefixLimitingReader&& that) noexcept;
@@ -171,12 +165,7 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   // This avoids constructing a temporary `PrefixLimitingReader` and moving
   // from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the original `Reader`.
@@ -204,11 +193,6 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
 #if __cpp_deduction_guides
 explicit PrefixLimitingReader(Closed)
     -> PrefixLimitingReader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit PrefixLimitingReader(const Src& src,
-                              PrefixLimitingReaderBase::Options options =
-                                  PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<std::decay_t<Src>>;
 template <typename Src>
 explicit PrefixLimitingReader(Src&& src,
                               PrefixLimitingReaderBase::Options options =
@@ -274,24 +258,9 @@ inline void PrefixLimitingReaderBase::MakeBuffer(Reader& src) {
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(const Src& src,
-                                                       Options options)
-    : src_(src) {
-  Initialize(src_.get(), options.base_pos());
-}
-
-template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(Src&& src,
+inline PrefixLimitingReader<Src>::PrefixLimitingReader(Initializer<Src> src,
                                                        Options options)
     : src_(std::move(src)) {
-  Initialize(src_.get(), options.base_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(
-    std::tuple<SrcArgs...> src_args, Options options)
-    : src_(std::move(src_args)) {
   Initialize(src_.get(), options.base_pos());
 }
 
@@ -318,25 +287,10 @@ inline void PrefixLimitingReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void PrefixLimitingReader<Src>::Reset(const Src& src, Options options) {
-  PrefixLimitingReaderBase::Reset();
-  src_.Reset(src);
-  Initialize(src_.get(), options.base_pos());
-}
-
-template <typename Src>
-inline void PrefixLimitingReader<Src>::Reset(Src&& src, Options options) {
-  PrefixLimitingReaderBase::Reset();
-  src_.Reset(std::move(src));
-  Initialize(src_.get(), options.base_pos());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void PrefixLimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+inline void PrefixLimitingReader<Src>::Reset(Initializer<Src> src,
                                              Options options) {
   PrefixLimitingReaderBase::Reset();
-  src_.Reset(std::move(src_args));
+  src_.Reset(std::move(src));
   Initialize(src_.get(), options.base_pos());
 }
 

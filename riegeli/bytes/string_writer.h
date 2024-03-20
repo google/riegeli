@@ -16,7 +16,6 @@
 #define RIEGELI_BYTES_STRING_WRITER_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <string>
 #include <tuple>
@@ -28,11 +27,10 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -203,15 +201,7 @@ class StringWriter : public StringWriterBase {
   explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
 
   // Will append to the `std::string` provided by `dest`.
-  explicit StringWriter(const Dest& dest, Options options = Options());
-  explicit StringWriter(Dest&& dest, Options options = Options());
-
-  // Will append to the `std::string` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit StringWriter(std::tuple<DestArgs...> dest_args,
-                        Options options = Options());
+  explicit StringWriter(Initializer<Dest> dest, Options options = Options());
 
   // Will append to an owned `std::string` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `std::string`.
@@ -226,12 +216,7 @@ class StringWriter : public StringWriterBase {
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_same<DependentDest, std::string>::value,
@@ -259,12 +244,6 @@ class StringWriter : public StringWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit StringWriter(Closed) -> StringWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
-                                            StringWriterBase::Options())
-    -> StringWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const std::string*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit StringWriter(Dest&& dest, StringWriterBase::Options options =
                                        StringWriterBase::Options())
@@ -351,22 +330,8 @@ inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
 }
 
 template <typename Dest>
-inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
-    : StringWriterBase(options.buffer_options()), dest_(dest) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
+inline StringWriter<Dest>::StringWriter(Initializer<Dest> dest, Options options)
     : StringWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
-                                        Options options)
-    : StringWriterBase(options.buffer_options()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append());
 }
 
@@ -398,25 +363,9 @@ inline void StringWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
-  StringWriterBase::Reset(options.buffer_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void StringWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   StringWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.append());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                      Options options) {
-  StringWriterBase::Reset(options.buffer_options());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }
 

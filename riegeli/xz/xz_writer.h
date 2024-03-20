@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
@@ -284,15 +285,7 @@ class XzWriter : public XzWriterBase {
   explicit XzWriter(Closed) noexcept : XzWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
-  explicit XzWriter(const Dest& dest, Options options = Options());
-  explicit XzWriter(Dest&& dest, Options options = Options());
-
-  // Will write to the compressed `Writer` provided by a `Dest` constructed from
-  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
-  // moving from it.
-  template <typename... DestArgs>
-  explicit XzWriter(std::tuple<DestArgs...> dest_args,
-                    Options options = Options());
+  explicit XzWriter(Initializer<Dest> dest, Options options = Options());
 
   XzWriter(XzWriter&& that) noexcept;
   XzWriter& operator=(XzWriter&& that) noexcept;
@@ -300,12 +293,7 @@ class XzWriter : public XzWriterBase {
   // Makes `*this` equivalent to a newly constructed `XzWriter`. This avoids
   // constructing a temporary `XzWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest,
-                                          Options options = Options());
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Writer`.
@@ -326,10 +314,6 @@ class XzWriter : public XzWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit XzWriter(Closed) -> XzWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit XzWriter(const Dest& dest,
-                  XzWriterBase::Options options = XzWriterBase::Options())
-    -> XzWriter<std::decay_t<Dest>>;
 template <typename Dest>
 explicit XzWriter(Dest&& dest,
                   XzWriterBase::Options options = XzWriterBase::Options())
@@ -392,30 +376,10 @@ inline void XzWriterBase::Reset(
 }
 
 template <typename Dest>
-inline XzWriter<Dest>::XzWriter(const Dest& dest, Options options)
-    : XzWriterBase(options.buffer_options(), options.container(),
-                   options.recycling_pool_options()),
-      dest_(dest) {
-  Initialize(dest_.get(), options.preset_, options.check(),
-             options.parallelism());
-}
-
-template <typename Dest>
-inline XzWriter<Dest>::XzWriter(Dest&& dest, Options options)
+inline XzWriter<Dest>::XzWriter(Initializer<Dest> dest, Options options)
     : XzWriterBase(options.buffer_options(), options.container(),
                    options.recycling_pool_options()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.preset_, options.check(),
-             options.parallelism());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline XzWriter<Dest>::XzWriter(std::tuple<DestArgs...> dest_args,
-                                Options options)
-    : XzWriterBase(options.buffer_options(), options.container(),
-                   options.recycling_pool_options()),
-      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
 }
@@ -439,30 +403,10 @@ inline void XzWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void XzWriter<Dest>::Reset(const Dest& dest, Options options) {
-  XzWriterBase::Reset(options.buffer_options(), options.container(),
-                      options.recycling_pool_options());
-  dest_.Reset(dest);
-  Initialize(dest_.get(), options.preset_, options.check(),
-             options.parallelism());
-}
-
-template <typename Dest>
-inline void XzWriter<Dest>::Reset(Dest&& dest, Options options) {
+inline void XzWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   XzWriterBase::Reset(options.buffer_options(), options.container(),
                       options.recycling_pool_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.preset_, options.check(),
-             options.parallelism());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void XzWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                  Options options) {
-  XzWriterBase::Reset(options.buffer_options(), options.container(),
-                      options.recycling_pool_options());
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
 }

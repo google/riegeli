@@ -30,6 +30,7 @@
 #include "lz4frame.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
@@ -208,15 +209,7 @@ class Lz4Reader : public Lz4ReaderBase {
   explicit Lz4Reader(Closed) noexcept : Lz4ReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
-  explicit Lz4Reader(const Src& src, Options options = Options());
-  explicit Lz4Reader(Src&& src, Options options = Options());
-
-  // Will read from the compressed `Reader` provided by a `Src` constructed from
-  // elements of `src_args`. This avoids constructing a temporary `Src` and
-  // moving from it.
-  template <typename... SrcArgs>
-  explicit Lz4Reader(std::tuple<SrcArgs...> src_args,
-                     Options options = Options());
+  explicit Lz4Reader(Initializer<Src> src, Options options = Options());
 
   Lz4Reader(Lz4Reader&& that) noexcept;
   Lz4Reader& operator=(Lz4Reader&& that) noexcept;
@@ -224,12 +217,7 @@ class Lz4Reader : public Lz4ReaderBase {
   // Makes `*this` equivalent to a newly constructed `Lz4Reader`. This avoids
   // constructing a temporary `Lz4Reader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Src& src,
-                                          Options options = Options());
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src,
-                                          Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<SrcArgs...> src_args,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the compressed `Reader`.
@@ -251,10 +239,6 @@ class Lz4Reader : public Lz4ReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit Lz4Reader(Closed) -> Lz4Reader<DeleteCtad<Closed>>;
-template <typename Src>
-explicit Lz4Reader(const Src& src,
-                   Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
-    -> Lz4Reader<std::decay_t<Src>>;
 template <typename Src>
 explicit Lz4Reader(Src&& src,
                    Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
@@ -341,31 +325,11 @@ inline void Lz4ReaderBase::Reset(
 }
 
 template <typename Src>
-inline Lz4Reader<Src>::Lz4Reader(const Src& src, Options options)
-    : Lz4ReaderBase(options.buffer_options(), options.growing_source(),
-                    std::move(options.dictionary()),
-                    options.recycling_pool_options()),
-      src_(src) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline Lz4Reader<Src>::Lz4Reader(Src&& src, Options options)
+inline Lz4Reader<Src>::Lz4Reader(Initializer<Src> src, Options options)
     : Lz4ReaderBase(options.buffer_options(), options.growing_source(),
                     std::move(options.dictionary()),
                     options.recycling_pool_options()),
       src_(std::move(src)) {
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline Lz4Reader<Src>::Lz4Reader(std::tuple<SrcArgs...> src_args,
-                                 Options options)
-    : Lz4ReaderBase(options.buffer_options(), options.growing_source(),
-                    std::move(options.dictionary()),
-                    options.recycling_pool_options()),
-      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -388,31 +352,11 @@ inline void Lz4Reader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void Lz4Reader<Src>::Reset(const Src& src, Options options) {
-  Lz4ReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                       std::move(options.dictionary()),
-                       options.recycling_pool_options());
-  src_.Reset(src);
-  Initialize(src_.get());
-}
-
-template <typename Src>
-inline void Lz4Reader<Src>::Reset(Src&& src, Options options) {
+inline void Lz4Reader<Src>::Reset(Initializer<Src> src, Options options) {
   Lz4ReaderBase::Reset(options.buffer_options(), options.growing_source(),
                        std::move(options.dictionary()),
                        options.recycling_pool_options());
   src_.Reset(std::move(src));
-  Initialize(src_.get());
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void Lz4Reader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                  Options options) {
-  Lz4ReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                       std::move(options.dictionary()),
-                       options.recycling_pool_options());
-  src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
 

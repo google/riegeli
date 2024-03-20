@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -96,8 +97,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
       : ArrayBackwardWriterBase(kClosed) {}
 
   // Will write to the array provided by `dest`.
-  explicit ArrayBackwardWriter(const Dest& dest);
-  explicit ArrayBackwardWriter(Dest&& dest);
+  explicit ArrayBackwardWriter(Initializer<Dest> dest);
 
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
@@ -109,19 +109,10 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
   ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) noexcept;
 
-  // Will write to the array provided by a `Dest` constructed from elements of
-  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
-  // it.
-  template <typename... DestArgs>
-  explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args);
-
   // Makes `*this` equivalent to a newly constructed `ArrayBackwardWriter`. This
   // avoids constructing a temporary `ArrayBackwardWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Dest& dest);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest&& dest);
-  template <typename... DestArgs>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::tuple<DestArgs...> dest_args);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
   template <typename DependentDest = Dest,
             std::enable_if_t<
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
@@ -145,14 +136,6 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ArrayBackwardWriter(Closed) -> ArrayBackwardWriter<DeleteCtad<Closed>>;
-template <typename Dest>
-explicit ArrayBackwardWriter(const Dest& dest)
-    -> ArrayBackwardWriter<std::conditional_t<
-        absl::conjunction<
-            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
-            std::is_constructible<absl::Span<char>, const Dest&>,
-            absl::negation<std::is_pointer<Dest>>>::value,
-        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(Dest&& dest)
     -> ArrayBackwardWriter<std::conditional_t<
@@ -200,22 +183,8 @@ inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
 }
 
 template <typename Dest>
-inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(const Dest& dest)
-    : dest_(dest) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest&& dest)
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Initializer<Dest> dest)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
-    std::tuple<DestArgs...> dest_args)
-    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -249,25 +218,9 @@ inline void ArrayBackwardWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void ArrayBackwardWriter<Dest>::Reset(const Dest& dest) {
-  ArrayBackwardWriterBase::Reset();
-  dest_.Reset(dest);
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void ArrayBackwardWriter<Dest>::Reset(Dest&& dest) {
+inline void ArrayBackwardWriter<Dest>::Reset(Initializer<Dest> dest) {
   ArrayBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
-}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline void ArrayBackwardWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args) {
-  ArrayBackwardWriterBase::Reset();
-  dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
 
