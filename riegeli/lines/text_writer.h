@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -296,20 +297,16 @@ template <typename Dest,
           std::enable_if_t<IsValidDependency<Writer*, Dest>::value, int>>
 AnyTextWriter<Dest> MakeAnyTextWriter(Initializer<Dest> dest,
                                       AnyTextWriterOptions options) {
-  AnyTextWriter<Dest> result;
   switch (options.newline()) {
     case WriteNewline::kLf:
-      result.template Emplace<TextWriter<WriteNewline::kLf, Dest>>(
-          std::move(dest), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextWriter<WriteNewline::kLf, Dest>>,
+              std::move(dest), options.buffer_options()};
     case WriteNewline::kCr:
-      result.template Emplace<TextWriter<WriteNewline::kCr, Dest>>(
-          std::move(dest), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextWriter<WriteNewline::kCr, Dest>>,
+              std::move(dest), options.buffer_options()};
     case WriteNewline::kCrLf:
-      result.template Emplace<TextWriter<WriteNewline::kCrLf, Dest>>(
-          std::move(dest), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextWriter<WriteNewline::kCrLf, Dest>>,
+              std::move(dest), options.buffer_options()};
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

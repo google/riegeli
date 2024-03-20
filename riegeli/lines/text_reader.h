@@ -24,6 +24,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -339,20 +340,16 @@ template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src>::value, int>>
 AnyTextReader<Src> MakeAnyTextReader(Initializer<Src> src,
                                      AnyTextReaderOptions options) {
-  AnyTextReader<Src> result;
   switch (options.newline()) {
     case ReadNewline::kLf:
-      result.template Emplace<TextReader<ReadNewline::kLf, Src>>(
-          std::move(src), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextReader<ReadNewline::kLf, Src>>,
+              std::move(src), options.buffer_options()};
     case ReadNewline::kCrLfOrLf:
-      result.template Emplace<TextReader<ReadNewline::kCrLfOrLf, Src>>(
-          std::move(src), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextReader<ReadNewline::kCrLfOrLf, Src>>,
+              std::move(src), options.buffer_options()};
     case ReadNewline::kAny:
-      result.template Emplace<TextReader<ReadNewline::kAny, Src>>(
-          std::move(src), options.buffer_options());
-      return result;
+      return {absl::in_place_type<TextReader<ReadNewline::kAny, Src>>,
+              std::move(src), options.buffer_options()};
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());
