@@ -243,6 +243,10 @@ cc_library(
 
 cc_library(
     name = "any_dependency",
+    srcs = [
+        "any_dependency_internal.h",
+        "in_place_template.h",
+    ],
     hdrs = ["any_dependency.h"],
     deps = [
         ":arithmetic",
