@@ -37,7 +37,7 @@ namespace riegeli {
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 class AnyDependency;
-template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Handle>
 class AnyDependencyRef;
 
 namespace any_dependency_internal {
@@ -137,10 +137,8 @@ struct IsAnyDependency : std::false_type {};
 template <typename Handle, size_t inline_size, size_t inline_align>
 struct IsAnyDependency<Handle, AnyDependency<Handle, inline_size, inline_align>>
     : std::true_type {};
-template <typename Handle, size_t inline_size, size_t inline_align>
-struct IsAnyDependency<Handle,
-                       AnyDependencyRef<Handle, inline_size, inline_align>>
-    : std::true_type {};
+template <typename Handle>
+struct IsAnyDependency<Handle, AnyDependencyRef<Handle>> : std::true_type {};
 
 // Implementation details follow.
 
