@@ -63,9 +63,8 @@ class RecyclingPoolOptions {
   // This option does not affect `RecyclingPool` and `KeyedRecyclingPool`
   // constructors.
   //
-  // Default: `kDefaultThreadShards` (1). The default will be increased to 16
-  // soon.
-  static constexpr size_t kDefaultThreadShards = 1;
+  // Default: `kDefaultThreadShards` (16).
+  static constexpr size_t kDefaultThreadShards = 16;
   RecyclingPoolOptions& set_thread_shards(size_t thread_shards) & {
     RIEGELI_ASSERT_GT(thread_shards, 0u)
         << "Failed precondition of RecyclingPoolOptions::set_thread_shards(): "
@@ -83,9 +82,8 @@ class RecyclingPoolOptions {
   //
   // 0 effectively disables the pool: objects are destroyed immediately.
   //
-  // Default: `DefaultMaxSize()`,
-  //          which is the maximum of 16 and hardware concurrency.
-  static size_t DefaultMaxSize();
+  // Default: `kDefaultMaxSize` (16).
+  static constexpr size_t kDefaultMaxSize = 16;
   RecyclingPoolOptions& set_max_size(size_t max_size) & {
     max_size_ = SaturatingIntCast<uint32_t>(max_size);
     return *this;
@@ -127,14 +125,13 @@ class RecyclingPoolOptions {
   template <typename T, typename Key, typename Deleter>
   friend class KeyedRecyclingPool;
 
-  static uint32_t DefaultMaxSizeSlow();
   static uint32_t AgeToSeconds(absl::Duration age);  // Round up.
 
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   // This is always a power of 2.
-  uint32_t thread_shards_ = SaturatingIntCast<uint32_t>(kDefaultThreadShards);
+  uint32_t thread_shards_ = IntCast<uint32_t>(kDefaultThreadShards);
   // Use `uint32_t` instead of `size_t` to reduce the object size.
-  uint32_t max_size_ = SaturatingIntCast<uint32_t>(DefaultMaxSize());
+  uint32_t max_size_ = IntCast<uint32_t>(kDefaultMaxSize);
   // Use `uint32_t` instead of `absl::Duration` to reduce the object size.
   // `std::numeric_limits<uint32_t>::max()` means `absl::InfiniteDuration()`.
   uint32_t max_age_seconds_ = 60;  // `AgeToSeconds(kDefaultMaxAge)`
@@ -379,11 +376,6 @@ class KeyedRecyclingPool : public BackgroundCleanee {
 };
 
 // Implementation details follow.
-
-inline size_t RecyclingPoolOptions::DefaultMaxSize() {
-  static const uint32_t kDefaultMaxSize = DefaultMaxSizeSlow();
-  return kDefaultMaxSize;
-}
 
 inline uint32_t RecyclingPoolOptions::AgeToSeconds(absl::Duration age) {
   if (age >= absl::Seconds(std::numeric_limits<uint32_t>::max())) {

@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/recycling_pool.h"  // IWYU pragma: keep
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include <thread>
+#include <stddef.h>  // IWYU pragma: keep
 
 #include "absl/time/time.h"  // IWYU pragma: keep
-#include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
 
@@ -29,12 +25,8 @@ namespace riegeli {
 // http://en.cppreference.com/w/cpp/language/static
 #if !__cpp_inline_variables
 constexpr size_t RecyclingPoolOptions::kDefaultThreadShards;
+constexpr size_t RecyclingPoolOptions::kDefaultMaxSize;
 constexpr absl::Duration RecyclingPoolOptions::kDefaultMaxAge;
 #endif
-
-uint32_t RecyclingPoolOptions::DefaultMaxSizeSlow() {
-  return UnsignedMax(uint32_t{16},
-                     IntCast<uint32_t>(std::thread::hardware_concurrency()));
-}
 
 }  // namespace riegeli
