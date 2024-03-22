@@ -464,9 +464,9 @@ class CsvHeader : public WithEqual<CsvHeader> {
   }
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const CsvHeader& self,
+  friend void RiegeliRegisterSubobjects(const CsvHeader* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.payload_);
+    memory_estimator.RegisterSubobjects(&self->payload_);
   }
 
  private:
@@ -477,11 +477,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
     Payload(const Payload& that);
 
     template <typename MemoryEstimator>
-    friend void RiegeliRegisterSubobjects(const Payload& self,
+    friend void RiegeliRegisterSubobjects(const Payload* self,
                                           MemoryEstimator& memory_estimator) {
       // Ignore `normalizer`. Even if not `nullptr`, usually it is stateless.
-      memory_estimator.RegisterSubobjects(self.index_to_name);
-      memory_estimator.RegisterSubobjects(self.name_to_index);
+      memory_estimator.RegisterSubobjects(&self->index_to_name);
+      memory_estimator.RegisterSubobjects(&self->name_to_index);
     }
 
     std::function<std::string(absl::string_view)> normalizer;
@@ -962,10 +962,10 @@ class CsvRecord : public WithEqual<CsvRecord> {
   }
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const CsvRecord& self,
+  friend void RiegeliRegisterSubobjects(const CsvRecord* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.header_);
-    memory_estimator.RegisterSubobjects(self.fields_);
+    memory_estimator.RegisterSubobjects(&self->header_);
+    memory_estimator.RegisterSubobjects(&self->fields_);
   }
 
  private:

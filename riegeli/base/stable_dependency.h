@@ -97,11 +97,11 @@ class StableDependencyImpl
   bool IsOwning() const { return EnsureAllocated()->IsOwning(); }
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StableDependencyImpl& self,
+  friend void RiegeliRegisterSubobjects(const StableDependencyImpl* self,
                                         MemoryEstimator& memory_estimator) {
     Dependency<Handle, Manager>* const dep =
-        self.dep_.load(std::memory_order_acquire);
-    if (dep != nullptr) memory_estimator.RegisterDynamicObject(*dep);
+        self->dep_.load(std::memory_order_acquire);
+    if (dep != nullptr) memory_estimator.RegisterDynamicObject(dep);
   }
 
  private:

@@ -225,9 +225,9 @@ class
 
   // Registers this `CompactString` with `MemoryEstimator`.
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const CompactString& self,
+  friend void RiegeliRegisterSubobjects(const CompactString* self,
                                         MemoryEstimator& memory_estimator) {
-    self.RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjectsImpl(memory_estimator);
   }
 
  private:

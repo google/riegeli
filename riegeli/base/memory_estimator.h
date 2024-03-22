@@ -111,14 +111,14 @@ class MemoryEstimator {
   // object.
   //
   // To customize `DynamicSizeOf()` for a class `T`, define a free function:
-  //   `friend size_t RiegeliDynamicSizeOf(const T& self)`
+  //   `friend size_t RiegeliDynamicSizeOf(const T* self)`
   // as a friend of `T` inside class definition or in the same namespace as `T`,
   // so that it can be found via ADL. That function typically calls a protected
   // or private virtual function whose overrides return `sizeof(Derived)`.
   //
   // By default returns `sizeof(T)`.
   template <typename T>
-  static size_t DynamicSizeOf(const T& object);
+  static size_t DynamicSizeOf(const T* object);
 
   // Registers subobjects of `object`. Does not include memory corresponding to
   // `sizeof(T)`.
@@ -126,7 +126,7 @@ class MemoryEstimator {
   // To customize `RegisterSubobjects()` for a class `T`, define a free
   // function:
   //   `friend void RiegeliRegisterSubobjects(
-  //        const T& self, MemoryEstimator& memory_estimator)`
+  //        const T* self, MemoryEstimator& memory_estimator)`
   // as a friend of `T` inside class definition or in the same namespace as `T`,
   // so that it can be found via ADL. `MemoryEstimator` in the parameter type
   // can also be a template parameter to reduce library dependencies.
@@ -158,17 +158,18 @@ class MemoryEstimator {
   //  * `absl::node_hash_map<K, V, Eq, Hash, Alloc>` (`Alloc` is ignored)
   //  * `google::protobuf::Message`
   template <typename T>
-  void RegisterSubobjects(const T& object);
+  void RegisterSubobjects(const T* object);
+  template <typename T, std::enable_if_t<std::is_reference<T>::value, int> = 0>
+  void RegisterSubobjects(const std::remove_reference_t<T>* object);
 
   // Iterates over elements of `iterable`, registering subobjects of each.
   template <typename T>
-  void RegisterSubobjectsOfElements(const T& iterable);
+  void RegisterSubobjectsOfElements(const T* iterable);
 
-  // A shortcut for
-  // `RegisterDynamicMemory(std::addressof(object), DynamicSizeOf(object))`
+  // A shortcut for `RegisterDynamicMemory(object, DynamicSizeOf(object))`
   // followed by `RegisterSubobjects(object)`.
   template <typename T>
-  void RegisterDynamicObject(const T& object);
+  void RegisterDynamicObject(const T* object);
 
   // Returns the total amount of memory added.
   size_t TotalMemory() const { return total_memory_; }
@@ -234,19 +235,19 @@ struct HasRiegeliDynamicSizeOf : std::false_type {};
 template <typename T>
 struct HasRiegeliDynamicSizeOf<
     T, std::enable_if_t<std::is_convertible<decltype(RiegeliDynamicSizeOf(
-                                                std::declval<const T&>())),
+                                                std::declval<const T*>())),
                                             size_t>::value>> : std::true_type {
 };
 
 template <typename T,
           std::enable_if_t<HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOfImpl(const T& object) {
+inline size_t DynamicSizeOfImpl(const T* object) {
   return RiegeliDynamicSizeOf(object);
 }
 
 template <typename T,
           std::enable_if_t<!HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOfImpl(ABSL_ATTRIBUTE_UNUSED const T& object) {
+inline size_t DynamicSizeOfImpl(ABSL_ATTRIBUTE_UNUSED const T* object) {
   return sizeof(T);
 }
 
@@ -256,14 +257,14 @@ struct HasRiegeliRegisterSubobjects : std::false_type {};
 template <typename T>
 struct HasRiegeliRegisterSubobjects<
     T, absl::void_t<decltype(RiegeliRegisterSubobjects(
-           std::declval<const T&>(), std::declval<MemoryEstimator&>()))>>
+           std::declval<const T*>(), std::declval<MemoryEstimator&>()))>>
     : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasRiegeliRegisterSubobjects<T>::value, int> = 0>
-inline void RegisterSubobjectsImpl(const T& self,
+inline void RegisterSubobjectsImpl(const T* object,
                                    MemoryEstimator& memory_estimator) {
-  RiegeliRegisterSubobjects(self, memory_estimator);
+  RiegeliRegisterSubobjects(object, memory_estimator);
 }
 
 template <typename T,
@@ -272,7 +273,7 @@ template <typename T,
                                 std::is_trivially_destructible<T>>::value,
               int> = 0>
 inline void RegisterSubobjectsImpl(
-    ABSL_ATTRIBUTE_UNUSED const T& object,
+    ABSL_ATTRIBUTE_UNUSED const T* object,
     ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
 template <typename T,
@@ -281,7 +282,7 @@ template <typename T,
                   absl::negation<HasRiegeliRegisterSubobjects<T>>,
                   absl::negation<std::is_trivially_destructible<T>>>::value,
               int> = 0>
-inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T& object,
+inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T* object,
                                    MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
 }
@@ -289,14 +290,18 @@ inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T& object,
 }  // namespace memory_estimator_internal
 
 template <typename T>
-inline size_t MemoryEstimator::DynamicSizeOf(const T& object) {
+inline size_t MemoryEstimator::DynamicSizeOf(const T* object) {
   return memory_estimator_internal::DynamicSizeOfImpl(object);
 }
 
 template <typename T>
-inline void MemoryEstimator::RegisterSubobjects(const T& object) {
+inline void MemoryEstimator::RegisterSubobjects(const T* object) {
   memory_estimator_internal::RegisterSubobjectsImpl(object, *this);
 }
+
+template <typename T, std::enable_if_t<std::is_reference<T>::value, int>>
+inline void MemoryEstimator::RegisterSubobjects(
+    ABSL_ATTRIBUTE_UNUSED const std::remove_reference_t<T>* object) {}
 
 template <typename T>
 struct RegisterSubobjectsIsGood
@@ -312,26 +317,26 @@ struct RegisterSubobjectsIsTrivial
           std::is_trivially_destructible<T>> {};
 
 template <typename T>
-inline void MemoryEstimator::RegisterSubobjectsOfElements(const T& iterable) {
+inline void MemoryEstimator::RegisterSubobjectsOfElements(const T* iterable) {
   using std::begin;
   if (!RegisterSubobjectsIsTrivial<
-          std::remove_reference_t<decltype(*begin(iterable))>>::value) {
-    for (const auto& element : iterable) {
-      RegisterSubobjects(element);
+          std::remove_reference_t<decltype(*begin(*iterable))>>::value) {
+    for (const auto& element : *iterable) {
+      RegisterSubobjects(&element);
     }
   }
 }
 
 template <typename T>
-inline void MemoryEstimator::RegisterDynamicObject(const T& object) {
-  RegisterDynamicMemory(std::addressof(object), DynamicSizeOf(object));
+inline void MemoryEstimator::RegisterDynamicObject(const T* object) {
+  RegisterDynamicMemory(object, DynamicSizeOf(object));
   RegisterSubobjects(object);
 }
 
 template <typename T>
-inline void RiegeliRegisterSubobjects(const std::unique_ptr<T>& self,
+inline void RiegeliRegisterSubobjects(const std::unique_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (self != nullptr) memory_estimator.RegisterDynamicObject(*self);
+  if (*self != nullptr) memory_estimator.RegisterDynamicObject(&**self);
 }
 
 namespace memory_estimator_internal {
@@ -346,49 +351,49 @@ struct SharedPtrControlBlock {
 }  // namespace memory_estimator_internal
 
 template <typename T>
-inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>& self,
+inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (memory_estimator.RegisterNode(self.get())) {
+  if (memory_estimator.RegisterNode(self->get())) {
     memory_estimator.RegisterDynamicMemory(
         sizeof(memory_estimator_internal::SharedPtrControlBlock) +
-        MemoryEstimator::DynamicSizeOf(*self));
-    memory_estimator.RegisterSubobjects(*self);
+        MemoryEstimator::DynamicSizeOf(&**self));
+    memory_estimator.RegisterSubobjects(&**self);
   }
 }
 
 template <typename Char, typename Traits, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const std::basic_string<Char, Traits, Alloc>& self,
+    const std::basic_string<Char, Traits, Alloc>* self,
     MemoryEstimator& memory_estimator) {
-  if (self.capacity() > std::basic_string<Char, Traits, Alloc>().capacity()) {
-    memory_estimator.RegisterDynamicMemory((self.capacity() + 1) *
+  if (self->capacity() > std::basic_string<Char, Traits, Alloc>().capacity()) {
+    memory_estimator.RegisterDynamicMemory((self->capacity() + 1) *
                                            sizeof(Char));
   } else {
     // Assume short string optimization.
   }
 }
 
-inline void RiegeliRegisterSubobjects(const absl::Cord& self,
+inline void RiegeliRegisterSubobjects(const absl::Cord* self,
                                       MemoryEstimator& memory_estimator) {
-  // Scale `self.EstimatedMemoryUsage()` by a fraction corresponding to how
+  // Scale `self->EstimatedMemoryUsage()` by a fraction corresponding to how
   // much of its memory is newly seen.
   size_t new_bytes = 0;
   size_t total_bytes = 0;
-  for (const absl::string_view fragment : self.Chunks()) {
+  for (const absl::string_view fragment : self->Chunks()) {
     if (memory_estimator.RegisterNode(fragment.data())) {
       new_bytes += fragment.size();
     }
     total_bytes += fragment.size();
   }
   memory_estimator.RegisterMemory(static_cast<size_t>(
-      static_cast<double>(self.EstimatedMemoryUsage() - sizeof(absl::Cord)) *
+      static_cast<double>(self->EstimatedMemoryUsage() - sizeof(absl::Cord)) *
       (static_cast<double>(new_bytes) / static_cast<double>(total_bytes))));
 }
 
 template <typename T>
-inline void RiegeliRegisterSubobjects(const absl::optional<T>& self,
+inline void RiegeliRegisterSubobjects(const absl::optional<T>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (self != absl::nullopt) memory_estimator.RegisterSubobjects(*self);
+  if (*self != absl::nullopt) memory_estimator.RegisterSubobjects(&**self);
 }
 
 namespace memory_estimator_internal {
@@ -396,7 +401,7 @@ namespace memory_estimator_internal {
 struct RegisterSubobjectsVisitor {
   template <typename T>
   void operator()(const T& object) const {
-    memory_estimator.RegisterSubobjects(object);
+    memory_estimator.RegisterSubobjects(&object);
   }
 
   MemoryEstimator& memory_estimator;
@@ -405,18 +410,18 @@ struct RegisterSubobjectsVisitor {
 }  // namespace memory_estimator_internal
 
 template <typename... T>
-inline void RiegeliRegisterSubobjects(const absl::variant<T...>& self,
+inline void RiegeliRegisterSubobjects(const absl::variant<T...>* self,
                                       MemoryEstimator& memory_estimator) {
   absl::visit(
       memory_estimator_internal::RegisterSubobjectsVisitor{memory_estimator},
-      self);
+      *self);
 }
 
 template <typename T, typename U>
-inline void RiegeliRegisterSubobjects(const std::pair<T, U>& self,
+inline void RiegeliRegisterSubobjects(const std::pair<T, U>* self,
                                       MemoryEstimator& memory_estimator) {
-  memory_estimator.RegisterSubobjects<T>(self.first);
-  memory_estimator.RegisterSubobjects<U>(self.second);
+  memory_estimator.RegisterSubobjects<T>(&self->first);
+  memory_estimator.RegisterSubobjects<U>(&self->second);
 }
 
 namespace memory_estimator_internal {
@@ -424,87 +429,89 @@ namespace memory_estimator_internal {
 template <size_t index, typename... T,
           std::enable_if_t<(index == sizeof...(T)), int> = 0>
 inline void RegisterTupleElements(
-    ABSL_ATTRIBUTE_UNUSED const std::tuple<T...>& self,
+    ABSL_ATTRIBUTE_UNUSED const std::tuple<T...>* self,
     ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
 template <size_t index, typename... T,
           std::enable_if_t<(index < sizeof...(T)), int> = 0>
-inline void RegisterTupleElements(const std::tuple<T...>& self,
+inline void RegisterTupleElements(const std::tuple<T...>* self,
                                   MemoryEstimator& memory_estimator) {
   memory_estimator
       .RegisterSubobjects<std::tuple_element_t<index, std::tuple<T...>>>(
-          std::get<index>(self));
+          &std::get<index>(*self));
   RegisterTupleElements<index + 1>(self, memory_estimator);
 }
 
 }  // namespace memory_estimator_internal
 
 template <typename... T>
-inline void RiegeliRegisterSubobjects(const std::tuple<T...>& self,
+inline void RiegeliRegisterSubobjects(const std::tuple<T...>* self,
                                       MemoryEstimator& memory_estimator) {
   memory_estimator_internal::RegisterTupleElements<0>(self, memory_estimator);
 }
 
 template <typename T, size_t size>
-inline void RiegeliRegisterSubobjects(const std::array<T, size>& self,
+inline void RiegeliRegisterSubobjects(const std::array<T, size>* self,
                                       MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjectsOfElements(self);
 }
 
 template <typename T, typename Alloc>
-inline void RiegeliRegisterSubobjects(const std::vector<T, Alloc>& self,
+inline void RiegeliRegisterSubobjects(const std::vector<T, Alloc>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (self.capacity() > 0) {
-    memory_estimator.RegisterDynamicMemory(self.capacity() * sizeof(T));
+  if (self->capacity() > 0) {
+    memory_estimator.RegisterDynamicMemory(self->capacity() * sizeof(T));
     memory_estimator.RegisterSubobjectsOfElements(self);
   }
 }
 
 template <typename Alloc>
-inline void RiegeliRegisterSubobjects(const std::vector<bool, Alloc>& self,
+inline void RiegeliRegisterSubobjects(const std::vector<bool, Alloc>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (self.capacity() > 0) {
-    memory_estimator.RegisterDynamicMemory(self.capacity() / 8);
+  if (self->capacity() > 0) {
+    memory_estimator.RegisterDynamicMemory(self->capacity() / 8);
   }
 }
 
 template <typename T, typename Eq, typename Hash, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::flat_hash_set<T, Eq, Hash, Alloc>& self,
+    const absl::flat_hash_set<T, Eq, Hash, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::flat_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(self));
+          absl::flat_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjectsOfElements(self);
 }
 
 template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::flat_hash_map<K, V, Eq, Hash, Alloc>& self,
+    const absl::flat_hash_map<K, V, Eq, Hash, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::flat_hash_map<K, V, Eq, Hash, Alloc>>::AllocatedByteSize(self));
+          absl::flat_hash_map<K, V, Eq, Hash,
+                              Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjectsOfElements(self);
 }
 
 template <typename T, typename Eq, typename Hash, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::node_hash_set<T, Eq, Hash, Alloc>& self,
+    const absl::node_hash_set<T, Eq, Hash, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::node_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(self));
+          absl::node_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjectsOfElements(self);
 }
 
 template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::node_hash_map<K, V, Eq, Hash, Alloc>& self,
+    const absl::node_hash_map<K, V, Eq, Hash, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::node_hash_map<K, V, Eq, Hash, Alloc>>::AllocatedByteSize(self));
+          absl::node_hash_map<K, V, Eq, Hash,
+                              Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjectsOfElements(self);
 }
 
@@ -512,9 +519,9 @@ template <
     typename T,
     std::enable_if_t<std::is_convertible<T*, google::protobuf::Message*>::value,
                      int> = 0>
-inline void RiegeliRegisterSubobjects(const T& self,
+inline void RiegeliRegisterSubobjects(const T* self,
                                       MemoryEstimator& memory_estimator) {
-  memory_estimator.RegisterMemory(self.SpaceUsedLong() - sizeof(T));
+  memory_estimator.RegisterMemory(self->SpaceUsedLong() - sizeof(T));
 }
 
 }  // namespace riegeli

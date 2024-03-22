@@ -94,9 +94,9 @@ class
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const Buffer& self,
+  friend void RiegeliRegisterSubobjects(const Buffer* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterDynamicMemory(self.data_, self.capacity_);
+    memory_estimator.RegisterDynamicMemory(self->data_, self->capacity_);
   }
 
  private:

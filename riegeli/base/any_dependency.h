@@ -119,9 +119,9 @@ class
   void* GetIf(TypeId type_id);
   const void* GetIf(TypeId type_id) const;
 
-  friend void RiegeliRegisterSubobjects(const AnyDependencyBase& self,
+  friend void RiegeliRegisterSubobjects(const AnyDependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
-    self.methods_->register_subobjects(self.repr_.storage, memory_estimator);
+    self->methods_->register_subobjects(self->repr_.storage, memory_estimator);
   }
 
  protected:

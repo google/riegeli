@@ -100,9 +100,9 @@ class SharedBuffer {
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const SharedBuffer& self,
+  friend void RiegeliRegisterSubobjects(const SharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.payload_);
+    memory_estimator.RegisterSubobjects(&self->payload_);
   }
 
  private:
@@ -110,9 +110,9 @@ class SharedBuffer {
     explicit Payload(size_t min_capacity) : buffer(min_capacity) {}
 
     template <typename MemoryEstimator>
-    friend void RiegeliRegisterSubobjects(const Payload& self,
+    friend void RiegeliRegisterSubobjects(const Payload* self,
                                           MemoryEstimator& memory_estimator) {
-      memory_estimator.RegisterSubobjects(self.buffer);
+      memory_estimator.RegisterSubobjects(&self->buffer);
     }
 
     Buffer buffer;

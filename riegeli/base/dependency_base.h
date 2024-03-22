@@ -74,9 +74,9 @@ class DependencyBase {
   static constexpr bool kIsStable = false;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const DependencyBase& self,
+  friend void RiegeliRegisterSubobjects(const DependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.manager_);
+    memory_estimator.RegisterSubobjects(&self->manager_);
   }
 
  protected:
@@ -110,7 +110,7 @@ class DependencyBase<Manager&> {
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const DependencyBase& self,
+      ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  protected:
@@ -141,7 +141,7 @@ class DependencyBase<Manager&&> {
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const DependencyBase& self,
+      ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  protected:
@@ -208,10 +208,10 @@ class DependencyBase<T[size]> {
   static constexpr bool kIsStable = false;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const DependencyBase& self,
+  friend void RiegeliRegisterSubobjects(const DependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
-    for (const T& element : self.manager_) {
-      memory_estimator.RegisterSubobjects(element);
+    for (const T& element : self->manager_) {
+      memory_estimator.RegisterSubobjects(&element);
     }
   }
 

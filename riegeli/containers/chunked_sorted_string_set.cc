@@ -128,7 +128,7 @@ StrongOrdering ChunkedSortedStringSet::CompareImpl(
 size_t ChunkedSortedStringSet::EstimateMemory() const {
   MemoryEstimator memory_estimator;
   memory_estimator.RegisterMemory(sizeof(ChunkedSortedStringSet));
-  memory_estimator.RegisterSubobjects(*this);
+  memory_estimator.RegisterSubobjects(this);
   return memory_estimator.TotalMemory();
 }
 

@@ -155,9 +155,9 @@ class
   void PrependTo(absl::Cord& dest) &&;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const SizedSharedBuffer& self,
+  friend void RiegeliRegisterSubobjects(const SizedSharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.buffer_);
+    memory_estimator.RegisterSubobjects(&self->buffer_);
   }
 
  private:

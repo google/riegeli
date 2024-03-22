@@ -158,9 +158,9 @@ class
   Position get() const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const FutureChunkBegin& self,
+  friend void RiegeliRegisterSubobjects(const FutureChunkBegin* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.unresolved_);
+    memory_estimator.RegisterSubobjects(&self->unresolved_);
   }
 
  private:
@@ -208,9 +208,9 @@ class
   RecordPosition get() const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const FutureRecordPosition& self,
+  friend void RiegeliRegisterSubobjects(const FutureRecordPosition* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.chunk_begin_);
+    memory_estimator.RegisterSubobjects(&self->chunk_begin_);
   }
 
  private:
@@ -240,9 +240,9 @@ class FutureChunkBegin::Unresolved : public RefCountedBase<Unresolved> {
   Position get() const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const Unresolved& self,
+  friend void RiegeliRegisterSubobjects(const Unresolved* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.actions_);
+    memory_estimator.RegisterSubobjects(&self->actions_);
   }
 
  private:

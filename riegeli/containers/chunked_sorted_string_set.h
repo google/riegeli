@@ -252,11 +252,11 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
   // Support `EstimateMemory()`.
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const ChunkedSortedStringSet& self,
+  friend void RiegeliRegisterSubobjects(const ChunkedSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.first_chunk_);
-    if (self.repr_is_allocated()) {
-      memory_estimator.RegisterDynamicObject(*self.allocated_repr());
+    memory_estimator.RegisterSubobjects(&self->first_chunk_);
+    if (self->repr_is_allocated()) {
+      memory_estimator.RegisterDynamicObject(self->allocated_repr());
     }
   }
 
@@ -283,9 +283,9 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   struct Repr {
     // Support `EstimateMemory()`.
     template <typename MemoryEstimator>
-    friend void RiegeliRegisterSubobjects(const Repr& self,
+    friend void RiegeliRegisterSubobjects(const Repr* self,
                                           MemoryEstimator& memory_estimator) {
-      memory_estimator.RegisterSubobjects(self.chunks);
+      memory_estimator.RegisterSubobjects(&self->chunks);
     }
 
     // Invariants:

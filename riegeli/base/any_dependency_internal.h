@@ -229,7 +229,7 @@ struct MethodsFor<Handle, Manager, true> {
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(dep(self));
+    memory_estimator.RegisterSubobjects(&dep(self));
   }
 
  public:
@@ -288,7 +288,7 @@ struct MethodsFor<Handle, Manager, false> {
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterDynamicObject(*dep_ptr(self));
+    memory_estimator.RegisterDynamicObject(dep_ptr(self));
   }
 
  public:

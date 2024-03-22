@@ -182,7 +182,7 @@ class Chain : public WithCompare<Chain> {
   //   // as an approximation of memory usage of an unknown type, registers just
   //   // the stored `data` if unique.
   //   friend void RiegeliRegisterSubobjects(
-  //       const T& self, riegeli::MemoryEstimator& memory_estimator);
+  //       const T* self, riegeli::MemoryEstimator& memory_estimator);
   // ```
   //
   // The `data` parameter of these member functions, if present, will get the
@@ -282,9 +282,9 @@ class Chain : public WithCompare<Chain> {
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
   // Registers this `Chain` with `MemoryEstimator`.
-  friend void RiegeliRegisterSubobjects(const Chain& self,
+  friend void RiegeliRegisterSubobjects(const Chain* self,
                                         MemoryEstimator& memory_estimator) {
-    self.RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjectsImpl(memory_estimator);
   }
 
   // Appends/prepends some uninitialized space. The buffer will have length at
@@ -995,12 +995,12 @@ class Chain::RawBlock {
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
   // Registers this `RawBlock` with `MemoryEstimator`.
-  friend size_t RiegeliDynamicSizeOf(const RawBlock& self) {
-    return self.DynamicSizeOfImpl();
+  friend size_t RiegeliDynamicSizeOf(const RawBlock* self) {
+    return self->DynamicSizeOfImpl();
   }
-  friend void RiegeliRegisterSubobjects(const RawBlock& self,
+  friend void RiegeliRegisterSubobjects(const RawBlock* self,
                                         MemoryEstimator& memory_estimator) {
-    self.RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjectsImpl(memory_estimator);
   }
 
   bool can_append(size_t length) const;
@@ -1102,7 +1102,7 @@ struct Chain::ExternalMethods {
   void (*delete_block)(RawBlock* block);
   void (*dump_structure)(const RawBlock& block, std::ostream& out);
   size_t dynamic_sizeof;
-  void (*register_subobjects)(const RawBlock& block,
+  void (*register_subobjects)(const RawBlock* block,
                               MemoryEstimator& memory_estimator);
 };
 
@@ -1198,7 +1198,7 @@ inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED T& object,
 
 template <typename T,
           std::enable_if_t<RegisterSubobjectsIsGood<T>::value, int> = 0>
-inline void RegisterSubobjects(const T& object,
+inline void RegisterSubobjects(const T* object,
                                ABSL_ATTRIBUTE_UNUSED absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjects(object);
@@ -1206,7 +1206,7 @@ inline void RegisterSubobjects(const T& object,
 
 template <typename T,
           std::enable_if_t<!RegisterSubobjectsIsGood<T>::value, int> = 0>
-inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T& object,
+inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
                                absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
@@ -1235,7 +1235,7 @@ struct Chain::ExternalMethodsFor {
   static void DeleteBlock(RawBlock* block);
   static void DumpStructure(const RawBlock& block, std::ostream& out);
   static constexpr size_t DynamicSizeOf();
-  static void RegisterSubobjects(const RawBlock& block,
+  static void RegisterSubobjects(const RawBlock* block,
                                  MemoryEstimator& memory_estimator);
 
  public:
@@ -1292,9 +1292,9 @@ constexpr size_t Chain::ExternalMethodsFor<T>::DynamicSizeOf() {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
-    const RawBlock& block, MemoryEstimator& memory_estimator) {
-  chain_internal::RegisterSubobjects(block.unchecked_external_object<T>(),
-                                     absl::string_view(block),
+    const RawBlock* block, MemoryEstimator& memory_estimator) {
+  chain_internal::RegisterSubobjects(&block->unchecked_external_object<T>(),
+                                     absl::string_view(*block),
                                      memory_estimator);
 }
 

@@ -223,9 +223,9 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
 
   // Support `EstimateMemory()`.
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const LinearSortedStringSet& self,
+  friend void RiegeliRegisterSubobjects(const LinearSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.encoded_);
+    memory_estimator.RegisterSubobjects(&self->encoded_);
   }
 
   // Returns the size of data that would be written by `Encode()`.

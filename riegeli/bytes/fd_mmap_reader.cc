@@ -171,8 +171,9 @@ class MMapRef {
   void operator()(absl::string_view data) const;
   void DumpStructure(std::ostream& out) const;
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const MMapRef& self,
-                                        MemoryEstimator& memory_estimator) {}
+  friend void RiegeliRegisterSubobjects(
+      ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
+      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  private:
   const char* addr_;

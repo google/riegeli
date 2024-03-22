@@ -124,10 +124,10 @@ class
   using absl_nullability_compatible = void;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const RefCountedPtr& self,
+  friend void RiegeliRegisterSubobjects(const RefCountedPtr* self,
                                         MemoryEstimator& memory_estimator) {
-    if (memory_estimator.RegisterNode(self.get())) {
-      memory_estimator.RegisterDynamicObject(*self);
+    if (memory_estimator.RegisterNode(self->get())) {
+      memory_estimator.RegisterDynamicObject(&**self);
     }
   }
 

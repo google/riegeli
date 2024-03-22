@@ -87,9 +87,9 @@ class StringRef {
   void DumpStructure(std::ostream& out) const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StringRef& self,
+  friend void RiegeliRegisterSubobjects(const StringRef* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.src_);
+    memory_estimator.RegisterSubobjects(&self->src_);
   }
 
   const std::string& src() const& { return src_; }
@@ -122,9 +122,9 @@ class FlatCordRef {
   void DumpStructure(std::ostream& out) const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const FlatCordRef& self,
+  friend void RiegeliRegisterSubobjects(const FlatCordRef* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.src_);
+    memory_estimator.RegisterSubobjects(&self->src_);
   }
 
   // Appends the `absl::Cord` to `dest`.
@@ -247,9 +247,9 @@ class SharedBufferRef {
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const SharedBufferRef& self,
+  friend void RiegeliRegisterSubobjects(const SharedBufferRef* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.src_);
+    memory_estimator.RegisterSubobjects(&self->src_);
   }
 
  private:
@@ -296,9 +296,9 @@ class Chain::BlockRef {
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const BlockRef& self,
+  friend void RiegeliRegisterSubobjects(const BlockRef* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(self.block_);
+    memory_estimator.RegisterSubobjects(&self->block_);
   }
 
  private:
@@ -431,7 +431,7 @@ size_t Chain::RawBlock::DynamicSizeOfImpl() const {
 void Chain::RawBlock::RegisterSubobjectsImpl(
     MemoryEstimator& memory_estimator) const {
   if (!is_internal()) {
-    external_.methods->register_subobjects(*this, memory_estimator);
+    external_.methods->register_subobjects(this, memory_estimator);
   }
 }
 
@@ -1205,7 +1205,7 @@ void Chain::DumpStructure(std::ostream& out) const {
 size_t Chain::EstimateMemory() const {
   MemoryEstimator memory_estimator;
   memory_estimator.RegisterMemory(sizeof(Chain));
-  memory_estimator.RegisterSubobjects(*this);
+  memory_estimator.RegisterSubobjects(this);
   return memory_estimator.TotalMemory();
 }
 
@@ -1218,7 +1218,7 @@ void Chain::RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
   }
   for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
     if (memory_estimator.RegisterNode(iter->block_ptr)) {
-      memory_estimator.RegisterDynamicObject(*iter->block_ptr);
+      memory_estimator.RegisterDynamicObject(iter->block_ptr);
     }
   }
 }
