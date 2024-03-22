@@ -232,25 +232,23 @@ class AnyDependency
   // Holds a `Dependency<Handle, std::decay_t<Manager>>`.
   //
   // The `Manager` type is deduced from the constructor argument.
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<
-                  std::is_same<std::decay_t<Manager>, AnyDependency>>,
-              IsValidDependency<Handle, std::decay_t<Manager>>,
-              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyDependency>>,
+                    IsValidDependency<Handle, std::decay_t<Manager>>,
+                    std::is_move_constructible<std::decay_t<Manager>>>::value,
+                int> = 0>
   /*implicit*/ AnyDependency(Manager&& manager);
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<
-                  std::is_same<std::decay_t<Manager>, AnyDependency>>,
-              IsValidDependency<Handle, std::decay_t<Manager>>,
-              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyDependency>>,
+                    IsValidDependency<Handle, std::decay_t<Manager>>,
+                    std::is_move_constructible<std::decay_t<Manager>>>::value,
+                int> = 0>
   AnyDependency& operator=(Manager&& manager);
 
   // Holds a `Dependency<Handle, Manager>`.
@@ -284,13 +282,12 @@ class AnyDependency
   AnyDependency& operator=(AnyDependency&& that) = default;
 
   using AnyDependency::AnyDependencyBase::Reset;
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<
-              IsValidDependency<Handle, std::decay_t<Manager>>,
-              std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    IsValidDependency<Handle, std::decay_t<Manager>>,
+                    std::is_move_constructible<std::decay_t<Manager>>>::value,
+                int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Manager&& manager);
   template <
       typename Manager,
@@ -671,7 +668,7 @@ template <typename Manager,
                       std::decay_t<Manager>,
                       AnyDependency<Handle, inline_size, inline_align>>>,
                   IsValidDependency<Handle, std::decay_t<Manager>>,
-                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+                  std::is_move_constructible<std::decay_t<Manager>>>::value,
               int>>
 inline AnyDependency<Handle, inline_size, inline_align>::AnyDependency(
     Manager&& manager) {
@@ -687,7 +684,7 @@ template <typename Manager,
                       std::decay_t<Manager>,
                       AnyDependency<Handle, inline_size, inline_align>>>,
                   IsValidDependency<Handle, std::decay_t<Manager>>,
-                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+                  std::is_move_constructible<std::decay_t<Manager>>>::value,
               int>>
 inline AnyDependency<Handle, inline_size, inline_align>&
 AnyDependency<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
@@ -733,7 +730,7 @@ template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
                   IsValidDependency<Handle, std::decay_t<Manager>>,
-                  std::is_convertible<Manager&&, std::decay_t<Manager>>>::value,
+                  std::is_move_constructible<std::decay_t<Manager>>>::value,
               int>>
 inline void AnyDependency<Handle, inline_size, inline_align>::Reset(
     Manager&& manager) {

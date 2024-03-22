@@ -168,13 +168,12 @@ class DependencyBase<T[size]> {
 
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          std::is_convertible<const DependentT&, DependentT>::value, int> = 0>
+      std::enable_if_t<std::is_copy_constructible<DependentT>::value, int> = 0>
   explicit DependencyBase(const T (&manager)[size])
       : DependencyBase(manager, std::make_index_sequence<size>()) {}
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_convertible<DependentT&&, DependentT>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_move_constructible<DependentT>::value, int> = 0>
   explicit DependencyBase(T (&&manager)[size]) noexcept
       : DependencyBase(std::move(manager), std::make_index_sequence<size>()) {}
 
@@ -186,16 +185,15 @@ class DependencyBase<T[size]> {
 
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          std::is_convertible<const DependentT&, DependentT>::value, int> = 0>
+      std::enable_if_t<std::is_copy_assignable<DependentT>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const T (&manager)[size]) {
     for (size_t i = 0; i < size; ++i) {
       manager_[i] = manager[i];
     }
   }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_convertible<DependentT&&, DependentT>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_move_assignable<DependentT>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(T (&&manager)[size]) {
     for (size_t i = 0; i < size; ++i) {
       manager_[i] = std::move(manager[i]);
