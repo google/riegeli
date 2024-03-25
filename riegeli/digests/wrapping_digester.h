@@ -77,8 +77,12 @@ class WrappingDigester {
   // Forwards constructor arguments to the `BaseDigester`.
   template <
       typename... Args,
-      std::enable_if_t<std::is_constructible<BaseDigester, Args&&...>::value,
-                       int> = true>
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<std::is_same<std::tuple<std::decay_t<Args>...>,
+                                          std::tuple<WrappingDigester>>>,
+              std::is_constructible<BaseDigester, Args&&...>>::value,
+          int> = true>
   explicit WrappingDigester(Args&&... args)
       : base_(std::forward_as_tuple(std::forward<Args>(args)...)) {}
 
