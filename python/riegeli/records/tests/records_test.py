@@ -991,6 +991,7 @@ class RecordsTest(parameterized.TestCase):
       ) as reader:
 
         def test_function(search_target):
+
           def test(msg):
             return (msg.id > search_target) - (msg.id < search_target)
 

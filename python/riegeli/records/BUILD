@@ -1,5 +1,5 @@
-load("//python/riegeli:py_extension.bzl", "py_extension")
 load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
+load("//python/riegeli:py_extension.bzl", "py_extension")
 
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
