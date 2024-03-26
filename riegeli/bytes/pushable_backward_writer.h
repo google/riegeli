@@ -162,9 +162,9 @@ class PushableBackwardWriter : public BackwardWriter {
 
 // Helps to implement move constructor or move assignment if scratch is used.
 //
-// Moving the destination should be in scope of a `BehindScratch` local
-// variable, unless destination buffer pointers are known to remain unchanged
-// during a move or their change does not need to be reflected elsewhere.
+// Moving the destination should be in scope of a `BehindScratch` object, unless
+// destination buffer pointers are known to remain unchanged during a move or
+// their change does not need to be reflected elsewhere.
 //
 // This temporarily reveals the relationship between the destination and the
 // buffer pointers, in case it was hidden behind scratch usage. In a
@@ -175,8 +175,8 @@ class PushableBackwardWriter::BehindScratch {
  public:
   explicit BehindScratch(PushableBackwardWriter* context);
 
-  BehindScratch(const BehindScratch&) = delete;
-  BehindScratch& operator=(const BehindScratch&) = delete;
+  BehindScratch(BehindScratch&& that) = default;
+  BehindScratch& operator=(BehindScratch&&) = delete;
 
   ~BehindScratch();
 

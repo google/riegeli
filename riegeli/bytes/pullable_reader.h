@@ -157,9 +157,9 @@ class PullableReader : public Reader {
 
 // Helps to implement move constructor or move assignment if scratch is used.
 //
-// Moving the source should be in scope of a `BehindScratch` local variable,
-// unless source buffer pointers are known to remain unchanged during a move
-// or their change does not need to be reflected elsewhere.
+// Moving the source should be in scope of a `BehindScratch` object, unless
+// source buffer pointers are known to remain unchanged during a move or their
+// change does not need to be reflected elsewhere.
 //
 // This temporarily reveals the relationship between the source and the buffer
 // pointers, in case it was hidden behind scratch usage. In a `BehindScratch`
@@ -169,8 +169,8 @@ class PullableReader::BehindScratch {
  public:
   explicit BehindScratch(PullableReader* context);
 
-  BehindScratch(const BehindScratch&) = delete;
-  BehindScratch& operator=(const BehindScratch&) = delete;
+  BehindScratch(BehindScratch&& that) = default;
+  BehindScratch& operator=(BehindScratch&&) = delete;
 
   ~BehindScratch();
 
