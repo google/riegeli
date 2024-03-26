@@ -262,11 +262,10 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)) {
-  if (limit() == that.cord_buffer_.data()) {
-    cord_buffer_ = std::move(that.cord_buffer_);
+  const bool uses_cord_buffer = limit() == that.cord_buffer_.data();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
     set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  } else {
-    cord_buffer_ = std::move(that.cord_buffer_);
   }
 }
 
@@ -277,11 +276,10 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
-  if (limit() == that.cord_buffer_.data()) {
-    cord_buffer_ = std::move(that.cord_buffer_);
+  const bool uses_cord_buffer = limit() == that.cord_buffer_.data();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
     set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  } else {
-    cord_buffer_ = std::move(that.cord_buffer_);
   }
   return *this;
 }

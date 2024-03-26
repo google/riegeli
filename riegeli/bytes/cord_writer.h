@@ -311,11 +311,10 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       buffer_(std::move(that.buffer_)),
       tail_(std::move(that.tail_)),
       associated_reader_(std::move(that.associated_reader_)) {
-  if (start() == that.cord_buffer_.data()) {
-    cord_buffer_ = std::move(that.cord_buffer_);
+  const bool uses_cord_buffer = start() == that.cord_buffer_.data();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
     set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  } else {
-    cord_buffer_ = std::move(that.cord_buffer_);
   }
 }
 
@@ -328,11 +327,10 @@ inline CordWriterBase& CordWriterBase::operator=(
   buffer_ = std::move(that.buffer_);
   tail_ = std::move(that.tail_);
   associated_reader_ = std::move(that.associated_reader_);
-  if (start() == that.cord_buffer_.data()) {
-    cord_buffer_ = std::move(that.cord_buffer_);
+  const bool uses_cord_buffer = start() == that.cord_buffer_.data();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
     set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  } else {
-    cord_buffer_ = std::move(that.cord_buffer_);
   }
   return *this;
 }
