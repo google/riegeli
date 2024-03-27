@@ -225,13 +225,6 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 explicit CordBackwardWriter(Closed) -> CordBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordBackwardWriter(
-    const Dest& dest,
-    CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
-    -> CordBackwardWriter<std::conditional_t<
-        std::is_convertible<const Dest*, const absl::Cord*>::value,
-        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
-template <typename Dest>
-explicit CordBackwardWriter(
     Dest&& dest,
     CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
     -> CordBackwardWriter<std::conditional_t<

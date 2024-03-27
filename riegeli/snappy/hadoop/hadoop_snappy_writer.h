@@ -146,11 +146,6 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
 explicit HadoopSnappyWriter(Closed) -> HadoopSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit HadoopSnappyWriter(
-    const Dest& dest,
-    HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
-    -> HadoopSnappyWriter<std::decay_t<Dest>>;
-template <typename Dest>
-explicit HadoopSnappyWriter(
     Dest&& dest,
     HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
     -> HadoopSnappyWriter<std::decay_t<Dest>>;

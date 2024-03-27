@@ -141,11 +141,6 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 #if __cpp_deduction_guides
 explicit FramedSnappyReader(Closed) -> FramedSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit FramedSnappyReader(
-    const Src& src,
-    FramedSnappyReaderBase::Options options = FramedSnappyReaderBase::Options())
-    -> FramedSnappyReader<std::decay_t<Src>>;
-template <typename Src>
 explicit FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
                                            FramedSnappyReaderBase::Options())
     -> FramedSnappyReader<std::decay_t<Src>>;

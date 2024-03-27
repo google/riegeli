@@ -146,11 +146,6 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 explicit FramedSnappyWriter(Closed) -> FramedSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FramedSnappyWriter(
-    const Dest& dest,
-    FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
-    -> FramedSnappyWriter<std::decay_t<Dest>>;
-template <typename Dest>
-explicit FramedSnappyWriter(
     Dest&& dest,
     FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
     -> FramedSnappyWriter<std::decay_t<Dest>>;

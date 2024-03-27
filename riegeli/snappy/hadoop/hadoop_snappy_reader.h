@@ -139,11 +139,6 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
 #if __cpp_deduction_guides
 explicit HadoopSnappyReader(Closed) -> HadoopSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit HadoopSnappyReader(
-    const Src& src,
-    HadoopSnappyReaderBase::Options options = HadoopSnappyReaderBase::Options())
-    -> HadoopSnappyReader<std::decay_t<Src>>;
-template <typename Src>
 explicit HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
                                            HadoopSnappyReaderBase::Options())
     -> HadoopSnappyReader<std::decay_t<Src>>;
