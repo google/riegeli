@@ -29,6 +29,21 @@ namespace riegeli {
 
 namespace initializer_internal {
 
+// `IsConstructible<false, T, Arg>::value` is `true` if `T` is implicitly
+// constructible from `Arg`.
+//
+// `IsConstructible<true, T, Arg>::value` is `true` if `T` is implicitly or
+// explicitly constructible from `Arg`.
+
+template <bool allow_explicit, typename T, typename Arg>
+struct IsConstructible;
+
+template <typename T, typename Arg>
+struct IsConstructible<false, T, Arg> : std::is_convertible<Arg, T> {};
+
+template <typename T, typename Arg>
+struct IsConstructible<true, T, Arg> : std::is_constructible<T, Arg> {};
+
 // `CanBindTo<T, Args...>::value` is `true` if constructing `T(args...)` with
 // `args...` of type `Args...` can be elided, with `T&&` binding directly to
 // the only element of `args...` instead.
@@ -242,16 +257,24 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
 // `Initializer<T>` itself is move-constructible.
 
 // Primary definition of `Initializer` for non-reference move-assignable types.
-template <typename T, typename Enable = void>
+template <typename T, bool allow_explicit = false, typename Enable = void>
 class Initializer
     : public initializer_internal::InitializerAssignableValueBase<T> {
  public:
+  // `Initializer<T>::AllowingExplicit` is implicitly convertible also from
+  // a value explicitly convertible to `T`.
+  //
+  // This is useful for `Initializer<std::string>::AllowingExplicit` to accept
+  // also `absl::string_view`.
+  using AllowingExplicit = Initializer<T, true>;
+
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
       std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
                                              std::decay_t<Arg>, Initializer>>,
-                                         std::is_convertible<Arg&&, T>>::value,
+                                         initializer_internal::IsConstructible<
+                                             allow_explicit, T, Arg&&>>::value,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(std::forward<Arg>(arg)) {}
@@ -270,18 +293,24 @@ class Initializer
 };
 
 // Specialization of `Initializer` for non-reference non-assignable types.
-template <typename T>
-class Initializer<T, std::enable_if_t<absl::conjunction<
-                         absl::negation<std::is_reference<T>>,
-                         absl::negation<std::is_move_assignable<T>>>::value>>
+template <typename T, bool allow_explicit>
+class Initializer<T, allow_explicit,
+                  std::enable_if_t<absl::conjunction<
+                      absl::negation<std::is_reference<T>>,
+                      absl::negation<std::is_move_assignable<T>>>::value>>
     : public initializer_internal::InitializerValueBase<T> {
  public:
+  // `Initializer<T>::AllowingExplicit` is implicitly convertible also from
+  // a value explicitly convertible to `T`.
+  using AllowingExplicit = Initializer<T, true>;
+
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
       std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
                                              std::decay_t<Arg>, Initializer>>,
-                                         std::is_convertible<Arg&&, T>>::value,
+                                         initializer_internal::IsConstructible<
+                                             allow_explicit, T, Arg&&>>::value,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(std::forward<Arg>(arg)) {}
@@ -300,10 +329,15 @@ class Initializer<T, std::enable_if_t<absl::conjunction<
 };
 
 // Specialization of `Initializer` for reference types.
-template <typename T>
-class Initializer<T, std::enable_if_t<std::is_reference<T>::value>>
+template <typename T, bool allow_explicit>
+class Initializer<T, allow_explicit,
+                  std::enable_if_t<std::is_reference<T>::value>>
     : public initializer_internal::InitializerBase<T> {
  public:
+  // `Initializer<T>::AllowingExplicit` is implicitly convertible also from
+  // a value explicitly convertible to `T`.
+  using AllowingExplicit = Initializer<T, true>;
+
   struct ReferenceStorage {};
 
   // Constructs `Initializer<T>` from a value convertible to `T`.
@@ -311,7 +345,8 @@ class Initializer<T, std::enable_if_t<std::is_reference<T>::value>>
       typename Arg,
       std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
                                              std::decay_t<Arg>, Initializer>>,
-                                         std::is_convertible<Arg&&, T>>::value,
+                                         initializer_internal::IsConstructible<
+                                             allow_explicit, T, Arg&&>>::value,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(std::forward<Arg>(arg)) {}
@@ -350,8 +385,8 @@ template <typename Arg,
 inline InitializerBase<T>::InitializerBase(Arg&& arg)
     : context_(const_cast<absl::remove_cvref_t<Arg>*>(&arg)),
       construct_([](void* context) -> T {
-        return std::forward<Arg>(
-            *static_cast<std::remove_reference_t<Arg>*>(context));
+        return T(std::forward<Arg>(
+            *static_cast<std::remove_reference_t<Arg>*>(context)));
       }) {}
 
 template <typename T>
