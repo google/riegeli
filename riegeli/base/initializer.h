@@ -196,6 +196,34 @@ class InitializerValueBase : public InitializerBase<T> {
   T && (*reference_)(void* context, ReferenceStorage& reference_storage);
 };
 
+// Part of `Initializer<T>` for `T` being a non-reference move-assignable type.
+template <typename T>
+class InitializerAssignableValueBase : public InitializerValueBase<T> {
+ public:
+  // Makes `object` equivalent to the constructed `T`. This avoids constructing
+  // a temporary `T` and moving from it.
+  void AssignTo(T& object) && { assign_to_(this->context(), object); }
+
+ protected:
+  template <
+      typename Arg,
+      std::enable_if_t<!std::is_same<std::decay_t<Arg>,
+                                     InitializerAssignableValueBase>::value,
+                       int> = 0>
+  explicit InitializerAssignableValueBase(Arg&& arg);
+
+  template <typename... Args>
+  explicit InitializerAssignableValueBase(std::tuple<Args...>&& args);
+
+  InitializerAssignableValueBase(InitializerAssignableValueBase&& other) =
+      default;
+  InitializerAssignableValueBase& operator=(InitializerAssignableValueBase&&) =
+      delete;
+
+ private:
+  void (*assign_to_)(void* context, T& object);
+};
+
 }  // namespace initializer_internal
 
 // A parameter of type `Initializer<T>` allows the caller to specify a `T` by
@@ -214,7 +242,8 @@ class InitializerValueBase : public InitializerBase<T> {
 
 // Primary definition of `Initializer` for non-reference move-assignable types.
 template <typename T, typename Enable = void>
-class Initializer : public initializer_internal::InitializerValueBase<T> {
+class Initializer
+    : public initializer_internal::InitializerAssignableValueBase<T> {
  public:
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
@@ -223,7 +252,8 @@ class Initializer : public initializer_internal::InitializerValueBase<T> {
                                              std::decay_t<Arg>, Initializer>>,
                                          std::is_convertible<Arg&&, T>>::value,
                        int> = 0>
-  /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND);
+  /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(std::forward<Arg>(arg)) {}
 
   // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
   // (usually made with `std::forward_as_tuple()`).
@@ -231,17 +261,11 @@ class Initializer : public initializer_internal::InitializerValueBase<T> {
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
   /*implicit*/ Initializer(
-      std::tuple<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND);
+      std::tuple<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(std::move(args)) {}
 
   Initializer(Initializer&& other) = default;
   Initializer& operator=(Initializer&&) = delete;
-
-  // Makes `object` equivalent to the constructed `T`. This avoids constructing
-  // a temporary `T` and moving from it.
-  void AssignTo(T& object) && { assign_to_(this->context(), object); }
-
- private:
-  void (*assign_to_)(void* context, T& object);
 };
 
 // Specialization of `Initializer` for non-reference non-assignable types.
@@ -396,28 +420,27 @@ inline T&& InitializerValueBase<T>::ReferenceMethod(
   return *std::move(reference_storage);
 }
 
-}  // namespace initializer_internal
-
-template <typename T, typename Enable>
-template <typename Arg,
-          std::enable_if_t<
-              absl::conjunction<absl::negation<std::is_same<
-                                    std::decay_t<Arg>, Initializer<T, Enable>>>,
-                                std::is_convertible<Arg&&, T>>::value,
-              int>>
-inline Initializer<T, Enable>::Initializer(Arg&& arg)
-    : Initializer::InitializerValueBase(std::forward<Arg>(arg)),
+template <typename T>
+template <
+    typename Arg,
+    std::enable_if_t<!std::is_same<std::decay_t<Arg>,
+                                   InitializerAssignableValueBase<T>>::value,
+                     int>>
+inline InitializerAssignableValueBase<T>::InitializerAssignableValueBase(
+    Arg&& arg)
+    : InitializerAssignableValueBase::InitializerValueBase(
+          std::forward<Arg>(arg)),
       assign_to_([](void* context, T& object) {
         riegeli::Reset(
             object, std::forward<Arg>(
                         *static_cast<std::remove_reference_t<Arg>*>(context)));
       }) {}
 
-template <typename T, typename Enable>
-template <typename... Args,
-          std::enable_if_t<std::is_constructible<T, Args&&...>::value, int>>
-inline Initializer<T, Enable>::Initializer(std::tuple<Args...>&& args)
-    : Initializer::InitializerValueBase(std::move(args)),
+template <typename T>
+template <typename... Args>
+inline InitializerAssignableValueBase<T>::InitializerAssignableValueBase(
+    std::tuple<Args...>&& args)
+    : InitializerAssignableValueBase::InitializerValueBase(std::move(args)),
       assign_to_([](void* context, T& object) {
         absl::apply(
             [&](Args&&... args) {
@@ -425,6 +448,8 @@ inline Initializer<T, Enable>::Initializer(std::tuple<Args...>&& args)
             },
             std::move(*static_cast<std::tuple<Args...>*>(context)));
       }) {}
+
+}  // namespace initializer_internal
 
 }  // namespace riegeli
 
