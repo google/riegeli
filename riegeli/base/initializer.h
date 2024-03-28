@@ -127,7 +127,8 @@ class InitializerBase {
   //
   // It is preferred to explicitly call `Construct()` instead, but this
   // conversion allows to pass `Initializer<T>` to another function no matter
-  // whether it is expecting an `Initializer<T>` or `T`.
+  // whether it is expecting an `Initializer<T>` or `T`, including functions
+  // like `std::vector<T>::emplace_back()`.
   /*implicit*/ operator T() && { return std::move(*this).Construct(); }
 
  protected:
