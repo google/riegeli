@@ -329,7 +329,6 @@ template <typename Dest>
 inline void FileWriter<Dest>::Reset(Closed) {
   FileWriterBase::Reset(kClosed);
   dest_.Reset();
-  Initialize(dest_.get());
 }
 
 template <typename Dest>
