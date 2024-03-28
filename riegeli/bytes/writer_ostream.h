@@ -278,17 +278,22 @@ inline WriterOStreamBase::WriterOStreamBase(WriterOStreamBase&& that) noexcept
 
 inline WriterOStreamBase& WriterOStreamBase::operator=(
     WriterOStreamBase&& that) noexcept {
-  std::iostream::operator=(static_cast<std::iostream&&>(that));
-  streambuf_ = std::move(that.streambuf_);
+  if (ABSL_PREDICT_TRUE(&that != this)) {
+    Done();
+    std::iostream::operator=(static_cast<std::iostream&&>(that));
+    streambuf_ = std::move(that.streambuf_);
+  }
   return *this;
 }
 
 inline void WriterOStreamBase::Reset(Closed) {
+  Done();
   streambuf_ = stream_internal::WriterStreambuf(kClosed);
   init(&streambuf_);
 }
 
 inline void WriterOStreamBase::Reset() {
+  Done();
   streambuf_ = stream_internal::WriterStreambuf();
   init(&streambuf_);
 }
@@ -314,17 +319,13 @@ inline WriterOStream<Dest>::WriterOStream(WriterOStream&& that) noexcept
 template <typename Dest>
 inline WriterOStream<Dest>& WriterOStream<Dest>::operator=(
     WriterOStream&& that) noexcept {
-  if (ABSL_PREDICT_TRUE(&that != this)) {
-    Done();
-    WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
-    MoveDest(std::move(that));
-  }
+  WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
 inline void WriterOStream<Dest>::Reset(Closed) {
-  Done();
   WriterOStreamBase::Reset(kClosed);
   dest_.Reset();
 }
@@ -332,7 +333,6 @@ inline void WriterOStream<Dest>::Reset(Closed) {
 template <typename Dest>
 inline void WriterOStream<Dest>::Reset(Initializer<Dest> dest,
                                        Options options) {
-  Done();
   WriterOStreamBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
@@ -351,14 +351,13 @@ inline void WriterOStream<Dest>::MoveDest(WriterOStream&& that) {
 
 template <typename Dest>
 void WriterOStream<Dest>::Done() {
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    streambuf_.Done();
-    if (dest_.IsOwning()) {
-      if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.FailWriter();
-    }
-    if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
-    streambuf_.MarkClosed();
+  if (ABSL_PREDICT_FALSE(!is_open())) return;
+  streambuf_.Done();
+  if (dest_.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.FailWriter();
   }
+  if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
+  streambuf_.MarkClosed();
 }
 
 }  // namespace riegeli

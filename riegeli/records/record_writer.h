@@ -659,7 +659,7 @@ class RecordWriter : public RecordWriterBase {
   RecordWriter(RecordWriter&& that) noexcept;
   RecordWriter& operator=(RecordWriter&& that) noexcept;
 
-  ~RecordWriter() { DoneBackground(); }
+  ~RecordWriter() override { DoneBackground(); }
 
   // Makes `*this` equivalent to a newly constructed `RecordWriter`. This avoids
   // constructing a temporary `RecordWriter` and moving from it.
@@ -716,7 +716,6 @@ inline RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
 template <typename Dest>
 inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
     RecordWriter&& that) noexcept {
-  DoneBackground();
   RecordWriterBase::operator=(static_cast<RecordWriterBase&&>(that));
   dest_ = std::move(that.dest_);
   return *this;

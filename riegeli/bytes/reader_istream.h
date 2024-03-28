@@ -275,17 +275,22 @@ inline ReaderIStreamBase::ReaderIStreamBase(ReaderIStreamBase&& that) noexcept
 
 inline ReaderIStreamBase& ReaderIStreamBase::operator=(
     ReaderIStreamBase&& that) noexcept {
-  std::istream::operator=(static_cast<std::istream&&>(that));
-  streambuf_ = std::move(that.streambuf_);
+  if (ABSL_PREDICT_TRUE(&that != this)) {
+    Done();
+    std::istream::operator=(static_cast<std::istream&&>(that));
+    streambuf_ = std::move(that.streambuf_);
+  }
   return *this;
 }
 
 inline void ReaderIStreamBase::Reset(Closed) {
+  Done();
   streambuf_ = stream_internal::ReaderStreambuf(kClosed);
   init(&streambuf_);
 }
 
 inline void ReaderIStreamBase::Reset() {
+  Done();
   streambuf_ = stream_internal::ReaderStreambuf();
   init(&streambuf_);
 }
@@ -310,24 +315,19 @@ inline ReaderIStream<Src>::ReaderIStream(ReaderIStream&& that) noexcept
 template <typename Src>
 inline ReaderIStream<Src>& ReaderIStream<Src>::operator=(
     ReaderIStream&& that) noexcept {
-  if (ABSL_PREDICT_TRUE(&that != this)) {
-    Done();
-    ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
-    MoveSrc(std::move(that));
-  }
+  ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
+  MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
 inline void ReaderIStream<Src>::Reset(Closed) {
-  Done();
   ReaderIStreamBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void ReaderIStream<Src>::Reset(Initializer<Src> src, Options options) {
-  Done();
   ReaderIStreamBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -346,14 +346,13 @@ inline void ReaderIStream<Src>::MoveSrc(ReaderIStream&& that) {
 
 template <typename Src>
 void ReaderIStream<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(is_open())) {
-    streambuf_.Done();
-    if (src_.IsOwning()) {
-      if (ABSL_PREDICT_FALSE(!src_->Close())) streambuf_.Fail();
-    }
-    if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
-    streambuf_.MarkClosed();
+  if (ABSL_PREDICT_FALSE(!is_open())) return;
+  streambuf_.Done();
+  if (src_.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!src_->Close())) streambuf_.Fail();
   }
+  if (ABSL_PREDICT_FALSE(!streambuf_.ok())) setstate(std::ios_base::badbit);
+  streambuf_.MarkClosed();
 }
 
 }  // namespace riegeli

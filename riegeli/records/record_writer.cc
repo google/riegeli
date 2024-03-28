@@ -808,19 +808,19 @@ RecordWriterBase::RecordWriterBase(Closed) noexcept : Object(kClosed) {}
 RecordWriterBase::RecordWriterBase() noexcept {}
 
 void RecordWriterBase::Reset(Closed) {
+  DoneBackground();
   Object::Reset(kClosed);
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
   last_record_ = LastRecordIsInvalid();
-  worker_.reset();
 }
 
 void RecordWriterBase::Reset() {
+  DoneBackground();
   Object::Reset();
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
   last_record_ = LastRecordIsInvalid();
-  worker_.reset();
 }
 
 RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
@@ -832,11 +832,14 @@ RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
 
 RecordWriterBase& RecordWriterBase::operator=(
     RecordWriterBase&& that) noexcept {
-  Object::operator=(static_cast<Object&&>(that));
-  desired_chunk_size_ = that.desired_chunk_size_;
-  chunk_size_so_far_ = that.chunk_size_so_far_;
-  last_record_ = std::exchange(that.last_record_, LastRecordIsInvalid());
-  worker_ = std::move(that.worker_);
+  if (ABSL_PREDICT_TRUE(&that != this)) {
+    DoneBackground();
+    Object::operator=(static_cast<Object&&>(that));
+    desired_chunk_size_ = that.desired_chunk_size_;
+    chunk_size_so_far_ = that.chunk_size_so_far_;
+    last_record_ = std::exchange(that.last_record_, LastRecordIsInvalid());
+    worker_ = std::move(that.worker_);
+  }
   return *this;
 }
 
