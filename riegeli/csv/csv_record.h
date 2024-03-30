@@ -262,6 +262,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
                 int> = 0>
   explicit CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
+  CsvHeader& operator=(std::initializer_list<absl::string_view> names);
 
   // Creates a set consisting of the given sequence of field names.
   //

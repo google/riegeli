@@ -115,6 +115,14 @@ CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names) {
       << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
 }
 
+CsvHeader& CsvHeader::operator=(
+    std::initializer_list<absl::string_view> names) {
+  const absl::Status status = TryResetInternal(nullptr, names);
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::operator=(): " << status.message();
+  return *this;
+}
+
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
     : payload_(normalizer == nullptr
                    ? nullptr

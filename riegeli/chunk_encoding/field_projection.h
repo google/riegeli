@@ -47,6 +47,7 @@ class Field {
   // Field numbers can be obtained from `Type::k*FieldNumber` constants exported
   // by compiled proto messages, or from `FieldDescriptor::number()`.
   /*implicit*/ Field(std::initializer_list<int> path);
+  Field& operator=(std::initializer_list<int> path);
 
   // Starts with the root message. Field path can be built with
   // `AddFieldNumber()`.
@@ -82,6 +83,7 @@ class FieldProjection {
 
   // Includes only the specified fields.
   /*implicit*/ FieldProjection(std::initializer_list<Field> fields);
+  FieldProjection& operator=(std::initializer_list<Field> fields);
 
   // Starts with an empty set to include. Fields can be added by `AddField()`.
   FieldProjection() = default;
@@ -113,6 +115,12 @@ inline Field::Field(std::initializer_list<int> path) : path_(path) {
   for (const int field_number : path_) AssertValid(field_number);
 }
 
+inline Field& Field::operator=(std::initializer_list<int> path) {
+  for (const int field_number : path) AssertValid(field_number);
+  path_ = path;
+  return *this;
+}
+
 inline void Field::AssertValid(int field_number) {
   static_assert(kExistenceOnly == 0,
                 "Field::AssertValid() assumes that kExistenceOnly == 0");
@@ -138,6 +146,12 @@ inline FieldProjection FieldProjection::All() {
 
 inline FieldProjection::FieldProjection(std::initializer_list<Field> fields)
     : fields_(fields) {}
+
+inline FieldProjection& FieldProjection::operator=(
+    std::initializer_list<Field> fields) {
+  fields_ = fields;
+  return *this;
+}
 
 inline FieldProjection& FieldProjection::AddField(Field field) & {
   fields_.push_back(std::move(field));
