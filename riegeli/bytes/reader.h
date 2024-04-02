@@ -403,8 +403,8 @@ class Reader : public Object {
   // i.e. `pos() + available()`.
   Position limit_pos() const { return limit_pos_; }
 
-  // Returns `true` if this `Reader` supports efficient `Seek()`, `Skip()`, and
-  // `Size()`.
+  // Returns `true` if this `Reader` supports efficient `Seek()`, `Skip()`,
+  // `Size()`, and also `NewReader()` if `SupportsNewReader()` is `true`.
   //
   // Invariant: if `SupportsRandomAccess()` then `SupportsRewind()`
   //                                         and `SupportsSize()`
