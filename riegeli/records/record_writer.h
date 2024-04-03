@@ -296,36 +296,14 @@ class RecordWriterBase : public Object {
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
     // Default: `absl::nullopt`.
-    Options& set_metadata(const absl::optional<RecordsMetadata>& metadata) & {
-      metadata_ = metadata;
+    Options& set_metadata(
+        Initializer<absl::optional<RecordsMetadata>> metadata) & {
+      std::move(metadata).AssignTo(metadata_);
       serialized_metadata_ = absl::nullopt;
       return *this;
     }
-    Options&& set_metadata(const absl::optional<RecordsMetadata>& metadata) && {
-      return std::move(set_metadata(metadata));
-    }
-    Options& set_metadata(absl::optional<RecordsMetadata>&& metadata) & {
-      metadata_ = std::move(metadata);
-      serialized_metadata_ = absl::nullopt;
-      return *this;
-    }
-    Options&& set_metadata(absl::optional<RecordsMetadata>&& metadata) && {
-      return std::move(set_metadata(std::move(metadata)));
-    }
-    Options& set_metadata(const RecordsMetadata& metadata) & {
-      metadata_ = metadata;
-      serialized_metadata_ = absl::nullopt;
-      return *this;
-    }
-    Options&& set_metadata(const RecordsMetadata& metadata) && {
-      return std::move(set_metadata(metadata));
-    }
-    Options& set_metadata(RecordsMetadata&& metadata) & {
-      metadata_ = std::move(metadata);
-      serialized_metadata_ = absl::nullopt;
-      return *this;
-    }
-    Options&& set_metadata(RecordsMetadata&& metadata) && {
+    Options&& set_metadata(
+        Initializer<absl::optional<RecordsMetadata>> metadata) && {
       return std::move(set_metadata(std::move(metadata)));
     }
     absl::optional<RecordsMetadata>& metadata() { return metadata_; }
@@ -337,39 +315,13 @@ class RecordWriterBase : public Object {
     //
     // This is faster if the caller has metadata already serialized.
     Options& set_serialized_metadata(
-        const absl::optional<Chain>& serialized_metadata) & {
+        Initializer<absl::optional<Chain>> serialized_metadata) & {
       metadata_ = absl::nullopt;
-      serialized_metadata_ = serialized_metadata;
+      std::move(serialized_metadata).AssignTo(serialized_metadata_);
       return *this;
     }
     Options&& set_serialized_metadata(
-        const absl::optional<Chain>& serialized_metadata) && {
-      return std::move(set_serialized_metadata(serialized_metadata));
-    }
-    Options& set_serialized_metadata(
-        absl::optional<Chain>&& serialized_metadata) & {
-      metadata_ = absl::nullopt;
-      serialized_metadata_ = std::move(serialized_metadata);
-      return *this;
-    }
-    Options&& set_serialized_metadata(
-        absl::optional<Chain>&& serialized_metadata) && {
-      return std::move(set_serialized_metadata(std::move(serialized_metadata)));
-    }
-    Options& set_serialized_metadata(const Chain& serialized_metadata) & {
-      metadata_ = absl::nullopt;
-      serialized_metadata_ = serialized_metadata;
-      return *this;
-    }
-    Options&& set_serialized_metadata(const Chain& serialized_metadata) && {
-      return std::move(set_serialized_metadata(serialized_metadata));
-    }
-    Options& set_serialized_metadata(Chain&& serialized_metadata) & {
-      metadata_ = absl::nullopt;
-      serialized_metadata_ = std::move(serialized_metadata);
-      return *this;
-    }
-    Options&& set_serialized_metadata(Chain&& serialized_metadata) && {
+        Initializer<absl::optional<Chain>> serialized_metadata) && {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
     absl::optional<Chain>& serialized_metadata() {

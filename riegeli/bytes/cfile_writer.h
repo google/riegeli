@@ -68,20 +68,15 @@ class CFileWriterBase : public BufferedWriter {
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_filename(
-        absl::optional<absl::string_view> assumed_filename) & {
-      if (assumed_filename == absl::nullopt) {
-        assumed_filename_ = absl::nullopt;
-      } else {
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `assumed_filename_.emplace(*assumed_filename)`
-        assumed_filename_.emplace(assumed_filename->data(),
-                                  assumed_filename->size());
-      }
+        Initializer<absl::optional<std::string>>::AllowingExplicit
+            assumed_filename) & {
+      std::move(assumed_filename).AssignTo(assumed_filename_);
       return *this;
     }
     Options&& set_assumed_filename(
-        absl::optional<absl::string_view> assumed_filename) && {
-      return std::move(set_assumed_filename(assumed_filename));
+        Initializer<absl::optional<std::string>>::AllowingExplicit
+            assumed_filename) && {
+      return std::move(set_assumed_filename(std::move(assumed_filename)));
     }
     absl::optional<std::string>& assumed_filename() {
       return assumed_filename_;
@@ -98,14 +93,12 @@ class CFileWriterBase : public BufferedWriter {
     // `set_append()`, `set_exclusive()`, `set_inheritable()`, and `set_text()`.
     //
     // Default: "we" (on Windows: "wbN").
-    Options& set_mode(absl::string_view mode) & {
-      // TODO: When `absl::string_view` becomes C++17
-      // `std::string_view`: `mode_ = mode`
-      mode_.assign(mode.data(), mode.size());
+    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) & {
+      std::move(mode).AssignTo(mode_);
       return *this;
     }
-    Options&& set_mode(absl::string_view mode) && {
-      return std::move(set_mode(mode));
+    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) && {
+      return std::move(set_mode(std::move(mode)));
     }
     const std::string& mode() const { return mode_; }
 
@@ -304,7 +297,8 @@ class CFileWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
   void Initialize(FILE* dest, Options&& options);
-  const std::string& InitializeFilename(absl::string_view filename);
+  const std::string& InitializeFilename(
+      Initializer<std::string>::AllowingExplicit filename);
   bool InitializeAssumedFilename(Options& options);
   void InitializePos(FILE* dest, Options&& options,
                      bool mode_was_passed_to_fopen);
@@ -408,7 +402,8 @@ class CFileWriter : public CFileWriterBase {
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
-  explicit CFileWriter(absl::string_view filename, Options options = Options());
+  explicit CFileWriter(Initializer<std::string>::AllowingExplicit filename,
+                       Options options = Options());
 
   CFileWriter(CFileWriter&& that) noexcept;
   CFileWriter& operator=(CFileWriter&& that) noexcept;
@@ -425,8 +420,9 @@ class CFileWriter : public CFileWriterBase {
                                           Options options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
-                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Initializer<std::string>::AllowingExplicit filename,
+      Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
   // to. Unchanged by `Close()`.
@@ -453,7 +449,8 @@ explicit CFileWriter(
     -> CFileWriter<std::conditional_t<
         absl::disjunction<
             std::is_convertible<Dest&&, FILE*>,
-            std::is_convertible<Dest&&, absl::string_view>>::value,
+            std::is_convertible<
+                Dest&&, Initializer<std::string>::AllowingExplicit>>::value,
         OwnedCFile, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 explicit CFileWriter(
@@ -531,10 +528,8 @@ inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 inline const std::string& CFileWriterBase::InitializeFilename(
-    absl::string_view filename) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
+    Initializer<std::string>::AllowingExplicit filename) {
+  std::move(filename).AssignTo(filename_);
   return filename_;
 }
 
@@ -563,11 +558,11 @@ inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
-inline CFileWriter<Dest>::CFileWriter(absl::string_view filename,
-                                      Options options)
+inline CFileWriter<Dest>::CFileWriter(
+    Initializer<std::string>::AllowingExplicit filename, Options options)
     : CFileWriterBase(options.buffer_options()) {
-  absl::Status status =
-      dest_.manager().Open(InitializeFilename(filename), options.mode());
+  absl::Status status = dest_.manager().Open(
+      InitializeFilename(std::move(filename)), options.mode());
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileWriterBase::Reset()` to preserve `filename()`.
@@ -615,11 +610,11 @@ inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
-inline void CFileWriter<Dest>::Reset(absl::string_view filename,
-                                     Options options) {
+inline void CFileWriter<Dest>::Reset(
+    Initializer<std::string>::AllowingExplicit filename, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
-  absl::Status status =
-      dest_.manager().Open(InitializeFilename(filename), options.mode());
+  absl::Status status = dest_.manager().Open(
+      InitializeFilename(std::move(filename)), options.mode());
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileWriterBase::Reset()` to preserve `filename()`.

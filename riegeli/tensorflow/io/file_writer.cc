@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
@@ -64,10 +65,9 @@ bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   return InitializeFilename(filename);
 }
 
-bool FileWriterBase::InitializeFilename(absl::string_view filename) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
+bool FileWriterBase::InitializeFilename(
+    Initializer<std::string>::AllowingExplicit filename) {
+  std::move(filename).AssignTo(filename_);
   {
     const ::tensorflow::Status status =
         env_->GetFileSystemForFile(filename_, &file_system_);

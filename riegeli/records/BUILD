@@ -115,6 +115,7 @@ cc_library(
     hdrs = ["skipped_region.h"],
     deps = [
         "//riegeli/base:assert",
+        "//riegeli/base:initializer",
         "//riegeli/base:types",
         "@com_google_absl//absl/strings",
     ],

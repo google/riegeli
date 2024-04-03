@@ -27,6 +27,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 
 namespace riegeli {
@@ -74,18 +75,21 @@ class ValueParser : public Object {
   //
   // The parsers must not include `FailIfSeen()` nor `FailIfAnySeen()`.
   // Conflicts with other options should be checked outside the `Or()`.
-  static Function Or(Function function1, Function function2);
+  static Function Or(Initializer<Function> function1,
+                     Initializer<Function> function2);
   template <typename... Functions,
             std::enable_if_t<(sizeof...(Functions) > 0), int> = 0>
-  static Function Or(Function function1, Function function2,
-                     Functions&&... functions);
+  static Function Or(Initializer<Function> function1,
+                     Initializer<Function> function2, Functions&&... functions);
 
   // Value parser which runs multiple parsers and expects all of them to
   // succeed.
-  static Function And(Function function1, Function function2);
+  static Function And(Initializer<Function> function1,
+                      Initializer<Function> function2);
   template <typename... Functions,
             std::enable_if_t<(sizeof...(Functions) > 0), int> = 0>
-  static Function And(Function function1, Function function2,
+  static Function And(Initializer<Function> function1,
+                      Initializer<Function> function2,
                       Functions&&... functions);
 
   // Value parser which appends the option to a separate options string
@@ -98,9 +102,10 @@ class ValueParser : public Object {
   //
   // Multiple occurrences of the same option are always invalid and do not have
   // to be explicitly checked with `FailIfSeen()`.
-  static Function FailIfSeen(absl::string_view key);
+  static Function FailIfSeen(Initializer<std::string>::AllowingExplicit key);
   template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int> = 0>
-  static Function FailIfSeen(absl::string_view key, Keys&&... keys);
+  static Function FailIfSeen(Initializer<std::string>::AllowingExplicit key,
+                             Keys&&... keys);
 
   // Value parser which reports a conflict if an any option was seen before this
   // option.
@@ -149,7 +154,8 @@ class OptionsParser : public Object {
   //
   // The value parser may be implemented explicitly (e.g. as a lambda)
   // or returned by one of functions below (called on this `OptionsParser`).
-  void AddOption(std::string key, ValueParser::Function function);
+  void AddOption(Initializer<std::string>::AllowingExplicit key,
+                 Initializer<ValueParser::Function> function);
 
   // Parses options from text. Valid options must have been registered with
   // `AddOptions()`.
@@ -172,8 +178,10 @@ class OptionsParser : public Object {
   friend class ValueParser;
 
   struct Option {
-    explicit Option(std::string key, ValueParser::Function function)
-        : key(std::move(key)), function(std::move(function)) {}
+    explicit Option(Initializer<std::string>::AllowingExplicit key,
+                    Initializer<ValueParser::Function> function)
+        : key(std::move(key).Construct()),
+          function(std::move(function).Construct()) {}
 
     std::string key;
     ValueParser::Function function;
@@ -218,33 +226,36 @@ ValueParser::Function ValueParser::Enum(
 
 template <typename... Functions,
           std::enable_if_t<(sizeof...(Functions) > 0), int>>
-ValueParser::Function ValueParser::Or(Function function1, Function function2,
+ValueParser::Function ValueParser::Or(Initializer<Function> function1,
+                                      Initializer<Function> function2,
                                       Functions&&... functions) {
   return Or(function1, Or(function2, std::forward<Functions>(functions)...));
 }
 
 template <typename... Functions,
           std::enable_if_t<(sizeof...(Functions) > 0), int>>
-ValueParser::Function ValueParser::And(Function function1, Function function2,
+ValueParser::Function ValueParser::And(Initializer<Function> function1,
+                                       Initializer<Function> function2,
                                        Functions&&... functions) {
   return And(function1, And(function2, std::forward<Functions>(functions)...));
 }
 
 template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int>>
-ValueParser::Function ValueParser::FailIfSeen(absl::string_view key,
-                                              Keys&&... keys) {
-  return And(FailIfSeen(key), FailIfSeen(std::forward<Keys>(keys)...));
+ValueParser::Function ValueParser::FailIfSeen(
+    Initializer<std::string>::AllowingExplicit key, Keys&&... keys) {
+  return And(FailIfSeen(std::move(key)),
+             FailIfSeen(std::forward<Keys>(keys)...));
 }
 
-inline void OptionsParser::AddOption(std::string key,
-                                     ValueParser::Function function) {
-  RIEGELI_ASSERT(std::find_if(options_.cbegin(), options_.cend(),
-                              [&key](const Option& option) {
-                                return option.key == key;
-                              }) == options_.cend())
-      << "Failed precondition of OptionsParser::AddOption(): option " << key
-      << "already registered";
+inline void OptionsParser::AddOption(
+    Initializer<std::string>::AllowingExplicit key,
+    Initializer<ValueParser::Function> function) {
   options_.emplace_back(std::move(key), std::move(function));
+  RIEGELI_ASSERT(std::none_of(
+      options_.cbegin(), options_.cend() - 1,
+      [&](const Option& option) { return option.key == options_.back().key; }))
+      << "Failed precondition of OptionsParser::AddOption(): option "
+      << options_.back().key << "already registered";
 }
 
 };  // namespace riegeli

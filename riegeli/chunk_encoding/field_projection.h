@@ -20,6 +20,7 @@
 
 #include "absl/container/inlined_vector.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/initializer.h"
 
 namespace riegeli {
 
@@ -95,8 +96,10 @@ class FieldProjection {
   FieldProjection& operator=(FieldProjection&&) = default;
 
   // Adds a field to the set to include.
-  FieldProjection& AddField(Field field) &;
-  FieldProjection&& AddField(Field field) &&;
+  FieldProjection& AddField(Initializer<Field> field) &;
+  FieldProjection&& AddField(Initializer<Field> field) &&;
+  FieldProjection& AddField(std::initializer_list<int> path) &;
+  FieldProjection&& AddField(std::initializer_list<int> path) &&;
 
   // Returns true if all fields are included, i.e. if the root message is
   // included.
@@ -153,13 +156,24 @@ inline FieldProjection& FieldProjection::operator=(
   return *this;
 }
 
-inline FieldProjection& FieldProjection::AddField(Field field) & {
-  fields_.push_back(std::move(field));
+inline FieldProjection& FieldProjection::AddField(Initializer<Field> field) & {
+  fields_.emplace_back(std::move(field));
   return *this;
 }
 
-inline FieldProjection&& FieldProjection::AddField(Field field) && {
+inline FieldProjection&& FieldProjection::AddField(
+    Initializer<Field> field) && {
   return std::move(AddField(std::move(field)));
+}
+
+inline FieldProjection& FieldProjection::AddField(
+    std::initializer_list<int> path) & {
+  return AddField(Initializer<Field>(path));
+}
+
+inline FieldProjection&& FieldProjection::AddField(
+    std::initializer_list<int> path) && {
+  return std::move(AddField(std::move(path)));
 }
 
 inline bool FieldProjection::includes_all() const {

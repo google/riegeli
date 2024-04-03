@@ -135,7 +135,7 @@ class FileReaderBase : public Reader {
              bool growing_source);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
-  bool InitializeFilename(absl::string_view filename);
+  bool InitializeFilename(Initializer<std::string>::AllowingExplicit filename);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
 
@@ -250,7 +250,8 @@ class FileReader : public FileReaderBase {
   // Opens a `::tensorflow::RandomAccessFile` for reading.
   //
   // If opening the file fails, `FileReader` will be failed and closed.
-  explicit FileReader(absl::string_view filename, Options options = Options());
+  explicit FileReader(Initializer<std::string>::AllowingExplicit filename,
+                      Options options = Options());
 
   FileReader(FileReader&& that) noexcept;
   FileReader& operator=(FileReader&& that) noexcept;
@@ -261,7 +262,8 @@ class FileReader : public FileReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(absl::string_view filename, Options options = Options());
+  void Reset(Initializer<std::string>::AllowingExplicit filename,
+             Options options = Options());
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from. If the
@@ -278,7 +280,8 @@ class FileReader : public FileReaderBase {
 
  private:
   using FileReaderBase::Initialize;
-  void Initialize(absl::string_view filename, Options&& options);
+  void Initialize(Initializer<std::string>::AllowingExplicit filename,
+                  Options&& options);
 
   // The object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from.
@@ -292,7 +295,8 @@ template <typename Src>
 explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
     -> FileReader<std::conditional_t<
-        std::is_convertible<Src&&, absl::string_view>::value,
+        std::is_convertible<Src&&,
+                            Initializer<std::string>::AllowingExplicit>::value,
         std::unique_ptr<::tensorflow::RandomAccessFile>, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit FileReader(std::tuple<SrcArgs...> src_args,
@@ -367,10 +371,11 @@ inline FileReader<Src>::FileReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
+inline FileReader<Src>::FileReader(
+    Initializer<std::string>::AllowingExplicit filename, Options options)
     : FileReaderBase(options.buffer_options(), options.env(),
                      options.growing_source()) {
-  Initialize(filename, std::move(options));
+  Initialize(std::move(filename), std::move(options));
 }
 
 template <typename Src>
@@ -388,17 +393,17 @@ inline void FileReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset(absl::string_view filename,
-                                   Options options) {
+inline void FileReader<Src>::Reset(
+    Initializer<std::string>::AllowingExplicit filename, Options options) {
   FileReaderBase::Reset(options.buffer_options(), options.env(),
                         options.growing_source());
-  Initialize(filename, std::move(options));
+  Initialize(std::move(filename), std::move(options));
 }
 
 template <typename Src>
-inline void FileReader<Src>::Initialize(absl::string_view filename,
-                                        Options&& options) {
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(filename))) return;
+inline void FileReader<Src>::Initialize(
+    Initializer<std::string>::AllowingExplicit filename, Options&& options) {
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(std::forward_as_tuple(src.release()));

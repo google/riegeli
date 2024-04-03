@@ -489,6 +489,7 @@ cc_library(
     hdrs = ["options_parser.h"],
     deps = [
         ":assert",
+        ":initializer",
         ":object",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",

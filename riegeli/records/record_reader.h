@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -93,18 +94,22 @@ class RecordReaderBase : public Object {
     // value can make reading with projection faster.
     //
     // Default: `FieldProjection::All()`.
-    Options& set_field_projection(const FieldProjection& field_projection) & {
-      field_projection_ = field_projection;
+    Options& set_field_projection(
+        Initializer<FieldProjection> field_projection) & {
+      std::move(field_projection).AssignTo(field_projection_);
       return *this;
     }
-    Options&& set_field_projection(const FieldProjection& field_projection) && {
-      return std::move(set_field_projection(field_projection));
+    Options&& set_field_projection(
+        Initializer<FieldProjection> field_projection) && {
+      return std::move(set_field_projection(std::move(field_projection)));
     }
-    Options& set_field_projection(FieldProjection&& field_projection) & {
-      field_projection_ = std::move(field_projection);
+    Options& set_field_projection(
+        std::initializer_list<Field> field_projection) & {
+      set_field_projection(Initializer<FieldProjection>(field_projection));
       return *this;
     }
-    Options&& set_field_projection(FieldProjection&& field_projection) && {
+    Options&& set_field_projection(
+        std::initializer_list<Field> field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
     }
     FieldProjection& field_projection() { return field_projection_; }
@@ -142,23 +147,15 @@ class RecordReaderBase : public Object {
     //
     // Default: `nullptr`.
     Options& set_recovery(
-        const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
+        Initializer<
+            std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
             recovery) & {
-      recovery_ = recovery;
+      std::move(recovery).AssignTo(recovery_);
       return *this;
     }
     Options&& set_recovery(
-        const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
-            recovery) && {
-      return std::move(set_recovery(recovery));
-    }
-    Options& set_recovery(std::function<bool(const SkippedRegion&,
-                                             RecordReaderBase&)>&& recovery) & {
-      recovery_ = std::move(recovery);
-      return *this;
-    }
-    Options&& set_recovery(
-        std::function<bool(const SkippedRegion&, RecordReaderBase&)>&&
+        Initializer<
+            std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
             recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
@@ -235,16 +232,16 @@ class RecordReaderBase : public Object {
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  bool SetFieldProjection(FieldProjection field_projection);
+  bool SetFieldProjection(Initializer<FieldProjection> field_projection);
+  bool SetFieldProjection(std::initializer_list<Field> field_projection) {
+    return SetFieldProjection(Initializer<FieldProjection>(field_projection));
+  }
 
   // Like `Options::set_recovery()`, but can be done at any time.
-  void set_recovery(const std::function<bool(const SkippedRegion&,
-                                             RecordReaderBase&)>& recovery) {
-    recovery_ = recovery;
-  }
   void set_recovery(
-      std::function<bool(const SkippedRegion&, RecordReaderBase&)>&& recovery) {
-    recovery_ = std::move(recovery);
+      Initializer<std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
+          recovery) {
+    std::move(recovery).AssignTo(recovery_);
   }
 
   // Returns the function set by `Options::set_recovery` or `set_recovery()`.

@@ -73,15 +73,15 @@ class CsvWriterBase : public Object {
     // `CsvReaderBase::Options::skip_empty_lines()`.
     //
     // Default: `absl::nullopt`.
-    Options& set_header(absl::optional<CsvHeader> header) & {
-      header_ = std::move(header);
+    Options& set_header(Initializer<absl::optional<CsvHeader>> header) & {
+      std::move(header).AssignTo(header_);
       return *this;
     }
-    Options&& set_header(absl::optional<CsvHeader> header) && {
+    Options&& set_header(Initializer<absl::optional<CsvHeader>> header) && {
       return std::move(set_header(std::move(header)));
     }
     Options& set_header(std::initializer_list<absl::string_view> names) & {
-      return set_header(CsvHeader(names));
+      return set_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_header(std::initializer_list<absl::string_view> names) && {
       return std::move(set_header(names));
@@ -96,16 +96,18 @@ class CsvWriterBase : public Object {
     // `header()` and `assumed_header()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_header(absl::optional<CsvHeader> header) & {
-      assumed_header_ = std::move(header);
+    Options& set_assumed_header(
+        Initializer<absl::optional<CsvHeader>> header) & {
+      std::move(header).AssignTo(assumed_header_);
       return *this;
     }
-    Options&& set_assumed_header(absl::optional<CsvHeader> header) && {
+    Options&& set_assumed_header(
+        Initializer<absl::optional<CsvHeader>> header) && {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
         std::initializer_list<absl::string_view> names) & {
-      return set_assumed_header(CsvHeader(names));
+      return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
         std::initializer_list<absl::string_view> names) && {

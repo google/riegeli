@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <initializer_list>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -32,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -51,18 +53,22 @@ class ChunkDecoder : public Object {
     // Excluding data makes reading faster.
     //
     // Default: `FieldProjection::All()`.
-    Options& set_field_projection(const FieldProjection& field_projection) & {
-      field_projection_ = field_projection;
+    Options& set_field_projection(
+        Initializer<FieldProjection> field_projection) & {
+      std::move(field_projection).AssignTo(field_projection_);
       return *this;
     }
-    Options&& set_field_projection(const FieldProjection& field_projection) && {
-      return std::move(set_field_projection(field_projection));
+    Options&& set_field_projection(
+        Initializer<FieldProjection> field_projection) && {
+      return std::move(set_field_projection(std::move(field_projection)));
     }
-    Options& set_field_projection(FieldProjection&& field_projection) & {
-      field_projection_ = std::move(field_projection);
+    Options& set_field_projection(
+        std::initializer_list<Field> field_projection) & {
+      set_field_projection(Initializer<FieldProjection>(field_projection));
       return *this;
     }
-    Options&& set_field_projection(FieldProjection&& field_projection) && {
+    Options&& set_field_projection(
+        std::initializer_list<Field> field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
     }
     FieldProjection& field_projection() { return field_projection_; }

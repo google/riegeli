@@ -75,16 +75,18 @@ class CsvReaderBase : public Object {
     // `required_header()` and `assumed_header()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_required_header(absl::optional<CsvHeader> header) & {
-      required_header_ = std::move(header);
+    Options& set_required_header(
+        Initializer<absl::optional<CsvHeader>> header) & {
+      std::move(header).AssignTo(required_header_);
       return *this;
     }
-    Options&& set_required_header(absl::optional<CsvHeader> header) && {
+    Options&& set_required_header(
+        Initializer<absl::optional<CsvHeader>> header) && {
       return std::move(set_required_header(std::move(header)));
     }
     Options& set_required_header(
         std::initializer_list<absl::string_view> names) & {
-      return set_required_header(CsvHeader(names));
+      return set_required_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_required_header(
         std::initializer_list<absl::string_view> names) && {
@@ -102,16 +104,18 @@ class CsvReaderBase : public Object {
     // `required_header()` and `assumed_header()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_header(absl::optional<CsvHeader> header) & {
-      assumed_header_ = std::move(header);
+    Options& set_assumed_header(
+        Initializer<absl::optional<CsvHeader>> header) & {
+      std::move(header).AssignTo(assumed_header_);
       return *this;
     }
-    Options&& set_assumed_header(absl::optional<CsvHeader> header) && {
+    Options&& set_assumed_header(
+        Initializer<absl::optional<CsvHeader>> header) && {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
         std::initializer_list<absl::string_view> names) & {
-      return set_assumed_header(CsvHeader(names));
+      return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
         std::initializer_list<absl::string_view> names) && {
@@ -278,21 +282,14 @@ class CsvReaderBase : public Object {
     //
     // Default: `nullptr`.
     Options& set_recovery(
-        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) & {
-      recovery_ = recovery;
+        Initializer<std::function<bool(absl::Status, CsvReaderBase&)>>
+            recovery) & {
+      std::move(recovery).AssignTo(recovery_);
       return *this;
     }
     Options&& set_recovery(
-        const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) && {
-      return std::move(set_recovery(recovery));
-    }
-    Options& set_recovery(
-        std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) & {
-      recovery_ = std::move(recovery);
-      return *this;
-    }
-    Options&& set_recovery(
-        std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) && {
+        Initializer<std::function<bool(absl::Status, CsvReaderBase&)>>
+            recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
     std::function<bool(absl::Status, CsvReaderBase&)>& recovery() {
@@ -324,12 +321,8 @@ class CsvReaderBase : public Object {
   //
   // See `Options::set_recovery()` for details.
   void set_recovery(
-      const std::function<bool(absl::Status, CsvReaderBase&)>& recovery) {
-    recovery_ = recovery;
-  }
-  void set_recovery(
-      std::function<bool(absl::Status, CsvReaderBase&)>&& recovery) {
-    recovery_ = std::move(recovery);
+      Initializer<std::function<bool(absl::Status, CsvReaderBase&)>> recovery) {
+    std::move(recovery).AssignTo(recovery_);
   }
 
   // Returns `true` if reading the header was requested or assumed, i.e.

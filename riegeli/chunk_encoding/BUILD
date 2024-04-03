@@ -37,6 +37,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
+        "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/bytes:array_backward_writer",
         "//riegeli/bytes:chain_backward_writer",
@@ -286,6 +287,7 @@ cc_library(
     hdrs = ["field_projection.h"],
     deps = [
         "//riegeli/base:assert",
+        "//riegeli/base:initializer",
         "@com_google_absl//absl/container:inlined_vector",
     ],
 )

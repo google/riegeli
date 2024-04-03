@@ -39,6 +39,7 @@
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -356,7 +357,8 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
   }
 }
 
-bool RecordReaderBase::SetFieldProjection(FieldProjection field_projection) {
+bool RecordReaderBase::SetFieldProjection(
+    Initializer<FieldProjection> field_projection) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   ChunkReader& src = *SrcChunkReader();
   const uint64_t record_index = chunk_decoder_.index();

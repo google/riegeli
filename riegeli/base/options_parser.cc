@@ -30,6 +30,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/initializer.h"
 
 namespace riegeli {
 
@@ -131,16 +132,20 @@ ValueParser::Function ValueParser::Real(double min_value, double max_value,
   };
 }
 
-ValueParser::Function ValueParser::Or(Function function1, Function function2) {
-  return [function1 = std::move(function1),
-          function2 = std::move(function2)](ValueParser& value_parser) {
+ValueParser::Function ValueParser::Or(Initializer<Function> function1,
+                                      Initializer<Function> function2) {
+  return [function1 = std::move(function1).Construct(),
+          function2 =
+              std::move(function2).Construct()](ValueParser& value_parser) {
     return function1(value_parser) || function2(value_parser);
   };
 }
 
-ValueParser::Function ValueParser::And(Function function1, Function function2) {
-  return [function1 = std::move(function1),
-          function2 = std::move(function2)](ValueParser& value_parser) {
+ValueParser::Function ValueParser::And(Initializer<Function> function1,
+                                       Initializer<Function> function2) {
+  return [function1 = std::move(function1).Construct(),
+          function2 =
+              std::move(function2).Construct()](ValueParser& value_parser) {
     return function1(value_parser) && function2(value_parser);
   };
 }
@@ -154,8 +159,9 @@ ValueParser::Function ValueParser::CopyTo(std::string* text) {
   };
 }
 
-ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
-  return [key](ValueParser& value_parser) {
+ValueParser::Function ValueParser::FailIfSeen(
+    Initializer<std::string>::AllowingExplicit key) {
+  return [key = std::move(key).Construct()](ValueParser& value_parser) {
     for (const OptionsParser::Option& option :
          value_parser.options_parser_->options_) {
       if (option.key == key) {

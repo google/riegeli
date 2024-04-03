@@ -62,20 +62,15 @@ class CFileReaderBase : public BufferedReader {
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_filename(
-        absl::optional<absl::string_view> assumed_filename) & {
-      if (assumed_filename == absl::nullopt) {
-        assumed_filename_ = absl::nullopt;
-      } else {
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `assumed_filename_.emplace(*assumed_filename)`
-        assumed_filename_.emplace(assumed_filename->data(),
-                                  assumed_filename->size());
-      }
+        Initializer<absl::optional<std::string>>::AllowingExplicit
+            assumed_filename) & {
+      std::move(assumed_filename).AssignTo(assumed_filename_);
       return *this;
     }
     Options&& set_assumed_filename(
-        absl::optional<absl::string_view> assumed_filename) && {
-      return std::move(set_assumed_filename(assumed_filename));
+        Initializer<absl::optional<std::string>>::AllowingExplicit
+            assumed_filename) && {
+      return std::move(set_assumed_filename(std::move(assumed_filename)));
     }
     absl::optional<std::string>& assumed_filename() {
       return assumed_filename_;
@@ -91,14 +86,12 @@ class CFileReaderBase : public BufferedReader {
     // `mode()` can also be changed with `set_inheritable()` and `set_text()`.
     //
     // Default: "re" (on Windows: "rbN").
-    Options& set_mode(absl::string_view mode) & {
-      // TODO: When `absl::string_view` becomes C++17
-      // `std::string_view`: `mode_ = mode`
-      mode_.assign(mode.data(), mode.size());
+    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) & {
+      std::move(mode).AssignTo(mode_);
       return *this;
     }
-    Options&& set_mode(absl::string_view mode) && {
-      return std::move(set_mode(mode));
+    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) && {
+      return std::move(set_mode(std::move(mode)));
     }
     const std::string& mode() const { return mode_; }
 
@@ -223,7 +216,8 @@ class CFileReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(FILE* src, Options&& options);
-  const std::string& InitializeFilename(absl::string_view filename);
+  const std::string& InitializeFilename(
+      Initializer<std::string>::AllowingExplicit filename);
   bool InitializeAssumedFilename(Options& options);
   void InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
@@ -307,7 +301,8 @@ class CFileReader : public CFileReaderBase {
   // This constructor is present only if `Src` supports `Open()`.
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int> = 0>
-  explicit CFileReader(absl::string_view filename, Options options = Options());
+  explicit CFileReader(Initializer<std::string>::AllowingExplicit filename,
+                       Options options = Options());
 
   CFileReader(CFileReader&& that) noexcept;
   CFileReader& operator=(CFileReader&& that) noexcept;
@@ -324,8 +319,9 @@ class CFileReader : public CFileReaderBase {
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view filename,
-                                          Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Initializer<std::string>::AllowingExplicit filename,
+      Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. Unchanged by `Close()`.
@@ -349,8 +345,10 @@ template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
-        absl::disjunction<std::is_convertible<Src&&, FILE*>,
-                          std::is_convertible<Src&&, absl::string_view>>::value,
+        absl::disjunction<
+            std::is_convertible<Src&&, FILE*>,
+            std::is_convertible<
+                Src&&, Initializer<std::string>::AllowingExplicit>>::value,
         OwnedCFile, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 explicit CFileReader(
@@ -417,10 +415,8 @@ inline void CFileReaderBase::Reset(BufferOptions buffer_options,
 }
 
 inline const std::string& CFileReaderBase::InitializeFilename(
-    absl::string_view filename) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
+    Initializer<std::string>::AllowingExplicit filename) {
+  std::move(filename).AssignTo(filename_);
   return filename_;
 }
 
@@ -450,11 +446,11 @@ inline CFileReader<Src>::CFileReader(FILE* src, Options options)
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int>>
-inline CFileReader<Src>::CFileReader(absl::string_view filename,
-                                     Options options)
+inline CFileReader<Src>::CFileReader(
+    Initializer<std::string>::AllowingExplicit filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()) {
-  absl::Status status =
-      src_.manager().Open(InitializeFilename(filename), options.mode());
+  absl::Status status = src_.manager().Open(
+      InitializeFilename(std::move(filename)), options.mode());
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
@@ -507,11 +503,11 @@ inline void CFileReader<Src>::Reset(FILE* src, Options options) {
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int>>
-inline void CFileReader<Src>::Reset(absl::string_view filename,
-                                    Options options) {
+inline void CFileReader<Src>::Reset(
+    Initializer<std::string>::AllowingExplicit filename, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  absl::Status status =
-      src_.manager().Open(InitializeFilename(filename), options.mode());
+  absl::Status status = src_.manager().Open(
+      InitializeFilename(std::move(filename)), options.mode());
   InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
