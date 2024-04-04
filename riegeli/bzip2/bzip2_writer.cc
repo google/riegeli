@@ -178,7 +178,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
 bool Bzip2WriterBase::FlushBehindBuffer(absl::string_view src,
                                         FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();

@@ -222,7 +222,7 @@ inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 bool XzWriterBase::FlushBehindBuffer(absl::string_view src,
                                      FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (src.empty() && flush_action_ == LZMA_RUN) return true;
