@@ -58,37 +58,83 @@ struct Repr {
 using Storage = char[];
 
 // A `Dependency<Handle, Manager>` is stored inline in
-// `Repr<Handle, inline_size, inline_align>` if it fits in that storage and is
-// movable. If `inline_size == 0`, the dependency is also required to be stable
+// `Repr<Handle, inline_size, inline_align>` if it is movable and it fits there.
+//
+// If `inline_size == 0`, the dependency is also required to be stable
 // (because then `AnyDependency` declares itself stable) and trivially
 // relocatable (because then `AnyDependency` declares itself with trivial ABI).
 
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager, typename Enable = void>
-struct IsInline : std::false_type {};
+// Properties of inline storage in an `AnyDepenency` instance are expressed as
+// two numbers: `available_size` and `available_align`, while constraints of a
+// movable `Dependency` instance on its storage are expressed as two numbers:
+// `used_size` and `used_align`, such that
+// `used_size <= available_size && used_align <= available_align` implies that
+// the movable `Dependency` can be stored inline in the `AnyDependency`.
+//
+// This formulation allows reevaluating the condition with different values of
+// `available_size` and `available_align` when considering adopting the storage
+// for a different `AnyDependency` instance, at either compile time or runtime.
 
-template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Manager>
-struct IsInline<
-    Handle, inline_size, inline_align, Manager,
-    std::enable_if_t<absl::conjunction<
-        std::integral_constant<
-            bool, sizeof(Dependency<Handle, Manager>) <=
-                          sizeof(Repr<Handle, inline_size, inline_align>) &&
-                      alignof(Dependency<Handle, Manager>) <=
-                          alignof(Repr<Handle, inline_size, inline_align>)>,
-        std::is_move_constructible<Dependency<Handle, Manager>>,
-        absl::disjunction<
-            std::integral_constant<bool, (inline_size > 0)>,
-            absl::conjunction<
-                std::integral_constant<bool,
-                                       Dependency<Handle, Manager>::kIsStable>
+// Returns `available_size`: `sizeof` the storage, except that 0 indicates
+// `inline_size == 0`, which means the minimal size of any inline storage with
+// the given alignment, while also putting additional constraints on the
+// `Dependency` (stability and trivial relocatability).
+template <typename Handle, size_t inline_size, size_t inline_align>
+constexpr size_t AvailableSize() {
+  if (inline_size == 0) return 0;
+  return sizeof(Repr<Handle, inline_size, inline_align>);
+}
+
+// Returns `available_align`: `alignof` the storage, except that 0 means the
+// minimal alignment of any inline storage.
+template <typename Handle, size_t inline_size, size_t inline_align>
+constexpr size_t AvailableAlign() {
+  if (alignof(Repr<Handle, inline_size, inline_align>) ==
+      alignof(Repr<Handle, 0, 0>)) {
+    return 0;
+  }
+  return alignof(Repr<Handle, inline_size, inline_align>);
+}
+
+// Returns `used_size`: `sizeof` the `Dependency`, except that 0 indicates
+// compatibility with `inline_size == 0`, which means fitting under the minimal
+// size of any inline storage with the given alignment, and satisfying
+// additional constraints (stability and trivial relocatability).
+template <typename Handle, typename Manager>
+constexpr size_t UsedSize() {
+  if (sizeof(Dependency<Handle, Manager>) <=
+          sizeof(Repr<Handle, 0, alignof(Dependency<Handle, Manager>)>) &&
+      Dependency<Handle, Manager>::kIsStable
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-                ,
-                absl::is_trivially_relocatable<Dependency<Handle, Manager>>
+      && absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value
 #endif
-                >>>::value>> : std::true_type {
-};
+  ) {
+    return 0;
+  }
+  return sizeof(Dependency<Handle, Manager>);
+}
+
+// Returns `used_align`: `alignof` the storage, except that 0 means fitting
+// under the minimal alignment of any inline storage. Making this a special
+// case allows to optimize out comparisons of a compile time `used_align`
+// against a runtime `available_align`.
+template <typename Handle, typename Manager>
+constexpr size_t UsedAlign() {
+  if (alignof(Dependency<Handle, Manager>) <= alignof(Repr<Handle, 0, 0>)) {
+    return 0;
+  }
+  return alignof(Dependency<Handle, Manager>);
+}
+
+template <typename Handle, typename Manager, size_t inline_size,
+          size_t inline_align>
+constexpr bool IsInline() {
+  return std::is_move_constructible<Dependency<Handle, Manager>>::value &&
+         UsedSize<Handle, Manager>() <=
+             AvailableSize<Handle, inline_size, inline_align>() &&
+         UsedAlign<Handle, Manager>() <=
+             AvailableAlign<Handle, inline_size, inline_align>();
+}
 
 // Conditionally make the ABI trivial. To be used as a base class, with the
 // derived class having an unconditional `ABSL_ATTRIBUTE_TRIVIAL_ABI` (it will
@@ -109,11 +155,11 @@ template <typename Handle>
 struct Methods {
   // Destroys `self`.
   void (*destroy)(Storage self);
-  size_t inline_size_used;   // Or 0 if inline storage is not used.
-  size_t inline_align_used;  // Or 0 if inline storage is not used.
   // Constructs `self` and `*self_handle` by moving from `that`, and destroys
   // `that`.
   void (*move)(Storage self, Handle* self_handle, Storage that);
+  size_t used_size;
+  size_t used_align;
   bool (*is_owning)(const Storage self);
   // Returns the `std::remove_reference_t<Manager>*` if `type_id` matches
   // `std::remove_reference_t<Manager>`, otherwise returns `nullptr`.
@@ -174,8 +220,8 @@ struct NullMethods {
 
  public:
   static constexpr Methods<Handle> kMethods = {
-      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
-      RegisterSubobjects};
+      Destroy,  Move,         0,          0,
+      IsOwning, MutableGetIf, ConstGetIf, RegisterSubobjects};
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
@@ -233,15 +279,14 @@ struct MethodsFor<Handle, Manager, true> {
   }
 
  public:
-  static constexpr Methods<Handle> kMethods = {
-      Destroy,
-      sizeof(Dependency<Handle, Manager>),
-      alignof(Dependency<Handle, Manager>),
-      Move,
-      IsOwning,
-      MutableGetIf,
-      ConstGetIf,
-      RegisterSubobjects};
+  static constexpr Methods<Handle> kMethods = {Destroy,
+                                               Move,
+                                               UsedSize<Handle, Manager>(),
+                                               UsedAlign<Handle, Manager>(),
+                                               IsOwning,
+                                               MutableGetIf,
+                                               ConstGetIf,
+                                               RegisterSubobjects};
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
@@ -293,8 +338,8 @@ struct MethodsFor<Handle, Manager, false> {
 
  public:
   static constexpr Methods<Handle> kMethods = {
-      Destroy,           0, 0, Move, IsOwning, MutableGetIf, ConstGetIf,
-      RegisterSubobjects};
+      Destroy,  Move,         0,          0,
+      IsOwning, MutableGetIf, ConstGetIf, RegisterSubobjects};
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at

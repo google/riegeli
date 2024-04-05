@@ -170,9 +170,12 @@ class
   using NullMethods = any_dependency_internal::NullMethods<Handle>;
   template <typename Manager>
   using MethodsFor = any_dependency_internal::MethodsFor<
-      Handle, Manager,
-      any_dependency_internal::IsInline<Handle, inline_size, inline_align,
-                                        Manager>::value>;
+      Handle, Manager, IsInline<Handle, Manager, inline_size, inline_align>()>;
+
+  static constexpr size_t kAvailableSize =
+      AvailableSize<Handle, inline_size, inline_align>();
+  static constexpr size_t kAvailableAlign =
+      AvailableAlign<Handle, inline_size, inline_align>();
 
   template <typename DependentHandle = Handle,
             std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
@@ -193,6 +196,17 @@ class
   };
   Repr repr_;
 };
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+template <typename Handle, size_t inline_size, size_t inline_align>
+constexpr size_t
+    AnyDependencyBase<Handle, inline_size, inline_align>::kAvailableSize;
+constexpr size_t
+    AnyDependencyBase<Handle, inline_size, inline_align>::kAvailableAlign;
+#endif
 
 }  // namespace any_dependency_internal
 
@@ -575,10 +589,21 @@ template <typename Manager,
           std::enable_if_t<IsAnyDependency<Handle, Manager>::value, int>>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
-  if ((sizeof(typename Manager::Repr) <= sizeof(Repr) ||
-       manager.methods_->inline_size_used <= sizeof(Repr)) &&
-      (alignof(typename Manager::Repr) <= alignof(Repr) ||
-       manager.methods_->inline_align_used <= alignof(Repr))) {
+  // `manager.methods_->used_size <= Manager::kAvailableSize`, hence if
+  // `Manager::kAvailableSize <=
+  //      AvailableSize<Handle, inline_size, inline_align>()` then
+  // `manager.methods_->used_size <=
+  //      AvailableSize<Handle, inline_size, inline_align>()`.
+  // No need to check possibly at runtime.
+  if ((Manager::kAvailableSize <=
+           AvailableSize<Handle, inline_size, inline_align>() ||
+       manager.methods_->used_size <=
+           AvailableSize<Handle, inline_size, inline_align>()) &&
+      // Same for alignment.
+      (Manager::kAvailableAlign <=
+           AvailableAlign<Handle, inline_size, inline_align>() ||
+       manager.methods_->used_align <=
+           AvailableAlign<Handle, inline_size, inline_align>())) {
     // Adopt `manager` instead of wrapping it.
     manager.handle_ = SentinelHandle<Handle>();
     methods_ = std::exchange(manager.methods_, &NullMethods::kMethods);
@@ -615,6 +640,7 @@ inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
     new (this) Manager(std::move(manager).Construct());
     return;
   }
+  // Materialize `Manager` to consider adopting its storage.
   Initialize(std::move(manager).Reference());
 }
 
