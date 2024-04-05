@@ -10,7 +10,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "uncompressed" |
     "brotli" (":" brotli_level)? |
     "zstd" (":" zstd_level)? |
-    "snappy" |
+    "snappy" (":" snappy_level)? |
     "window_log" ":" window_log |
     "chunk_size" ":" chunk_size |
     "bucket_fraction" ":" bucket_fraction |
@@ -18,6 +18,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "parallelism" ":" parallelism
   brotli_level ::= integer in the range [0..11] (default 6)
   zstd_level ::= integer in the range [-131072..22] (default 3)
+  snappy_level ::= integer in the range [1..2] (default 1)
   window_log ::= "auto" or integer in the range [10..31]
   chunk_size ::= "auto" or positive integer expressed as real with optional
     suffix [BkKMGTPE]
@@ -67,7 +68,7 @@ compression speed (higher = better density but slower).
 
 Changes compression algorithm to [Snappy](https://google.github.io/snappy/).
 
-There are no Snappy compression levels to tune.
+`snappy_level` must be between 1 and 2. Default: `1`.
 
 ## `window_log`
 

@@ -35,6 +35,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
+#include "snappy.h"
 
 namespace riegeli {
 
@@ -45,7 +46,41 @@ class Reader;
 // Template parameter independent part of `SnappyWriter`.
 class SnappyWriterBase : public Writer {
  public:
-  class Options {};
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Tunes the tradeoff between compression density and compression speed
+    // (higher = better density but slower).
+    //
+    // `compression_level` must be between `kMinCompressionLevel` (1) and
+    // `kMaxCompressionLevel` (2).
+    static constexpr int kMinCompressionLevel =
+        snappy::CompressionOptions::MinCompressionLevel();
+    static constexpr int kMaxCompressionLevel =
+        snappy::CompressionOptions::MaxCompressionLevel();
+    static constexpr int kDefaultCompressionLevel =
+        snappy::CompressionOptions::DefaultCompressionLevel();
+    Options& set_compression_level(int compression_level) & {
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+          << "Failed precondition of "
+             "SnappyWriterBase::Options::set_compression_level(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+          << "Failed precondition of "
+             "SnappyWriterBase::Options::set_compression_level(): "
+             "compression level out of range";
+      compression_level_ = compression_level;
+      return *this;
+    }
+    Options&& set_compression_level(int compression_level) && {
+      return std::move(set_compression_level(compression_level));
+    }
+    int compression_level() const { return compression_level_; }
+
+   private:
+    int compression_level_ = kDefaultCompressionLevel;
+  };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* DestWriter() const = 0;
@@ -62,7 +97,7 @@ class SnappyWriterBase : public Writer {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Writer* dest);
+  void Initialize(Writer* dest, int compression_level);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void Done() override;
@@ -91,6 +126,7 @@ class SnappyWriterBase : public Writer {
   // contains only actual data written.
   bool SyncBuffer();
 
+  int compression_level_ = Options::kDefaultCompressionLevel;
   Chain::Options options_;
 
   // `Writer` methods are similar to `ChainWriter` methods writing to
@@ -191,12 +227,17 @@ explicit SnappyWriter(
 // The uncompressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with
 // `LimitingReaderBase::Options().set_exact_length(size)`.
+
+using SnappyCompressOptions = SnappyWriterBase::Options;
+
 template <typename Src, typename Dest,
           std::enable_if_t<
               absl::conjunction<IsValidDependency<Reader*, Src&&>,
                                 IsValidDependency<Writer*, Dest&&>>::value,
               int> = 0>
-absl::Status SnappyCompress(Src&& src, Dest&& dest);
+absl::Status SnappyCompress(
+    Src&& src, Dest&& dest,
+    SnappyCompressOptions options = SnappyCompressOptions());
 
 // Returns the maximum compressed size produced by the Snappy compressor for
 // data of the given uncompressed size.
@@ -209,6 +250,7 @@ inline SnappyWriterBase::SnappyWriterBase()
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
+      compression_level_(that.compression_level_),
       options_(that.options_),
       associated_reader_(std::move(that.associated_reader_)) {
   MoveUncompressed(std::move(that));
@@ -217,6 +259,7 @@ inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
 inline SnappyWriterBase& SnappyWriterBase::operator=(
     SnappyWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
+  compression_level_ = that.compression_level_;
   options_ = that.options_;
   associated_reader_ = std::move(that.associated_reader_);
   MoveUncompressed(std::move(that));
@@ -225,6 +268,7 @@ inline SnappyWriterBase& SnappyWriterBase::operator=(
 
 inline void SnappyWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
+  compression_level_ = Options::kDefaultCompressionLevel;
   options_ = Chain::Options();
   uncompressed_ = Chain();
   associated_reader_.Reset();
@@ -232,14 +276,16 @@ inline void SnappyWriterBase::Reset(Closed) {
 
 inline void SnappyWriterBase::Reset() {
   Writer::Reset();
+  compression_level_ = Options::kDefaultCompressionLevel;
   options_ = Chain::Options().set_block_size(kBlockSize);
   uncompressed_.Clear();
   associated_reader_.Reset();
 }
 
-inline void SnappyWriterBase::Initialize(Writer* dest) {
+inline void SnappyWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of SnappyWriter: null Writer pointer";
+  compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
   }
@@ -259,10 +305,9 @@ inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
 }
 
 template <typename Dest>
-inline SnappyWriter<Dest>::SnappyWriter(Initializer<Dest> dest,
-                                        ABSL_ATTRIBUTE_UNUSED Options options)
+inline SnappyWriter<Dest>::SnappyWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.compression_level());
 }
 
 template <typename Dest>
@@ -285,11 +330,10 @@ inline void SnappyWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void SnappyWriter<Dest>::Reset(Initializer<Dest> dest,
-                                      ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void SnappyWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   SnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.compression_level());
 }
 
 template <typename Dest>
@@ -304,7 +348,8 @@ void SnappyWriter<Dest>::Done() {
 
 namespace snappy_internal {
 
-absl::Status SnappyCompressImpl(Reader& src, Writer& dest);
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
+                                SnappyCompressOptions options);
 
 }  // namespace snappy_internal
 
@@ -313,12 +358,13 @@ template <typename Src, typename Dest,
               absl::conjunction<IsValidDependency<Reader*, Src&&>,
                                 IsValidDependency<Writer*, Dest&&>>::value,
               int>>
-inline absl::Status SnappyCompress(Src&& src, Dest&& dest) {
+inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
+                                   SnappyCompressOptions options) {
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
-      snappy_internal::SnappyCompressImpl(*src_dep, *dest_dep);
+      snappy_internal::SnappyCompressImpl(*src_dep, *dest_dep, options);
   if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());

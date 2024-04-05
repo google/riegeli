@@ -80,7 +80,9 @@ inline void Compressor::Initialize() {
       return;
     case CompressionType::kSnappy:
       writer_ = std::make_unique<SnappyWriter<ChainWriter<>>>(
-          std::forward_as_tuple(&compressed_));
+          std::forward_as_tuple(&compressed_),
+          SnappyWriterBase::Options().set_compression_level(
+              compressor_options_.compression_level()));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()

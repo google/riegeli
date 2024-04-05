@@ -43,9 +43,10 @@
 
 namespace riegeli {
 
-void FramedSnappyWriterBase::Initialize(Writer* dest) {
+void FramedSnappyWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of FramedSnappyWriter: null Writer pointer";
+  compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
     return;
@@ -131,7 +132,7 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
                       compressed_chunk + 2 * sizeof(uint32_t),
-                      &compressed_length);
+                      &compressed_length, {/*level=*/compression_level_});
   if (compressed_length < uncompressed_length) {
     WriteLittleEndian32(
         IntCast<uint32_t>(0x00 /* Compressed data */ |

@@ -74,6 +74,9 @@ constexpr int RecordWriterBase::Options::kDefaultBrotli;
 constexpr int RecordWriterBase::Options::kMinZstd;
 constexpr int RecordWriterBase::Options::kMaxZstd;
 constexpr int RecordWriterBase::Options::kDefaultZstd;
+constexpr int RecordWriterBase::Options::kMinSnappy;
+constexpr int RecordWriterBase::Options::kMaxSnappy;
+constexpr int RecordWriterBase::Options::kDefaultSnappy;
 constexpr int RecordWriterBase::Options::kMinWindowLog;
 constexpr int RecordWriterBase::Options::kMaxWindowLog;
 #endif

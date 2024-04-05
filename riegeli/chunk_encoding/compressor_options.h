@@ -24,6 +24,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/snappy/snappy_writer.h"
 #include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
@@ -39,10 +40,11 @@ class CompressorOptions {
   //     "uncompressed" |
   //     "brotli" (":" brotli_level)? |
   //     "zstd" (":" zstd_level)? |
-  //     "snappy" |
+  //     "snappy" (":" snappy_level)? |
   //     "window_log" ":" window_log
   //   brotli_level ::= integer in the range [0..11] (default 6)
   //   zstd_level ::= integer in the range [-131072..22] (default 3)
+  //   snappy_level ::= integer in the range [1..2] (default 1)
   //   window_log ::= "auto" or integer in the range [10..31]
   // ```
   //
@@ -116,15 +118,23 @@ class CompressorOptions {
     return std::move(set_zstd(compression_level));
   }
 
-  // Changes compression algorithm to Snappy.
-  //
-  // There are no Snappy compression levels to tune.
-  CompressorOptions& set_snappy() & {
+  // Changes compression algorithm to Snappy.  Sets compression level which
+  // tunes the tradeoff between compression density and compression speed
+  // (higher = better density but slower).
+  static constexpr int kMinSnappy =
+      SnappyWriterBase::Options::kMinCompressionLevel;
+  static constexpr int kMaxSnappy =
+      SnappyWriterBase::Options::kMaxCompressionLevel;
+  static constexpr int kDefaultSnappy =
+      SnappyWriterBase::Options::kDefaultCompressionLevel;
+  CompressorOptions& set_snappy(int compression_level = kDefaultSnappy) & {
     compression_type_ = CompressionType::kSnappy;
-    compression_level_ = 0;
+    compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_snappy() && { return std::move(set_snappy()); }
+  CompressorOptions&& set_snappy(int compression_level = kDefaultSnappy) && {
+    return std::move(set_snappy(compression_level));
+  }
 
   CompressionType compression_type() const { return compression_type_; }
 

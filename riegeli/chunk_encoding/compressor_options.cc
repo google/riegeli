@@ -14,8 +14,6 @@
 
 #include "riegeli/chunk_encoding/compressor_options.h"
 
-#include <string>
-
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -24,6 +22,7 @@
 #include "riegeli/base/options_parser.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/snappy/snappy_writer.h"
 #include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
@@ -38,6 +37,9 @@ constexpr int CompressorOptions::kDefaultBrotli;
 constexpr int CompressorOptions::kMinZstd;
 constexpr int CompressorOptions::kMaxZstd;
 constexpr int CompressorOptions::kDefaultZstd;
+constexpr int CompressorOptions::kMinSnappy;
+constexpr int CompressorOptions::kMaxSnappy;
+constexpr int CompressorOptions::kDefaultSnappy;
 constexpr int CompressorOptions::kMinWindowLog;
 constexpr int CompressorOptions::kMaxWindowLog;
 #endif
@@ -105,8 +107,16 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
                            ZstdWriterBase::Options::kMaxCompressionLevel,
                            &compression_level_)));
   options_parser.AddOption(
-      "snappy", ValueParser::And(ValueParser::FailIfSeen("window_log"),
-                                 ValueParser::Empty(0, &compression_level_)));
+      "snappy",
+      ValueParser::And(
+          ValueParser::FailIfSeen("window_log"),
+          ValueParser::Or(
+              ValueParser::Empty(
+                  SnappyWriterBase::Options::kDefaultCompressionLevel,
+                  &compression_level_),
+              ValueParser::Int(SnappyWriterBase::Options::kMinCompressionLevel,
+                               SnappyWriterBase::Options::kMaxCompressionLevel,
+                               &compression_level_))));
   options_parser.AddOption("window_log", [&] {
     switch (compression_type_) {
       case CompressionType::kNone:

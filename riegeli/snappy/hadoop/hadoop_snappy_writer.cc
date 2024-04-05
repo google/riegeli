@@ -39,9 +39,10 @@
 
 namespace riegeli {
 
-void HadoopSnappyWriterBase::Initialize(Writer* dest) {
+void HadoopSnappyWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of HadoopSnappyWriter: null Writer pointer";
+  compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
   }
@@ -118,7 +119,7 @@ inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
                       compressed_chunk + 2 * sizeof(uint32_t),
-                      &compressed_length);
+                      &compressed_length, {/*level=*/compression_level_});
   WriteBigEndian32(IntCast<uint32_t>(compressed_length),
                    compressed_chunk + sizeof(uint32_t));
   dest.move_cursor(2 * sizeof(uint32_t) + compressed_length);

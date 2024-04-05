@@ -54,7 +54,9 @@ void SnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *DestWriter();
     {
-      absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
+      absl::Status status = SnappyCompress(
+          ChainReader<>(&uncompressed_), dest,
+          SnappyCompressOptions().set_compression_level(compression_level_));
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         FailWithoutAnnotation(std::move(status));
       }
@@ -252,7 +254,8 @@ inline bool SnappyWriterBase::SyncBuffer() {
 
 namespace snappy_internal {
 
-absl::Status SnappyCompressImpl(Reader& src, Writer& dest) {
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
+                                SnappyCompressOptions options) {
   const absl::optional<Position> size = src.Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
   if (ABSL_PREDICT_FALSE(*size > std::numeric_limits<uint32_t>::max())) {
@@ -262,7 +265,7 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest) {
   }
   ReaderSnappySource source(&src, *size);
   WriterSnappySink sink(&dest);
-  snappy::Compress(&source, &sink);
+  snappy::Compress(&source, &sink, {/*level=*/options.compression_level()});
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   return absl::OkStatus();

@@ -81,6 +81,7 @@ ABSL_FLAG(std::string, riegeli_benchmarks,
           "zstd:3 "
           "zstd:15 "
           "snappy "
+          "snappy:2 "
           "transpose,uncompressed "
           "transpose,brotli:6 "
           "transpose,brotli:6,parallelism:10 "

@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -32,6 +33,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "snappy.h"
 
 namespace riegeli {
 
@@ -42,7 +44,41 @@ class Reader;
 // Template parameter independent part of `FramedSnappyWriter`.
 class FramedSnappyWriterBase : public PushableWriter {
  public:
-  class Options {};
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Tunes the tradeoff between compression density and compression speed
+    // (higher = better density but slower).
+    //
+    // `compression_level` must be between `kMinCompressionLevel` (1) and
+    // `kMaxCompressionLevel` (2).
+    static constexpr int kMinCompressionLevel =
+        snappy::CompressionOptions::MinCompressionLevel();
+    static constexpr int kMaxCompressionLevel =
+        snappy::CompressionOptions::MaxCompressionLevel();
+    static constexpr int kDefaultCompressionLevel =
+        snappy::CompressionOptions::DefaultCompressionLevel();
+    Options& set_compression_level(int compression_level) & {
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+          << "Failed precondition of "
+             "FramedSnappyWriterBase::Options::set_compression_level(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+          << "Failed precondition of "
+             "FramedSnappyWriterBase::Options::set_compression_level(): "
+             "compression level out of range";
+      compression_level_ = compression_level;
+      return *this;
+    }
+    Options&& set_compression_level(int compression_level) && {
+      return std::move(set_compression_level(compression_level));
+    }
+    int compression_level() const { return compression_level_; }
+
+   private:
+    int compression_level_ = kDefaultCompressionLevel;
+  };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* DestWriter() const = 0;
@@ -59,7 +95,7 @@ class FramedSnappyWriterBase : public PushableWriter {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Writer* dest);
+  void Initialize(Writer* dest, int compression_level);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void Done() override;
@@ -79,6 +115,7 @@ class FramedSnappyWriterBase : public PushableWriter {
   // Postcondition: `start_to_cursor() == 0`
   bool PushInternal(Writer& dest);
 
+  int compression_level_ = Options::kDefaultCompressionLevel;
   absl::optional<Position> size_hint_;
   Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
@@ -161,6 +198,7 @@ explicit FramedSnappyWriter(
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     FramedSnappyWriterBase&& that) noexcept
     : PushableWriter(static_cast<PushableWriter&&>(that)),
+      compression_level_(that.compression_level_),
       size_hint_(that.size_hint_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       uncompressed_(std::move(that.uncompressed_)),
@@ -169,6 +207,7 @@ inline FramedSnappyWriterBase::FramedSnappyWriterBase(
 inline FramedSnappyWriterBase& FramedSnappyWriterBase::operator=(
     FramedSnappyWriterBase&& that) noexcept {
   PushableWriter::operator=(static_cast<PushableWriter&&>(that));
+  compression_level_ = that.compression_level_;
   size_hint_ = that.size_hint_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
@@ -178,6 +217,7 @@ inline FramedSnappyWriterBase& FramedSnappyWriterBase::operator=(
 
 inline void FramedSnappyWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
+  compression_level_ = Options::kDefaultCompressionLevel;
   size_hint_ = absl::nullopt;
   initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
@@ -186,16 +226,17 @@ inline void FramedSnappyWriterBase::Reset(Closed) {
 
 inline void FramedSnappyWriterBase::Reset() {
   PushableWriter::Reset();
+  compression_level_ = Options::kDefaultCompressionLevel;
   size_hint_ = absl::nullopt;
   initial_compressed_pos_ = 0;
   associated_reader_.Reset();
 }
 
 template <typename Dest>
-inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
-    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options)
+inline FramedSnappyWriter<Dest>::FramedSnappyWriter(Initializer<Dest> dest,
+                                                    Options options)
     : dest_(std::move(dest)) {
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.compression_level());
 }
 
 template <typename Dest>
@@ -220,11 +261,11 @@ inline void FramedSnappyWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void FramedSnappyWriter<Dest>::Reset(
-    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void FramedSnappyWriter<Dest>::Reset(Initializer<Dest> dest,
+                                            Options options) {
   FramedSnappyWriterBase::Reset();
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.compression_level());
 }
 
 template <typename Dest>

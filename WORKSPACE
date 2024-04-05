@@ -37,9 +37,9 @@ http_archive(
 http_archive(
     name = "snappy",
     build_file = "//third_party:snappy.BUILD",
-    sha256 = "38b4aabf88eb480131ed45bfb89c19ca3e2a62daeb081bdf001cfb17ec4cd303",
-    strip_prefix = "snappy-1.1.8",
-    urls = ["https://github.com/google/snappy/archive/1.1.8.zip"],  # 2020-01-14
+    sha256 = "7ee7540b23ae04df961af24309a55484e7016106e979f83323536a1322cedf1b",
+    strip_prefix = "snappy-1.2.0",
+    urls = ["https://github.com/google/snappy/archive/1.2.0.zip"],  # 2024-04-05
 )
 
 http_archive(

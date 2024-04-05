@@ -102,6 +102,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:options_parser",
         "//riegeli/brotli:brotli_writer",
+        "//riegeli/snappy:snappy_writer",
         "//riegeli/zstd:zstd_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
