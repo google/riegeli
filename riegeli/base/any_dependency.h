@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <new>
 #include <tuple>
@@ -550,11 +551,21 @@ namespace any_dependency_internal {
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyDependencyBase<Handle, inline_size, inline_align>::AnyDependencyBase(
     AnyDependencyBase&& that) noexcept {
-  that.methods_and_handle_.handle = SentinelHandle<Handle>();
-  methods_and_handle_.methods =
-      std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
-  methods_and_handle_.methods->move(repr_.storage, &methods_and_handle_.handle,
-                                    that.repr_.storage);
+  if (inline_size == 0) {
+    // Replace an indirect call to `methods_and_handle_.methods->move()` with
+    // a plain assignment of `methods_and_handle_.handle` and `repr_`.
+    methods_and_handle_.methods =
+        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
+    methods_and_handle_.handle = std::exchange(that.methods_and_handle_.handle,
+                                               SentinelHandle<Handle>());
+    repr_ = that.repr_;
+  } else {
+    that.methods_and_handle_.handle = SentinelHandle<Handle>();
+    methods_and_handle_.methods =
+        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
+    methods_and_handle_.methods->move(
+        repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
+  }
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -563,11 +574,21 @@ AnyDependencyBase<Handle, inline_size, inline_align>::operator=(
     AnyDependencyBase&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Destroy();
-    that.methods_and_handle_.handle = SentinelHandle<Handle>();
-    methods_and_handle_.methods =
-        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
-    methods_and_handle_.methods->move(
-        repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
+    if (inline_size == 0) {
+      // Replace an indirect call to `methods_and_handle_.methods->move()` with
+      // a plain assignment of `methods_and_handle_.handle` and `repr_`.
+      methods_and_handle_.methods = std::exchange(
+          that.methods_and_handle_.methods, &NullMethods::kMethods);
+      methods_and_handle_.handle = std::exchange(
+          that.methods_and_handle_.handle, SentinelHandle<Handle>());
+      repr_ = that.repr_;
+    } else {
+      that.methods_and_handle_.handle = SentinelHandle<Handle>();
+      methods_and_handle_.methods = std::exchange(
+          that.methods_and_handle_.methods, &NullMethods::kMethods);
+      methods_and_handle_.methods->move(
+          repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
+    }
   }
   return *this;
 }
@@ -609,11 +630,28 @@ inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
        manager.methods_and_handle_.methods->used_align <=
            AvailableAlign<Handle, inline_size, inline_align>())) {
     // Adopt `manager` instead of wrapping it.
-    manager.methods_and_handle_.handle = SentinelHandle<Handle>();
-    methods_and_handle_.methods = std::exchange(
-        manager.methods_and_handle_.methods, &NullMethods::kMethods);
-    methods_and_handle_.methods->move(
-        repr_.storage, &methods_and_handle_.handle, manager.repr_.storage);
+    if (Manager::kAvailableSize == 0 || inline_size == 0) {
+      // Replace an indirect call to `methods_and_handle_.methods->move()` with
+      // a plain assignment of `methods_and_handle_.handle` and a memory copy of
+      // `repr_`.
+      //
+      // This would safe whenever
+      // `manager.methods_and_handle_.methods->used_size == 0`, but this is
+      // handled specially only if the condition can be determined at compile
+      // time.
+      methods_and_handle_.methods = std::exchange(
+          manager.methods_and_handle_.methods, &NullMethods::kMethods);
+      methods_and_handle_.handle = std::exchange(
+          manager.methods_and_handle_.handle, SentinelHandle<Handle>());
+      std::memcpy(&repr_, &manager.repr_,
+                  UnsignedMin(sizeof(repr_), sizeof(manager.repr_)));
+    } else {
+      manager.methods_and_handle_.handle = SentinelHandle<Handle>();
+      methods_and_handle_.methods = std::exchange(
+          manager.methods_and_handle_.methods, &NullMethods::kMethods);
+      methods_and_handle_.methods->move(
+          repr_.storage, &methods_and_handle_.handle, manager.repr_.storage);
+    }
     return;
   }
   methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;

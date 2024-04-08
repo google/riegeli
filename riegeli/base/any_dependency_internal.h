@@ -62,7 +62,8 @@ using Storage = char[];
 //
 // If `inline_size == 0`, the dependency is also required to be stable
 // (because then `AnyDependency` declares itself stable) and trivially
-// relocatable (because then `AnyDependency` declares itself with trivial ABI).
+// relocatable (because then `AnyDependency` declares itself with trivial ABI
+// and optimizes moving to a plain memory copy of the representation).
 
 // Properties of inline storage in an `AnyDepenency` instance are expressed as
 // two numbers: `available_size` and `available_align`, while constraints of a
@@ -104,9 +105,11 @@ template <typename Handle, typename Manager>
 constexpr size_t UsedSize() {
   if (sizeof(Dependency<Handle, Manager>) <=
           sizeof(Repr<Handle, 0, alignof(Dependency<Handle, Manager>)>) &&
-      Dependency<Handle, Manager>::kIsStable
+      Dependency<Handle, Manager>::kIsStable &&
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-      && absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value
+      absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value
+#else
+      std::is_trivially_copyable<Dependency<Handle, Manager>>::value
 #endif
   ) {
     return 0;
