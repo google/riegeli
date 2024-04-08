@@ -68,7 +68,9 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
   chunk_encoding_internal::Decompressor<LimitingReader<>> sizes_decompressor(
       std::forward_as_tuple(
           src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
-      compression_type);
+      compression_type,
+      chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(
+          recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.ok())) {
     return Fail(sizes_decompressor.status());
   }
@@ -95,7 +97,10 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
         absl::InvalidArgumentError("Decoded data size smaller than expected"));
   }
 
-  values_decompressor_.Reset(src, compression_type);
+  values_decompressor_.Reset(
+      src, compression_type,
+      chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(
+          recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!values_decompressor_.ok())) {
     return Fail(values_decompressor_.status());
   }

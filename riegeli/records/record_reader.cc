@@ -41,6 +41,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -110,7 +111,8 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
       last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
       flatten_(std::exchange(that.flatten_, false)),
       recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
-      recovery_(std::move(that.recovery_)) {}
+      recovery_(std::move(that.recovery_)),
+      recycling_pool_options_(that.recycling_pool_options_) {}
 
 RecordReaderBase& RecordReaderBase::operator=(
     RecordReaderBase&& that) noexcept {
@@ -121,6 +123,7 @@ RecordReaderBase& RecordReaderBase::operator=(
   flatten_ = std::exchange(that.flatten_, false);
   recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);
   recovery_ = std::move(that.recovery_);
+  recycling_pool_options_ = that.recycling_pool_options_;
   return *this;
 }
 
@@ -132,6 +135,7 @@ void RecordReaderBase::Reset(Closed) {
   flatten_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
+  recycling_pool_options_ = RecyclingPoolOptions();
 }
 
 void RecordReaderBase::Reset() {
@@ -142,6 +146,7 @@ void RecordReaderBase::Reset() {
   flatten_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
+  recycling_pool_options_ = RecyclingPoolOptions();
 }
 
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
@@ -152,9 +157,12 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
     return;
   }
   chunk_begin_ = src->pos();
-  chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
-      std::move(options.field_projection())));
+  chunk_decoder_.Reset(
+      ChunkDecoder::Options()
+          .set_field_projection(std::move(options.field_projection()))
+          .set_recycling_pool_options(options.recycling_pool_options()));
   recovery_ = std::move(options.recovery());
+  recycling_pool_options_ = options.recycling_pool_options();
 }
 
 void RecordReaderBase::Done() {
@@ -285,7 +293,9 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
         chunk.header.num_records())));
   }
   ChainReader<> data_reader(&chunk.data);
-  TransposeDecoder transpose_decoder;
+  TransposeDecoder transpose_decoder(
+      TransposeDecoder::Options().set_recycling_pool_options(
+          recycling_pool_options_));
   ChainBackwardWriter<> serialized_metadata_writer(&metadata);
   serialized_metadata_writer.SetWriteSizeHint(chunk.header.decoded_data_size());
   std::vector<size_t> limits;
@@ -362,8 +372,7 @@ bool RecordReaderBase::SetFieldProjection(
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   ChunkReader& src = *SrcChunkReader();
   const uint64_t record_index = chunk_decoder_.index();
-  chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
-      std::move(field_projection)));
+  chunk_decoder_.ClearAndSetFieldProjection(std::move(field_projection));
   if (ABSL_PREDICT_FALSE(!src.Seek(chunk_begin_))) return FailSeeking(src);
   if (record_index > 0) {
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();

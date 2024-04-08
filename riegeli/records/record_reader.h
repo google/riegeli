@@ -41,6 +41,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -167,9 +168,29 @@ class RecordReaderBase : public Object {
       return recovery_;
     }
 
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     FieldProjection field_projection_ = FieldProjection::All();
     std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery_;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
@@ -472,6 +493,8 @@ class RecordReaderBase : public Object {
   Recoverable recoverable_ = Recoverable::kNo;
 
   std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery_;
+
+  RecyclingPoolOptions recycling_pool_options_;
 
  private:
   class ChunkSearchTraits;

@@ -18,10 +18,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <utility>
 #include <vector>
 
 #include "absl/types/span.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/field_projection.h"
@@ -30,8 +32,37 @@ namespace riegeli {
 
 class TransposeDecoder : public Object {
  public:
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
+   private:
+    RecyclingPoolOptions recycling_pool_options_;
+  };
+
   // Creates a closed `TransposeDecoder`.
-  TransposeDecoder() noexcept : Object(kClosed) {}
+  explicit TransposeDecoder(Options options = Options())
+      : Object(kClosed),
+        recycling_pool_options_(options.recycling_pool_options()) {}
 
   TransposeDecoder(const TransposeDecoder&) = delete;
   TransposeDecoder& operator=(const TransposeDecoder&) = delete;
@@ -89,6 +120,8 @@ class TransposeDecoder : public Object {
       Context& context, int skipped_submessage_level,
       absl::Span<const StateMachineNode* const> submessage_stack,
       StateMachineNode& node);
+
+  RecyclingPoolOptions recycling_pool_options_;
 };
 
 }  // namespace riegeli

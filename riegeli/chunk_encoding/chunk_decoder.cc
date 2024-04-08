@@ -111,7 +111,9 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
       }
       return true;
     case ChunkType::kSimple: {
-      SimpleDecoder simple_decoder;
+      SimpleDecoder simple_decoder(
+          SimpleDecoder::Options().set_recycling_pool_options(
+              recycling_pool_options_));
       if (ABSL_PREDICT_FALSE(!simple_decoder.Decode(&src, header.num_records(),
                                                     header.decoded_data_size(),
                                                     limits_))) {
@@ -143,7 +145,9 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
       return true;
     }
     case ChunkType::kTransposed: {
-      TransposeDecoder transpose_decoder;
+      TransposeDecoder transpose_decoder(
+          TransposeDecoder::Options().set_recycling_pool_options(
+              recycling_pool_options_));
       bool decode_ok;
       if (flatten && field_projection_.includes_all()) {
         ArrayBackwardWriter<> dest_writer(dest.AppendFixedBuffer(

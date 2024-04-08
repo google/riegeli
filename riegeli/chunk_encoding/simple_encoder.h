@@ -18,12 +18,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <utility>
 #include <vector>
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
@@ -45,8 +49,52 @@ namespace riegeli {
 // uncompressed size.
 class SimpleEncoder : public ChunkEncoder {
  public:
+  class TuningOptions {
+   public:
+    TuningOptions() noexcept {}
+
+    // Expected uncompressed size of concatenated values, or `absl::nullopt` if
+    // unknown. This may improve compression density and performance.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
+    TuningOptions& set_size_hint(absl::optional<Position> size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+    absl::optional<Position> size_hint() const { return size_hint_; }
+
+    // Options for a global `RecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    TuningOptions& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    TuningOptions&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
+   private:
+    absl::optional<Position> size_hint_;
+    RecyclingPoolOptions recycling_pool_options_;
+  };
+
   // Creates an empty `SimpleEncoder`.
-  explicit SimpleEncoder(CompressorOptions options, uint64_t size_hint);
+  explicit SimpleEncoder(CompressorOptions compressor_options,
+                         TuningOptions tuning_options = TuningOptions());
 
   void Clear() override;
 

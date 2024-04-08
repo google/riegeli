@@ -30,6 +30,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -50,6 +51,34 @@ namespace chunk_encoding_internal {
 absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
                                           CompressionType compression_type);
 
+// Options for a `Decompressor`.
+class DecompressorOptions {
+ public:
+  DecompressorOptions() noexcept {}
+
+  // Options for a global `RecyclingPool` of decompression contexts.
+  //
+  // They tune the amount of memory which is kept to speed up creation of new
+  // decompression sessions, and usage of a background thread to clean it.
+  //
+  // Default: `RecyclingPoolOptions()`.
+  DecompressorOptions& set_recycling_pool_options(
+      const RecyclingPoolOptions& recycling_pool_options) & {
+    recycling_pool_options_ = recycling_pool_options;
+    return *this;
+  }
+  DecompressorOptions&& set_recycling_pool_options(
+      const RecyclingPoolOptions& recycling_pool_options) && {
+    return std::move(set_recycling_pool_options(recycling_pool_options));
+  }
+  const RecyclingPoolOptions& recycling_pool_options() const {
+    return recycling_pool_options_;
+  }
+
+ private:
+  RecyclingPoolOptions recycling_pool_options_;
+};
+
 // Decompresses a compressed stream.
 //
 // If `compression_type` is not `kNone`, reads uncompressed size as a varint
@@ -57,11 +86,14 @@ absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
 template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
+  using Options = DecompressorOptions;
+
   // Creates a closed `Decompressor`.
   explicit Decompressor(Closed) noexcept : Object(kClosed) {}
 
   // Will read from the compressed stream provided by `src`.
-  explicit Decompressor(Initializer<Src> src, CompressionType compression_type);
+  explicit Decompressor(Initializer<Src> src, CompressionType compression_type,
+                        DecompressorOptions options = DecompressorOptions());
 
   Decompressor(Decompressor&& that) = default;
   Decompressor& operator=(Decompressor&& that) = default;
@@ -69,8 +101,9 @@ class Decompressor : public Object {
   // Makes `*this` equivalent to a newly constructed `Decompressor`. This avoids
   // constructing a temporary `Decompressor` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
-                                          CompressionType compression_type);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Initializer<Src> src, CompressionType compression_type,
+      DecompressorOptions options = DecompressorOptions());
 
   // Returns the `Reader` from which uncompressed data should be read.
   //
@@ -97,7 +130,8 @@ class Decompressor : public Object {
   void Done() override;
 
  private:
-  void Initialize(Initializer<Src> src, CompressionType compression_type);
+  void Initialize(Initializer<Src> src, CompressionType compression_type,
+                  const RecyclingPoolOptions& recycling_pool_options);
 
   AnyDependency<Reader*>::Inlining<Src, BrotliReader<Src>, ZstdReader<Src>,
                                    SnappyReader<Src>>
@@ -108,8 +142,10 @@ class Decompressor : public Object {
 
 template <typename Src>
 inline Decompressor<Src>::Decompressor(Initializer<Src> src,
-                                       CompressionType compression_type) {
-  Initialize(std::move(src), compression_type);
+                                       CompressionType compression_type,
+                                       DecompressorOptions options) {
+  Initialize(std::move(src), compression_type,
+             options.recycling_pool_options());
 }
 
 template <typename Src>
@@ -120,14 +156,17 @@ inline void Decompressor<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void Decompressor<Src>::Reset(Initializer<Src> src,
-                                     CompressionType compression_type) {
+                                     CompressionType compression_type,
+                                     DecompressorOptions options) {
   Object::Reset();
-  Initialize(std::move(src), compression_type);
+  Initialize(std::move(src), compression_type,
+             options.recycling_pool_options());
 }
 
 template <typename Src>
-inline void Decompressor<Src>::Initialize(Initializer<Src> src,
-                                          CompressionType compression_type) {
+inline void Decompressor<Src>::Initialize(
+    Initializer<Src> src, CompressionType compression_type,
+    const RecyclingPoolOptions& recycling_pool_options) {
   if (compression_type == CompressionType::kNone) {
     decompressed_ = std::move(src);
     return;
@@ -149,7 +188,9 @@ inline void Decompressor<Src>::Initialize(Initializer<Src> src,
       return;
     case CompressionType::kZstd:
       decompressed_.template Emplace<ZstdReader<Src>>(
-          std::move(compressed_reader.manager()));
+          std::move(compressed_reader.manager()),
+          ZstdReaderBase::Options().set_recycling_pool_options(
+              recycling_pool_options));
       return;
     case CompressionType::kSnappy:
       decompressed_.template Emplace<SnappyReader<Src>>(

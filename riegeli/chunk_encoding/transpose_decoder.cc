@@ -519,7 +519,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         absl::InvalidArgumentError("Reading header failed")));
   }
   chunk_encoding_internal::Decompressor<ChainReader<>> header_decompressor(
-      std::forward_as_tuple(&header), context.compression_type);
+      std::forward_as_tuple(&header), context.compression_type,
+      chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(
+          recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!header_decompressor.ok())) {
     return Fail(header_decompressor.status());
   }
@@ -766,7 +768,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   if (ABSL_PREDICT_FALSE(!header_decompressor.VerifyEndAndClose())) {
     return Fail(header_decompressor.status());
   }
-  context.transitions.Reset(&src, context.compression_type);
+  context.transitions.Reset(
+      &src, context.compression_type,
+      chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(
+          recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!context.transitions.ok())) {
     return Fail(context.transitions.status());
   }
@@ -820,8 +825,10 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
       return Fail(src.StatusOrAnnotate(
           absl::InvalidArgumentError("Reading bucket failed")));
     }
-    bucket_decompressors.emplace_back(std::forward_as_tuple(std::move(bucket)),
-                                      context.compression_type);
+    bucket_decompressors.emplace_back(
+        std::forward_as_tuple(std::move(bucket)), context.compression_type,
+        chunk_encoding_internal::DecompressorOptions()
+            .set_recycling_pool_options(recycling_pool_options_));
     if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().ok())) {
       return Fail(bucket_decompressors.back().status());
     }
@@ -970,8 +977,11 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
   while (index_within_bucket >= bucket.buffers.size()) {
     if (bucket.buffers.empty()) {
       // This is the first buffer to be decompressed from this bucket.
-      bucket.decompressor.Reset(std::forward_as_tuple(&bucket.compressed_data),
-                                context.compression_type);
+      bucket.decompressor.Reset(
+          std::forward_as_tuple(&bucket.compressed_data),
+          context.compression_type,
+          chunk_encoding_internal::DecompressorOptions()
+              .set_recycling_pool_options(recycling_pool_options_));
       if (ABSL_PREDICT_FALSE(!bucket.decompressor.ok())) {
         Fail(bucket.decompressor.status());
         return nullptr;

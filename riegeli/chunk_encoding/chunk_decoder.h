@@ -35,6 +35,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -76,8 +77,28 @@ class ChunkDecoder : public Object {
       return field_projection_;
     }
 
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     FieldProjection field_projection_ = FieldProjection::All();
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // Creates an empty `ChunkDecoder`.
@@ -92,6 +113,18 @@ class ChunkDecoder : public Object {
 
   // Resets the `ChunkDecoder` to an empty chunk. Keeps options unchanged.
   void Clear();
+
+  // Resets the `ChunkDecoder` to an empty chunk. Keeps options unchanged,
+  // except that field projection is set to `field_projection`.
+  void ClearAndSetFieldProjection(
+      Initializer<FieldProjection> field_projection) {
+    Clear();
+    std::move(field_projection).AssignTo(field_projection_);
+  }
+  void ClearAndSetFieldProjection(
+      std::initializer_list<Field> field_projection) {
+    ClearAndSetFieldProjection(Initializer<FieldProjection>(field_projection));
+  }
 
   // Resets the `ChunkDecoder` and parses the chunk. Keeps options unchanged.
   //
@@ -152,6 +185,7 @@ class ChunkDecoder : public Object {
   bool Parse(const ChunkHeader& header, Reader& src, Chain& dest, bool flatten);
 
   FieldProjection field_projection_;
+  RecyclingPoolOptions recycling_pool_options_;
   // Invariants if `ok()`:
   //   `limits_` are sorted
   //   `(limits_.empty() ? 0 : limits_.back())` == size of `values_reader_`
@@ -170,11 +204,13 @@ class ChunkDecoder : public Object {
 
 inline ChunkDecoder::ChunkDecoder(Options options)
     : field_projection_(std::move(options.field_projection())),
+      recycling_pool_options_(options.recycling_pool_options()),
       values_reader_(std::forward_as_tuple()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
     : Object(static_cast<Object&&>(that)),
       field_projection_(std::move(that.field_projection_)),
+      recycling_pool_options_(that.recycling_pool_options_),
       limits_(std::move(that.limits_)),
       values_reader_(std::move(that.values_reader_)),
       index_(that.index_),
@@ -183,6 +219,7 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   Object::operator=(static_cast<Object&&>(that));
   field_projection_ = std::move(that.field_projection_);
+  recycling_pool_options_ = that.recycling_pool_options_;
   limits_ = std::move(that.limits_);
   values_reader_ = std::move(that.values_reader_);
   index_ = that.index_;
@@ -192,6 +229,7 @@ inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
 
 inline void ChunkDecoder::Reset(Options options) {
   field_projection_ = std::move(options.field_projection());
+  recycling_pool_options_ = options.recycling_pool_options();
   Clear();
 }
 

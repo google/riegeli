@@ -39,13 +39,18 @@
 
 namespace riegeli {
 
-SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
-    : compression_type_(options.compression_type()),
-      sizes_compressor_(options),
-      values_compressor_(
-          options,
-          chunk_encoding_internal::Compressor::TuningOptions().set_size_hint(
-              size_hint)) {}
+SimpleEncoder::SimpleEncoder(CompressorOptions compressor_options,
+                             TuningOptions tuning_options)
+    : compression_type_(compressor_options.compression_type()),
+      sizes_compressor_(compressor_options,
+                        chunk_encoding_internal::Compressor::TuningOptions()
+                            .set_recycling_pool_options(
+                                tuning_options.recycling_pool_options())),
+      values_compressor_(compressor_options,
+                         chunk_encoding_internal::Compressor::TuningOptions()
+                             .set_size_hint(tuning_options.size_hint())
+                             .set_recycling_pool_options(
+                                 tuning_options.recycling_pool_options())) {}
 
 void SimpleEncoder::Clear() {
   ChunkEncoder::Clear();

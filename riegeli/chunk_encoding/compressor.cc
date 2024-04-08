@@ -76,7 +76,9 @@ inline void Compressor::Initialize() {
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.zstd_window_log())
-              .set_pledged_size(tuning_options_.pledged_size()));
+              .set_pledged_size(tuning_options_.pledged_size())
+              .set_recycling_pool_options(
+                  tuning_options_.recycling_pool_options()));
       return;
     case CompressionType::kSnappy:
       writer_ = std::make_unique<SnappyWriter<ChainWriter<>>>(

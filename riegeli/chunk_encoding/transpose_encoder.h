@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -29,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -65,8 +67,51 @@ namespace riegeli {
 //    - State machine transitions (bytes)
 class TransposeEncoder : public ChunkEncoder {
  public:
+  class TuningOptions {
+   public:
+    TuningOptions() noexcept {}
+
+    // The default approximate bucket size, used if compression is enabled.
+    // Finer bucket granularity (i.e. smaller size) worsens compression density
+    // but makes field projection more effective.
+    //
+    // Default: `std::numeric_limits<uint64_t>::max()`.
+    TuningOptions& set_bucket_size(uint64_t bucket_size) & {
+      bucket_size_ = bucket_size;
+      return *this;
+    }
+    TuningOptions&& set_bucket_size(uint64_t bucket_size) && {
+      return std::move(set_bucket_size(bucket_size));
+    }
+    uint64_t bucket_size() const { return bucket_size_; }
+
+    // Options for a global `RecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    TuningOptions& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    TuningOptions&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
+   private:
+    uint64_t bucket_size_ = std::numeric_limits<uint64_t>::max();
+    RecyclingPoolOptions recycling_pool_options_;
+  };
+
   // Creates an empty `TransposeEncoder`.
-  explicit TransposeEncoder(CompressorOptions options, uint64_t bucket_size);
+  explicit TransposeEncoder(CompressorOptions options,
+                            TuningOptions tuning_options = TuningOptions());
 
   ~TransposeEncoder();
 
@@ -288,6 +333,7 @@ class TransposeEncoder : public ChunkEncoder {
   // Finer bucket granularity (i.e. smaller size) worsens compression density
   // but makes field projection more effective.
   uint64_t bucket_size_;
+  RecyclingPoolOptions recycling_pool_options_;
 
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;

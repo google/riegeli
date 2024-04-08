@@ -280,10 +280,16 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
             ? static_cast<uint64_t>(long_double_bucket_size)
             : uint64_t{1};
     chunk_encoder = std::make_unique<TransposeEncoder>(
-        options_.compressor_options(), bucket_size);
+        options_.compressor_options(),
+        TransposeEncoder::TuningOptions()
+            .set_bucket_size(bucket_size)
+            .set_recycling_pool_options(options_.recycling_pool_options()));
   } else {
     chunk_encoder = std::make_unique<SimpleEncoder>(
-        options_.compressor_options(), options_.effective_chunk_size());
+        options_.compressor_options(),
+        SimpleEncoder::TuningOptions()
+            .set_size_hint(options_.effective_chunk_size())
+            .set_recycling_pool_options(options_.recycling_pool_options()));
   }
   if (options_.parallelism() == 0) {
     return chunk_encoder;
@@ -297,8 +303,10 @@ inline void RecordWriterBase::Worker::EncodeSignature(Chunk& chunk) {
 }
 
 inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk& chunk) {
-  TransposeEncoder transpose_encoder(options_.compressor_options(),
-                                     std::numeric_limits<uint64_t>::max());
+  TransposeEncoder transpose_encoder(
+      options_.compressor_options(),
+      TransposeEncoder::TuningOptions().set_recycling_pool_options(
+          options_.recycling_pool_options()));
   if (ABSL_PREDICT_FALSE(
           options_.metadata() != absl::nullopt
               ? !transpose_encoder.AddRecord(*options_.metadata())

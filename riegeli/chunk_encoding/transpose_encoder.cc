@@ -191,12 +191,14 @@ inline TransposeEncoder::EncodedTagInfo::EncodedTagInfo(
 inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
     : buffer(std::make_unique<Chain>()), node_id(node_id) {}
 
-TransposeEncoder::TransposeEncoder(CompressorOptions options,
-                                   uint64_t bucket_size)
-    : compressor_options_(std::move(options)),
-      bucket_size_(options.compression_type() == CompressionType::kNone
+TransposeEncoder::TransposeEncoder(CompressorOptions compressor_options,
+                                   TuningOptions tuning_options)
+    : compressor_options_(std::move(compressor_options)),
+      bucket_size_(compressor_options_.compression_type() ==
+                           CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
-                       : bucket_size) {}
+                       : tuning_options.bucket_size()),
+      recycling_pool_options_(tuning_options.recycling_pool_options()) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
@@ -495,8 +497,9 @@ inline bool TransposeEncoder::AddBuffer(
           IntCast<size_t>(data_writer.pos() - pos_before));
     }
     bucket_compressor.Clear(
-        chunk_encoding_internal::Compressor::TuningOptions().set_pledged_size(
-            *new_uncompressed_bucket_size));
+        chunk_encoding_internal::Compressor::TuningOptions()
+            .set_pledged_size(*new_uncompressed_bucket_size)
+            .set_recycling_pool_options(recycling_pool_options_));
   }
   if (ABSL_PREDICT_FALSE(!bucket_compressor.writer().Write(buffer))) {
     return Fail(bucket_compressor.status());
@@ -530,7 +533,10 @@ inline bool TransposeEncoder::WriteBuffers(
   std::vector<size_t> buffer_sizes;
   buffer_sizes.reserve(num_buffers);
 
-  chunk_encoding_internal::Compressor bucket_compressor(compressor_options_);
+  chunk_encoding_internal::Compressor bucket_compressor(
+      compressor_options_,
+      chunk_encoding_internal::Compressor::TuningOptions()
+          .set_recycling_pool_options(recycling_pool_options_));
   for (absl::Span<const BufferWithMetadata> buffers : data_) {
     // Split data into buckets.
     size_t remaining_buffers_size = 0;
@@ -784,7 +790,9 @@ inline bool TransposeEncoder::WriteStatesAndData(
   }
 
   chunk_encoding_internal::Compressor transitions_compressor(
-      compressor_options_);
+      compressor_options_,
+      chunk_encoding_internal::Compressor::TuningOptions()
+          .set_recycling_pool_options(recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!WriteTransitions(max_transition, state_machine,
                                            transitions_compressor.writer()))) {
     return false;
@@ -1365,8 +1373,9 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
 
   chunk_encoding_internal::Compressor header_compressor(
       compressor_options_,
-      chunk_encoding_internal::Compressor::TuningOptions().set_pledged_size(
-          header_writer.dest().size()));
+      chunk_encoding_internal::Compressor::TuningOptions()
+          .set_pledged_size(header_writer.dest().size())
+          .set_recycling_pool_options(recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(
           !header_compressor.writer().Write(std::move(header_writer.dest())))) {
     return Fail(header_compressor.writer().status());

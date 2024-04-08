@@ -18,11 +18,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 
@@ -30,8 +32,38 @@ namespace riegeli {
 
 class SimpleDecoder : public Object {
  public:
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Options for a global `RecyclingPool` of decompression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // decompression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
+   private:
+    RecyclingPoolOptions recycling_pool_options_;
+  };
+
   // Creates a closed `SimpleDecoder`.
-  SimpleDecoder() noexcept : Object(kClosed), values_decompressor_(kClosed) {}
+  explicit SimpleDecoder(Options options = Options())
+      : Object(kClosed),
+        recycling_pool_options_(options.recycling_pool_options()),
+        values_decompressor_(kClosed) {}
 
   SimpleDecoder(const SimpleDecoder&) = delete;
   SimpleDecoder& operator=(const SimpleDecoder&) = delete;
@@ -70,6 +102,7 @@ class SimpleDecoder : public Object {
   void Done() override;
 
  private:
+  RecyclingPoolOptions recycling_pool_options_;
   chunk_encoding_internal::Decompressor<> values_decompressor_;
 };
 

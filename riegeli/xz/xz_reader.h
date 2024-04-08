@@ -87,7 +87,7 @@ class XzReaderBase : public BufferedReader {
     }
     bool concatenate() const { return concatenate_; }
 
-    // Options for a global `KeyedRecyclingPool` of decompression contexts.
+    // Options for a global `RecyclingPool` of decompression contexts.
     //
     // They tune the amount of memory which is kept to speed up creation of new
     // decompression sessions, and usage of a background thread to clean it.

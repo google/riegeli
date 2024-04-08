@@ -39,6 +39,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -398,6 +399,25 @@ class RecordWriterBase : public Object {
     }
     int parallelism() const { return parallelism_; }
 
+    // Options for a global `RecyclingPool` of compression contexts.
+    //
+    // They tune the amount of memory which is kept to speed up creation of new
+    // compression sessions, and usage of a background thread to clean it.
+    //
+    // Default: `RecyclingPoolOptions()`.
+    Options& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) & {
+      recycling_pool_options_ = recycling_pool_options;
+      return *this;
+    }
+    Options&& set_recycling_pool_options(
+        const RecyclingPoolOptions& recycling_pool_options) && {
+      return std::move(set_recycling_pool_options(recycling_pool_options));
+    }
+    const RecyclingPoolOptions& recycling_pool_options() const {
+      return recycling_pool_options_;
+    }
+
    private:
     bool transpose_ = false;
     CompressorOptions compressor_options_;
@@ -407,6 +427,7 @@ class RecordWriterBase : public Object {
     absl::optional<Chain> serialized_metadata_;
     Padding pad_to_block_boundary_ = Padding::kFalse;
     int parallelism_ = 0;
+    RecyclingPoolOptions recycling_pool_options_;
   };
 
   // `get()` returns the resolved value. Can block.
