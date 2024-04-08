@@ -147,8 +147,10 @@ class InitializerBase {
   /*implicit*/ operator T() && { return std::move(*this).Construct(); }
 
  private:
+  static T ConstructMethodDefault(void* context);
+
   template <typename Arg>
-  static T ConstructMethod(void* context);
+  static T ConstructMethodFromArg(void* context);
 
   template <typename... Args>
   static T ConstructMethodFromTuple(void* context);
@@ -157,6 +159,8 @@ class InitializerBase {
   struct Methods {
     T (*construct)(void* context);
   };
+
+  explicit InitializerBase(const Methods* methods);
 
   template <
       typename Arg,
@@ -170,8 +174,10 @@ class InitializerBase {
   InitializerBase(InitializerBase&& other) = default;
   InitializerBase& operator=(InitializerBase&&) = delete;
 
+  static constexpr Methods kMethodsDefault = {ConstructMethodDefault};
+
   template <typename Arg>
-  static constexpr Methods kMethods = {ConstructMethod<Arg>};
+  static constexpr Methods kMethodsFromArg = {ConstructMethodFromArg<Arg>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -201,12 +207,15 @@ class InitializerValueBase : public InitializerBase<T> {
   }
 
  private:
+  static T&& ReferenceMethodDefault(void* context,
+                                    ReferenceStorage& reference_storage);
+
   template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int> = 0>
-  static T&& ReferenceMethod(void* context,
-                             ReferenceStorage& reference_storage);
+  static T&& ReferenceMethodFromArg(void* context,
+                                    ReferenceStorage& reference_storage);
   template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int> = 0>
-  static T&& ReferenceMethod(void* context,
-                             ReferenceStorage& reference_storage);
+  static T&& ReferenceMethodFromArg(void* context,
+                                    ReferenceStorage& reference_storage);
 
   template <typename... Args,
             std::enable_if_t<CanBindTo<T, Args...>::value, int> = 0>
@@ -223,10 +232,14 @@ class InitializerValueBase : public InitializerBase<T> {
   };
 
 #if __cpp_aggregate_bases
+  static constexpr Methods kMethodsDefault = {
+      InitializerValueBase::InitializerBase::kMethodsDefault,
+      ReferenceMethodDefault};
+
   template <typename Arg>
-  static constexpr Methods kMethods = {
-      InitializerValueBase::InitializerBase::template kMethods<Arg>,
-      ReferenceMethod<Arg>};
+  static constexpr Methods kMethodsFromArg = {
+      InitializerValueBase::InitializerBase::template kMethodsFromArg<Arg>,
+      ReferenceMethodFromArg<Arg>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -234,11 +247,17 @@ class InitializerValueBase : public InitializerBase<T> {
           Args...>,
       ReferenceMethodFromTuple<Args...>};
 #else
+  static constexpr Methods kMethodsDefault = [] {
+    Methods methods(InitializerValueBase::InitializerBase::kMethodsDefault);
+    methods.reference = ReferenceMethodDefault;
+    return methods;
+  }();
+
   template <typename Arg>
-  static constexpr Methods kMethods = [] {
+  static constexpr Methods kMethodsFromArg = [] {
     Methods methods(
-        InitializerValueBase::InitializerBase::template kMethods<Arg>);
-    methods.reference = ReferenceMethod<Arg>;
+        InitializerValueBase::InitializerBase::template kMethodsFromArg<Arg>);
+    methods.reference = ReferenceMethodFromArg<Arg>;
     return methods;
   }();
 
@@ -251,6 +270,9 @@ class InitializerValueBase : public InitializerBase<T> {
     return methods;
   }();
 #endif
+
+  explicit InitializerValueBase(const Methods* methods)
+      : InitializerValueBase::InitializerBase(methods) {}
 
   template <typename Arg,
             std::enable_if_t<
@@ -283,8 +305,10 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   void AssignTo(T& object) && { methods()->assign_to(this->context(), object); }
 
  private:
+  static void AssignToMethodDefault(void* context, T& object);
+
   template <typename Arg>
-  static void AssignToMethod(void* context, T& object);
+  static void AssignToMethodFromArg(void* context, T& object);
 
   template <typename... Args>
   static void AssignToMethodFromTuple(void* context, T& object);
@@ -296,11 +320,15 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   };
 
 #if __cpp_aggregate_bases
+  static constexpr Methods kMethodsDefault = {
+      InitializerAssignableValueBase::InitializerValueBase::kMethodsDefault,
+      AssignToMethodDefault};
+
   template <typename Arg>
-  static constexpr Methods kMethods = {
-      InitializerAssignableValueBase::InitializerValueBase::template kMethods<
-          Arg>,
-      AssignToMethod<Arg>};
+  static constexpr Methods kMethodsFromArg = {
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsFromArg<Arg>,
+      AssignToMethodFromArg<Arg>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -308,12 +336,18 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
           template kMethodsFromTuple<Args...>,
       AssignToMethodFromTuple<Args...>};
 #else
-  template <typename Arg>
-  static constexpr Methods kMethods = [] {
+  static constexpr Methods kMethodsDefault = [] {
     Methods methods(
-        InitializerAssignableValueBase::InitializerValueBase::template kMethods<
-            Arg>);
-    methods.assign_to = AssignToMethod<Arg>;
+        InitializerAssignableValueBase::InitializerValueBase::kMethodsDefault);
+    methods.assign_to = AssignToMethodDefault;
+    return methods;
+  }();
+
+  template <typename Arg>
+  static constexpr Methods kMethodsFromArg = [] {
+    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
+                        template kMethodsFromArg<Arg>);
+    methods.assign_to = AssignToMethodFromArg<Arg>;
     return methods;
   }();
 
@@ -325,6 +359,9 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
     return methods;
   }();
 #endif
+
+  explicit InitializerAssignableValueBase(const Methods* methods)
+      : InitializerAssignableValueBase::InitializerValueBase(methods) {}
 
   template <
       typename Arg,
@@ -380,6 +417,14 @@ class Initializer
   // also `absl::string_view`.
   using AllowingExplicit = Initializer<T, true>;
 
+  // Constructs `Initializer<T>` which specifies `T()`.
+  template <typename DependentT = T,
+            std::enable_if_t<std::is_default_constructible<DependentT>::value,
+                             int> = 0>
+  Initializer()
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::kMethodsDefault) {}
+
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
@@ -390,8 +435,8 @@ class Initializer
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
-            &Initializer::InitializerAssignableValueBase::template kMethods<
-                Arg>,
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromArg<Arg>,
             std::forward<Arg>(arg)) {}
 
   // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
@@ -422,6 +467,14 @@ class Initializer<T, allow_explicit,
   // a value explicitly convertible to `T`.
   using AllowingExplicit = Initializer<T, true>;
 
+  // Constructs `Initializer<T>` which specifies `T()`.
+  template <typename DependentT = T,
+            std::enable_if_t<std::is_default_constructible<DependentT>::value,
+                             int> = 0>
+  Initializer()
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::kMethodsDefault) {}
+
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
@@ -432,7 +485,7 @@ class Initializer<T, allow_explicit,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
-            &Initializer::InitializerValueBase::template kMethods<Arg>,
+            &Initializer::InitializerValueBase::template kMethodsFromArg<Arg>,
             std::forward<Arg>(arg)) {}
 
   // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
@@ -473,7 +526,7 @@ class Initializer<T, allow_explicit,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
-            &Initializer::InitializerBase::template kMethods<Arg>,
+            &Initializer::InitializerBase::template kMethodsFromArg<Arg>,
             std::forward<Arg>(arg)) {}
 
   // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
@@ -506,6 +559,10 @@ class Initializer<T, allow_explicit,
 namespace initializer_internal {
 
 template <typename T>
+inline InitializerBase<T>::InitializerBase(const Methods* methods)
+    : methods_(methods) {}
+
+template <typename T>
 template <typename Arg,
           std::enable_if_t<
               !std::is_same<std::decay_t<Arg>, InitializerBase<T>>::value, int>>
@@ -520,8 +577,14 @@ inline InitializerBase<T>::InitializerBase(const Methods* methods,
     : methods_(methods), context_(&args) {}
 
 template <typename T>
+T InitializerBase<T>::ConstructMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED void* context) {
+  return T();
+}
+
+template <typename T>
 template <typename Arg>
-T InitializerBase<T>::ConstructMethod(void* context) {
+T InitializerBase<T>::ConstructMethodFromArg(void* context) {
   return T(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
 }
@@ -534,15 +597,22 @@ T InitializerBase<T>::ConstructMethodFromTuple(void* context) {
 }
 
 template <typename T>
+T&& InitializerValueBase<T>::ReferenceMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED void* context, ReferenceStorage& reference_storage) {
+  reference_storage.emplace();
+  return *std::move(reference_storage);
+}
+
+template <typename T>
 template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int>>
-T&& InitializerValueBase<T>::ReferenceMethod(
+T&& InitializerValueBase<T>::ReferenceMethodFromArg(
     void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage& reference_storage) {
   return std::forward<T>(*static_cast<std::remove_reference_t<Arg>*>(context));
 }
 
 template <typename T>
 template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int>>
-T&& InitializerValueBase<T>::ReferenceMethod(
+T&& InitializerValueBase<T>::ReferenceMethodFromArg(
     void* context, ReferenceStorage& reference_storage) {
   reference_storage.emplace(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
@@ -571,9 +641,15 @@ T&& InitializerValueBase<T>::ReferenceMethodFromTuple(
 }
 
 template <typename T>
+void InitializerAssignableValueBase<T>::AssignToMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED void* context, T& object) {
+  riegeli::Reset(object);
+}
+
+template <typename T>
 template <typename Arg>
-void InitializerAssignableValueBase<T>::AssignToMethod(void* context,
-                                                       T& object) {
+void InitializerAssignableValueBase<T>::AssignToMethodFromArg(void* context,
+                                                              T& object) {
   riegeli::Reset(
       object,
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
