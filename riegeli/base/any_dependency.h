@@ -66,7 +66,7 @@ class
 
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyDependencyBase`.
-  Handle get() const { return handle_; }
+  Handle get() const { return methods_and_handle_.handle; }
 
   // If `Handle` is `Base*`, `AnyDependencyBase<Base*>` can be used as a smart
   // pointer to `Base`, for convenience.
@@ -97,7 +97,9 @@ class
 
   // If `true`, the `AnyDependencyBase` owns the dependent object, i.e. closing
   // the host object should close the dependent object.
-  bool IsOwning() const { return methods_->is_owning(repr_.storage); }
+  bool IsOwning() const {
+    return methods_and_handle_.methods->is_owning(repr_.storage);
+  }
 
   // If `true`, `get()` stays unchanged when an `AnyDependencyBase` is moved.
   static constexpr bool kIsStable = inline_size == 0;
@@ -121,7 +123,8 @@ class
 
   friend void RiegeliRegisterSubobjects(const AnyDependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
-    self->methods_->register_subobjects(self->repr_.storage, memory_estimator);
+    self->methods_and_handle_.methods->register_subobjects(self->repr_.storage,
+                                                           memory_estimator);
   }
 
  protected:
@@ -166,7 +169,7 @@ class
   friend class AnyDependencyBase;
 
   using Repr = any_dependency_internal::Repr<Handle, inline_size, inline_align>;
-  using Methods = any_dependency_internal::Methods<Handle>;
+  using MethodsAndHandle = any_dependency_internal::MethodsAndHandle<Handle>;
   using NullMethods = any_dependency_internal::NullMethods<Handle>;
   template <typename Manager>
   using MethodsFor = any_dependency_internal::MethodsFor<
@@ -188,12 +191,7 @@ class
                 !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
   void AssertNotNull(ABSL_ATTRIBUTE_UNUSED absl::string_view message) const {}
 
-  const Methods* methods_;
-  // The union disables implicit construction and destruction which is done
-  // manually here.
-  union {
-    Handle handle_;
-  };
+  MethodsAndHandle methods_and_handle_;
   Repr repr_;
 };
 
@@ -552,9 +550,11 @@ namespace any_dependency_internal {
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyDependencyBase<Handle, inline_size, inline_align>::AnyDependencyBase(
     AnyDependencyBase&& that) noexcept {
-  that.handle_ = SentinelHandle<Handle>();
-  methods_ = std::exchange(that.methods_, &NullMethods::kMethods);
-  methods_->move(repr_.storage, &handle_, that.repr_.storage);
+  that.methods_and_handle_.handle = SentinelHandle<Handle>();
+  methods_and_handle_.methods =
+      std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
+  methods_and_handle_.methods->move(repr_.storage, &methods_and_handle_.handle,
+                                    that.repr_.storage);
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -563,17 +563,20 @@ AnyDependencyBase<Handle, inline_size, inline_align>::operator=(
     AnyDependencyBase&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Destroy();
-    that.handle_ = SentinelHandle<Handle>();
-    methods_ = std::exchange(that.methods_, &NullMethods::kMethods);
-    methods_->move(repr_.storage, &handle_, that.repr_.storage);
+    that.methods_and_handle_.handle = SentinelHandle<Handle>();
+    methods_and_handle_.methods =
+        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
+    methods_and_handle_.methods->move(
+        repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
   }
   return *this;
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize() {
-  methods_ = &NullMethods::kMethods;
-  handle_ = SentinelHandle<Handle>();
+  methods_and_handle_.methods = &NullMethods::kMethods;
+  new (&methods_and_handle_.handle)
+      Handle(any_dependency_internal::SentinelHandle<Handle>());
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -589,29 +592,32 @@ template <typename Manager,
           std::enable_if_t<IsAnyDependency<Handle, Manager>::value, int>>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
-  // `manager.methods_->used_size <= Manager::kAvailableSize`, hence if
+  // `manager.methods_and_handle_.methods->used_size <=
+  //      Manager::kAvailableSize`, hence if
   // `Manager::kAvailableSize <=
   //      AvailableSize<Handle, inline_size, inline_align>()` then
-  // `manager.methods_->used_size <=
+  // `manager.methods_and_handle_.methods->used_size <=
   //      AvailableSize<Handle, inline_size, inline_align>()`.
   // No need to check possibly at runtime.
   if ((Manager::kAvailableSize <=
            AvailableSize<Handle, inline_size, inline_align>() ||
-       manager.methods_->used_size <=
+       manager.methods_and_handle_.methods->used_size <=
            AvailableSize<Handle, inline_size, inline_align>()) &&
       // Same for alignment.
       (Manager::kAvailableAlign <=
            AvailableAlign<Handle, inline_size, inline_align>() ||
-       manager.methods_->used_align <=
+       manager.methods_and_handle_.methods->used_align <=
            AvailableAlign<Handle, inline_size, inline_align>())) {
     // Adopt `manager` instead of wrapping it.
-    manager.handle_ = SentinelHandle<Handle>();
-    methods_ = std::exchange(manager.methods_, &NullMethods::kMethods);
-    methods_->move(repr_.storage, &handle_, manager.repr_.storage);
+    manager.methods_and_handle_.handle = SentinelHandle<Handle>();
+    methods_and_handle_.methods = std::exchange(
+        manager.methods_and_handle_.methods, &NullMethods::kMethods);
+    methods_and_handle_.methods->move(
+        repr_.storage, &methods_and_handle_.handle, manager.repr_.storage);
     return;
   }
-  methods_ = &MethodsFor<Manager>::kMethods;
-  MethodsFor<Manager>::Construct(repr_.storage, &handle_,
+  methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;
+  MethodsFor<Manager>::Construct(repr_.storage, &methods_and_handle_.handle,
                                  std::forward<Manager>(manager));
 }
 
@@ -620,8 +626,9 @@ template <typename Manager,
           std::enable_if_t<!IsAnyDependency<Handle, Manager>::value, int>>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
-  methods_ = &MethodsFor<Manager>::kMethods;
-  MethodsFor<Manager>::Construct(repr_.storage, &handle_, std::move(manager));
+  methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;
+  MethodsFor<Manager>::Construct(repr_.storage, &methods_and_handle_.handle,
+                                 std::move(manager));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -646,15 +653,15 @@ inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Destroy() {
-  handle_.~Handle();
-  methods_->destroy(repr_.storage);
+  methods_and_handle_.handle.~Handle();
+  methods_and_handle_.methods->destroy(repr_.storage);
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Reset() {
-  handle_ = SentinelHandle<Handle>();
-  methods_->destroy(repr_.storage);
-  methods_ = &NullMethods::kMethods;
+  methods_and_handle_.handle = SentinelHandle<Handle>();
+  methods_and_handle_.methods->destroy(repr_.storage);
+  methods_and_handle_.methods = &NullMethods::kMethods;
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -675,13 +682,13 @@ AnyDependencyBase<Handle, inline_size, inline_align>::GetIf() const {
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void* AnyDependencyBase<Handle, inline_size, inline_align>::GetIf(
     TypeId type_id) {
-  return methods_->mutable_get_if(repr_.storage, type_id);
+  return methods_and_handle_.methods->mutable_get_if(repr_.storage, type_id);
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline const void* AnyDependencyBase<Handle, inline_size, inline_align>::GetIf(
     TypeId type_id) const {
-  return methods_->const_get_if(repr_.storage, type_id);
+  return methods_and_handle_.methods->const_get_if(repr_.storage, type_id);
 }
 
 }  // namespace any_dependency_internal

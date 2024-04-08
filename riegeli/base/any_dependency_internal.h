@@ -169,6 +169,17 @@ struct Methods {
                               MemoryEstimator& memory_estimator);
 };
 
+// Grouped members so that their address can be passed together.
+template <typename Handle>
+struct MethodsAndHandle {
+  MethodsAndHandle() noexcept {}
+
+  const Methods<Handle>* methods;
+  union {
+    Handle handle;
+  };
+};
+
 template <typename Handle, typename Manager, bool is_inline>
 struct MethodsFor;
 template <typename Handle>
