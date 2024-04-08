@@ -565,10 +565,10 @@ class DependencyImpl<
   ~DependencyImpl() = default;
 };
 
-// The type of the digest returned by the digester provided by `DigesterType`.
-template <typename DigesterType>
-using DigestOf = typename Dependency<DigesterBaseHandle,
-                                     DigesterType>::Subhandle::DigestType;
+// The type of the digest returned by the digester provided by `Digester`.
+template <typename Digester>
+using DigestOf =
+    typename Dependency<DigesterBaseHandle, Digester>::Subhandle::DigestType;
 
 // Implementation details follow.
 

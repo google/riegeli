@@ -103,9 +103,9 @@ class DigestingWriterBase : public Writer {
 // A `Writer` which writes to another `Writer`, and lets another object observe
 // data being written and return some data called a digest, e.g. a checksum.
 //
-// The `DigesterType` template parameter specifies the type of the object
-// providing and possibly owning the digester. `DigesterType` must support
-// `Dependency<DigesterBaseHandle, DigesterType>`, e.g.
+// The `Digester` template parameter specifies the type of the object providing
+// and possibly owning the digester. `Digester` must support
+// `Dependency<DigesterBaseHandle, Digester>`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
 //
@@ -115,7 +115,7 @@ class DigestingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the `DigesterType` template argument can be deduced as the
+// By relying on CTAD the `Digester` template argument can be deduced as the
 // value type of the `digester` constructor argument, and the `Dest` template
 // argument can be deduced as the value type of the `dest` constructor argument.
 // This requires C++17.
@@ -123,11 +123,11 @@ class DigestingWriterBase : public Writer {
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
 // of the original `Writer` immediately after `Flush()`.
-template <typename DigesterType, typename Dest = Writer*>
+template <typename Digester, typename Dest = Writer*>
 class DigestingWriter : public DigestingWriterBase {
  public:
   // The type of the digest.
-  using DigestType = DigestOf<DigesterType>;
+  using DigestType = DigestOf<Digester>;
 
   // Creates a closed `DigestingWriter`.
   explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
@@ -136,7 +136,7 @@ class DigestingWriter : public DigestingWriterBase {
   // digester provided by `digester`.
   explicit DigestingWriter(
       Initializer<Dest> dest,
-      Initializer<DigesterType> digester = std::forward_as_tuple());
+      Initializer<Digester> digester = std::forward_as_tuple());
 
   DigestingWriter(DigestingWriter&& that) noexcept;
   DigestingWriter& operator=(DigestingWriter&& that) noexcept;
@@ -146,7 +146,7 @@ class DigestingWriter : public DigestingWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<Dest> dest,
-      Initializer<DigesterType> digester = std::forward_as_tuple());
+      Initializer<Digester> digester = std::forward_as_tuple());
 
   // Digests buffered data if needed, and returns the digest.
   //
@@ -171,8 +171,8 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Returns the object providing and possibly owning the digester. Unchanged by
   // `Close()`.
-  DigesterType& digester() { return digester_.manager(); }
-  const DigesterType& digester() const { return digester_.manager(); }
+  Digester& digester() { return digester_.manager(); }
+  const Digester& digester() const { return digester_.manager(); }
   DigesterBaseHandle GetDigester() const override { return digester_.get(); }
 
   // Returns the object providing and possibly owning the original `Writer`.
@@ -195,7 +195,7 @@ class DigestingWriter : public DigestingWriterBase {
   void MoveDest(DigestingWriter&& that);
 
   // The object providing and possibly owning the digester.
-  Dependency<DigesterBaseHandle, DigesterType> digester_;
+  Dependency<DigesterBaseHandle, Digester> digester_;
   // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
@@ -203,19 +203,18 @@ class DigestingWriter : public DigestingWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
-template <typename DigesterType, typename Dest>
-explicit DigestingWriter(Dest&& dest, DigesterType&& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>, std::decay_t<Dest>>;
+template <typename Digester, typename Dest>
+explicit DigestingWriter(Dest&& dest, Digester&& digester)
+    -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;
 template <typename... DigesterArgs, typename Dest>
 explicit DigestingWriter(
     Dest&& dest,
     std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
     -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
                        std::decay_t<Dest>>;
-template <typename DigesterType, typename... DestArgs>
-explicit DigestingWriter(std::tuple<DestArgs...> dest_args,
-                         DigesterType&& digester)
-    -> DigestingWriter<std::decay_t<DigesterType>,
+template <typename Digester, typename... DestArgs>
+explicit DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
+    -> DigestingWriter<std::decay_t<Digester>,
                        DeleteCtad<std::tuple<DestArgs...>>>;
 template <typename... DigesterArgs, typename... DestArgs>
 explicit DigestingWriter(
@@ -227,12 +226,12 @@ explicit DigestingWriter(
 
 // Returns the digest of the concatenation of stringifiable values.
 //
-// The last argument is the digester of some type `DigesterType`. The remaining
+// The last argument is the digester of some type `Digester`. The remaining
 // arguments are the values.
 //
-// `DigesterType` specifies the type of the object providing and possibly owning
-// the digester. `DigesterType` must support
-// `Dependency<DigesterBaseHandle, DigesterType&&>` and must provide a member
+// `Digester` specifies the type of the object providing and possibly owning
+// the digester. `Digester` must support
+// `Dependency<DigesterBaseHandle, Digester&&>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
@@ -299,50 +298,48 @@ inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
   if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
-    Initializer<Dest> dest, Initializer<DigesterType> digester)
+template <typename Digester, typename Dest>
+inline DigestingWriter<Digester, Dest>::DigestingWriter(
+    Initializer<Dest> dest, Initializer<Digester> digester)
     : digester_(std::move(digester)), dest_(std::move(dest)) {
   Initialize(dest_.get(), digester_.get());
 }
 
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>::DigestingWriter(
+template <typename Digester, typename Dest>
+inline DigestingWriter<Digester, Dest>::DigestingWriter(
     DigestingWriter&& that) noexcept
     : DigestingWriterBase(static_cast<DigestingWriterBase&&>(that)),
       digester_(std::move(that.digester_)) {
   MoveDest(std::move(that));
 }
 
-template <typename DigesterType, typename Dest>
-inline DigestingWriter<DigesterType, Dest>&
-DigestingWriter<DigesterType, Dest>::operator=(
-    DigestingWriter&& that) noexcept {
+template <typename Digester, typename Dest>
+inline DigestingWriter<Digester, Dest>&
+DigestingWriter<Digester, Dest>::operator=(DigestingWriter&& that) noexcept {
   DigestingWriterBase::operator=(static_cast<DigestingWriterBase&&>(that));
   digester_ = std::move(that.digester_);
   MoveDest(std::move(that));
   return *this;
 }
 
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::Reset(Closed) {
+template <typename Digester, typename Dest>
+inline void DigestingWriter<Digester, Dest>::Reset(Closed) {
   DigestingWriterBase::Reset(kClosed);
   digester_.Reset();
   dest_.Reset();
 }
 
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::Reset(
-    Initializer<Dest> dest, Initializer<DigesterType> digester) {
+template <typename Digester, typename Dest>
+inline void DigestingWriter<Digester, Dest>::Reset(
+    Initializer<Dest> dest, Initializer<Digester> digester) {
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), digester_.get());
 }
 
-template <typename DigesterType, typename Dest>
-inline void DigestingWriter<DigesterType, Dest>::MoveDest(
-    DigestingWriter&& that) {
+template <typename Digester, typename Dest>
+inline void DigestingWriter<Digester, Dest>::MoveDest(DigestingWriter&& that) {
   if (dest_.kIsStable || that.dest_ == nullptr) {
     dest_ = std::move(that.dest_);
   } else {
@@ -354,8 +351,8 @@ inline void DigestingWriter<DigesterType, Dest>::MoveDest(
   }
 }
 
-template <typename DigesterType, typename Dest>
-void DigestingWriter<DigesterType, Dest>::Done() {
+template <typename Digester, typename Dest>
+void DigestingWriter<Digester, Dest>::Done() {
   DigestingWriterBase::Done();
   if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) {
@@ -367,8 +364,8 @@ void DigestingWriter<DigesterType, Dest>::Done() {
   }
 }
 
-template <typename DigesterType, typename Dest>
-void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
+template <typename Digester, typename Dest>
+void DigestingWriter<Digester, Dest>::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
@@ -377,8 +374,8 @@ void DigestingWriter<DigesterType, Dest>::SetWriteSizeHintImpl(
   }
 }
 
-template <typename DigesterType, typename Dest>
-bool DigestingWriter<DigesterType, Dest>::FlushImpl(FlushType flush_type) {
+template <typename Digester, typename Dest>
+bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
   bool flush_ok = true;
@@ -418,13 +415,13 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
 }
 
 template <
-    typename DesiredDigestType, typename DigesterType, typename... Srcs,
+    typename DesiredDigestType, typename Digester, typename... Srcs,
     std::enable_if_t<
         absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
-                                        DigesterType&& digester) {
-  Dependency<DigesterBaseHandle, DigesterType&&> digester_dep(
-      std::forward<DigesterType>(digester));
+                                        Digester&& digester) {
+  Dependency<DigesterBaseHandle, Digester&&> digester_dep(
+      std::forward<Digester>(digester));
   bool ok = WriteTuple<0>(srcs, digester_dep.get());
   if (digester_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!digester_dep.get().Close())) ok = false;
@@ -434,13 +431,13 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
 }
 
 template <
-    typename DesiredDigestType, typename DigesterType, typename... Srcs,
+    typename DesiredDigestType, typename Digester, typename... Srcs,
     std::enable_if_t<
         !absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
-                                        DigesterType&& digester) {
-  DigestingWriter<DigesterType&&, NullWriter> writer(
-      std::forward_as_tuple(), std::forward<DigesterType>(digester));
+                                        Digester&& digester) {
+  DigestingWriter<Digester&&, NullWriter> writer(
+      std::forward_as_tuple(), std::forward<Digester>(digester));
   writer.WriteTuple(srcs);
   RIEGELI_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();
