@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -95,8 +93,9 @@ class WrappingBackwardWriterBase : public BackwardWriter {
 // `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
 // `AnyDependency<BackwardWriter*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `BackwardWriter` must not be accessed until the
 // `WrappingBackwardWriter` is closed or no longer used, except that it is
@@ -147,10 +146,7 @@ explicit WrappingBackwardWriter(Closed)
     -> WrappingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WrappingBackwardWriter(Dest&& dest)
-    -> WrappingBackwardWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit WrappingBackwardWriter(std::tuple<DestArgs...> dest_args)
-    -> WrappingBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> WrappingBackwardWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

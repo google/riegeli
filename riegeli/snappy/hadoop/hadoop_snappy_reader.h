@@ -19,8 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -94,8 +92,9 @@ class HadoopSnappyReaderBase : public PullableReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `HadoopSnappyReader`
 // is closed or no longer used.
@@ -141,12 +140,7 @@ explicit HadoopSnappyReader(Closed) -> HadoopSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
                                            HadoopSnappyReaderBase::Options())
-    -> HadoopSnappyReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit HadoopSnappyReader(
-    std::tuple<SrcArgs...> src_args,
-    HadoopSnappyReaderBase::Options options = HadoopSnappyReaderBase::Options())
-    -> HadoopSnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> HadoopSnappyReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

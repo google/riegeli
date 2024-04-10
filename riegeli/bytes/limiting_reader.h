@@ -19,8 +19,6 @@
 
 #include <limits>
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -285,8 +283,9 @@ class LimitingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `LimitingReader` is
 // closed or no longer used.
@@ -342,12 +341,7 @@ explicit LimitingReader(Closed) -> LimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit LimitingReader(Src&& src, LimitingReaderBase::Options options =
                                        LimitingReaderBase::Options())
-    -> LimitingReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit LimitingReader(
-    std::tuple<SrcArgs...> src_args,
-    LimitingReaderBase::Options options = LimitingReaderBase::Options())
-    -> LimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> LimitingReader<InitializerTargetT<Src>>;
 #endif
 
 // Changes the options of a `LimitingReader` in the constructor, and restores

@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -138,8 +136,9 @@ class HadoopSnappyWriterBase : public PushableWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `HadoopSnappyWriter`
 // is closed or no longer used.
@@ -185,12 +184,7 @@ template <typename Dest>
 explicit HadoopSnappyWriter(
     Dest&& dest,
     HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
-    -> HadoopSnappyWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit HadoopSnappyWriter(
-    std::tuple<DestArgs...> dest_args,
-    HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
-    -> HadoopSnappyWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> HadoopSnappyWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

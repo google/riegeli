@@ -15,7 +15,6 @@
 #ifndef RIEGELI_RECORDS_CHUNK_READER_H_
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -251,8 +250,9 @@ using ChunkReader = DefaultChunkReaderBase;
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The byte `Reader` must not be accessed until the `DefaultChunkReader` is
 // closed or no longer used.
@@ -292,10 +292,8 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 #if __cpp_deduction_guides
 explicit DefaultChunkReader(Closed) -> DefaultChunkReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args)
-    -> DefaultChunkReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit DefaultChunkReader(Src&& src)
+    -> DefaultChunkReader<InitializerTargetT<Src>>;
 #endif
 
 // Specialization of `DependencyImpl<ChunkReader*, Manager>` adapted from

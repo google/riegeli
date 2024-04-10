@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -100,8 +98,9 @@ class WrappingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Writer` must not be accessed until the `WrappingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -147,10 +146,8 @@ class WrappingWriter : public WrappingWriterBase {
 #if __cpp_deduction_guides
 explicit WrappingWriter(Closed) -> WrappingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit WrappingWriter(Dest&& dest) -> WrappingWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit WrappingWriter(std::tuple<DestArgs...> dest_args)
-    -> WrappingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit WrappingWriter(Dest&& dest)
+    -> WrappingWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

@@ -19,8 +19,6 @@
 
 #include <cerrno>
 #include <istream>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -143,8 +141,9 @@ class IStreamReaderBase : public BufferedReader {
 // `std::ifstream` (owned), `std::unique_ptr<std::istream>` (owned),
 // `AnyDependency<std::istream*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // Warning: if random access is not supported and the stream is not owned,
 // it will have an unpredictable amount of extra data consumed because of
@@ -190,12 +189,7 @@ explicit IStreamReader(Closed) -> IStreamReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit IStreamReader(Src&& src, IStreamReaderBase::Options options =
                                       IStreamReaderBase::Options())
-    -> IStreamReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit IStreamReader(
-    std::tuple<SrcArgs...> src_args,
-    IStreamReaderBase::Options options = IStreamReaderBase::Options())
-    -> IStreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> IStreamReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

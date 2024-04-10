@@ -372,8 +372,9 @@ class CFileWriterBase : public BufferedWriter {
 // `UnownedCFile` (not owned), `AnyDependency<CFileHandle>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
-// the first constructor argument is a filename or a `FILE*`, otherwise as the
-// value type of the first constructor argument. This requires C++17.
+// the first constructor argument is a filename or a `FILE*`, otherwise as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // Until the `CFileWriter` is closed or no longer used, the `FILE` must not be
 // closed nor have its position changed, except that if random access is not
@@ -451,12 +452,7 @@ explicit CFileWriter(
             std::is_convertible<Dest&&, FILE*>,
             std::is_convertible<
                 Dest&&, Initializer<std::string>::AllowingExplicit>>::value,
-        OwnedCFile, std::decay_t<Dest>>>;
-template <typename... DestArgs>
-explicit CFileWriter(
-    std::tuple<DestArgs...> dest_args,
-    CFileWriterBase::Options options = CFileWriterBase::Options())
-    -> CFileWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+        OwnedCFile, InitializerTargetT<Dest>>>;
 #endif
 
 // Implementation details follow.

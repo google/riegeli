@@ -20,7 +20,6 @@
 #include <istream>
 #include <streambuf>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -174,8 +173,9 @@ class WriterOStreamBase : public std::iostream {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The `Writer` must not be accessed until the `WriterOStream` is closed or no
 // longer used, except that it is allowed to read the destination of the
@@ -226,12 +226,7 @@ explicit WriterOStream(Closed) -> WriterOStream<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WriterOStream(Dest&& dest, WriterOStreamBase::Options options =
                                         WriterOStreamBase::Options())
-    -> WriterOStream<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit WriterOStream(
-    std::tuple<DestArgs...> dest_args,
-    WriterOStreamBase::Options options = WriterOStreamBase::Options())
-    -> WriterOStream<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> WriterOStream<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

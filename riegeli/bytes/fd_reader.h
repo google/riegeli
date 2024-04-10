@@ -345,8 +345,9 @@ class FdReaderBase : public BufferedReader {
 // `UnownedFd` (not owned), `AnyDependency<FdHandle>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
-// first constructor argument is a filename or an `int`, otherwise as the value
-// type of the first constructor argument. This requires C++17.
+// first constructor argument is a filename or an `int`, otherwise as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // Warning: if random access is not supported and the fd is not owned, it will
 // have an unpredictable amount of extra data consumed because of buffering.
@@ -440,15 +441,11 @@ explicit FdReader(Src&& src,
             std::is_convertible<Src&&, int>,
             std::is_convertible<
                 Src&&, Initializer<std::string>::AllowingExplicit>>::value,
-        OwnedFd, std::decay_t<Src>>>;
+        OwnedFd, InitializerTargetT<Src>>>;
 explicit FdReader(int dir_fd,
                   Initializer<std::string>::AllowingExplicit filename,
                   FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<OwnedFd>;
-template <typename... SrcArgs>
-explicit FdReader(std::tuple<SrcArgs...> src_args,
-                  FdReaderBase::Options options = FdReaderBase::Options())
-    -> FdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -178,8 +178,9 @@ class FileWriterBase : public Writer {
 // `::tensorflow::WritableFile*` (not owned),
 // `AnyDependency<::tensorflow::WritableFile*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The `::tensorflow::WritableFile` must not be closed until the `FileWriter` is
 // closed or no longer used. Until then the `::tensorflow::WritableFile` may be
@@ -242,11 +243,7 @@ explicit FileWriter(Dest&& dest,
     -> FileWriter<std::conditional_t<
         std::is_convertible<Dest&&,
                             Initializer<std::string>::AllowingExplicit>::value,
-        std::unique_ptr<::tensorflow::WritableFile>, std::decay_t<Dest>>>;
-template <typename... DestArgs>
-explicit FileWriter(std::tuple<DestArgs...> dest_args,
-                    FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+        std::unique_ptr<::tensorflow::WritableFile>, InitializerTargetT<Dest>>>;
 #endif
 
 // Implementation details follow.

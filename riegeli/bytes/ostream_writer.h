@@ -20,8 +20,6 @@
 #include <cerrno>
 #include <istream>
 #include <ostream>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -161,8 +159,9 @@ class OStreamWriterBase : public BufferedWriter {
 // `std::ofstream` (owned), `std::unique_ptr<std::ostream>` (owned),
 // `AnyDependency<std::ostream*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // Until the `OStreamWriter` is closed or no longer used, the `std::ostream`
 // must not be closed nor have its position changed, except that if random
@@ -210,12 +209,7 @@ explicit OStreamWriter(Closed) -> OStreamWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit OStreamWriter(Dest&& dest, OStreamWriterBase::Options options =
                                         OStreamWriterBase::Options())
-    -> OStreamWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit OStreamWriter(
-    std::tuple<DestArgs...> dest_args,
-    OStreamWriterBase::Options options = OStreamWriterBase::Options())
-    -> OStreamWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> OStreamWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

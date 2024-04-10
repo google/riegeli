@@ -19,8 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -172,8 +170,9 @@ class ZstdReaderBase : public BufferedReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `ZstdReader` is closed
 // or no longer used.
@@ -217,11 +216,7 @@ explicit ZstdReader(Closed) -> ZstdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZstdReader(Src&& src,
                     ZstdReaderBase::Options options = ZstdReaderBase::Options())
-    -> ZstdReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit ZstdReader(std::tuple<SrcArgs...> src_args,
-                    ZstdReaderBase::Options options = ZstdReaderBase::Options())
-    -> ZstdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> ZstdReader<InitializerTargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been Zstd-compressed.

@@ -19,8 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -207,8 +205,9 @@ class XzReaderBase : public BufferedReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `XzReader` is closed
 // or no longer used.
@@ -252,11 +251,7 @@ explicit XzReader(Closed) -> XzReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit XzReader(Src&& src,
                   XzReaderBase::Options options = XzReaderBase::Options())
-    -> XzReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit XzReader(std::tuple<SrcArgs...> src_args,
-                  XzReaderBase::Options options = XzReaderBase::Options())
-    -> XzReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> XzReader<InitializerTargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been Xz-compressed with

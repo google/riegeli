@@ -21,7 +21,6 @@
 #include <future>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -620,8 +619,9 @@ class RecordWriterBase : public Object {
 // `std::unique_ptr<ChunkWriter>` (owned),
 // `AnyDependency<ChunkWriter*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The byte `Writer` or `ChunkWriter` must not be accessed until the
 // `RecordWriter` is closed or (when parallelism in options is 0) no longer
@@ -669,12 +669,7 @@ explicit RecordWriter(Closed) -> RecordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
                                        RecordWriterBase::Options())
-    -> RecordWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit RecordWriter(
-    std::tuple<DestArgs...> dest_args,
-    RecordWriterBase::Options options = RecordWriterBase::Options())
-    -> RecordWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> RecordWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

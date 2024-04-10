@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -141,8 +139,9 @@ class PrefixLimitingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Writer` must not be accessed until the `PrefixLimitingWriter`
 // is closed or no longer used, except that it is allowed to read the
@@ -196,12 +195,7 @@ template <typename Dest>
 explicit PrefixLimitingWriter(Dest&& dest,
                               PrefixLimitingWriterBase::Options options =
                                   PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit PrefixLimitingWriter(std::tuple<DestArgs...> dest_args,
-                              PrefixLimitingWriterBase::Options options =
-                                  PrefixLimitingWriterBase::Options())
-    -> PrefixLimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> PrefixLimitingWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

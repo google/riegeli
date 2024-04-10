@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -210,8 +208,9 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 // `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
 // `AnyDependency<BackwardWriter*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `BackwardWriter` must not be accessed until the
 // `LimitingBackwardWriter` is closed or no longer used, except that it is
@@ -266,12 +265,7 @@ template <typename Dest>
 explicit LimitingBackwardWriter(Dest&& dest,
                                 LimitingBackwardWriterBase::Options options =
                                     LimitingBackwardWriterBase::Options())
-    -> LimitingBackwardWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
-                                LimitingBackwardWriterBase::Options options =
-                                    LimitingBackwardWriterBase::Options())
-    -> LimitingBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> LimitingBackwardWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

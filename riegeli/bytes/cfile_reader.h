@@ -270,8 +270,9 @@ class CFileReaderBase : public BufferedReader {
 // `UnownedCFile` (not owned), `AnyDependency<CFileHandle>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
-// the first constructor argument is a filename or a `FILE*`, otherwise as the
-// value type of the first constructor argument. This requires C++17.
+// the first constructor argument is a filename or a `FILE*`, otherwise as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // Warning: if random access is not supported and the `FILE` is not owned, it
 // will have an unpredictable amount of extra data consumed because of
@@ -349,12 +350,7 @@ explicit CFileReader(
             std::is_convertible<Src&&, FILE*>,
             std::is_convertible<
                 Src&&, Initializer<std::string>::AllowingExplicit>>::value,
-        OwnedCFile, std::decay_t<Src>>>;
-template <typename... SrcArgs>
-explicit CFileReader(
-    std::tuple<SrcArgs...> src_args,
-    CFileReaderBase::Options options = CFileReaderBase::Options())
-    -> CFileReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+        OwnedCFile, InitializerTargetT<Src>>>;
 #endif
 
 // Implementation details follow.

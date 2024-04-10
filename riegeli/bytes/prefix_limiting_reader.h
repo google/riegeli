@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -142,8 +140,9 @@ class PrefixLimitingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `PrefixLimitingReader`
 // is closed or no longer used.
@@ -197,12 +196,7 @@ template <typename Src>
 explicit PrefixLimitingReader(Src&& src,
                               PrefixLimitingReaderBase::Options options =
                                   PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit PrefixLimitingReader(std::tuple<SrcArgs...> src_args,
-                              PrefixLimitingReaderBase::Options options =
-                                  PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> PrefixLimitingReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

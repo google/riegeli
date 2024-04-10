@@ -807,6 +807,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:compact_string",
         "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
         "//riegeli/base:object",
         "@com_google_absl//absl/meta:type_traits",
     ],

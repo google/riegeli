@@ -16,7 +16,6 @@
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
 #include <limits>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -176,8 +175,9 @@ class DefaultChunkWriterBase : public ChunkWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The byte `Writer` must not be accessed until the `DefaultChunkWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -225,12 +225,7 @@ template <typename Dest>
 explicit DefaultChunkWriter(
     Dest&& dest,
     DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit DefaultChunkWriter(
-    std::tuple<DestArgs...> dest_args,
-    DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> DefaultChunkWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Specialization of `DependencyImpl<ChunkWriter*, Manager>` adapted from

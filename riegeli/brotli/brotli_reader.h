@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -144,8 +142,9 @@ class BrotliReaderBase : public PullableReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `BrotliReader` is
 // closed or no longer used.
@@ -189,12 +188,7 @@ explicit BrotliReader(Closed) -> BrotliReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit BrotliReader(
     Src&& src, BrotliReaderBase::Options options = BrotliReaderBase::Options())
-    -> BrotliReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit BrotliReader(
-    std::tuple<SrcArgs...> src_args,
-    BrotliReaderBase::Options options = BrotliReaderBase::Options())
-    -> BrotliReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> BrotliReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

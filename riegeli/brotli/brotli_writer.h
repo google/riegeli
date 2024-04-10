@@ -16,8 +16,6 @@
 #define RIEGELI_BROTLI_BROTLI_WRITER_H_
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -192,8 +190,9 @@ class BrotliWriterBase : public BufferedWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `BrotliWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -237,12 +236,7 @@ explicit BrotliWriter(Closed) -> BrotliWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit BrotliWriter(Dest&& dest, BrotliWriterBase::Options options =
                                        BrotliWriterBase::Options())
-    -> BrotliWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit BrotliWriter(
-    std::tuple<DestArgs...> dest_args,
-    BrotliWriterBase::Options options = BrotliWriterBase::Options())
-    -> BrotliWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> BrotliWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

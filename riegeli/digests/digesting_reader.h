@@ -111,10 +111,10 @@ class DigestingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the `Digester` template argument can be deduced as the
-// value type of the `digester` constructor argument, and the `Src` template
-// argument can be deduced as the value type of the `src` constructor argument.
-// This requires C++17.
+// By relying on CTAD the `Digester` template argument can be deduced as
+// `InitializerTargetT` of the type of the `digester` constructor argument, and
+// the `Src` template argument can be deduced as `InitializerTargetT` of the
+// type of the `src` constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `DigestingReader` is
 // closed or no longer used.
@@ -199,23 +199,9 @@ class DigestingReader : public DigestingReaderBase {
 #if __cpp_deduction_guides
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
-explicit DigestingReader(Src&& src, Digester&& digester)
-    -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
-template <typename... DigesterArgs, typename Src>
-explicit DigestingReader(Src&& src, std::tuple<DigesterArgs...> digester_args =
-                                        std::forward_as_tuple())
-    -> DigestingReader<DeleteCtad<std::tuple<DigesterArgs...>>,
-                       std::decay_t<Src>>;
-template <typename Digester, typename... SrcArgs>
-explicit DigestingReader(std::tuple<SrcArgs...> src_args, Digester&& digester)
-    -> DigestingReader<std::decay_t<Digester>,
-                       DeleteCtad<std::tuple<SrcArgs...>>>;
-template <typename... DigesterArgs, typename... SrcArgs>
-explicit DigestingReader(
-    std::tuple<SrcArgs...> src_args,
-    std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
-    -> DigestingReader<DeleteCtad<std::tuple<DigesterArgs...>>,
-                       DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit DigestingReader(Src&& src,
+                         Digester&& digester = std::forward_as_tuple())
+    -> DigestingReader<InitializerTargetT<Digester>, InitializerTargetT<Src>>;
 #endif
 
 // Reads all remaining data from `src` and returns their digest.

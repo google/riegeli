@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -214,8 +212,9 @@ class LimitingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Writer` must not be accessed until the `LimitingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -264,12 +263,7 @@ explicit LimitingWriter(Closed) -> LimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingWriter(Dest&& dest, LimitingWriterBase::Options options =
                                          LimitingWriterBase::Options())
-    -> LimitingWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit LimitingWriter(
-    std::tuple<DestArgs...> dest_args,
-    LimitingWriterBase::Options options = LimitingWriterBase::Options())
-    -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> LimitingWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

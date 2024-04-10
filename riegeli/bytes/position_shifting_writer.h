@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -144,8 +142,9 @@ class PositionShiftingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Writer` must not be accessed until the `PositionShiftingWriter`
 // is closed or no longer used, except that it is allowed to read the
@@ -199,12 +198,7 @@ template <typename Dest>
 explicit PositionShiftingWriter(Dest&& dest,
                                 PositionShiftingWriterBase::Options options =
                                     PositionShiftingWriterBase::Options())
-    -> PositionShiftingWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit PositionShiftingWriter(std::tuple<DestArgs...> dest_args,
-                                PositionShiftingWriterBase::Options options =
-                                    PositionShiftingWriterBase::Options())
-    -> PositionShiftingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> PositionShiftingWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

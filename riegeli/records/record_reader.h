@@ -21,8 +21,6 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -583,8 +581,9 @@ class RecordReaderBase : public Object {
 // `std::unique_ptr<ChunkReader>` (owned),
 // `AnyDependency<ChunkReader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The byte `Reader` or `ChunkReader` must not be accessed until the
 // `RecordReader` is closed or no longer used.
@@ -630,12 +629,7 @@ explicit RecordReader(Closed) -> RecordReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit RecordReader(
     Src&& src, RecordReaderBase::Options options = RecordReaderBase::Options())
-    -> RecordReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit RecordReader(
-    std::tuple<SrcArgs...> src_args,
-    RecordReaderBase::Options options = RecordReaderBase::Options())
-    -> RecordReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> RecordReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

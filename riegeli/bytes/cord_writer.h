@@ -230,10 +230,10 @@ class CordWriterBase : public Writer {
 //
 // By relying on CTAD the template argument can be deduced as `absl::Cord`
 // if there are no constructor arguments or the only argument is `Options`,
-// otherwise as the value type of the first constructor argument, except that
-// CTAD is deleted if the first constructor argument is an `absl::Cord&` or
-// `const absl::Cord&` (to avoid writing to an unintentionally separate copy of
-// an existing object). This requires C++17.
+// otherwise as `InitializerTargetT` of the type of the first constructor
+// argument, except that CTAD is deleted if the first constructor argument is an
+// `absl::Cord&` or `const absl::Cord&` (to avoid writing to an unintentionally
+// separate copy of an existing object). This requires C++17.
 //
 // The `absl::Cord` must not be accessed until the `CordWriter` is closed or no
 // longer used, except that it is allowed to read the `absl::Cord` immediately
@@ -288,11 +288,7 @@ explicit CordWriter(Dest&& dest,
         absl::conjunction<std::is_lvalue_reference<Dest>,
                           std::is_convertible<std::remove_reference_t<Dest>*,
                                               const absl::Cord*>>::value,
-        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
-template <typename... DestArgs>
-explicit CordWriter(std::tuple<DestArgs...> dest_args,
-                    CordWriterBase::Options options = CordWriterBase::Options())
-    -> CordWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+        DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
 explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
     -> CordWriter<absl::Cord>;
 #endif

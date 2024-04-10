@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -106,8 +104,9 @@ class WrappingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `WrappingReader` is
 // closed or no longer used.
@@ -153,10 +152,7 @@ class WrappingReader : public WrappingReaderBase {
 #if __cpp_deduction_guides
 explicit WrappingReader(Closed) -> WrappingReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit WrappingReader(Src&& src) -> WrappingReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit WrappingReader(std::tuple<SrcArgs...> src_args)
-    -> WrappingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit WrappingReader(Src&& src) -> WrappingReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

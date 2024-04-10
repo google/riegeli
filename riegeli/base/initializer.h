@@ -554,6 +554,43 @@ class Initializer<T, allow_explicit,
   }
 };
 
+// `InitializerTarget<T>::type` and `InitializerTargetT<T>` deduce the
+// appropriate target type such that `T` is convertible to
+// `Initializer<InitializerTargetT<T>>`.
+//
+// This allows a single template to uniformly handle a `Target` passed directly
+// or as `Initializer<Target>`. This is also useful for CTAD guides to deduce a
+// template argument as `InitializerTargetT<T>`.
+//
+// This is undefined in the case of `std::tuple<Args...>` which requires the
+// target type to be specified by the caller.
+
+namespace initializer_internal {
+
+template <typename T>
+struct InitializerTargetImpl {
+  using type = T;
+};
+
+template <typename... Args>
+struct InitializerTargetImpl<std::tuple<Args...>> {
+  // No `type` member when the target type is unspecified.
+};
+
+template <typename T>
+struct InitializerTargetImpl<Initializer<T>> {
+  using type = T;
+};
+
+};  // namespace initializer_internal
+
+template <typename T>
+struct InitializerTarget
+    : initializer_internal::InitializerTargetImpl<std::decay_t<T>> {};
+
+template <typename T>
+using InitializerTargetT = typename InitializerTarget<T>::type;
+
 // Implementation details follow.
 
 namespace initializer_internal {

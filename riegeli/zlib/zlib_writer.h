@@ -15,8 +15,6 @@
 #ifndef RIEGELI_ZLIB_ZLIB_WRITER_H_
 #define RIEGELI_ZLIB_ZLIB_WRITER_H_
 
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -239,8 +237,9 @@ class ZlibWriterBase : public BufferedWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `ZlibWriter` is closed
 // or no longer used, except that it is allowed to read the destination of the
@@ -284,11 +283,7 @@ explicit ZlibWriter(Closed) -> ZlibWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZlibWriter(Dest&& dest,
                     ZlibWriterBase::Options options = ZlibWriterBase::Options())
-    -> ZlibWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit ZlibWriter(std::tuple<DestArgs...> dest_args,
-                    ZlibWriterBase::Options options = ZlibWriterBase::Options())
-    -> ZlibWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+    -> ZlibWriter<InitializerTargetT<Dest>>;
 #endif
 
 // Implementation details follow.

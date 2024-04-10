@@ -16,8 +16,6 @@
 #define RIEGELI_BYTES_READER_FACTORY_H_
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -109,8 +107,9 @@ class ReaderFactoryBase : public Object {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `ReaderFactory` is
 // closed or no longer used.
@@ -152,12 +151,7 @@ explicit ReaderFactory(Closed) -> ReaderFactory<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderFactory(Src&& src, ReaderFactoryBase::Options options =
                                       ReaderFactoryBase::Options())
-    -> ReaderFactory<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit ReaderFactory(
-    std::tuple<SrcArgs...> src_args,
-    ReaderFactoryBase::Options options = ReaderFactoryBase::Options())
-    -> ReaderFactory<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> ReaderFactory<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

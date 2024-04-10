@@ -17,13 +17,13 @@
 
 #include <stddef.h>
 
-#include <tuple>
 #include <type_traits>
 
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/resizable_writer.h"
 
@@ -80,10 +80,10 @@ using CompactStringWriterBase = ResizableWriterBase;
 //
 // By relying on CTAD the template argument can be deduced as `CompactString`
 // if there are no constructor arguments or the only argument is `Options`,
-// otherwise as the value type of the first constructor argument, except that
-// CTAD is deleted if the first constructor argument is a `CompactString&` or
-// `const CompactString&` (to avoid writing to an unintentionally separate copy
-// of an existing object). This requires C++17.
+// otherwise as `InitializerTargetT` of the type of the first constructor
+// argument, except that CTAD is deleted if the first constructor argument is a
+// `CompactString&` or `const CompactString&` (to avoid writing to an
+// unintentionally separate copy of an existing object). This requires C++17.
 //
 // The `CompactString` must not be accessed until the `CompactStringWriter` is
 // closed or no longer used, except that it is allowed to read the
@@ -106,12 +106,7 @@ explicit CompactStringWriter(Dest&& dest,
         absl::conjunction<std::is_lvalue_reference<Dest>,
                           std::is_convertible<std::remove_reference_t<Dest>*,
                                               const CompactString*>>::value,
-        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
-template <typename... DestArgs>
-explicit CompactStringWriter(std::tuple<DestArgs...> dest_args,
-                             CompactStringWriterBase::Options options =
-                                 CompactStringWriterBase::Options())
-    -> CompactStringWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+        DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
 explicit CompactStringWriter(CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())
     -> CompactStringWriter<CompactString>;

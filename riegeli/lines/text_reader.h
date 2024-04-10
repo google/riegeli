@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -124,8 +123,9 @@ class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the second template argument can be deduced as the value
-// type of the first constructor argument. This requires C++17.
+// By relying on CTAD the second template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The original `Reader` must not be accessed until the `TextReader` is closed
 // or no longer used.
@@ -204,11 +204,7 @@ explicit TextReader(Closed)
 template <typename Src>
 explicit TextReader(Src&& src,
                     TextReaderBase::Options options = TextReaderBase::Options())
-    -> TextReader<ReadNewline::kNative, std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit TextReader(std::tuple<SrcArgs...> src_args,
-                    TextReaderBase::Options options = TextReaderBase::Options())
-    -> TextReader<ReadNewline::kNative, DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> TextReader<ReadNewline::kNative, InitializerTargetT<Src>>;
 #endif
 
 // Wraps a `TextReader` for a line terminator specified at runtime.
@@ -239,17 +235,13 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
   ReadNewline newline_ = ReadNewline::kNative;
 };
 
-// Factory functions for `AnyTextReader`.
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value,
-                           int> = 0>
-AnyTextReader<Src> MakeAnyTextReader(
+// Factory function for `AnyTextReader`.
+template <
+    typename Src,
+    std::enable_if_t<IsValidDependency<Reader*, InitializerTargetT<Src>>::value,
+                     int> = 0>
+AnyTextReader<InitializerTargetT<Src>> MakeAnyTextReader(
     Src&& src, AnyTextReaderOptions options = AnyTextReaderOptions());
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src>::value, int> = 0>
-AnyTextReader<Src> MakeAnyTextReader(
-    Initializer<Src> src,
-    AnyTextReaderOptions options = AnyTextReaderOptions());
 
 // Implementation details below.
 
@@ -327,29 +319,24 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(
   TextReader::PrefixLimitingReader::Reset(std::move(src));
 }
 
-template <
-    typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, std::decay_t<Src>>::value, int>>
-AnyTextReader<Src> MakeAnyTextReader(Src&& src, AnyTextReaderOptions options) {
-  return MakeAnyTextReader(
-      Initializer<std::decay_t<Src>>(std::forward<Src>(src)),
-      std::move(options));
-}
-
 template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src>::value, int>>
-AnyTextReader<Src> MakeAnyTextReader(Initializer<Src> src,
-                                     AnyTextReaderOptions options) {
+          std::enable_if_t<
+              IsValidDependency<Reader*, InitializerTargetT<Src>>::value, int>>
+AnyTextReader<InitializerTargetT<Src>> MakeAnyTextReader(
+    Src&& src, AnyTextReaderOptions options) {
   switch (options.newline()) {
     case ReadNewline::kLf:
-      return {absl::in_place_type<TextReader<ReadNewline::kLf, Src>>,
-              std::move(src), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextReader<ReadNewline::kLf, InitializerTargetT<Src>>>,
+              std::forward<Src>(src), options.buffer_options()};
     case ReadNewline::kCrLfOrLf:
-      return {absl::in_place_type<TextReader<ReadNewline::kCrLfOrLf, Src>>,
-              std::move(src), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>>,
+              std::forward<Src>(src), options.buffer_options()};
     case ReadNewline::kAny:
-      return {absl::in_place_type<TextReader<ReadNewline::kAny, Src>>,
-              std::move(src), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextReader<ReadNewline::kAny, InitializerTargetT<Src>>>,
+              std::forward<Src>(src), options.buffer_options()};
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

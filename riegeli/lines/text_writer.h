@@ -15,7 +15,6 @@
 #ifndef RIEGELI_LINES_TEXT_WRITER_H_
 #define RIEGELI_LINES_TEXT_WRITER_H_
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -150,11 +149,7 @@ explicit TextWriter(Closed)
 template <typename Dest>
 explicit TextWriter(Dest&& dest,
                     TextWriterBase::Options options = TextWriterBase::Options())
-    -> TextWriter<WriteNewline::kNative, std::decay_t<Dest>>;
-template <typename... DestArgs>
-explicit TextWriter(std::tuple<DestArgs...> dest_args,
-                    TextWriterBase::Options options = TextWriterBase::Options())
-    -> TextWriter<WriteNewline::kNative, DeleteCtad<std::tuple<DestArgs...>>>;
+    -> TextWriter<WriteNewline::kNative, InitializerTargetT<Dest>>;
 #endif
 
 // Wraps a `TextWriter` for a line terminator specified at runtime.
@@ -185,17 +180,13 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
   WriteNewline newline_ = WriteNewline::kNative;
 };
 
-// Factory functions for `AnyTextWriter`.
-template <typename Dest,
-          std::enable_if_t<
-              IsValidDependency<Writer*, std::decay_t<Dest>>::value, int> = 0>
-AnyTextWriter<Dest> MakeAnyTextWriter(
+// Factory function for `AnyTextWriter`.
+template <
+    typename Dest,
+    std::enable_if_t<
+        IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int> = 0>
+AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
     Dest&& dest, AnyTextWriterOptions options = AnyTextWriterOptions());
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest>::value, int> = 0>
-AnyTextWriter<Dest> MakeAnyTextWriter(
-    Initializer<Dest> dest,
-    AnyTextWriterOptions options = AnyTextWriterOptions());
 
 // Implementation details below.
 
@@ -285,28 +276,22 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
 
 template <typename Dest,
           std::enable_if_t<
-              IsValidDependency<Writer*, std::decay_t<Dest>>::value, int>>
-AnyTextWriter<Dest> MakeAnyTextWriter(Dest&& dest,
-                                      AnyTextWriterOptions options) {
-  return MakeAnyTextWriter(
-      Initializer<std::decay_t<Dest>>(std::forward<Dest>(dest)),
-      std::move(options));
-}
-
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest>::value, int>>
-AnyTextWriter<Dest> MakeAnyTextWriter(Initializer<Dest> dest,
-                                      AnyTextWriterOptions options) {
+              IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int>>
+AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
+    Dest&& dest, AnyTextWriterOptions options) {
   switch (options.newline()) {
     case WriteNewline::kLf:
-      return {absl::in_place_type<TextWriter<WriteNewline::kLf, Dest>>,
-              std::move(dest), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextWriter<WriteNewline::kLf, InitializerTargetT<Dest>>>,
+              std::forward<Dest>(dest), options.buffer_options()};
     case WriteNewline::kCr:
-      return {absl::in_place_type<TextWriter<WriteNewline::kCr, Dest>>,
-              std::move(dest), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextWriter<WriteNewline::kCr, InitializerTargetT<Dest>>>,
+              std::forward<Dest>(dest), options.buffer_options()};
     case WriteNewline::kCrLf:
-      return {absl::in_place_type<TextWriter<WriteNewline::kCrLf, Dest>>,
-              std::move(dest), options.buffer_options()};
+      return {absl::in_place_type<
+                  TextWriter<WriteNewline::kCrLf, InitializerTargetT<Dest>>>,
+              std::forward<Dest>(dest), options.buffer_options()};
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

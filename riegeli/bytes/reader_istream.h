@@ -20,7 +20,6 @@
 #include <istream>
 #include <streambuf>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -152,8 +151,9 @@ class ReaderIStreamBase : public std::istream {
 // e.g. `Reader*` (not owned, default), `ChainReader<>` (owned),
 // `std::unique_ptr<Reader>` (owned), `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The `Reader` must not be accessed until the `ReaderIStream` is closed or no
 // longer used.
@@ -201,12 +201,7 @@ explicit ReaderIStream(Closed) -> ReaderIStream<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderIStream(Src&& src, ReaderIStreamBase::Options options =
                                       ReaderIStreamBase::Options())
-    -> ReaderIStream<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit ReaderIStream(
-    std::tuple<SrcArgs...> src_args,
-    ReaderIStreamBase::Options options = ReaderIStreamBase::Options())
-    -> ReaderIStream<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> ReaderIStream<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

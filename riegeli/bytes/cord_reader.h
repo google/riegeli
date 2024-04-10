@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -120,8 +118,9 @@ class CordReaderBase : public PullableReader {
 // `const absl::Cord*` (not owned, default), `absl::Cord` (owned),
 // `AnyDependency<const absl::Cord*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The `absl::Cord` must not be changed until the `CordReader` is closed or no
 // longer used.
@@ -161,10 +160,7 @@ class CordReader : public CordReaderBase {
 #if __cpp_deduction_guides
 explicit CordReader(Closed) -> CordReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit CordReader(std::tuple<SrcArgs...> src_args)
-    -> CordReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit CordReader(Src&& src) -> CordReader<InitializerTargetT<Src>>;
 #endif
 
 // Implementation details follow.

@@ -18,8 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -197,8 +195,9 @@ class Lz4ReaderBase : public BufferedReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `AnyDependency<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// By relying on CTAD the template argument can be deduced as
+// `InitializerTargetT` of the type of the first constructor argument.
+// This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `Lz4Reader` is closed
 // or no longer used.
@@ -242,11 +241,7 @@ explicit Lz4Reader(Closed) -> Lz4Reader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit Lz4Reader(Src&& src,
                    Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
-    -> Lz4Reader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit Lz4Reader(std::tuple<SrcArgs...> src_args,
-                   Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
-    -> Lz4Reader<DeleteCtad<std::tuple<SrcArgs...>>>;
+    -> Lz4Reader<InitializerTargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been Lz4-compressed.

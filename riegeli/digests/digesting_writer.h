@@ -115,10 +115,10 @@ class DigestingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
-// By relying on CTAD the `Digester` template argument can be deduced as the
-// value type of the `digester` constructor argument, and the `Dest` template
-// argument can be deduced as the value type of the `dest` constructor argument.
-// This requires C++17.
+// By relying on CTAD the `Digester` template argument can be deduced as
+// `InitializerTargetT` of the type of the `digester` constructor argument, and
+// the `Dest` template argument can be deduced as `InitializerTargetT` of the
+// type of the `dest` constructor argument. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -204,24 +204,9 @@ class DigestingWriter : public DigestingWriterBase {
 #if __cpp_deduction_guides
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
-explicit DigestingWriter(Dest&& dest, Digester&& digester)
-    -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;
-template <typename... DigesterArgs, typename Dest>
-explicit DigestingWriter(
-    Dest&& dest,
-    std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
-    -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
-                       std::decay_t<Dest>>;
-template <typename Digester, typename... DestArgs>
-explicit DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
-    -> DigestingWriter<std::decay_t<Digester>,
-                       DeleteCtad<std::tuple<DestArgs...>>>;
-template <typename... DigesterArgs, typename... DestArgs>
-explicit DigestingWriter(
-    std::tuple<DestArgs...> dest_args,
-    std::tuple<DigesterArgs...> digester_args = std::forward_as_tuple())
-    -> DigestingWriter<DeleteCtad<std::tuple<DigesterArgs...>>,
-                       DeleteCtad<std::tuple<DestArgs...>>>;
+explicit DigestingWriter(Dest&& dest,
+                         Digester&& digester = std::forward_as_tuple())
+    -> DigestingWriter<InitializerTargetT<Digester>, InitializerTargetT<Dest>>;
 #endif
 
 // Returns the digest of the concatenation of stringifiable values.
