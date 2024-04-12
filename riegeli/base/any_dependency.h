@@ -29,6 +29,7 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/any_dependency_initializer.h"
 #include "riegeli/base/any_dependency_internal.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -152,6 +153,7 @@ class
   template <typename Manager,
             std::enable_if_t<IsAnyDependency<Handle, Manager>::value, int> = 0>
   void Initialize(Initializer<Manager> manager);
+  void Initialize(AnyDependencyInitializer<Handle> manager);
 
   // Destroys the state, leaving it uninitialized.
   void Destroy();
@@ -167,6 +169,9 @@ class
   template <typename OtherHandle, size_t other_inline_size,
             size_t other_inline_align>
   friend class AnyDependencyBase;
+  // For adopting the state from an instantiation held in an
+  // `AnyDependencyInitializer`.
+  friend class AnyDependencyInitializer<Handle>;
 
   using Repr = any_dependency_internal::Repr<Handle, inline_size, inline_align>;
   using MethodsAndHandle = any_dependency_internal::MethodsAndHandle<Handle>;
@@ -260,6 +265,11 @@ class AnyDependency
               IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
           int> = 0>
   AnyDependency& operator=(Manager&& manager);
+
+  // Holds the `Dependency` specified when the `AnyDependencyInitializer` was
+  // constructed.
+  /*implicit*/ AnyDependency(AnyDependencyInitializer<Handle> manager);
+  AnyDependency& operator=(AnyDependencyInitializer<Handle> manager);
 
   AnyDependency(AnyDependency&& that) = default;
   AnyDependency& operator=(AnyDependency&& that) = default;
@@ -624,6 +634,15 @@ inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
+inline void AnyDependencyBase<Handle, inline_size, inline_align>::Initialize(
+    AnyDependencyInitializer<Handle> manager) {
+  std::move(manager).Construct(
+      methods_and_handle_, repr_.storage,
+      AvailableSize<Handle, inline_size, inline_align>(),
+      AvailableAlign<Handle, inline_size, inline_align>());
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyDependencyBase<Handle, inline_size, inline_align>::Destroy() {
   methods_and_handle_.handle.~Handle();
   methods_and_handle_.methods->destroy(repr_.storage);
@@ -696,6 +715,21 @@ AnyDependency<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
   this->Destroy();
   this->template Initialize<InitializerTargetT<Manager>>(
       std::forward<Manager>(manager));
+  return *this;
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependency<Handle, inline_size, inline_align>::AnyDependency(
+    AnyDependencyInitializer<Handle> manager) {
+  this->Initialize(std::move(manager));
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+inline AnyDependency<Handle, inline_size, inline_align>&
+AnyDependency<Handle, inline_size, inline_align>::operator=(
+    AnyDependencyInitializer<Handle> manager) {
+  this->Destroy();
+  this->Initialize(std::move(manager));
   return *this;
 }
 

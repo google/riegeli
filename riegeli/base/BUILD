@@ -248,7 +248,10 @@ cc_library(
 cc_library(
     name = "any_dependency",
     srcs = ["any_dependency_internal.h"],
-    hdrs = ["any_dependency.h"],
+    hdrs = [
+        "any_dependency.h",
+        "any_dependency_initializer.h",
+    ],
     deps = [
         ":arithmetic",
         ":assert",

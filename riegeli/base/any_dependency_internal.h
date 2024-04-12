@@ -129,14 +129,19 @@ constexpr size_t UsedAlign() {
   return alignof(Dependency<Handle, Manager>);
 }
 
+template <typename Handle, typename Manager>
+constexpr bool ReprIsInline(size_t available_size, size_t available_align) {
+  return std::is_move_constructible<Dependency<Handle, Manager>>::value &&
+         UsedSize<Handle, Manager>() <= available_size &&
+         UsedAlign<Handle, Manager>() <= available_align;
+}
+
 template <typename Handle, typename Manager, size_t inline_size,
           size_t inline_align>
 constexpr bool IsInline() {
-  return std::is_move_constructible<Dependency<Handle, Manager>>::value &&
-         UsedSize<Handle, Manager>() <=
-             AvailableSize<Handle, inline_size, inline_align>() &&
-         UsedAlign<Handle, Manager>() <=
-             AvailableAlign<Handle, inline_size, inline_align>();
+  return ReprIsInline<Handle, Manager>(
+      AvailableSize<Handle, inline_size, inline_align>(),
+      AvailableAlign<Handle, inline_size, inline_align>());
 }
 
 // Conditionally make the ABI trivial. To be used as a base class, with the
