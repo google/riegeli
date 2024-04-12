@@ -17,7 +17,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -28,6 +27,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/skipped_region.h"
@@ -263,7 +263,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
      private:
       void OpenFile(::tensorflow::data::IteratorContext* ctx)
           ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-        reader_.emplace(std::forward_as_tuple(
+        reader_.emplace(riegeli::Maker(
             dataset()->filenames_[current_file_index_],
             tensorflow::FileReaderBase::Options()
                 .set_env(ctx->env())

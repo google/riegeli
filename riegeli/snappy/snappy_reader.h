@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -29,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -168,7 +168,7 @@ absl::optional<size_t> SnappyUncompressedSize(Reader& src);
 inline SnappyReaderBase::SnappyReaderBase()
     // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
     // set by `Initialize()`.
-    : ChainReader(std::forward_as_tuple()) {}
+    : ChainReader(riegeli::Maker()) {}
 
 inline SnappyReaderBase::SnappyReaderBase(SnappyReaderBase&& that) noexcept
     : ChainReader(static_cast<ChainReader&&>(that)) {}
@@ -184,7 +184,7 @@ inline void SnappyReaderBase::Reset(Closed) { ChainReader::Reset(kClosed); }
 inline void SnappyReaderBase::Reset() {
   // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
   // by `Initialize()`.
-  ChainReader::Reset(std::forward_as_tuple());
+  ChainReader::Reset(riegeli::Maker());
 }
 
 template <typename Src>

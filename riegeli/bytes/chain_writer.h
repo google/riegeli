@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -33,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -351,7 +351,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline ChainWriter<Dest>::ChainWriter(Options options)
-    : ChainWriter(std::forward_as_tuple(), std::move(options)) {}
+    : ChainWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
@@ -384,7 +384,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline void ChainWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 template <typename Dest>

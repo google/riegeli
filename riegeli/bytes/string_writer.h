@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -31,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -335,7 +335,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline StringWriter<Dest>::StringWriter(Options options)
-    : StringWriter(std::forward_as_tuple(), std::move(options)) {}
+    : StringWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
@@ -369,7 +369,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline void StringWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 template <typename Dest>

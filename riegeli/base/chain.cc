@@ -24,7 +24,6 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -40,6 +39,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/no_destructor.h"
@@ -616,8 +616,8 @@ inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
     return;
   }
   dest.Append(
-      Chain::FromExternal<BlockRef>(
-          std::forward_as_tuple(
+      Chain::FromExternal(
+          riegeli::Maker<BlockRef>(
               this, std::integral_constant<Ownership, Ownership::kShare>()),
           absl::string_view(data, length)),
       options);
@@ -704,8 +704,8 @@ inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
     return;
   }
   dest.Prepend(
-      Chain::FromExternal<BlockRef>(
-          std::forward_as_tuple(
+      Chain::FromExternal(
+          riegeli::Maker<BlockRef>(
               this, std::integral_constant<Ownership, Ownership::kShare>()),
           absl::string_view(data, length)),
       options);
@@ -1755,7 +1755,7 @@ void Chain::Append(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Append(Chain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
+  Append(Chain::FromExternal(riegeli::Maker<StringRef>(std::move(src))),
          options);
 }
 
@@ -1988,8 +1988,8 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
       if (flat->size() <= kMaxBytesToCopy) {
         Append(*flat, options);
       } else {
-        Append(Chain::FromExternal<FlatCordRef>(
-                   std::forward_as_tuple(std::forward<CordRef>(src))),
+        Append(Chain::FromExternal(
+                   riegeli::Maker<FlatCordRef>(std::forward<CordRef>(src))),
                options);
       }
       return;
@@ -2013,8 +2013,8 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(Chain::FromExternal<FlatCordRef>(
-                 std::forward_as_tuple(iter, fragment.size())),
+      Append(Chain::FromExternal(
+                 riegeli::Maker<FlatCordRef>(iter, fragment.size())),
              options);
       copy_options.set_size_hint(size());
     }
@@ -2046,8 +2046,8 @@ inline void Chain::AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
     Append(data, options);
     return;
   }
-  Append(Chain::FromExternal<SharedBufferRef>(
-             std::forward_as_tuple(
+  Append(Chain::FromExternal(
+             riegeli::Maker<SharedBufferRef>(
                  std::forward<SizedSharedBufferRef>(src).storage()),
              data),
          options);
@@ -2082,7 +2082,7 @@ void Chain::Prepend(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Prepend(Chain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
+  Prepend(Chain::FromExternal(riegeli::Maker<StringRef>(std::move(src))),
           options);
 }
 
@@ -2344,8 +2344,8 @@ inline void Chain::PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
     Prepend(data, options);
     return;
   }
-  Prepend(Chain::FromExternal<SharedBufferRef>(
-              std::forward_as_tuple(
+  Prepend(Chain::FromExternal(
+              riegeli::Maker<SharedBufferRef>(
                   std::forward<SizedSharedBufferRef>(src).storage()),
               data),
           options);
@@ -2375,8 +2375,8 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(Chain::FromExternal<FlatCordRef>(
-                 std::forward_as_tuple(iter, fragment.size())),
+      Append(Chain::FromExternal(
+                 riegeli::Maker<FlatCordRef>(iter, fragment.size())),
              options);
       copy_options.set_size_hint(size());
     }
@@ -2444,8 +2444,8 @@ void Chain::RemoveSuffix(size_t length, const Options& options) {
     last->Unref();
     return;
   }
-  Append(Chain::FromExternal<BlockRef>(
-             std::forward_as_tuple(
+  Append(Chain::FromExternal(
+             riegeli::Maker<BlockRef>(
                  last, std::integral_constant<Ownership, Ownership::kSteal>()),
              data),
          options);
@@ -2546,8 +2546,8 @@ void Chain::RemovePrefix(size_t length, const Options& options) {
     return;
   }
   Prepend(
-      Chain::FromExternal<BlockRef>(
-          std::forward_as_tuple(
+      Chain::FromExternal(
+          riegeli::Maker<BlockRef>(
               first, std::integral_constant<Ownership, Ownership::kSteal>()),
           data),
       options);
@@ -2716,7 +2716,7 @@ Chain ChainOfZeros(size_t length) {
   Chain result;
   while (length >= kArrayOfZeros.size()) {
     static const NoDestructor<Chain> kChainBlockOfZeros(
-        Chain::FromExternal<ZeroRef>(std::forward_as_tuple(), kArrayOfZeros));
+        Chain::FromExternal(riegeli::Maker<ZeroRef>(), kArrayOfZeros));
     result.Append(*kChainBlockOfZeros);
     length -= kArrayOfZeros.size();
   }
@@ -2725,9 +2725,9 @@ Chain ChainOfZeros(size_t length) {
       const absl::Span<char> buffer = result.AppendFixedBuffer(length);
       std::memset(buffer.data(), '\0', buffer.size());
     } else {
-      result.Append(Chain::FromExternal<ZeroRef>(
-          std::forward_as_tuple(),
-          absl::string_view(kArrayOfZeros.data(), length)));
+      result.Append(
+          Chain::FromExternal(riegeli::Maker<ZeroRef>(),
+                              absl::string_view(kArrayOfZeros.data(), length)));
     }
   }
   return result;

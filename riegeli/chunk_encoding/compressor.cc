@@ -17,7 +17,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,6 +24,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/brotli/brotli_writer.h"
@@ -65,14 +65,14 @@ inline void Compressor::Initialize() {
       return;
     case CompressionType::kBrotli:
       writer_ = std::make_unique<BrotliWriter<ChainWriter<>>>(
-          std::forward_as_tuple(&compressed_),
+          riegeli::Maker(&compressed_),
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.brotli_window_log()));
       return;
     case CompressionType::kZstd:
       writer_ = std::make_unique<ZstdWriter<ChainWriter<>>>(
-          std::forward_as_tuple(&compressed_),
+          riegeli::Maker(&compressed_),
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.zstd_window_log())
@@ -82,7 +82,7 @@ inline void Compressor::Initialize() {
       return;
     case CompressionType::kSnappy:
       writer_ = std::make_unique<SnappyWriter<ChainWriter<>>>(
-          std::forward_as_tuple(&compressed_),
+          riegeli::Maker(&compressed_),
           SnappyWriterBase::Options().set_compression_level(
               compressor_options_.compression_level()));
       return;

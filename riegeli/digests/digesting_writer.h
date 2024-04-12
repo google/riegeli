@@ -32,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
@@ -134,9 +135,8 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Will write to the original `Writer` provided by `dest`, using the
   // digester provided by `digester`.
-  explicit DigestingWriter(
-      Initializer<Dest> dest,
-      Initializer<Digester> digester = std::forward_as_tuple());
+  explicit DigestingWriter(Initializer<Dest> dest,
+                           Initializer<Digester> digester = riegeli::Maker());
 
   DigestingWriter(DigestingWriter&& that) noexcept;
   DigestingWriter& operator=(DigestingWriter&& that) noexcept;
@@ -146,7 +146,7 @@ class DigestingWriter : public DigestingWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<Dest> dest,
-      Initializer<Digester> digester = std::forward_as_tuple());
+      Initializer<Digester> digester = riegeli::Maker());
 
   // Digests buffered data if needed, and returns the digest.
   //
@@ -204,8 +204,7 @@ class DigestingWriter : public DigestingWriterBase {
 #if __cpp_deduction_guides
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
-explicit DigestingWriter(Dest&& dest,
-                         Digester&& digester = std::forward_as_tuple())
+explicit DigestingWriter(Dest&& dest, Digester&& digester = riegeli::Maker())
     -> DigestingWriter<InitializerTargetT<Digester>, InitializerTargetT<Dest>>;
 #endif
 
@@ -422,7 +421,7 @@ template <
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<Digester&&, NullWriter> writer(
-      std::forward_as_tuple(), std::forward<Digester>(digester));
+      riegeli::Maker(), std::forward<Digester>(digester));
   writer.WriteTuple(srcs);
   RIEGELI_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();

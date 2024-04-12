@@ -19,7 +19,6 @@
 #include <array>
 #include <functional>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -32,6 +31,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
@@ -703,8 +703,7 @@ absl::Status ReadCsvRecordFromString(absl::string_view src,
   RIEGELI_ASSERT(options.required_header() == absl::nullopt)
       << "Failed precondition of ReadCsvRecordFromString(): "
          "CsvReaderBase::Options::required_header() != nullopt not applicable";
-  CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
-                                       std::move(options));
+  CsvReader<StringReader<>> csv_reader(riegeli::Maker(src), std::move(options));
   if (ABSL_PREDICT_FALSE(
           !csv_internal::ReadStandaloneRecord(csv_reader, record))) {
     RIEGELI_ASSERT(!csv_reader.ok())

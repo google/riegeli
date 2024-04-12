@@ -20,7 +20,6 @@
 
 #include <initializer_list>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -34,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -205,7 +205,7 @@ class ChunkDecoder : public Object {
 inline ChunkDecoder::ChunkDecoder(Options options)
     : field_projection_(std::move(options.field_projection())),
       recycling_pool_options_(options.recycling_pool_options()),
-      values_reader_(std::forward_as_tuple()) {}
+      values_reader_(riegeli::Maker()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
     : Object(static_cast<Object&&>(that)),
@@ -236,7 +236,7 @@ inline void ChunkDecoder::Reset(Options options) {
 inline void ChunkDecoder::Clear() {
   Object::Reset();
   limits_.clear();
-  values_reader_.Reset(std::forward_as_tuple());
+  values_reader_.Reset(riegeli::Maker());
   index_ = 0;
   recoverable_ = false;
 }

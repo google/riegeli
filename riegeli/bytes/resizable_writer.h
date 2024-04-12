@@ -19,7 +19,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -35,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -519,7 +519,7 @@ template <
                 typename ResizableTraits::Resizable>>::value,
         int>>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
-    : ResizableWriter(std::forward_as_tuple(), std::move(options)) {}
+    : ResizableWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename ResizableTraits, typename Dest>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
@@ -561,7 +561,7 @@ template <
                 typename ResizableTraits::Resizable>>::value,
         int>>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 template <typename ResizableTraits, typename Dest>

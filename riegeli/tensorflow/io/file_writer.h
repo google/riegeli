@@ -19,7 +19,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -33,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/types.h"
@@ -353,7 +353,7 @@ inline void FileWriter<Dest>::Initialize(
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<::tensorflow::WritableFile> dest = OpenFile(options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
-  dest_.Reset(std::forward_as_tuple(dest.release()));
+  dest_.Reset(riegeli::Maker(dest.release()));
   InitializePos(dest_.get());
 }
 

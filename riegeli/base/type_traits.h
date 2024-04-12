@@ -217,6 +217,25 @@ inline DecayTupleTypeT<Tuple> DecayTuple(Tuple&& tuple) {
   return tuple;
 }
 
+#if __cpp_deduction_guides
+
+// `DeduceClassTemplateArguments<Template, Args...>::type` and
+// `DeduceClassTemplateArgumentsT<Template, Args...>` deduce class template
+// arguments using CTAD from constructor arguments.
+//
+// Only class templates with solely type template parameters are supported.
+
+template <template <typename...> class Template, typename... Args>
+struct DeduceClassTemplateArguments {
+  using type = decltype(Template(std::declval<Args>()...));
+};
+
+template <template <typename...> class Template, typename... Args>
+using DeduceClassTemplateArgumentsT =
+    typename DeduceClassTemplateArguments<Template, Args...>::type;
+
+#endif
+
 // `IntersectionType<Ts...>::type` and `IntersectionTypeT<Ts...>` compute the
 // smallest of unsigned integer types.
 
@@ -332,7 +351,7 @@ struct HasAbslStringify<
 // A derived class should either make desired copy and move constructor and
 // assignment explicitly defaulted, so that they get effectively defaulted or
 // deleted depending on `is_copyable`, or leave them out to make them implicitly
-// defined, with the same effect.
+// defaulted, with the same effect.
 //
 // An explicit definition of copy and move constructor and assignment, which
 // does not refer to the corresponding operation of the base class, would
@@ -348,6 +367,33 @@ class ConditionallyCopyable<false> {
 
   ConditionallyCopyable(const ConditionallyCopyable&) = delete;
   ConditionallyCopyable& operator=(const ConditionallyCopyable&) = delete;
+};
+
+// Deriving a class from `ConditionallyAssignable<is_assignable>` disables
+// default copy and move assignment if `!is_assignable`.
+//
+// A derived class should either make desired copy and move assignment
+// explicitly defaulted, so that they get effectively defaulted or deleted
+// depending on `is_assignable`, or leave them out together with copy and move
+// constructor, to make them implicitly defaulted, with the same effect.
+//
+// An explicit definition of copy and move assignment, which does not refer to
+// the corresponding operation of the base class, would circumvent the intent of
+// `!is_assignable`.
+
+template <bool is_assignable>
+class ConditionallyAssignable {};
+
+template <>
+class ConditionallyAssignable<false> {
+ public:
+  ConditionallyAssignable() = default;
+
+  ConditionallyAssignable(const ConditionallyAssignable& that) = default;
+  ConditionallyAssignable& operator=(const ConditionallyAssignable&) = delete;
+
+  ConditionallyAssignable(ConditionallyAssignable&& that) = default;
+  ConditionallyAssignable& operator=(ConditionallyAssignable&&) = delete;
 };
 
 // Deriving a class from `ConditionallyAbslNullabilityCompatible<is_pointer>`

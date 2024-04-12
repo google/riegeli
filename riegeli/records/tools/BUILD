@@ -16,6 +16,7 @@ cc_binary(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
+        "//riegeli/base:initializer",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",
@@ -69,6 +70,7 @@ cc_binary(
         ":tfrecord_recognizer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:initializer",
         "//riegeli/base:options_parser",
         "//riegeli/bytes:fd_reader",
         "//riegeli/bytes:fd_writer",
@@ -103,6 +105,7 @@ cc_library(
     deps = [
         "//riegeli/base:any_dependency",
         "//riegeli/base:assert",
+        "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/bytes:reader",
         "//riegeli/endian:endian_reading",

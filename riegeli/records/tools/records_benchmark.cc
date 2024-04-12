@@ -29,7 +29,6 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -46,6 +45,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -313,7 +313,7 @@ void Benchmarks::WriteRiegeli(
     riegeli::RecordWriterBase::Options record_writer_options,
     absl::Span<const std::string> records) {
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
-      std::forward_as_tuple(filename), std::move(record_writer_options));
+      riegeli::Maker(filename), std::move(record_writer_options));
   for (const absl::string_view record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
   }
@@ -325,7 +325,7 @@ bool Benchmarks::ReadRiegeli(
     riegeli::RecordReaderBase::Options record_reader_options,
     std::vector<std::string>* records, SizeLimiter* size_limiter) {
   riegeli::RecordReader<riegeli::FdReader<>> record_reader(
-      std::forward_as_tuple(filename), std::move(record_reader_options));
+      riegeli::Maker(filename), std::move(record_reader_options));
   std::string record;
   while (record_reader.ReadRecord(record)) {
     if (size_limiter != nullptr &&
@@ -538,7 +538,7 @@ int main(int argc, char** argv) {
   std::vector<std::string> records;
   if (args.size() <= 1) {
     riegeli::TextWriter<riegeli::WriteNewline::kNative, riegeli::StdErr>
-        std_err(std::forward_as_tuple());
+        std_err(riegeli::Maker());
     std_err.Write(kUsage, '\n');
     std_err.Close();
     return 1;

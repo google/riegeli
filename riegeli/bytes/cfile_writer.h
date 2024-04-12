@@ -19,7 +19,6 @@
 #include <stdio.h>
 
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -32,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -549,7 +549,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
-    : CFileWriter(std::forward_as_tuple(dest), std::move(options)) {}
+    : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>
 template <typename DependentDest,
@@ -600,7 +600,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
 inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
-  Reset(std::forward_as_tuple(dest), std::move(options));
+  Reset(riegeli::Maker(dest), std::move(options));
 }
 
 template <typename Dest>

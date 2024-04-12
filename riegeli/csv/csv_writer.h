@@ -22,7 +22,6 @@
 #include <initializer_list>
 #include <limits>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -35,6 +34,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -608,7 +608,7 @@ std::string WriteCsvRecordToString(const Record& record,
       << "Failed precondition of WriteCsvRecordToString(): "
          "options.header() != absl::nullopt not applicable";
   std::string dest;
-  CsvWriter<StringWriter<>> csv_writer(std::forward_as_tuple(&dest),
+  CsvWriter<StringWriter<>> csv_writer(riegeli::Maker(&dest),
                                        std::move(options));
   csv_internal::WriteStandaloneRecord(record, csv_writer);
   // This can fail if `std::string` overflows, or if quoting is turned off and

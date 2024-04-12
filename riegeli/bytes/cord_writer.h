@@ -20,7 +20,6 @@
 
 #include <limits>
 #include <memory>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -36,6 +35,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -382,7 +382,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline CordWriter<Dest>::CordWriter(Options options)
-    : CordWriter(std::forward_as_tuple(), std::move(options)) {}
+    : CordWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename Dest>
 inline CordWriter<Dest>::CordWriter(CordWriter&& that) noexcept
@@ -414,7 +414,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline void CordWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 }  // namespace riegeli

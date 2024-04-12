@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -32,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -289,7 +289,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Options options)
-    : ChainBackwardWriter(std::forward_as_tuple(), std::move(options)) {}
+    : ChainBackwardWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
@@ -325,7 +325,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline void ChainBackwardWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 template <typename Dest>

@@ -23,11 +23,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -236,6 +236,8 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
 };
 
 // Factory function for `AnyTextReader`.
+//
+// `src` supports `riegeli::Maker<Src>(args...)` to construct `Src` in-place.
 template <
     typename Src,
     std::enable_if_t<IsValidDependency<Reader*, InitializerTargetT<Src>>::value,
@@ -326,17 +328,17 @@ AnyTextReader<InitializerTargetT<Src>> MakeAnyTextReader(
     Src&& src, AnyTextReaderOptions options) {
   switch (options.newline()) {
     case ReadNewline::kLf:
-      return {absl::in_place_type<
-                  TextReader<ReadNewline::kLf, InitializerTargetT<Src>>>,
-              std::forward<Src>(src), options.buffer_options()};
+      return riegeli::Maker<
+          TextReader<ReadNewline::kLf, InitializerTargetT<Src>>>(
+          std::forward<Src>(src), options.buffer_options());
     case ReadNewline::kCrLfOrLf:
-      return {absl::in_place_type<
-                  TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>>,
-              std::forward<Src>(src), options.buffer_options()};
+      return riegeli::Maker<
+          TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>>(
+          std::forward<Src>(src), options.buffer_options());
     case ReadNewline::kAny:
-      return {absl::in_place_type<
-                  TextReader<ReadNewline::kAny, InitializerTargetT<Src>>>,
-              std::forward<Src>(src), options.buffer_options()};
+      return riegeli::Maker<
+          TextReader<ReadNewline::kAny, InitializerTargetT<Src>>>(
+          std::forward<Src>(src), options.buffer_options());
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

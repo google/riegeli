@@ -50,15 +50,17 @@ class ReaderCFileOptions {
 // e.g. `Reader*` (not owned), `ChainReader<>` (owned),
 // `std::unique_ptr<Reader>` (owned), `AnyDependency<Reader*>` (maybe owned).
 //
+// `src` supports `riegeli::Maker<Src>(args...)` to construct `Src` in-place.
+//
 // The `Reader` must not be accessed until the `FILE` is closed. Warning: this
 // includes implicit closing of all `FILE` objects which are still open at
 // program exit, hence if the `FILE` persists until program exit, then the
 // `Reader` must do so as well.
-template <typename Src>
+template <
+    typename Src,
+    std::enable_if_t<IsValidDependency<Reader*, InitializerTargetT<Src>>::value,
+                     int> = 0>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options = ReaderCFileOptions());
-template <typename Src>
-FILE* ReaderCFile(Initializer<Src> src,
-                  ReaderCFileOptions options = ReaderCFileOptions());
 
 // Implementation details follow.
 
@@ -123,16 +125,13 @@ FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
 
 }  // namespace cfile_internal
 
-template <typename Src>
+template <typename Src,
+          std::enable_if_t<
+              IsValidDependency<Reader*, InitializerTargetT<Src>>::value, int>>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
-  return ReaderCFile(Initializer<std::decay_t<Src>>(std::forward<Src>(src)),
-                     std::move(options));
-}
-
-template <typename Src>
-FILE* ReaderCFile(Initializer<Src> src, ReaderCFileOptions options) {
   return cfile_internal::ReaderCFileImpl(
-      new cfile_internal::ReaderCFileCookie<Src>(std::move(src)));
+      new cfile_internal::ReaderCFileCookie<InitializerTargetT<Src>>(
+          std::forward<Src>(src)));
 }
 
 }  // namespace riegeli

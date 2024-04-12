@@ -46,6 +46,7 @@ cc_library(
         ":digester_handle",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
         "//riegeli/base:types",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",

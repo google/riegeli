@@ -22,11 +22,11 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/any_dependency.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -181,6 +181,8 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
 };
 
 // Factory function for `AnyTextWriter`.
+//
+// `dest` supports `riegeli::Maker<Dest>(args...)` to construct `Dest` in-place.
 template <
     typename Dest,
     std::enable_if_t<
@@ -281,17 +283,17 @@ AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
     Dest&& dest, AnyTextWriterOptions options) {
   switch (options.newline()) {
     case WriteNewline::kLf:
-      return {absl::in_place_type<
-                  TextWriter<WriteNewline::kLf, InitializerTargetT<Dest>>>,
-              std::forward<Dest>(dest), options.buffer_options()};
+      return riegeli::Maker<
+          TextWriter<WriteNewline::kLf, InitializerTargetT<Dest>>>(
+          std::forward<Dest>(dest), options.buffer_options());
     case WriteNewline::kCr:
-      return {absl::in_place_type<
-                  TextWriter<WriteNewline::kCr, InitializerTargetT<Dest>>>,
-              std::forward<Dest>(dest), options.buffer_options()};
+      return riegeli::Maker<
+          TextWriter<WriteNewline::kCr, InitializerTargetT<Dest>>>(
+          std::forward<Dest>(dest), options.buffer_options());
     case WriteNewline::kCrLf:
-      return {absl::in_place_type<
-                  TextWriter<WriteNewline::kCrLf, InitializerTargetT<Dest>>>,
-              std::forward<Dest>(dest), options.buffer_options()};
+      return riegeli::Maker<
+          TextWriter<WriteNewline::kCrLf, InitializerTargetT<Dest>>>(
+          std::forward<Dest>(dest), options.buffer_options());
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

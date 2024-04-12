@@ -20,7 +20,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -33,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -415,7 +415,7 @@ template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(int src, Options options)
-    : FdMMapReader(std::forward_as_tuple(src), std::move(options)) {}
+    : FdMMapReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -485,7 +485,7 @@ template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline void FdMMapReader<Src>::Reset(int src, Options options) {
-  Reset(std::forward_as_tuple(src), std::move(options));
+  Reset(riegeli::Maker(src), std::move(options));
 }
 
 template <typename Src>
@@ -532,7 +532,7 @@ void FdMMapReader<Src>::InitializeWithExistingData(
     int src, Initializer<std::string>::AllowingExplicit filename,
     const Chain& data) {
   FdMMapReaderBase::Reset();
-  src_.Reset(std::forward_as_tuple(src));
+  src_.Reset(riegeli::Maker(src));
   InitializeFilename(std::move(filename));
   ChainReader::Reset(data);
 }

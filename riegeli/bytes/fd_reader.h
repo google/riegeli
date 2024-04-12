@@ -20,7 +20,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -32,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -535,7 +535,7 @@ template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline FdReader<Src>::FdReader(int src, Options options)
-    : FdReader(std::forward_as_tuple(src), std::move(options)) {}
+    : FdReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -616,7 +616,7 @@ template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
 inline void FdReader<Src>::Reset(int src, Options options) {
-  Reset(std::forward_as_tuple(src), std::move(options));
+  Reset(riegeli::Maker(src), std::move(options));
 }
 
 template <typename Src>

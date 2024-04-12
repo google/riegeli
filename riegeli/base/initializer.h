@@ -15,14 +15,13 @@
 #ifndef RIEGELI_BASE_INITIALIZER_H_
 #define RIEGELI_BASE_INITIALIZER_H_
 
-#include <new>
 #include <tuple>
 #include <type_traits>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
-#include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -44,93 +43,6 @@ struct IsConstructible<false, T, Arg> : std::is_convertible<Arg, T> {};
 template <typename T, typename Arg>
 struct IsConstructible<true, T, Arg> : std::is_constructible<T, Arg> {};
 
-// `CanBindTo<T, Args...>::value` is `true` if constructing `T(args...)` with
-// `args...` of type `Args...` can be elided, with `T&&` binding directly to
-// the only element of `args...` instead.
-
-template <typename T, typename... Args>
-struct CanBindTo : std::false_type {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T, Arg> : std::is_convertible<Arg*, T*> {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T, Arg&> : std::false_type {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T, Arg&&> : std::is_convertible<Arg*, T*> {};
-
-// Internal storage which is conditionally needed for storing the object that
-// `Initializer<T>::Reference()` refers to.
-//
-// `ReferenceStorage<T>()` is passed as the default value of a parameter of
-// `Initializer<T>::Reference()` with type `ReferenceStorage<T>&&`, so that
-// it is allocated as a temporary by the caller.
-//
-// It can also be passed explicitly if the call to `Initializer<T>::Reference()`
-// happens in a context which needs the returned reference to be valid longer
-// than the full expression containing the call. This passes the responsibility
-// for passing a `ReferenceStorage<T>` with a suitable lifetime to the caller
-// of that context.
-template <typename T, typename Enable = void>
-class ReferenceStorage {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  ~ReferenceStorage() {
-    if (initialized_) value_.~T();
-  }
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    RIEGELI_ASSERT(!initialized_)
-        << "Failed precondition of ReferenceStorage::emplace(): "
-           "already initialized";
-    new (&value_) T(std::forward<Args>(args)...);
-    initialized_ = true;
-  }
-
-  T&& operator*() && {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of ReferenceStorage::operator*: "
-           "not initialized";
-    return std::move(value_);
-  }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-  bool initialized_ = false;
-};
-
-// Specialization of `ReferenceStorage<T>` for trivially destructible types.
-// There is no need to track whether the object was initialized.
-template <typename T>
-class ReferenceStorage<
-    T, std::enable_if_t<std::is_trivially_destructible<T>::value>> {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    new (&value_) T(std::forward<Args>(args)...);
-  }
-
-  T&& operator*() && { return std::move(value_); }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-};
-
 // Part of `Initializer<T>` common to all specializations.
 template <typename T>
 class InitializerBase {
@@ -140,17 +52,24 @@ class InitializerBase {
 
   // Constructs the `T` by an implicit conversion to `T`.
   //
-  // It is preferred to explicitly call `Construct()` instead, but this
-  // conversion allows to pass `Initializer<T>` to another function no matter
-  // whether it is expecting an `Initializer<T>` or `T`, including functions
-  // like `std::vector<T>::emplace_back()`.
+  // It is preferred to explicitly call `Construct()` instead. This conversion
+  // allows to pass `Initializer<T>` to another function which accepts a value
+  // convertible to `T` for construction in-place, including functions like
+  // `std::vector<T>::emplace_back()` or the constructor of `absl::optional<T>`
+  // or `absl::StatusOr<T>`.
   /*implicit*/ operator T() && { return std::move(*this).Construct(); }
 
  private:
   static T ConstructMethodDefault(void* context);
 
   template <typename Arg>
-  static T ConstructMethodFromArg(void* context);
+  static T ConstructMethodFromObject(void* context);
+
+  template <typename... Args>
+  static T ConstructMethodFromMaker(void* context);
+
+  template <typename... Args>
+  static T ConstructMethodFromConstMaker(void* context);
 
   template <typename... Args>
   static T ConstructMethodFromTuple(void* context);
@@ -169,6 +88,13 @@ class InitializerBase {
   explicit InitializerBase(const Methods* methods, Arg&& arg);
 
   template <typename... Args>
+  explicit InitializerBase(const Methods* methods, MakerType<Args...>&& args);
+
+  template <typename... Args>
+  explicit InitializerBase(const Methods* methods,
+                           const MakerType<Args...>& args);
+
+  template <typename... Args>
   explicit InitializerBase(const Methods* methods, std::tuple<Args...>&& args);
 
   InitializerBase(InitializerBase&& other) = default;
@@ -177,7 +103,16 @@ class InitializerBase {
   static constexpr Methods kMethodsDefault = {ConstructMethodDefault};
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromArg = {ConstructMethodFromArg<Arg>};
+  static constexpr Methods kMethodsFromObject = {
+      ConstructMethodFromObject<Arg>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = {
+      ConstructMethodFromMaker<Args...>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker = {
+      ConstructMethodFromConstMaker<Args...>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -203,32 +138,40 @@ class InitializerValueBase : public InitializerBase<T> {
   // `reference_storage` must outlive usages of the returned reference.
   T&& Reference(ReferenceStorage&& reference_storage
                     ABSL_ATTRIBUTE_LIFETIME_BOUND = ReferenceStorage()) && {
-    return methods()->reference(this->context(), reference_storage);
+    return methods()->reference(this->context(), std::move(reference_storage));
   }
 
  private:
   static T&& ReferenceMethodDefault(void* context,
-                                    ReferenceStorage& reference_storage);
+                                    ReferenceStorage&& reference_storage);
 
   template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int> = 0>
-  static T&& ReferenceMethodFromArg(void* context,
-                                    ReferenceStorage& reference_storage);
+  static T&& ReferenceMethodFromObject(void* context,
+                                       ReferenceStorage&& reference_storage);
   template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int> = 0>
-  static T&& ReferenceMethodFromArg(void* context,
-                                    ReferenceStorage& reference_storage);
+  static T&& ReferenceMethodFromObject(void* context,
+                                       ReferenceStorage&& reference_storage);
+
+  template <typename... Args>
+  static T&& ReferenceMethodFromMaker(void* context,
+                                      ReferenceStorage&& reference_storage);
+
+  template <typename... Args>
+  static T&& ReferenceMethodFromConstMaker(
+      void* context, ReferenceStorage&& reference_storage);
 
   template <typename... Args,
             std::enable_if_t<CanBindTo<T, Args...>::value, int> = 0>
   static T&& ReferenceMethodFromTuple(void* context,
-                                      ReferenceStorage& reference_storage);
+                                      ReferenceStorage&& reference_storage);
   template <typename... Args,
             std::enable_if_t<!CanBindTo<T, Args...>::value, int> = 0>
   static T&& ReferenceMethodFromTuple(void* context,
-                                      ReferenceStorage& reference_storage);
+                                      ReferenceStorage&& reference_storage);
 
  protected:
   struct Methods : InitializerValueBase::InitializerBase::Methods {
-    T && (*reference)(void* context, ReferenceStorage& reference_storage);
+    T && (*reference)(void* context, ReferenceStorage&& reference_storage);
   };
 
 #if __cpp_aggregate_bases
@@ -237,9 +180,21 @@ class InitializerValueBase : public InitializerBase<T> {
       ReferenceMethodDefault};
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromArg = {
-      InitializerValueBase::InitializerBase::template kMethodsFromArg<Arg>,
-      ReferenceMethodFromArg<Arg>};
+  static constexpr Methods kMethodsFromObject = {
+      InitializerValueBase::InitializerBase::template kMethodsFromObject<Arg>,
+      ReferenceMethodFromObject<Arg>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = {
+      InitializerValueBase::InitializerBase::template kMethodsFromMaker<
+          Args...>,
+      ReferenceMethodFromMaker<Args...>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker = {
+      InitializerValueBase::InitializerBase::template kMethodsFromConstMaker<
+          Args...>,
+      ReferenceMethodFromConstMaker<Args...>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -254,10 +209,29 @@ class InitializerValueBase : public InitializerBase<T> {
   }();
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromArg = [] {
+  static constexpr Methods kMethodsFromObject = [] {
     Methods methods(
-        InitializerValueBase::InitializerBase::template kMethodsFromArg<Arg>);
-    methods.reference = ReferenceMethodFromArg<Arg>;
+        InitializerValueBase::InitializerBase::template kMethodsFromObject<
+            Arg>);
+    methods.reference = ReferenceMethodFromObject<Arg>;
+    return methods;
+  }();
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = [] {
+    Methods methods(
+        InitializerValueBase::InitializerBase::template kMethodsFromMaker<
+            Args...>);
+    methods.reference = ReferenceMethodFromMaker<Args...>;
+    return methods;
+  }();
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker = [] {
+    Methods methods(
+        InitializerValueBase::InitializerBase::template kMethodsFromConstMaker<
+            Args...>);
+    methods.reference = ReferenceMethodFromConstMaker<Args...>;
     return methods;
   }();
 
@@ -281,6 +255,16 @@ class InitializerValueBase : public InitializerBase<T> {
   explicit InitializerValueBase(const Methods* methods, Arg&& arg)
       : InitializerValueBase::InitializerBase(methods, std::forward<Arg>(arg)) {
   }
+
+  template <typename... Args>
+  explicit InitializerValueBase(const Methods* methods,
+                                MakerType<Args...>&& args)
+      : InitializerValueBase::InitializerBase(methods, std::move(args)) {}
+
+  template <typename... Args>
+  explicit InitializerValueBase(const Methods* methods,
+                                const MakerType<Args...>& args)
+      : InitializerValueBase::InitializerBase(methods, args) {}
 
   template <typename... Args>
   explicit InitializerValueBase(const Methods* methods,
@@ -308,7 +292,13 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   static void AssignToMethodDefault(void* context, T& object);
 
   template <typename Arg>
-  static void AssignToMethodFromArg(void* context, T& object);
+  static void AssignToMethodFromObject(void* context, T& object);
+
+  template <typename... Args>
+  static void AssignToMethodFromMaker(void* context, T& object);
+
+  template <typename... Args>
+  static void AssignToMethodFromConstMaker(void* context, T& object);
 
   template <typename... Args>
   static void AssignToMethodFromTuple(void* context, T& object);
@@ -325,10 +315,22 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
       AssignToMethodDefault};
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromArg = {
+  static constexpr Methods kMethodsFromObject = {
       InitializerAssignableValueBase::InitializerValueBase::
-          template kMethodsFromArg<Arg>,
-      AssignToMethodFromArg<Arg>};
+          template kMethodsFromObject<Arg>,
+      AssignToMethodFromObject<Arg>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = {
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsFromMaker<Args...>,
+      AssignToMethodFromMaker<Args...>};
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker = {
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsFromConstMaker<Args...>,
+      AssignToMethodFromConstMaker<Args...>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromTuple = {
@@ -344,10 +346,26 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   }();
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromArg = [] {
+  static constexpr Methods kMethodsFromObject = [] {
     Methods methods(InitializerAssignableValueBase::InitializerValueBase::
-                        template kMethodsFromArg<Arg>);
-    methods.assign_to = AssignToMethodFromArg<Arg>;
+                        template kMethodsFromObject<Arg>);
+    methods.assign_to = AssignToMethodFromObject<Arg>;
+    return methods;
+  }();
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = [] {
+    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
+                        template kMethodsFromMaker<Args...>);
+    methods.assign_to = AssignToMethodFromMaker<Args...>;
+    return methods;
+  }();
+
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker = [] {
+    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
+                        template kMethodsFromConstMaker<Args...>);
+    methods.assign_to = AssignToMethodFromConstMaker<Args...>;
     return methods;
   }();
 
@@ -374,6 +392,17 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
 
   template <typename... Args>
   explicit InitializerAssignableValueBase(const Methods* methods,
+                                          MakerType<Args...>&& args)
+      : InitializerAssignableValueBase::InitializerValueBase(methods,
+                                                             std::move(args)) {}
+
+  template <typename... Args>
+  explicit InitializerAssignableValueBase(const Methods* methods,
+                                          const MakerType<Args...>& args)
+      : InitializerAssignableValueBase::InitializerValueBase(methods, args) {}
+
+  template <typename... Args>
+  explicit InitializerAssignableValueBase(const Methods* methods,
                                           std::tuple<Args...>&& args)
       : InitializerAssignableValueBase::InitializerValueBase(methods,
                                                              std::move(args)) {}
@@ -392,18 +421,18 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
 }  // namespace initializer_internal
 
 // A parameter of type `Initializer<T>` allows the caller to specify a `T` by
-// passing a value convertible to `T` or a tuple of constructor arguments for
-// `T` (usually made with `std::forward_as_tuple()`).
+// passing a value convertible to `T`, or constructor arguments for `T` packed
+// in `riegeli::Maker(args...)` or `riegeli::Maker<T>(args...)`.
 //
-// In contrast to accepting `T` directly, this allows to avoid constructing a
-// temporary `T` and moving from it. This also avoids separate overloads for
-// `const T&` and `T&&` or a template.
+// In contrast to accepting `T` directly, this allows to construct the object
+// in-place, avoiding constructing a temporary and moving from it. This also
+// avoids separate overloads for `const T&` and `T&&` or a template.
 //
-// `Initializer<T>` does not own the object which was passed to it, even if that
-// is a temporary, so it should be used only as a parameter of a function or
-// constructor, so that the temporaries outlive its usage.
-//
-// `Initializer<T>` itself is move-constructible.
+// `Initializer<T>(arg)` does not own `arg`, even if it involves temporaries,
+// hence it should be used only as a parameter of a function or constructor,
+// so that the temporaries outlive its usage. Instead of storing an
+// `Initializer<T>` in a variable or returning it from a function, consider
+// `riegeli::OwningMaker<T>(args...)`, `MakerTypeFor<T, Args...>`, or `T`.
 
 // Primary definition of `Initializer` for non-reference move-assignable types.
 template <typename T, bool allow_explicit = false, typename Enable = void>
@@ -436,14 +465,68 @@ class Initializer
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
             &Initializer::InitializerAssignableValueBase::
-                template kMethodsFromArg<Arg>,
+                template kMethodsFromObject<Arg>,
             std::forward<Arg>(arg)) {}
 
-  // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
-  // (usually made with `std::forward_as_tuple()`).
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerType<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromMaker<Args...>,
+            std::move(args)) {}
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerType<Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromConstMaker<Args...>,
+            args) {}
+
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker<T>(args...)`.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerTypeFor<T, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromMaker<Args...>,
+            std::move(args).maker()) {}
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker<T>(args...)`.
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerTypeFor<T, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromConstMaker<Args...>,
+            args.maker()) {}
+
+  // Deprecated: use `riegeli::Maker(args...)` instead of
+  // `std::forward_as_tuple(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  ABSL_DEPRECATED(
+      "Use riegeli::Maker(args...) instead of std::forward_as_tuple(args...). "
+      "Prefer Template(riegeli::Maker<T>(args...)) over "
+      "Template<T>(riegeli::Maker(args...)) if CTAD for Template can be used")
   /*implicit*/ Initializer(
       std::tuple<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
@@ -485,14 +568,67 @@ class Initializer<T, allow_explicit,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
-            &Initializer::InitializerValueBase::template kMethodsFromArg<Arg>,
+            &Initializer::InitializerValueBase::template kMethodsFromObject<
+                Arg>,
             std::forward<Arg>(arg)) {}
 
-  // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
-  // (usually made with `std::forward_as_tuple()`).
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerType<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::template kMethodsFromMaker<
+                Args...>,
+            std::move(args)) {}
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerType<Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::template kMethodsFromConstMaker<
+                Args...>,
+            args) {}
+
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker<T>(args...)`.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerTypeFor<T, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::template kMethodsFromMaker<
+                Args...>,
+            std::move(args).maker()) {}
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerTypeFor<T, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::template kMethodsFromConstMaker<
+                Args...>,
+            args.maker()) {}
+
+  // Deprecated: use `riegeli::Maker(args...)` instead of
+  // `std::forward_as_tuple(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  ABSL_DEPRECATED(
+      "Use riegeli::Maker(args...) instead of std::forward_as_tuple(args...). "
+      "Prefer Template(riegeli::Maker<T>(args...)) over "
+      "Template<T>(riegeli::Maker(args...)) if CTAD for Template can be used")
   /*implicit*/ Initializer(
       std::tuple<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
@@ -526,14 +662,64 @@ class Initializer<T, allow_explicit,
                        int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
-            &Initializer::InitializerBase::template kMethodsFromArg<Arg>,
+            &Initializer::InitializerBase::template kMethodsFromObject<Arg>,
             std::forward<Arg>(arg)) {}
 
-  // Constructs `Initializer<T>` from a tuple of constructor arguments for `T`
-  // (usually made with `std::forward_as_tuple()`).
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerType<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromMaker<Args...>,
+            std::move(args)) {}
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerType<Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromConstMaker<
+                Args...>,
+            args) {}
+
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker<T>(args...)`.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  /*implicit*/ Initializer(
+      MakerTypeFor<T, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromMaker<Args...>,
+            std::move(args).maker()) {}
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  /*implicit*/ Initializer(
+      const MakerTypeFor<T, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromConstMaker<
+                Args...>,
+            args.maker()) {}
+
+  // Deprecated: use `riegeli::Maker(args...)` instead of
+  // `std::forward_as_tuple(args...)`.
+  //
+  // Prefer `Template(riegeli::Maker<T>(args...))` over
+  // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  ABSL_DEPRECATED(
+      "Use riegeli::Maker(args...) instead of std::forward_as_tuple(args...). "
+      "Prefer Template(riegeli::Maker<T>(args...)) over "
+      "Template<T>(riegeli::Maker(args...)) if CTAD for Template can be used")
   /*implicit*/ Initializer(
       std::tuple<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
@@ -558,17 +744,29 @@ class Initializer<T, allow_explicit,
 // appropriate target type such that `T` is convertible to
 // `Initializer<InitializerTargetT<T>>`.
 //
-// This allows a single template to uniformly handle a `Target` passed directly
-// or as `Initializer<Target>`. This is also useful for CTAD guides to deduce a
-// template argument as `InitializerTargetT<T>`.
+// This allows a single template to uniformly handle a `Target` passed directly,
+// as `riegeli::Maker<Target>(args...)`, or as `Initializer<Target>`. This is
+// also useful for CTAD guides to deduce a template argument as
+// `InitializerTargetT<T>`.
 //
-// This is undefined in the case of `std::tuple<Args...>` which requires the
-// target type to be specified by the caller.
+// This is undefined in the case of `riegeli::Maker(args...)` and deprecated
+// `std::tuple<Args...>` which require the target type to be specified by the
+// caller.
 
 namespace initializer_internal {
 
 template <typename T>
 struct InitializerTargetImpl {
+  using type = T;
+};
+
+template <typename... Args>
+struct InitializerTargetImpl<MakerType<Args...>> {
+  // No `type` member when the target type is unspecified.
+};
+
+template <typename T, typename... Args>
+struct InitializerTargetImpl<MakerTypeFor<T, Args...>> {
   using type = T;
 };
 
@@ -610,6 +808,18 @@ inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
 template <typename T>
 template <typename... Args>
 inline InitializerBase<T>::InitializerBase(const Methods* methods,
+                                           MakerType<Args...>&& args)
+    : methods_(methods), context_(&args) {}
+
+template <typename T>
+template <typename... Args>
+inline InitializerBase<T>::InitializerBase(const Methods* methods,
+                                           const MakerType<Args...>& args)
+    : methods_(methods), context_(const_cast<MakerType<Args...>*>(&args)) {}
+
+template <typename T>
+template <typename... Args>
+inline InitializerBase<T>::InitializerBase(const Methods* methods,
                                            std::tuple<Args...>&& args)
     : methods_(methods), context_(&args) {}
 
@@ -621,9 +831,23 @@ T InitializerBase<T>::ConstructMethodDefault(
 
 template <typename T>
 template <typename Arg>
-T InitializerBase<T>::ConstructMethodFromArg(void* context) {
+T InitializerBase<T>::ConstructMethodFromObject(void* context) {
   return T(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+}
+
+template <typename T>
+template <typename... Args>
+T InitializerBase<T>::ConstructMethodFromMaker(void* context) {
+  return std::move(*static_cast<MakerType<Args...>*>(context))
+      .template Construct<T>();
+}
+
+template <typename T>
+template <typename... Args>
+T InitializerBase<T>::ConstructMethodFromConstMaker(void* context) {
+  return static_cast<const MakerType<Args...>*>(context)
+      ->template Construct<T>();
 }
 
 template <typename T>
@@ -635,31 +859,47 @@ T InitializerBase<T>::ConstructMethodFromTuple(void* context) {
 
 template <typename T>
 T&& InitializerValueBase<T>::ReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, ReferenceStorage& reference_storage) {
+    ABSL_ATTRIBUTE_UNUSED void* context, ReferenceStorage&& reference_storage) {
   reference_storage.emplace();
   return *std::move(reference_storage);
 }
 
 template <typename T>
 template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int>>
-T&& InitializerValueBase<T>::ReferenceMethodFromArg(
-    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage& reference_storage) {
+T&& InitializerValueBase<T>::ReferenceMethodFromObject(
+    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage&& reference_storage) {
   return std::forward<T>(*static_cast<std::remove_reference_t<Arg>*>(context));
 }
 
 template <typename T>
 template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int>>
-T&& InitializerValueBase<T>::ReferenceMethodFromArg(
-    void* context, ReferenceStorage& reference_storage) {
+T&& InitializerValueBase<T>::ReferenceMethodFromObject(
+    void* context, ReferenceStorage&& reference_storage) {
   reference_storage.emplace(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
   return *std::move(reference_storage);
 }
 
 template <typename T>
+template <typename... Args>
+T&& InitializerValueBase<T>::ReferenceMethodFromMaker(
+    void* context, ReferenceStorage&& reference_storage) {
+  return std::move(*static_cast<MakerType<Args...>*>(context))
+      .template Reference<T>(std::move(reference_storage));
+}
+
+template <typename T>
+template <typename... Args>
+T&& InitializerValueBase<T>::ReferenceMethodFromConstMaker(
+    void* context, ReferenceStorage&& reference_storage) {
+  return static_cast<const MakerType<Args...>*>(context)->template Reference<T>(
+      std::move(reference_storage));
+}
+
+template <typename T>
 template <typename... Args, std::enable_if_t<CanBindTo<T, Args...>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromTuple(
-    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage& reference_storage) {
+    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage&& reference_storage) {
   return std::forward<T>(
       std::get<0>(*static_cast<std::tuple<Args...>*>(context)));
 }
@@ -668,7 +908,7 @@ template <typename T>
 template <typename... Args,
           std::enable_if_t<!CanBindTo<T, Args...>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromTuple(
-    void* context, ReferenceStorage& reference_storage) {
+    void* context, ReferenceStorage&& reference_storage) {
   absl::apply(
       [&](Args&&... args) {
         reference_storage.emplace(std::forward<Args>(args)...);
@@ -685,11 +925,26 @@ void InitializerAssignableValueBase<T>::AssignToMethodDefault(
 
 template <typename T>
 template <typename Arg>
-void InitializerAssignableValueBase<T>::AssignToMethodFromArg(void* context,
-                                                              T& object) {
+void InitializerAssignableValueBase<T>::AssignToMethodFromObject(void* context,
+                                                                 T& object) {
   riegeli::Reset(
       object,
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+}
+
+template <typename T>
+template <typename... Args>
+void InitializerAssignableValueBase<T>::AssignToMethodFromMaker(void* context,
+                                                                T& object) {
+  std::move(*static_cast<MakerType<Args...>*>(context))
+      .template AssignTo<T>(object);
+}
+
+template <typename T>
+template <typename... Args>
+void InitializerAssignableValueBase<T>::AssignToMethodFromConstMaker(
+    void* context, T& object) {
+  static_cast<const MakerType<Args...>*>(context)->template AssignTo<T>(object);
 }
 
 template <typename T>

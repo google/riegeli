@@ -57,7 +57,6 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include <tuple>
 #ifndef _WIN32
 #include <type_traits>
 #endif
@@ -80,7 +79,9 @@
 #include "riegeli/base/chain.h"
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
-#else
+#endif
+#include "riegeli/base/maker.h"
+#ifndef _WIN32
 #include "riegeli/base/no_destructor.h"
 #endif
 #include "riegeli/base/object.h"
@@ -235,7 +236,7 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   if (length == 0) {
     // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
     // Set it now to empty.
-    ChainReader::Reset(std::forward_as_tuple());
+    ChainReader::Reset(riegeli::Maker());
     return;
   }
 
@@ -293,8 +294,8 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
 
   // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
   // Set it now.
-  ChainReader::Reset(Chain::FromExternal<MMapRef>(
-      std::forward_as_tuple(static_cast<const char*>(addr)),
+  ChainReader::Reset(Chain::FromExternal(
+      riegeli::Maker<MMapRef>(static_cast<const char*>(addr)),
       absl::string_view(static_cast<const char*>(addr) + rounding,
                         IntCast<size_t>(length))));
   if (options.max_length() == absl::nullopt) Seek(initial_pos);

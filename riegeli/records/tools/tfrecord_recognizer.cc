@@ -19,6 +19,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/any_dependency.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/zlib/zlib_reader.h"
@@ -46,7 +47,7 @@ bool TFRecordRecognizer::CheckFileFormat(
     record_reader_options.zlib_options =
         tensorflow::io::ZlibCompressionOptions::DEFAULT();
     record_reader_options.zlib_options.window_bits = 32;
-    reader.Emplace<ZlibReader<>>(byte_reader_);
+    reader = riegeli::Maker<ZlibReader<>>(byte_reader_);
   } else {
     record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::NONE;

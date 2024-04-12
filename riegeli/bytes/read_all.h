@@ -245,21 +245,20 @@ template <typename Src, typename Work,
 inline StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
     Src&& src, Work&& work, size_t max_length, size_t* length_read) {
   using WorkResult = read_all_internal::StringViewCallResult<Work>;
-  using Maker = StatusOrMaker<WorkResult>;
   Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::string_view dest;
   absl::Status status =
       read_all_internal::ReadAllImpl(*src_dep, dest, max_length, length_read);
-  typename Maker::type result = ABSL_PREDICT_FALSE(!status.ok())
-                                    ? Maker::FromStatus(std::move(status))
-                                    : Maker::FromWork([&]() -> WorkResult {
-                                        return std::forward<Work>(work)(dest);
-                                      });
+  typename StatusOrMaker<WorkResult>::type result =
+      ABSL_PREDICT_FALSE(!status.ok())
+          ? StatusOrMaker<WorkResult>::FromStatus(std::move(status))
+          : StatusOrMaker<WorkResult>::FromWork(
+                [&]() -> WorkResult { return std::forward<Work>(work)(dest); });
   if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(result.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
-      Maker::Update(result, src_dep->status());
+      StatusOrMaker<WorkResult>::Update(result, src_dep->status());
     }
   }
   return result;

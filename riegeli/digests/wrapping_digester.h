@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/types.h"
 #include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"
@@ -72,7 +73,7 @@ class WrappingDigester {
       typename DependentBaseDigester = BaseDigester,
       std::enable_if_t<
           std::is_default_constructible<DependentBaseDigester>::value, int> = 0>
-  WrappingDigester() : base_(std::forward_as_tuple()) {}
+  WrappingDigester() : base_(riegeli::Maker()) {}
 
   // Forwards constructor arguments to the `BaseDigester`.
   template <
@@ -84,7 +85,7 @@ class WrappingDigester {
               std::is_constructible<BaseDigester, Args&&...>>::value,
           int> = true>
   explicit WrappingDigester(Args&&... args)
-      : base_(std::forward_as_tuple(std::forward<Args>(args)...)) {}
+      : base_(riegeli::Maker(std::forward<Args>(args)...)) {}
 
   WrappingDigester(const WrappingDigester& that) = default;
   WrappingDigester& operator=(const WrappingDigester& that) = default;

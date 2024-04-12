@@ -17,7 +17,6 @@
 
 #include <limits>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "absl/base/optimization.h"
@@ -34,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -141,7 +141,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
     }
 
     chunk_encoding_internal::Decompressor<LimitingReader<>> sizes_decompressor(
-        std::forward_as_tuple(
+        riegeli::Maker(
             &src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
         compression_type);
     if (ABSL_PREDICT_FALSE(!sizes_decompressor.ok())) {
@@ -231,9 +231,9 @@ absl::Status DescribeTransposedChunk(
                                              NullBackwardWriter>
         dest_writer;
     if (show_records) {
-      dest_writer.Emplace<ChainBackwardWriter<>>(&dest);
+      dest_writer = riegeli::Maker<ChainBackwardWriter<>>(&dest);
     } else {
-      dest_writer.Emplace<NullBackwardWriter>();
+      dest_writer = riegeli::Maker<NullBackwardWriter>();
     }
     dest_writer->SetWriteSizeHint(chunk.header.decoded_data_size());
     std::vector<size_t> limits;
@@ -280,7 +280,7 @@ absl::Status DescribeTransposedChunk(
 void DescribeFile(absl::string_view filename, Writer& report) {
   WriteLine("file {", report);
   WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
-  DefaultChunkReader<FdReader<>> chunk_reader(std::forward_as_tuple(filename));
+  DefaultChunkReader<FdReader<>> chunk_reader(riegeli::Maker(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const absl::optional<Position> size = chunk_reader.Size();
     if (size != absl::nullopt) WriteLine("  file_size: ", *size, report);

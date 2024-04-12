@@ -17,12 +17,12 @@
 
 #include <stddef.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -31,17 +31,16 @@ namespace riegeli {
 // `Manager` (for `Dependency`) or `Handle` (for `AnyDependency`) of type `T`.
 //
 // To customize that for a class `T`, define a free function
-// `friend T RiegeliDependencySentinel(T*)` as a friend of `T` inside class
+// `friend Result RiegeliDependencySentinel(T*)` as a friend of `T` inside class
 // definition or in the same namespace as `T`, so that it can be found via ADL.
 //
-// `RiegeliDependencySentinel(T*)` returns a value of type `T`, or a tuple of
-// its constructor arguments to avoid constructing a temporary `T` and moving
-// from it.
+// `RiegeliDependencySentinel(T*)` returns a value convertible to
+// `Initializer<T>`, usually a `MakerType<Args...>`.
 //
 // The argument of `RiegeliDependencySentinel(T*)` is always a null pointer,
 // used to choose the right overload based on the type.
 
-inline std::tuple<> RiegeliDependencySentinel(void*) { return {}; }
+inline MakerType<> RiegeliDependencySentinel(void*) { return {}; }
 
 // Implementation shared between most specializations of `DependencyManagerImpl`
 // and `DependencyImpl` which store `manager()` in a member variable.
@@ -160,7 +159,7 @@ class DependencyBase<Manager&&> {
 //
 // Only a subset of operations is provided: default initialization
 // value-initializes the array (`RiegeliDependencySentinel()` is not supported),
-// and initialization from a tuple of constructor arguments is not supported.
+// and initialization from `Initializer<T[size]>` is not supported.
 template <typename T, size_t size>
 class DependencyBase<T[size]> {
  public:

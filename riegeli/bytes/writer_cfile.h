@@ -49,7 +49,7 @@ class WriterCFileOptions {
   // expected.
   //
   // There is no way for `WriterCFile()` to distinguish `fflush()` from the
-  // `FILE` buffer being fill, hence this option.
+  // `FILE` buffer being full, hence this option.
   //
   // Default: `absl::nullopt`.
   WriterCFileOptions& set_flush_type(absl::optional<FlushType> flush_type) & {
@@ -82,15 +82,17 @@ class WriterCFileOptions {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyDependency<Writer*>` (maybe owned).
 //
+// `dest` supports `riegeli::Maker<Dest>(args...)` to construct `Dest` in-place.
+//
 // The `Writer` must not be accessed until the `FILE` is closed. Warning: this
 // includes implicit closing of all `FILE` objects which are still open at
 // program exit, hence if the `FILE` persists until program exit, then the
 // `Writer` must do so as well.
-template <typename Dest>
+template <
+    typename Dest,
+    std::enable_if_t<
+        IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int> = 0>
 FILE* WriterCFile(Dest&& dest,
-                  WriterCFileOptions options = WriterCFileOptions());
-template <typename Dest>
-FILE* WriterCFile(Initializer<Dest> dest,
                   WriterCFileOptions options = WriterCFileOptions());
 
 // Implementation details follow.
@@ -163,17 +165,13 @@ FILE* WriterCFileImpl(WriterCFileCookieBase* cookie);
 
 }  // namespace cfile_internal
 
-template <typename Dest>
+template <typename Dest,
+          std::enable_if_t<
+              IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int>>
 FILE* WriterCFile(Dest&& dest, WriterCFileOptions options) {
-  return WriterCFile(Initializer<std::decay_t<Dest>>(std::forward<Dest>(dest)),
-                     std::move(options));
-}
-
-template <typename Dest>
-FILE* WriterCFile(Initializer<Dest> dest, WriterCFileOptions options) {
   return cfile_internal::WriterCFileImpl(
-      new cfile_internal::WriterCFileCookie<Dest>(std::move(dest),
-                                                  options.flush_type()));
+      new cfile_internal::WriterCFileCookie<InitializerTargetT<Dest>>(
+          std::forward<Dest>(dest), options.flush_type()));
 }
 
 }  // namespace riegeli

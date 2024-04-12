@@ -23,7 +23,6 @@
 #include <sys/types.h>
 
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -35,6 +34,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
@@ -718,7 +718,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
 inline FdWriter<Dest>::FdWriter(int dest, Options options)
-    : FdWriter(std::forward_as_tuple(dest), std::move(options)) {}
+    : FdWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>
 template <typename DependentDest,
@@ -789,7 +789,7 @@ template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
 inline void FdWriter<Dest>::Reset(int dest, Options options) {
-  Reset(std::forward_as_tuple(dest), std::move(options));
+  Reset(riegeli::Maker(dest), std::move(options));
 }
 
 template <typename Dest>

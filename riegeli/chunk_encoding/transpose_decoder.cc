@@ -22,7 +22,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -37,6 +36,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -519,7 +519,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         absl::InvalidArgumentError("Reading header failed")));
   }
   chunk_encoding_internal::Decompressor<ChainReader<>> header_decompressor(
-      std::forward_as_tuple(&header), context.compression_type,
+      riegeli::Maker(&header), context.compression_type,
       chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(
           recycling_pool_options_));
   if (ABSL_PREDICT_FALSE(!header_decompressor.ok())) {
@@ -826,7 +826,7 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
           absl::InvalidArgumentError("Reading bucket failed")));
     }
     bucket_decompressors.emplace_back(
-        std::forward_as_tuple(std::move(bucket)), context.compression_type,
+        riegeli::Maker(std::move(bucket)), context.compression_type,
         chunk_encoding_internal::DecompressorOptions()
             .set_recycling_pool_options(recycling_pool_options_));
     if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().ok())) {
@@ -978,8 +978,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
     if (bucket.buffers.empty()) {
       // This is the first buffer to be decompressed from this bucket.
       bucket.decompressor.Reset(
-          std::forward_as_tuple(&bucket.compressed_data),
-          context.compression_type,
+          riegeli::Maker(&bucket.compressed_data), context.compression_type,
           chunk_encoding_internal::DecompressorOptions()
               .set_recycling_pool_options(recycling_pool_options_));
       if (ABSL_PREDICT_FALSE(!bucket.decompressor.ok())) {

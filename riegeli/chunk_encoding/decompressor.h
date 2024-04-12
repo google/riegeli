@@ -29,6 +29,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/brotli/brotli_reader.h"
@@ -183,17 +184,17 @@ inline void Decompressor<Src>::Initialize(
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      decompressed_.template Emplace<BrotliReader<Src>>(
+      decompressed_ = riegeli::Maker<BrotliReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
     case CompressionType::kZstd:
-      decompressed_.template Emplace<ZstdReader<Src>>(
+      decompressed_ = riegeli::Maker<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
           ZstdReaderBase::Options().set_recycling_pool_options(
               recycling_pool_options));
       return;
     case CompressionType::kSnappy:
-      decompressed_.template Emplace<SnappyReader<Src>>(
+      decompressed_ = riegeli::Maker<SnappyReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
   }

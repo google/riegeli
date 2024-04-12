@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -34,6 +33,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -129,9 +129,8 @@ class DigestingReader : public DigestingReaderBase {
 
   // Will read from the original `Reader` provided by `src`, using the
   // digester provided by `digester`.
-  explicit DigestingReader(
-      Initializer<Src> src,
-      Initializer<Digester> digester = std::forward_as_tuple());
+  explicit DigestingReader(Initializer<Src> src,
+                           Initializer<Digester> digester = riegeli::Maker());
 
   DigestingReader(DigestingReader&& that) noexcept;
   DigestingReader& operator=(DigestingReader&& that) noexcept;
@@ -140,8 +139,7 @@ class DigestingReader : public DigestingReaderBase {
   // avoids constructing a temporary `DigestingReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<Src> src,
-      Initializer<Digester> digester = std::forward_as_tuple());
+      Initializer<Src> src, Initializer<Digester> digester = riegeli::Maker());
 
   // Digests buffered data if needed, and returns the digest.
   //
@@ -199,8 +197,7 @@ class DigestingReader : public DigestingReaderBase {
 #if __cpp_deduction_guides
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
-explicit DigestingReader(Src&& src,
-                         Digester&& digester = std::forward_as_tuple())
+explicit DigestingReader(Src&& src, Digester&& digester = riegeli::Maker())
     -> DigestingReader<InitializerTargetT<Digester>, InitializerTargetT<Src>>;
 #endif
 
@@ -392,7 +389,6 @@ DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {
   using DigestType =
       digest_converter_internal::ResolveNoConversion<DigestOf<Digester&&>,
                                                      DesiredDigestType>;
-  using Maker = StatusOrMaker<DigestType>;
   DigestingReader<Digester&&, Src&&> reader(std::forward<Src>(src),
                                             std::forward<Digester&&>(digester));
   reader.SetReadAllHint(true);
@@ -404,9 +400,9 @@ DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {
       << "DigestingReader decreased src.pos()";
   if (length_read != nullptr) *length_read = reader.pos() - pos_before;
   if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) {
-    return Maker::FromStatus(reader.status());
+    return StatusOrMaker<DigestType>::FromStatus(reader.status());
   }
-  return Maker::FromWork(
+  return StatusOrMaker<DigestType>::FromWork(
       [&]() -> DigestType { return reader.template Digest<DigestType>(); });
 }
 

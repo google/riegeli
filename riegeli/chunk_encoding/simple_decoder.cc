@@ -18,12 +18,12 @@
 #include <stdint.h>
 
 #include <limits>
-#include <tuple>
 #include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -66,7 +66,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
   }
 
   chunk_encoding_internal::Decompressor<LimitingReader<>> sizes_decompressor(
-      std::forward_as_tuple(
+      riegeli::Maker(
           src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
       compression_type,
       chunk_encoding_internal::DecompressorOptions().set_recycling_pool_options(

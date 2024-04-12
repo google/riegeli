@@ -173,10 +173,14 @@ cc_library(
 
 cc_library(
     name = "initializer",
-    hdrs = ["initializer.h"],
+    hdrs = [
+        "initializer.h",
+        "maker.h",
+    ],
     deps = [
         ":assert",
         ":reset",
+        ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/utility",
@@ -243,10 +247,7 @@ cc_library(
 
 cc_library(
     name = "any_dependency",
-    srcs = [
-        "any_dependency_internal.h",
-        "in_place_template.h",
-    ],
+    srcs = ["any_dependency_internal.h"],
     hdrs = ["any_dependency.h"],
     deps = [
         ":arithmetic",
@@ -261,7 +262,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -312,6 +312,7 @@ cc_library(
     deps = [
         ":assert",
         ":constexpr",
+        ":initializer",
         ":type_id",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -385,6 +386,7 @@ cc_library(
         ":buffering",
         ":compare",
         ":cord_utils",
+        ":initializer",
         ":intrusive_ref_count",
         ":memory_estimator",
         ":new_aligned",
@@ -400,7 +402,6 @@ cc_library(
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
     ],
 )
 

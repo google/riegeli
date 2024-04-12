@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -34,6 +33,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -310,7 +310,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(Options options)
-    : CordBackwardWriter(std::forward_as_tuple(), std::move(options)) {}
+    : CordBackwardWriter(riegeli::Maker(), std::move(options)) {}
 
 template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(
@@ -345,7 +345,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline void CordBackwardWriter<Dest>::Reset(Options options) {
-  Reset(std::forward_as_tuple(), std::move(options));
+  Reset(riegeli::Maker(), std::move(options));
 }
 
 }  // namespace riegeli

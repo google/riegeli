@@ -19,7 +19,6 @@
 #include <iosfwd>
 #include <istream>
 #include <streambuf>
-#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -29,6 +28,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -136,7 +136,7 @@ class WriterOStreamBase : public std::iostream {
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.
-  friend std::tuple<Closed> RiegeliDependencySentinel(WriterOStreamBase*) {
+  friend MakerType<Closed> RiegeliDependencySentinel(WriterOStreamBase*) {
     return {kClosed};
   }
 

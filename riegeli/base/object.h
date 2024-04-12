@@ -17,7 +17,6 @@
 
 #include <stdint.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -25,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/constexpr.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/type_id.h"
 
 namespace riegeli {
@@ -299,7 +299,7 @@ class Object {
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
 
   // Support `Dependency`.
-  friend std::tuple<Closed> RiegeliDependencySentinel(Object*) {
+  friend MakerType<Closed> RiegeliDependencySentinel(Object*) {
     return {kClosed};
   }
 

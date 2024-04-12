@@ -25,7 +25,6 @@
 #include <memory>
 #include <new>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -36,11 +35,11 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
@@ -147,13 +146,9 @@ class Chain : public WithCompare<Chain> {
   // Given an object which owns a byte array, converts it to a `Chain` by
   // attaching the object, avoiding copying the bytes.
   //
-  // If an object of type `T` is given, it is copied or moved to the `Chain`.
+  // `object` supports `riegeli::Maker<T>(args...)` to construct `T` in-place.
   //
-  // If a tuple is given, an object of type `T` is constructed from elements of
-  // the tuple. This avoids constructing a temporary object and moving from it.
-  //
-  // After the object or tuple, if the `data` parameter is given, `data` must be
-  // valid for the copied, moved, or newly constructed object.
+  // If the `data` parameter is given, `data` must be valid for the new object.
   //
   // If the `data` parameter is not given, `T` must support:
   // ```
@@ -188,14 +183,13 @@ class Chain : public WithCompare<Chain> {
   // The `data` parameter of these member functions, if present, will get the
   // `data` used by `FromExternal()`. Having `data` available in these functions
   // might avoid storing `data` in the external object.
-  template <typename T>
+  template <typename T, std::enable_if_t<
+                            std::is_constructible<absl::string_view,
+                                                  InitializerTargetT<T>>::value,
+                            int> = 0>
   static Chain FromExternal(T&& object);
   template <typename T>
   static Chain FromExternal(T&& object, absl::string_view data);
-  template <typename T, typename... Args>
-  static Chain FromExternal(std::tuple<Args...> args);
-  template <typename T, typename... Args>
-  static Chain FromExternal(std::tuple<Args...> args, absl::string_view data);
 
   // Allocated size of an external block containing an external object of type
   // `T`.
@@ -919,9 +913,6 @@ Chain ChainOfZeros(size_t length);
 //  - Tiny blocks must not be adjacent.
 class Chain::RawBlock {
  public:
-  template <typename T>
-  struct ExternalType {};
-
   static constexpr size_t kInternalAllocatedOffset();
   static constexpr size_t kMaxCapacity =
       size_t{std::numeric_limits<ptrdiff_t>::max()};
@@ -933,18 +924,16 @@ class Chain::RawBlock {
   // `SizeReturningNewAligned()`.
   explicit RawBlock(const size_t* raw_capacity);
 
-  // Constructs an external block containing an external object of type `T`
-  // constructed from `args`, and sets block data to
-  // `absl::string_view(object)`. This constructor is public for `NewAligned()`.
-  template <typename T, typename... Args>
-  explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
+  // Constructs an external block containing an external object of type `T`, and
+  // sets block data to `absl::string_view(new_object)`. This constructor is
+  // public for `NewAligned()`.
+  template <typename T>
+  explicit RawBlock(Initializer<T> object);
 
-  // Constructs an external block containing an external object of type `T`
-  // constructed from `args`, and sets block data to the data parameter.
-  // This constructor is public for `NewAligned()`.
-  template <typename T, typename... Args>
-  explicit RawBlock(ExternalType<T>, std::tuple<Args...> args,
-                    absl::string_view data);
+  // Constructs an external block containing an external object of type `T`, and
+  // sets block data to `data`. This constructor is public for `NewAligned()`.
+  template <typename T>
+  explicit RawBlock(Initializer<T> object, absl::string_view data);
 
   // Allocated size of an external block containing an external object of type
   // `T`.
@@ -1063,12 +1052,6 @@ class Chain::RawBlock {
 
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
-
-#if !__cpp_guaranteed_copy_elision
-  template <typename T, typename... Args, size_t... indices>
-  void ConstructExternal(std::tuple<Args...>&& args,
-                         std::index_sequence<indices...>);
-#endif
 
   bool is_mutable() const { return is_internal() && has_unique_owner(); }
 
@@ -1222,14 +1205,14 @@ inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // `args`, and sets block data to `absl::string_view(object)`.
+  // `object`, and sets block data to `absl::string_view(new_object)`.
   template <typename... Args>
-  static RawBlock* NewBlock(std::tuple<Args...> args);
+  static RawBlock* NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
-  // `args`, and sets block data to the `data` parameter.
+  // `object`, and sets block data to `data`.
   template <typename... Args>
-  static RawBlock* NewBlock(std::tuple<Args...> args, absl::string_view data);
+  static RawBlock* NewBlock(Initializer<T> object, absl::string_view data);
 
  private:
   static void DeleteBlock(RawBlock* block);
@@ -1254,19 +1237,17 @@ constexpr Chain::ExternalMethods Chain::ExternalMethodsFor<T>::kMethods;
 template <typename T>
 template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
-    std::tuple<Args...> args) {
+    Initializer<T> object) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalAllocatedSize<T>(), RawBlock::ExternalType<T>(),
-      std::move(args));
+      RawBlock::kExternalAllocatedSize<T>(), std::move(object));
 }
 
 template <typename T>
 template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
-    std::tuple<Args...> args, absl::string_view data) {
+    Initializer<T> object, absl::string_view data) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalAllocatedSize<T>(), RawBlock::ExternalType<T>(),
-      std::move(args), data);
+      RawBlock::kExternalAllocatedSize<T>(), std::move(object), data);
 }
 
 template <typename T>
@@ -1298,15 +1279,10 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
                                      memory_estimator);
 }
 
-template <typename T, typename... Args>
-inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
-#if __cpp_guaranteed_copy_elision
+template <typename T>
+inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>())
-      T(absl::make_from_tuple<T>(std::move(args)));
-#else
-  ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
-#endif
+  new (&unchecked_external_object<T>()) T(std::move(object).Construct());
   const absl::string_view data(unchecked_external_object<T>());
   data_ = data.data();
   size_ = data.size();
@@ -1314,17 +1290,11 @@ inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
                                    "should be considered external";
 }
 
-template <typename T, typename... Args>
-inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
-                                 absl::string_view data)
+template <typename T>
+inline Chain::RawBlock::RawBlock(Initializer<T> object, absl::string_view data)
     : data_(data.data()), size_(data.size()) {
-#if __cpp_guaranteed_copy_elision
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>())
-      T(absl::make_from_tuple<T>(std::move(args)));
-#else
-  ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
-#endif
+  new (&unchecked_external_object<T>()) T(std::move(object).Construct());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1362,17 +1332,6 @@ void Chain::RawBlock::Unref() {
     }
   }
 }
-
-#if !__cpp_guaranteed_copy_elision
-template <typename T, typename... Args, size_t... indices>
-inline void Chain::RawBlock::ConstructExternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
-    std::index_sequence<indices...>) {
-  external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>())
-      T(std::forward<Args>(std::get<indices>(args))...);
-}
-#endif
 
 inline bool Chain::RawBlock::has_unique_owner() const {
   return ref_count_.has_unique_owner();
@@ -1694,27 +1653,19 @@ inline Chain::Blocks::reference Chain::Blocks::back() const {
   }
 }
 
-template <typename T>
+template <typename T,
+          std::enable_if_t<std::is_constructible<absl::string_view,
+                                                 InitializerTargetT<T>>::value,
+                           int>>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
-      std::forward_as_tuple(std::forward<T>(object))));
+  return Chain(Chain::ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+      std::forward<T>(object)));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
-  return Chain(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
-      std::forward_as_tuple(std::forward<T>(object)), data));
-}
-
-template <typename T, typename... Args>
-inline Chain Chain::FromExternal(std::tuple<Args...> args) {
-  return Chain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
-}
-
-template <typename T, typename... Args>
-inline Chain Chain::FromExternal(std::tuple<Args...> args,
-                                 absl::string_view data) {
-  return Chain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
+  return Chain(Chain::ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+      std::forward<T>(object), data));
 }
 
 template <typename T>

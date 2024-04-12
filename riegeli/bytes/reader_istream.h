@@ -19,7 +19,6 @@
 #include <iosfwd>
 #include <istream>
 #include <streambuf>
-#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -28,6 +27,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
@@ -120,7 +120,7 @@ class ReaderIStreamBase : public std::istream {
   absl::Status status() const { return streambuf_.status(); }
 
   // Support `Dependency`.
-  friend std::tuple<Closed> RiegeliDependencySentinel(ReaderIStreamBase*) {
+  friend MakerType<Closed> RiegeliDependencySentinel(ReaderIStreamBase*) {
     return {kClosed};
   }
 

@@ -22,7 +22,6 @@
 #include <memory>
 #include <queue>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -38,6 +37,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -234,8 +234,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   LimitingReader<ChainReader<>> record_reader(
-      std::forward_as_tuple(&records),
-      LimitingReaderBase::Options().set_exact_pos(0));
+      riegeli::Maker(&records), LimitingReaderBase::Options().set_exact_pos(0));
   for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
