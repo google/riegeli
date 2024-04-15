@@ -628,11 +628,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
 }
 
 RecordWriterBase::ParallelWorker::~ParallelWorker() {
-  if (ABSL_PREDICT_FALSE(state_.is_open())) {
-    // Ask the chunk writer thread to stop working and exit.
-    ParallelWorker::FailWithoutAnnotation(absl::CancelledError());
-    Done();
-  }
+  if (ABSL_PREDICT_FALSE(state_.is_open())) Done();
 }
 
 void RecordWriterBase::ParallelWorker::Done() {
