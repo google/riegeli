@@ -24,8 +24,10 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -67,7 +69,10 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
-  // Invariant: `start_pos() == 0`
+  // Invariants if `ok()` and scratch is not used:
+  //   `limit() == DestSpan().data()`
+  //   `start_to_limit() == DestSpan().size()`
+  //   `start_pos() == 0`
 };
 
 // A `BackwardWriter` which writes to a preallocated array with a known size
@@ -105,8 +110,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   explicit ArrayBackwardWriter(char* dest, size_t size);
 
-  ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
-  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) noexcept;
+  ArrayBackwardWriter(ArrayBackwardWriter&& that) = default;
+  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ArrayBackwardWriter`. This
   // avoids constructing a temporary `ArrayBackwardWriter` and moving from it.
@@ -124,12 +129,10 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   absl::Span<char> DestSpan() const override { return dest_.get(); }
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(ArrayBackwardWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the array being written to.
-  Dependency<absl::Span<char>, Dest> dest_;
+  MovingDependency<absl::Span<char>, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -179,6 +182,50 @@ inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
 }
 
 template <typename Dest>
+class ArrayBackwardWriter<Dest>::Mover {
+ public:
+  static auto member() { return &ArrayBackwardWriter::dest_; }
+
+  explicit Mover(ArrayBackwardWriter& self, ArrayBackwardWriter& that)
+      : behind_scratch_(&self),
+        uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()),
+        has_written_(self.written().data() != nullptr),
+        written_size_(self.written().size()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(that.dest_.get().data() == self.limit())
+          << "ArrayBackwardWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.dest_.get().size(), self.start_to_limit())
+          << "ArrayBackwardWriter destination changed unexpectedly";
+    }
+    if (has_written_) {
+      RIEGELI_ASSERT(that.dest_.get().data() + that.dest_.get().size() ==
+                     self.written().data() + self.written().size())
+          << "ArrayBackwardWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(ArrayBackwardWriter& self) {
+    if (uses_buffer_) {
+      const absl::Span<char> dest = self.dest_.get();
+      self.set_buffer(dest.data(), dest.size(), start_to_cursor_);
+    }
+    if (has_written_) {
+      const absl::Span<char> dest = self.dest_.get();
+      self.set_written(absl::MakeSpan(dest.data() + dest.size() - written_size_,
+                                      written_size_));
+    }
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+  bool has_written_;
+  size_t written_size_;
+};
+
+template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Initializer<Dest> dest)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
@@ -190,22 +237,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(char* dest, size_t size)
     : ArrayBackwardWriter(absl::MakeSpan(dest, size)) {}
-
-template <typename Dest>
-inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
-    ArrayBackwardWriter&& that) noexcept
-    : ArrayBackwardWriterBase(static_cast<ArrayBackwardWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
-    ArrayBackwardWriter&& that) noexcept {
-  ArrayBackwardWriterBase::operator=(
-      static_cast<ArrayBackwardWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
-}
 
 template <typename Dest>
 inline void ArrayBackwardWriter<Dest>::Reset(Closed) {
@@ -226,26 +257,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline void ArrayBackwardWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
-}
-
-template <typename Dest>
-inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
-  if (dest_.kIsStable) {
-    dest_ = std::move(that.dest_);
-  } else {
-    BehindScratch behind_scratch(this);
-    const size_t cursor_index = start_to_cursor();
-    const size_t written_size = written().size();
-    dest_ = std::move(that.dest_);
-    if (start() != nullptr) {
-      set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
-    }
-    if (written().data() != nullptr) {
-      set_written(
-          absl::MakeSpan(dest_.get().data() + dest_.get().size() - written_size,
-                         written_size));
-    }
-  }
 }
 
 }  // namespace riegeli

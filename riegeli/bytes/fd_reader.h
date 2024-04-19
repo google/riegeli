@@ -392,8 +392,8 @@ class FdReader : public FdReaderBase {
                     Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
 
-  FdReader(FdReader&& that) noexcept;
-  FdReader& operator=(FdReader&& that) noexcept;
+  FdReader(FdReader&& that) = default;
+  FdReader& operator=(FdReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FdReader`. This avoids
   // constructing a temporary `FdReader` and moving from it.
@@ -584,18 +584,6 @@ inline FdReader<Src>::FdReader(
                 /*mode_was_passed_to_open=*/true
 #endif
   );
-}
-
-template <typename Src>
-inline FdReader<Src>::FdReader(FdReader&& that) noexcept
-    : FdReaderBase(static_cast<FdReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
-  FdReaderBase::operator=(static_cast<FdReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

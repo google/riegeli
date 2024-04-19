@@ -25,8 +25,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -86,7 +88,10 @@ class ArrayWriterBase : public PushableWriter {
 
   AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
-  // Invariant: `start_pos() == 0`
+  // Invariants if `ok()` and scratch is not used:
+  //   `start() == DestSpan().data()`
+  //   `start_to_limit() == DestSpan().size()`
+  //   `start_pos() == 0`
 };
 
 // A `Writer` which writes to a preallocated array with a known size limit.
@@ -124,8 +129,8 @@ class ArrayWriter : public ArrayWriterBase {
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
   explicit ArrayWriter(char* dest, size_t size);
 
-  ArrayWriter(ArrayWriter&& that) noexcept;
-  ArrayWriter& operator=(ArrayWriter&& that) noexcept;
+  ArrayWriter(ArrayWriter&& that) = default;
+  ArrayWriter& operator=(ArrayWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ArrayWriter`. This avoids
   // constructing a temporary `ArrayWriter` and moving from it.
@@ -143,12 +148,10 @@ class ArrayWriter : public ArrayWriterBase {
   absl::Span<char> DestSpan() const override { return dest_.get(); }
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(ArrayWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the array being written to.
-  Dependency<absl::Span<char>, Dest> dest_;
+  MovingDependency<absl::Span<char>, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -199,6 +202,48 @@ inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
 }
 
 template <typename Dest>
+class ArrayWriter<Dest>::Mover {
+ public:
+  static auto member() { return &ArrayWriter::dest_; }
+
+  explicit Mover(ArrayWriter& self, ArrayWriter& that)
+      : behind_scratch_(&self),
+        uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()),
+        has_written_(self.written().data() != nullptr),
+        written_size_(self.written().size()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(that.dest_.get().data() == self.start())
+          << "ArrayWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.dest_.get().size(), self.start_to_limit())
+          << "ArrayWriter destination changed unexpectedly";
+    }
+    if (has_written_) {
+      RIEGELI_ASSERT(that.dest_.get().data() == self.written().data())
+          << "ArrayWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(ArrayWriter& self) {
+    if (uses_buffer_) {
+      const absl::Span<char> dest = self.dest_.get();
+      self.set_buffer(dest.data(), dest.size(), start_to_cursor_);
+    }
+    if (has_written_) {
+      const absl::Span<char> dest = self.dest_.get();
+      self.set_written(absl::MakeSpan(dest.data(), written_size_));
+    }
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+  bool has_written_;
+  size_t written_size_;
+};
+
+template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(Initializer<Dest> dest)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
@@ -210,20 +255,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline ArrayWriter<Dest>::ArrayWriter(char* dest, size_t size)
     : ArrayWriter(absl::MakeSpan(dest, size)) {}
-
-template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
-    : ArrayWriterBase(static_cast<ArrayWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
-    ArrayWriter&& that) noexcept {
-  ArrayWriterBase::operator=(static_cast<ArrayWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
-}
 
 template <typename Dest>
 inline void ArrayWriter<Dest>::Reset(Closed) {
@@ -244,24 +275,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
 inline void ArrayWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
-}
-
-template <typename Dest>
-inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
-  if (dest_.kIsStable) {
-    dest_ = std::move(that.dest_);
-  } else {
-    BehindScratch behind_scratch(this);
-    const size_t cursor_index = start_to_cursor();
-    const size_t written_size = written().size();
-    dest_ = std::move(that.dest_);
-    if (start() != nullptr) {
-      set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
-    }
-    if (written().data() != nullptr) {
-      set_written(absl::MakeSpan(dest_.get().data(), written_size));
-    }
-  }
 }
 
 }  // namespace riegeli

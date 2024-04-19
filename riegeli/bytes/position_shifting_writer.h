@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -160,8 +161,8 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
   explicit PositionShiftingWriter(Initializer<Dest> dest,
                                   Options options = Options());
 
-  PositionShiftingWriter(PositionShiftingWriter&& that) noexcept;
-  PositionShiftingWriter& operator=(PositionShiftingWriter&& that) noexcept;
+  PositionShiftingWriter(PositionShiftingWriter&& that) = default;
+  PositionShiftingWriter& operator=(PositionShiftingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `PositionShiftingWriter`.
   // This avoids constructing a temporary `PositionShiftingWriter` and moving
@@ -182,12 +183,10 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(PositionShiftingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -256,27 +255,30 @@ inline void PositionShiftingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
+class PositionShiftingWriter<Dest>::Mover {
+ public:
+  static auto member() { return &PositionShiftingWriter::dest_; }
+
+  explicit Mover(PositionShiftingWriter& self, PositionShiftingWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.dest_);
+  }
+
+  void Done(PositionShiftingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Dest>
 inline PositionShiftingWriter<Dest>::PositionShiftingWriter(
     Initializer<Dest> dest, Options options)
     : PositionShiftingWriterBase(options.base_pos()), dest_(std::move(dest)) {
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline PositionShiftingWriter<Dest>::PositionShiftingWriter(
-    PositionShiftingWriter&& that) noexcept
-    : PositionShiftingWriterBase(
-          static_cast<PositionShiftingWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline PositionShiftingWriter<Dest>& PositionShiftingWriter<Dest>::operator=(
-    PositionShiftingWriter&& that) noexcept {
-  PositionShiftingWriterBase::operator=(
-      static_cast<PositionShiftingWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -291,20 +293,6 @@ inline void PositionShiftingWriter<Dest>::Reset(Initializer<Dest> dest,
   PositionShiftingWriterBase::Reset(options.base_pos());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void PositionShiftingWriter<Dest>::MoveDest(
-    PositionShiftingWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    MakeBuffer(*dest_);
-  }
 }
 
 template <typename Dest>

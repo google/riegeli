@@ -28,6 +28,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
@@ -166,8 +167,24 @@ class ReaderIStream : public ReaderIStreamBase {
   // Will read from the `Reader` provided by `src`.
   explicit ReaderIStream(Initializer<Src> src, Options options = Options());
 
-  ReaderIStream(ReaderIStream&& that) noexcept;
-  ReaderIStream& operator=(ReaderIStream&& that) noexcept;
+  // These operations cannot be defaulted because `ReaderIStreamBase` virtually
+  // derives from `std::ios` which has these operations deleted.
+  ReaderIStream(ReaderIStream&& that) noexcept
+#if __cpp_concepts
+    requires(std::is_move_constructible<Dependency<Reader*, Src>>::value)
+#endif
+      : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)),
+        src_(std::move(that.src_)) {
+  }
+  ReaderIStream& operator=(ReaderIStream&& that) noexcept
+#if __cpp_concepts
+    requires(std::is_move_assignable<Dependency<Reader*, Src>>::value)
+#endif
+  {
+    ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
+    src_ = std::move(that.src_);
+    return *this;
+  }
 
   ~ReaderIStream() override { Done(); }
 
@@ -187,12 +204,10 @@ class ReaderIStream : public ReaderIStreamBase {
   void Done() override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(ReaderIStream&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -296,23 +311,19 @@ inline void ReaderIStreamBase::Initialize(Reader* src) {
 }
 
 template <typename Src>
+class ReaderIStream<Src>::Mover {
+ public:
+  static auto member() { return &ReaderIStream::src_; }
+
+  explicit Mover(ReaderIStream& self) { self.streambuf_.MoveBegin(); }
+
+  void Done(ReaderIStream& self) { self.streambuf_.MoveEnd(self.src_.get()); }
+};
+
+template <typename Src>
 inline ReaderIStream<Src>::ReaderIStream(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline ReaderIStream<Src>::ReaderIStream(ReaderIStream&& that) noexcept
-    : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline ReaderIStream<Src>& ReaderIStream<Src>::operator=(
-    ReaderIStream&& that) noexcept {
-  ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -326,17 +337,6 @@ inline void ReaderIStream<Src>::Reset(Initializer<Src> src, Options options) {
   ReaderIStreamBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline void ReaderIStream<Src>::MoveSrc(ReaderIStream&& that) {
-  if (src_.kIsStable) {
-    src_ = std::move(that.src_);
-  } else {
-    streambuf_.MoveBegin();
-    src_ = std::move(that.src_);
-    streambuf_.MoveEnd(src_.get());
-  }
 }
 
 template <typename Src>

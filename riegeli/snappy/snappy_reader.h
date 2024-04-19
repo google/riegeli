@@ -97,8 +97,8 @@ class SnappyReader : public SnappyReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit SnappyReader(Initializer<Src> src, Options options = Options());
 
-  SnappyReader(SnappyReader&& that) noexcept;
-  SnappyReader& operator=(SnappyReader&& that) noexcept;
+  SnappyReader(SnappyReader&& that) = default;
+  SnappyReader& operator=(SnappyReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `SnappyReader`. This avoids
   // constructing a temporary `SnappyReader` and moving from it.
@@ -192,19 +192,6 @@ inline SnappyReader<Src>::SnappyReader(Initializer<Src> src,
                                        ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline SnappyReader<Src>::SnappyReader(SnappyReader&& that) noexcept
-    : SnappyReaderBase(static_cast<SnappyReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline SnappyReader<Src>& SnappyReader<Src>::operator=(
-    SnappyReader&& that) noexcept {
-  SnappyReaderBase::operator=(static_cast<SnappyReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

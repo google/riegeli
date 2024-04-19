@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -157,8 +158,8 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   explicit PrefixLimitingWriter(Initializer<Dest> dest,
                                 Options options = Options());
 
-  PrefixLimitingWriter(PrefixLimitingWriter&& that) noexcept;
-  PrefixLimitingWriter& operator=(PrefixLimitingWriter&& that) noexcept;
+  PrefixLimitingWriter(PrefixLimitingWriter&& that) = default;
+  PrefixLimitingWriter& operator=(PrefixLimitingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `PrefixLimitingWriter`.
   // This avoids constructing a temporary `PrefixLimitingWriter` and moving
@@ -179,12 +180,10 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(PrefixLimitingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -256,26 +255,30 @@ inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
+class PrefixLimitingWriter<Dest>::Mover {
+ public:
+  static auto member() { return &PrefixLimitingWriter::dest_; }
+
+  explicit Mover(PrefixLimitingWriter& self, PrefixLimitingWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.dest_);
+  }
+
+  void Done(PrefixLimitingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Dest>
 inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(Initializer<Dest> dest,
                                                         Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-inline PrefixLimitingWriter<Dest>::PrefixLimitingWriter(
-    PrefixLimitingWriter&& that) noexcept
-    : PrefixLimitingWriterBase(static_cast<PrefixLimitingWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline PrefixLimitingWriter<Dest>& PrefixLimitingWriter<Dest>::operator=(
-    PrefixLimitingWriter&& that) noexcept {
-  PrefixLimitingWriterBase::operator=(
-      static_cast<PrefixLimitingWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -290,19 +293,6 @@ inline void PrefixLimitingWriter<Dest>::Reset(Initializer<Dest> dest,
   PrefixLimitingWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.base_pos());
-}
-
-template <typename Dest>
-inline void PrefixLimitingWriter<Dest>::MoveDest(PrefixLimitingWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    MakeBuffer(*dest_);
-  }
 }
 
 template <typename Dest>

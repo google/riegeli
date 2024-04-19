@@ -305,8 +305,8 @@ class CFileReader : public CFileReaderBase {
   explicit CFileReader(Initializer<std::string>::AllowingExplicit filename,
                        Options options = Options());
 
-  CFileReader(CFileReader&& that) noexcept;
-  CFileReader& operator=(CFileReader&& that) noexcept;
+  CFileReader(CFileReader&& that) = default;
+  CFileReader& operator=(CFileReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CFileReader`. This avoids
   // constructing a temporary `CFileReader` and moving from it.
@@ -460,19 +460,6 @@ inline CFileReader<Src>::CFileReader(
                 /*mode_was_passed_to_fopen=*/true
 #endif
   );
-}
-
-template <typename Src>
-inline CFileReader<Src>::CFileReader(CFileReader&& that) noexcept
-    : CFileReaderBase(static_cast<CFileReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline CFileReader<Src>& CFileReader<Src>::operator=(
-    CFileReader&& that) noexcept {
-  CFileReaderBase::operator=(static_cast<CFileReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

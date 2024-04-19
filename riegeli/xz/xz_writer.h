@@ -286,8 +286,8 @@ class XzWriter : public XzWriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit XzWriter(Initializer<Dest> dest, Options options = Options());
 
-  XzWriter(XzWriter&& that) noexcept;
-  XzWriter& operator=(XzWriter&& that) noexcept;
+  XzWriter(XzWriter&& that) = default;
+  XzWriter& operator=(XzWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `XzWriter`. This avoids
   // constructing a temporary `XzWriter` and moving from it.
@@ -377,18 +377,6 @@ inline XzWriter<Dest>::XzWriter(Initializer<Dest> dest, Options options)
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.preset_, options.check(),
              options.parallelism());
-}
-
-template <typename Dest>
-inline XzWriter<Dest>::XzWriter(XzWriter&& that) noexcept
-    : XzWriterBase(static_cast<XzWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline XzWriter<Dest>& XzWriter<Dest>::operator=(XzWriter&& that) noexcept {
-  XzWriterBase::operator=(static_cast<XzWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

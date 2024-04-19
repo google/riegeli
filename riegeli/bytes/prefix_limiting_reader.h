@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -157,8 +158,8 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   explicit PrefixLimitingReader(Initializer<Src> src,
                                 Options options = Options());
 
-  PrefixLimitingReader(PrefixLimitingReader&& that) noexcept;
-  PrefixLimitingReader& operator=(PrefixLimitingReader&& that) noexcept;
+  PrefixLimitingReader(PrefixLimitingReader&& that) = default;
+  PrefixLimitingReader& operator=(PrefixLimitingReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `PrefixLimitingReader`.
   // This avoids constructing a temporary `PrefixLimitingReader` and moving
@@ -180,12 +181,10 @@ class PrefixLimitingReader : public PrefixLimitingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(PrefixLimitingReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -259,20 +258,24 @@ inline PrefixLimitingReader<Src>::PrefixLimitingReader(Initializer<Src> src,
 }
 
 template <typename Src>
-inline PrefixLimitingReader<Src>::PrefixLimitingReader(
-    PrefixLimitingReader&& that) noexcept
-    : PrefixLimitingReaderBase(static_cast<PrefixLimitingReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
+class PrefixLimitingReader<Src>::Mover {
+ public:
+  static auto member() { return &PrefixLimitingReader::src_; }
 
-template <typename Src>
-inline PrefixLimitingReader<Src>& PrefixLimitingReader<Src>::operator=(
-    PrefixLimitingReader&& that) noexcept {
-  PrefixLimitingReaderBase::operator=(
-      static_cast<PrefixLimitingReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
-}
+  explicit Mover(PrefixLimitingReader& self, PrefixLimitingReader& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `src_` is not moved yet so `src_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.src_);
+  }
+
+  void Done(PrefixLimitingReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.src_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
 
 template <typename Src>
 inline void PrefixLimitingReader<Src>::Reset(Closed) {
@@ -286,19 +289,6 @@ inline void PrefixLimitingReader<Src>::Reset(Initializer<Src> src,
   PrefixLimitingReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.base_pos());
-}
-
-template <typename Src>
-inline void PrefixLimitingReader<Src>::MoveSrc(PrefixLimitingReader&& that) {
-  if (src_.kIsStable || that.src_ == nullptr) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(*that.src_);
-    src_ = std::move(that.src_);
-    MakeBuffer(*src_);
-  }
 }
 
 template <typename Src>

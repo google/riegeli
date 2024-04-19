@@ -185,8 +185,8 @@ class ZstdReader : public ZstdReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit ZstdReader(Initializer<Src> src, Options options = Options());
 
-  ZstdReader(ZstdReader&& that) noexcept;
-  ZstdReader& operator=(ZstdReader&& that) noexcept;
+  ZstdReader(ZstdReader&& that) = default;
+  ZstdReader& operator=(ZstdReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ZstdReader`. This avoids
   // constructing a temporary `ZstdReader` and moving from it.
@@ -305,18 +305,6 @@ inline ZstdReader<Src>::ZstdReader(Initializer<Src> src, Options options)
                      options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline ZstdReader<Src>::ZstdReader(ZstdReader&& that) noexcept
-    : ZstdReaderBase(static_cast<ZstdReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
-  ZstdReaderBase::operator=(static_cast<ZstdReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

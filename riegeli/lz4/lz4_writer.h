@@ -315,8 +315,8 @@ class Lz4Writer : public Lz4WriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit Lz4Writer(Initializer<Dest> dest, Options options = Options());
 
-  Lz4Writer(Lz4Writer&& that) noexcept;
-  Lz4Writer& operator=(Lz4Writer&& that) noexcept;
+  Lz4Writer(Lz4Writer&& that) = default;
+  Lz4Writer& operator=(Lz4Writer&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `Lz4Writer`. This avoids
   // constructing a temporary `Lz4Writer` and moving from it.
@@ -428,18 +428,6 @@ inline Lz4Writer<Dest>::Lz4Writer(Initializer<Dest> dest, Options options)
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_content_checksum(), options.store_block_checksum());
-}
-
-template <typename Dest>
-inline Lz4Writer<Dest>::Lz4Writer(Lz4Writer&& that) noexcept
-    : Lz4WriterBase(static_cast<Lz4WriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline Lz4Writer<Dest>& Lz4Writer<Dest>::operator=(Lz4Writer&& that) noexcept {
-  Lz4WriterBase::operator=(static_cast<Lz4WriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

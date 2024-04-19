@@ -530,8 +530,8 @@ class CsvReader : public CsvReaderBase {
   // Will read from the byte `Reader` provided by `src`.
   explicit CsvReader(Initializer<Src> src, Options options = Options());
 
-  CsvReader(CsvReader&& that) noexcept;
-  CsvReader& operator=(CsvReader&& that) noexcept;
+  CsvReader(CsvReader&& that) = default;
+  CsvReader& operator=(CsvReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CsvReader`. This avoids
   // constructing a temporary `CsvReader` and moving from it.
@@ -643,18 +643,6 @@ template <typename Src>
 inline CsvReader<Src>::CsvReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline CsvReader<Src>::CsvReader(CsvReader&& that) noexcept
-    : CsvReaderBase(static_cast<CsvReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline CsvReader<Src>& CsvReader<Src>::operator=(CsvReader&& that) noexcept {
-  CsvReaderBase::operator=(CsvReaderBase(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

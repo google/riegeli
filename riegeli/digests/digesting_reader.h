@@ -34,6 +34,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -132,8 +133,8 @@ class DigestingReader : public DigestingReaderBase {
   explicit DigestingReader(Initializer<Src> src,
                            Initializer<Digester> digester = riegeli::Maker());
 
-  DigestingReader(DigestingReader&& that) noexcept;
-  DigestingReader& operator=(DigestingReader&& that) noexcept;
+  DigestingReader(DigestingReader&& that) = default;
+  DigestingReader& operator=(DigestingReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `DigestingReader`. This
   // avoids constructing a temporary `DigestingReader` and moving from it.
@@ -183,14 +184,12 @@ class DigestingReader : public DigestingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(DigestingReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the digester.
   Dependency<DigesterBaseHandle, Digester> digester_;
   // The object providing and possibly owning the original `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -277,28 +276,35 @@ inline void DigestingReaderBase::MakeBuffer(Reader& src) {
   if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
 }
 
+template <typename Digester, typename Dest>
+class DigestingReader<Digester, Dest>::Mover {
+ public:
+  static auto member() { return &DigestingReader::src_; }
+
+  explicit Mover(DigestingReader& self, DigestingReader& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `src_` is not moved yet so `src_` is taken from `that`.
+    if (uses_buffer_) {
+      if (ABSL_PREDICT_FALSE(!self.SyncBuffer(*that.src_))) {
+        uses_buffer_ = false;
+      }
+    }
+  }
+
+  void Done(DigestingReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.src_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
 template <typename Digester, typename Src>
 inline DigestingReader<Digester, Src>::DigestingReader(
     Initializer<Src> src, Initializer<Digester> digester)
     : digester_(std::move(digester)), src_(std::move(src)) {
   Initialize(src_.get(), digester_.get());
-}
-
-template <typename Digester, typename Src>
-inline DigestingReader<Digester, Src>::DigestingReader(
-    DigestingReader&& that) noexcept
-    : DigestingReaderBase(static_cast<DigestingReaderBase&&>(that)),
-      digester_(std::move(that.digester_)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Digester, typename Src>
-inline DigestingReader<Digester, Src>&
-DigestingReader<Digester, Src>::operator=(DigestingReader&& that) noexcept {
-  DigestingReaderBase::operator=(static_cast<DigestingReaderBase&&>(that));
-  digester_ = std::move(that.digester_);
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Digester, typename Src>
@@ -315,19 +321,6 @@ inline void DigestingReader<Digester, Src>::Reset(
   digester_.Reset(std::move(digester));
   src_.Reset(std::move(src));
   Initialize(src_.get(), digester_.get());
-}
-
-template <typename Digester, typename Src>
-inline void DigestingReader<Digester, Src>::MoveSrc(DigestingReader&& that) {
-  if (src_.kIsStable || that.src_ == nullptr) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `src_` is not moved yet so `src_` is taken from `that`.
-    const bool sync_buffer_ok = SyncBuffer(*that.src_);
-    src_ = std::move(that.src_);
-    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*src_);
-  }
 }
 
 template <typename Digester, typename Src>

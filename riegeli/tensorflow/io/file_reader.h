@@ -254,8 +254,8 @@ class FileReader : public FileReaderBase {
   explicit FileReader(Initializer<std::string>::AllowingExplicit filename,
                       Options options = Options());
 
-  FileReader(FileReader&& that) noexcept;
-  FileReader& operator=(FileReader&& that) noexcept;
+  FileReader(FileReader&& that) = default;
+  FileReader& operator=(FileReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FileReader`. This avoids
   // constructing a temporary `FileReader` and moving from it.
@@ -406,18 +406,6 @@ inline void FileReader<Src>::Initialize(
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(riegeli::Maker(src.release()));
   InitializePos(options.initial_pos());
-}
-
-template <typename Src>
-inline FileReader<Src>::FileReader(FileReader&& that) noexcept
-    : FileReaderBase(static_cast<FileReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
-  FileReaderBase::operator=(static_cast<FileReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

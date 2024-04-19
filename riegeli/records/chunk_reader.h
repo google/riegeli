@@ -265,8 +265,8 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // Will read from the byte `Reader` provided by `src`.
   explicit DefaultChunkReader(Initializer<Src> src);
 
-  DefaultChunkReader(DefaultChunkReader&& that) noexcept;
-  DefaultChunkReader& operator=(DefaultChunkReader&& that) noexcept;
+  DefaultChunkReader(DefaultChunkReader&& that) = default;
+  DefaultChunkReader& operator=(DefaultChunkReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkReader`. This
   // avoids constructing a temporary `DefaultChunkReader` and moving from it.
@@ -380,21 +380,6 @@ template <typename Src>
 inline DefaultChunkReader<Src>::DefaultChunkReader(Initializer<Src> src)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline DefaultChunkReader<Src>::DefaultChunkReader(
-    DefaultChunkReader&& that) noexcept
-    : DefaultChunkReaderBase(static_cast<DefaultChunkReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
-    DefaultChunkReader&& that) noexcept {
-  DefaultChunkReaderBase::operator=(
-      static_cast<DefaultChunkReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

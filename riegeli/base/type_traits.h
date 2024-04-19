@@ -345,17 +345,100 @@ struct HasAbslStringify<
            std::declval<type_traits_internal::UnimplementedSink&>(),
            std::declval<const T&>()))>> : std::true_type {};
 
-// Deriving a class from `ConditionallyCopyable<is_copyable>` disables default
-// copy and move constructor and assignment if `!is_copyable`.
+// Deriving a class from `CopyableLike<T>` disables those copy and move
+// constructor and assignment that `T` has disabled.
+//
+// A derived class should either make desired copy and move constructor and
+// assignment explicitly defaulted, so that they get effectively defaulted or
+// deleted depending on `T`, or leave them out to make them implicitly defined,
+// with the same effect.
+//
+// An explicit definition of copy and move constructor and assignment would make
+// them unconditionally available, circumventing `CopyableLike<T>`.
+
+namespace type_traits_internal {
+
+template <bool is_move_constructible, bool is_copy_constructible>
+class ConditionallyDeleteConstructor {};
+
+template <>
+class ConditionallyDeleteConstructor<false, false> {
+ public:
+  ConditionallyDeleteConstructor() = default;
+
+  ConditionallyDeleteConstructor(const ConditionallyDeleteConstructor&) =
+      delete;
+  ConditionallyDeleteConstructor(ConditionallyDeleteConstructor&&) = delete;
+  ConditionallyDeleteConstructor& operator=(
+      const ConditionallyDeleteConstructor&) = default;
+  ConditionallyDeleteConstructor& operator=(ConditionallyDeleteConstructor&&) =
+      default;
+};
+
+template <>
+class ConditionallyDeleteConstructor<true, false> {
+ public:
+  ConditionallyDeleteConstructor() = default;
+
+  ConditionallyDeleteConstructor(const ConditionallyDeleteConstructor&) =
+      delete;
+  ConditionallyDeleteConstructor(ConditionallyDeleteConstructor&&) = default;
+  ConditionallyDeleteConstructor& operator=(
+      const ConditionallyDeleteConstructor&) = default;
+  ConditionallyDeleteConstructor& operator=(ConditionallyDeleteConstructor&&) =
+      default;
+};
+
+template <bool is_move_assignable, bool is_copy_assignable>
+class ConditionallyDeleteAssignment {};
+
+template <>
+class ConditionallyDeleteAssignment<false, false> {
+ public:
+  ConditionallyDeleteAssignment() = default;
+
+  ConditionallyDeleteAssignment(const ConditionallyDeleteAssignment&) = default;
+  ConditionallyDeleteAssignment(ConditionallyDeleteAssignment&&) = default;
+  ConditionallyDeleteAssignment& operator=(
+      const ConditionallyDeleteAssignment&) = delete;
+  ConditionallyDeleteAssignment& operator=(ConditionallyDeleteAssignment&&) =
+      delete;
+};
+
+template <>
+class ConditionallyDeleteAssignment<true, false> {
+ public:
+  ConditionallyDeleteAssignment() = default;
+
+  ConditionallyDeleteAssignment(const ConditionallyDeleteAssignment&) = default;
+  ConditionallyDeleteAssignment(ConditionallyDeleteAssignment&&) = default;
+  ConditionallyDeleteAssignment& operator=(
+      const ConditionallyDeleteAssignment&) = delete;
+  ConditionallyDeleteAssignment& operator=(ConditionallyDeleteAssignment&&) =
+      default;
+};
+
+}  // namespace type_traits_internal
+
+template <typename T>
+class CopyableLike
+    : public type_traits_internal::ConditionallyDeleteConstructor<
+          std::is_copy_constructible<T>::value,
+          std::is_move_constructible<T>::value>,
+      public type_traits_internal::ConditionallyDeleteAssignment<
+          std::is_copy_assignable<T>::value,
+          std::is_move_assignable<T>::value> {};
+
+// Deriving a class from `ConditionallyCopyable<is_copyable>` disables copy and
+// move constructor and assignment if `!is_copyable`.
 //
 // A derived class should either make desired copy and move constructor and
 // assignment explicitly defaulted, so that they get effectively defaulted or
 // deleted depending on `is_copyable`, or leave them out to make them implicitly
 // defaulted, with the same effect.
 //
-// An explicit definition of copy and move constructor and assignment, which
-// does not refer to the corresponding operation of the base class, would
-// circumvent the intent of `!is_copyable`.
+// An explicit definition of copy and move constructor and assignment would make
+// them unconditionally available, circumventing `ConditionallyCopyable<false>`.
 
 template <bool is_copyable>
 class ConditionallyCopyable {};
@@ -370,16 +453,15 @@ class ConditionallyCopyable<false> {
 };
 
 // Deriving a class from `ConditionallyAssignable<is_assignable>` disables
-// default copy and move assignment if `!is_assignable`.
+// copy and move assignment if `!is_assignable`.
 //
 // A derived class should either make desired copy and move assignment
 // explicitly defaulted, so that they get effectively defaulted or deleted
 // depending on `is_assignable`, or leave them out together with copy and move
 // constructor, to make them implicitly defaulted, with the same effect.
 //
-// An explicit definition of copy and move assignment, which does not refer to
-// the corresponding operation of the base class, would circumvent the intent of
-// `!is_assignable`.
+// An explicit definition of copy and move assignment would make them
+// unconditionally available, circumventing `ConditionallyAssignable<false>`.
 
 template <bool is_assignable>
 class ConditionallyAssignable {};

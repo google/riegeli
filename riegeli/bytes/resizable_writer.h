@@ -32,9 +32,9 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -86,8 +86,6 @@ class ResizableWriterBase : public Writer {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
-  void MoveSecondaryBuffer(ResizableWriterBase&& that);
-  void MoveSecondaryBufferAndBufferPointers(ResizableWriterBase&& that);
 
   // Returns the amount of data written, either to the destination or to
   // `secondary_buffer_`.
@@ -146,6 +144,9 @@ class ResizableWriterBase : public Writer {
   void MakeSecondaryBuffer(size_t min_length = 1,
                            size_t recommended_length = 0);
 
+  // Move `secondary_buffer_`, adjusting buffer pointers if they point to it.
+  void MoveSecondaryBuffer(ResizableWriterBase& that);
+
   Chain::Options options_;
   // Buffered data which did not fit into the destination.
   Chain secondary_buffer_;
@@ -171,14 +172,14 @@ class ResizableWriterBase : public Writer {
   // `available()`. In this case there is no data after the current position.
   //
   // Invariants if `ok()` (`dest_` is defined in `ResizableWriter`):
-  //   `(!uses_secondary_buffer() &&
-  //     start_pos() == 0 &&
-  //     start() == ResizableTraits::Data(*dest_) &&
-  //     start_to_limit() == ResizableTraits::Size(*dest_)) ||
-  //    (uses_secondary_buffer() &&
-  //     limit() == secondary_buffer_.blocks().back().data() +
-  //                secondary_buffer_.blocks().back().size()) ||
-  //    start() == nullptr`
+  //   `!uses_secondary_buffer() &&
+  //    start() == ResizableTraits::Data(*dest_) &&
+  //    start_to_limit() == ResizableTraits::Size(*dest_) &&
+  //    start_pos() == 0` or
+  //       `uses_secondary_buffer() &&
+  //        limit() == secondary_buffer_.blocks().back().data() +
+  //                   secondary_buffer_.blocks().back().size()` or
+  //       `start() == nullptr`
   //   `limit_pos() >= secondary_buffer_.size()`
   //   `ResizableTraits::Size(*dest_) >= limit_pos() - secondary_buffer_.size()`
 };
@@ -272,8 +273,8 @@ class ResizableWriter : public ResizableWriterBase {
           int> = 0>
   explicit ResizableWriter(Options options = Options());
 
-  ResizableWriter(ResizableWriter&& that) noexcept;
-  ResizableWriter& operator=(ResizableWriter&& that) noexcept;
+  ResizableWriter(ResizableWriter&& that) = default;
+  ResizableWriter& operator=(ResizableWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ResizableWriter`. This
   // avoids constructing a temporary `ResizableWriter` and moving from it.
@@ -309,15 +310,12 @@ class ResizableWriter : public ResizableWriterBase {
   bool GrowDestAndMakeBuffer(size_t new_size) override;
 
  private:
-  // Moves `that.dest_` to `dest_`, and `that.secondary_buffer_` to
-  // `secondary_buffer_`. Buffer pointers are already moved from `dest_` to
-  // `*this`; adjust them to match `dest_` or `secondary_buffer_`.
-  void MoveDestAndSecondaryBuffer(ResizableWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Resizable` being written
   // to, with uninitialized space appended (possibly empty); `cursor()` points
   // to the uninitialized space.
-  Dependency<Resizable*, Dest> dest_;
+  MovingDependency<Resizable*, Dest, Mover> dest_;
 };
 
 // `ResizableTraits` for `std::string` with an arbitrary allocator, i.e.
@@ -437,18 +435,18 @@ inline ResizableWriterBase::ResizableWriterBase(
     ResizableWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
-      // `secondary_buffer_` will be moved by
-      // `ResizableWriter::ResizableWriter()`.
       written_size_(that.written_size_),
-      associated_reader_(std::move(that.associated_reader_)) {}
+      associated_reader_(std::move(that.associated_reader_)) {
+  MoveSecondaryBuffer(that);
+}
 
 inline ResizableWriterBase& ResizableWriterBase::operator=(
     ResizableWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
-  // `secondary_buffer_` will be moved by `ResizableWriter::operator=`.
   written_size_ = that.written_size_;
   associated_reader_ = std::move(that.associated_reader_);
+  MoveSecondaryBuffer(that);
   return *this;
 }
 
@@ -471,19 +469,27 @@ inline void ResizableWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 inline void ResizableWriterBase::MoveSecondaryBuffer(
-    ResizableWriterBase&& that) {
+    ResizableWriterBase& that) {
+  // Buffer pointers are already moved so `start()` is taken from `*this`.
+  // `secondary_buffer_` is not moved yet so `uses_secondary_buffer()` is called
+  // on `that`.
+  const bool uses_buffer = start() != nullptr && that.uses_secondary_buffer();
+  const size_t saved_start_to_limit = start_to_limit();
+  const size_t saved_start_to_cursor = start_to_cursor();
+  if (uses_buffer) {
+    RIEGELI_ASSERT(that.secondary_buffer_.blocks().back().data() +
+                       that.secondary_buffer_.blocks().back().size() ==
+                   limit())
+        << "Failed invariant of ResizableWriter: "
+           "secondary buffer inconsistent with buffer pointers";
+  }
   secondary_buffer_ = std::move(that.secondary_buffer_);
-}
-
-inline void ResizableWriterBase::MoveSecondaryBufferAndBufferPointers(
-    ResizableWriterBase&& that) {
-  const size_t buffer_size = start_to_limit();
-  const size_t cursor_index = start_to_cursor();
-  secondary_buffer_ = std::move(that.secondary_buffer_);
-  set_buffer(const_cast<char*>(secondary_buffer_.blocks().back().data() +
-                               secondary_buffer_.blocks().back().size()) -
-                 buffer_size,
-             buffer_size, cursor_index);
+  if (uses_buffer) {
+    const absl::string_view last_block = secondary_buffer_.blocks().back();
+    set_buffer(const_cast<char*>(last_block.data() + last_block.size()) -
+                   saved_start_to_limit,
+               saved_start_to_limit, saved_start_to_cursor);
+  }
 }
 
 inline size_t ResizableWriterBase::used_size() const {
@@ -503,6 +509,37 @@ inline size_t ResizableWriterBase::used_dest_size() const {
 }
 
 template <typename ResizableTraits, typename Dest>
+class ResizableWriter<ResizableTraits, Dest>::Mover {
+ public:
+  static auto member() { return &ResizableWriter::dest_; }
+
+  explicit Mover(ResizableWriter& self, ResizableWriter& that)
+      : uses_buffer_(!ResizableTraits::kIsStable && self.start() != nullptr &&
+                     !self.uses_secondary_buffer()),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(ResizableTraits::Data(*that.dest_) == self.start())
+          << "ResizableWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(ResizableTraits::Size(*that.dest_),
+                        self.start_to_limit())
+          << "ResizableWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(ResizableWriter& self) {
+    if (uses_buffer_) {
+      Resizable& dest = *self.dest_;
+      self.set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
+                      start_to_cursor_);
+    }
+  }
+
+ private:
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
+
+template <typename ResizableTraits, typename Dest>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
     Initializer<Dest> dest, Options options)
     : ResizableWriterBase(options.buffer_options()), dest_(std::move(dest)) {
@@ -520,22 +557,6 @@ template <
         int>>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
     : ResizableWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename ResizableTraits, typename Dest>
-inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(
-    ResizableWriter&& that) noexcept
-    : ResizableWriterBase(static_cast<ResizableWriterBase&&>(that)) {
-  MoveDestAndSecondaryBuffer(std::move(that));
-}
-
-template <typename ResizableTraits, typename Dest>
-inline ResizableWriter<ResizableTraits, Dest>&
-ResizableWriter<ResizableTraits, Dest>::operator=(
-    ResizableWriter&& that) noexcept {
-  ResizableWriterBase::operator=(static_cast<ResizableWriterBase&&>(that));
-  MoveDestAndSecondaryBuffer(std::move(that));
-  return *this;
-}
 
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Closed) {
@@ -572,44 +593,6 @@ inline void ResizableWriter<ResizableTraits, Dest>::Initialize(Resizable* dest,
   if (append) set_start_pos(ResizableTraits::Size(*dest));
 }
 
-namespace resizable_writer_internal {
-
-template <bool dependency_is_stable, typename ResizableTraits,
-          typename Enable = void>
-struct DestIsStable : public std::false_type {};
-
-template <typename ResizableTraits>
-struct DestIsStable<true, ResizableTraits> : public std::true_type {};
-
-template <typename ResizableTraits>
-struct DestIsStable<false, ResizableTraits,
-                    std::enable_if_t<ResizableTraits::kIsStable>>
-    : public std::true_type {};
-
-}  // namespace resizable_writer_internal
-
-template <typename ResizableTraits, typename Dest>
-inline void ResizableWriter<ResizableTraits, Dest>::MoveDestAndSecondaryBuffer(
-    ResizableWriter&& that) {
-  if (!that.uses_secondary_buffer()) {
-    MoveSecondaryBuffer(std::move(that));
-    if (resizable_writer_internal::DestIsStable<
-            Dependency<Resizable*, Dest>::kIsStable, ResizableTraits>()) {
-      dest_ = std::move(that.dest_);
-    } else {
-      const size_t dest_size = start_to_limit();
-      const size_t cursor_index = start_to_cursor();
-      dest_ = std::move(that.dest_);
-      if (start() != nullptr) {
-        set_buffer(ResizableTraits::Data(*dest_), dest_size, cursor_index);
-      }
-    }
-  } else {
-    MoveSecondaryBufferAndBufferPointers(std::move(that));
-    dest_ = std::move(that.dest_);
-  }
-}
-
 template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
   if (uses_secondary_buffer()) {
@@ -623,10 +606,11 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
           !ResizableTraits::Resize(*dest_, new_size, used_dest_size()))) {
     return FailOverflow();
   }
-  RIEGELI_ASSERT_GE(ResizableTraits::Size(*dest_), new_size)
+  Resizable& dest = *dest_;
+  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::Resize(): "
          "not resized to at least requested size";
-  set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
              cursor_index);
   set_start_pos(0);
   return true;
@@ -638,7 +622,8 @@ void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
   RIEGELI_ASSERT(!uses_secondary_buffer())
       << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
          "secondary buffer is used";
-  set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
+  Resizable& dest = *dest_;
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
              cursor_index);
   set_start_pos(0);
 }
@@ -651,7 +636,8 @@ void ResizableWriter<ResizableTraits, Dest>::GrowDestToCapacityAndMakeBuffer() {
          "secondary buffer is used";
   const size_t cursor_index = IntCast<size_t>(pos());
   ResizableTraits::GrowToCapacity(*dest_);
-  set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
+  Resizable& dest = *dest_;
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
              cursor_index);
   set_start_pos(0);
 }
@@ -669,10 +655,11 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
           !ResizableTraits::Grow(*dest_, new_size, used_dest_size()))) {
     return FailOverflow();
   }
-  RIEGELI_ASSERT_GE(ResizableTraits::Size(*dest_), new_size)
+  Resizable& dest = *dest_;
+  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::Grow(): "
          "not resized to at least requested size";
-  set_buffer(ResizableTraits::Data(*dest_), ResizableTraits::Size(*dest_),
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
              cursor_index);
   set_start_pos(0);
   return true;

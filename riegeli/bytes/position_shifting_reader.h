@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -160,8 +161,8 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
   explicit PositionShiftingReader(Initializer<Src> src,
                                   Options options = Options());
 
-  PositionShiftingReader(PositionShiftingReader&& that) noexcept;
-  PositionShiftingReader& operator=(PositionShiftingReader&& that) noexcept;
+  PositionShiftingReader(PositionShiftingReader&& that) = default;
+  PositionShiftingReader& operator=(PositionShiftingReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `PositionShiftingReader`.
   // This avoids constructing a temporary `PositionShiftingReader` and moving
@@ -183,12 +184,10 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(PositionShiftingReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -259,23 +258,6 @@ inline PositionShiftingReader<Src>::PositionShiftingReader(Initializer<Src> src,
 }
 
 template <typename Src>
-inline PositionShiftingReader<Src>::PositionShiftingReader(
-    PositionShiftingReader&& that) noexcept
-    : PositionShiftingReaderBase(
-          static_cast<PositionShiftingReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline PositionShiftingReader<Src>& PositionShiftingReader<Src>::operator=(
-    PositionShiftingReader&& that) noexcept {
-  PositionShiftingReaderBase::operator=(
-      static_cast<PositionShiftingReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
-}
-
-template <typename Src>
 inline void PositionShiftingReader<Src>::Reset(Closed) {
   PositionShiftingReaderBase::Reset(kClosed);
   src_.Reset();
@@ -290,18 +272,24 @@ inline void PositionShiftingReader<Src>::Reset(Initializer<Src> src,
 }
 
 template <typename Src>
-inline void PositionShiftingReader<Src>::MoveSrc(
-    PositionShiftingReader&& that) {
-  if (src_.kIsStable || that.src_ == nullptr) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
+class PositionShiftingReader<Src>::Mover {
+ public:
+  static auto member() { return &PositionShiftingReader::src_; }
+
+  explicit Mover(PositionShiftingReader& self, PositionShiftingReader& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
     // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(*that.src_);
-    src_ = std::move(that.src_);
-    MakeBuffer(*src_);
+    if (uses_buffer_) self.SyncBuffer(*that.src_);
   }
-}
+
+  void Done(PositionShiftingReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.src_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
 
 template <typename Src>
 void PositionShiftingReader<Src>::Done() {

@@ -564,8 +564,8 @@ class FdWriter : public FdWriterBase {
                     Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
 
-  FdWriter(FdWriter&& that) noexcept;
-  FdWriter& operator=(FdWriter&& that) noexcept;
+  FdWriter(FdWriter&& that) = default;
+  FdWriter& operator=(FdWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FdWriter`. This avoids
   // constructing a temporary `FdWriter` and moving from it.
@@ -757,18 +757,6 @@ inline FdWriter<Dest>::FdWriter(
     return;
   }
   InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
-}
-
-template <typename Dest>
-inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
-    : FdWriterBase(static_cast<FdWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
-  FdWriterBase::operator=(static_cast<FdWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

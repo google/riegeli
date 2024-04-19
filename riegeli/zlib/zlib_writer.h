@@ -253,8 +253,8 @@ class ZlibWriter : public ZlibWriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit ZlibWriter(Initializer<Dest> dest, Options options = Options());
 
-  ZlibWriter(ZlibWriter&& that) noexcept;
-  ZlibWriter& operator=(ZlibWriter&& that) noexcept;
+  ZlibWriter(ZlibWriter&& that) = default;
+  ZlibWriter& operator=(ZlibWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ZlibWriter`. This avoids
   // constructing a temporary `ZlibWriter` and moving from it.
@@ -352,19 +352,6 @@ inline ZlibWriter<Dest>::ZlibWriter(Initializer<Dest> dest, Options options)
                      options.recycling_pool_options()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline ZlibWriter<Dest>::ZlibWriter(ZlibWriter&& that) noexcept
-    : ZlibWriterBase(static_cast<ZlibWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
-    ZlibWriter&& that) noexcept {
-  ZlibWriterBase::operator=(static_cast<ZlibWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

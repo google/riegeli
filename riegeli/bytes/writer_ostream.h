@@ -29,6 +29,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -191,8 +192,24 @@ class WriterOStream : public WriterOStreamBase {
   // Will write to the `Writer` provided by `dest`.
   explicit WriterOStream(Initializer<Dest> dest, Options options = Options());
 
-  WriterOStream(WriterOStream&& that) noexcept;
-  WriterOStream& operator=(WriterOStream&& that) noexcept;
+  // These operations cannot be defaulted because `WriterOStreamBase` virtually
+  // derives from `std::ios` which has these operations deleted.
+  WriterOStream(WriterOStream&& that) noexcept
+#if __cpp_concepts
+    requires(std::is_move_constructible<Dependency<Writer*, Dest>>::value)
+#endif
+      : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)),
+        dest_(std::move(that.dest_)) {
+  }
+  WriterOStream& operator=(WriterOStream&& that) noexcept
+#if __cpp_concepts
+    requires(std::is_move_assignable<Dependency<Writer*, Dest>>::value)
+#endif
+  {
+    WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
+    dest_ = std::move(that.dest_);
+    return *this;
+  }
 
   ~WriterOStream() override { Done(); }
 
@@ -212,12 +229,10 @@ class WriterOStream : public WriterOStreamBase {
   void Done() override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(WriterOStream&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -299,24 +314,26 @@ inline void WriterOStreamBase::Initialize(Writer* dest) {
 }
 
 template <typename Dest>
+class WriterOStream<Dest>::Mover {
+ public:
+  static auto member() { return &WriterOStream::dest_; }
+
+  explicit Mover(WriterOStream& self)
+      : reader_pos_(self.streambuf_.MoveBegin()) {}
+
+  void Done(WriterOStream& self) {
+    self.streambuf_.MoveEnd(self.dest_.get(), reader_pos_);
+  }
+
+ private:
+  absl::optional<Position> reader_pos_;
+};
+
+template <typename Dest>
 inline WriterOStream<Dest>::WriterOStream(Initializer<Dest> dest,
                                           Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline WriterOStream<Dest>::WriterOStream(WriterOStream&& that) noexcept
-    : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline WriterOStream<Dest>& WriterOStream<Dest>::operator=(
-    WriterOStream&& that) noexcept {
-  WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -331,17 +348,6 @@ inline void WriterOStream<Dest>::Reset(Initializer<Dest> dest,
   WriterOStreamBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void WriterOStream<Dest>::MoveDest(WriterOStream&& that) {
-  if (dest_.kIsStable) {
-    dest_ = std::move(that.dest_);
-  } else {
-    const absl::optional<Position> reader_pos = streambuf_.MoveBegin();
-    dest_ = std::move(that.dest_);
-    streambuf_.MoveEnd(dest_.get(), reader_pos);
-  }
 }
 
 template <typename Dest>

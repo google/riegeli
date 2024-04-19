@@ -177,8 +177,8 @@ class OStreamWriter : public OStreamWriterBase {
   // Will write to the stream provided by `dest`.
   explicit OStreamWriter(Initializer<Dest> dest, Options options = Options());
 
-  OStreamWriter(OStreamWriter&& that) noexcept;
-  OStreamWriter& operator=(OStreamWriter&& that) noexcept;
+  OStreamWriter(OStreamWriter&& that) = default;
+  OStreamWriter& operator=(OStreamWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `OStreamWriter`. This
   // avoids constructing a temporary `OStreamWriter` and moving from it.
@@ -274,19 +274,6 @@ inline OStreamWriter<Dest>::OStreamWriter(Initializer<Dest> dest,
                                           Options options)
     : OStreamWriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos(), options.assumed_append());
-}
-
-template <typename Dest>
-inline OStreamWriter<Dest>::OStreamWriter(OStreamWriter&& that) noexcept
-    : OStreamWriterBase(static_cast<OStreamWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline OStreamWriter<Dest>& OStreamWriter<Dest>::operator=(
-    OStreamWriter&& that) noexcept {
-  OStreamWriterBase::operator=(static_cast<OStreamWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

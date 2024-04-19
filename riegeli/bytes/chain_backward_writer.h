@@ -24,6 +24,7 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -32,6 +33,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -189,8 +191,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
       std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
   explicit ChainBackwardWriter(Options options = Options());
 
-  ChainBackwardWriter(ChainBackwardWriter&& that) noexcept;
-  ChainBackwardWriter& operator=(ChainBackwardWriter&& that) noexcept;
+  ChainBackwardWriter(ChainBackwardWriter&& that) = default;
+  ChainBackwardWriter& operator=(ChainBackwardWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
   // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
@@ -209,15 +211,13 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   Chain* DestChain() const override { return dest_.get(); }
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(ChainBackwardWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Chain` being written to, with
   // uninitialized space prepended (possibly empty); `cursor()` points to the
   // end of the uninitialized space, except that it can be `nullptr` if the
   // uninitialized space is empty.
-  Dependency<Chain*, Dest> dest_;
+  MovingDependency<Chain*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -279,6 +279,37 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
 }
 
 template <typename Dest>
+class ChainBackwardWriter<Dest>::Mover {
+ public:
+  static auto member() { return &ChainBackwardWriter::dest_; }
+
+  explicit Mover(ChainBackwardWriter& self, ChainBackwardWriter& that)
+      : uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(that.dest_->blocks().front().data() == self.limit())
+          << "ChainBackwardWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.dest_->size(), self.limit_pos())
+          << "ChainBackwardWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(ChainBackwardWriter& self) {
+    if (uses_buffer_) {
+      const size_t buffer_size =
+          self.dest_->size() - IntCast<size_t>(self.start_pos());
+      const absl::string_view first_block = self.dest_->blocks().front();
+      self.set_buffer(const_cast<char*>(first_block.data()), buffer_size,
+                      start_to_cursor_);
+    }
+  }
+
+ private:
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
+
+template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Initializer<Dest> dest,
                                                       Options options)
     : ChainBackwardWriterBase(options), dest_(std::move(dest)) {
@@ -290,22 +321,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Options options)
     : ChainBackwardWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename Dest>
-inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
-    ChainBackwardWriter&& that) noexcept
-    : ChainBackwardWriterBase(static_cast<ChainBackwardWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
-    ChainBackwardWriter&& that) noexcept {
-  ChainBackwardWriterBase::operator=(
-      static_cast<ChainBackwardWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
-}
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Closed) {
@@ -326,20 +341,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline void ChainBackwardWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
-}
-
-template <typename Dest>
-inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
-  if (dest_.kIsStable) {
-    dest_ = std::move(that.dest_);
-  } else {
-    const size_t cursor_index = start_to_cursor();
-    dest_ = std::move(that.dest_);
-    if (start() != nullptr) {
-      set_buffer(const_cast<char*>(dest_->blocks().front().data()),
-                 dest_->size() - IntCast<size_t>(start_pos()), cursor_index);
-    }
-  }
 }
 
 }  // namespace riegeli

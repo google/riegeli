@@ -25,6 +25,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -116,7 +117,7 @@ class SnappyWriterBase : public Writer {
   // `snappy::kBlockSize`
   static constexpr size_t kBlockSize = size_t{64} << 10;
 
-  void MoveUncompressed(SnappyWriterBase&& that);
+  void MoveUncompressed(SnappyWriterBase& that);
 
   // Prefer sharing instead of copying data at least of this length.
   size_t MinBytesToShare() const;
@@ -171,8 +172,8 @@ class SnappyWriter : public SnappyWriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit SnappyWriter(Initializer<Dest> dest, Options options = Options());
 
-  SnappyWriter(SnappyWriter&& that) noexcept;
-  SnappyWriter& operator=(SnappyWriter&& that) noexcept;
+  SnappyWriter(SnappyWriter&& that) = default;
+  SnappyWriter& operator=(SnappyWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `SnappyWriter`. This avoids
   // constructing a temporary `SnappyWriter` and moving from it.
@@ -248,7 +249,7 @@ inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
       compression_level_(that.compression_level_),
       options_(that.options_),
       associated_reader_(std::move(that.associated_reader_)) {
-  MoveUncompressed(std::move(that));
+  MoveUncompressed(that);
 }
 
 inline SnappyWriterBase& SnappyWriterBase::operator=(
@@ -257,7 +258,7 @@ inline SnappyWriterBase& SnappyWriterBase::operator=(
   compression_level_ = that.compression_level_;
   options_ = that.options_;
   associated_reader_ = std::move(that.associated_reader_);
-  MoveUncompressed(std::move(that));
+  MoveUncompressed(that);
   return *this;
 }
 
@@ -286,16 +287,27 @@ inline void SnappyWriterBase::Initialize(Writer* dest, int compression_level) {
   }
 }
 
-inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
-  const size_t cursor_index = start_to_cursor();
+inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase& that) {
+  const bool uses_buffer = start() != nullptr;
+  if (uses_buffer) {
+    RIEGELI_ASSERT(that.uncompressed_.blocks().back().data() +
+                       that.uncompressed_.blocks().back().size() ==
+                   limit())
+        << "Failed invariant of SnappyWriter: "
+           "uncompressed data inconsistent with buffer pointers";
+    RIEGELI_ASSERT_EQ(that.uncompressed_.size(), limit_pos())
+        << "Failed invariant of SnappyWriter: "
+           "uncompressed data inconsistent with buffer pointers";
+  }
+  const size_t saved_start_to_cursor = start_to_cursor();
   uncompressed_ = std::move(that.uncompressed_);
-  if (start() != nullptr) {
+  if (uses_buffer) {
     const size_t buffer_size =
         uncompressed_.size() - IntCast<size_t>(start_pos());
-    set_buffer(const_cast<char*>(uncompressed_.blocks().back().data() +
-                                 uncompressed_.blocks().back().size()) -
-                   buffer_size,
-               buffer_size, cursor_index);
+    const absl::string_view last_block = uncompressed_.blocks().back();
+    set_buffer(
+        const_cast<char*>(last_block.data() + last_block.size()) - buffer_size,
+        buffer_size, saved_start_to_cursor);
   }
 }
 
@@ -303,19 +315,6 @@ template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline SnappyWriter<Dest>::SnappyWriter(SnappyWriter&& that) noexcept
-    : SnappyWriterBase(static_cast<SnappyWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline SnappyWriter<Dest>& SnappyWriter<Dest>::operator=(
-    SnappyWriter&& that) noexcept {
-  SnappyWriterBase::operator=(static_cast<SnappyWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

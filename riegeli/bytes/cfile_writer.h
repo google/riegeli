@@ -406,8 +406,8 @@ class CFileWriter : public CFileWriterBase {
   explicit CFileWriter(Initializer<std::string>::AllowingExplicit filename,
                        Options options = Options());
 
-  CFileWriter(CFileWriter&& that) noexcept;
-  CFileWriter& operator=(CFileWriter&& that) noexcept;
+  CFileWriter(CFileWriter&& that) = default;
+  CFileWriter& operator=(CFileWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CFileWriter`. This avoids
   // constructing a temporary `CFileWriter` and moving from it.
@@ -567,19 +567,6 @@ inline CFileWriter<Dest>::CFileWriter(
     return;
   }
   InitializePos(*dest_, std::move(options), /*mode_was_passed_to_fopen=*/true);
-}
-
-template <typename Dest>
-inline CFileWriter<Dest>::CFileWriter(CFileWriter&& that) noexcept
-    : CFileWriterBase(static_cast<CFileWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline CFileWriter<Dest>& CFileWriter<Dest>::operator=(
-    CFileWriter&& that) noexcept {
-  CFileWriterBase::operator=(static_cast<CFileWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

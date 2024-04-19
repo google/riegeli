@@ -596,8 +596,8 @@ class RecordReader : public RecordReaderBase {
   // Will read from the byte `Reader` or `ChunkReader` provided by `src`.
   explicit RecordReader(Initializer<Src> src, Options options = Options());
 
-  RecordReader(RecordReader&& that) noexcept;
-  RecordReader& operator=(RecordReader&& that) noexcept;
+  RecordReader(RecordReader&& that) = default;
+  RecordReader& operator=(RecordReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `RecordReader`. This avoids
   // constructing a temporary `RecordReader` and moving from it.
@@ -712,19 +712,6 @@ template <typename Src>
 inline RecordReader<Src>::RecordReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline RecordReader<Src>::RecordReader(RecordReader&& that) noexcept
-    : RecordReaderBase(static_cast<RecordReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline RecordReader<Src>& RecordReader<Src>::operator=(
-    RecordReader&& that) noexcept {
-  RecordReaderBase::operator=(static_cast<RecordReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

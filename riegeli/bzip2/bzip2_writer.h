@@ -138,8 +138,8 @@ class Bzip2Writer : public Bzip2WriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit Bzip2Writer(Initializer<Dest> dest, Options options = Options());
 
-  Bzip2Writer(Bzip2Writer&& that) noexcept;
-  Bzip2Writer& operator=(Bzip2Writer&& that) noexcept;
+  Bzip2Writer(Bzip2Writer&& that) = default;
+  Bzip2Writer& operator=(Bzip2Writer&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `Bzip2Writer`. This avoids
   // constructing a temporary `Bzip2Writer` and moving from it.
@@ -205,19 +205,6 @@ template <typename Dest>
 inline Bzip2Writer<Dest>::Bzip2Writer(Initializer<Dest> dest, Options options)
     : Bzip2WriterBase(options.buffer_options()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline Bzip2Writer<Dest>::Bzip2Writer(Bzip2Writer&& that) noexcept
-    : Bzip2WriterBase(static_cast<Bzip2WriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline Bzip2Writer<Dest>& Bzip2Writer<Dest>::operator=(
-    Bzip2Writer&& that) noexcept {
-  Bzip2WriterBase::operator=(static_cast<Bzip2WriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

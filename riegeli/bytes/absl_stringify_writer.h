@@ -50,8 +50,8 @@ class AbslStringifyWriter : public BufferedWriter {
   explicit AbslStringifyWriter(Dest dest)
       : dest_(std::move(RIEGELI_ASSERT_NOTNULL(dest))) {}
 
-  AbslStringifyWriter(AbslStringifyWriter&& that) noexcept;
-  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) noexcept;
+  AbslStringifyWriter(AbslStringifyWriter&& that) = default;
+  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
   // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
@@ -85,8 +85,8 @@ class AbslStringifyWriter<WriterAbslStringifySink*>
       : PrefixLimitingWriter(RIEGELI_ASSERT_NOTNULL(dest)->dest()),
         dest_(dest) {}
 
-  AbslStringifyWriter(AbslStringifyWriter&& that) noexcept;
-  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) noexcept;
+  AbslStringifyWriter(AbslStringifyWriter&& that) = default;
+  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
   // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
@@ -109,20 +109,6 @@ explicit AbslStringifyWriter(Dest sink) -> AbslStringifyWriter<Dest>;
 #endif
 
 // Implementation details follow.
-
-template <typename Dest>
-inline AbslStringifyWriter<Dest>::AbslStringifyWriter(
-    AbslStringifyWriter&& that) noexcept
-    : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline AbslStringifyWriter<Dest>& AbslStringifyWriter<Dest>::operator=(
-    AbslStringifyWriter&& that) noexcept {
-  BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
-}
 
 template <typename Dest>
 inline void AbslStringifyWriter<Dest>::Reset(Closed) {
@@ -150,18 +136,6 @@ bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   dest_->Append(src);
   move_start_pos(src.size());
   return true;
-}
-
-inline AbslStringifyWriter<WriterAbslStringifySink*>::AbslStringifyWriter(
-    AbslStringifyWriter&& that) noexcept
-    : PrefixLimitingWriter(static_cast<PrefixLimitingWriter&&>(that)),
-      dest_(that.dest_) {}
-
-inline AbslStringifyWriter<WriterAbslStringifySink*>& AbslStringifyWriter<
-    WriterAbslStringifySink*>::operator=(AbslStringifyWriter&& that) noexcept {
-  PrefixLimitingWriter::operator=(static_cast<PrefixLimitingWriter&&>(that));
-  dest_ = that.dest_;
-  return *this;
 }
 
 inline void AbslStringifyWriter<WriterAbslStringifySink*>::Reset(Closed) {

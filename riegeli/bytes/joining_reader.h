@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -28,7 +27,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/dependency.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -176,8 +175,8 @@ class JoiningReader : public JoiningReaderBase {
  protected:
   using JoiningReaderBase::JoiningReaderBase;
 
-  JoiningReader(JoiningReader&& that) noexcept;
-  JoiningReader& operator=(JoiningReader&& that) noexcept;
+  JoiningReader(JoiningReader&& that) = default;
+  JoiningReader& operator=(JoiningReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `JoiningReader`. This
   // avoids constructing a temporary `JoiningReader` and moving from it.
@@ -195,10 +194,10 @@ class JoiningReader : public JoiningReaderBase {
   const Reader* ShardReader() const override { return shard_.get(); }
 
  private:
-  void MoveShard(JoiningReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the shard `Reader`.
-  Dependency<Reader*, Shard> shard_;
+  MovingDependency<Reader*, Shard, Mover> shard_;
 };
 
 // Implementation details follow.
@@ -255,18 +254,25 @@ inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
 }
 
 template <typename Shard>
-inline JoiningReader<Shard>::JoiningReader(JoiningReader&& that) noexcept
-    : JoiningReaderBase(static_cast<JoiningReaderBase&&>(that)) {
-  MoveShard(std::move(that));
-}
+class JoiningReader<Shard>::Mover {
+ public:
+  static auto member() { return &JoiningReader::shard_; }
 
-template <typename Shard>
-inline JoiningReader<Shard>& JoiningReader<Shard>::operator=(
-    JoiningReader&& that) noexcept {
-  JoiningReaderBase::operator=(static_cast<JoiningReaderBase&&>(that));
-  MoveShard(std::move(that));
-  return *this;
-}
+  explicit Mover(JoiningReader& self, JoiningReader& that)
+      : behind_scratch_(&self), uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `shard_` is not moved yet so `shard_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.shard_);
+  }
+
+  void Done(JoiningReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.shard_);
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool uses_buffer_;
+};
 
 template <typename Shard>
 inline void JoiningReader<Shard>::Reset(Closed) {
@@ -284,20 +290,6 @@ template <typename Shard>
 void JoiningReader<Shard>::Done() {
   JoiningReaderBase::Done();
   shard_.Reset();
-}
-
-template <typename Shard>
-inline void JoiningReader<Shard>::MoveShard(JoiningReader&& that) {
-  if (shard_.kIsStable || !shard_is_open(that.shard_.get())) {
-    shard_ = std::move(that.shard_);
-  } else {
-    BehindScratch behind_scratch(this);
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `shard_` is not moved yet so `shard_` is taken from `that`.
-    SyncBuffer(*that.shard_);
-    shard_ = std::move(that.shard_);
-    MakeBuffer(*shard_);
-  }
 }
 
 }  // namespace riegeli

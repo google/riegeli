@@ -193,8 +193,8 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   explicit DefaultChunkWriter(Initializer<Dest> dest,
                               Options options = Options());
 
-  DefaultChunkWriter(DefaultChunkWriter&& that) noexcept;
-  DefaultChunkWriter& operator=(DefaultChunkWriter&& that) noexcept;
+  DefaultChunkWriter(DefaultChunkWriter&& that) = default;
+  DefaultChunkWriter& operator=(DefaultChunkWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkWriter`. This
   // avoids constructing a temporary `DefaultChunkWriter` and moving from it.
@@ -321,21 +321,6 @@ inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Initializer<Dest> dest,
                                                     Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
-}
-
-template <typename Dest>
-inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
-    DefaultChunkWriter&& that) noexcept
-    : DefaultChunkWriterBase(static_cast<DefaultChunkWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
-    DefaultChunkWriter&& that) noexcept {
-  DefaultChunkWriterBase::operator=(
-      static_cast<DefaultChunkWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

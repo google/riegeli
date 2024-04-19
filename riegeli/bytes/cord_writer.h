@@ -160,6 +160,9 @@ class CordWriterBase : public Writer {
   // follow the current position are separated in `*tail_`.
   void SyncBuffer(absl::Cord& dest);
 
+  // Move `cord_buffer_`, adjusting buffer pointers if they point to it.
+  void MoveCordBuffer(CordWriterBase& that);
+
   // Moves `length` of data from the beginning of `*tail_` to the end of `dest`.
   void MoveFromTail(size_t length, absl::Cord& dest);
 
@@ -212,8 +215,10 @@ class CordWriterBase : public Writer {
   AssociatedReader<CordReader<const absl::Cord*>> associated_reader_;
 
   // Invariants:
-  //   `start() == nullptr` or `start() == cord_buffer_.data()`
-  //       or `start() == buffer_.data()`
+  //   `start() == nullptr` or
+  //       `start() == cord_buffer_.data() &&
+  //        start_to_limit() == cord_buffer_.length()` or
+  //       `start() == buffer_.data()`
   //   if `ok()` then `start_pos() <= DestCord()->size()`
   //   if `ok() && start_pos() < DestCord()->size()` then
   //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
@@ -254,8 +259,8 @@ class CordWriter : public CordWriterBase {
       std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
   explicit CordWriter(Options options = Options());
 
-  CordWriter(CordWriter&& that) noexcept;
-  CordWriter& operator=(CordWriter&& that) noexcept;
+  CordWriter(CordWriter&& that) = default;
+  CordWriter& operator=(CordWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CordWriter`. This avoids
   // constructing a temporary `CordWriter` and moving from it.
@@ -307,11 +312,7 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       buffer_(std::move(that.buffer_)),
       tail_(std::move(that.tail_)),
       associated_reader_(std::move(that.associated_reader_)) {
-  const bool uses_cord_buffer = start() == that.cord_buffer_.data();
-  cord_buffer_ = std::move(that.cord_buffer_);
-  if (uses_cord_buffer) {
-    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  }
+  MoveCordBuffer(that);
 }
 
 inline CordWriterBase& CordWriterBase::operator=(
@@ -323,11 +324,7 @@ inline CordWriterBase& CordWriterBase::operator=(
   buffer_ = std::move(that.buffer_);
   tail_ = std::move(that.tail_);
   associated_reader_ = std::move(that.associated_reader_);
-  const bool uses_cord_buffer = start() == that.cord_buffer_.data();
-  cord_buffer_ = std::move(that.cord_buffer_);
-  if (uses_cord_buffer) {
-    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  }
+  MoveCordBuffer(that);
   return *this;
 }
 
@@ -372,6 +369,23 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
   }
 }
 
+inline void CordWriterBase::MoveCordBuffer(CordWriterBase& that) {
+  // Buffer pointers are already moved so `start()` is taken from `*this`.
+  // `cord_buffer_` is not moved yet so `cord_buffer_` is taken from `that`.
+  const bool uses_cord_buffer = start() == that.cord_buffer_.data();
+  if (uses_cord_buffer) {
+    RIEGELI_ASSERT_EQ(that.cord_buffer_.length(), start_to_limit())
+        << "Failed invariant of CordWriter: "
+           "CordBuffer has an unexpected length";
+  }
+  const size_t saved_start_to_cursor = start_to_cursor();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
+    set_buffer(cord_buffer_.data(), cord_buffer_.length(),
+               saved_start_to_cursor);
+  }
+}
+
 template <typename Dest>
 inline CordWriter<Dest>::CordWriter(Initializer<Dest> dest, Options options)
     : CordWriterBase(options), dest_(std::move(dest)) {
@@ -383,19 +397,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline CordWriter<Dest>::CordWriter(Options options)
     : CordWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename Dest>
-inline CordWriter<Dest>::CordWriter(CordWriter&& that) noexcept
-    : CordWriterBase(static_cast<CordWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline CordWriter<Dest>& CordWriter<Dest>::operator=(
-    CordWriter&& that) noexcept {
-  CordWriterBase::operator=(static_cast<CordWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
-}
 
 template <typename Dest>
 inline void CordWriter<Dest>::Reset(Closed) {

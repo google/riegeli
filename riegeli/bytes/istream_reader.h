@@ -160,8 +160,8 @@ class IStreamReader : public IStreamReaderBase {
   // Will read from the stream provided by `src`.
   explicit IStreamReader(Initializer<Src> src, Options options = Options());
 
-  IStreamReader(IStreamReader&& that) noexcept;
-  IStreamReader& operator=(IStreamReader&& that) noexcept;
+  IStreamReader(IStreamReader&& that) = default;
+  IStreamReader& operator=(IStreamReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `IStreamReader`. This
   // avoids constructing a temporary `IStreamReader` and moving from it.
@@ -241,19 +241,6 @@ inline IStreamReader<Src>::IStreamReader(Initializer<Src> src, Options options)
     : IStreamReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos());
-}
-
-template <typename Src>
-inline IStreamReader<Src>::IStreamReader(IStreamReader&& that) noexcept
-    : IStreamReaderBase(static_cast<IStreamReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline IStreamReader<Src>& IStreamReader<Src>::operator=(
-    IStreamReader&& that) noexcept {
-  IStreamReaderBase::operator=(static_cast<IStreamReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

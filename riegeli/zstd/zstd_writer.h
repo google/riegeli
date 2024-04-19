@@ -294,8 +294,8 @@ class ZstdWriter : public ZstdWriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit ZstdWriter(Initializer<Dest> dest, Options options = Options());
 
-  ZstdWriter(ZstdWriter&& that) noexcept;
-  ZstdWriter& operator=(ZstdWriter&& that) noexcept;
+  ZstdWriter(ZstdWriter&& that) = default;
+  ZstdWriter& operator=(ZstdWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ZstdWriter`. This avoids
   // constructing a temporary `ZstdWriter` and moving from it.
@@ -400,19 +400,6 @@ inline ZstdWriter<Dest>::ZstdWriter(Initializer<Dest> dest, Options options)
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.store_checksum());
-}
-
-template <typename Dest>
-inline ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& that) noexcept
-    : ZstdWriterBase(static_cast<ZstdWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
-    ZstdWriter&& that) noexcept {
-  ZstdWriterBase::operator=(static_cast<ZstdWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

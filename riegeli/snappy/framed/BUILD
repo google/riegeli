@@ -15,6 +15,7 @@ cc_library(
         "//riegeli/base:buffer",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
+        "//riegeli/base:moving_dependency",
         "//riegeli/base:object",
         "//riegeli/base:status",
         "//riegeli/base:types",

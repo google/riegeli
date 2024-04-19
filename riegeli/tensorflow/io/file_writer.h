@@ -202,8 +202,8 @@ class FileWriter : public FileWriterBase {
   explicit FileWriter(Initializer<std::string>::AllowingExplicit filename,
                       Options options = Options());
 
-  FileWriter(FileWriter&& that) noexcept;
-  FileWriter& operator=(FileWriter&& that) noexcept;
+  FileWriter(FileWriter&& that) = default;
+  FileWriter& operator=(FileWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FileWriter`. This avoids
   // constructing a temporary `FileWriter` and moving from it.
@@ -312,19 +312,6 @@ inline FileWriter<Dest>::FileWriter(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : FileWriterBase(options.buffer_options(), options.env()) {
   Initialize(std::move(filename), std::move(options));
-}
-
-template <typename Dest>
-inline FileWriter<Dest>::FileWriter(FileWriter&& that) noexcept
-    : FileWriterBase(static_cast<FileWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline FileWriter<Dest>& FileWriter<Dest>::operator=(
-    FileWriter&& that) noexcept {
-  FileWriterBase::operator=(static_cast<FileWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

@@ -146,6 +146,9 @@ class CordBackwardWriterBase : public BackwardWriter {
   // If the buffer is not empty, prepends it to `dest`.
   void SyncBuffer(absl::Cord& dest);
 
+  // Move `cord_buffer_`, adjusting buffer pointers if they point to it.
+  void MoveCordBuffer(CordBackwardWriterBase& that);
+
   absl::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
@@ -157,8 +160,10 @@ class CordBackwardWriterBase : public BackwardWriter {
   Buffer buffer_;
 
   // Invariants:
-  //   `limit() == nullptr` or `limit() == cord_buffer_.data()`
-  //       or `limit() == buffer_.data()`
+  //   `limit() == nullptr` or
+  //       `limit() == cord_buffer_.data() &&
+  //        start_to_limit() = cord_buffer_.length()` or
+  //       `limit() == buffer_.data()`
   //   if `ok()` then `start_pos() == DestCord()->size()`
 };
 
@@ -196,8 +201,8 @@ class CordBackwardWriter : public CordBackwardWriterBase {
       std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
   explicit CordBackwardWriter(Options options = Options());
 
-  CordBackwardWriter(CordBackwardWriter&& that) noexcept;
-  CordBackwardWriter& operator=(CordBackwardWriter&& that) noexcept;
+  CordBackwardWriter(CordBackwardWriter&& that) = default;
+  CordBackwardWriter& operator=(CordBackwardWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CordBackwardWriter`. This
   // avoids constructing a temporary `CordBackwardWriter` and moving from it.
@@ -250,11 +255,7 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)) {
-  const bool uses_cord_buffer = limit() == that.cord_buffer_.data();
-  cord_buffer_ = std::move(that.cord_buffer_);
-  if (uses_cord_buffer) {
-    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  }
+  MoveCordBuffer(that);
 }
 
 inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
@@ -264,11 +265,7 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
-  const bool uses_cord_buffer = limit() == that.cord_buffer_.data();
-  cord_buffer_ = std::move(that.cord_buffer_);
-  if (uses_cord_buffer) {
-    set_buffer(cord_buffer_.data(), start_to_limit(), start_to_cursor());
-  }
+  MoveCordBuffer(that);
   return *this;
 }
 
@@ -299,6 +296,24 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
   }
 }
 
+inline void CordBackwardWriterBase::MoveCordBuffer(
+    CordBackwardWriterBase& that) {
+  // Buffer pointers are already moved so `limit()` is taken from `*this`.
+  // `cord_buffer_` is not moved yet so `cord_buffer_` is taken from `that`.
+  const bool uses_cord_buffer = limit() == that.cord_buffer_.data();
+  if (uses_cord_buffer) {
+    RIEGELI_ASSERT_EQ(that.cord_buffer_.length(), start_to_limit())
+        << "Failed invariant of CordBackwardWriter: "
+           "CordBuffer has an unexpected length";
+  }
+  const size_t saved_start_to_cursor = start_to_cursor();
+  cord_buffer_ = std::move(that.cord_buffer_);
+  if (uses_cord_buffer) {
+    set_buffer(cord_buffer_.data(), cord_buffer_.length(),
+               saved_start_to_cursor);
+  }
+}
+
 template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(Initializer<Dest> dest,
                                                     Options options)
@@ -311,21 +326,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(Options options)
     : CordBackwardWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename Dest>
-inline CordBackwardWriter<Dest>::CordBackwardWriter(
-    CordBackwardWriter&& that) noexcept
-    : CordBackwardWriterBase(static_cast<CordBackwardWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline CordBackwardWriter<Dest>& CordBackwardWriter<Dest>::operator=(
-    CordBackwardWriter&& that) noexcept {
-  CordBackwardWriterBase::operator=(
-      static_cast<CordBackwardWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
-}
 
 template <typename Dest>
 inline void CordBackwardWriter<Dest>::Reset(Closed) {

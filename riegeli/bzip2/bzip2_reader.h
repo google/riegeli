@@ -157,8 +157,8 @@ class Bzip2Reader : public Bzip2ReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit Bzip2Reader(Initializer<Src> src, Options options = Options());
 
-  Bzip2Reader(Bzip2Reader&&) noexcept;
-  Bzip2Reader& operator=(Bzip2Reader&&) noexcept;
+  Bzip2Reader(Bzip2Reader&&) = default;
+  Bzip2Reader& operator=(Bzip2Reader&&) = default;
 
   // Makes `*this` equivalent to a newly constructed `Bzip2Reader`. This avoids
   // constructing a temporary `Bzip2Reader` and moving from it.
@@ -245,19 +245,6 @@ inline Bzip2Reader<Src>::Bzip2Reader(Initializer<Src> src, Options options)
     : Bzip2ReaderBase(options.buffer_options(), options.concatenate()),
       src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline Bzip2Reader<Src>::Bzip2Reader(Bzip2Reader&& that) noexcept
-    : Bzip2ReaderBase(static_cast<Bzip2ReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline Bzip2Reader<Src>& Bzip2Reader<Src>::operator=(
-    Bzip2Reader&& that) noexcept {
-  Bzip2ReaderBase::operator=(static_cast<Bzip2ReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

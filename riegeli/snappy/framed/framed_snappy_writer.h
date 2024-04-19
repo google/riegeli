@@ -153,8 +153,8 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
   explicit FramedSnappyWriter(Initializer<Dest> dest,
                               Options options = Options());
 
-  FramedSnappyWriter(FramedSnappyWriter&& that) noexcept;
-  FramedSnappyWriter& operator=(FramedSnappyWriter&& that) noexcept;
+  FramedSnappyWriter(FramedSnappyWriter&& that) = default;
+  FramedSnappyWriter& operator=(FramedSnappyWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FramedSnappyWriter`. This
   // avoids constructing a temporary `FramedSnappyWriter` and moving from it.
@@ -231,21 +231,6 @@ inline FramedSnappyWriter<Dest>::FramedSnappyWriter(Initializer<Dest> dest,
                                                     Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
-    FramedSnappyWriter&& that) noexcept
-    : FramedSnappyWriterBase(static_cast<FramedSnappyWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline FramedSnappyWriter<Dest>& FramedSnappyWriter<Dest>::operator=(
-    FramedSnappyWriter&& that) noexcept {
-  FramedSnappyWriterBase::operator=(
-      static_cast<FramedSnappyWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

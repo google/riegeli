@@ -142,8 +142,8 @@ class TextReader : public text_reader_internal::TextReaderImpl<newline> {
   // Will read from the original `Reader` provided by `src`.
   explicit TextReader(Initializer<Src> src, Options options = Options());
 
-  TextReader(TextReader&& that) noexcept;
-  TextReader& operator=(TextReader&& that) noexcept;
+  TextReader(TextReader&& that) = default;
+  TextReader& operator=(TextReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `TextReader`. This avoids
   // constructing a temporary `TextReader` and moving from it.
@@ -252,21 +252,6 @@ inline TextReader<newline, Src>::TextReader(Initializer<Src> src,
                                             Options options)
     : TextReader::TextReaderImpl(options), src_(std::move(src)) {
   this->Initialize(src_.get());
-}
-
-template <ReadNewline newline, typename Src>
-inline TextReader<newline, Src>::TextReader(TextReader&& that) noexcept
-    : TextReader::TextReaderImpl(
-          static_cast<typename TextReader::TextReaderImpl&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <ReadNewline newline, typename Src>
-inline TextReader<newline, Src>& TextReader<newline, Src>::operator=(
-    TextReader&& that) noexcept {
-  TextReader::TextReaderImpl::operator=(
-      static_cast<typename TextReader::TextReaderImpl&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <ReadNewline newline, typename Src>

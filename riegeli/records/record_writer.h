@@ -635,8 +635,8 @@ class RecordWriter : public RecordWriterBase {
   // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
   explicit RecordWriter(Initializer<Dest> dest, Options options = Options());
 
-  RecordWriter(RecordWriter&& that) noexcept;
-  RecordWriter& operator=(RecordWriter&& that) noexcept;
+  RecordWriter(RecordWriter&& that) = default;
+  RecordWriter& operator=(RecordWriter&& that) = default;
 
   ~RecordWriter() override { DoneBackground(); }
 
@@ -680,19 +680,6 @@ template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
-    : RecordWriterBase(static_cast<RecordWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
-    RecordWriter&& that) noexcept {
-  RecordWriterBase::operator=(static_cast<RecordWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

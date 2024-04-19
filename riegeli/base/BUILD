@@ -235,6 +235,17 @@ cc_library(
 )
 
 cc_library(
+    name = "moving_dependency",
+    hdrs = ["moving_dependency.h"],
+    deps = [
+        ":dependency",
+        ":type_traits",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
     name = "stable_dependency",
     hdrs = ["stable_dependency.h"],
     deps = [

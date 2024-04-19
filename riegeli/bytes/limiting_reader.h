@@ -32,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -307,8 +308,8 @@ class LimitingReader : public LimitingReaderBase {
   // Will read from the original `Reader` provided by `src`.
   explicit LimitingReader(Initializer<Src> src, Options options = Options());
 
-  LimitingReader(LimitingReader&& that) noexcept;
-  LimitingReader& operator=(LimitingReader&& that) noexcept;
+  LimitingReader(LimitingReader&& that) = default;
+  LimitingReader& operator=(LimitingReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `LimitingReader`. This
   // avoids constructing a temporary `LimitingReader` and moving from it.
@@ -327,12 +328,10 @@ class LimitingReader : public LimitingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(LimitingReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -508,25 +507,31 @@ inline bool LimitingReaderBase::CheckEnough() {
 }
 
 template <typename Src>
+class LimitingReader<Src>::Mover {
+ public:
+  static auto member() { return &LimitingReader::src_; }
+
+  explicit Mover(LimitingReader& self, LimitingReader& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `src_` is not moved yet so `src_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.src_);
+  }
+
+  void Done(LimitingReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.src_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Src>
 inline LimitingReader<Src>::LimitingReader(Initializer<Src> src,
                                            Options options)
     : LimitingReaderBase(options.exact(), options.fail_if_longer()),
       src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline LimitingReader<Src>::LimitingReader(LimitingReader&& that) noexcept
-    : LimitingReaderBase(static_cast<LimitingReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline LimitingReader<Src>& LimitingReader<Src>::operator=(
-    LimitingReader&& that) noexcept {
-  LimitingReaderBase::operator=(static_cast<LimitingReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -540,19 +545,6 @@ inline void LimitingReader<Src>::Reset(Initializer<Src> src, Options options) {
   LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
-  if (src_.kIsStable || that.src_ == nullptr) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(*that.src_);
-    src_ = std::move(that.src_);
-    MakeBuffer(*src_);
-  }
 }
 
 template <typename Src>

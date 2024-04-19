@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -228,8 +229,8 @@ class LimitingWriter : public LimitingWriterBase {
   // Will write to the original `Writer` provided by `dest`.
   explicit LimitingWriter(Initializer<Dest> dest, Options options = Options());
 
-  LimitingWriter(LimitingWriter&& that) noexcept;
-  LimitingWriter& operator=(LimitingWriter&& that) noexcept;
+  LimitingWriter(LimitingWriter&& that) = default;
+  LimitingWriter& operator=(LimitingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `LimitingWriter`. This
   // avoids constructing a temporary `LimitingWriter` and moving from it.
@@ -249,12 +250,10 @@ class LimitingWriter : public LimitingWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(LimitingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -352,24 +351,34 @@ inline void LimitingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
+class LimitingWriter<Dest>::Mover {
+ public:
+  static auto member() { return &LimitingWriter::dest_; }
+
+  explicit Mover(LimitingWriter& self, LimitingWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) {
+      if (ABSL_PREDICT_FALSE(!self.SyncBuffer(*that.dest_))) {
+        uses_buffer_ = false;
+      }
+    }
+  }
+
+  void Done(LimitingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(Initializer<Dest> dest,
                                             Options options)
     : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(LimitingWriter&& that) noexcept
-    : LimitingWriterBase(static_cast<LimitingWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
-    LimitingWriter&& that) noexcept {
-  LimitingWriterBase::operator=(static_cast<LimitingWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -384,19 +393,6 @@ inline void LimitingWriter<Dest>::Reset(Initializer<Dest> dest,
   LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    const bool sync_buffer_ok = SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*dest_);
-  }
 }
 
 template <typename Dest>

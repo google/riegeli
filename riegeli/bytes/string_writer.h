@@ -31,6 +31,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -90,8 +91,6 @@ class StringWriterBase : public Writer {
   void Reset(BufferOptions buffer_options);
   void Initialize(std::string* dest, bool append);
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
-  void MoveSecondaryBuffer(StringWriterBase&& that);
-  void MoveSecondaryBufferAndBufferPointers(StringWriterBase&& that);
 
   void Done() override;
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
@@ -138,6 +137,9 @@ class StringWriterBase : public Writer {
   void MakeSecondaryBuffer(size_t min_length = 1,
                            size_t recommended_length = 0);
 
+  // Move `secondary_buffer_`, adjusting buffer pointers if they point to it.
+  void MoveSecondaryBuffer(StringWriterBase& that);
+
   Chain::Options options_;
   // Buffered data which did not fit under `DestString()->capacity()`.
   Chain secondary_buffer_;
@@ -162,14 +164,14 @@ class StringWriterBase : public Writer {
   // current position.
   //
   // Invariants if `ok()`:
-  //   `(!uses_secondary_buffer() &&
-  //     start_pos() == 0 &&
-  //     start() == &(*DestString())[0] &&
-  //     start_to_limit() == DestString()->size()) ||
-  //    (uses_secondary_buffer() &&
-  //     limit() == secondary_buffer_.blocks().back().data() +
-  //                secondary_buffer_.blocks().back().size()) ||
-  //    start() == nullptr`
+  //   `!uses_secondary_buffer() &&
+  //    start() == &(*DestString())[0] &&
+  //    start_to_limit() == DestString()->size() &&
+  //    start_pos() == 0` or
+  //       `uses_secondary_buffer() &&
+  //        limit() == secondary_buffer_.blocks().back().data() +
+  //                   secondary_buffer_.blocks().back().size()` or
+  //       `start() == nullptr`
   //   `limit_pos() >= secondary_buffer_.size()`
   //   `UnsignedMax(limit_pos(), written_size_) ==
   //        DestString()->size() + secondary_buffer_.size()`
@@ -210,8 +212,8 @@ class StringWriter : public StringWriterBase {
                              int> = 0>
   explicit StringWriter(Options options = Options());
 
-  StringWriter(StringWriter&& that) noexcept;
-  StringWriter& operator=(StringWriter&& that) noexcept;
+  StringWriter(StringWriter&& that) = default;
+  StringWriter& operator=(StringWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
@@ -230,15 +232,12 @@ class StringWriter : public StringWriterBase {
   std::string* DestString() const override { return dest_.get(); }
 
  private:
-  // Moves `that.dest_` to `dest_`, and `that.secondary_buffer_` to
-  // `secondary_buffer_`. Buffer pointers are already moved from `dest_` to
-  // `*this`; adjust them to match `dest_` or `secondary_buffer_`.
-  void MoveDestAndSecondaryBuffer(StringWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the `std::string` being written
   // to, with uninitialized space appended (possibly empty); `cursor()` points
   // to the uninitialized space.
-  Dependency<std::string*, Dest> dest_;
+  MovingDependency<std::string*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -267,17 +266,18 @@ inline StringWriterBase::StringWriterBase(BufferOptions buffer_options)
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
       options_(that.options_),
-      // `secondary_buffer_` will be moved by `StringWriter::StringWriter()`.
       written_size_(that.written_size_),
-      associated_reader_(std::move(that.associated_reader_)) {}
+      associated_reader_(std::move(that.associated_reader_)) {
+  MoveSecondaryBuffer(that);
+}
 
 inline StringWriterBase& StringWriterBase::operator=(
     StringWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
   options_ = that.options_;
-  // `secondary_buffer_` will be moved by `StringWriter::operator=`.
   written_size_ = that.written_size_;
   associated_reader_ = std::move(that.associated_reader_);
+  MoveSecondaryBuffer(that);
   return *this;
 }
 
@@ -309,20 +309,56 @@ inline void StringWriterBase::Initialize(std::string* dest, bool append) {
   }
 }
 
-inline void StringWriterBase::MoveSecondaryBuffer(StringWriterBase&& that) {
+inline void StringWriterBase::MoveSecondaryBuffer(StringWriterBase& that) {
+  // Buffer pointers are already moved so `start()` is taken from `*this`.
+  // `secondary_buffer_` is not moved yet so `uses_secondary_buffer()` is called
+  // on `that`.
+  const bool uses_buffer = start() != nullptr && that.uses_secondary_buffer();
+  const size_t saved_start_to_limit = start_to_limit();
+  const size_t saved_start_to_cursor = start_to_cursor();
+  if (uses_buffer) {
+    RIEGELI_ASSERT(that.secondary_buffer_.blocks().back().data() +
+                       that.secondary_buffer_.blocks().back().size() ==
+                   limit())
+        << "Failed invariant of StringWriter: "
+           "secondary buffer inconsistent with buffer pointers";
+  }
   secondary_buffer_ = std::move(that.secondary_buffer_);
+  if (uses_buffer) {
+    const absl::string_view last_block = secondary_buffer_.blocks().back();
+    set_buffer(const_cast<char*>(last_block.data() + last_block.size()) -
+                   saved_start_to_limit,
+               saved_start_to_limit, saved_start_to_cursor);
+  }
 }
 
-inline void StringWriterBase::MoveSecondaryBufferAndBufferPointers(
-    StringWriterBase&& that) {
-  const size_t buffer_size = start_to_limit();
-  const size_t cursor_index = start_to_cursor();
-  secondary_buffer_ = std::move(that.secondary_buffer_);
-  set_buffer(const_cast<char*>(secondary_buffer_.blocks().back().data() +
-                               secondary_buffer_.blocks().back().size()) -
-                 buffer_size,
-             buffer_size, cursor_index);
-}
+template <typename Dest>
+class StringWriter<Dest>::Mover {
+ public:
+  static auto member() { return &StringWriter::dest_; }
+
+  explicit Mover(StringWriter& self, StringWriter& that)
+      : uses_buffer_(self.start() != nullptr && !self.uses_secondary_buffer()),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(&(*that.dest_)[0] == self.start())
+          << "StringWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.dest_->size(), self.start_to_limit())
+          << "StringWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(StringWriter& self) {
+    if (uses_buffer_) {
+      std::string& dest = *self.dest_;
+      self.set_buffer(&dest[0], dest.size(), start_to_cursor_);
+    }
+  }
+
+ private:
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Initializer<Dest> dest, Options options)
@@ -336,20 +372,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline StringWriter<Dest>::StringWriter(Options options)
     : StringWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename Dest>
-inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
-    : StringWriterBase(static_cast<StringWriterBase&&>(that)) {
-  MoveDestAndSecondaryBuffer(std::move(that));
-}
-
-template <typename Dest>
-inline StringWriter<Dest>& StringWriter<Dest>::operator=(
-    StringWriter&& that) noexcept {
-  StringWriterBase::operator=(static_cast<StringWriterBase&&>(that));
-  MoveDestAndSecondaryBuffer(std::move(that));
-  return *this;
-}
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Closed) {
@@ -370,27 +392,6 @@ template <
     std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
 inline void StringWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
-}
-
-template <typename Dest>
-inline void StringWriter<Dest>::MoveDestAndSecondaryBuffer(
-    StringWriter&& that) {
-  if (!that.uses_secondary_buffer()) {
-    MoveSecondaryBuffer(std::move(that));
-    if (dest_.kIsStable) {
-      dest_ = std::move(that.dest_);
-    } else {
-      const size_t cursor_index = start_to_cursor();
-      dest_ = std::move(that.dest_);
-      if (start() != nullptr) {
-        std::string& dest = *dest_;
-        set_buffer(&dest[0], dest.size(), cursor_index);
-      }
-    }
-  } else {
-    MoveSecondaryBufferAndBufferPointers(std::move(that));
-    dest_ = std::move(that.dest_);
-  }
 }
 
 }  // namespace riegeli

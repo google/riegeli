@@ -292,8 +292,8 @@ class FdMMapReader : public FdMMapReaderBase {
                         Initializer<std::string>::AllowingExplicit filename,
                         Options options = Options());
 
-  FdMMapReader(FdMMapReader&& that) noexcept;
-  FdMMapReader& operator=(FdMMapReader&& that) noexcept;
+  FdMMapReader(FdMMapReader&& that) = default;
+  FdMMapReader& operator=(FdMMapReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FdMMapReader`. This avoids
   // constructing a temporary `FdMMapReader` and moving from it.
@@ -452,19 +452,6 @@ inline FdMMapReader<Src>::FdMMapReader(
     return;
   }
   InitializePos(*src_, std::move(options));
-}
-
-template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
-    : FdMMapReaderBase(static_cast<FdMMapReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
-    FdMMapReader&& that) noexcept {
-  FdMMapReaderBase::operator=(static_cast<FdMMapReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

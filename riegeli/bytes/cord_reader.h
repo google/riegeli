@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -133,8 +134,8 @@ class CordReader : public CordReaderBase {
   // Will read from the `absl::Cord` provided by `src`.
   explicit CordReader(Initializer<Src> src);
 
-  CordReader(CordReader&& that) noexcept;
-  CordReader& operator=(CordReader&& that) noexcept;
+  CordReader(CordReader&& that) = default;
+  CordReader& operator=(CordReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CordReader`. This avoids
   // constructing a temporary `CordReader` and moving from it.
@@ -148,12 +149,10 @@ class CordReader : public CordReaderBase {
   const absl::Cord* SrcCord() const override { return src_.get(); }
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(CordReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the `absl::Cord` being read from.
-  Dependency<const absl::Cord*, Src> src_;
+  MovingDependency<const absl::Cord*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -166,14 +165,13 @@ explicit CordReader(Src&& src) -> CordReader<InitializerTargetT<Src>>;
 // Implementation details follow.
 
 inline CordReaderBase::CordReaderBase(CordReaderBase&& that) noexcept
-    : PullableReader(static_cast<PullableReader&&>(that)) {
-  // `iter_` will be moved by `CordReader<Src>::MoveSrc()`.
-}
+    : PullableReader(static_cast<PullableReader&&>(that)),
+      iter_(std::exchange(that.iter_, absl::nullopt)) {}
 
 inline CordReaderBase& CordReaderBase::operator=(
     CordReaderBase&& that) noexcept {
   PullableReader::operator=(static_cast<PullableReader&&>(that));
-  // `iter_` will be moved by `CordReader<Src>::MoveSrc()`.
+  iter_ = std::exchange(that.iter_, absl::nullopt);
   return *this;
 }
 
@@ -215,22 +213,76 @@ inline void CordReaderBase::MakeBuffer(const absl::Cord& src) {
 }
 
 template <typename Src>
+class CordReader<Src>::Mover {
+ public:
+  static auto member() { return &CordReader::src_; }
+
+  explicit Mover(CordReader& self, CordReader& that)
+      : behind_scratch_(&self),
+        uses_buffer_(self.start() != nullptr),
+        position_(IntCast<size_t>(self.start_pos())),
+        start_to_cursor_(self.start_to_cursor()) {
+#if RIEGELI_DEBUG
+    if (self.iter_ == absl::nullopt) {
+      if (uses_buffer_) {
+        const absl::optional<absl::string_view> flat = that.src_->TryFlat();
+        RIEGELI_ASSERT(flat != absl::nullopt)
+            << "CordReader source changed unexpectedly";
+        RIEGELI_ASSERT(flat->data() == self.start())
+            << "CordReader source changed unexpectedly";
+        RIEGELI_ASSERT_EQ(flat->size(), self.start_to_limit())
+            << "CordReader source changed unexpectedly";
+      }
+    } else {
+      if (position_ == that.src_->size()) {
+        RIEGELI_ASSERT(*self.iter_ == that.src_->char_end())
+            << "CordReader source changed unexpectedly";
+        RIEGELI_ASSERT(!uses_buffer_)
+            << "CordReader source changed unexpectedly";
+      } else {
+        const absl::string_view fragment =
+            absl::Cord::ChunkRemaining(*self.iter_);
+        RIEGELI_ASSERT(fragment.data() == self.start())
+            << "CordReader source changed unexpectedly";
+        RIEGELI_ASSERT_EQ(fragment.size(), self.start_to_limit())
+            << "CordReader source changed unexpectedly";
+      }
+    }
+#endif
+  }
+
+  void Done(CordReader& self) {
+    if (self.iter_ == absl::nullopt) {
+      if (uses_buffer_) {
+        const absl::optional<absl::string_view> flat = self.src_->TryFlat();
+        RIEGELI_ASSERT(flat != absl::nullopt)
+            << "CordReader source changed unexpectedly";
+        self.set_buffer(flat->data(), flat->size(), start_to_cursor_);
+      }
+    } else {
+      if (position_ == self.src_->size()) {
+        self.iter_ = self.src_->char_end();
+      } else {
+        self.iter_ = self.src_->char_begin();
+        absl::Cord::Advance(&*self.iter_, position_);
+        const absl::string_view fragment =
+            absl::Cord::ChunkRemaining(*self.iter_);
+        self.set_buffer(fragment.data(), fragment.size(), start_to_cursor_);
+      }
+    }
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool uses_buffer_;
+  size_t position_;
+  size_t start_to_cursor_;
+};
+
+template <typename Src>
 inline CordReader<Src>::CordReader(Initializer<Src> src)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline CordReader<Src>::CordReader(CordReader&& that) noexcept
-    : CordReaderBase(static_cast<CordReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline CordReader<Src>& CordReader<Src>::operator=(CordReader&& that) noexcept {
-  CordReaderBase::operator=(static_cast<CordReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -244,41 +296,6 @@ inline void CordReader<Src>::Reset(Initializer<Src> src) {
   CordReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline void CordReader<Src>::MoveSrc(CordReader&& that) {
-  if (src_.kIsStable) {
-    src_ = std::move(that.src_);
-    iter_ = std::exchange(that.iter_, absl::nullopt);
-  } else {
-    BehindScratch behind_scratch(this);
-    const size_t position = IntCast<size_t>(start_pos());
-    const size_t cursor_index = start_to_cursor();
-    src_ = std::move(that.src_);
-    if (that.iter_ == absl::nullopt) {
-      iter_ = absl::nullopt;
-      if (start() != nullptr) {
-        const absl::optional<absl::string_view> flat = src_->TryFlat();
-        RIEGELI_ASSERT(flat != absl::nullopt)
-            << "Failed invariant of CordReaderBase: "
-               "no Cord iterator but Cord is not flat";
-        set_buffer(flat->data(), flat->size(), cursor_index);
-      }
-    } else {
-      // Reset `that.iter_` before `iter_` to support self-assignment.
-      that.iter_ = absl::nullopt;
-      if (position == src_->size()) {
-        iter_ = src_->char_end();
-        set_buffer();
-      } else {
-        iter_ = src_->char_begin();
-        absl::Cord::Advance(&*iter_, position);
-        const absl::string_view fragment = absl::Cord::ChunkRemaining(*iter_);
-        set_buffer(fragment.data(), fragment.size(), cursor_index);
-      }
-    }
-  }
 }
 
 }  // namespace riegeli

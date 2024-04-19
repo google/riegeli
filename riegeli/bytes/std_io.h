@@ -18,6 +18,7 @@
 #include "absl/base/attributes.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/sized_shared_buffer.h"
+#include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 
@@ -46,8 +47,8 @@ class StdIn : public FdReader<UnownedFd> {
   // Will read from standard input.
   explicit StdIn(Options options = Options());
 
-  StdIn(StdIn&& that) noexcept;
-  StdIn& operator=(StdIn&& that) noexcept;
+  StdIn(StdIn&& that) = default;
+  StdIn& operator=(StdIn&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `StdIn`. This avoids
   // constructing a temporary `StdIn` and moving from it.
@@ -92,8 +93,8 @@ class StdOut : public FdWriter<UnownedFd> {
   // Will write to standard output.
   explicit StdOut(Options options = Options());
 
-  StdOut(StdOut&& that) noexcept;
-  StdOut& operator=(StdOut&& that) noexcept;
+  StdOut(StdOut&& that) = default;
+  StdOut& operator=(StdOut&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `StdOut`. This avoids
   // constructing a temporary `StdOut` and moving from it.
@@ -131,8 +132,8 @@ class StdErr : public FdWriter<UnownedFd> {
   // Will write to standard error.
   explicit StdErr(Options options = Options());
 
-  StdErr(StdErr&& that) noexcept;
-  StdErr& operator=(StdErr&& that) noexcept;
+  StdErr(StdErr&& that) = default;
+  StdErr& operator=(StdErr&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `StdErr`. This avoids
   // constructing a temporary `StdErr` and moving from it.
@@ -193,33 +194,9 @@ class InjectedStdErrFd {
 
 // Implementation details follow.
 
-inline StdIn::StdIn(StdIn&& that) noexcept
-    : FdReader(static_cast<FdReader&&>(that)) {}
-
-inline StdIn& StdIn::operator=(StdIn&& that) noexcept {
-  FdReader::operator=(static_cast<FdReader&&>(that));
-  return *this;
-}
-
 inline void StdIn::Reset(Closed) { FdReader::Reset(kClosed); }
 
-inline StdOut::StdOut(StdOut&& that) noexcept
-    : FdWriter(static_cast<FdWriter&&>(that)) {}
-
-inline StdOut& StdOut::operator=(StdOut&& that) noexcept {
-  FdWriter::operator=(static_cast<FdWriter&&>(that));
-  return *this;
-}
-
 inline void StdOut::Reset(Closed) { FdWriter::Reset(kClosed); }
-
-inline StdErr::StdErr(StdErr&& that) noexcept
-    : FdWriter(static_cast<FdWriter&&>(that)) {}
-
-inline StdErr& StdErr::operator=(StdErr&& that) noexcept {
-  FdWriter::operator=(static_cast<FdWriter&&>(that));
-  return *this;
-}
 
 inline void StdErr::Reset(Closed) { FdWriter::Reset(kClosed); }
 

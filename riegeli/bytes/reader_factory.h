@@ -122,8 +122,8 @@ class ReaderFactory : public ReaderFactoryBase {
   // Will read from the original `Reader` provided by `src`.
   explicit ReaderFactory(Initializer<Src> src, Options options = Options());
 
-  ReaderFactory(ReaderFactory&& that) noexcept;
-  ReaderFactory& operator=(ReaderFactory&& that) noexcept;
+  ReaderFactory(ReaderFactory&& that) = default;
+  ReaderFactory& operator=(ReaderFactory&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ReaderFactory`. This
   // avoids constructing a temporary `ReaderFactory` and moving from it.
@@ -185,19 +185,6 @@ template <typename Src>
 inline ReaderFactory<Src>::ReaderFactory(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
   Initialize(options.buffer_options(), src_.get());
-}
-
-template <typename Src>
-inline ReaderFactory<Src>::ReaderFactory(ReaderFactory&& that) noexcept
-    : ReaderFactoryBase(static_cast<ReaderFactoryBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline ReaderFactory<Src>& ReaderFactory<Src>::operator=(
-    ReaderFactory&& that) noexcept {
-  ReaderFactoryBase::operator=(static_cast<ReaderFactoryBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

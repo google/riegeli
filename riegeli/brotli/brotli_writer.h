@@ -206,8 +206,8 @@ class BrotliWriter : public BrotliWriterBase {
   // Will write to the compressed `Writer` provided by `dest`.
   explicit BrotliWriter(Initializer<Dest> dest, Options options = Options());
 
-  BrotliWriter(BrotliWriter&& that) noexcept;
-  BrotliWriter& operator=(BrotliWriter&& that) noexcept;
+  BrotliWriter(BrotliWriter&& that) = default;
+  BrotliWriter& operator=(BrotliWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `BrotliWriter`. This avoids
   // constructing a temporary `BrotliWriter` and moving from it.
@@ -294,19 +294,6 @@ inline BrotliWriter<Dest>::BrotliWriter(Initializer<Dest> dest, Options options)
                        std::move(options.allocator())),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log());
-}
-
-template <typename Dest>
-inline BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
-    : BrotliWriterBase(static_cast<BrotliWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
-    BrotliWriter&& that) noexcept {
-  BrotliWriterBase::operator=(static_cast<BrotliWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

@@ -27,6 +27,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -107,8 +108,8 @@ class ChainReader : public ChainReaderBase {
   // Will read from the `Chain` provided by `src`.
   explicit ChainReader(Initializer<Src> src);
 
-  ChainReader(ChainReader&& that) noexcept;
-  ChainReader& operator=(ChainReader&& that) noexcept;
+  ChainReader(ChainReader&& that) = default;
+  ChainReader& operator=(ChainReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ChainReader`. This avoids
   // constructing a temporary `ChainReader` and moving from it.
@@ -122,12 +123,10 @@ class ChainReader : public ChainReaderBase {
   const Chain* SrcChain() const override { return src_.get(); }
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(ChainReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Chain` being read from.
-  Dependency<const Chain*, Src> src_;
+  MovingDependency<const Chain*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -171,23 +170,46 @@ inline void ChainReaderBase::Initialize(const Chain* src) {
 }
 
 template <typename Src>
+class ChainReader<Src>::Mover {
+ public:
+  static auto member() { return &ChainReader::src_; }
+
+  explicit Mover(ChainReader& self, ChainReader& that)
+      : behind_scratch_(&self),
+        has_chain_(self.iter().chain() != nullptr),
+        block_index_(self.iter().block_index()),
+        uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(self.iter()->data() == self.start())
+          << "ChainReader source changed unexpectedly";
+      RIEGELI_ASSERT_EQ(self.iter()->size(), self.start_to_limit())
+          << "ChainReader source changed unexpectedly";
+    }
+  }
+
+  void Done(ChainReader& self) {
+    if (has_chain_) {
+      self.set_iter(Chain::BlockIterator(self.src_.get(), block_index_));
+      if (uses_buffer_) {
+        self.set_buffer(self.iter()->data(), self.iter()->size(),
+                        start_to_cursor_);
+      }
+    }
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool has_chain_;
+  size_t block_index_;
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
+
+template <typename Src>
 inline ChainReader<Src>::ChainReader(Initializer<Src> src)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline ChainReader<Src>::ChainReader(ChainReader&& that) noexcept
-    : ChainReaderBase(static_cast<ChainReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline ChainReader<Src>& ChainReader<Src>::operator=(
-    ChainReader&& that) noexcept {
-  ChainReaderBase::operator=(static_cast<ChainReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -201,24 +223,6 @@ inline void ChainReader<Src>::Reset(Initializer<Src> src) {
   ChainReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
-  if (src_.kIsStable) {
-    src_ = std::move(that.src_);
-  } else {
-    BehindScratch behind_scratch(this);
-    const size_t block_index = iter().block_index();
-    const size_t cursor_index = start_to_cursor();
-    src_ = std::move(that.src_);
-    if (iter().chain() != nullptr) {
-      set_iter(Chain::BlockIterator(src_.get(), block_index));
-      if (start() != nullptr) {
-        set_buffer(iter()->data(), iter()->size(), cursor_index);
-      }
-    }
-  }
 }
 
 }  // namespace riegeli

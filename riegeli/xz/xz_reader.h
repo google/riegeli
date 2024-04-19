@@ -220,8 +220,8 @@ class XzReader : public XzReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit XzReader(Initializer<Src> src, Options options = Options());
 
-  XzReader(XzReader&&) noexcept;
-  XzReader& operator=(XzReader&&) noexcept;
+  XzReader(XzReader&&) = default;
+  XzReader& operator=(XzReader&&) = default;
 
   // Makes `*this` equivalent to a newly constructed `XzReader`. This avoids
   // constructing a temporary `XzReader` and moving from it.
@@ -319,18 +319,6 @@ inline XzReader<Src>::XzReader(Initializer<Src> src, Options options)
                    options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline XzReader<Src>::XzReader(XzReader&& that) noexcept
-    : XzReaderBase(static_cast<XzReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline XzReader<Src>& XzReader<Src>::operator=(XzReader&& that) noexcept {
-  XzReaderBase::operator=(static_cast<XzReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

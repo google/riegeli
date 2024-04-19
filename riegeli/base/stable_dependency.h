@@ -27,26 +27,16 @@
 
 namespace riegeli {
 
-// Similar to `Dependency<Handle, Manager>`, but ensures that `Handle` stays
-// unchanged when `StableDependency<Handle, Manager>` is moved.
+// `StableDependency<Handle, Manager>` is similar to
+// `Dependency<Handle, Manager>`, but ensures that `Handle` stays unchanged when
+// the `StableDependency<Handle, Manager>` is moved.
+//
 // `StableDependency` can be used instead of `Dependency` if `Handle` stability
 // is required, e.g. if background threads access the `Handle`.
 //
 // This template is specialized but does not have a primary definition.
 template <typename Handle, typename Manager, typename Enable = void>
 class StableDependency;
-
-// Specialization when `Dependency<Handle, Manager>` is already stable.
-template <typename Handle, typename Manager>
-class StableDependency<Handle, Manager,
-                       std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
-    : public Dependency<Handle, Manager> {
- public:
-  using StableDependency::Dependency::Dependency;
-
-  StableDependency(StableDependency&& other) = default;
-  StableDependency& operator=(StableDependency&& other) = default;
-};
 
 namespace dependency_internal {
 
@@ -120,8 +110,21 @@ class StableDependencyImpl
 
 }  // namespace dependency_internal
 
-// Specialization when `Dependency<Handle, Manager>` is not stable: allocates
-// the dependency dynamically.
+// Specialization when `Dependency<Handle, Manager>` is already stable: delegate
+// to it.
+template <typename Handle, typename Manager>
+class StableDependency<Handle, Manager,
+                       std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
+    : public Dependency<Handle, Manager> {
+ public:
+  using StableDependency::Dependency::Dependency;
+
+  StableDependency(StableDependency&& other) = default;
+  StableDependency& operator=(StableDependency&& other) = default;
+};
+
+// Specialization when `Dependency<Handle, Manager>` is not stable: allocate the
+// dependency dynamically.
 template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager, std::enable_if_t<!Dependency<Handle, Manager>::kIsStable>>

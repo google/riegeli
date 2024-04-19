@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <utility>
-
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -28,7 +26,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/dependency.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
@@ -178,8 +176,8 @@ class SplittingWriter : public SplittingWriterBase {
  protected:
   using SplittingWriterBase::SplittingWriterBase;
 
-  SplittingWriter(SplittingWriter&& that) noexcept;
-  SplittingWriter& operator=(SplittingWriter&& that) noexcept;
+  SplittingWriter(SplittingWriter&& that) = default;
+  SplittingWriter& operator=(SplittingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `SplittingWriter`. This
   // avoids constructing a temporary `SplittingWriter` and moving from it.
@@ -197,10 +195,10 @@ class SplittingWriter : public SplittingWriterBase {
   const Writer* ShardWriter() const override { return shard_.get(); }
 
  private:
-  void MoveShard(SplittingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the shard `Writer`.
-  Dependency<Writer*, Shard> shard_;
+  MovingDependency<Writer*, Shard, Mover> shard_;
 };
 
 // Implementation details follow.
@@ -263,18 +261,25 @@ inline void SplittingWriterBase::MakeBuffer(Writer& shard) {
 }
 
 template <typename Shard>
-inline SplittingWriter<Shard>::SplittingWriter(SplittingWriter&& that) noexcept
-    : SplittingWriterBase(static_cast<SplittingWriterBase&&>(that)) {
-  MoveShard(std::move(that));
-}
+class SplittingWriter<Shard>::Mover {
+ public:
+  static auto member() { return &SplittingWriter::shard_; }
 
-template <typename Shard>
-inline SplittingWriter<Shard>& SplittingWriter<Shard>::operator=(
-    SplittingWriter&& that) noexcept {
-  SplittingWriterBase::operator=(static_cast<SplittingWriterBase&&>(that));
-  MoveShard(std::move(that));
-  return *this;
-}
+  explicit Mover(SplittingWriter& self, SplittingWriter& that)
+      : behind_scratch_(&self), uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `shard_` is not moved yet so `shard_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.shard_);
+  }
+
+  void Done(SplittingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.shard_);
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool uses_buffer_;
+};
 
 template <typename Shard>
 inline void SplittingWriter<Shard>::Reset(Closed) {
@@ -292,20 +297,6 @@ template <typename Shard>
 void SplittingWriter<Shard>::Done() {
   SplittingWriterBase::Done();
   shard_.Reset();
-}
-
-template <typename Shard>
-inline void SplittingWriter<Shard>::MoveShard(SplittingWriter&& that) {
-  if (shard_.kIsStable || !shard_is_open(that.shard_.get())) {
-    shard_ = std::move(that.shard_);
-  } else {
-    BehindScratch behind_scratch(this);
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `shard_` is not moved yet so `shard_` is taken from `that`.
-    SyncBuffer(*that.shard_);
-    shard_ = std::move(that.shard_);
-    MakeBuffer(*shard_);
-  }
 }
 
 }  // namespace riegeli

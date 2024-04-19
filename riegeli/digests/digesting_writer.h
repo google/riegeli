@@ -33,6 +33,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
@@ -138,8 +139,8 @@ class DigestingWriter : public DigestingWriterBase {
   explicit DigestingWriter(Initializer<Dest> dest,
                            Initializer<Digester> digester = riegeli::Maker());
 
-  DigestingWriter(DigestingWriter&& that) noexcept;
-  DigestingWriter& operator=(DigestingWriter&& that) noexcept;
+  DigestingWriter(DigestingWriter&& that) = default;
+  DigestingWriter& operator=(DigestingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `DigestingWriter`. This
   // avoids constructing a temporary `DigestingWriter` and moving from it.
@@ -190,14 +191,12 @@ class DigestingWriter : public DigestingWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(DigestingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the digester.
   Dependency<DigesterBaseHandle, Digester> digester_;
   // The object providing and possibly owning the original `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -283,27 +282,34 @@ inline void DigestingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Digester, typename Dest>
+class DigestingWriter<Digester, Dest>::Mover {
+ public:
+  static auto member() { return &DigestingWriter::dest_; }
+
+  explicit Mover(DigestingWriter& self, DigestingWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) {
+      if (ABSL_PREDICT_FALSE(!self.SyncBuffer(*that.dest_))) {
+        uses_buffer_ = false;
+      }
+    }
+  }
+
+  void Done(DigestingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Digester, typename Dest>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     Initializer<Dest> dest, Initializer<Digester> digester)
     : digester_(std::move(digester)), dest_(std::move(dest)) {
   Initialize(dest_.get(), digester_.get());
-}
-
-template <typename Digester, typename Dest>
-inline DigestingWriter<Digester, Dest>::DigestingWriter(
-    DigestingWriter&& that) noexcept
-    : DigestingWriterBase(static_cast<DigestingWriterBase&&>(that)),
-      digester_(std::move(that.digester_)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Digester, typename Dest>
-inline DigestingWriter<Digester, Dest>&
-DigestingWriter<Digester, Dest>::operator=(DigestingWriter&& that) noexcept {
-  DigestingWriterBase::operator=(static_cast<DigestingWriterBase&&>(that));
-  digester_ = std::move(that.digester_);
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Digester, typename Dest>
@@ -320,19 +326,6 @@ inline void DigestingWriter<Digester, Dest>::Reset(
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), digester_.get());
-}
-
-template <typename Digester, typename Dest>
-inline void DigestingWriter<Digester, Dest>::MoveDest(DigestingWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    const bool sync_buffer_ok = SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*dest_);
-  }
 }
 
 template <typename Digester, typename Dest>

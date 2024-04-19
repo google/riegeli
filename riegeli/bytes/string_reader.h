@@ -25,8 +25,10 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -108,8 +110,8 @@ class StringReader : public StringReaderBase {
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
   explicit StringReader(const char* src, size_t size);
 
-  StringReader(StringReader&& that) noexcept;
-  StringReader& operator=(StringReader&& that) noexcept;
+  StringReader(StringReader&& that) = default;
+  StringReader& operator=(StringReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `StringReader`. This avoids
   // constructing a temporary `StringReader` and moving from it.
@@ -131,13 +133,11 @@ class StringReader : public StringReaderBase {
   absl::string_view SrcStringView() const override { return src_.get(); }
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(StringReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the `std::string` or array being
   // read from.
-  Dependency<absl::string_view, Src> src_;
+  MovingDependency<absl::string_view, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -172,6 +172,34 @@ inline void StringReaderBase::Initialize(absl::string_view src) {
 }
 
 template <typename Src>
+class StringReader<Src>::Mover {
+ public:
+  static auto member() { return &StringReader::src_; }
+
+  explicit Mover(StringReader& self, StringReader& that)
+      : uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(that.src_.get().data() == self.start())
+          << "StringReader source changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.src_.get().size(), self.start_to_limit())
+          << "StringReader source changed unexpectedly";
+    }
+  }
+
+  void Done(StringReader& self) {
+    if (uses_buffer_) {
+      const absl::string_view src = self.src_.get();
+      self.set_buffer(src.data(), src.size(), start_to_cursor_);
+    }
+  }
+
+ private:
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
+
+template <typename Src>
 inline StringReader<Src>::StringReader(Initializer<Src> src)
     : src_(std::move(src)) {
   Initialize(src_.get());
@@ -189,20 +217,6 @@ template <
     std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
 inline StringReader<Src>::StringReader(const char* src, size_t size)
     : StringReader(absl::string_view(src, size)) {}
-
-template <typename Src>
-inline StringReader<Src>::StringReader(StringReader&& that) noexcept
-    : StringReaderBase(static_cast<StringReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline StringReader<Src>& StringReader<Src>::operator=(
-    StringReader&& that) noexcept {
-  StringReaderBase::operator=(static_cast<StringReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
-}
 
 template <typename Src>
 inline void StringReader<Src>::Reset(Closed) {
@@ -231,20 +245,6 @@ template <
     std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
 inline void StringReader<Src>::Reset(const char* src, size_t size) {
   Reset(absl::string_view(src, size));
-}
-
-template <typename Src>
-inline void StringReader<Src>::MoveSrc(StringReader&& that) {
-  if (src_.kIsStable) {
-    src_ = std::move(that.src_);
-  } else {
-    const size_t cursor_index = start_to_cursor();
-    src_ = std::move(that.src_);
-    if (start() != nullptr) {
-      const absl::string_view src = src_.get();
-      set_buffer(src.data(), src.size(), cursor_index);
-    }
-  }
 }
 
 }  // namespace riegeli

@@ -27,6 +27,7 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -107,8 +108,8 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   explicit FramedSnappyReader(Initializer<Src> src,
                               Options options = Options());
 
-  FramedSnappyReader(FramedSnappyReader&& that) noexcept;
-  FramedSnappyReader& operator=(FramedSnappyReader&& that) noexcept;
+  FramedSnappyReader(FramedSnappyReader&& that) = default;
+  FramedSnappyReader& operator=(FramedSnappyReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `FramedSnappyReader`. This
   // avoids constructing a temporary `FramedSnappyReader` and moving from it.
@@ -128,12 +129,10 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   void VerifyEndImpl() override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(FramedSnappyReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the compressed `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -182,26 +181,44 @@ inline void FramedSnappyReaderBase::Reset() {
 }
 
 template <typename Src>
+class FramedSnappyReader<Src>::Mover {
+ public:
+  static auto member() { return &FramedSnappyReader::src_; }
+
+  explicit Mover(FramedSnappyReader& self, FramedSnappyReader& that)
+      : behind_scratch_(&self),
+        // Buffer pointers are already moved so `limit()` is taken from `self`.
+        // `src_` is not moved yet so `src_` is taken from `that`.
+        reads_uncompressed_(ABSL_PREDICT_TRUE(self.is_open()) &&
+                            self.limit() == that.src_->cursor()) {
+    if (reads_uncompressed_) {
+      available_ = self.available();
+      that.src_->set_cursor(that.src_->cursor() - available_);
+    }
+  }
+
+  void Done(FramedSnappyReader& self) {
+    if (reads_uncompressed_) {
+      if (ABSL_PREDICT_FALSE(!self.src_->Pull(available_))) {
+        self.FailWithoutAnnotation(self.AnnotateOverSrc(self.src_->status()));
+        return;
+      }
+      self.set_buffer(self.src_->cursor(), available_);
+      self.src_->move_cursor(available_);
+    }
+  }
+
+ private:
+  BehindScratch behind_scratch_;
+  bool reads_uncompressed_;
+  size_t available_;
+};
+
+template <typename Src>
 inline FramedSnappyReader<Src>::FramedSnappyReader(
     Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline FramedSnappyReader<Src>::FramedSnappyReader(
-    FramedSnappyReader&& that) noexcept
-    : FramedSnappyReaderBase(static_cast<FramedSnappyReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline FramedSnappyReader<Src>& FramedSnappyReader<Src>::operator=(
-    FramedSnappyReader&& that) noexcept {
-  FramedSnappyReaderBase::operator=(
-      static_cast<FramedSnappyReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -216,27 +233,6 @@ inline void FramedSnappyReader<Src>::Reset(
   FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
-  // Buffer pointers are already moved so `limit()` is taken from `*this`,
-  // `src_` is not moved yet so `src_` is taken from `that`.
-  if (src_.kIsStable || ABSL_PREDICT_FALSE(!is_open()) ||
-      limit() != that.src_->cursor()) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers read uncompressed data from `that.src_`.
-    const size_t available_length = available();
-    that.src_->set_cursor(that.src_->cursor() - available_length);
-    src_ = std::move(that.src_);
-    if (ABSL_PREDICT_FALSE(!src_->Pull(available_length))) {
-      FailWithoutAnnotation(AnnotateOverSrc(src_->status()));
-      return;
-    }
-    set_buffer(src_->cursor(), available_length);
-    src_->move_cursor(available_length);
-  }
 }
 
 template <typename Src>

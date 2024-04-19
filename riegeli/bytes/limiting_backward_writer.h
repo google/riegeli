@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -227,8 +228,8 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   explicit LimitingBackwardWriter(Initializer<Dest> dest,
                                   Options options = Options());
 
-  LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
-  LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
+  LimitingBackwardWriter(LimitingBackwardWriter&& that) = default;
+  LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `LimitingBackwardWriter`.
   // This avoids constructing a temporary `LimitingBackwardWriter` and moving
@@ -249,12 +250,10 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(LimitingBackwardWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `BackwardWriter`.
-  Dependency<BackwardWriter*, Dest> dest_;
+  MovingDependency<BackwardWriter*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -357,27 +356,34 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
 }
 
 template <typename Dest>
+class LimitingBackwardWriter<Dest>::Mover {
+ public:
+  static auto member() { return &LimitingBackwardWriter::dest_; }
+
+  explicit Mover(LimitingBackwardWriter& self, LimitingBackwardWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) {
+      if (ABSL_PREDICT_FALSE(!self.SyncBuffer(*that.dest_))) {
+        uses_buffer_ = false;
+      }
+    }
+  }
+
+  void Done(LimitingBackwardWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
     Initializer<Dest> dest, Options options)
     : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
-    LimitingBackwardWriter&& that) noexcept
-    : LimitingBackwardWriterBase(
-          static_cast<LimitingBackwardWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline LimitingBackwardWriter<Dest>& LimitingBackwardWriter<Dest>::operator=(
-    LimitingBackwardWriter&& that) noexcept {
-  LimitingBackwardWriterBase::operator=(
-      static_cast<LimitingBackwardWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -392,20 +398,6 @@ inline void LimitingBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
   LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options), dest_.IsOwning());
-}
-
-template <typename Dest>
-inline void LimitingBackwardWriter<Dest>::MoveDest(
-    LimitingBackwardWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    const bool sync_buffer_ok = SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    if (ABSL_PREDICT_TRUE(sync_buffer_ok)) MakeBuffer(*dest_);
-  }
 }
 
 template <typename Dest>

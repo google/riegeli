@@ -92,7 +92,11 @@ template <typename Dest = CompactString*>
 class CompactStringWriter
     : public ResizableWriter<
           compact_string_internal::CompactStringResizableTraits, Dest> {
+ public:
   using CompactStringWriter::ResizableWriter::ResizableWriter;
+
+  CompactStringWriter(CompactStringWriter&& that) = default;
+  CompactStringWriter& operator=(CompactStringWriter&& that) = default;
 };
 
 // Support CTAD.

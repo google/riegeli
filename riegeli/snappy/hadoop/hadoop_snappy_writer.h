@@ -153,8 +153,8 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
   explicit HadoopSnappyWriter(Initializer<Dest> dest,
                               Options options = Options());
 
-  HadoopSnappyWriter(HadoopSnappyWriter&& that) noexcept;
-  HadoopSnappyWriter& operator=(HadoopSnappyWriter&& that) noexcept;
+  HadoopSnappyWriter(HadoopSnappyWriter&& that) = default;
+  HadoopSnappyWriter& operator=(HadoopSnappyWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `HadoopSnappyWriter`. This
   // avoids constructing a temporary `HadoopSnappyWriter` and moving from it.
@@ -231,21 +231,6 @@ inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(Initializer<Dest> dest,
                                                     Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level());
-}
-
-template <typename Dest>
-inline HadoopSnappyWriter<Dest>::HadoopSnappyWriter(
-    HadoopSnappyWriter&& that) noexcept
-    : HadoopSnappyWriterBase(static_cast<HadoopSnappyWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline HadoopSnappyWriter<Dest>& HadoopSnappyWriter<Dest>::operator=(
-    HadoopSnappyWriter&& that) noexcept {
-  HadoopSnappyWriterBase::operator=(
-      static_cast<HadoopSnappyWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>

@@ -109,8 +109,8 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
   explicit HadoopSnappyReader(Initializer<Src> src,
                               Options options = Options());
 
-  HadoopSnappyReader(HadoopSnappyReader&& that) noexcept;
-  HadoopSnappyReader& operator=(HadoopSnappyReader&& that) noexcept;
+  HadoopSnappyReader(HadoopSnappyReader&& that) = default;
+  HadoopSnappyReader& operator=(HadoopSnappyReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `HadoopSnappyReader`. This
   // avoids constructing a temporary `HadoopSnappyReader` and moving from it.
@@ -183,22 +183,6 @@ inline HadoopSnappyReader<Src>::HadoopSnappyReader(
     Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline HadoopSnappyReader<Src>::HadoopSnappyReader(
-    HadoopSnappyReader&& that) noexcept
-    : HadoopSnappyReaderBase(static_cast<HadoopSnappyReaderBase&&>(that)) {
-  src_ = std::move(that.src_);
-}
-
-template <typename Src>
-inline HadoopSnappyReader<Src>& HadoopSnappyReader<Src>::operator=(
-    HadoopSnappyReader&& that) noexcept {
-  HadoopSnappyReaderBase::operator=(
-      static_cast<HadoopSnappyReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

@@ -157,8 +157,8 @@ class BrotliReader : public BrotliReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit BrotliReader(Initializer<Src> src, Options options = Options());
 
-  BrotliReader(BrotliReader&& that) noexcept;
-  BrotliReader& operator=(BrotliReader&& that) noexcept;
+  BrotliReader(BrotliReader&& that) = default;
+  BrotliReader& operator=(BrotliReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `BrotliReader`. This avoids
   // constructing a temporary `BrotliReader` and moving from it.
@@ -241,19 +241,6 @@ inline BrotliReader<Src>::BrotliReader(Initializer<Src> src, Options options)
                        std::move(options.allocator())),
       src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
-    : BrotliReaderBase(static_cast<BrotliReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline BrotliReader<Src>& BrotliReader<Src>::operator=(
-    BrotliReader&& that) noexcept {
-  BrotliReaderBase::operator=(static_cast<BrotliReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

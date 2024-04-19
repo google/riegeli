@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -119,8 +120,8 @@ class WrappingReader : public WrappingReaderBase {
   // Will read from the original `Reader` provided by `src`.
   explicit WrappingReader(Initializer<Src> src);
 
-  WrappingReader(WrappingReader&& that) noexcept;
-  WrappingReader& operator=(WrappingReader&& that) noexcept;
+  WrappingReader(WrappingReader&& that) = default;
+  WrappingReader& operator=(WrappingReader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `WrappingReader`. This
   // avoids constructing a temporary `WrappingReader` and moving from it.
@@ -140,12 +141,10 @@ class WrappingReader : public WrappingReaderBase {
   bool SyncImpl(SyncType sync_type) override;
 
  private:
-  // Moves `that.src_` to `src_`. Buffer pointers are already moved from `src_`
-  // to `*this`; adjust them to match `src_`.
-  void MoveSrc(WrappingReader&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Reader`.
-  Dependency<Reader*, Src> src_;
+  MovingDependency<Reader*, Src, Mover> src_;
 };
 
 // Support CTAD.
@@ -184,23 +183,29 @@ inline void WrappingReaderBase::MakeBuffer(Reader& src) {
 }
 
 template <typename Src>
+class WrappingReader<Src>::Mover {
+ public:
+  static auto member() { return &WrappingReader::src_; }
+
+  explicit Mover(WrappingReader& self, WrappingReader& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `src_` is not moved yet so `src_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.src_);
+  }
+
+  void Done(WrappingReader& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.src_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Src>
 inline WrappingReader<Src>::WrappingReader(Initializer<Src> src)
     : src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline WrappingReader<Src>::WrappingReader(WrappingReader&& that) noexcept
-    : WrappingReaderBase(static_cast<WrappingReaderBase&&>(that)) {
-  MoveSrc(std::move(that));
-}
-
-template <typename Src>
-inline WrappingReader<Src>& WrappingReader<Src>::operator=(
-    WrappingReader&& that) noexcept {
-  WrappingReaderBase::operator=(static_cast<WrappingReaderBase&&>(that));
-  MoveSrc(std::move(that));
-  return *this;
 }
 
 template <typename Src>
@@ -214,19 +219,6 @@ inline void WrappingReader<Src>::Reset(Initializer<Src> src) {
   WrappingReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline void WrappingReader<Src>::MoveSrc(WrappingReader&& that) {
-  if (src_.kIsStable || that.src_ == nullptr) {
-    src_ = std::move(that.src_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(*that.src_);
-    src_ = std::move(that.src_);
-    MakeBuffer(*src_);
-  }
 }
 
 template <typename Src>

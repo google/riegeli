@@ -29,6 +29,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -114,8 +115,8 @@ class WrappingWriter : public WrappingWriterBase {
   // Will write to the original `Writer` provided by `dest`.
   explicit WrappingWriter(Initializer<Dest> dest);
 
-  WrappingWriter(WrappingWriter&& that) noexcept;
-  WrappingWriter& operator=(WrappingWriter&& that) noexcept;
+  WrappingWriter(WrappingWriter&& that) = default;
+  WrappingWriter& operator=(WrappingWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `WrappingWriter`. This
   // avoids constructing a temporary `WrappingWriter` and moving from it.
@@ -134,12 +135,10 @@ class WrappingWriter : public WrappingWriterBase {
   bool FlushImpl(FlushType flush_type) override;
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(WrappingWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the original `Writer`.
-  Dependency<Writer*, Dest> dest_;
+  MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -179,23 +178,29 @@ inline void WrappingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
+class WrappingWriter<Dest>::Mover {
+ public:
+  static auto member() { return &WrappingWriter::dest_; }
+
+  explicit Mover(WrappingWriter& self, WrappingWriter& that)
+      : uses_buffer_(self.start() != nullptr) {
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `self`.
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    if (uses_buffer_) self.SyncBuffer(*that.dest_);
+  }
+
+  void Done(WrappingWriter& self) {
+    if (uses_buffer_) self.MakeBuffer(*self.dest_);
+  }
+
+ private:
+  bool uses_buffer_;
+};
+
+template <typename Dest>
 inline WrappingWriter<Dest>::WrappingWriter(Initializer<Dest> dest)
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline WrappingWriter<Dest>::WrappingWriter(WrappingWriter&& that) noexcept
-    : WrappingWriterBase(static_cast<WrappingWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline WrappingWriter<Dest>& WrappingWriter<Dest>::operator=(
-    WrappingWriter&& that) noexcept {
-  WrappingWriterBase::operator=(static_cast<WrappingWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
 }
 
 template <typename Dest>
@@ -209,19 +214,6 @@ inline void WrappingWriter<Dest>::Reset(Initializer<Dest> dest) {
   WrappingWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
-}
-
-template <typename Dest>
-inline void WrappingWriter<Dest>::MoveDest(WrappingWriter&& that) {
-  if (dest_.kIsStable || that.dest_ == nullptr) {
-    dest_ = std::move(that.dest_);
-  } else {
-    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
-    // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(*that.dest_);
-    dest_ = std::move(that.dest_);
-    MakeBuffer(*dest_);
-  }
 }
 
 template <typename Dest>

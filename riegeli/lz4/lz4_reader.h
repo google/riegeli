@@ -210,8 +210,8 @@ class Lz4Reader : public Lz4ReaderBase {
   // Will read from the compressed `Reader` provided by `src`.
   explicit Lz4Reader(Initializer<Src> src, Options options = Options());
 
-  Lz4Reader(Lz4Reader&& that) noexcept;
-  Lz4Reader& operator=(Lz4Reader&& that) noexcept;
+  Lz4Reader(Lz4Reader&& that) = default;
+  Lz4Reader& operator=(Lz4Reader&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `Lz4Reader`. This avoids
   // constructing a temporary `Lz4Reader` and moving from it.
@@ -326,18 +326,6 @@ inline Lz4Reader<Src>::Lz4Reader(Initializer<Src> src, Options options)
                     options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
-}
-
-template <typename Src>
-inline Lz4Reader<Src>::Lz4Reader(Lz4Reader&& that) noexcept
-    : Lz4ReaderBase(static_cast<Lz4ReaderBase&&>(that)),
-      src_(std::move(that.src_)) {}
-
-template <typename Src>
-inline Lz4Reader<Src>& Lz4Reader<Src>::operator=(Lz4Reader&& that) noexcept {
-  Lz4ReaderBase::operator=(static_cast<Lz4ReaderBase&&>(that));
-  src_ = std::move(that.src_);
-  return *this;
 }
 
 template <typename Src>

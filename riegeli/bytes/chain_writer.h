@@ -25,6 +25,7 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -33,6 +34,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -247,8 +249,8 @@ class ChainWriter : public ChainWriterBase {
       std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
   explicit ChainWriter(Options options = Options());
 
-  ChainWriter(ChainWriter&& that) noexcept;
-  ChainWriter& operator=(ChainWriter&& that) noexcept;
+  ChainWriter(ChainWriter&& that) = default;
+  ChainWriter& operator=(ChainWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
   // constructing a temporary `ChainWriter` and moving from it.
@@ -267,15 +269,13 @@ class ChainWriter : public ChainWriterBase {
   Chain* DestChain() const override { return dest_.get(); }
 
  private:
-  // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
-  // `dest_` to `*this`; adjust them to match `dest_`.
-  void MoveDest(ChainWriter&& that);
+  class Mover;
 
   // The object providing and possibly owning the `Chain` being written to, with
   // uninitialized space appended (possibly empty); `cursor()` points to the
   // uninitialized space, except that it can be `nullptr` if the uninitialized
   // space is empty.
-  Dependency<Chain*, Dest> dest_;
+  MovingDependency<Chain*, Dest, Mover> dest_;
 };
 
 // Support CTAD.
@@ -342,6 +342,40 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
 }
 
 template <typename Dest>
+class ChainWriter<Dest>::Mover {
+ public:
+  static auto member() { return &ChainWriter::dest_; }
+
+  explicit Mover(ChainWriter& self, ChainWriter& that)
+      : uses_buffer_(self.start() != nullptr),
+        start_to_cursor_(self.start_to_cursor()) {
+    if (uses_buffer_) {
+      RIEGELI_ASSERT(that.dest_->blocks().back().data() +
+                         that.dest_->blocks().back().size() ==
+                     self.limit())
+          << "ChainWriter destination changed unexpectedly";
+      RIEGELI_ASSERT_EQ(that.dest_->size(), self.limit_pos())
+          << "ChainWriter destination changed unexpectedly";
+    }
+  }
+
+  void Done(ChainWriter& self) {
+    if (uses_buffer_) {
+      const size_t buffer_size =
+          self.dest_->size() - IntCast<size_t>(self.start_pos());
+      const absl::string_view last_block = self.dest_->blocks().back();
+      self.set_buffer(const_cast<char*>(last_block.data() + last_block.size()) -
+                          buffer_size,
+                      buffer_size, start_to_cursor_);
+    }
+  }
+
+ private:
+  bool uses_buffer_;
+  size_t start_to_cursor_;
+};
+
+template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(Initializer<Dest> dest, Options options)
     : ChainWriterBase(options), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.append());
@@ -352,20 +386,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline ChainWriter<Dest>::ChainWriter(Options options)
     : ChainWriter(riegeli::Maker(), std::move(options)) {}
-
-template <typename Dest>
-inline ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
-    : ChainWriterBase(static_cast<ChainWriterBase&&>(that)) {
-  MoveDest(std::move(that));
-}
-
-template <typename Dest>
-inline ChainWriter<Dest>& ChainWriter<Dest>::operator=(
-    ChainWriter&& that) noexcept {
-  ChainWriterBase::operator=(static_cast<ChainWriterBase&&>(that));
-  MoveDest(std::move(that));
-  return *this;
-}
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Closed) {
@@ -385,23 +405,6 @@ template <typename DependentDest,
           std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
 inline void ChainWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
-}
-
-template <typename Dest>
-inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
-  if (dest_.kIsStable) {
-    dest_ = std::move(that.dest_);
-  } else {
-    const size_t cursor_index = start_to_cursor();
-    dest_ = std::move(that.dest_);
-    if (start() != nullptr) {
-      const size_t buffer_size = dest_->size() - IntCast<size_t>(start_pos());
-      set_buffer(const_cast<char*>(dest_->blocks().back().data() +
-                                   dest_->blocks().back().size()) -
-                     buffer_size,
-                 buffer_size, cursor_index);
-    }
-  }
 }
 
 }  // namespace riegeli

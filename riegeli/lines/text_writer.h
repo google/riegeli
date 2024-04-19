@@ -88,8 +88,8 @@ class TextWriter : public text_writer_internal::TextWriterImpl<newline> {
   // Will write to the original `Writer` provided by `dest`.
   explicit TextWriter(Initializer<Dest> dest, Options options = Options());
 
-  TextWriter(TextWriter&& that) noexcept;
-  TextWriter& operator=(TextWriter&& that) noexcept;
+  TextWriter(TextWriter&& that) = default;
+  TextWriter& operator=(TextWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `TextWriter`. This avoids
   // constructing a temporary `TextWriter` and moving from it.
@@ -205,21 +205,6 @@ inline TextWriter<newline, Dest>::TextWriter(Initializer<Dest> dest,
                                              Options options)
     : TextWriter::TextWriterImpl(options), dest_(std::move(dest)) {
   this->Initialize(dest_.get());
-}
-
-template <WriteNewline newline, typename Dest>
-inline TextWriter<newline, Dest>::TextWriter(TextWriter&& that) noexcept
-    : TextWriter::TextWriterImpl(
-          static_cast<typename TextWriter::TextWriterImpl&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <WriteNewline newline, typename Dest>
-inline TextWriter<newline, Dest>& TextWriter<newline, Dest>::operator=(
-    TextWriter&& that) noexcept {
-  TextWriter::TextWriterImpl::operator=(
-      static_cast<typename TextWriter::TextWriterImpl&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <WriteNewline newline, typename Dest>

@@ -21,6 +21,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -113,14 +116,23 @@ inline void RestrictedChainWriter::Reset() {
 }
 
 inline void RestrictedChainWriter::MoveDest(RestrictedChainWriter&& that) {
-  const size_t cursor_index = start_to_cursor();
-  const size_t buffer_size = start_to_limit();
+  const bool uses_buffer = start() != nullptr;
+  if (uses_buffer) {
+    RIEGELI_ASSERT(that.dest_.blocks().back().data() +
+                       that.dest_.blocks().back().size() ==
+                   limit())
+        << "RestrictedChainWriter destination changed unexpectedly";
+    RIEGELI_ASSERT_EQ(that.dest_.size(), limit_pos())
+        << "RestrictedChainWriter destination changed unexpectedly";
+  }
+  const size_t saved_start_to_cursor = start_to_cursor();
   dest_ = std::move(that.dest_);
-  if (start() != nullptr) {
-    set_buffer(const_cast<char*>(dest_.blocks().back().data() +
-                                 dest_.blocks().back().size()) -
-                   buffer_size,
-               buffer_size, cursor_index);
+  if (uses_buffer) {
+    const size_t buffer_size = dest_.size() - IntCast<size_t>(start_pos());
+    const absl::string_view last_block = dest_.blocks().back();
+    set_buffer(
+        const_cast<char*>(last_block.data() + last_block.size()) - buffer_size,
+        buffer_size, saved_start_to_cursor);
   }
 }
 

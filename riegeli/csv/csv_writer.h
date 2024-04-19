@@ -393,8 +393,8 @@ class CsvWriter : public CsvWriterBase {
   // Will write to the byte `Writer` provided by `dest`.
   explicit CsvWriter(Initializer<Dest> dest, Options options = Options());
 
-  CsvWriter(CsvWriter&& that) noexcept;
-  CsvWriter& operator=(CsvWriter&& that) noexcept;
+  CsvWriter(CsvWriter&& that) = default;
+  CsvWriter& operator=(CsvWriter&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `CsvWriter`. This avoids
   // constructing a temporary `CsvWriter` and moving from it.
@@ -563,18 +563,6 @@ template <typename Dest>
 inline CsvWriter<Dest>::CsvWriter(Initializer<Dest> dest, Options options)
     : dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
-}
-
-template <typename Dest>
-inline CsvWriter<Dest>::CsvWriter(CsvWriter&& that) noexcept
-    : CsvWriterBase(static_cast<CsvWriterBase&&>(that)),
-      dest_(std::move(that.dest_)) {}
-
-template <typename Dest>
-inline CsvWriter<Dest>& CsvWriter<Dest>::operator=(CsvWriter&& that) noexcept {
-  CsvWriterBase::operator=(static_cast<CsvWriterBase&&>(that));
-  dest_ = std::move(that.dest_);
-  return *this;
 }
 
 template <typename Dest>
