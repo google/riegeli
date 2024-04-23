@@ -156,8 +156,8 @@ struct HasMovableElements : std::false_type {};
 template <typename Src>
 struct HasMovableElements<
     Src, std::enable_if_t<Dependency<const void*, Src>::kIsOwning>>
-    : iterable_internal::IterableHasMovableElements<std::remove_reference_t<
-          decltype(*std::declval<Dependency<const void*, Src>&>())>> {};
+    : iterable_internal::IterableHasMovableElements<std::remove_pointer_t<
+          typename Dependency<const void*, Src>::Subhandle>> {};
 
 // `MaybeMakeMoveIterator<Src>(iterator)` is `std::make_move_iterator(iterator)`
 // or `iterator`, depending on whether moving out of elements of the iterable
