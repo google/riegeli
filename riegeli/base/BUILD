@@ -224,7 +224,6 @@ cc_library(
         ":assert",
         ":compare",
         ":initializer",
-        ":reset",
         ":type_id",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",

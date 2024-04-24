@@ -23,7 +23,6 @@
 #include "absl/base/attributes.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
-#include "riegeli/base/reset.h"
 
 namespace riegeli {
 
@@ -153,87 +152,6 @@ class DependencyBase<Manager&&> {
 
  private:
   Manager&& manager_;
-};
-
-// Specialization of `DependencyBase` for arrays.
-//
-// Only a subset of operations is provided: default initialization
-// value-initializes the array (`RiegeliDependencySentinel()` is not supported),
-// and initialization from `Initializer<T[size]>` is not supported.
-template <typename T, size_t size>
-class DependencyBase<T[size]> {
- public:
-  DependencyBase() noexcept : manager_() {}
-
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_copy_constructible<DependentT>::value, int> = 0>
-  explicit DependencyBase(const T (&manager)[size])
-      : DependencyBase(manager, std::make_index_sequence<size>()) {}
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_move_constructible<DependentT>::value, int> = 0>
-  explicit DependencyBase(T (&&manager)[size]) noexcept
-      : DependencyBase(std::move(manager), std::make_index_sequence<size>()) {}
-
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    for (T& element : manager_) {
-      riegeli::Reset(element);
-    }
-  }
-
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_copy_assignable<DependentT>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const T (&manager)[size]) {
-    for (size_t i = 0; i < size; ++i) {
-      manager_[i] = manager[i];
-    }
-  }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_move_assignable<DependentT>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T (&&manager)[size]) {
-    for (size_t i = 0; i < size; ++i) {
-      manager_[i] = std::move(manager[i]);
-    }
-  }
-
-  auto manager() -> T (&)[size] { return manager_; }
-  auto manager() const -> const T (&)[size] { return manager_; }
-
-  static constexpr bool kIsStable = false;
-
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const DependencyBase* self,
-                                        MemoryEstimator& memory_estimator) {
-    for (const T& element : self->manager_) {
-      memory_estimator.RegisterSubobjects(&element);
-    }
-  }
-
- protected:
-  DependencyBase(const DependencyBase& that) = default;
-  DependencyBase& operator=(const DependencyBase& that) = delete;
-
-  DependencyBase(DependencyBase&& that) = default;
-  DependencyBase& operator=(DependencyBase&& that) = delete;
-
-  ~DependencyBase() = default;
-
-  auto mutable_manager() const -> T (&)[size] { return manager_; }
-
- private:
-  template <size_t... indices>
-  explicit DependencyBase(ABSL_ATTRIBUTE_UNUSED const T (&manager)[size],
-                          std::index_sequence<indices...>)
-      : manager_{manager[indices]...} {}
-  template <size_t... indices>
-  explicit DependencyBase(ABSL_ATTRIBUTE_UNUSED T (&&manager)[size],
-                          std::index_sequence<indices...>)
-      : manager_{std::move(manager[indices])...} {}
-
-  mutable T manager_[size];
 };
 
 }  // namespace riegeli

@@ -775,15 +775,15 @@ class DependencyDerived
     return Base::kIsOwning;
   }
 
-  template <
-      typename OtherManager,
-      std::enable_if_t<IsValidDependency<Handle, OtherManager>::value, int> = 0>
+  template <typename OtherManager,
+            std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
+                             int> = 0>
   OtherManager* GetIf() {
     return GetIfImpl<OtherManager>();
   }
-  template <
-      typename OtherManager,
-      std::enable_if_t<IsValidDependency<Handle, OtherManager>::value, int> = 0>
+  template <typename OtherManager,
+            std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
+                             int> = 0>
   const OtherManager* GetIf() const {
     return GetIfImpl<OtherManager>();
   }
