@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 
@@ -49,6 +50,12 @@ inline MakerType<> RiegeliDependencySentinel(void*) { return {}; }
 template <typename Manager>
 class DependencyBase {
  public:
+  template <typename DependentManager = Manager,
+            std::enable_if_t<std::is_convertible<
+                                 decltype(RiegeliDependencySentinel(
+                                     static_cast<DependentManager*>(nullptr))),
+                                 Initializer<DependentManager>>::value,
+                             int> = 0>
   DependencyBase() noexcept
       : DependencyBase(
             RiegeliDependencySentinel(static_cast<Manager*>(nullptr))) {}
@@ -56,6 +63,15 @@ class DependencyBase {
   explicit DependencyBase(Initializer<Manager> manager)
       : manager_(std::move(manager).Construct()) {}
 
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<
+          absl::conjunction<
+              std::is_convertible<decltype(RiegeliDependencySentinel(
+                                      static_cast<DependentManager*>(nullptr))),
+                                  Initializer<DependentManager>>,
+              std::is_move_assignable<DependentManager>>::value,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Reset(RiegeliDependencySentinel(static_cast<Manager*>(nullptr)));
   }

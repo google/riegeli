@@ -118,7 +118,8 @@ namespace riegeli {
 //   // Makes `*this` equivalent to a newly constructed Dependency. This avoids
 //   // constructing a temporary Dependency and moving from it.
 //   //
-//   // Supported optionally.
+//   // The overload with no parameters is supported when the corresponding
+//   // constructor is supported.
 //   //
 //   // Provided by `DependencyBase`.
 //   ABSL_ATTRIBUTE_REINITIALIZES void Reset();

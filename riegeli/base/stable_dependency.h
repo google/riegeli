@@ -16,14 +16,16 @@
 #define RIEGELI_BASE_STABLE_DEPENDENCY_H_
 
 #include <atomic>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/reset.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -33,7 +35,7 @@ namespace riegeli {
 //
 // `StableDependency` can be used instead of `Dependency` if `Handle` stability
 // is required, e.g. if background threads access the `Handle`.
-//
+
 // This template is specialized but does not have a primary definition.
 template <typename Handle, typename Manager, typename Enable = void>
 class StableDependency;
@@ -41,28 +43,28 @@ class StableDependency;
 namespace dependency_internal {
 
 template <typename Handle, typename Manager>
-class StableDependencyImpl
+class StableDependencyDefault
     : public PropagateStaticIsOwning<Dependency<Handle, Manager>> {
  public:
-  StableDependencyImpl() = default;
+  StableDependencyDefault() = default;
 
-  explicit StableDependencyImpl(Initializer<Manager> manager)
+  explicit StableDependencyDefault(Initializer<Manager> manager)
       : dep_(new Dependency<Handle, Manager>(std::move(manager))) {}
 
-  StableDependencyImpl(StableDependencyImpl&& that) noexcept
+  StableDependencyDefault(StableDependencyDefault&& that) noexcept
       : dep_(that.dep_.exchange(nullptr, std::memory_order_relaxed)) {}
-  StableDependencyImpl& operator=(StableDependencyImpl&& that) noexcept {
+  StableDependencyDefault& operator=(StableDependencyDefault&& that) noexcept {
     delete dep_.exchange(that.dep_.exchange(nullptr, std::memory_order_relaxed),
                          std::memory_order_relaxed);
     return *this;
   }
 
-  ~StableDependencyImpl() { delete dep_.load(std::memory_order_relaxed); }
+  ~StableDependencyDefault() { delete dep_.load(std::memory_order_relaxed); }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Dependency<Handle, Manager>* const dep =
         dep_.load(std::memory_order_relaxed);
-    if (dep != nullptr) riegeli::Reset(*dep);
+    if (dep != nullptr) dep->Reset();
   }
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
@@ -73,21 +75,21 @@ class StableDependencyImpl
       dep_.store(new Dependency<Handle, Manager>(std::move(manager)),
                  std::memory_order_relaxed);
     } else {
-      riegeli::Reset(*dep, std::move(manager));
+      dep->Reset(std::move(manager));
     }
   }
 
-  Manager& manager() { return EnsureAllocated()->manager(); }
-  const Manager& manager() const { return EnsureAllocated()->manager(); }
+  Manager& manager() { return EnsureAllocated().manager(); }
+  const Manager& manager() const { return EnsureAllocated().manager(); }
 
   typename Dependency<Handle, Manager>::Subhandle get() const {
-    return EnsureAllocated()->get();
+    return EnsureAllocated().get();
   }
 
-  bool IsOwning() const { return EnsureAllocated()->IsOwning(); }
+  bool IsOwning() const { return EnsureAllocated().IsOwning(); }
 
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StableDependencyImpl* self,
+  friend void RiegeliRegisterSubobjects(const StableDependencyDefault* self,
                                         MemoryEstimator& memory_estimator) {
     Dependency<Handle, Manager>* const dep =
         self->dep_.load(std::memory_order_acquire);
@@ -95,23 +97,65 @@ class StableDependencyImpl
   }
 
  private:
-  Dependency<Handle, Manager>* EnsureAllocated() const {
+  Dependency<Handle, Manager>& EnsureAllocated() const {
     Dependency<Handle, Manager>* const dep =
         dep_.load(std::memory_order_acquire);
-    if (ABSL_PREDICT_TRUE(dep != nullptr)) return dep;
+    if (ABSL_PREDICT_TRUE(dep != nullptr)) return *dep;
     return EnsureAllocatedSlow();
   }
 
-  Dependency<Handle, Manager>* EnsureAllocatedSlow() const;
+  Dependency<Handle, Manager>& EnsureAllocatedSlow() const;
 
   // Owned. `nullptr` is equivalent to a default constructed `Dependency`.
   mutable std::atomic<Dependency<Handle, Manager>*> dep_{nullptr};
 };
 
+template <typename Handle, typename Manager>
+class StableDependencyNoDefault
+    : public PropagateStaticIsOwning<Dependency<Handle, Manager>> {
+ public:
+  explicit StableDependencyNoDefault(Initializer<Manager> manager)
+      : dep_(
+            std::make_unique<Dependency<Handle, Manager>>(std::move(manager))) {
+  }
+
+  StableDependencyNoDefault(StableDependencyNoDefault&& that) noexcept
+      : dep_(std::make_unique<Dependency<Handle, Manager>>(
+            std::move(*that.dep_))) {}
+  StableDependencyNoDefault& operator=(
+      StableDependencyNoDefault&& that) noexcept {
+    *dep_ = std::move(*that.dep_);
+    return *this;
+  }
+
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
+    dep_->Reset(std::move(manager));
+  }
+
+  Manager& manager() { return dep_->manager(); }
+  const Manager& manager() const { return dep_->manager(); }
+
+  typename Dependency<Handle, Manager>::Subhandle get() const {
+    return dep_->get();
+  }
+
+  bool IsOwning() const { return dep_->IsOwning(); }
+
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const StableDependencyNoDefault* self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(&self->dep_);
+  }
+
+ private:
+  // Never `nullptr`.
+  std::unique_ptr<Dependency<Handle, Manager>> dep_;
+};
+
 }  // namespace dependency_internal
 
-// Specialization when `Dependency<Handle, Manager>` is already stable: delegate
-// to it.
+// Specialization of `StableDependency<Handle, Manager>` when
+// `Dependency<Handle, Manager>` is already stable: delegate to it.
 template <typename Handle, typename Manager>
 class StableDependency<Handle, Manager,
                        std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
@@ -123,14 +167,39 @@ class StableDependency<Handle, Manager,
   StableDependency& operator=(StableDependency&& other) = default;
 };
 
-// Specialization when `Dependency<Handle, Manager>` is not stable: allocate the
-// dependency dynamically.
+// Specialization of `StableDependency<Handle, Manager>` when
+// `Dependency<Handle, Manager>` is not stable but default constructible:
+// allocate the dependency dynamically and lazily.
 template <typename Handle, typename Manager>
 class StableDependency<
-    Handle, Manager, std::enable_if_t<!Dependency<Handle, Manager>::kIsStable>>
+    Handle, Manager,
+    std::enable_if_t<absl::conjunction<
+        std::integral_constant<bool, !Dependency<Handle, Manager>::kIsStable>,
+        std::is_default_constructible<Dependency<Handle, Manager>>>::value>>
     : public dependency_internal::DependencyDerived<
-          dependency_internal::StableDependencyImpl<Handle, Manager>, Handle,
+          dependency_internal::StableDependencyDefault<Handle, Manager>, Handle,
           Manager> {
+ public:
+  using StableDependency::DependencyDerived::DependencyDerived;
+
+  StableDependency(StableDependency&& other) = default;
+  StableDependency& operator=(StableDependency&& other) = default;
+};
+
+// Specialization of `StableDependency<Handle, Manager>` when
+// `Dependency<Handle, Manager>` is not stable and not default constructible:
+// allocate the dependency dynamically and eagerly.
+template <typename Handle, typename Manager>
+class StableDependency<
+    Handle, Manager,
+    std::enable_if_t<absl::conjunction<
+        std::integral_constant<bool, !Dependency<Handle, Manager>::kIsStable>,
+        absl::negation<std::is_default_constructible<
+            Dependency<Handle, Manager>>>>::value>>
+    : public dependency_internal::DependencyDerived<
+          dependency_internal::StableDependencyNoDefault<Handle, Manager>,
+          Handle, Manager>,
+      public CopyableLike<Dependency<Handle, Manager>> {
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
@@ -143,17 +212,17 @@ class StableDependency<
 namespace dependency_internal {
 
 template <typename Handle, typename Manager>
-Dependency<Handle, Manager>*
-StableDependencyImpl<Handle, Manager>::EnsureAllocatedSlow() const {
+Dependency<Handle, Manager>&
+StableDependencyDefault<Handle, Manager>::EnsureAllocatedSlow() const {
   Dependency<Handle, Manager>* const dep = new Dependency<Handle, Manager>();
   Dependency<Handle, Manager>* other_dep = nullptr;
   if (ABSL_PREDICT_FALSE(!dep_.compare_exchange_strong(
           other_dep, dep, std::memory_order_acq_rel))) {
     // We lost the race.
     delete dep;
-    return other_dep;
+    return *other_dep;
   }
-  return dep;
+  return *dep;
 }
 
 }  // namespace dependency_internal
