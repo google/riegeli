@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/dependency_base.h"
 
 namespace riegeli {
@@ -38,6 +39,7 @@ namespace riegeli {
 //  * `T* DependencyManager<T*>::ptr()`
 //  * `std::nullptr_t DependencyManager<std::nullptr_t>::ptr()`
 //  * `T* DependencyManager<std::unique_ptr<T, Deleter>>::ptr()`
+//  * `T* DependencyManager<absl::optional<T>>::ptr()`
 //  * `Handle DependencyManager<AnyDependency<Handle>>::ptr()`
 //
 // `DependencyManager<Manager>` derives from
@@ -123,6 +125,28 @@ class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
   static constexpr bool kIsStable = true;
 
  protected:
+  DependencyManagerImpl(DependencyManagerImpl&& that) = default;
+  DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
+
+  ~DependencyManagerImpl() = default;
+
+  T* ptr() const { return this->manager().get(); }
+};
+
+// Specialization of
+// `DependencyManagerImpl<absl::optional<T>, ManagerStorage>`:
+// an owned dependency stored by `absl::optional`.
+template <typename T, typename ManagerStorage>
+class DependencyManagerImpl<absl::optional<T>, ManagerStorage>
+    : public DependencyBase<ManagerStorage> {
+ public:
+  using DependencyManagerImpl::DependencyBase::DependencyBase;
+
+  bool IsOwning() const { return this->manager() != absl::nullopt; }
+
+  static constexpr bool kIsOwning = true;
+
+ protected:
   DependencyManagerImpl(const DependencyManagerImpl& that) = default;
   DependencyManagerImpl& operator=(const DependencyManagerImpl& that) = default;
 
@@ -131,7 +155,10 @@ class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
 
   ~DependencyManagerImpl() = default;
 
-  T* ptr() const { return this->manager().get(); }
+  T* ptr() const {
+    if (this->mutable_manager() == absl::nullopt) return nullptr;
+    return &*this->mutable_manager();
+  }
 };
 
 namespace dependency_manager_internal {
