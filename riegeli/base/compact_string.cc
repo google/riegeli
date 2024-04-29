@@ -14,6 +14,7 @@
 
 #include "riegeli/base/compact_string.h"
 
+#include <stddef.h>  // IWYU pragma: keep
 #include <stdint.h>
 
 #include <cstring>
@@ -26,6 +27,15 @@
 #include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+constexpr uintptr_t CompactString::kDefaultRepr;
+constexpr size_t CompactString::kInlineCapacity;
+constexpr size_t CompactString::kInlineDataOffset;
+#endif
 
 void CompactString::AssignSlow(absl::string_view src) {
   const size_t old_capacity = capacity();

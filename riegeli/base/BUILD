@@ -429,6 +429,7 @@ cc_library(
         ":compare",
         ":estimated_allocated_size",
         ":new_aligned",
+        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",

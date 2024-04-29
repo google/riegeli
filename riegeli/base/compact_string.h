@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
@@ -236,30 +237,25 @@ class
   static constexpr size_t kInlineCapacity =
       UnsignedMin(sizeof(uintptr_t) - 1, size_t{0xff >> 3});
 
-  // For Little Endian, returns 1.
-  // For Big Endian, returns 0.
-  //
-  // TODO: Use `std::endian` instead when C++20 is available.
-  //
-  // With the following implementation the result is not known at preprocessing
-  // time nor during constexpr evaluation, but this function is in practice
-  // optimized out to a constant.
-  static size_t InlineDataOffset() {
-    const uintptr_t value = 1;
-    return size_t{reinterpret_cast<const unsigned char*>(&value)[0]};
-  }
+#if ABSL_IS_LITTLE_ENDIAN
+  static constexpr size_t kInlineDataOffset = 1;
+#elif ABSL_IS_BIG_ENDIAN
+  static constexpr size_t kInlineDataOffset = 0;
+#else
+#error Unknown endianness
+#endif
 
   static char* inline_data(uintptr_t& repr) {
     RIEGELI_ASSERT_EQ(repr & 7, 1u)
         << "Failed precondition of CompactString::inline_data(): "
            "representation not inline";
-    return reinterpret_cast<char*>(&repr) + InlineDataOffset();
+    return reinterpret_cast<char*>(&repr) + kInlineDataOffset;
   }
   static const char* inline_data(const uintptr_t& repr) {
     RIEGELI_ASSERT_EQ(repr & 7, 1u)
         << "Failed precondition of CompactString::inline_data(): "
            "representation not inline";
-    return reinterpret_cast<const char*>(&repr) + InlineDataOffset();
+    return reinterpret_cast<const char*>(&repr) + kInlineDataOffset;
   }
 
   char* inline_data() { return inline_data(repr_); }
