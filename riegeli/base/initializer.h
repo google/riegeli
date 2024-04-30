@@ -26,6 +26,9 @@
 
 namespace riegeli {
 
+template <typename T, bool allow_explicit, typename Enable>
+class Initializer;
+
 namespace initializer_internal {
 
 // `IsConstructible<false, T, Arg>::value` is `true` if `T` is implicitly
@@ -42,6 +45,16 @@ struct IsConstructible<false, T, Arg> : std::is_convertible<Arg, T> {};
 
 template <typename T, typename Arg>
 struct IsConstructible<true, T, Arg> : std::is_constructible<T, Arg> {};
+
+// `IsInitializer` detects `Initializer` type with the given type parameter and
+// any `allow_explicit`.
+
+template <typename T, typename U>
+struct IsInitializer : std::false_type {};
+
+template <typename T, bool allow_explicit>
+struct IsInitializer<T, Initializer<T, allow_explicit, void>> : std::true_type {
+};
 
 // Part of `Initializer<T>` common to all specializations.
 template <typename T>
@@ -81,10 +94,7 @@ class InitializerBase {
 
   explicit InitializerBase(const Methods* methods);
 
-  template <
-      typename Arg,
-      std::enable_if_t<!std::is_same<std::decay_t<Arg>, InitializerBase>::value,
-                       int> = 0>
+  template <typename Arg>
   explicit InitializerBase(const Methods* methods, Arg&& arg);
 
   template <typename... Args>
@@ -248,10 +258,7 @@ class InitializerValueBase : public InitializerBase<T> {
   explicit InitializerValueBase(const Methods* methods)
       : InitializerValueBase::InitializerBase(methods) {}
 
-  template <typename Arg,
-            std::enable_if_t<
-                !std::is_same<std::decay_t<Arg>, InitializerValueBase>::value,
-                int> = 0>
+  template <typename Arg>
   explicit InitializerValueBase(const Methods* methods, Arg&& arg)
       : InitializerValueBase::InitializerBase(methods, std::forward<Arg>(arg)) {
   }
@@ -381,11 +388,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   explicit InitializerAssignableValueBase(const Methods* methods)
       : InitializerAssignableValueBase::InitializerValueBase(methods) {}
 
-  template <
-      typename Arg,
-      std::enable_if_t<!std::is_same<std::decay_t<Arg>,
-                                     InitializerAssignableValueBase>::value,
-                       int> = 0>
+  template <typename Arg>
   explicit InitializerAssignableValueBase(const Methods* methods, Arg&& arg)
       : InitializerAssignableValueBase::InitializerValueBase(
             methods, std::forward<Arg>(arg)) {}
@@ -457,11 +460,12 @@ class Initializer
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
-                                             std::decay_t<Arg>, Initializer>>,
-                                         initializer_internal::IsConstructible<
-                                             allow_explicit, T, Arg&&>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          absl::conjunction<absl::negation<initializer_internal::IsInitializer<
+                                T, std::decay_t<Arg>>>,
+                            initializer_internal::IsConstructible<
+                                allow_explicit, T, Arg&&>>::value,
+          int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
             &Initializer::InitializerAssignableValueBase::
@@ -515,6 +519,12 @@ class Initializer
                 template kMethodsFromConstMaker<Args...>,
             args.maker()) {}
 
+  // Constructs `Initializer<T>` from `Initializer<T>` with a different
+  // `allow_explicit` by adopting its state instead of wrapping.
+  template <bool other_allow_explicit>
+  /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
+      : Initializer::InitializerAssignableValueBase(std::move(initializer)) {}
+
   // Deprecated: use `riegeli::Maker(args...)` instead of
   // `std::forward_as_tuple(args...)`.
   //
@@ -561,11 +571,12 @@ class Initializer<T, allow_explicit,
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
-                                             std::decay_t<Arg>, Initializer>>,
-                                         initializer_internal::IsConstructible<
-                                             allow_explicit, T, Arg&&>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          absl::conjunction<absl::negation<initializer_internal::IsInitializer<
+                                T, std::decay_t<Arg>>>,
+                            initializer_internal::IsConstructible<
+                                allow_explicit, T, Arg&&>>::value,
+          int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
             &Initializer::InitializerValueBase::template kMethodsFromObject<
@@ -617,6 +628,12 @@ class Initializer<T, allow_explicit,
                 Args...>,
             args.maker()) {}
 
+  // Constructs `Initializer<T>` from `Initializer<T>` with a different
+  // `allow_explicit` by adopting its state instead of wrapping.
+  template <bool other_allow_explicit>
+  /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
+      : Initializer::InitializerValueBase(std::move(initializer)) {}
+
   // Deprecated: use `riegeli::Maker(args...)` instead of
   // `std::forward_as_tuple(args...)`.
   //
@@ -655,11 +672,12 @@ class Initializer<T, allow_explicit,
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
-                                             std::decay_t<Arg>, Initializer>>,
-                                         initializer_internal::IsConstructible<
-                                             allow_explicit, T, Arg&&>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          absl::conjunction<absl::negation<initializer_internal::IsInitializer<
+                                T, std::decay_t<Arg>>>,
+                            initializer_internal::IsConstructible<
+                                allow_explicit, T, Arg&&>>::value,
+          int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
             &Initializer::InitializerBase::template kMethodsFromObject<Arg>,
@@ -707,6 +725,12 @@ class Initializer<T, allow_explicit,
             &Initializer::InitializerBase::template kMethodsFromConstMaker<
                 Args...>,
             args.maker()) {}
+
+  // Constructs `Initializer<T>` from `Initializer<T>` with a different
+  // `allow_explicit` by adopting its state instead of wrapping.
+  template <bool other_allow_explicit>
+  /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
+      : Initializer::InitializerBase(std::move(initializer)) {}
 
   // Deprecated: use `riegeli::Maker(args...)` instead of
   // `std::forward_as_tuple(args...)`.
@@ -798,9 +822,7 @@ inline InitializerBase<T>::InitializerBase(const Methods* methods)
     : methods_(methods) {}
 
 template <typename T>
-template <typename Arg,
-          std::enable_if_t<
-              !std::is_same<std::decay_t<Arg>, InitializerBase<T>>::value, int>>
+template <typename Arg>
 inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
     : methods_(methods),
       context_(const_cast<absl::remove_cvref_t<Arg>*>(&arg)) {}
