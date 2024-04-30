@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include "absl/base/attributes.h"
-#include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
@@ -42,7 +41,7 @@ inline size_t EstimatedAllocatedSize(ABSL_ATTRIBUTE_UNUSED const void* ptr,
 
 // A deterministic variant of `EstimatedAllocatedSize()`, useful for testing.
 inline size_t EstimatedAllocatedSizeForTesting(size_t requested_size) {
-  return absl::bit_ceil(requested_size);
+  return 16 + requested_size;
 }
 
 }  // namespace riegeli
