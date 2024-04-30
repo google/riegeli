@@ -38,7 +38,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/cord_utils.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
@@ -302,7 +302,7 @@ class Chain::BlockRef {
   }
 
  private:
-  RefCountedPtr<RawBlock> block_;
+  IntrusiveSharedPtr<RawBlock> block_;
 };
 
 template <Chain::Ownership ownership>
@@ -319,7 +319,7 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
     block = target;
   }
   if (ownership == Ownership::kShare) block->Ref();
-  block_.reset(block);
+  block_.Reset(block);
 }
 
 void Chain::BlockRef::DumpStructure(absl::string_view data,

@@ -107,7 +107,7 @@ class StableDependencyDefault
   Dependency<Handle, Manager>& EnsureAllocatedSlow() const;
 
   // Owned. `nullptr` is equivalent to a default constructed `Dependency`.
-  mutable std::atomic<Dependency<Handle, Manager>*> dep_{nullptr};
+  mutable std::atomic<Dependency<Handle, Manager>*> dep_ = nullptr;
 };
 
 template <typename Handle, typename Manager>

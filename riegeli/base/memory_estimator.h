@@ -336,7 +336,7 @@ inline void MemoryEstimator::RegisterDynamicObject(const T* object) {
 template <typename T>
 inline void RiegeliRegisterSubobjects(const std::unique_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (*self != nullptr) memory_estimator.RegisterDynamicObject(&**self);
+  if (*self != nullptr) memory_estimator.RegisterDynamicObject(self->get());
 }
 
 namespace memory_estimator_internal {

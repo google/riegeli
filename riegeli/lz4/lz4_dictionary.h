@@ -28,7 +28,9 @@
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 
 // Copied here because the definition in `lz4frame.h` is guarded with
 // `LZ4F_STATIC_LINKING_ONLY` which should not leak to the header.
@@ -68,22 +70,10 @@ class Lz4Dictionary {
   //
   // Dictionary id can help to detect whether the correct dictionary is used.
   // 0 means unspecified.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  Lz4Dictionary& set_data(absl::string_view data, uint32_t dict_id = 0) &;
-  Lz4Dictionary&& set_data(absl::string_view data, uint32_t dict_id = 0) && {
-    return std::move(set_data(data, dict_id));
-  }
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  Lz4Dictionary& set_data(Src&& data, uint32_t dict_id = 0) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  Lz4Dictionary&& set_data(Src&& data, uint32_t dict_id = 0) && {
-    // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
+  Lz4Dictionary& set_data(Initializer<std::string>::AllowingExplicit data,
+                          uint32_t dict_id = 0) &;
+  Lz4Dictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
+                           uint32_t dict_id = 0) && {
     return std::move(set_data(std::move(data), dict_id));
   }
 
@@ -120,22 +110,20 @@ class Lz4Dictionary {
 
   class Repr;
 
-  RefCountedPtr<const Repr> repr_;
+  SharedPtr<const Repr> repr_;
 };
 
 // Implementation details follow.
 
-class Lz4Dictionary::Repr : public RefCountedBase<Repr> {
+class Lz4Dictionary::Repr {
  public:
   // Owns a copy of `data`.
-  explicit Repr(absl::string_view data,
+  explicit Repr(Initializer<std::string>::AllowingExplicit data,
                 std::integral_constant<Ownership, Ownership::kCopied>,
                 uint32_t dict_id)
-      : owned_data_(data), data_(owned_data_), dict_id_(dict_id) {}
-
-  // Owns moved `data`.
-  explicit Repr(std::string&& data, uint32_t dict_id)
-      : owned_data_(std::move(data)), data_(owned_data_), dict_id_(dict_id) {}
+      : owned_data_(std::move(data).Construct()),
+        data_(owned_data_),
+        dict_id_(dict_id) {}
 
   // Does not take ownership of `data`, which must not be changed until the
   // last `Lz4Reader` or `Lz4Writer` using this dictionary is closed or no
@@ -169,30 +157,22 @@ class Lz4Dictionary::Repr : public RefCountedBase<Repr> {
 };
 
 inline Lz4Dictionary& Lz4Dictionary::Reset() & {
-  repr_.reset();
+  repr_.Reset();
   return *this;
 }
 
-inline Lz4Dictionary& Lz4Dictionary::set_data(absl::string_view data,
-                                              uint32_t dict_id) & {
-  repr_ = MakeRefCounted<const Repr>(
-      data, std::integral_constant<Ownership, Ownership::kCopied>(), dict_id);
-  return *this;
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline Lz4Dictionary& Lz4Dictionary::set_data(Src&& data, uint32_t dict_id) & {
-  // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  repr_ = MakeRefCounted<const Repr>(std::move(data), dict_id);
+inline Lz4Dictionary& Lz4Dictionary::set_data(
+    Initializer<std::string>::AllowingExplicit data, uint32_t dict_id) & {
+  repr_.Reset(riegeli::Maker(
+      std::move(data), std::integral_constant<Ownership, Ownership::kCopied>(),
+      dict_id));
   return *this;
 }
 
 inline Lz4Dictionary& Lz4Dictionary::set_data_unowned(absl::string_view data,
                                                       uint32_t dict_id) & {
-  repr_ = MakeRefCounted<const Repr>(
-      data, std::integral_constant<Ownership, Ownership::kUnowned>(), dict_id);
+  repr_.Reset(riegeli::Maker(
+      data, std::integral_constant<Ownership, Ownership::kUnowned>(), dict_id));
   return *this;
 }
 

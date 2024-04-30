@@ -30,7 +30,9 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -86,23 +88,10 @@ class ZstdDictionary {
   ZstdDictionary&& Reset() && { return std::move(Reset()); }
 
   // Sets a dictionary.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  ZstdDictionary& set_data(absl::string_view data, Type type = Type::kAuto) &;
-  ZstdDictionary&& set_data(absl::string_view data,
+  ZstdDictionary& set_data(Initializer<std::string>::AllowingExplicit data,
+                           Type type = Type::kAuto) &;
+  ZstdDictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
                             Type type = Type::kAuto) && {
-    return std::move(set_data(data, type));
-  }
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  ZstdDictionary& set_data(Src&& data, Type type = Type::kAuto) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  ZstdDictionary&& set_data(Src&& data, Type type = Type::kAuto) && {
-    // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
     return std::move(set_data(std::move(data), type));
   }
 
@@ -147,28 +136,26 @@ class ZstdDictionary {
   struct ZSTD_CDictReleaser {
     void operator()(ABSL_ATTRIBUTE_UNUSED ZSTD_CDict* ptr) {
       // `*ptr` is owned by `*compression_cache`.
-      compression_cache.reset();
+      compression_cache.Reset();
     }
-    RefCountedPtr<const ZSTD_CDictCache> compression_cache;
+    SharedPtr<const ZSTD_CDictCache> compression_cache;
   };
 
   class Repr;
 
-  RefCountedPtr<const Repr> repr_;
+  SharedPtr<const Repr> repr_;
 };
 
 // Implementation details follow.
 
-class ZstdDictionary::Repr : public RefCountedBase<Repr> {
+class ZstdDictionary::Repr {
  public:
   // Owns a copy of `data`.
-  explicit Repr(Type type, absl::string_view data,
+  explicit Repr(Type type, Initializer<std::string>::AllowingExplicit data,
                 std::integral_constant<Ownership, Ownership::kCopied>)
-      : type_(type), owned_data_(data), data_(owned_data_) {}
-
-  // Owns moved `data`.
-  explicit Repr(Type type, std::string&& data)
-      : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
+      : type_(type),
+        owned_data_(std::move(data).Construct()),
+        data_(owned_data_) {}
 
   // Does not take ownership of `data`, which must not be changed until the
   // last `ZstdWriter` or `ZstdReader` using this dictionary is closed or no
@@ -199,7 +186,7 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
   absl::string_view data_;
 
   mutable absl::Mutex compression_cache_mutex_;
-  mutable RefCountedPtr<const ZSTD_CDictCache> compression_cache_
+  mutable SharedPtr<const ZSTD_CDictCache> compression_cache_
       ABSL_GUARDED_BY(compression_cache_mutex_);
 
   mutable absl::once_flag decompression_once_;
@@ -216,7 +203,7 @@ class ZstdDictionary::Repr : public RefCountedBase<Repr> {
 // If the callers need it with different compression levels, they do not wait.
 // The dictionary will be prepared again if varying compression levels later
 // repeat, because the cache holds at most one entry.
-struct ZstdDictionary::ZSTD_CDictCache : RefCountedBase<ZSTD_CDictCache> {
+struct ZstdDictionary::ZSTD_CDictCache {
   explicit ZSTD_CDictCache(int compression_level)
       : compression_level(compression_level) {}
 
@@ -226,30 +213,22 @@ struct ZstdDictionary::ZSTD_CDictCache : RefCountedBase<ZSTD_CDictCache> {
 };
 
 inline ZstdDictionary& ZstdDictionary::Reset() & {
-  repr_.reset();
+  repr_.Reset();
   return *this;
 }
 
-inline ZstdDictionary& ZstdDictionary::set_data(absl::string_view data,
-                                                Type type) & {
-  repr_ = MakeRefCounted<const Repr>(
-      type, data, std::integral_constant<Ownership, Ownership::kCopied>());
-  return *this;
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline ZstdDictionary& ZstdDictionary::set_data(Src&& data, Type type) & {
-  // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  repr_ = MakeRefCounted<const Repr>(type, std::move(data));
+inline ZstdDictionary& ZstdDictionary::set_data(
+    Initializer<std::string>::AllowingExplicit data, Type type) & {
+  repr_.Reset(
+      riegeli::Maker(type, std::move(data),
+                     std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
 inline ZstdDictionary& ZstdDictionary::set_data_unowned(absl::string_view data,
                                                         Type type) & {
-  repr_ = MakeRefCounted<const Repr>(
-      type, data, std::integral_constant<Ownership, Ownership::kUnowned>());
+  repr_.Reset(riegeli::Maker(
+      type, data, std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 

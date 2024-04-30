@@ -21,7 +21,6 @@
 #include <initializer_list>
 #include <ostream>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -38,7 +37,9 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -107,7 +108,7 @@ inline CsvHeader::Payload::Payload(const Payload& that)
       name_to_index(that.name_to_index) {}
 
 ABSL_CONST_INIT absl::Mutex CsvHeader::payload_cache_mutex_(absl::kConstInit);
-ABSL_CONST_INIT RefCountedPtr<CsvHeader::Payload> CsvHeader::payload_cache_;
+ABSL_CONST_INIT SharedPtr<CsvHeader::Payload> CsvHeader::payload_cache_;
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
@@ -124,9 +125,9 @@ CsvHeader& CsvHeader::operator=(
 }
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
-    : payload_(normalizer == nullptr
-                   ? nullptr
-                   : MakeRefCounted<Payload>(std::move(normalizer))) {}
+    : payload_(normalizer == nullptr ? nullptr
+                                     : SharedPtr<Payload>(riegeli::Maker(
+                                           std::move(normalizer)))) {}
 
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::initializer_list<absl::string_view> names) {
@@ -135,7 +136,7 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
       << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
 }
 
-void CsvHeader::Reset() { payload_.reset(); }
+void CsvHeader::Reset() { payload_.Reset(); }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
@@ -145,9 +146,11 @@ void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
 
 void CsvHeader::Reset(
     std::function<std::string(absl::string_view)> normalizer) {
-  payload_ = normalizer == nullptr
-                 ? nullptr
-                 : MakeRefCounted<Payload>(std::move(normalizer));
+  if (normalizer == nullptr) {
+    payload_.Reset();
+  } else {
+    payload_.Reset(riegeli::Maker(std::move(normalizer)));
+  }
 }
 
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
@@ -171,7 +174,7 @@ absl::Status CsvHeader::TryReset(
 absl::Status CsvHeader::TryResetUncached(
     std::function<std::string(absl::string_view)>&& normalizer,
     std::vector<std::string>&& names) {
-  EnsureUniqueOwner();
+  EnsureUnique();
   payload_->normalizer = std::move(normalizer);
   payload_->name_to_index.clear();
   payload_->name_to_index.reserve(names.size());
@@ -188,7 +191,7 @@ absl::Status CsvHeader::TryResetUncached(
     }
   }
   if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
-    payload_.reset();
+    payload_.Reset();
     StringWriter<std::string> message;
     message.Write("Duplicate field names: ");
     for (std::vector<absl::string_view>::const_iterator iter =
@@ -202,10 +205,10 @@ absl::Status CsvHeader::TryResetUncached(
   }
   payload_->index_to_name = std::move(names);
   if (payload_->normalizer == nullptr) {
-    RefCountedPtr<Payload> old_payload_cache;
+    SharedPtr<Payload> old_payload_cache;
     {
       absl::MutexLock lock(&payload_cache_mutex_);
-      old_payload_cache = payload_cache_.exchange(payload_);
+      old_payload_cache = std::exchange(payload_cache_, payload_);
     }
     // Destroy `old_payload_cache` after releasing `payload_cache_mutex_`.
   }
@@ -213,41 +216,27 @@ absl::Status CsvHeader::TryResetUncached(
 }
 
 void CsvHeader::Reserve(size_t size) {
-  EnsureUniqueOwner();
+  EnsureUnique();
   payload_->index_to_name.reserve(size);
   payload_->name_to_index.reserve(size);
 }
 
-void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }
-
-template <typename Name,
-          std::enable_if_t<std::is_same<Name, std::string>::value, int>>
-void CsvHeader::Add(Name&& name) {
-  // `std::move(name)` is correct and `std::forward<Name>(name)` is not
-  // necessary: `Name` is always `std::string`, never an lvalue reference.
+void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name) {
   const absl::Status status = TryAdd(std::move(name));
   RIEGELI_CHECK(status.ok())
       << "Failed precondition of CsvHeader::Add(): " << status.message();
 }
 
-template void CsvHeader::Add(std::string&& name);
-
-absl::Status CsvHeader::TryAdd(absl::string_view name) {
-  return TryAdd(std::string(name));
-}
-
-template <typename Name,
-          std::enable_if_t<std::is_same<Name, std::string>::value, int>>
-absl::Status CsvHeader::TryAdd(Name&& name) {
-  EnsureUniqueOwner();
+absl::Status CsvHeader::TryAdd(
+    Initializer<std::string>::AllowingExplicit name) {
+  EnsureUnique();
+  std::string name_string = std::move(name).Construct();
   const size_t index = payload_->index_to_name.size();
-  // `std::move(name)` is correct and `std::forward<Name>(name)` is not
-  // necessary: `Name` is always `std::string`, never an lvalue reference.
   const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
       insert_result = payload_->normalizer == nullptr
-                          ? payload_->name_to_index.emplace(name, index)
+                          ? payload_->name_to_index.emplace(name_string, index)
                           : payload_->name_to_index.emplace(
-                                payload_->normalizer(name), index);
+                                payload_->normalizer(name_string), index);
   if (ABSL_PREDICT_FALSE(!insert_result.second)) {
     RIEGELI_ASSERT(!empty())
         << "It should not have been needed to ensure that an empty CsvHeader "
@@ -255,15 +244,13 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
            "only if some fields were already present";
     StringWriter<std::string> message;
     message.Write("Duplicate field name: ");
-    csv_internal::WriteDebugQuotedIfNeeded(name, message);
+    csv_internal::WriteDebugQuotedIfNeeded(name_string, message);
     message.Close();
     return absl::FailedPreconditionError(message.dest());
   }
-  payload_->index_to_name.push_back(std::move(name));
+  payload_->index_to_name.push_back(std::move(name_string));
   return absl::OkStatus();
 }
-
-template absl::Status CsvHeader::TryAdd(std::string&& name);
 
 CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
@@ -304,11 +291,11 @@ bool CsvHeader::EqualImpl(const CsvHeader& a, const CsvHeader& b) {
   return a.payload_->index_to_name == b.payload_->index_to_name;
 }
 
-inline void CsvHeader::EnsureUniqueOwner() {
+inline void CsvHeader::EnsureUnique() {
   if (payload_ == nullptr) {
-    payload_ = MakeRefCounted<Payload>();
-  } else if (ABSL_PREDICT_FALSE(!payload_->has_unique_owner())) {
-    payload_ = MakeRefCounted<Payload>(*payload_);
+    payload_.Reset(riegeli::Maker());
+  } else if (ABSL_PREDICT_FALSE(!payload_.IsUnique())) {
+    payload_ = SharedPtr<Payload>(*payload_);
   }
 }
 

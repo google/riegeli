@@ -57,8 +57,8 @@ class
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
-  // Returns `true` if this `SizedSharedBuffer` is the only owner of the data.
-  bool has_unique_owner() const { return buffer_.has_unique_owner(); }
+  // Returns `true` if `*this` is the only owner of the data.
+  bool IsUnique() const { return buffer_.IsUnique(); }
 
   explicit operator absl::string_view() const {
     return absl::string_view(data_, size_);

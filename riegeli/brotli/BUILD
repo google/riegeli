@@ -16,8 +16,8 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
-        "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:object",
+        "//riegeli/base:shared_ptr",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:pullable_reader",
@@ -42,8 +42,8 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
-        "//riegeli/base:intrusive_ref_count",
         "//riegeli/base:object",
+        "//riegeli/base:shared_ptr",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:buffer_options",
@@ -66,7 +66,8 @@ cc_library(
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:intrusive_ref_count",
+        "//riegeli/base:initializer",
+        "//riegeli/base:shared_ptr",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
@@ -81,7 +82,7 @@ cc_library(
     hdrs = ["brotli_allocator.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "//riegeli/base:intrusive_ref_count",
+        "//riegeli/base:shared_ptr",
         "@org_brotli//:brotlicommon",
     ],
 )

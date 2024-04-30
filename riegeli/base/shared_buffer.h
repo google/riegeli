@@ -21,7 +21,8 @@
 #include "absl/strings/cord.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 
 namespace riegeli {
 
@@ -49,12 +50,12 @@ class SharedBuffer {
   // `min_capacity`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity = 0);
 
-  // Returns `true` if this `SharedBuffer` is the only owner of the data.
-  bool has_unique_owner() const;
+  // Returns `true` if `*this` is the only owner of the data.
+  bool IsUnique() const;
 
   // Returns the mutable data pointer.
   //
-  // Precondition: `has_unique_owner()`.
+  // Precondition: `IsUnique()`.
   char* mutable_data() const;
 
   // Returns the const data pointer.
@@ -102,80 +103,55 @@ class SharedBuffer {
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->payload_);
+    memory_estimator.RegisterSubobjects(&self->buffer_);
   }
 
  private:
-  struct Payload : RefCountedBase<Payload> {
-    explicit Payload(size_t min_capacity) : buffer(min_capacity) {}
-
-    template <typename MemoryEstimator>
-    friend void RiegeliRegisterSubobjects(const Payload* self,
-                                          MemoryEstimator& memory_estimator) {
-      memory_estimator.RegisterSubobjects(&self->buffer);
-    }
-
-    Buffer buffer;
-  };
-
-  void AllocateInternal(size_t min_capacity);
-
-  RefCountedPtr<Payload> payload_;
+  SharedPtr<Buffer> buffer_;
 };
 
 // Implementation details follow.
 
 inline SharedBuffer::SharedBuffer(size_t min_capacity) {
-  AllocateInternal(min_capacity);
+  if (min_capacity > 0) buffer_.Reset(riegeli::Maker(min_capacity));
 }
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
-  if (payload_ != nullptr) {
-    if (payload_->has_unique_owner()) {
-      payload_->buffer.Reset(min_capacity);
-      return;
-    }
-    payload_.reset();
+  if (min_capacity > 0) {
+    buffer_.Reset(riegeli::Maker(min_capacity));
+  } else {
+    if (!buffer_.IsUnique()) buffer_.Reset();
   }
-  AllocateInternal(min_capacity);
 }
 
-inline bool SharedBuffer::has_unique_owner() const {
-  return payload_ == nullptr || payload_->has_unique_owner();
-}
+inline bool SharedBuffer::IsUnique() const { return buffer_.IsUnique(); }
 
 inline char* SharedBuffer::mutable_data() const {
-  RIEGELI_ASSERT(has_unique_owner())
+  RIEGELI_ASSERT(IsUnique())
       << "Failed precondition of SharedBuffer::mutable_data(): "
          "ownership is shared";
-  if (payload_ == nullptr) return nullptr;
-  return payload_->buffer.data();
+  if (buffer_ == nullptr) return nullptr;
+  return buffer_->data();
 }
 
 inline const char* SharedBuffer::data() const {
-  if (payload_ == nullptr) return nullptr;
-  return payload_->buffer.data();
+  if (buffer_ == nullptr) return nullptr;
+  return buffer_->data();
 }
 
 inline size_t SharedBuffer::capacity() const {
-  if (payload_ == nullptr) return 0;
-  return payload_->buffer.capacity();
-}
-
-inline void SharedBuffer::AllocateInternal(size_t min_capacity) {
-  if (min_capacity > 0) payload_ = MakeRefCounted<Payload>(min_capacity);
+  if (buffer_ == nullptr) return 0;
+  return buffer_->capacity();
 }
 
 inline void* SharedBuffer::Share() const& {
-  if (payload_ == nullptr) return nullptr;
-  payload_->Ref();
-  return payload_.get();
+  return SharedPtr<Buffer>(buffer_).Release();
 }
 
-inline void* SharedBuffer::Share() && { return payload_.release(); }
+inline void* SharedBuffer::Share() && { return buffer_.Release(); }
 
 inline void SharedBuffer::DeleteShared(void* ptr) {
-  if (ptr != nullptr) static_cast<Payload*>(ptr)->Unref();
+  SharedPtr<Buffer>::DeleteReleased(static_cast<Buffer*>(ptr));
 }
 
 }  // namespace riegeli

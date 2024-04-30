@@ -32,7 +32,9 @@
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 
 namespace riegeli {
 
@@ -85,22 +87,9 @@ class BrotliDictionary {
 
   // Adds a raw chunk (data which should contain sequences that are commonly
   // seen in the data being compressed). Up to `kMaxRawChunks` can be added.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  BrotliDictionary& add_raw(absl::string_view data) &;
-  BrotliDictionary&& add_raw(absl::string_view data) && {
-    return std::move(add_raw(data));
-  }
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary& add_raw(Src&& data) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary&& add_raw(Src&& data) && {
-    // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
+  BrotliDictionary& add_raw(Initializer<std::string>::AllowingExplicit data) &;
+  BrotliDictionary&& add_raw(
+      Initializer<std::string>::AllowingExplicit data) && {
     return std::move(add_raw(std::move(data)));
   }
 
@@ -113,22 +102,10 @@ class BrotliDictionary {
   }
 
   // Sets a serialized chunk (prepared by shared_brotli_encode_dictionary tool).
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  BrotliDictionary& set_serialized(absl::string_view data) &;
-  BrotliDictionary&& set_serialized(absl::string_view data) && {
-    return std::move(set_serialized(data));
-  }
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary& set_serialized(Src&& data) &;
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  BrotliDictionary&& set_serialized(Src&& data) && {
-    // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
+  BrotliDictionary& set_serialized(
+      Initializer<std::string>::AllowingExplicit data) &;
+  BrotliDictionary&& set_serialized(
+      Initializer<std::string>::AllowingExplicit data) && {
     return std::move(set_serialized(std::move(data)));
   }
 
@@ -158,26 +135,22 @@ class BrotliDictionary {
   bool empty() const { return chunks_.empty(); }
 
   // Returns the sequence of chunks the dictionary consists of.
-  absl::Span<const RefCountedPtr<const Chunk>> chunks() const {
-    return chunks_;
-  }
+  absl::Span<const SharedPtr<const Chunk>> chunks() const { return chunks_; }
 
  private:
   enum class Ownership { kCopied, kUnowned };
 
-  std::vector<RefCountedPtr<const Chunk>> chunks_;
+  std::vector<SharedPtr<const Chunk>> chunks_;
 };
 
-class BrotliDictionary::Chunk : public RefCountedBase<Chunk> {
+class BrotliDictionary::Chunk {
  public:
   // Owns a copy of `data`.
-  explicit Chunk(Type type, absl::string_view data,
+  explicit Chunk(Type type, Initializer<std::string>::AllowingExplicit data,
                  std::integral_constant<Ownership, Ownership::kCopied>)
-      : type_(type), owned_data_(data), data_(owned_data_) {}
-
-  // Owns moved `data`.
-  explicit Chunk(Type type, std::string&& data)
-      : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
+      : type_(type),
+        owned_data_(std::move(data).Construct()),
+        data_(owned_data_) {}
 
   // Does not take ownership of `data`, which must not be changed until the
   // last `BrotliWriter` or `BrotliReader` using this dictionary is closed or
@@ -234,62 +207,43 @@ inline BrotliDictionary& BrotliDictionary::Reset() & {
   return *this;
 }
 
-inline BrotliDictionary& BrotliDictionary::add_raw(absl::string_view data) & {
-  chunks_.push_back(MakeRefCounted<const Chunk>(
-      Type::kRaw, data,
-      std::integral_constant<Ownership, Ownership::kCopied>()));
-  return *this;
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline BrotliDictionary& BrotliDictionary::add_raw(Src&& data) & {
-  // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.push_back(MakeRefCounted<const Chunk>(Type::kRaw, std::move(data)));
+inline BrotliDictionary& BrotliDictionary::add_raw(
+    Initializer<std::string>::AllowingExplicit data) & {
+  chunks_.emplace_back(
+      riegeli::Maker(Type::kRaw, std::move(data),
+                     std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
     absl::string_view data) & {
-  chunks_.push_back(MakeRefCounted<const Chunk>(
-      Type::kRaw, data,
-      std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.emplace_back(
+      riegeli::Maker(Type::kRaw, data,
+                     std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized(
-    absl::string_view data) & {
+    Initializer<std::string>::AllowingExplicit data) & {
   Reset();
-  chunks_.push_back(MakeRefCounted<const Chunk>(
-      Type::kSerialized, data,
-      std::integral_constant<Ownership, Ownership::kCopied>()));
-  return *this;
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline BrotliDictionary& BrotliDictionary::set_serialized(Src&& data) & {
-  Reset();
-  // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  chunks_.push_back(
-      MakeRefCounted<const Chunk>(Type::kSerialized, std::move(data)));
+  chunks_.emplace_back(
+      riegeli::Maker(Type::kSerialized, std::move(data),
+                     std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
     absl::string_view data) & {
   Reset();
-  chunks_.push_back(MakeRefCounted<const Chunk>(
-      Type::kSerialized, data,
-      std::integral_constant<Ownership, Ownership::kUnowned>()));
+  chunks_.emplace_back(
+      riegeli::Maker(Type::kSerialized, data,
+                     std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_native_unowned(
     const BrotliEncoderPreparedDictionary* prepared) & {
-  chunks_.push_back(MakeRefCounted<const Chunk>(prepared));
+  chunks_.emplace_back(riegeli::Maker(prepared));
   return *this;
 }
 

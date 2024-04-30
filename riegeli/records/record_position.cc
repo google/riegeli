@@ -29,7 +29,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/string_writer.h"
@@ -146,9 +147,10 @@ void FutureChunkBegin::Unresolved::Resolve() const {
 
 FutureChunkBegin::FutureChunkBegin(Position pos_before_chunks,
                                    std::vector<Action> actions)
-    : unresolved_(actions.empty() ? nullptr
-                                  : MakeRefCounted<const Unresolved>(
-                                        pos_before_chunks, std::move(actions))),
+    : unresolved_(actions.empty()
+                      ? nullptr
+                      : SharedPtr<const Unresolved>(riegeli::Maker(
+                            pos_before_chunks, std::move(actions)))),
       resolved_(pos_before_chunks) {}
 
 }  // namespace records_internal

@@ -29,7 +29,7 @@
 #include "brotli/encode.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/brotli/brotli_reader.h"
@@ -97,7 +97,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
         "BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
     return;
   }
-  for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
+  for (const SharedPtr<const BrotliDictionary::Chunk>& chunk :
        dictionary_.chunks()) {
     const BrotliEncoderPreparedDictionary* const compression_dictionary =
         chunk->PrepareCompressionDictionary();
@@ -216,7 +216,7 @@ bool BrotliWriterBase::FlushBehindBuffer(absl::string_view src,
 bool BrotliWriterBase::SupportsReadMode() {
   Writer* const dest = DestWriter();
   if (dest != nullptr && dest->SupportsReadMode()) {
-    for (const RefCountedPtr<const BrotliDictionary::Chunk>& chunk :
+    for (const SharedPtr<const BrotliDictionary::Chunk>& chunk :
          dictionary_.chunks()) {
       if (chunk->type() == BrotliDictionary::Type::kNative) return false;
     }

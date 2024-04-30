@@ -26,7 +26,7 @@
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/shared_ptr.h"
 
 namespace riegeli {
 

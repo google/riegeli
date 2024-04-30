@@ -41,9 +41,10 @@
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/no_destructor.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -347,28 +348,14 @@ class CsvHeader : public WithEqual<CsvHeader> {
   // Adds the given field `name`, ordered at the end.
   //
   // Precondition: `name` was not already present
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  void Add(absl::string_view name);
-  template <typename Name,
-            std::enable_if_t<std::is_same<Name, std::string>::value, int> = 0>
-  void Add(Name&& name);
+  void Add(Initializer<std::string>::AllowingExplicit name);
 
   // Equivalent to calling `Add()` for each name in order.
   //
   // Precondition: like for `Add()`
   template <typename... Names,
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
-  void Add(absl::string_view name, Names&&... names);
-  template <typename Name, typename... Names,
-            std::enable_if_t<
-                absl::conjunction<std::is_same<Name, std::string>,
-                                  std::integral_constant<
-                                      bool, (sizeof...(Names) > 0)>>::value,
-                int> = 0>
-  void Add(Name&& name, Names&&... names);
+  void Add(Initializer<std::string>::AllowingExplicit name, Names&&... names);
 
   // Adds the given field `name`, ordered at the end, reporting whether this was
   // successful.
@@ -377,28 +364,15 @@ class CsvHeader : public WithEqual<CsvHeader> {
   //  * `absl::OkStatus()`                 - `name` has been added
   //  * `absl::FailedPreconditionError(_)` - `name` was already present,
   //                                         `CsvHeader` is unchanged
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  absl::Status TryAdd(absl::string_view name);
-  template <typename Name,
-            std::enable_if_t<std::is_same<Name, std::string>::value, int> = 0>
-  absl::Status TryAdd(Name&& name);
+  absl::Status TryAdd(Initializer<std::string>::AllowingExplicit name);
 
   // Equivalent to calling `TryAdd()` for each name in order.
   //
   // Returns early in case of a failure.
   template <typename... Names,
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
-  absl::Status TryAdd(absl::string_view name, Names&&... names);
-  template <typename Name, typename... Names,
-            std::enable_if_t<
-                absl::conjunction<std::is_same<Name, std::string>,
-                                  std::integral_constant<
-                                      bool, (sizeof...(Names) > 0)>>::value,
-                int> = 0>
-  absl::Status TryAdd(Name&& name, Names&&... names);
+  absl::Status TryAdd(Initializer<std::string>::AllowingExplicit name,
+                      Names&&... names);
 
   // Returns the sequence of field names, in the order in which they have been
   // added.
@@ -471,7 +445,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
   }
 
  private:
-  struct Payload : RefCountedBase<Payload> {
+  struct Payload {
     Payload() = default;
     Payload(std::function<std::string(absl::string_view)>&& normalizer)
         : normalizer(std::move(normalizer)) {}
@@ -523,7 +497,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
       std::function<std::string(absl::string_view)>&& normalizer,
       std::vector<std::string>&& names);
 
-  void EnsureUniqueOwner();
+  void EnsureUnique();
 
   static bool EqualImpl(const CsvHeader& a, const CsvHeader& b);
 
@@ -537,10 +511,10 @@ class CsvHeader : public WithEqual<CsvHeader> {
   //
   // Reusing `CsvHeader` directly is more efficient but not always feasible.
   ABSL_CONST_INIT static absl::Mutex payload_cache_mutex_;
-  ABSL_CONST_INIT static RefCountedPtr<Payload> payload_cache_
+  ABSL_CONST_INIT static SharedPtr<Payload> payload_cache_
       ABSL_GUARDED_BY(payload_cache_mutex_);
 
-  RefCountedPtr<Payload> payload_;
+  SharedPtr<Payload> payload_;
 };
 
 // `CsvHeaderConstant<n>` lazily constructs and stores a `CsvHeader` with `n`
@@ -1159,10 +1133,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CsvHeader::MaybeResetToCachedPayload(
   using std::end;
   auto names_end_iter = end(names);
   if (names_iter == names_end_iter) {
-    payload_.reset();
+    payload_.Reset();
     return true;
   }
-  RefCountedPtr<Payload> payload;
+  SharedPtr<Payload> payload;
   {
     absl::MutexLock lock(&payload_cache_mutex_);
     payload = payload_cache_;
@@ -1176,48 +1150,16 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CsvHeader::MaybeResetToCachedPayload(
   return false;
 }
 
-extern template void CsvHeader::Add(std::string&& name);
-
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
-inline void CsvHeader::Add(absl::string_view name, Names&&... names) {
-  Add(name);
-  Add(std::forward<Names>(names)...);
-}
-
-template <typename Name, typename... Names,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::is_same<Name, std::string>,
-                  std::integral_constant<bool, (sizeof...(Names) > 0)>>::value,
-              int>>
-inline void CsvHeader::Add(Name&& name, Names&&... names) {
-  // `std::move(name)` is correct and `std::forward<Name>(name)` is not
-  // necessary: `Name` is always `std::string`, never an lvalue reference.
+inline void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name,
+                           Names&&... names) {
   Add(std::move(name));
   Add(std::forward<Names>(names)...);
 }
 
-extern template absl::Status CsvHeader::TryAdd(std::string&& name);
-
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
-inline absl::Status CsvHeader::TryAdd(absl::string_view name,
-                                      Names&&... names) {
-  {
-    absl::Status status = TryAdd(name);
-    if (!status.ok()) return status;
-  }
-  return TryAdd(std::forward<Names>(names)...);
-}
-
-template <typename Name, typename... Names,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::is_same<Name, std::string>,
-                  std::integral_constant<bool, (sizeof...(Names) > 0)>>::value,
-              int>>
-inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
-  // `std::move(name)` is correct and `std::forward<Name>(name)` is not
-  // necessary: `Name` is always `std::string`, never an lvalue reference.
+inline absl::Status CsvHeader::TryAdd(
+    Initializer<std::string>::AllowingExplicit name, Names&&... names) {
   {
     absl::Status status = TryAdd(std::move(name));
     if (!status.ok()) {

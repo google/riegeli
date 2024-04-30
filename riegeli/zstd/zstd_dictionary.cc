@@ -30,7 +30,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/shared_ptr.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -50,13 +51,12 @@ static_assert(
 inline ZstdDictionary::ZSTD_CDictHandle
 ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
-  RefCountedPtr<const ZSTD_CDictCache> compression_cache;
+  SharedPtr<const ZSTD_CDictCache> compression_cache;
   {
     absl::MutexLock lock(&compression_cache_mutex_);
     if (compression_cache_ == nullptr ||
         compression_cache_->compression_level != compression_level) {
-      compression_cache_ =
-          MakeRefCounted<const ZSTD_CDictCache>(compression_level);
+      compression_cache_.Reset(riegeli::Maker(compression_level));
     }
     compression_cache = compression_cache_;
   }

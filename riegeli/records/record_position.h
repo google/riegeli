@@ -30,7 +30,7 @@
 #include "absl/types/variant.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
@@ -172,7 +172,7 @@ class
   // The pointer uses shared ownership because `Unresolved` is not copyable,
   // which is because its contents are resolved lazily in a const method,
   // so a copy constructor would need to block.
-  RefCountedPtr<const Unresolved> unresolved_;
+  SharedPtr<const Unresolved> unresolved_;
   // If `unresolved_ == nullptr`, `chunk_begin_` is stored here,
   // otherwise it is `unresolved_->get()`.
   Position resolved_ = 0;
@@ -230,7 +230,7 @@ inline RecordPosition::RecordPosition(uint64_t chunk_begin,
 
 namespace records_internal {
 
-class FutureChunkBegin::Unresolved : public RefCountedBase<Unresolved> {
+class FutureChunkBegin::Unresolved {
  public:
   explicit Unresolved(Position pos_before_chunks, std::vector<Action> actions);
 

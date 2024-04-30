@@ -69,7 +69,7 @@ inline bool SizedSharedBuffer::CanAppendMovingData(size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanAppendMovingData(): "
          "SizedSharedBuffer size overflow";
-  if (has_unique_owner()) {
+  if (IsUnique()) {
     if (empty()) data_ = buffer_.mutable_data();
     if (space_after() >= length) return true;
     if (size_ + length <= capacity() && 2 * size_ <= capacity()) {
@@ -98,7 +98,7 @@ inline bool SizedSharedBuffer::CanPrependMovingData(size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanPrependMovingData(): "
          "SizedSharedBuffer size overflow";
-  if (has_unique_owner()) {
+  if (IsUnique()) {
     if (empty()) data_ = buffer_.mutable_data() + buffer_.capacity();
     if (space_before() >= length) return true;
     if (size_ + length <= capacity() && 2 * size_ <= capacity()) {

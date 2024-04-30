@@ -40,9 +40,10 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/intrusive_ref_count.h"
+#include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/ref_count.h"
 #include "riegeli/base/sized_shared_buffer.h"
 
 namespace riegeli {
@@ -828,8 +829,8 @@ class Chain::PinnedBlock {
 
  private:
   friend class BlockIterator;
-  explicit PinnedBlock(RawBlock* block) : block_(block) {}
-  RefCountedPtr<RawBlock> block_;
+  explicit PinnedBlock(RawBlock* block);
+  IntrusiveSharedPtr<RawBlock> block_;
 };
 
 class Chain::Blocks {
@@ -1334,7 +1335,7 @@ void Chain::RawBlock::Unref() {
 }
 
 inline bool Chain::RawBlock::has_unique_owner() const {
-  return ref_count_.has_unique_owner();
+  return ref_count_.HasUniqueOwner();
 }
 
 inline size_t Chain::RawBlock::capacity() const {
@@ -1558,6 +1559,8 @@ inline Chain::PinnedBlock Chain::BlockIterator::Pin() {
   return PinnedBlock(PinImpl());
 }
 
+inline Chain::PinnedBlock::PinnedBlock(RawBlock* block) : block_(block) {}
+
 inline absl::string_view Chain::PinnedBlock::operator*() const {
   RIEGELI_ASSERT(block_ != nullptr)
       << "Failed precondition of Chain::PinnedBlock::operator*: null pointer";
@@ -1579,7 +1582,7 @@ inline void* Chain::PinnedBlock::Share() const& {
 inline void* Chain::PinnedBlock::Share() && {
   RIEGELI_ASSERT(block_ != nullptr)
       << "Failed precondition of Chain::PinnedBlock::Share(): null pointer";
-  return block_.release();
+  return block_.Release();
 }
 
 inline void Chain::PinnedBlock::DeleteShared(void* ptr) {

@@ -335,11 +335,30 @@ cc_library(
 )
 
 cc_library(
+    name = "shared_ptr",
+    hdrs = [
+        "intrusive_shared_ptr.h",
+        "ref_count.h",
+        "shared_ptr.h",
+    ],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":compare",
+        ":initializer",
+        ":memory_estimator",
+        ":new_aligned",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
     name = "intrusive_ref_count",
     hdrs = ["intrusive_ref_count.h"],
     deps = [
-        ":assert",
-        ":compare",
+        ":initializer",
+        ":shared_ptr",
         "@com_google_absl//absl/base:core_headers",
     ],
 )
@@ -368,7 +387,8 @@ cc_library(
         ":buffer",
         ":buffering",
         ":cord_utils",
-        ":intrusive_ref_count",
+        ":initializer",
+        ":shared_ptr",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
@@ -402,11 +422,11 @@ cc_library(
         ":compare",
         ":cord_utils",
         ":initializer",
-        ":intrusive_ref_count",
         ":memory_estimator",
         ":new_aligned",
         ":no_destructor",
         ":shared_buffer",
+        ":shared_ptr",
         ":sized_shared_buffer",
         ":string_utils",
         ":zeros",
