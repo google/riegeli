@@ -433,7 +433,8 @@ class DependencyDefault<
 
   static_assert(
       std::is_convertible<
-          decltype(std::declval<const DependencyImpl<Handle, Manager>&>()
+          decltype(std::declval<
+                       const typename DependencyDefault::DependencyImpl&>()
                        .get()),
           Handle>::value,
       "DependencyImpl<Handle, Manager>::get() must return a subtype of Handle");

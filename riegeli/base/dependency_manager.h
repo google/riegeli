@@ -200,7 +200,8 @@ class DependencyManager<
 
   static_assert(
       std::is_convertible<
-          decltype(std::declval<DependencyManagerImpl<Manager, Manager>&>()
+          decltype(std::declval<
+                       typename DependencyManager::DependencyManagerImpl&>()
                        .manager()),
           Manager&>::value,
       "DependencyManagerImpl<Manager, Manager>::manager() "
@@ -263,11 +264,11 @@ class DependencyManager<
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<decltype(std::declval<DependencyManagerImpl<
-                                       absl::remove_cvref_t<Manager>,
-                                       absl::remove_cvref_t<Manager>&>&>()
-                                       .manager()),
-                          Manager&>::value,
+      std::is_convertible<
+          decltype(std::declval<
+                       typename DependencyManager::DependencyManagerImpl&>()
+                       .manager()),
+          Manager&>::value,
       "DependencyManagerImpl<Manager, Manager&>::manager() "
       "must return Manager&");
 
@@ -323,11 +324,11 @@ class DependencyManager<
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<decltype(std::declval<DependencyManagerImpl<
-                                       absl::remove_cvref_t<Manager>,
-                                       absl::remove_cvref_t<Manager>&&>&>()
-                                       .manager()),
-                          Manager&>::value,
+      std::is_convertible<
+          decltype(std::declval<
+                       typename DependencyManager::DependencyManagerImpl&>()
+                       .manager()),
+          Manager&>::value,
       "DependencyManagerImpl<Manager, Manager&&>::manager() "
       "must return Manager&");
 
