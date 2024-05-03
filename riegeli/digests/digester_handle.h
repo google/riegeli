@@ -499,11 +499,15 @@ class DigesterHandle : public DigesterBaseHandle {
                                        DigestMethod<T>};
 #else
   template <typename T>
-  static constexpr Methods kMethods = [] {
-    Methods methods(DigesterBaseHandle::kMethods<T>);
+  static constexpr Methods MakeMethods() {
+    Methods methods;
+    static_cast<DigesterBaseHandle::Methods&>(methods) =
+        DigesterBaseHandle::kMethods<T>;
     methods.digest = DigestMethod<T>;
     return methods;
-  }();
+  }
+  template <typename T>
+  static constexpr Methods kMethods = MakeMethods<T>();
 #endif
 
   const Methods* methods() const {

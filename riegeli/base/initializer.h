@@ -110,6 +110,7 @@ class InitializerBase {
   InitializerBase(InitializerBase&& other) = default;
   InitializerBase& operator=(InitializerBase&&) = delete;
 
+  template <typename Dummy = void>
   static constexpr Methods kMethodsDefault = {ConstructMethodDefault};
 
   template <typename Arg>
@@ -185,8 +186,9 @@ class InitializerValueBase : public InitializerBase<T> {
   };
 
 #if __cpp_aggregate_bases
+  template <typename Dummy = void>
   static constexpr Methods kMethodsDefault = {
-      InitializerValueBase::InitializerBase::kMethodsDefault,
+      InitializerValueBase::InitializerBase::template kMethodsDefault<>,
       ReferenceMethodDefault};
 
   template <typename Arg>
@@ -212,47 +214,68 @@ class InitializerValueBase : public InitializerBase<T> {
           Args...>,
       ReferenceMethodFromTuple<Args...>};
 #else
-  static constexpr Methods kMethodsDefault = [] {
-    Methods methods(InitializerValueBase::InitializerBase::kMethodsDefault);
+  static constexpr Methods MakeMethodsDefault() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
+        InitializerValueBase::InitializerBase::template kMethodsDefault<>;
     methods.reference = ReferenceMethodDefault;
     return methods;
-  }();
+  }
+  template <typename Dummy = void>
+  static constexpr Methods kMethodsDefault = MakeMethodsDefault();
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromObject = [] {
-    Methods methods(
-        InitializerValueBase::InitializerBase::template kMethodsFromObject<
-            Arg>);
+  static constexpr Methods MakeMethodsFromObject() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
+        InitializerValueBase::InitializerBase::template kMethodsFromObject<Arg>;
     methods.reference = ReferenceMethodFromObject<Arg>;
     return methods;
-  }();
+  }
+  template <typename Arg>
+  static constexpr Methods kMethodsFromObject = MakeMethodsFromObject<Arg>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromMaker = [] {
-    Methods methods(
+  static constexpr Methods MakeMethodsFromMaker() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
         InitializerValueBase::InitializerBase::template kMethodsFromMaker<
-            Args...>);
+            Args...>;
     methods.reference = ReferenceMethodFromMaker<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = MakeMethodsFromMaker<Args...>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromConstMaker = [] {
-    Methods methods(
+  static constexpr Methods MakeMethodsFromConstMaker() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
         InitializerValueBase::InitializerBase::template kMethodsFromConstMaker<
-            Args...>);
+            Args...>;
     methods.reference = ReferenceMethodFromConstMaker<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker =
+      MakeMethodsfromConstMaker<Args...>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromTuple = [] {
-    Methods methods(
+  static constexpr Methods MakeMethodsFromTuple() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
         InitializerValueBase::InitializerBase::template kMethodsFromTuple<
-            Args...>);
+            Args...>;
     methods.reference = ReferenceMethodFromTuple<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromTuple = MakeMethodsFromTuple<Args...>();
 #endif
 
   explicit InitializerValueBase(const Methods* methods)
@@ -317,8 +340,10 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   };
 
 #if __cpp_aggregate_bases
+  template <typename Dummy = void>
   static constexpr Methods kMethodsDefault = {
-      InitializerAssignableValueBase::InitializerValueBase::kMethodsDefault,
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsDefault<>,
       AssignToMethodDefault};
 
   template <typename Arg>
@@ -345,44 +370,65 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
           template kMethodsFromTuple<Args...>,
       AssignToMethodFromTuple<Args...>};
 #else
-  static constexpr Methods kMethodsDefault = [] {
-    Methods methods(
-        InitializerAssignableValueBase::InitializerValueBase::kMethodsDefault);
+  static constexpr Methods MakeMethodsDefault() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsDefault<>;
     methods.assign_to = AssignToMethodDefault;
     return methods;
-  }();
+  }
+  template <typename Dummy = void>
+  static constexpr Methods kMethodsDefault = MakeMethodsDefault();
 
   template <typename Arg>
-  static constexpr Methods kMethodsFromObject = [] {
-    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
-                        template kMethodsFromObject<Arg>);
+  static constexpr Methods MakeMethodsFromObject() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsFromObject<Arg>;
     methods.assign_to = AssignToMethodFromObject<Arg>;
     return methods;
-  }();
+  }
+  template <typename Arg>
+  static constexpr Methods kMethodsFromObject = MakeMethodsFromObject<Arg>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromMaker = [] {
-    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
-                        template kMethodsFromMaker<Args...>);
+  static constexpr Methods MakeMethodsFromMaker() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsFromMaker<Args...>;
     methods.assign_to = AssignToMethodFromMaker<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromMaker = MakeMethodsFromMaker<Args...>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromConstMaker = [] {
-    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
-                        template kMethodsFromConstMaker<Args...>);
+  static constexpr Methods MakeMethodsFromConstMaker() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsFromConstMaker<Args...>;
     methods.assign_to = AssignToMethodFromConstMaker<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromConstMaker =
+      MakeMethodsFromConstMaker<Args...>();
 
   template <typename... Args>
-  static constexpr Methods kMethodsFromTuple = [] {
-    Methods methods(InitializerAssignableValueBase::InitializerValueBase::
-                        template kMethodsFromTuple<Args...>);
+  static constexpr Methods MakeMethodsFromTuple() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsFromTuple<Args...>;
     methods.assign_to = AssignToMethodFromTuple<Args...>;
     return methods;
-  }();
+  }
+  template <typename... Args>
+  static constexpr Methods kMethodsFromTuple = MakeMethodsFromTuple<Args...>();
 #endif
 
   explicit InitializerAssignableValueBase(const Methods* methods)
@@ -455,7 +501,8 @@ class Initializer
                              int> = 0>
   Initializer()
       : Initializer::InitializerAssignableValueBase(
-            &Initializer::InitializerAssignableValueBase::kMethodsDefault) {}
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsDefault<>) {}
 
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
@@ -566,7 +613,7 @@ class Initializer<T, allow_explicit,
                              int> = 0>
   Initializer()
       : Initializer::InitializerValueBase(
-            &Initializer::InitializerValueBase::kMethodsDefault) {}
+            &Initializer::InitializerValueBase::template kMethodsDefault<>) {}
 
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
