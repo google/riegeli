@@ -53,7 +53,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -178,9 +178,10 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
     }
     set_limit_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "CFileReaderBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "CFileReaderBase::Options::assumed_pos() excludes random access");
+    });
   } else {
     const cfile_internal::Offset file_pos = cfile_internal::FTell(src);
     if (file_pos < 0) {

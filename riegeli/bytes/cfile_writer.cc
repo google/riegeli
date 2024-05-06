@@ -53,7 +53,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -104,9 +104,8 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
   if (mode_was_passed_to_fopen) {
     if (!file_internal::GetRead(options.mode())) {
       supports_read_mode_ = LazyBoolState::kFalse;
-      static const NoDestructor<absl::Status> status(
-          absl::UnimplementedError("Mode does not include '+'"));
-      read_mode_status_ = *status;
+      read_mode_status_ = Global(
+          [] { return absl::UnimplementedError("Mode does not include '+'"); });
     }
   }
 #ifdef _WIN32
@@ -154,10 +153,11 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
     set_start_pos(*options.assumed_pos());
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "CFileWriterBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
-    read_mode_status_.Update(*status);
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "CFileWriterBase::Options::assumed_pos() excludes random access");
+    });
+    read_mode_status_.Update(random_access_status_);
   } else {
     if (file_internal::GetAppend(options.mode())) {
       if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
@@ -190,9 +190,9 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
           supports_read_mode_ == LazyBoolState::kUnknown) {
         supports_read_mode_ = LazyBoolState::kTrue;
       }
-      static const NoDestructor<absl::Status> status(
-          absl::UnimplementedError("Append mode excludes random access"));
-      random_access_status_ = *status;
+      random_access_status_ = Global([] {
+        return absl::UnimplementedError("Append mode excludes random access");
+      });
     } else {
       // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
       // `supports_random_access_` and `supports_read_mode_` are left as

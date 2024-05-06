@@ -19,7 +19,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/cord_utils.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 
 namespace riegeli {
 
@@ -27,9 +27,8 @@ absl::Cord CordOfZeros(size_t length) {
   const absl::string_view kArrayOfZeros = ArrayOfZeros();
   absl::Cord result;
   while (length >= kArrayOfZeros.size()) {
-    static const NoDestructor<absl::Cord> kCordOfZeros(
-        absl::MakeCordFromExternal(kArrayOfZeros, [] {}));
-    result.Append(*kCordOfZeros);
+    result.Append(Global(
+        [] { return absl::MakeCordFromExternal(ArrayOfZeros(), [] {}); }));
     length -= kArrayOfZeros.size();
   }
   if (length > 0) {

@@ -21,7 +21,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 
 namespace riegeli {
 
@@ -83,8 +83,7 @@ class BackgroundCleaner {
 
   // Returns a default global `BackgroundCleaner`.
   static BackgroundCleaner& global() {
-    static NoDestructor<BackgroundCleaner> kStaticBackgroundCleaner;
-    return *kStaticBackgroundCleaner;
+    return Global<BackgroundCleaner>([] {});
   }
 
   // Registers the cleanee, allowing `ScheduleCleaning()` calls.

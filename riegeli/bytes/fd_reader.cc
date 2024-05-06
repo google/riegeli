@@ -77,7 +77,7 @@
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -255,9 +255,10 @@ void FdReaderBase::InitializePos(int src, Options&& options
     }
     set_limit_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "FdReaderBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "FdReaderBase::Options::assumed_pos() excludes random access");
+    });
   } else if (options.independent_pos() != absl::nullopt) {
     has_independent_pos_ = true;
     if (ABSL_PREDICT_FALSE(

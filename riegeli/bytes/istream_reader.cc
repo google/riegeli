@@ -29,7 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
@@ -63,9 +63,10 @@ void IStreamReaderBase::Initialize(std::istream* src,
     }
     set_limit_pos(*assumed_pos);
     // `supports_random_access_` is left as `false`.
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "IStreamReaderBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "IStreamReaderBase::Options::assumed_pos() excludes random access");
+    });
   } else {
     errno = 0;
     const std::streamoff stream_pos = src->tellg();

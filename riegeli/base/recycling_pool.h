@@ -41,7 +41,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/background_cleaning.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 
 namespace riegeli {
 
@@ -538,15 +538,13 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
 
   RIEGELI_ASSERT(absl::has_single_bit(options.thread_shards()))
       << "Number of shards must be a power of 2: " << options.thread_shards();
-  static NoDestructor<
-      std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>
-      kPools;
   const size_t shard = options.thread_shards() <= 1
                            ? 0
                            : recycling_pool_internal::CurrentThreadNumber() &
                                  (options.thread_shards() - 1);
-  return (*kPools)[shard % RecyclingPoolOptions::kDefaultThreadShards].GetPool(
-      shard, options);
+  return Global<std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>(
+             [] {})[shard % RecyclingPoolOptions::kDefaultThreadShards]
+      .GetPool(shard, options);
 }
 
 template <typename T, typename Deleter>
@@ -752,15 +750,13 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
 
   RIEGELI_ASSERT(absl::has_single_bit(options.thread_shards()))
       << "Number of shards must be a power of 2: " << options.thread_shards();
-  static NoDestructor<
-      std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>
-      kPools;
   const size_t shard = options.thread_shards() <= 1
                            ? 0
                            : recycling_pool_internal::CurrentThreadNumber() &
                                  (options.thread_shards() - 1);
-  return (*kPools)[shard % RecyclingPoolOptions::kDefaultThreadShards].GetPool(
-      shard, options);
+  return Global<std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>(
+             [] {})[shard % RecyclingPoolOptions::kDefaultThreadShards]
+      .GetPool(shard, options);
 }
 
 template <typename T, typename Key, typename Deleter>

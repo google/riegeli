@@ -41,9 +41,9 @@
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
-#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -1153,9 +1153,7 @@ inline absl::Span<const std::string> CsvHeader::names() const {
 inline const std::function<std::string(absl::string_view)>&
 CsvHeader::normalizer() const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) {
-    static const NoDestructor<std::function<std::string(absl::string_view)>>
-        kNullFunction(nullptr);
-    return *kNullFunction;
+    return Global<const std::function<std::string(absl::string_view)>>();
   }
   return payload_->normalizer;
 }

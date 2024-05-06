@@ -23,8 +23,9 @@ cc_library(
 )
 
 cc_library(
-    name = "no_destructor",
-    hdrs = ["no_destructor.h"],
+    name = "global",
+    hdrs = ["global.h"],
+    deps = ["@com_google_absl//absl/meta:type_traits"],
 )
 
 cc_library(
@@ -127,7 +128,7 @@ cc_library(
     hdrs = ["zeros.h"],
     deps = [
         ":cord_utils",
-        ":no_destructor",
+        ":global",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -410,10 +411,10 @@ cc_library(
         ":buffering",
         ":compare",
         ":cord_utils",
+        ":global",
         ":initializer",
         ":memory_estimator",
         ":new_aligned",
-        ":no_destructor",
         ":shared_buffer",
         ":shared_ptr",
         ":sized_shared_buffer",
@@ -466,7 +467,7 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
-        ":no_destructor",
+        ":global",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/synchronization",
@@ -480,7 +481,7 @@ cc_library(
     hdrs = ["background_cleaning.h"],
     deps = [
         ":assert",
-        ":no_destructor",
+        ":global",
         ":parallelism",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/synchronization",
@@ -497,7 +498,7 @@ cc_library(
         ":assert",
         ":background_cleaning",
         ":compare",
-        ":no_destructor",
+        ":global",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",

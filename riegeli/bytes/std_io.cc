@@ -17,7 +17,7 @@
 #include <utility>
 
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -31,8 +31,7 @@ int std_out_fd = 1;
 int std_err_fd = 2;
 
 SizedSharedBuffer& StdInPending() {
-  static NoDestructor<SizedSharedBuffer> pending;
-  return *pending;
+  return Global<SizedSharedBuffer>([] {});
 }
 
 }  // namespace

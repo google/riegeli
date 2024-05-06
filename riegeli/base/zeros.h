@@ -19,6 +19,7 @@
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/global.h"
 
 namespace riegeli {
 
@@ -33,8 +34,8 @@ absl::Cord CordOfZeros(size_t length);
 // Inlined so that the compiler can see the fixed size of the result.
 inline absl::string_view ArrayOfZeros() {
   static constexpr size_t kArrayOfZerosSize = size_t{64} << 10;
-  static const char* const kArrayOfZeros = new char[kArrayOfZerosSize]();
-  return absl::string_view(kArrayOfZeros, kArrayOfZerosSize);
+  return absl::string_view(Global([] { return new char[kArrayOfZerosSize](); }),
+                           kArrayOfZerosSize);
 }
 
 }  // namespace riegeli

@@ -30,7 +30,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/istream_reader.h"
@@ -72,10 +72,11 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
     set_start_pos(*assumed_pos);
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "OStreamWriterBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
-    read_mode_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "OStreamWriterBase::Options::assumed_pos() excludes random access");
+    });
+    read_mode_status_ = random_access_status_;
   } else {
     errno = 0;
     const std::streamoff stream_pos = dest->tellp();
@@ -91,9 +92,9 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
     if (assumed_append) {
       supports_random_access_ = LazyBoolState::kFalse;
       // `supports_read_mode_` is left as `LazyBoolState::kUnknown`.
-      static const NoDestructor<absl::Status> status(
-          absl::UnimplementedError("Append mode excludes random access"));
-      random_access_status_ = *status;
+      random_access_status_ = Global([] {
+        return absl::UnimplementedError("Append mode excludes random access");
+      });
     } else {
       // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
       // checked later. `supports_random_access_` and `supports_read_mode_` are
@@ -158,10 +159,11 @@ bool OStreamWriterBase::SupportsReadMode() {
   std::istream* const src = SrcStream();
   if (src == nullptr) {
     supports_read_mode_ = LazyBoolState::kFalse;
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "Read mode requires the static type of the destination "
-        "deriving from std::istream"));
-    read_mode_status_ = *status;
+    read_mode_status_ = Global([] {
+      return absl::UnimplementedError(
+          "Read mode requires the static type of the destination "
+          "deriving from std::istream");
+    });
     return false;
   }
   errno = 0;

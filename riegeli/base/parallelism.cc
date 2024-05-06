@@ -25,7 +25,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 
 namespace riegeli {
 namespace internal {
@@ -73,8 +73,7 @@ void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
 }
 
 ThreadPool& ThreadPool::global() {
-  static NoDestructor<ThreadPool> kStaticThreadPool;
-  return *kStaticThreadPool;
+  return Global<ThreadPool>([] {});
 }
 
 }  // namespace internal

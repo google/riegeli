@@ -38,11 +38,11 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
-#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/string_utils.h"
@@ -2715,9 +2715,9 @@ Chain ChainOfZeros(size_t length) {
   const absl::string_view kArrayOfZeros = ArrayOfZeros();
   Chain result;
   while (length >= kArrayOfZeros.size()) {
-    static const NoDestructor<Chain> kChainBlockOfZeros(
-        Chain::FromExternal(riegeli::Maker<ZeroRef>(), kArrayOfZeros));
-    result.Append(*kChainBlockOfZeros);
+    result.Append(Global([] {
+      return Chain::FromExternal(riegeli::Maker<ZeroRef>(), ArrayOfZeros());
+    }));
     length -= kArrayOfZeros.size();
   }
   if (length > 0) {

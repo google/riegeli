@@ -80,10 +80,10 @@
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
-#include "riegeli/base/maker.h"
 #ifndef _WIN32
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #endif
+#include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -243,13 +243,13 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   Position rounded_base_pos = base_pos;
   if (rounded_base_pos > 0) {
 #ifndef _WIN32
-    static const NoDestructor<absl::StatusOr<Position>> kPageSize(
-        GetPageSize());
-    if (ABSL_PREDICT_FALSE(!kPageSize->ok())) {
-      Fail(kPageSize->status());
+    const absl::StatusOr<Position>& page_size =
+        Global([] { return GetPageSize(); });
+    if (ABSL_PREDICT_FALSE(!page_size.ok())) {
+      Fail(page_size.status());
       return;
     }
-    rounded_base_pos &= ~(**kPageSize - 1);
+    rounded_base_pos &= ~(*page_size - 1);
 #else   // _WIN32
     static const Position kPageSize = GetPageSize();
     rounded_base_pos &= ~(kPageSize - 1);

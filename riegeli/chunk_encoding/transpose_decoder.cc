@@ -36,8 +36,8 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/maker.h"
-#include "riegeli/base/no_destructor.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -56,9 +56,9 @@ namespace riegeli {
 namespace {
 
 Reader* kEmptyReader() {
-  static NoDestructor<StringReader<>> kStaticEmptyReader;
-  RIEGELI_ASSERT(kStaticEmptyReader->ok()) << "kEmptyReader() has been closed";
-  return kStaticEmptyReader.get();
+  Reader* const reader = &Global<StringReader<>>([] {});
+  RIEGELI_ASSERT(reader->ok()) << "kEmptyReader() has been closed";
+  return reader;
 }
 
 constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();

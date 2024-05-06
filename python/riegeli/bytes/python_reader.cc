@@ -37,7 +37,7 @@
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
@@ -52,9 +52,10 @@ PythonReader::PythonReader(PyObject* src, Options options)
   if (options.assumed_pos() != absl::nullopt) {
     set_limit_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "PythonReader::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "PythonReader::Options::assumed_pos() excludes random access");
+    });
   } else {
     static constexpr Identifier id_seekable("seekable");
     const PythonPtr seekable_result(
@@ -71,9 +72,10 @@ PythonReader::PythonReader(PyObject* src, Options options)
     if (seekable_is_true == 0) {
       // Random access is not supported. Assume 0 as the initial position.
       // `supports_random_access_` is left as `false`.
-      static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-          "seekable() is False which excludes random access"));
-      random_access_status_ = *status;
+      random_access_status_ = Global([] {
+        return absl::UnimplementedError(
+            "seekable() is False which excludes random access");
+      });
       return;
     }
     static constexpr Identifier id_tell("tell");

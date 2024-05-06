@@ -65,7 +65,7 @@
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
-#include "riegeli/base/no_destructor.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
@@ -117,9 +117,9 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
   }
   if ((options.mode() & O_ACCMODE) != O_RDWR) {
     supports_read_mode_ = LazyBoolState::kFalse;
-    static const NoDestructor<absl::Status> status(
-        absl::UnimplementedError("Mode does not include O_RDWR"));
-    read_mode_status_ = *status;
+    read_mode_status_ = Global([] {
+      return absl::UnimplementedError("Mode does not include O_RDWR");
+    });
   }
 #else   // _WIN32
   RIEGELI_ASSERT(original_mode_ == absl::nullopt)
@@ -130,9 +130,9 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
   if (mode_was_passed_to_open) {
     if ((options.mode() & (_O_RDONLY | _O_WRONLY | _O_RDWR)) != _O_RDWR) {
       supports_read_mode_ = LazyBoolState::kFalse;
-      static const NoDestructor<absl::Status> status(
-          absl::UnimplementedError("Mode does not include _O_RDWR"));
-      read_mode_status_ = *status;
+      read_mode_status_ = Global([] {
+        return absl::UnimplementedError("Mode does not include _O_RDWR");
+      });
     }
   } else if (text_mode != 0) {
     const int original_mode = _setmode(dest, text_mode);
@@ -181,9 +181,10 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     set_start_pos(*options.assumed_pos());
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
-    static const NoDestructor<absl::Status> status(absl::UnimplementedError(
-        "FileWriterBase::Options::assumed_pos() excludes random access"));
-    random_access_status_ = *status;
+    random_access_status_ = Global([] {
+      return absl::UnimplementedError(
+          "FileWriterBase::Options::assumed_pos() excludes random access");
+    });
     read_mode_status_.Update(random_access_status_);
   } else if (options.independent_pos() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE((options.mode() & O_APPEND) != 0)) {
@@ -231,9 +232,9 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
           supports_read_mode_ == LazyBoolState::kUnknown) {
         supports_read_mode_ = LazyBoolState::kTrue;
       }
-      static const NoDestructor<absl::Status> status(
-          absl::UnimplementedError("Append mode excludes random access"));
-      random_access_status_ = *status;
+      random_access_status_ = Global([] {
+        return absl::UnimplementedError("Append mode excludes random access");
+      });
     } else {
       // `fd_internal::LSeek(SEEK_CUR)` succeeded, and
       // `fd_internal::LSeek(SEEK_END)` will be checked later.
