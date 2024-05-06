@@ -32,12 +32,15 @@ class RefCount {
   // Increments the reference count.
   void Ref() const { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
-  // Decrements the reference count. Returns `true` when the reference count
-  // reaches 0.
+  // Decrements the reference count. Returns `true` when this was the last
+  // reference.
+  //
+  // When `Unref()` returns `true`, the decrement can be skipped and the actual
+  // value of the reference count is unspecified. This avoids an expensive
+  // atomic read-modify-write operation, making the last `Unref()` much faster,
+  // at the cost of making a non-last `Unref()` a bit slower.
   bool Unref() const {
-    // Optimization: avoid an expensive atomic read-modify-write operation
-    // if the reference count is 1.
-    return ref_count_.load(std::memory_order_acquire) == 1 ||
+    return HasUniqueOwner() ||
            ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1;
   }
 
