@@ -82,30 +82,6 @@ class ReferencePair : public std::pair<T1, T2> {
       : ReferencePair::pair(p.first, p.second) {}
 };
 
-// `AssignToString()` assigns a value convertible to `absl::string_view` to a
-// `std::string`.
-//
-// `AssignToString(src, dest)` is equivalent to `dest = src`, except that it
-// compiles also if `absl::string_view` is not C++17 `std::string_view`.
-//
-// `std::string&&` is accepted with a template to avoid implicit conversions
-// to `std::string` which can be ambiguous against `absl::string_view`
-// (e.g. `const char*`).
-
-inline void AssignToString(absl::string_view src, std::string& dest) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // remove `AssignToString()`, use `dest = src` directly.
-  dest.assign(src.data(), src.size());
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-inline void AssignToString(Src&& src, std::string& dest) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  dest = std::move(src);
-}
-
 // `ToStringVector()` converts an iterable of elements convertible to
 // `absl::string_view` to a `std::vector<std::string>`.
 
@@ -1387,8 +1363,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
     if (this_iter == this->end() || this_iter->first != src_iter->first) break;
-    csv_internal::AssignToString((*MaybeMakeMoveIterator<Src>(src_iter)).second,
-                                 this_iter->second);
+    Initializer<std::string>::AllowingExplicit(
+        (*MaybeMakeMoveIterator<Src>(src_iter)).second)
+        .AssignTo(this_iter->second);
     ++this_iter;
     ++src_iter;
   }
@@ -1403,8 +1380,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       missing_names.emplace_back(src_iter->first);
     } else {
-      csv_internal::AssignToString(
-          (*MaybeMakeMoveIterator<Src>(src_iter)).second, this_iter->second);
+      Initializer<std::string>::AllowingExplicit(
+          (*MaybeMakeMoveIterator<Src>(src_iter)).second)
+          .AssignTo(this_iter->second);
     }
     ++src_iter;
   } while (src_iter != src_end_iter);
