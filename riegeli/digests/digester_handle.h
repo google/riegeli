@@ -490,7 +490,8 @@ class DigesterHandle : public DigesterBaseHandle {
   }
 
   struct Methods : DigesterBaseHandle::Methods {
-    DigestType (*digest)(void* target);
+    // MSVC does not like the `DigestType` alias here for some reason.
+    DigestTypeParam (*digest)(void* target);
   };
 
 #if __cpp_aggregate_bases
