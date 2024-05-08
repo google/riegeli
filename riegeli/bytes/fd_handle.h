@@ -15,7 +15,9 @@
 #ifndef RIEGELI_BYTES_FD_HANDLE_H_
 #define RIEGELI_BYTES_FD_HANDLE_H_
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <sys/stat.h>
+#else
 #include <sys/types.h>
 #endif
 

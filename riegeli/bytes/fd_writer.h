@@ -20,7 +20,6 @@
 #ifdef _WIN32
 #include <sys/stat.h>
 #endif
-#include <sys/types.h>
 
 #include <string>
 #include <type_traits>

@@ -35,7 +35,6 @@
 #include <fcntl.h>
 #ifdef _WIN32
 #include <io.h>
-#include <share.h>
 #endif
 #include <stddef.h>
 #ifdef _WIN32
