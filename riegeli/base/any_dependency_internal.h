@@ -259,8 +259,6 @@ struct MethodsFor<Handle, Manager, true> {
     new (self_handle) Handle(dep(self).get());
   }
 
-  static Manager& GetManager(Storage self) { return dep(self).manager(); }
-
  private:
   static Dependency<Handle, Manager>& dep(Storage self) {
     return *
@@ -324,8 +322,6 @@ struct MethodsFor<Handle, Manager, false> {
         new Dependency<Handle, Manager>(std::move(manager)));
     new (self_handle) Handle(dep_ptr(self)->get());
   }
-
-  static Manager& GetManager(Storage self) { return dep_ptr(self)->manager(); }
 
  private:
   static Dependency<Handle, Manager>* dep_ptr(const Storage self) {

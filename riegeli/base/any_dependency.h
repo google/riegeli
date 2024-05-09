@@ -38,7 +38,6 @@
 #include "riegeli/base/dependency_base.h"
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
@@ -158,11 +157,6 @@ class
   // Destroys the state, leaving it uninitialized.
   void Destroy();
 
-  template <typename Manager>
-  Manager& GetManager() {
-    return MethodsFor<Manager>::GetManager(repr_.storage);
-  }
-
  private:
   // For adopting the state from an instantiation with a different `inline_size`
   // and `inline_align.
@@ -273,35 +267,6 @@ class AnyDependency
 
   AnyDependency(AnyDependency&& that) = default;
   AnyDependency& operator=(AnyDependency&& that) = default;
-
-  // Holds a `Dependency<Handle, Manager>`.
-  //
-  // Same as `*this = riegeli::Maker<Manager>(manager_args...)`, but returning
-  // a reference to the constructed `Manager`.
-  template <
-      typename Manager, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  ABSL_DEPRECATED(
-      "Assign riegeli::Maker<Manager>(manager_args...) "
-      "to the AnyDependency instead")
-  Manager& Emplace(ManagerArgs&&... manager_args);
-
-#if __cpp_deduction_guides
-  // Like above, but the exact `Manager` type is deduced using CTAD.
-  //
-  // Only templates with solely type template parameters are supported.
-  template <
-      template <typename...> class ManagerTemplate, typename... ManagerArgs,
-      std::enable_if_t<IsValidDependency<
-                           Handle, DeduceClassTemplateArgumentsT<
-                                       ManagerTemplate, ManagerArgs...>>::value,
-                       int> = 0>
-  ABSL_DEPRECATED(
-      "Assign riegeli::Maker<ManagerTemplate>(manager_args...) "
-      "to the AnyDependency instead")
-  DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>& Emplace(
-      ManagerArgs&&... manager_args);
-#endif
 };
 
 // Specialization of `DependencyManagerImpl<AnyDependency<Handle>>`:
@@ -732,34 +697,6 @@ AnyDependency<Handle, inline_size, inline_align>::operator=(
   this->Initialize(std::move(manager));
   return *this;
 }
-
-template <typename Handle, size_t inline_size, size_t inline_align>
-template <typename Manager, typename... ManagerArgs,
-          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
-inline Manager& AnyDependency<Handle, inline_size, inline_align>::Emplace(
-    ManagerArgs&&... manager_args) {
-  this->Destroy();
-  this->template Initialize<Manager>(
-      riegeli::Maker(std::forward<ManagerArgs>(manager_args)...));
-  return this->template GetManager<Manager>();
-}
-
-#if __cpp_deduction_guides
-template <typename Handle, size_t inline_size, size_t inline_align>
-template <
-    template <typename...> class ManagerTemplate, typename... ManagerArgs,
-    std::enable_if_t<
-        IsValidDependency<Handle, DeduceClassTemplateArgumentsT<
-                                      ManagerTemplate, ManagerArgs...>>::value,
-        int>>
-inline DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>&
-AnyDependency<Handle, inline_size, inline_align>::Emplace(
-    ManagerArgs&&... manager_args) {
-  return Emplace<
-      DeduceClassTemplateArgumentsT<ManagerTemplate, ManagerArgs...>>(
-      std::forward<ManagerArgs>(manager_args)...);
-}
-#endif
 
 template <typename Handle>
 template <
