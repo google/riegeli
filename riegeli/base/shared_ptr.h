@@ -28,7 +28,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ref_count.h"
 
@@ -203,6 +202,7 @@ class
   // Allow Nullability annotations on `IntrusiveSharedPtr`.
   using absl_nullability_compatible = void;
 
+  template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedPtr* self,
                                         MemoryEstimator& memory_estimator) {
     if (memory_estimator.RegisterNode(self->get())) {
@@ -222,17 +222,12 @@ class
   // a higher alignment requirement than `RefCount` or `Control`, there can be
   // padding at the beginning of the allocation, before `RefCount` or `Control`.
   // Hence if `std::has_virtual_destructor<SubT>::value` then the beginning of
-  // the allocation can be recovered only through `Control::methods`.
-
-  struct Methods {
-    void (*destroy)(void* ptr);
-    void (*register_subobjects)(void* ptr, MemoryEstimator& memory_estimator);
-  };
+  // the allocation is known only to `Control::destroy()`.
 
   struct Control {
-    explicit Control(const Methods* methods) : methods(methods) {}
+    explicit Control(void (*destroy)(void* ptr)) : destroy(destroy) {}
 
-    const Methods* methods;
+    void (*destroy)(void* ptr);
     RefCount ref_count;
   };
 
@@ -243,19 +238,6 @@ class
     DeleteAligned<void, UnsignedMax(alignof(Control), alignof(SubT))>(
         static_cast<char*>(ptr) - kOffset, kOffset + sizeof(SubT));
   }
-
-  template <typename SubT>
-  static void RegisterSubobjectsMethod(void* ptr,
-                                       MemoryEstimator& memory_estimator) {
-    static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
-    memory_estimator.RegisterDynamicMemory(static_cast<char*>(ptr) - kOffset,
-                                           kOffset + sizeof(SubT));
-    memory_estimator.RegisterSubobjects(static_cast<SubT*>(ptr));
-  }
-
-  template <typename SubT>
-  static constexpr Methods kMethods = {DestroyMethod<SubT>,
-                                       RegisterSubobjectsMethod<SubT>};
 
   template <typename SubT>
   static T* UpCast(SubT* ptr) {
@@ -293,7 +275,7 @@ class
         NewAligned<void, UnsignedMax(alignof(Control), alignof(SubT))>(
             kOffset + sizeof(SubT));
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
-    new (static_cast<Control*>(ptr) - 1) Control(&kMethods<SubT>);
+    new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
     new (ptr) SubT(std::move(value).Construct());
     return
 #if __cpp_lib_launder >= 201606
@@ -333,7 +315,7 @@ class
                             absl::negation<std::is_final<DependentT>>>::value,
           int> = 0>
   static void Delete(T* ptr) {
-    control(ptr).methods->destroy(const_cast<std::remove_cv_t<T>*>(ptr));
+    control(ptr).destroy(const_cast<std::remove_cv_t<T>*>(ptr));
   }
 
   template <typename SubT,
@@ -401,7 +383,7 @@ class
     Unref(std::exchange(ptr_, New(std::move(value))));
   }
 
-  template <typename DependentT = T,
+  template <typename MemoryEstimator, typename DependentT = T,
             std::enable_if_t<!std::has_virtual_destructor<DependentT>::value,
                              int> = 0>
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
@@ -412,7 +394,7 @@ class
         kOffset + sizeof(T));
     memory_estimator.RegisterSubobjects(ptr_);
   }
-  template <typename DependentT = T,
+  template <typename MemoryEstimator, typename DependentT = T,
             std::enable_if_t<
                 absl::conjunction<std::has_virtual_destructor<DependentT>,
                                   std::is_final<DependentT>>::value,
@@ -426,14 +408,18 @@ class
     memory_estimator.RegisterSubobjects(ptr_);
   }
   template <
-      typename DependentT = T,
+      typename MemoryEstimator, typename DependentT = T,
       std::enable_if_t<
           absl::conjunction<std::has_virtual_destructor<DependentT>,
                             absl::negation<std::is_final<DependentT>>>::value,
           int> = 0>
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
-    control(ptr_).methods->register_subobjects(
-        const_cast<std::remove_cv_t<T>*>(ptr_), memory_estimator);
+    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
+    // `kOffset` is not necessarily accurate because the object can be of a
+    // subtype of `T`, so do not pass the pointer to `RegisterDynamicMemory()`.
+    memory_estimator.RegisterDynamicMemory(
+        kOffset + memory_estimator.DynamicSizeOf(ptr_));
+    memory_estimator.RegisterSubobjects(ptr_);
   }
 
   T* ptr_ = nullptr;

@@ -345,7 +345,6 @@ cc_library(
         ":assert",
         ":compare",
         ":initializer",
-        ":memory_estimator",
         ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
