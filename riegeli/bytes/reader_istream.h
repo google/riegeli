@@ -174,7 +174,7 @@ class ReaderIStream : public ReaderIStreamBase {
     requires(std::is_move_constructible<Dependency<Reader*, Src>>::value)
 #endif
       : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)),
-        src_(std::move(that.src_)) {
+        src_(std::move(that.src_), *this, that) {
   }
   ReaderIStream& operator=(ReaderIStream&& that) noexcept
 #if __cpp_concepts
@@ -182,7 +182,7 @@ class ReaderIStream : public ReaderIStreamBase {
 #endif
   {
     ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
-    src_ = std::move(that.src_);
+    src_.Reset(std::move(that.src_), *this, that);
     return *this;
   }
 

@@ -48,6 +48,8 @@ namespace riegeli {
 //   // This is used to get the type of the host class, and to find the host
 //   // object from the `MovingDependency` by following the member pointer in
 //   // the reverse direction.
+//   //
+//   // Skip this for `Host` using virtual inheritance.
 //   static auto member() { return &Host::dep_; }
 //
 //   // Constructor, called when base classes of the host object are already
@@ -67,12 +69,28 @@ namespace riegeli {
 //   void Done(Host& self);
 // ```
 //
+// If `Host` uses virtual inheritance, even indirectly, then the leaf class
+// is responsible for moving virtual base classes. `Host` should have move
+// constructor and assignment defined explicitly. Their availability can be
+// conditional on movability of the `Dependency` only starting from C++20,
+// using the `requires` clause. `Mover::member()` should not be defined;
+// this way of finding the host object does not work on Windows when virtual
+// inheritance is used. The `MovingDependency` should be move-constructed by
+// passing `*this, that` as additional parameters to its constructor, and it
+// should be move-assigned by calling `Reset()` instead of `operator=` and
+// passing `*this, that` as additional parameters.
+//
 // This template is specialized but does not have a primary definition.
 template <typename Handle, typename Manager, typename Mover,
           typename Enable = void>
 class MovingDependency;
 
 namespace moving_dependency_internal {
+
+class SimpleClass {
+ public:
+  int member;
+};
 
 template <typename Mover, typename Host,
           std::enable_if_t<std::is_constructible<Mover, Host&, Host&>::value,
@@ -144,17 +162,31 @@ template <
 inline void Done(ABSL_ATTRIBUTE_UNUSED Mover& mover,
                  ABSL_ATTRIBUTE_UNUSED Host& self) {}
 
+template <typename T, typename Enable, typename... Args>
+struct HasResetImpl : std::false_type {};
+
+template <typename T, typename... Args>
+struct HasResetImpl<
+    T,
+    absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args&&>()...))>,
+    Args...> : std::true_type {};
+
+template <typename T, typename... Args>
+struct HasReset : HasResetImpl<T, void, Args...> {};
+
 template <typename Handle, typename Manager, typename Mover>
 class MovingDependencyImpl : public Dependency<Handle, Manager> {
  public:
   using MovingDependencyImpl::Dependency::Dependency;
 
+  // Not supported when `Host` uses virtual inheritance.
   MovingDependencyImpl(MovingDependencyImpl&& that) noexcept
       : MovingDependencyImpl(static_cast<MovingDependencyImpl&&>(that),
                              moving_dependency_internal::MakeMover<Mover>(
                                  this->get_host(Mover::member()),
                                  that.get_host(Mover::member()))) {}
 
+  // Not supported when `Host` uses virtual inheritance.
   MovingDependencyImpl& operator=(MovingDependencyImpl&& that) noexcept {
     Mover mover = moving_dependency_internal::MakeMover<Mover>(
         this->get_host(Mover::member()), that.get_host(Mover::member()));
@@ -162,6 +194,38 @@ class MovingDependencyImpl : public Dependency<Handle, Manager> {
         static_cast<typename MovingDependencyImpl::Dependency&&>(that));
     moving_dependency_internal::Done(mover, this->get_host(Mover::member()));
     return *this;
+  }
+
+  // Required when `Host` uses virtual inheritance.
+  template <typename Host>
+  MovingDependencyImpl(MovingDependencyImpl&& that, Host& this_host,
+                       Host& that_host) noexcept
+      : MovingDependencyImpl(
+            static_cast<MovingDependencyImpl&&>(that),
+            moving_dependency_internal::MakeMover<Mover>(this_host, that_host),
+            this_host) {}
+
+  // Required when `Host` uses virtual inheritance.
+  template <typename Host>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(MovingDependencyImpl&& that,
+                                          Host& this_host,
+                                          Host& that_host) noexcept {
+    Mover mover =
+        moving_dependency_internal::MakeMover<Mover>(this_host, that_host);
+    MovingDependencyImpl::Dependency::operator=(
+        static_cast<typename MovingDependencyImpl::Dependency&&>(that));
+    moving_dependency_internal::Done(mover, this_host);
+  }
+
+  // Not `using MovingDependencyImpl::Dependency::Reset` because it might have
+  // no overloads.
+  template <typename... Args,
+            std::enable_if_t<
+                moving_dependency_internal::HasReset<
+                    typename MovingDependencyImpl::Dependency, Args...>::value,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {
+    MovingDependencyImpl::Dependency::Reset(std::forward<Args>(args)...);
   }
 
  private:
@@ -172,7 +236,20 @@ class MovingDependencyImpl : public Dependency<Handle, Manager> {
   }
 
   template <typename Host>
+  explicit MovingDependencyImpl(MovingDependencyImpl&& that, Mover mover,
+                                Host& this_host)
+      : MovingDependencyImpl::Dependency(
+            static_cast<typename MovingDependencyImpl::Dependency&&>(that)) {
+    moving_dependency_internal::Done(mover, this_host);
+  }
+
+  template <typename Host>
   Host& get_host(MovingDependency<Handle, Manager, Mover> Host::*member) {
+    // This assertion detects virtual inheritance on Windows.
+    static_assert(sizeof(member) == sizeof(&SimpleClass::member),
+                  "For a host class using virtual inheritance, "
+                  "MovingDependency must have this_host and that_host "
+                  "passed explicitly.");
     alignas(alignof(Host)) char storage[sizeof(Host)];
     const size_t offset =
         reinterpret_cast<char*>(&(reinterpret_cast<Host*>(storage)->*member)) -
@@ -191,8 +268,38 @@ class MovingDependency<Handle, Manager, Mover,
  public:
   using MovingDependency::Dependency::Dependency;
 
+  // Not supported when `Host` uses virtual inheritance.
   MovingDependency(MovingDependency&& other) = default;
+  // Not supported when `Host` uses virtual inheritance.
   MovingDependency& operator=(MovingDependency&& other) = default;
+
+  // Required when `Host` uses virtual inheritance.
+  template <typename Host>
+  MovingDependency(MovingDependency&& that,
+                   ABSL_ATTRIBUTE_UNUSED Host& this_host,
+                   ABSL_ATTRIBUTE_UNUSED Host& that_host) noexcept
+      : MovingDependency::Dependency(
+            static_cast<typename MovingDependency::Dependency&&>(that)) {}
+
+  // Required when `Host` uses virtual inheritance.
+  template <typename Host>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      MovingDependency&& that, ABSL_ATTRIBUTE_UNUSED Host& this_host,
+      ABSL_ATTRIBUTE_UNUSED Host& that_host) noexcept {
+    MovingDependency::Dependency::operator=(
+        static_cast<typename MovingDependency::Dependency&&>(that));
+  }
+
+  // Not `using MovingDependency::Dependency::Reset` because it might have
+  // no overloads.
+  template <typename... Args,
+            std::enable_if_t<
+                moving_dependency_internal::HasReset<
+                    typename MovingDependency::Dependency, Args...>::value,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {
+    MovingDependency::Dependency::Reset(std::forward<Args>(args)...);
+  }
 };
 
 // Specialization when `Dependency<Handle, Manager>` is not stable.

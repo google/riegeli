@@ -199,7 +199,7 @@ class WriterOStream : public WriterOStreamBase {
     requires(std::is_move_constructible<Dependency<Writer*, Dest>>::value)
 #endif
       : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)),
-        dest_(std::move(that.dest_)) {
+        dest_(std::move(that.dest_), *this, that) {
   }
   WriterOStream& operator=(WriterOStream&& that) noexcept
 #if __cpp_concepts
@@ -207,7 +207,7 @@ class WriterOStream : public WriterOStreamBase {
 #endif
   {
     WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
-    dest_ = std::move(that.dest_);
+    dest_.Reset(std::move(that.dest_), *this, that);
     return *this;
   }
 
@@ -316,8 +316,6 @@ inline void WriterOStreamBase::Initialize(Writer* dest) {
 template <typename Dest>
 class WriterOStream<Dest>::Mover {
  public:
-  static auto member() { return &WriterOStream::dest_; }
-
   explicit Mover(WriterOStream& self)
       : reader_pos_(self.streambuf_.MoveBegin()) {}
 
