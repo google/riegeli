@@ -151,3 +151,41 @@ python_configure(name = "local_config_python")
 register_toolchains("@local_config_python//:toolchain")
 
 tf_configure(name = "local_config_tf")
+
+# Java binding support.
+http_archive(
+    name = "fmeum_rules_jni",
+    sha256 = "8d685e381cb625e11fac330085de2ebc13ad497d30c4e9b09beb212f7c27e8e7",
+    url = "https://github.com/fmeum/rules_jni/releases/download/v0.3.0/rules_jni-v0.3.0.tar.gz",
+)
+
+load("@fmeum_rules_jni//jni:repositories.bzl", "rules_jni_dependencies")
+
+rules_jni_dependencies()
+
+load("@bazel_tools//tools/build_defs/repo:java.bzl", "java_import_external")
+
+java_import_external(
+    name = "junit_long",
+    jar_sha256 = "59721f0805e223d84b90677887d9ff567dc534d7c502ca903c0c2b17f05c116a",
+    jar_urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/repo1.maven.org/maven2/junit/junit/4.12/junit-4.12.jar",
+        "https://repo1.maven.org/maven2/junit/junit/4.12/junit-4.12.jar",
+        "https://maven.ibiblio.org/maven2/junit/junit/4.12/junit-4.12.jar",
+    ],
+    licenses = ["reciprocal"],  # Common Public License Version 1.0
+    testonly_ = True,
+    deps = ["@org_hamcrest_core"],
+)
+
+java_import_external(
+    name = "org_hamcrest_core",
+    jar_sha256 = "66fdef91e9739348df7a096aa384a5685f4e875584cce89386a7a47251c4d8e9",
+    jar_urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/repo1.maven.org/maven2/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar",
+        "https://repo1.maven.org/maven2/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar",
+        "https://maven.ibiblio.org/maven2/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar",
+    ],
+    licenses = ["notice"],  # New BSD License
+    testonly_ = True,
+)
