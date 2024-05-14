@@ -58,6 +58,10 @@ class FileReaderBase : public Reader {
    public:
     Options() noexcept {}
 
+    // `FileReader` has a larger `kDefaultMaxBufferSize` (1M) because remote
+    // file access may have high latency of each operation.
+    static constexpr size_t kDefaultMaxBufferSize = size_t{1} << 20;
+
     // Overrides the TensorFlow environment.
     //
     // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
