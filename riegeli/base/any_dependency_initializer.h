@@ -128,7 +128,7 @@ class AnyDependencyInitializer {
   void (*construct_)(void* context, MethodsAndHandle& methods_and_handle,
                      Storage storage, size_t available_size,
                      size_t available_align);
-  void* context_;
+  void* context_ = nullptr;
 };
 
 // Implementation details follow.

@@ -122,7 +122,7 @@ class InitializerBase {
 
  private:
   const Methods* methods_;
-  void* context_;
+  void* context_ = nullptr;
 };
 
 // Part of `Initializer<T>` for `T` being a non-reference type.
