@@ -92,13 +92,6 @@ class InitializerBase {
   template <typename Arg>
   explicit InitializerBase(const Methods* methods, Arg&& arg);
 
-  template <typename... Args>
-  explicit InitializerBase(const Methods* methods, MakerType<Args...>&& args);
-
-  template <typename... Args>
-  explicit InitializerBase(const Methods* methods,
-                           const MakerType<Args...>& args);
-
   InitializerBase(InitializerBase&& other) = default;
   InitializerBase& operator=(InitializerBase&&) = delete;
 
@@ -246,16 +239,6 @@ class InitializerValueBase : public InitializerBase<T> {
       : InitializerValueBase::InitializerBase(methods, std::forward<Arg>(arg)) {
   }
 
-  template <typename... Args>
-  explicit InitializerValueBase(const Methods* methods,
-                                MakerType<Args...>&& args)
-      : InitializerValueBase::InitializerBase(methods, std::move(args)) {}
-
-  template <typename... Args>
-  explicit InitializerValueBase(const Methods* methods,
-                                const MakerType<Args...>& args)
-      : InitializerValueBase::InitializerBase(methods, args) {}
-
   InitializerValueBase(InitializerValueBase&& other) = default;
   InitializerValueBase& operator=(InitializerValueBase&&) = delete;
 
@@ -372,17 +355,6 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   explicit InitializerAssignableValueBase(const Methods* methods, Arg&& arg)
       : InitializerAssignableValueBase::InitializerValueBase(
             methods, std::forward<Arg>(arg)) {}
-
-  template <typename... Args>
-  explicit InitializerAssignableValueBase(const Methods* methods,
-                                          MakerType<Args...>&& args)
-      : InitializerAssignableValueBase::InitializerValueBase(methods,
-                                                             std::move(args)) {}
-
-  template <typename... Args>
-  explicit InitializerAssignableValueBase(const Methods* methods,
-                                          const MakerType<Args...>& args)
-      : InitializerAssignableValueBase::InitializerValueBase(methods, args) {}
 
   InitializerAssignableValueBase(InitializerAssignableValueBase&& other) =
       default;
@@ -739,18 +711,6 @@ template <typename Arg>
 inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
     : methods_(methods),
       context_(const_cast<absl::remove_cvref_t<Arg>*>(&arg)) {}
-
-template <typename T>
-template <typename... Args>
-inline InitializerBase<T>::InitializerBase(const Methods* methods,
-                                           MakerType<Args...>&& args)
-    : methods_(methods), context_(&args) {}
-
-template <typename T>
-template <typename... Args>
-inline InitializerBase<T>::InitializerBase(const Methods* methods,
-                                           const MakerType<Args...>& args)
-    : methods_(methods), context_(const_cast<MakerType<Args...>*>(&args)) {}
 
 template <typename T>
 T InitializerBase<T>::ConstructMethodDefault(
