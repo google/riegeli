@@ -1025,6 +1025,26 @@ cc_library(
 )
 
 cc_library(
+    name = "fd_io_uring_writer",
+    srcs = [
+        "fd_dependency.h",
+        "fd_io_uring_writer.cc",
+    ],
+    hdrs = ["fd_io_uring_writer.h"],
+    deps = [
+        ":buffered_writer",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "//riegeli/iouring:fd_sync_io_uring",
+        "//riegeli/iouring:fd_async_io_uring",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "fd_reader",
     srcs = ["fd_reader.cc"] + select({
         "@platforms//os:windows": [],

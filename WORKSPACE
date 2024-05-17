@@ -12,6 +12,13 @@ http_archive(
 )
 
 http_archive(
+  name = "com_google_googletest",
+  sha256 = "5cf189eb6847b4f8fc603a3ffff3b0771c08eec7dd4bd961bfd45477dd13eb73",
+  strip_prefix = "googletest-609281088cfefc76f9d0ce82e1ff6c30cc3591e5",
+  urls = ["https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip"],
+)
+
+http_archive(
     name = "org_brotli",
     sha256 = "84a9a68ada813a59db94d83ea10c54155f1d34399baf377842ff3ab9b3b3256e",
     strip_prefix = "brotli-3914999fcc1fda92e750ef9190aa6db9bf7bdb07",
@@ -72,6 +79,16 @@ http_archive(
     sha256 = "e4b0f81582efa155ccf27bb88275254a429d44968e488fc94b806f2a61cd3e22",
     strip_prefix = "xz-5.4.1",
     urls = ["https://tukaani.org/xz/xz-5.4.1.tar.gz"],  # 2023-01-11
+)
+
+http_archive(
+    name = "liburing",
+    build_file = "//third_party:liburing.BUILD",
+    sha256 = "ca069ecc4aa1baf1031bd772e4e97f7e26dfb6bb733d79f70159589b22ab4dc0",
+    strip_prefix = "liburing-liburing-2.0",
+    urls = [
+        "https://github.com/axboe/liburing/archive/refs/tags/liburing-2.0.tar.gz",
+    ],
 )
 
 http_archive(
