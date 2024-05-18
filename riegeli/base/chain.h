@@ -154,7 +154,7 @@ class Chain : public WithCompare<Chain> {
   // If the `data` parameter is not given, `T` must support:
   // ```
   //   // Contents of the object.
-  //   explicit operator absl::string_view() const;
+  //   explicit operator absl::string_view();
   // ```
   //
   // In particular to attach static immutable memory, `T` can be
@@ -165,7 +165,7 @@ class Chain : public WithCompare<Chain> {
   // ```
   //   // Called once before the destructor, except on a moved-from object.
   //   // If only this function is needed, `T` can be a lambda.
-  //   void operator()(absl::string_view data) const {}
+  //   void operator()(absl::string_view data) && {}
   //
   //   // Shows internal structure in a human-readable way, for debugging.
   //   void DumpStructure(absl::string_view data, std::ostream& out) const {
@@ -184,10 +184,11 @@ class Chain : public WithCompare<Chain> {
   // The `data` parameter of these member functions, if present, will get the
   // `data` used by `FromExternal()`. Having `data` available in these functions
   // might avoid storing `data` in the external object.
-  template <typename T, std::enable_if_t<
-                            std::is_constructible<absl::string_view,
-                                                  InitializerTargetT<T>>::value,
-                            int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<absl::string_view,
+                                             InitializerTargetT<T>&>::value,
+                       int> = 0>
   static Chain FromExternal(T&& object);
   template <typename T>
   static Chain FromExternal(T&& object, absl::string_view data);
@@ -241,8 +242,8 @@ class Chain : public WithCompare<Chain> {
   // A container of `absl::string_view` blocks comprising data of the `Chain`.
   Blocks blocks() const;
 
-  size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t size() const { return size_; }
 
   void CopyTo(char* dest) const;
   void AppendTo(std::string& dest) const&;
@@ -860,8 +861,8 @@ class Chain::Blocks {
   reverse_iterator rend() const { return reverse_iterator(begin()); }
   reverse_iterator crend() const { return rend(); }
 
-  size_type size() const;
   bool empty() const;
+  size_type size() const;
 
   reference operator[](size_type n) const;
   reference at(size_type n) const;
@@ -956,8 +957,8 @@ class Chain::RawBlock {
   explicit operator absl::string_view() const {
     return absl::string_view(data_, size_);
   }
-  size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t size() const { return size_; }
   const char* data_begin() const { return data_; }
   const char* data_end() const { return data_ + size_; }
 
@@ -1096,22 +1097,22 @@ template <typename T, typename Enable = void>
 struct HasCallOperatorWithData : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorWithData<T,
-                               absl::void_t<decltype(std::declval<const T&>()(
-                                   std::declval<absl::string_view>()))>>
+struct HasCallOperatorWithData<T, absl::void_t<decltype(std::declval<T&&>()(
+                                      std::declval<absl::string_view>()))>>
     : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct HasCallOperatorWithoutData : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorWithoutData<
-    T, absl::void_t<decltype(std::declval<const T&>()())>> : std::true_type {};
+struct HasCallOperatorWithoutData<T,
+                                  absl::void_t<decltype(std::declval<T&&>()())>>
+    : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
-inline void CallOperator(const T& object, absl::string_view data) {
-  object(data);
+inline void CallOperator(T&& object, absl::string_view data) {
+  std::forward<T>(object)(data);
 }
 
 template <typename T,
@@ -1119,9 +1120,9 @@ template <typename T,
               absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
                                 HasCallOperatorWithoutData<T>>::value,
               int> = 0>
-inline void CallOperator(const T& object,
+inline void CallOperator(T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
-  object();
+  std::forward<T>(object)();
 }
 
 template <
@@ -1130,7 +1131,7 @@ template <
         absl::conjunction<absl::negation<HasCallOperatorWithData<T>>,
                           absl::negation<HasCallOperatorWithoutData<T>>>::value,
         int> = 0>
-inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T& object,
+inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view data) {}
 
 template <typename T, typename Enable = void>
@@ -1253,7 +1254,7 @@ inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
-  chain_internal::CallOperator(block->unchecked_external_object<T>(),
+  chain_internal::CallOperator(std::move(block->unchecked_external_object<T>()),
                                absl::string_view(*block));
   block->unchecked_external_object<T>().~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
@@ -1658,7 +1659,7 @@ inline Chain::Blocks::reference Chain::Blocks::back() const {
 
 template <typename T,
           std::enable_if_t<std::is_constructible<absl::string_view,
-                                                 InitializerTargetT<T>>::value,
+                                                 InitializerTargetT<T>&>::value,
                            int>>
 inline Chain Chain::FromExternal(T&& object) {
   return Chain(Chain::ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
