@@ -19,6 +19,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
 
@@ -137,10 +138,14 @@ class InitializerValueBase : public InitializerBase<T> {
   static T&& ReferenceMethodDefault(void* context,
                                     ReferenceStorage&& reference_storage);
 
-  template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int> = 0>
+  template <typename Arg,
+            std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value,
+                             int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
                                        ReferenceStorage&& reference_storage);
-  template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int> = 0>
+  template <typename Arg,
+            std::enable_if_t<
+                !initializer_internal::CanBindTo<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
                                        ReferenceStorage&& reference_storage);
 
@@ -747,14 +752,19 @@ T&& InitializerValueBase<T>::ReferenceMethodDefault(
 }
 
 template <typename T>
-template <typename Arg, std::enable_if_t<CanBindTo<T, Arg>::value, int>>
+template <
+    typename Arg,
+    std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
     void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage&& reference_storage) {
-  return std::forward<T>(*static_cast<std::remove_reference_t<Arg>*>(context));
+  return std::forward<Arg>(
+      *static_cast<std::remove_reference_t<Arg>*>(context));
 }
 
 template <typename T>
-template <typename Arg, std::enable_if_t<!CanBindTo<T, Arg>::value, int>>
+template <
+    typename Arg,
+    std::enable_if_t<!initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
     void* context, ReferenceStorage&& reference_storage) {
   reference_storage.emplace(

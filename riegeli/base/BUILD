@@ -173,6 +173,7 @@ cc_library(
 
 cc_library(
     name = "initializer",
+    srcs = ["initializer_internal.h"],
     hdrs = [
         "initializer.h",
         "maker.h",

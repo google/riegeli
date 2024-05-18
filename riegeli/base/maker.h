@@ -15,119 +15,17 @@
 #ifndef RIEGELI_BASE_MAKER_H_
 #define RIEGELI_BASE_MAKER_H_
 
-#include <new>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/assert.h"
+#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
-
-namespace initializer_internal {
-
-// `CanBindTo<T&&, Args&&...>::value` is `true` if constructing `T(args...)`
-// with `args...` of type `Args&&...` can be elided, with `T&&` binding directly
-// to the only element of `args...` instead.
-
-template <typename T, typename... Args>
-struct CanBindTo : std::false_type {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T&, Arg&> : std::is_convertible<Arg*, T*> {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T&, Arg&&> : std::false_type {};
-
-template <typename T, typename Arg>
-struct CanBindTo<const T&, Arg&&> : std::is_convertible<Arg*, const T*> {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T&&, Arg&> : std::false_type {};
-
-template <typename T, typename Arg>
-struct CanBindTo<T&&, Arg&&> : std::is_convertible<Arg*, T*> {};
-
-// Internal storage which is conditionally needed for storing the object that
-// `MakerType<Args...>::Reference<T>()`,
-// `MakerTypeFor<T, Args...>::Reference()`, and `Initializer<T>::Reference()`
-// refer to.
-//
-// `ReferenceStorage<T>()` is passed as the default value of a parameter of
-// `Initializer<T>::Reference()` with type `ReferenceStorage<T>&&`, so that
-// it is allocated as a temporary by the caller.
-//
-// It can also be passed explicitly if the call to
-// `MakerType<Args...>::Reference<T>()`,
-// `MakerTypeFor<T, Args...>::Reference()`, or `Initializer<T>::Reference()`
-// happens in a context which needs the returned reference to be valid longer
-// than the full expression containing the call. This passes the responsibility
-// for passing a `ReferenceStorage<T>` with a suitable lifetime to the caller of
-// that context.
-template <typename T, typename Enable = void>
-class ReferenceStorage {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  ~ReferenceStorage() {
-    if (initialized_) value_.~T();
-  }
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    RIEGELI_ASSERT(!initialized_)
-        << "Failed precondition of ReferenceStorage::emplace(): "
-           "already initialized";
-    new (&value_) T(std::forward<Args>(args)...);
-    initialized_ = true;
-  }
-
-  T&& operator*() && {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of ReferenceStorage::operator*: "
-           "not initialized";
-    return std::move(value_);
-  }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-  bool initialized_ = false;
-};
-
-// Specialization of `ReferenceStorage<T>` for trivially destructible types.
-// There is no need to track whether the object was initialized.
-template <typename T>
-class ReferenceStorage<
-    T, std::enable_if_t<std::is_trivially_destructible<T>::value>> {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    new (&value_) T(std::forward<Args>(args)...);
-  }
-
-  T&& operator*() && { return std::move(value_); }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-};
-
-}  // namespace initializer_internal
 
 // `MakerType<Args...>`, usually made with `riegeli::Maker(args...)`, packs
 // constructor arguments for a yet unspecified type, which will be specified by
@@ -233,7 +131,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                        int> = 0>
   T&& ReferenceImpl(ABSL_ATTRIBUTE_UNUSED ReferenceStorage<T>&&
                         reference_storage = ReferenceStorage<T>()) && {
-    return std::forward<T>(std::get<0>(std::move(args_)));
+    return std::get<0>(std::move(args_));
   }
   template <
       typename T,
@@ -256,7 +154,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
           initializer_internal::CanBindTo<T&&, const Args&...>::value, int> = 0>
   T&& ReferenceImpl(ABSL_ATTRIBUTE_UNUSED ReferenceStorage<T>&&
                         reference_storage = ReferenceStorage<T>()) const& {
-    return std::forward<T>(std::get<0>(args_));
+    return std::get<0>(args_);
   }
   template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
                                              T&&, const Args&...>::value,
