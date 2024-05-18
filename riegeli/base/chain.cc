@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
@@ -39,6 +40,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/global.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
@@ -75,34 +77,6 @@ void WritePadding(std::ostream& out, size_t pad) {
   }
 }
 
-class StringRef {
- public:
-  explicit StringRef(std::string&& src) : src_(std::move(src)) {}
-
-  StringRef(const StringRef&) = delete;
-  StringRef& operator=(const StringRef&) = delete;
-
-  explicit operator absl::string_view() const { return src_; }
-
-  void DumpStructure(std::ostream& out) const;
-
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const StringRef* self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->src_);
-  }
-
-  const std::string& src() const& { return src_; }
-  std::string&& src() && { return std::move(src_); }
-
- private:
-  std::string src_;
-};
-
-void StringRef::DumpStructure(std::ostream& out) const {
-  out << "[string] { capacity: " << src_.capacity() << " }";
-}
-
 // Stores an `absl::Cord` which must be flat, i.e.
 // `src.TryFlat() != absl::nullopt`.
 //
@@ -110,8 +84,7 @@ void StringRef::DumpStructure(std::ostream& out) const {
 // flat `absl::Cord`.
 class FlatCordRef {
  public:
-  explicit FlatCordRef(const absl::Cord& src);
-  explicit FlatCordRef(absl::Cord&& src);
+  explicit FlatCordRef(Initializer<absl::Cord> src);
   explicit FlatCordRef(absl::Cord::CharIterator& iter, size_t length);
 
   FlatCordRef(const FlatCordRef&) = delete;
@@ -119,7 +92,10 @@ class FlatCordRef {
 
   explicit operator absl::string_view() const;
 
-  void DumpStructure(std::ostream& out) const;
+  friend void RiegeliDumpStructure(
+      ABSL_ATTRIBUTE_UNUSED const FlatCordRef* self, std::ostream& out) {
+    out << "[cord] { }";
+  }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FlatCordRef* self,
@@ -146,13 +122,8 @@ class FlatCordRef {
   absl::Cord src_;
 };
 
-inline FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of FlatCordRef::FlatCordRef(): "
-         "Cord is not flat";
-}
-
-inline FlatCordRef::FlatCordRef(absl::Cord&& src) : src_(std::move(src)) {
+inline FlatCordRef::FlatCordRef(Initializer<absl::Cord> src)
+    : src_(std::move(src).Construct()) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
       << "Failed precondition of FlatCordRef::FlatCordRef(): "
          "Cord is not flat";
@@ -174,10 +145,6 @@ inline FlatCordRef::operator absl::string_view() const {
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Failed invariant of FlatCordRef: Cord is not flat";
-}
-
-void FlatCordRef::DumpStructure(std::ostream& out) const {
-  out << "[cord] { }";
 }
 
 inline void FlatCordRef::AppendTo(absl::Cord& dest) const {
@@ -238,13 +205,25 @@ inline void FlatCordRef::PrependSubstrTo(const char* data, size_t length,
 
 class SharedBufferRef {
  public:
-  explicit SharedBufferRef(const SharedBuffer& src) : src_(src) {}
-  explicit SharedBufferRef(SharedBuffer&& src) : src_(std::move(src)) {}
+  explicit SharedBufferRef(Initializer<SharedBuffer> src)
+      : src_(std::move(src).Construct()) {}
 
   SharedBufferRef(const SharedBufferRef&) = delete;
   SharedBufferRef& operator=(const SharedBufferRef&) = delete;
 
-  void DumpStructure(absl::string_view data, std::ostream& out) const;
+  friend void RiegeliDumpStructure(const SharedBufferRef* self,
+                                   absl::string_view data, std::ostream& out) {
+    out << "[shared_buffer] {";
+    if (!data.empty()) {
+      if (data.data() != self->src_.data()) {
+        out << " space_before: " << PtrDistance(self->src_.data(), data.data());
+      }
+      out << " space_after: "
+          << PtrDistance(data.data() + data.size(),
+                         self->src_.data() + self->src_.capacity());
+    }
+    out << " }";
+  }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBufferRef* self,
@@ -256,20 +235,6 @@ class SharedBufferRef {
   SharedBuffer src_;
 };
 
-void SharedBufferRef::DumpStructure(absl::string_view data,
-                                    std::ostream& out) const {
-  out << "[shared_buffer] {";
-  if (!data.empty()) {
-    if (data.data() != src_.data()) {
-      out << " space_before: " << PtrDistance(src_.data(), data.data());
-    }
-    out << " space_after: "
-        << PtrDistance(data.data() + data.size(),
-                       src_.data() + src_.capacity());
-  }
-  out << " }";
-}
-
 class ZeroRef {
  public:
   ZeroRef() = default;
@@ -277,10 +242,11 @@ class ZeroRef {
   ZeroRef(const ZeroRef&) = delete;
   ZeroRef& operator=(const ZeroRef&) = delete;
 
-  void DumpStructure(std::ostream& out) const;
+  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroRef* self,
+                                   std::ostream& out) {
+    out << "[zero] { }";
+  }
 };
-
-void ZeroRef::DumpStructure(std::ostream& out) const { out << "[zero] { }"; }
 
 }  // namespace
 
@@ -293,7 +259,13 @@ class Chain::BlockRef {
   BlockRef(const BlockRef&) = delete;
   BlockRef& operator=(const BlockRef&) = delete;
 
-  void DumpStructure(absl::string_view data, std::ostream& out) const;
+  friend void RiegeliDumpStructure(const BlockRef* self, absl::string_view data,
+                                   std::ostream& out) {
+    out << "[block] { offset: "
+        << PtrDistance(self->block_->data_begin(), data.data()) << " ";
+    self->block_->DumpStructure(out);
+    out << " }";
+  }
 
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const BlockRef* self,
@@ -320,14 +292,6 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
   }
   if (ownership == Ownership::kShare) block->Ref();
   block_.Reset(block);
-}
-
-void Chain::BlockRef::DumpStructure(absl::string_view data,
-                                    std::ostream& out) const {
-  out << "[block] { offset: " << PtrDistance(block_->data_begin(), data.data())
-      << " ";
-  block_->DumpStructure(out);
-  out << " }";
 }
 
 inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
@@ -1044,13 +1008,13 @@ void Chain::AppendTo(std::string& dest) && {
          "string size overflow";
   if (dest.empty() && PtrDistance(begin_, end_) == 1) {
     RawBlock* const block = front();
-    if (StringRef* const string_ref =
-            block->checked_external_object_with_unique_owner<StringRef>()) {
-      RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
+    if (std::string* const string_ref =
+            block->checked_external_object_with_unique_owner<std::string>()) {
+      RIEGELI_ASSERT_EQ(block->size(), string_ref->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      if (dest.capacity() <= string_ref->src().capacity()) {
-        dest = std::move(*string_ref).src();
+      if (dest.capacity() <= string_ref->capacity()) {
+        dest = std::move(*string_ref);
         block->Unref();
         end_ = begin_;
         size_ = 0;
@@ -1131,12 +1095,12 @@ Chain::operator std::string() const& {
 Chain::operator std::string() && {
   if (PtrDistance(begin_, end_) == 1) {
     RawBlock* const block = front();
-    if (StringRef* const string_ref =
-            block->checked_external_object_with_unique_owner<StringRef>()) {
-      RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
+    if (std::string* const string_ref =
+            block->checked_external_object_with_unique_owner<std::string>()) {
+      RIEGELI_ASSERT_EQ(block->size(), string_ref->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      const std::string dest = std::move(*string_ref).src();
+      const std::string dest = std::move(*string_ref);
       block->Unref();
       end_ = begin_;
       size_ = 0;
@@ -1747,7 +1711,7 @@ void Chain::Append(Src&& src, const Options& options) {
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopy ||
       Wasteful(
-          RawBlock::kExternalAllocatedSize<StringRef>() + src.capacity() + 1,
+          RawBlock::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
           src.size())) {
     // Not `std::move(src)`: forward to `Append(absl::string_view)`.
     Append(src, options);
@@ -1755,8 +1719,7 @@ void Chain::Append(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Append(Chain::FromExternal(riegeli::Maker<StringRef>(std::move(src))),
-         options);
+  Append(Chain::FromExternal(std::move(src)), options);
 }
 
 template void Chain::Append(std::string&& src, const Options& options);
@@ -2074,7 +2037,7 @@ void Chain::Prepend(Src&& src, const Options& options) {
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopy ||
       Wasteful(
-          RawBlock::kExternalAllocatedSize<StringRef>() + src.capacity() + 1,
+          RawBlock::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
           src.size())) {
     // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
     Prepend(src, options);
@@ -2082,8 +2045,7 @@ void Chain::Prepend(Src&& src, const Options& options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Prepend(Chain::FromExternal(riegeli::Maker<StringRef>(std::move(src))),
-          options);
+  Prepend(Chain::FromExternal(std::move(src)), options);
 }
 
 template void Chain::Prepend(std::string&& src, const Options& options);

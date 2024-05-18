@@ -168,7 +168,8 @@ class Chain : public WithCompare<Chain> {
   //   void operator()(absl::string_view data) && {}
   //
   //   // Shows internal structure in a human-readable way, for debugging.
-  //   void DumpStructure(absl::string_view data, std::ostream& out) const {
+  //   friend void RiegeliDumpStructure(const T* self, absl::string_view data,
+  //                                    std::ostream& out) {
   //     out << "[external] { }";
   //   }
   //
@@ -1134,53 +1135,6 @@ template <
 inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view data) {}
 
-template <typename T, typename Enable = void>
-struct HasDumpStructureWithData : std::false_type {};
-
-template <typename T>
-struct HasDumpStructureWithData<
-    T, absl::void_t<decltype(std::declval<T>().DumpStructure(
-           std::declval<absl::string_view>(), std::declval<std::ostream&>()))>>
-    : std::true_type {};
-
-template <typename T, typename Enable = void>
-struct HasDumpStructureWithoutData : std::false_type {};
-
-template <typename T>
-struct HasDumpStructureWithoutData<
-    T, absl::void_t<decltype(std::declval<T>().DumpStructure(
-           std::declval<std::ostream&>()))>> : std::true_type {};
-
-template <typename T,
-          std::enable_if_t<HasDumpStructureWithData<T>::value, int> = 0>
-inline void DumpStructure(T& object, absl::string_view data,
-                          std::ostream& out) {
-  object.DumpStructure(data, out);
-}
-
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<absl::negation<HasDumpStructureWithData<T>>,
-                                HasDumpStructureWithoutData<T>>::value,
-              int> = 0>
-inline void DumpStructure(T& object,
-                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
-                          std::ostream& out) {
-  object.DumpStructure(out);
-}
-
-template <
-    typename T,
-    std::enable_if_t<absl::conjunction<
-                         absl::negation<HasDumpStructureWithData<T>>,
-                         absl::negation<HasDumpStructureWithoutData<T>>>::value,
-                     int> = 0>
-inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED T& object,
-                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
-                          std::ostream& out) {
-  out << "[external] { }";
-}
-
 template <typename T,
           std::enable_if_t<RegisterSubobjectsIsGood<T>::value, int> = 0>
 inline void RegisterSubobjects(const T* object,
@@ -1203,6 +1157,22 @@ inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
 }
 
 }  // namespace chain_internal
+
+template <typename T>
+inline void RiegeliDumpStructure(const T* self, std::ostream& out) {
+  out << "[external] { }";
+}
+
+inline void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
+  out << "[string] { capacity: " << self->capacity() << " }";
+}
+
+template <typename T>
+inline void RiegeliDumpStructure(const T* self,
+                                 ABSL_ATTRIBUTE_UNUSED absl::string_view data,
+                                 std::ostream& out) {
+  RiegeliDumpStructure(self, out);
+}
 
 template <typename T>
 struct Chain::ExternalMethodsFor {
@@ -1264,8 +1234,8 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
                                                  std::ostream& out) {
-  chain_internal::DumpStructure(block.unchecked_external_object<T>(),
-                                absl::string_view(block), out);
+  RiegeliDumpStructure(&block.unchecked_external_object<T>(),
+                       absl::string_view(block), out);
 }
 
 template <typename T>

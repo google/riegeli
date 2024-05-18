@@ -169,7 +169,12 @@ class MMapRef {
   MMapRef& operator=(const MMapRef&) = delete;
 
   void operator()(absl::string_view data) const;
-  void DumpStructure(std::ostream& out) const;
+
+  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
+                                   std::ostream& out) {
+    out << "[mmap] { }";
+  }
+
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
@@ -192,8 +197,6 @@ void MMapRef::operator()(absl::string_view data) const {
              .message();
 #endif  // _WIN32
 }
-
-void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 }  // namespace
 
