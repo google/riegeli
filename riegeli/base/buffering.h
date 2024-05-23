@@ -71,10 +71,10 @@ inline size_t ApplyBufferConstraints(Position base_length, size_t min_length,
 inline bool Wasteful(size_t allocated, size_t used) {
   RIEGELI_ASSERT_LE(used, allocated) << "Failed precondition of Wasteful(): "
                                         "used size larger than allocated size";
-  RIEGELI_ASSERT_LE(used,
-                    std::numeric_limits<size_t>::max() - kDefaultMinBlockSize)
-      << "Failed precondition of Wasteful(): "
-         "size suspiciously close to size_t range";
+  if (used > std::numeric_limits<size_t>::max() - kDefaultMinBlockSize) {
+    RIEGELI_ASSERT_UNREACHABLE() << "Failed precondition of Wasteful(): "
+                                    "size suspiciously close to size_t range";
+  }
   // A newly allocated block is never considered wasteful as long as the
   // allocated size is not larger than twice the used size plus
   // `kDefaultMinBlockSize` (256).
