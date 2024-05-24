@@ -48,90 +48,6 @@
 
 namespace riegeli {
 
-namespace chain_internal {
-
-// `Chain::Options` is defined at the namespace scope because clang has problems
-// with using nested classes in `constexpr` context.
-class ChainOptions {
- public:
-  constexpr ChainOptions() noexcept {}
-
-  // Expected final size, or `absl::nullopt` if unknown. This may improve
-  // performance and memory usage.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  ChainOptions& set_size_hint(absl::optional<size_t> size_hint) & {
-    if (size_hint == absl::nullopt) {
-      size_hint_ = std::numeric_limits<size_t>::max();
-    } else {
-      size_hint_ =
-          UnsignedMin(*size_hint, std::numeric_limits<size_t>::max() - 1);
-    }
-    return *this;
-  }
-  ChainOptions&& set_size_hint(absl::optional<size_t> size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-  absl::optional<size_t> size_hint() const {
-    if (size_hint_ == std::numeric_limits<size_t>::max()) {
-      return absl::nullopt;
-    } else {
-      return size_hint_;
-    }
-  }
-
-  // Minimal size of a block of allocated data.
-  //
-  // This is used initially, while the destination is small.
-  //
-  // Default: `kDefaultMinBlockSize` (256).
-  ChainOptions& set_min_block_size(size_t min_block_size) & {
-    min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
-    return *this;
-  }
-  ChainOptions&& set_min_block_size(size_t min_block_size) && {
-    return std::move(set_min_block_size(min_block_size));
-  }
-  size_t min_block_size() const { return min_block_size_; }
-
-  // Maximal size of a block of allocated data.
-  //
-  // This is for performance tuning, not a guarantee: does not apply to objects
-  // allocated separately and then appended to this `Chain`.
-  //
-  // Default: `kDefaultMaxBlockSize` (64K).
-  ChainOptions& set_max_block_size(size_t max_block_size) & {
-    RIEGELI_ASSERT_GT(max_block_size, 0u)
-        << "Failed precondition of Chain::Options::set_max_block_size(): "
-           "zero block size";
-    max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
-    return *this;
-  }
-  ChainOptions&& set_max_block_size(size_t max_block_size) && {
-    return std::move(set_max_block_size(max_block_size));
-  }
-  size_t max_block_size() const { return max_block_size_; }
-
-  // A shortcut for `set_min_block_size(block_size)` with
-  // `set_max_block_size(block_size)`.
-  ChainOptions& set_block_size(size_t block_size) & {
-    return set_min_block_size(block_size).set_max_block_size(block_size);
-  }
-  ChainOptions&& set_block_size(size_t block_size) && {
-    return std::move(set_block_size(block_size));
-  }
-
- private:
-  // `absl::nullopt` is encoded as `std::numeric_limits<size_t>::max()` to
-  // reduce object size.
-  size_t size_hint_ = std::numeric_limits<size_t>::max();
-  // Use `uint32_t` instead of `size_t` to reduce the object size.
-  uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
-  uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
-};
-
-}  // namespace chain_internal
-
 // A `Chain` represents a sequence of bytes. It supports efficient appending and
 // prepending, and sharing memory with other `Chain`s and other types. It does
 // not support efficient random access.
@@ -144,9 +60,83 @@ class ChainOptions {
 // fragments.
 class Chain : public WithCompare<Chain> {
  public:
-  using Options = chain_internal::ChainOptions;
+  class Options {
+   public:
+    Options() noexcept {}
 
-  static constexpr Options kDefaultOptions = Options();
+    // Expected final size, or `absl::nullopt` if unknown. This may improve
+    // performance and memory usage.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(absl::optional<size_t> size_hint) & {
+      if (size_hint == absl::nullopt) {
+        size_hint_ = std::numeric_limits<size_t>::max();
+      } else {
+        size_hint_ =
+            UnsignedMin(*size_hint, std::numeric_limits<size_t>::max() - 1);
+      }
+      return *this;
+    }
+    Options&& set_size_hint(absl::optional<size_t> size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+    absl::optional<size_t> size_hint() const {
+      if (size_hint_ == std::numeric_limits<size_t>::max()) {
+        return absl::nullopt;
+      } else {
+        return size_hint_;
+      }
+    }
+
+    // Minimal size of a block of allocated data.
+    //
+    // This is used initially, while the destination is small.
+    //
+    // Default: `kDefaultMinBlockSize` (256).
+    Options& set_min_block_size(size_t min_block_size) & {
+      min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
+      return *this;
+    }
+    Options&& set_min_block_size(size_t min_block_size) && {
+      return std::move(set_min_block_size(min_block_size));
+    }
+    size_t min_block_size() const { return min_block_size_; }
+
+    // Maximal size of a block of allocated data.
+    //
+    // This is for performance tuning, not a guarantee: does not apply to
+    // objects allocated separately and then appended to this `Chain`.
+    //
+    // Default: `kDefaultMaxBlockSize` (64K).
+    Options& set_max_block_size(size_t max_block_size) & {
+      RIEGELI_ASSERT_GT(max_block_size, 0u)
+          << "Failed precondition of Chain::Options::set_max_block_size(): "
+             "zero block size";
+      max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
+      return *this;
+    }
+    Options&& set_max_block_size(size_t max_block_size) && {
+      return std::move(set_max_block_size(max_block_size));
+    }
+    size_t max_block_size() const { return max_block_size_; }
+
+    // A shortcut for `set_min_block_size(block_size)` with
+    // `set_max_block_size(block_size)`.
+    Options& set_block_size(size_t block_size) & {
+      return set_min_block_size(block_size).set_max_block_size(block_size);
+    }
+    Options&& set_block_size(size_t block_size) && {
+      return std::move(set_block_size(block_size));
+    }
+
+   private:
+    // `absl::nullopt` is encoded as `std::numeric_limits<size_t>::max()` to
+    // reduce object size.
+    size_t size_hint_ = std::numeric_limits<size_t>::max();
+    // Use `uint32_t` instead of `size_t` to reduce the object size.
+    uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
+    uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
+  };
 
   class Blocks;
   class PinnedBlock;
@@ -314,59 +304,55 @@ class Chain : public WithCompare<Chain> {
   absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
                                 size_t max_length = kAnyLength,
-                                const Options& options = kDefaultOptions);
+                                Options options = Options());
   absl::Span<char> PrependBuffer(size_t min_length,
                                  size_t recommended_length = 0,
                                  size_t max_length = kAnyLength,
-                                 const Options& options = kDefaultOptions);
+                                 Options options = Options());
 
   // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
   // `min_length == max_length`.
   absl::Span<char> AppendFixedBuffer(size_t length,
-                                     const Options& options = kDefaultOptions);
+                                     Options options = Options());
   absl::Span<char> PrependFixedBuffer(size_t length,
-                                      const Options& options = kDefaultOptions);
+                                      Options options = Options());
 
   // Appends/prepends a string-like type.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
-  void Append(absl::string_view src, const Options& options = kDefaultOptions);
+  void Append(absl::string_view src, Options options = Options());
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Append(Src&& src, const Options& options = kDefaultOptions);
-  void Append(const Chain& src, const Options& options = kDefaultOptions);
-  void Append(Chain&& src, const Options& options = kDefaultOptions);
-  void Append(const absl::Cord& src, const Options& options = kDefaultOptions);
-  void Append(absl::Cord&& src, const Options& options = kDefaultOptions);
-  void Append(const SizedSharedBuffer& src,
-              const Options& options = kDefaultOptions);
-  void Append(SizedSharedBuffer&& src,
-              const Options& options = kDefaultOptions);
-  void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
+  void Append(Src&& src, Options options = Options());
+  void Append(const Chain& src, Options options = Options());
+  void Append(Chain&& src, Options options = Options());
+  void Append(const absl::Cord& src, Options options = Options());
+  void Append(absl::Cord&& src, Options options = Options());
+  void Append(const SizedSharedBuffer& src, Options options = Options());
+  void Append(SizedSharedBuffer&& src, Options options = Options());
+  void Prepend(absl::string_view src, Options options = Options());
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Prepend(Src&& src, const Options& options = kDefaultOptions);
-  void Prepend(const Chain& src, const Options& options = kDefaultOptions);
-  void Prepend(Chain&& src, const Options& options = kDefaultOptions);
-  void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
-  void Prepend(absl::Cord&& src, const Options& options = kDefaultOptions);
-  void Prepend(const SizedSharedBuffer& src,
-               const Options& options = kDefaultOptions);
-  void Prepend(SizedSharedBuffer&& src,
-               const Options& options = kDefaultOptions);
+  void Prepend(Src&& src, Options options = Options());
+  void Prepend(const Chain& src, Options options = Options());
+  void Prepend(Chain&& src, Options options = Options());
+  void Prepend(const absl::Cord& src, Options options = Options());
+  void Prepend(absl::Cord&& src, Options options = Options());
+  void Prepend(const SizedSharedBuffer& src, Options options = Options());
+  void Prepend(SizedSharedBuffer&& src, Options options = Options());
 
   // `AppendFrom(iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
   void AppendFrom(absl::Cord::CharIterator& iter, size_t length,
-                  const Options& options = kDefaultOptions);
+                  Options options = Options());
 
   // Removes suffix/prefix of the given length.
   //
   // Precondition: `length <= size()`
-  void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
-  void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
+  void RemoveSuffix(size_t length, Options options = Options());
+  void RemovePrefix(size_t length, Options options = Options());
 
   friend void swap(Chain& a, Chain& b) noexcept;
 
@@ -549,43 +535,38 @@ class Chain : public WithCompare<Chain> {
   // size. In addition to `replaced_length`, it requires the capacity of at
   // least `min_length`, preferably `recommended_length`.
   size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
-                          size_t recommended_length,
-                          const Options& options) const;
+                          size_t recommended_length, Options options) const;
 
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void AppendChain(ChainRef&& src, const Options& options);
+  void AppendChain(ChainRef&& src, Options options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void PrependChain(ChainRef&& src, const Options& options);
+  void PrependChain(ChainRef&& src, Options options);
 
   // If `ref_block` is present, it should be a functor equivalent to
   // `[&] { return block->Ref(); }`, but it can achieve that by stealing
   // a reference to `block` from elsewhere instead.
-  void AppendRawBlock(RawBlock* block, const Options& options);
+  void AppendRawBlock(RawBlock* block, Options options);
   template <typename RefBlock>
-  void AppendRawBlock(RawBlock* block, const Options& options,
-                      RefBlock ref_block);
-  void PrependRawBlock(RawBlock* block, const Options& options);
+  void AppendRawBlock(RawBlock* block, Options options, RefBlock ref_block);
+  void PrependRawBlock(RawBlock* block, Options options);
   template <typename RefBlock>
-  void PrependRawBlock(RawBlock* block, const Options& options,
-                       RefBlock ref_block);
+  void PrependRawBlock(RawBlock* block, Options options, RefBlock ref_block);
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
-  void AppendCord(CordRef&& src, const Options& options);
+  void AppendCord(CordRef&& src, Options options);
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
-  void PrependCord(CordRef&& src, const Options& options);
+  void PrependCord(CordRef&& src, Options options);
 
   // This template is defined and used only in chain.cc.
   template <typename SizedSharedBufferRef>
-  void AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
-                               const Options& options);
+  void AppendSizedSharedBuffer(SizedSharedBufferRef&& src, Options options);
   // This template is defined and used only in chain.cc.
   template <typename SizedSharedBufferRef>
-  void PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
-                                const Options& options);
+  void PrependSizedSharedBuffer(SizedSharedBufferRef&& src, Options options);
 
   void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
   static StrongOrdering CompareImpl(const Chain& a, const Chain& b);
@@ -767,7 +748,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   // Appends `**this` to `dest`.
   //
   // Precondition: this is not past the end iterator
-  void AppendTo(Chain& dest, const Options& options = kDefaultOptions) const;
+  void AppendTo(Chain& dest, Options options = Options()) const;
   void AppendTo(absl::Cord& dest) const;
 
   // Appends [`data`..`data + length`) to `dest`.
@@ -778,13 +759,13 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   // Precondition:
   //   if `length > 0` then this is not past the end iterator
   void AppendSubstrTo(const char* data, size_t length, Chain& dest,
-                      const Options& options = kDefaultOptions) const;
+                      Options options = Options()) const;
   void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
   // Prepends `**this` to `dest`.
   //
   // Precondition: this is not past the end iterator
-  void PrependTo(Chain& dest, const Options& options = kDefaultOptions) const;
+  void PrependTo(Chain& dest, Options options = Options()) const;
   void PrependTo(absl::Cord& dest) const;
 
   // Prepends [`data`..`data + length`) to `dest`.
@@ -795,7 +776,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   // Precondition:
   //   if `length > 0` then this is not past the end iterator
   void PrependSubstrTo(const char* data, size_t length, Chain& dest,
-                       const Options& options = kDefaultOptions) const;
+                       Options options = Options()) const;
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
  private:
@@ -1036,22 +1017,22 @@ class Chain::RawBlock {
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
 
-  void AppendTo(Chain& dest, const Options& options);
+  void AppendTo(Chain& dest, Options options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void AppendTo(absl::Cord& dest);
 
   void AppendSubstrTo(const char* data, size_t length, Chain& dest,
-                      const Options& options);
+                      Options options);
   void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest);
 
-  void PrependTo(Chain& dest, const Options& options);
+  void PrependTo(Chain& dest, Options options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void PrependTo(absl::Cord& dest);
 
   void PrependSubstrTo(const char* data, size_t length, Chain& dest,
-                       const Options& options);
+                       Options options);
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest);
 
  private:
@@ -1854,17 +1835,17 @@ inline absl::string_view Chain::Flatten() {
 }
 
 inline absl::Span<char> Chain::AppendFixedBuffer(size_t length,
-                                                 const Options& options) {
+                                                 Options options) {
   return AppendBuffer(length, length, length, options);
 }
 
 inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
-                                                  const Options& options) {
+                                                  Options options) {
   return PrependBuffer(length, length, length, options);
 }
 
-extern template void Chain::Append(std::string&& src, const Options& options);
-extern template void Chain::Prepend(std::string&& src, const Options& options);
+extern template void Chain::Append(std::string&& src, Options options);
+extern template void Chain::Prepend(std::string&& src, Options options);
 
 template <typename HashState>
 HashState Chain::AbslHashValueImpl(HashState hash_state) const {
