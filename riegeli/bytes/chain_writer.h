@@ -160,7 +160,7 @@ class ChainWriterBase : public Writer {
   void SyncBuffer(Chain& dest);
 
   // Appends uninitialized space to `dest`.
-  void MakeBuffer(Chain& dest, size_t min_length = 1,
+  void MakeBuffer(Chain& dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
   // Moves `length` of data from the beginning of `*tail_` to the end of `dest`.

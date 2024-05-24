@@ -141,7 +141,7 @@ class ResizableWriterBase : public Writer {
   void SyncSecondaryBuffer();
 
   // Appends uninitialized space to `secondary_buffer_`.
-  void MakeSecondaryBuffer(size_t min_length = 1,
+  void MakeSecondaryBuffer(size_t min_length = 0,
                            size_t recommended_length = 0);
 
   // Move `secondary_buffer_`, adjusting buffer pointers if they point to it.

@@ -77,7 +77,7 @@ class RestrictedChainWriter : public Writer {
   void SyncBuffer();
 
   // Appends uninitialized space to `dest_`.
-  void MakeBuffer(size_t min_length = 1, size_t recommended_length = 0);
+  void MakeBuffer(size_t min_length = 0, size_t recommended_length = 0);
 
   // Moves `that.dest_` to `dest_`. Buffer pointers are already moved from
   // `dest_` to `*this`; adjust them to match `dest_`.

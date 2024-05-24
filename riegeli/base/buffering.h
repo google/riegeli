@@ -41,12 +41,12 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 
 // Recommends the length of a buffer by modifying the base recommendation.
 //
-// If `pos` did not reach `size_hint` yet, returns the remaining length instead
+// If `pos` did not pass `size_hint` yet, returns the remaining length instead
 // of `base_length`.
 inline Position ApplySizeHint(Position base_length,
                               absl::optional<Position> size_hint,
                               Position pos) {
-  if (size_hint != absl::nullopt && pos < *size_hint) return *size_hint - pos;
+  if (size_hint != absl::nullopt && pos <= *size_hint) return *size_hint - pos;
   return base_length;
 }
 

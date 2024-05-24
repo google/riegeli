@@ -86,10 +86,12 @@ absl::Status SnappyWriterBase::AnnotateOverDest(absl::Status status) {
 
 void SnappyWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  options_.set_size_hint(
-      write_size_hint == absl::nullopt
-          ? 0
-          : SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
+  if (write_size_hint == absl::nullopt) {
+    options_.set_size_hint(absl::nullopt);
+  } else {
+    options_.set_size_hint(
+        SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
+  }
 }
 
 bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
@@ -233,10 +235,11 @@ Reader* SnappyWriterBase::ReadModeImpl(Position initial_pos) {
 inline size_t SnappyWriterBase::MinBytesToShare() const {
   const size_t next_block_begin = RoundUp<kBlockSize>(IntCast<size_t>(pos()));
   size_t length_in_next_block = kBlockSize;
-  if (next_block_begin < options_.size_hint() &&
-      next_block_begin == IntCast<size_t>(pos())) {
-    length_in_next_block = UnsignedMin(length_in_next_block,
-                                       options_.size_hint() - next_block_begin);
+  if (next_block_begin == IntCast<size_t>(pos()) &&
+      options_.size_hint() != absl::nullopt &&
+      next_block_begin <= *options_.size_hint()) {
+    length_in_next_block = UnsignedMin(
+        length_in_next_block, *options_.size_hint() - next_block_begin);
   }
   return next_block_begin - IntCast<size_t>(pos()) + length_in_next_block;
 }

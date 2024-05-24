@@ -137,10 +137,12 @@ inline void ChainWriterBase::ShrinkTail(size_t length) {
 
 void ChainWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  options_.set_size_hint(
-      write_size_hint == absl::nullopt
-          ? 0
-          : SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
+  if (write_size_hint == absl::nullopt) {
+    options_.set_size_hint(absl::nullopt);
+  } else {
+    options_.set_size_hint(
+        SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
+  }
 }
 
 bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {

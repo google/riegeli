@@ -1524,7 +1524,8 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       // `size_hint` is larger, because data will likely need to be copied later
       // to a real block.
       if (recommended_length <= kMaxShortDataSize - size_ &&
-          options.size_hint() <= kMaxShortDataSize) {
+          (options.size_hint() == absl::nullopt ||
+           *options.size_hint() <= kMaxShortDataSize)) {
         // Append the new space to short data.
         EnsureHasHere();
         const absl::Span<char> buffer(
@@ -1616,7 +1617,8 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       // `size_hint` is larger, because data will likely need to be copied later
       // to a real block.
       if (recommended_length <= kMaxShortDataSize - size_ &&
-          options.size_hint() <= kMaxShortDataSize) {
+          (options.size_hint() == absl::nullopt ||
+           *options.size_hint() <= kMaxShortDataSize)) {
         // Prepend the new space to short data.
         EnsureHasHere();
         const absl::Span<char> buffer(
@@ -1969,7 +1971,7 @@ inline void Chain::AppendCord(CordRef&& src, const Options& options) {
     const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
     if (fragment.size() <= kMaxBytesToCopy) {
       copied_fragments.push_back(fragment);
-      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
+      copy_options.set_size_hint(*copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(&iter, fragment.size());
     } else {
       for (const absl::string_view copied_fragment : copied_fragments) {
@@ -2330,7 +2332,7 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
                                  UnsignedMin(fragment.size(), length));
     if (fragment.size() <= kMaxBytesToCopy) {
       copied_fragments.push_back(fragment);
-      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
+      copy_options.set_size_hint(*copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(&iter, fragment.size());
     } else {
       for (const absl::string_view copied_fragment : copied_fragments) {

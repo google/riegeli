@@ -79,7 +79,7 @@ class NullBackwardWriter : public BackwardWriter {
   void SyncBuffer();
 
   // Ensures that the buffer has a sufficient size.
-  bool MakeBuffer(size_t min_length = 1, size_t recommended_length = 0);
+  bool MakeBuffer(size_t min_length = 0, size_t recommended_length = 0);
 
   WriteBufferSizer buffer_sizer_;
   Buffer buffer_;

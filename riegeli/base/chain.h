@@ -56,18 +56,29 @@ class ChainOptions {
  public:
   constexpr ChainOptions() noexcept {}
 
-  // Expected final size, or 0 if unknown. This may improve performance and
-  // memory usage.
+  // Expected final size, or `absl::nullopt` if unknown. This may improve
+  // performance and memory usage.
   //
   // If the size hint turns out to not match reality, nothing breaks.
-  ChainOptions& set_size_hint(size_t size_hint) & {
-    size_hint_ = size_hint;
+  ChainOptions& set_size_hint(absl::optional<size_t> size_hint) & {
+    if (size_hint == absl::nullopt) {
+      size_hint_ = std::numeric_limits<size_t>::max();
+    } else {
+      size_hint_ =
+          UnsignedMin(*size_hint, std::numeric_limits<size_t>::max() - 1);
+    }
     return *this;
   }
-  ChainOptions&& set_size_hint(size_t size_hint) && {
+  ChainOptions&& set_size_hint(absl::optional<size_t> size_hint) && {
     return std::move(set_size_hint(size_hint));
   }
-  size_t size_hint() const { return size_hint_; }
+  absl::optional<size_t> size_hint() const {
+    if (size_hint_ == std::numeric_limits<size_t>::max()) {
+      return absl::nullopt;
+    } else {
+      return size_hint_;
+    }
+  }
 
   // Minimal size of a block of allocated data.
   //
@@ -111,7 +122,9 @@ class ChainOptions {
   }
 
  private:
-  size_t size_hint_ = 0;
+  // `absl::nullopt` is encoded as `std::numeric_limits<size_t>::max()` to
+  // reduce object size.
+  size_t size_hint_ = std::numeric_limits<size_t>::max();
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
   uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};

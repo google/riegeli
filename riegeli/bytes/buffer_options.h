@@ -232,11 +232,10 @@ class ReadBufferSizer {
   // It will be at least `min_length` unless `exact_size()` is reached,
   // preferably `recommended_length`.
   //
-  // Preconditions:
-  //   `min_length > 0`
+  // Precondition:
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
   //       `BeginRun()`, if `BeginRun()` has been called
-  size_t BufferLength(Position pos, size_t min_length = 1,
+  size_t BufferLength(Position pos, size_t min_length = 0,
                       size_t recommended_length = 0) const;
 
  private:
@@ -286,10 +285,11 @@ class WriteBufferSizer {
   // `*size_hint()`.
   void set_write_size_hint(Position pos,
                            absl::optional<Position> write_size_hint) {
-    size_hint_ =
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(pos, *write_size_hint));
+    if (write_size_hint == absl::nullopt) {
+      size_hint_ = absl::nullopt;
+    } else {
+      size_hint_ = SaturatingAdd(pos, *write_size_hint);
+    }
   }
   absl::optional<Position> size_hint() const { return size_hint_; }
 
@@ -314,11 +314,10 @@ class WriteBufferSizer {
   //
   // The length will be at least `min_length`, preferably `recommended_length`.
   //
-  // Preconditions:
-  //   `min_length > 0`
+  // Precondition:
   //   `pos >= base_pos`, where `base_pos` is the argument of the last call to
   //       `BeginRun()`, if `BeginRun()` has been called
-  size_t BufferLength(Position pos, size_t min_length = 1,
+  size_t BufferLength(Position pos, size_t min_length = 0,
                       size_t recommended_length = 0) const;
 
  private:

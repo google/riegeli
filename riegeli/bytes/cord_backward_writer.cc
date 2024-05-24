@@ -69,10 +69,11 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
 
 void CordBackwardWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  size_hint_ =
-      write_size_hint == absl::nullopt
-          ? absl::nullopt
-          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  if (write_size_hint == absl::nullopt) {
+    size_hint_ = absl::nullopt;
+  } else {
+    size_hint_ = SaturatingAdd(pos(), *write_size_hint);
+  }
 }
 
 bool CordBackwardWriterBase::PushSlow(size_t min_length,

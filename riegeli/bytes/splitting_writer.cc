@@ -162,10 +162,11 @@ absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
 void SplittingWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  size_hint_ =
-      write_size_hint == absl::nullopt
-          ? absl::nullopt
-          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  if (write_size_hint == absl::nullopt) {
+    size_hint_ = absl::nullopt;
+  } else {
+    size_hint_ = SaturatingAdd(pos(), *write_size_hint);
+  }
   Writer* shard = ShardWriter();
   if (!shard_is_open(shard)) return;
   BehindScratch behind_scratch(this);

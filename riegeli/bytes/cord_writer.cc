@@ -133,10 +133,11 @@ inline void CordWriterBase::ShrinkTail(size_t length) {
 
 void CordWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  size_hint_ =
-      write_size_hint == absl::nullopt
-          ? absl::nullopt
-          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  if (write_size_hint == size_hint_) {
+    size_hint_ = absl::nullopt;
+  } else {
+    size_hint_ = SaturatingAdd(pos(), *write_size_hint);
+  }
 }
 
 bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {

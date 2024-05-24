@@ -88,10 +88,11 @@ absl::Status FramedSnappyWriterBase::AnnotateOverDest(absl::Status status) {
 
 void FramedSnappyWriterBase::SetWriteSizeHintImpl(
     absl::optional<Position> write_size_hint) {
-  size_hint_ =
-      write_size_hint == absl::nullopt
-          ? absl::nullopt
-          : absl::make_optional(SaturatingAdd(pos(), *write_size_hint));
+  if (write_size_hint == absl::nullopt) {
+    size_hint_ = absl::nullopt;
+  } else {
+    size_hint_ = SaturatingAdd(pos(), *write_size_hint);
+  }
 }
 
 bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
@@ -108,9 +109,10 @@ bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
     return FailOverflow();
   }
   const size_t length = UnsignedMin(
-      UnsignedMax(ApplySizeHint(snappy::kBlockSize, size_hint_, start_pos()),
-                  recommended_length),
-      snappy::kBlockSize, std::numeric_limits<Position>::max() - start_pos());
+      ApplyBufferConstraints(
+          ApplySizeHint(snappy::kBlockSize, size_hint_, start_pos()), 1,
+          recommended_length, snappy::kBlockSize),
+      std::numeric_limits<Position>::max() - start_pos());
   uncompressed_.Reset(length);
   set_buffer(uncompressed_.data(), length);
   return true;
