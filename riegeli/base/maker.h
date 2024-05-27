@@ -77,7 +77,11 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   }
 
   // Constructs the `T`, or returns a reference to an already constructed object
-  // if that was passed to the `MakerType`. This can avoid moving it.
+  // if that was passed to the `MakerType`.
+  //
+  // `Reference()` instead of `Construct()` can avoid moving the object if the
+  // caller does not need to store the object, or if it will be moved later
+  // because the target location for the object is not ready yet.
   //
   // `reference_storage` must outlive usages of the returned reference.
   template <
@@ -95,6 +99,31 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                     ABSL_ATTRIBUTE_LIFETIME_BOUND =
                         ReferenceStorage<T>()) const& {
     return this->template ReferenceImpl<T>(std::move(reference_storage));
+  }
+
+  // Constructs the `T`, or returns a const reference to an already constructed
+  // object if that was passed to the `MakerType`.
+  //
+  // `ConstReference()` can avoid moving the object in more cases than
+  // `Reference()` if the caller does not need to store the object.
+  //
+  // `reference_storage` must outlive usages of the returned reference.
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  const T& ConstReference(ReferenceStorage<T>&& reference_storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  ReferenceStorage<T>()) && {
+    return std::move(*this).template ConstReferenceImpl<T>(
+        std::move(reference_storage));
+  }
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  const T& ConstReference(ReferenceStorage<T>&& reference_storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  ReferenceStorage<T>()) const& {
+    return this->template ConstReferenceImpl<T>(std::move(reference_storage));
   }
 
   // Makes `object` equivalent to the constructed `T`. This avoids constructing
@@ -168,6 +197,49 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
     return *std::move(reference_storage);
   }
 
+  template <
+      typename T,
+      std::enable_if_t<
+          initializer_internal::CanBindTo<const T&, Args&&...>::value, int> = 0>
+  const T& ConstReferenceImpl(
+      ABSL_ATTRIBUTE_UNUSED ReferenceStorage<T>&& reference_storage =
+          ReferenceStorage<T>()) && {
+    return std::get<0>(std::move(args_));
+  }
+  template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
+                                             const T&, Args&&...>::value,
+                                         int> = 0>
+  const T& ConstReferenceImpl(ReferenceStorage<T>&& reference_storage
+                                  ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                      ReferenceStorage<T>()) && {
+    absl::apply(
+        [&](Args&&... args) {
+          reference_storage.emplace(std::forward<Args>(args)...);
+        },
+        std::move(args_));
+    return *reference_storage;
+  }
+
+  template <typename T, std::enable_if_t<initializer_internal::CanBindTo<
+                                             const T&, const Args&...>::value,
+                                         int> = 0>
+  const T& ConstReferenceImpl(
+      ABSL_ATTRIBUTE_UNUSED ReferenceStorage<T>&& reference_storage =
+          ReferenceStorage<T>()) const& {
+    return std::get<0>(args_);
+  }
+  template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
+                                             const T&, const Args&...>::value,
+                                         int> = 0>
+  const T& ConstReferenceImpl(ReferenceStorage<T>&& reference_storage
+                                  ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                      ReferenceStorage<T>()) const& {
+    absl::apply(
+        [&](const Args&... args) { reference_storage.emplace(args...); },
+        args_);
+    return *reference_storage;
+  }
+
   std::tuple<Args...> args_;
 };
 
@@ -226,13 +298,17 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // It is preferred to explicitly call `Construct()` instead. This conversion
   // allows to pass `MakerTypeFor<T, Args...>` to another function which accepts
   // a value convertible to `T` for construction in-place, including functions
-  // like `std::vector<T>::emplace_back()` or the constructor of
-  // `absl::optional<T>` or `absl::StatusOr<T>`.
+  // like `std::make_unique<T>()`, `std::vector<T>::emplace_back()`, or the
+  // constructor of `absl::optional<T>` or `absl::StatusOr<T>`.
   /*implicit*/ operator T() && { return std::move(*this).Construct(); }
   /*implicit*/ operator T() const& { return Construct(); }
 
   // Constructs the `T`, or returns a reference to an already constructed object
-  // if that was passed to the `MakerTypeFor`. This can avoid moving it.
+  // if that was passed to the `MakerTypeFor`.
+  //
+  // `Reference()` instead of `Construct()` can avoid moving the object if the
+  // caller does not need to store the object, or if it will be moved later
+  // because the target location for the object is not ready yet.
   //
   // `reference_storage` must outlive usages of the returned reference.
   T&& Reference(ReferenceStorage&& reference_storage
@@ -247,6 +323,29 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   T&& Reference(ReferenceStorage&& reference_storage
                     ABSL_ATTRIBUTE_LIFETIME_BOUND = ReferenceStorage()) const& {
     return maker_.template Reference<T>(std::move(reference_storage));
+  }
+
+  // Constructs the `T`, or returns a const reference to an already constructed
+  // object if that was passed to the `MakerTypeFor`.
+  //
+  // `ConstReference()` can avoid moving the object in more cases than
+  // `Reference()` if the caller does not need to store the object.
+  //
+  // `reference_storage` must outlive usages of the returned reference.
+  const T& ConstReference(ReferenceStorage&& reference_storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  ReferenceStorage()) && {
+    return std::move(maker_).template ConstReference<T>(
+        std::move(reference_storage));
+  }
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
+                       int> = 0>
+  const T& ConstReference(ReferenceStorage&& reference_storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  ReferenceStorage()) const& {
+    return maker_.template ConstReference<T>(std::move(reference_storage));
   }
 
   // Makes `object` equivalent to the constructed `T`. This avoids constructing

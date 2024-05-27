@@ -26,7 +26,10 @@ namespace initializer_internal {
 
 // Internal storage which is conditionally needed for storing the object that
 // `MakerType<Args...>::Reference<T>()`,
-// `MakerTypeFor<T, Args...>::Reference()`, and `Initializer<T>::Reference()`
+// `MakerType<Args...>::ConstReference<T>()`,
+// `MakerTypeFor<T, Args...>::Reference()`,
+// `MakerTypeFor<T, Args...>::ConstReference()`,
+// `Initializer<T>::Reference()`, and `Initializer<T>::ConstReference()`
 // refer to.
 //
 // The public name of this type is `MakerType<Args...>::ReferenceStorage<T>`,
@@ -68,6 +71,12 @@ class ReferenceStorage {
            "not initialized";
     return std::move(value_);
   }
+  const T& operator*() const& {
+    RIEGELI_ASSERT(initialized_)
+        << "Failed precondition of ReferenceStorage::operator*: "
+           "not initialized";
+    return value_;
+  }
 
  private:
   union {
@@ -93,6 +102,7 @@ class ReferenceStorage<
   }
 
   T&& operator*() && { return std::move(value_); }
+  const T& operator*() const& { return value_; }
 
  private:
   union {
