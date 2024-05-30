@@ -15,100 +15,10 @@
 #ifndef RIEGELI_BASE_INITIALIZER_INTERNAL_H_
 #define RIEGELI_BASE_INITIALIZER_INTERNAL_H_
 
-#include <new>
 #include <type_traits>
-#include <utility>
-
-#include "riegeli/base/assert.h"
 
 namespace riegeli {
 namespace initializer_internal {
-
-// Internal storage which is conditionally needed for storing the object that
-// `MakerType<Args...>::Reference<T>()`,
-// `MakerType<Args...>::ConstReference<T>()`,
-// `MakerTypeFor<T, Args...>::Reference()`,
-// `MakerTypeFor<T, Args...>::ConstReference()`,
-// `Initializer<T>::Reference()`, and `Initializer<T>::ConstReference()`
-// refer to.
-//
-// The public name of this type is `MakerType<Args...>::ReferenceStorage<T>`,
-// `MakerTypeFor<T, Args...>::ReferenceStorage`, and
-// `Initializer<T>::RefereneStorage`.
-//
-// `ReferenceStorage<T>()` is passed as the default value of a parameter of
-// these functions with type `ReferenceStorage<T>&&`, so that
-// it is allocated as a temporary by the caller.
-//
-// It can also be passed explicitly if a call to these functions happens in a
-// context which needs the returned reference to be valid longer than the full
-// expression containing the call. This passes the responsibility for passing a
-// `ReferenceStorage<T>` with a suitable lifetime to the caller of that context.
-template <typename T, typename Enable = void>
-class ReferenceStorage {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  ~ReferenceStorage() {
-    if (initialized_) value_.~T();
-  }
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    RIEGELI_ASSERT(!initialized_)
-        << "Failed precondition of ReferenceStorage::emplace(): "
-           "already initialized";
-    new (&value_) T(std::forward<Args>(args)...);
-    initialized_ = true;
-  }
-
-  T&& operator*() && {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of ReferenceStorage::operator*: "
-           "not initialized";
-    return std::move(value_);
-  }
-  const T& operator*() const& {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of ReferenceStorage::operator*: "
-           "not initialized";
-    return value_;
-  }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-  bool initialized_ = false;
-};
-
-// Specialization of `ReferenceStorage<T>` for trivially destructible types.
-// There is no need to track whether the object was initialized.
-template <typename T>
-class ReferenceStorage<
-    T, std::enable_if_t<std::is_trivially_destructible<T>::value>> {
- public:
-  ReferenceStorage() noexcept {}
-
-  ReferenceStorage(const ReferenceStorage&) = delete;
-  ReferenceStorage& operator=(const ReferenceStorage&) = delete;
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    new (&value_) T(std::forward<Args>(args)...);
-  }
-
-  T&& operator*() && { return std::move(value_); }
-  const T& operator*() const& { return value_; }
-
- private:
-  union {
-    std::remove_cv_t<T> value_;
-  };
-};
 
 // `CanBindTo<T&&, Args&&...>::value` is `true` if constructing `T(args...)`
 // with `args...` of type `Args&&...` can be elided, with `T&&` binding directly

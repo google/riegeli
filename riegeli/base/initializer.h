@@ -22,6 +22,7 @@
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/temporary_storage.h"
 
 namespace riegeli {
 
@@ -123,8 +124,6 @@ class InitializerBase {
 template <typename T>
 class InitializerValueBase : public InitializerBase<T> {
  public:
-  using ReferenceStorage = initializer_internal::ReferenceStorage<T>;
-
   // Constructs the `T`, or returns a reference to an already constructed object
   // if that was passed to the `Initializer`.
   //
@@ -132,10 +131,10 @@ class InitializerValueBase : public InitializerBase<T> {
   // caller does not need to store the object, or if it will be moved later
   // because the target location for the object is not ready yet.
   //
-  // `reference_storage` must outlive usages of the returned reference.
-  T&& Reference(ReferenceStorage&& reference_storage
-                    ABSL_ATTRIBUTE_LIFETIME_BOUND = ReferenceStorage()) && {
-    return methods()->reference(this->context(), std::move(reference_storage));
+  // `storage` must outlive usages of the returned reference.
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                    TemporaryStorage<T>()) && {
+    return methods()->reference(this->context(), std::move(storage));
   }
 
   // Constructs the `T`, or returns a const reference to an already constructed
@@ -144,62 +143,60 @@ class InitializerValueBase : public InitializerBase<T> {
   // `ConstReference()` can avoid moving the object in more cases than
   // `Reference()` if the caller does not need to store the object.
   //
-  // `reference_storage` must outlive usages of the returned reference.
-  const T& ConstReference(ReferenceStorage&& reference_storage
+  // `storage` must outlive usages of the returned reference.
+  const T& ConstReference(TemporaryStorage<T>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  ReferenceStorage()) && {
-    return methods()->const_reference(this->context(),
-                                      std::move(reference_storage));
+                                  TemporaryStorage<T>()) && {
+    return methods()->const_reference(this->context(), std::move(storage));
   }
 
  private:
   static T&& ReferenceMethodDefault(void* context,
-                                    ReferenceStorage&& reference_storage);
+                                    TemporaryStorage<T>&& storage);
 
   template <typename Arg,
             std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value,
                              int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
-                                       ReferenceStorage&& reference_storage);
+                                       TemporaryStorage<T>&& storage);
   template <typename Arg,
             std::enable_if_t<
                 !initializer_internal::CanBindTo<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
-                                       ReferenceStorage&& reference_storage);
+                                       TemporaryStorage<T>&& storage);
 
   template <typename... Args>
   static T&& ReferenceMethodFromMaker(void* context,
-                                      ReferenceStorage&& reference_storage);
+                                      TemporaryStorage<T>&& storage);
 
   template <typename... Args>
-  static T&& ReferenceMethodFromConstMaker(
-      void* context, ReferenceStorage&& reference_storage);
+  static T&& ReferenceMethodFromConstMaker(void* context,
+                                           TemporaryStorage<T>&& storage);
 
-  static const T& ConstReferenceMethodDefault(
-      void* context, ReferenceStorage&& reference_storage);
+  static const T& ConstReferenceMethodDefault(void* context,
+                                              TemporaryStorage<T>&& storage);
 
   template <typename Arg,
             std::enable_if_t<CanBindTo<const T&, Arg&&>::value, int> = 0>
-  static const T& ConstReferenceMethodFromObject(
-      void* context, ReferenceStorage&& reference_storage);
+  static const T& ConstReferenceMethodFromObject(void* context,
+                                                 TemporaryStorage<T>&& storage);
   template <typename Arg,
             std::enable_if_t<!CanBindTo<const T&, Arg&&>::value, int> = 0>
-  static const T& ConstReferenceMethodFromObject(
-      void* context, ReferenceStorage&& reference_storage);
+  static const T& ConstReferenceMethodFromObject(void* context,
+                                                 TemporaryStorage<T>&& storage);
 
   template <typename... Args>
-  static const T& ConstReferenceMethodFromMaker(
-      void* context, ReferenceStorage&& reference_storage);
+  static const T& ConstReferenceMethodFromMaker(void* context,
+                                                TemporaryStorage<T>&& storage);
 
   template <typename... Args>
   static const T& ConstReferenceMethodFromConstMaker(
-      void* context, ReferenceStorage&& reference_storage);
+      void* context, TemporaryStorage<T>&& storage);
 
  protected:
   struct Methods : InitializerValueBase::InitializerBase::Methods {
-    T && (*reference)(void* context, ReferenceStorage&& reference_storage);
-    const T& (*const_reference)(void* context,
-                                ReferenceStorage&& reference_storage);
+    T && (*reference)(void* context, TemporaryStorage<T>&& storage);
+    const T& (*const_reference)(void* context, TemporaryStorage<T>&& storage);
   };
 
 #if __cpp_aggregate_bases
@@ -627,8 +624,6 @@ class Initializer<T, allow_explicit,
   // a value explicitly convertible to `T`.
   using AllowingExplicit = Initializer<T, true>;
 
-  struct ReferenceStorage {};
-
   // Constructs `Initializer<T>` from a value convertible to `T`.
   template <
       typename Arg,
@@ -698,15 +693,15 @@ class Initializer<T, allow_explicit,
   // `Reference()` and `ConstReference()` can be defined in terms of
   // `Construct()` because reference storage is never used for reference types.
   //
-  // Unused `reference_storage` parameter makes the signature compatible with
+  // Unused `storage` parameter makes the signature compatible with
   // the non-reference specialization.
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED ReferenceStorage reference_storage =
-                    ReferenceStorage()) && {
+  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
+                    TemporaryStorage<T>()) && {
     // `T` is a reference type here, so `T&&` is the same as `T`.
     return std::move(*this).Construct();
   }
-  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED ReferenceStorage
-                              reference_storage = ReferenceStorage()) && {
+  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
+                              TemporaryStorage<T>()) && {
     // `T` is a reference type here, but it can be an rvalue reference, in which
     // case `const T&` collapses to an lvalue reference.
     T reference = std::move(*this).Construct();
@@ -800,9 +795,8 @@ T InitializerBase<T>::ConstructMethodFromConstMaker(void* context) {
 
 template <typename T>
 T&& InitializerValueBase<T>::ReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, ReferenceStorage&& reference_storage) {
-  reference_storage.emplace();
-  return *std::move(reference_storage);
+    ABSL_ATTRIBUTE_UNUSED void* context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).emplace();
 }
 
 template <typename T>
@@ -810,7 +804,7 @@ template <
     typename Arg,
     std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
-    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage&& reference_storage) {
+    void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
   return std::forward<Arg>(
       *static_cast<std::remove_reference_t<Arg>*>(context));
 }
@@ -820,40 +814,38 @@ template <
     typename Arg,
     std::enable_if_t<!initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
-    void* context, ReferenceStorage&& reference_storage) {
-  reference_storage.emplace(
+    void* context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).emplace(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
-  return *std::move(reference_storage);
 }
 
 template <typename T>
 template <typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromMaker(
-    void* context, ReferenceStorage&& reference_storage) {
+    void* context, TemporaryStorage<T>&& storage) {
   return std::move(*static_cast<MakerType<Args...>*>(context))
-      .template Reference<T>(std::move(reference_storage));
+      .template Reference<T>(std::move(storage));
 }
 
 template <typename T>
 template <typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromConstMaker(
-    void* context, ReferenceStorage&& reference_storage) {
+    void* context, TemporaryStorage<T>&& storage) {
   return static_cast<const MakerType<Args...>*>(context)->template Reference<T>(
-      std::move(reference_storage));
+      std::move(storage));
 }
 
 template <typename T>
 const T& InitializerValueBase<T>::ConstReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, ReferenceStorage&& reference_storage) {
-  reference_storage.emplace();
-  return *reference_storage;
+    ABSL_ATTRIBUTE_UNUSED void* context, TemporaryStorage<T>&& storage) {
+  return storage.emplace();
 }
 
 template <typename T>
 template <typename Arg,
           std::enable_if_t<CanBindTo<const T&, Arg&&>::value, int>>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromObject(
-    void* context, ABSL_ATTRIBUTE_UNUSED ReferenceStorage&& reference_storage) {
+    void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
   return std::forward<Arg>(
       *static_cast<std::remove_reference_t<Arg>*>(context));
 }
@@ -862,26 +854,25 @@ template <typename T>
 template <typename Arg,
           std::enable_if_t<!CanBindTo<const T&, Arg&&>::value, int>>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromObject(
-    void* context, ReferenceStorage&& reference_storage) {
-  reference_storage.emplace(
+    void* context, TemporaryStorage<T>&& storage) {
+  return storage.emplace(
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
-  return *reference_storage;
 }
 
 template <typename T>
 template <typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromMaker(
-    void* context, ReferenceStorage&& reference_storage) {
+    void* context, TemporaryStorage<T>&& storage) {
   return std::move(*static_cast<MakerType<Args...>*>(context))
-      .template ConstReference<T>(std::move(reference_storage));
+      .template ConstReference<T>(std::move(storage));
 }
 
 template <typename T>
 template <typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromConstMaker(
-    void* context, ReferenceStorage&& reference_storage) {
+    void* context, TemporaryStorage<T>&& storage) {
   return static_cast<const MakerType<Args...>*>(context)
-      ->template ConstReference<T>(std::move(reference_storage));
+      ->template ConstReference<T>(std::move(storage));
 }
 
 template <typename T>

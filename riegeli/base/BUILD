@@ -177,6 +177,7 @@ cc_library(
     hdrs = [
         "initializer.h",
         "maker.h",
+        "temporary_storage.h",
     ],
     deps = [
         ":assert",
