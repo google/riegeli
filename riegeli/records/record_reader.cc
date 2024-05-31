@@ -62,9 +62,9 @@ namespace riegeli {
 class RecordsMetadataDescriptors::ErrorCollector
     : public google::protobuf::DescriptorPool::ErrorCollector {
  public:
-  void AddError(const std::string& filename, const std::string& element_name,
-                const google::protobuf::Message* descriptor,
-                ErrorLocation location, const std::string& message) override {
+  void RecordError(absl::string_view filename, absl::string_view element_name,
+                   const google::protobuf::Message* descriptor,
+                   ErrorLocation location, absl::string_view message) override {
     descriptors_->Fail(absl::InvalidArgumentError(
         absl::StrCat("Error in file ", filename, ", element ", element_name,
                      ": ", message)));
