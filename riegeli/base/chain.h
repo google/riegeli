@@ -464,7 +464,7 @@ class Chain : public WithCompare<Chain> {
   // allocation, prefer copying up to this length.
   static constexpr size_t kAllocationCost = 256;
 
-  explicit Chain(RawBlock* block);
+  explicit Chain(IntrusiveSharedPtr<RawBlock> block);
 
   bool ClearSlow();
   absl::string_view FlattenSlow();
@@ -506,7 +506,7 @@ class Chain : public WithCompare<Chain> {
   // array of block offset, e.g. with `RefreshFront()`.
   RawBlock* const& front() const { return begin_[0].block_ptr; }
 
-  void Initialize(RawBlock* block);
+  void Initialize(IntrusiveSharedPtr<RawBlock> block);
   void Initialize(absl::string_view src);
   void InitializeSlow(absl::string_view src);
   template <typename Src,
@@ -524,17 +524,18 @@ class Chain : public WithCompare<Chain> {
   void CopyToSlow(char* dest) const;
   std::string ToString() const;
 
-  void SetBack(RawBlock* block);
-  void SetFront(RawBlock* block);
+  IntrusiveSharedPtr<RawBlock> SetBack(IntrusiveSharedPtr<RawBlock> block);
+  IntrusiveSharedPtr<RawBlock> SetFront(IntrusiveSharedPtr<RawBlock> block);
   // Like `SetFront()`, but skips the `RefreshFront()` step. This is enough if
   // the block has the same size as the block being replaced.
-  void SetFrontSameSize(RawBlock* block);
+  IntrusiveSharedPtr<RawBlock> SetFrontSameSize(
+      IntrusiveSharedPtr<RawBlock> block);
   // Recomputes the block offset of the first block if needed.
   void RefreshFront();
-  void PushBack(RawBlock* block);
-  void PushFront(RawBlock* block);
-  void PopBack();
-  void PopFront();
+  void PushBack(IntrusiveSharedPtr<RawBlock> block);
+  void PushFront(IntrusiveSharedPtr<RawBlock> block);
+  IntrusiveSharedPtr<RawBlock> PopBack();
+  IntrusiveSharedPtr<RawBlock> PopFront();
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void AppendBlocks(const BlockPtr* begin, const BlockPtr* end);
@@ -561,12 +562,10 @@ class Chain : public WithCompare<Chain> {
   template <Ownership ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, Options options);
 
-  // This template is defined and used only in chain.cc.
-  template <Ownership ownership>
-  void AppendRawBlock(RawBlock* block, Options options);
-  // This template is defined and used only in chain.cc.
-  template <Ownership ownership>
-  void PrependRawBlock(RawBlock* block, Options options);
+  void AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
+                      Options options = Options());
+  void PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
+                       Options options = Options());
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
@@ -806,7 +805,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
 
   size_t CharIndexInChainInternal() const;
 
-  RawBlock* PinImpl();
+  IntrusiveSharedPtr<RawBlock> PinImpl();
 
   const Chain* chain_ = nullptr;
   // If `chain_ == nullptr`, `kBeginShortData`.
@@ -842,7 +841,7 @@ class Chain::PinnedBlock {
 
  private:
   friend class BlockIterator;
-  explicit PinnedBlock(RawBlock* block);
+  explicit PinnedBlock(IntrusiveSharedPtr<RawBlock> block);
   IntrusiveSharedPtr<RawBlock> block_;
 };
 
@@ -932,7 +931,7 @@ class Chain::RawBlock {
       size_t{std::numeric_limits<ptrdiff_t>::max()};
 
   // Creates an internal block.
-  static RawBlock* NewInternal(size_t min_capacity);
+  static IntrusiveSharedPtr<RawBlock> NewInternal(size_t min_capacity);
 
   // Constructs an internal block. This constructor is public for
   // `SizeReturningNewAligned()`.
@@ -960,9 +959,7 @@ class Chain::RawBlock {
   template <Ownership ownership = Ownership::kSteal>
   void Unref();
 
-  // This template is defined and used only in chain.cc.
-  template <Ownership ownership>
-  RawBlock* Copy();
+  IntrusiveSharedPtr<RawBlock> Copy();
 
   bool TryClear();
 
@@ -1189,11 +1186,12 @@ template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
   // `object`, and sets block data to `absl::string_view(new_object)`.
-  static RawBlock* NewBlock(Initializer<T> object);
+  static IntrusiveSharedPtr<RawBlock> NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
   // `object`, and sets block data to `data`.
-  static RawBlock* NewBlock(Initializer<T> object, absl::string_view data);
+  static IntrusiveSharedPtr<RawBlock> NewBlock(Initializer<T> object,
+                                               absl::string_view data);
 
  private:
   static void DeleteBlock(RawBlock* block);
@@ -1216,17 +1214,20 @@ constexpr Chain::ExternalMethods Chain::ExternalMethodsFor<T>::kMethods;
 #endif
 
 template <typename T>
-inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
-    Initializer<T> object) {
-  return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalAllocatedSize<T>(), std::move(object));
+inline IntrusiveSharedPtr<Chain::RawBlock>
+Chain::ExternalMethodsFor<T>::NewBlock(Initializer<T> object) {
+  return IntrusiveSharedPtr<RawBlock>(
+      NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
+          RawBlock::kExternalAllocatedSize<T>(), std::move(object)));
 }
 
 template <typename T>
-inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
-    Initializer<T> object, absl::string_view data) {
-  return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
-      RawBlock::kExternalAllocatedSize<T>(), std::move(object), data);
+inline IntrusiveSharedPtr<Chain::RawBlock>
+Chain::ExternalMethodsFor<T>::NewBlock(Initializer<T> object,
+                                       absl::string_view data) {
+  return IntrusiveSharedPtr<RawBlock>(
+      NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
+          RawBlock::kExternalAllocatedSize<T>(), std::move(object), data));
 }
 
 template <typename T>
@@ -1537,7 +1538,8 @@ inline Chain::PinnedBlock Chain::BlockIterator::Pin() {
   return PinnedBlock(PinImpl());
 }
 
-inline Chain::PinnedBlock::PinnedBlock(RawBlock* block) : block_(block) {}
+inline Chain::PinnedBlock::PinnedBlock(IntrusiveSharedPtr<RawBlock> block)
+    : block_(std::move(block)) {}
 
 inline absl::string_view Chain::PinnedBlock::operator*() const {
   RIEGELI_ASSERT(block_ != nullptr)
@@ -1654,7 +1656,9 @@ constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();
 }
 
-inline Chain::Chain(RawBlock* block) { Initialize(block); }
+inline Chain::Chain(IntrusiveSharedPtr<RawBlock> block) {
+  Initialize(std::move(block));
+}
 
 inline Chain::Chain(absl::string_view src) { Initialize(src); }
 
@@ -1735,9 +1739,9 @@ inline void Chain::Clear() {
   if (begin_ != end_) ClearSlow();
 }
 
-inline void Chain::Initialize(RawBlock* block) {
+inline void Chain::Initialize(IntrusiveSharedPtr<RawBlock> block) {
   size_ = block->size();
-  (end_++)->block_ptr = block;
+  (end_++)->block_ptr = block.Release();
 }
 
 inline void Chain::Initialize(absl::string_view src) {

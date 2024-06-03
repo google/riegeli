@@ -251,9 +251,8 @@ class ZeroRef {
 
 class Chain::BlockRef {
  public:
-  template <Ownership ownership>
-  explicit BlockRef(RawBlock* block,
-                    std::integral_constant<Ownership, ownership>);
+  explicit BlockRef(RawBlock* block);
+  explicit BlockRef(IntrusiveSharedPtr<RawBlock> block);
 
   BlockRef(const BlockRef&) = delete;
   BlockRef& operator=(const BlockRef&) = delete;
@@ -276,29 +275,31 @@ class Chain::BlockRef {
   IntrusiveSharedPtr<RawBlock> block_;
 };
 
-template <Chain::Ownership ownership>
-inline Chain::BlockRef::BlockRef(RawBlock* block,
-                                 std::integral_constant<Ownership, ownership>) {
+inline Chain::BlockRef::BlockRef(RawBlock* block) {
   if (const BlockRef* const block_ref =
           block->checked_external_object<BlockRef>()) {
     // `block` is already a `BlockRef`. Refer to its target instead.
-    RawBlock* const target = block_ref->block_.get();
-    if (ownership == Ownership::kSteal) {
-      target->Ref();
-      block->Unref();
-    }
-    block = target;
+    block = block_ref->block_.get();
   }
-  if (ownership == Ownership::kShare) block->Ref();
-  block_.Reset(block);
+  block_.Reset(block->Ref());
 }
 
-inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
+inline Chain::BlockRef::BlockRef(IntrusiveSharedPtr<RawBlock> block) {
+  if (const BlockRef* const block_ref =
+          block->checked_external_object<BlockRef>()) {
+    // `block` is already a `BlockRef`. Refer to its target instead.
+    block = block_ref->block_;
+  }
+  block_ = std::move(block);
+}
+
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::NewInternal(
+    size_t min_capacity) {
   RIEGELI_ASSERT_GT(min_capacity, 0u)
       << "Failed precondition of Chain::RawBlock::NewInternal(): zero capacity";
   size_t raw_capacity;
-  return SizeReturningNewAligned<RawBlock>(
-      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity);
+  return IntrusiveSharedPtr<RawBlock>(SizeReturningNewAligned<RawBlock>(
+      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity));
 }
 
 inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
@@ -313,13 +314,11 @@ inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
       << "Chain block capacity overflow";
 }
 
-template <Chain::Ownership ownership>
-inline Chain::RawBlock* Chain::RawBlock::Copy() {
-  RawBlock* const block = NewInternal(size());
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::Copy() {
+  IntrusiveSharedPtr<RawBlock> block = NewInternal(size());
   block->Append(absl::string_view(*this));
   RIEGELI_ASSERT(!block->wasteful())
       << "A full block should not be considered wasteful";
-  Unref<ownership>();
   return block;
 }
 
@@ -527,7 +526,7 @@ inline void Chain::RawBlock::AppendTo(Chain& dest, Options options) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendTo(Chain&): "
          "Chain size overflow";
-  dest.AppendRawBlock<Ownership::kShare>(this, options);
+  dest.AppendRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
 }
 
 template <Chain::Ownership ownership>
@@ -570,18 +569,16 @@ inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
       dest.Append(absl::string_view(data, length), options);
       return;
     }
-    dest.AppendRawBlock<Ownership::kShare>(this, options);
+    dest.AppendRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
     return;
   }
   if (length <= kMaxBytesToCopy || wasteful()) {
     dest.Append(absl::string_view(data, length), options);
     return;
   }
-  dest.AppendRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<BlockRef>::NewBlock(
-          riegeli::Maker(
-              this, std::integral_constant<Ownership, Ownership::kShare>()),
-          absl::string_view(data, length)),
+  dest.AppendRawBlock(
+      ExternalMethodsFor<BlockRef>::NewBlock(riegeli::Maker(this),
+                                             absl::string_view(data, length)),
       options);
 }
 
@@ -614,7 +611,7 @@ inline void Chain::RawBlock::PrependTo(Chain& dest, Options options) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::PrependTo(Chain&): "
          "Chain size overflow";
-  dest.PrependRawBlock<Ownership::kShare>(this, options);
+  dest.PrependRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
 }
 
 template <Chain::Ownership ownership>
@@ -657,18 +654,16 @@ inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
       dest.Prepend(absl::string_view(data, length), options);
       return;
     }
-    dest.PrependRawBlock<Ownership::kShare>(this, options);
+    dest.PrependRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
     return;
   }
   if (length <= kMaxBytesToCopy || wasteful()) {
     dest.Prepend(absl::string_view(data, length), options);
     return;
   }
-  dest.PrependRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<BlockRef>::NewBlock(
-          riegeli::Maker(
-              this, std::integral_constant<Ownership, Ownership::kShare>()),
-          absl::string_view(data, length)),
+  dest.PrependRawBlock(
+      ExternalMethodsFor<BlockRef>::NewBlock(riegeli::Maker(this),
+                                             absl::string_view(data, length)),
       options);
 }
 
@@ -721,17 +716,18 @@ size_t Chain::BlockIterator::CharIndexInChainInternal() const {
   }
 }
 
-Chain::RawBlock* Chain::BlockIterator::PinImpl() {
+IntrusiveSharedPtr<Chain::RawBlock> Chain::BlockIterator::PinImpl() {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::Pin(): "
          "iterator is end()";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    RawBlock* const block = RawBlock::NewInternal(kMaxShortDataSize);
+    IntrusiveSharedPtr<RawBlock> block =
+        RawBlock::NewInternal(kMaxShortDataSize);
     block->AppendWithExplicitSizeToCopy(chain_->short_data(),
                                         kMaxShortDataSize);
     return block;
   }
-  return ptr_.as_ptr()->block_ptr->Ref();
+  return IntrusiveSharedPtr<RawBlock>(ptr_.as_ptr()->block_ptr->Ref());
 }
 
 void Chain::BlockIterator::AppendTo(Chain& dest, Options options) const {
@@ -936,11 +932,11 @@ void Chain::InitializeSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), kMaxShortDataSize)
       << "Failed precondition of Chain::InitializeSlow(string_view): "
          "string too short, use Initialize() instead";
-  RawBlock* const block =
+  IntrusiveSharedPtr<RawBlock> block =
       RawBlock::NewInternal(UnsignedMin(src.size(), kDefaultMaxBlockSize));
   const absl::Span<char> buffer = block->AppendBuffer(src.size());
   std::memcpy(buffer.data(), src.data(), buffer.size());
-  Initialize(block);
+  Initialize(std::move(block));
   Options options;
   options.set_size_hint(src.size());
   src.remove_prefix(buffer.size());
@@ -1019,7 +1015,7 @@ absl::string_view Chain::FlattenSlow() {
   RIEGELI_ASSERT_GT(end_ - begin_, 1)
       << "Failed precondition of Chain::FlattenSlow(): "
          "contents already flat, use Flatten() instead";
-  RawBlock* const block =
+  IntrusiveSharedPtr<RawBlock> block =
       RawBlock::NewInternal(NewBlockCapacity(0, size_, size_, Options()));
   const BlockPtr* iter = begin_;
   do {
@@ -1028,8 +1024,8 @@ absl::string_view Chain::FlattenSlow() {
   } while (iter != end_);
   UnrefBlocks(begin_, end_);
   end_ = begin_;
-  PushBack(block);
-  return absl::string_view(*block);
+  PushBack(std::move(block));
+  return absl::string_view(*back());
 }
 
 inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
@@ -1100,17 +1096,15 @@ void Chain::AppendTo(std::string& dest) && {
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
   if (dest.empty() && PtrDistance(begin_, end_) == 1) {
-    RawBlock* const block = front();
     if (std::string* const string_ref =
-            block->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(block->size(), string_ref->size())
+            back()->checked_external_object_with_unique_owner<std::string>()) {
+      RIEGELI_ASSERT_EQ(back()->size(), string_ref->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       if (dest.capacity() <= string_ref->capacity()) {
         dest = std::move(*string_ref);
-        block->Unref();
         size_ = 0;
-        end_ = begin_;
+        PopBack();
         return;
       }
     }
@@ -1183,16 +1177,14 @@ Chain::operator std::string() const& { return ToString(); }
 
 Chain::operator std::string() && {
   if (PtrDistance(begin_, end_) == 1) {
-    RawBlock* const block = front();
     if (std::string* const string_ref =
-            block->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(block->size(), string_ref->size())
+            back()->checked_external_object_with_unique_owner<std::string>()) {
+      RIEGELI_ASSERT_EQ(back()->size(), string_ref->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       const std::string dest = std::move(*string_ref);
-      block->Unref();
-      end_ = begin_;
       size_ = 0;
+      PopBack();
       return dest;
     }
   }
@@ -1286,19 +1278,25 @@ void Chain::RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
   }
 }
 
-inline void Chain::SetBack(RawBlock* block) {
-  end_[-1].block_ptr = block;
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::SetBack(
+    IntrusiveSharedPtr<RawBlock> block) {
+  return IntrusiveSharedPtr<RawBlock>(
+      std::exchange(end_[-1].block_ptr, block.Release()));
   // There is no need to adjust block offsets because the size of the last block
   // is not reflected in block offsets.
 }
 
-inline void Chain::SetFront(RawBlock* block) {
-  SetFrontSameSize(block);
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::SetFront(
+    IntrusiveSharedPtr<RawBlock> block) {
+  IntrusiveSharedPtr<RawBlock> old_block = SetFrontSameSize(std::move(block));
   RefreshFront();
+  return old_block;
 }
 
-inline void Chain::SetFrontSameSize(RawBlock* block) {
-  begin_[0].block_ptr = block;
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::SetFrontSameSize(
+    IntrusiveSharedPtr<RawBlock> block) {
+  return IntrusiveSharedPtr<RawBlock>(
+      std::exchange(begin_[0].block_ptr, block.Release()));
 }
 
 inline void Chain::RefreshFront() {
@@ -1310,9 +1308,9 @@ inline void Chain::RefreshFront() {
   }
 }
 
-inline void Chain::PushBack(RawBlock* block) {
+inline void Chain::PushBack(IntrusiveSharedPtr<RawBlock> block) {
   ReserveBack(1);
-  end_[0].block_ptr = block;
+  end_[0].block_ptr = block.Release();
   if (has_allocated()) {
     end_[block_offsets()].block_offset =
         begin_ == end_ ? size_t{0}
@@ -1322,11 +1320,11 @@ inline void Chain::PushBack(RawBlock* block) {
   ++end_;
 }
 
-inline void Chain::PushFront(RawBlock* block) {
+inline void Chain::PushFront(IntrusiveSharedPtr<RawBlock> block) {
   ReserveFront(1);
   BlockPtr* const old_begin = begin_;
   --begin_;
-  begin_[0].block_ptr = block;
+  begin_[0].block_ptr = block.Release();
   if (has_allocated()) {
     begin_[block_offsets()].block_offset =
         old_begin == end_ ? size_t{0}
@@ -1335,23 +1333,27 @@ inline void Chain::PushFront(RawBlock* block) {
   }
 }
 
-inline void Chain::PopBack() {
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopBack() {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::PopBack(): no blocks";
   --end_;
+  return IntrusiveSharedPtr<RawBlock>(end_[0].block_ptr);
 }
 
-inline void Chain::PopFront() {
+inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopFront() {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
     // `begin_` must remain at `block_ptrs_.here`. There might be no pointer to
     // copy; it is cheaper to copy the array slot unconditionally.
-    block_ptrs_.here[0] = block_ptrs_.here[1];
+    IntrusiveSharedPtr<RawBlock> block(
+        std::exchange(block_ptrs_.here[0], block_ptrs_.here[1]).block_ptr);
     --end_;
+    return block;
   } else {
     ++begin_;
+    return IntrusiveSharedPtr<RawBlock>(begin_[-1].block_ptr);
   }
 }
 
@@ -1637,7 +1639,6 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendBuffer(): "
          "Chain size overflow";
-  RawBlock* block;
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
@@ -1660,10 +1661,11 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       }
     }
     // Merge short data with the new space to a new block.
+    IntrusiveSharedPtr<RawBlock> block;
     if (ABSL_PREDICT_FALSE(min_length > RawBlock::kMaxCapacity - size_)) {
       block = RawBlock::NewInternal(kMaxShortDataSize);
       block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(block);
+      PushBack(std::move(block));
       block = RawBlock::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, options));
     } else {
@@ -1672,36 +1674,32 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
           recommended_length, options));
       block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
     }
-    PushBack(block);
+    PushBack(std::move(block));
   } else {
-    RawBlock* const last = back();
-    if (last->can_append(min_length)) {
+    if (back()->can_append(min_length)) {
       // New space can be appended in place.
-      block = last;
     } else if (min_length == 0) {
       return absl::Span<char>();
-    } else if (last->tiny() &&
+    } else if (back()->tiny() &&
                ABSL_PREDICT_TRUE(min_length <=
-                                 RawBlock::kMaxCapacity - last->size())) {
+                                 RawBlock::kMaxCapacity - back()->size())) {
       // The last block must be rewritten. Merge it with the new space to a
       // new block.
-      block = RawBlock::NewInternal(NewBlockCapacity(
-          last->size(), min_length, recommended_length, options));
-      block->Append(absl::string_view(*last));
-      last->Unref();
-      SetBack(block);
+      IntrusiveSharedPtr<RawBlock> block =
+          RawBlock::NewInternal(NewBlockCapacity(back()->size(), min_length,
+                                                 recommended_length, options));
+      block->Append(absl::string_view(*back()));
+      SetBack(std::move(block));
     } else {
-      block = nullptr;
-      if (last->wasteful()) {
+      IntrusiveSharedPtr<RawBlock> block;
+      if (back()->wasteful()) {
         // The last block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        SetBack(last->Copy<Ownership::kShare>());
+        IntrusiveSharedPtr<RawBlock> last = SetBack(back()->Copy());
         if (last->TryClear() && last->can_append(min_length)) {
           // Reuse this block.
-          block = last;
-        } else {
-          last->Unref();
+          block = std::move(last);
         }
       }
       if (block == nullptr) {
@@ -1709,10 +1707,10 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
         block = RawBlock::NewInternal(
             NewBlockCapacity(0, min_length, recommended_length, options));
       }
-      PushBack(block);
+      PushBack(std::move(block));
     }
   }
-  const absl::Span<char> buffer = block->AppendBuffer(
+  const absl::Span<char> buffer = back()->AppendBuffer(
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::RawBlock::AppendBuffer() returned less than the free space";
@@ -1729,7 +1727,6 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::PrependBuffer(): "
          "Chain size overflow";
-  RawBlock* block;
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
@@ -1754,10 +1751,11 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       }
     }
     // Merge short data with the new space to a new block.
+    IntrusiveSharedPtr<RawBlock> block;
     if (ABSL_PREDICT_FALSE(min_length > RawBlock::kMaxCapacity - size_)) {
       block = RawBlock::NewInternal(kMaxShortDataSize);
       block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushFront(block);
+      PushFront(std::move(block));
       block = RawBlock::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, options));
     } else {
@@ -1765,36 +1763,32 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
           NewBlockCapacity(size_, min_length, recommended_length, options));
       block->Prepend(short_data());
     }
-    PushFront(block);
+    PushFront(std::move(block));
   } else {
-    RawBlock* const first = front();
-    if (first->can_prepend(min_length)) {
+    if (front()->can_prepend(min_length)) {
       // New space can be prepended in place.
-      block = first;
     } else if (min_length == 0) {
       return absl::Span<char>();
-    } else if (first->tiny() &&
+    } else if (front()->tiny() &&
                ABSL_PREDICT_TRUE(min_length <=
-                                 RawBlock::kMaxCapacity - first->size())) {
+                                 RawBlock::kMaxCapacity - front()->size())) {
       // The first block must be rewritten. Merge it with the new space to a
       // new block.
-      block = RawBlock::NewInternal(NewBlockCapacity(
-          first->size(), min_length, recommended_length, options));
-      block->Prepend(absl::string_view(*first));
-      first->Unref();
-      SetFront(block);
+      IntrusiveSharedPtr<RawBlock> block =
+          RawBlock::NewInternal(NewBlockCapacity(front()->size(), min_length,
+                                                 recommended_length, options));
+      block->Prepend(absl::string_view(*front()));
+      SetFront(std::move(block));
     } else {
-      block = nullptr;
-      if (first->wasteful()) {
+      IntrusiveSharedPtr<RawBlock> block;
+      if (front()->wasteful()) {
         // The first block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        SetFrontSameSize(first->Copy<Ownership::kShare>());
+        IntrusiveSharedPtr<RawBlock> first = SetFrontSameSize(front()->Copy());
         if (first->TryClear() && first->can_prepend(min_length)) {
           // Reuse this block.
-          block = first;
-        } else {
-          first->Unref();
+          block = std::move(first);
         }
       }
       if (block == nullptr) {
@@ -1802,10 +1796,10 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
         block = RawBlock::NewInternal(
             NewBlockCapacity(0, min_length, recommended_length, options));
       }
-      PushFront(block);
+      PushFront(std::move(block));
     }
   }
-  const absl::Span<char> buffer = block->PrependBuffer(
+  const absl::Span<char> buffer = front()->PrependBuffer(
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::RawBlock::PrependBuffer() returned less than the free space";
@@ -1836,8 +1830,8 @@ void Chain::Append(Src&& src, Options options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  AppendRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<std::string>::NewBlock(std::move(src)), options);
+  AppendRawBlock(ExternalMethodsFor<std::string>::NewBlock(std::move(src)),
+                 options);
 }
 
 template void Chain::Append(std::string&& src, Options options);
@@ -1863,105 +1857,103 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
   // If the first block of `src` is handled specially,
   // `(src_iter++)->block_ptr->Unref<ownership>()` skips it so that
   // `AppendBlocks<ownership>()` does not append it again.
-  RawBlock* const src_first = src.front();
   if (begin_ == end_) {
-    if (src_first->tiny() ||
-        (src.end_ - src.begin_ > 1 && src_first->wasteful())) {
+    if (src.front()->tiny() ||
+        (src.end_ - src.begin_ > 1 && src.front()->wasteful())) {
       // The first block of `src` must be rewritten. Merge short data with it to
       // a new block.
-      if (!short_data().empty() || !src_first->empty()) {
-        RIEGELI_ASSERT_LE(src_first->size(), RawBlock::kMaxCapacity - size_)
+      if (!short_data().empty() || !src.front()->empty()) {
+        RIEGELI_ASSERT_LE(src.front()->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
                "exceeds RawBlock::kMaxCapacity";
         const size_t capacity =
             src.end_ - src.begin_ == 1
-                ? NewBlockCapacity(
-                      size_,
-                      UnsignedMax(src_first->size(), kMaxShortDataSize - size_),
-                      0, options)
-                : UnsignedMax(size_ + src_first->size(), kMaxShortDataSize);
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
+                ? NewBlockCapacity(size_,
+                                   UnsignedMax(src.front()->size(),
+                                               kMaxShortDataSize - size_),
+                                   0, options)
+                : UnsignedMax(size_ + src.front()->size(), kMaxShortDataSize);
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(absl::string_view(*src_first));
-        PushBack(merged);
+        merged->Append(absl::string_view(*src.front()));
+        PushBack(std::move(merged));
       }
       (src_iter++)->block_ptr->Unref<ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      IntrusiveSharedPtr<RawBlock> real =
+          RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(real);
+      PushBack(std::move(real));
     }
   } else {
-    RawBlock* const last = back();
-    if (last->tiny() && src_first->tiny()) {
+    if (back()->tiny() && src.front()->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
       // merging them is cheaper than rewriting them separately.
-      if (last->empty() && src_first->empty()) {
+      if (back()->empty() && src.front()->empty()) {
         PopBack();
-        last->Unref();
-      } else if (last->can_append(src_first->size()) &&
+      } else if (back()->can_append(src.front()->size()) &&
                  (src.end_ - src.begin_ == 1 ||
-                  !last->wasteful(src_first->size()))) {
+                  !back()->wasteful(src.front()->size()))) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        last->Append(absl::string_view(*src_first));
+        back()->Append(absl::string_view(*src.front()));
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(src_first->size(),
-                          RawBlock::kMaxCapacity - last->size())
+        RIEGELI_ASSERT_LE(src.front()->size(),
+                          RawBlock::kMaxCapacity - back()->size())
             << "Sum of sizes of two tiny or wasteful blocks exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity =
             src.end_ - src.begin_ == 1
-                ? NewBlockCapacity(last->size(), src_first->size(), 0, options)
-                : last->size() + src_first->size();
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->Append(absl::string_view(*last));
-        merged->Append(absl::string_view(*src_first));
-        last->Unref();
-        SetBack(merged);
+                ? NewBlockCapacity(back()->size(), src.front()->size(), 0,
+                                   options)
+                : back()->size() + src.front()->size();
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
+        merged->Append(absl::string_view(*back()));
+        merged->Append(absl::string_view(*src.front()));
+        SetBack(std::move(merged));
       }
       (src_iter++)->block_ptr->Unref<ownership>();
-    } else if (last->empty()) {
-      if (src.end_ - src.begin_ > 1 && src_first->wasteful()) goto merge;
+    } else if (back()->empty()) {
+      if (src.end_ - src.begin_ > 1 && src.front()->wasteful()) goto merge;
       // The last block is empty and must be removed.
       PopBack();
-      last->Unref();
-    } else if (last->wasteful()) {
+    } else if (back()->wasteful()) {
       if (src.end_ - src.begin_ > 1 &&
-          (src_first->empty() || src_first->wasteful())) {
+          (src.front()->empty() || src.front()->wasteful())) {
         goto merge;
       }
       // The last block must reduce waste.
-      if (last->can_append(src_first->size()) &&
-          (src.end_ - src.begin_ == 1 || !last->wasteful(src_first->size())) &&
-          src_first->size() <= kAllocationCost + last->size()) {
+      if (back()->can_append(src.front()->size()) &&
+          (src.end_ - src.begin_ == 1 ||
+           !back()->wasteful(src.front()->size())) &&
+          src.front()->size() <= kAllocationCost + back()->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        last->Append(absl::string_view(*src_first));
+        back()->Append(absl::string_view(*src.front()));
         (src_iter++)->block_ptr->Unref<ownership>();
       } else {
         // Appending in place is not possible, or rewriting the last block is
         // cheaper.
-        SetBack(last->Copy<Ownership::kSteal>());
+        SetBack(back()->Copy());
       }
     } else if (src.end_ - src.begin_ > 1) {
-      if (src_first->empty()) {
+      if (src.front()->empty()) {
         // The first block of `src` is empty and must be skipped.
         (src_iter++)->block_ptr->Unref<ownership>();
-      } else if (src_first->wasteful()) {
+      } else if (src.front()->wasteful()) {
         // The first block of `src` must reduce waste.
-        if (last->can_append(src_first->size()) &&
-            !last->wasteful(src_first->size())) {
+        if (back()->can_append(src.front()->size()) &&
+            !back()->wasteful(src.front()->size())) {
           // Appending in place is possible; this is always cheaper than
           // rewriting the first block of `src`.
-          last->Append(absl::string_view(*src_first));
+          back()->Append(absl::string_view(*src.front()));
         } else {
           // Appending in place is not possible.
-          PushBack(src_first->Copy<Ownership::kShare>());
+          PushBack(src.front()->Copy());
         }
         (src_iter++)->block_ptr->Unref<ownership>();
       }
@@ -1972,8 +1964,8 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
-template <Chain::Ownership ownership>
-inline void Chain::AppendRawBlock(RawBlock* block, Options options) {
+void Chain::AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
+                           Options options) {
   RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendRawBlock(): "
          "Chain size overflow";
@@ -1987,68 +1979,64 @@ inline void Chain::AppendRawBlock(RawBlock* block, Options options) {
         const size_t capacity = NewBlockCapacity(
             size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
             options);
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
         merged->Append(absl::string_view(*block));
-        PushBack(merged);
+        PushBack(std::move(merged));
         size_ += block->size();
-        block->Unref<ownership>();
         return;
       }
       // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      IntrusiveSharedPtr<RawBlock> real =
+          RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(real);
+      PushBack(std::move(real));
     }
   } else {
-    RawBlock* const last = back();
-    if (last->tiny() && block->tiny()) {
+    if (back()->tiny() && block->tiny()) {
       // Boundary blocks must be merged.
-      if (last->can_append(block->size())) {
+      if (back()->can_append(block->size())) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        last->Append(absl::string_view(*block));
+        back()->Append(absl::string_view(*block));
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - last->size())
+        RIEGELI_ASSERT_LE(block->size(),
+                          RawBlock::kMaxCapacity - back()->size())
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
-        RawBlock* const merged = RawBlock::NewInternal(
-            NewBlockCapacity(last->size(), block->size(), 0, options));
-        merged->Append(absl::string_view(*last));
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
+            NewBlockCapacity(back()->size(), block->size(), 0, options));
+        merged->Append(absl::string_view(*back()));
         merged->Append(absl::string_view(*block));
-        last->Unref();
-        SetBack(merged);
+        SetBack(std::move(merged));
       }
       size_ += block->size();
-      block->Unref<ownership>();
       return;
     }
-    if (last->empty()) {
+    if (back()->empty()) {
       // The last block is empty and must be removed.
-      last->Unref();
       size_ += block->size();
-      SetBack(block->Ref<ownership>());
+      SetBack(std::move(block));
       return;
     }
-    if (last->wasteful()) {
+    if (back()->wasteful()) {
       // The last block must reduce waste.
-      if (last->can_append(block->size()) &&
-          block->size() <= kAllocationCost + last->size()) {
+      if (back()->can_append(block->size()) &&
+          block->size() <= kAllocationCost + back()->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        last->Append(absl::string_view(*block));
+        back()->Append(absl::string_view(*block));
         size_ += block->size();
-        block->Unref<ownership>();
         return;
       }
       // Appending in place is not possible, or rewriting the last block is
       // cheaper.
-      SetBack(last->Copy<Ownership::kSteal>());
+      SetBack(back()->Copy());
     }
   }
   size_ += block->size();
-  PushBack(block->Ref<ownership>());
+  PushBack(std::move(block));
 }
 
 void Chain::Append(const absl::Cord& src, Options options) {
@@ -2067,10 +2055,9 @@ void Chain::AppendCord(CordRef&& src, Options options) {
       if (flat->size() <= kMaxBytesToCopy) {
         Append(*flat, options);
       } else {
-        AppendRawBlock<Ownership::kSteal>(
-            ExternalMethodsFor<FlatCordRef>::NewBlock(
-                riegeli::Maker(std::forward<CordRef>(src))),
-            options);
+        AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
+                           riegeli::Maker(std::forward<CordRef>(src))),
+                       options);
       }
       return;
     }
@@ -2098,10 +2085,9 @@ inline void Chain::AppendCordSlow(CordRef&& src, Options options) {
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      AppendRawBlock<Ownership::kSteal>(
-          ExternalMethodsFor<FlatCordRef>::NewBlock(
-              riegeli::Maker(iter, fragment.size())),
-          options);
+      AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
+                         riegeli::Maker(iter, fragment.size())),
+                     options);
       copy_options.set_size_hint(size());
     }
   }
@@ -2129,7 +2115,7 @@ inline void Chain::AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
     Append(data, options);
     return;
   }
-  AppendRawBlock<Ownership::kSteal>(
+  AppendRawBlock(
       ExternalMethodsFor<SharedBufferRef>::NewBlock(
           riegeli::Maker(std::forward<SizedSharedBufferRef>(src).storage()),
           data),
@@ -2159,8 +2145,8 @@ void Chain::Prepend(Src&& src, Options options) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  PrependRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<std::string>::NewBlock(std::move(src)), options);
+  PrependRawBlock(ExternalMethodsFor<std::string>::NewBlock(std::move(src)),
+                  options);
 }
 
 template void Chain::Prepend(std::string&& src, Options options);
@@ -2186,105 +2172,103 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
   // If the last block of src is handled specially,
   // `(--src_iter)->block_ptr->Unref<ownership>()` skips it so that
   // `PrependBlocks<ownership>()` does not prepend it again.
-  RawBlock* const src_last = src.back();
   if (begin_ == end_) {
-    if (src_last->tiny() ||
-        (src.end_ - src.begin_ > 1 && src_last->wasteful())) {
+    if (src.back()->tiny() ||
+        (src.end_ - src.begin_ > 1 && src.back()->wasteful())) {
       // The last block of `src` must be rewritten. Merge short data with it to
       // a new block.
-      if (!short_data().empty() || !src_last->empty()) {
-        RIEGELI_ASSERT_LE(src_last->size(), RawBlock::kMaxCapacity - size_)
+      if (!short_data().empty() || !src.back()->empty()) {
+        RIEGELI_ASSERT_LE(src.back()->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
                "exceeds RawBlock::kMaxCapacity";
         const size_t capacity =
             src.end_ - src.begin_ == 1
-                ? NewBlockCapacity(size_, src_last->size(), 0, options)
-                : size_ + src_last->size();
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
+                ? NewBlockCapacity(size_, src.back()->size(), 0, options)
+                : size_ + src.back()->size();
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
-        merged->Prepend(absl::string_view(*src_last));
-        PushFront(merged);
+        merged->Prepend(absl::string_view(*src.back()));
+        PushFront(std::move(merged));
       }
       (--src_iter)->block_ptr->Unref<ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      IntrusiveSharedPtr<RawBlock> real =
+          RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushFront(real);
+      PushFront(std::move(real));
     }
   } else {
-    RawBlock* const first = front();
-    if (first->tiny() && src_last->tiny()) {
+    if (front()->tiny() && src.back()->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
       // merging them is cheaper than rewriting them separately.
-      if (src_last->empty() && first->empty()) {
+      if (src.back()->empty() && front()->empty()) {
         PopFront();
-        first->Unref();
-      } else if (first->can_prepend(src_last->size()) &&
+      } else if (front()->can_prepend(src.back()->size()) &&
                  (src.end_ - src.begin_ == 1 ||
-                  !first->wasteful(src_last->size()))) {
+                  !front()->wasteful(src.back()->size()))) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        first->Prepend(absl::string_view(*src_last));
+        front()->Prepend(absl::string_view(*src.back()));
         RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(src_last->size(),
-                          RawBlock::kMaxCapacity - first->size())
+        RIEGELI_ASSERT_LE(src.back()->size(),
+                          RawBlock::kMaxCapacity - front()->size())
             << "Sum of sizes of two tiny or wasteful blocks exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity =
             src.end_ - src.begin_ == 1
-                ? NewBlockCapacity(first->size(), src_last->size(), 0, options)
-                : first->size() + src_last->size();
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->Prepend(absl::string_view(*first));
-        merged->Prepend(absl::string_view(*src_last));
-        first->Unref();
-        SetFront(merged);
+                ? NewBlockCapacity(front()->size(), src.back()->size(), 0,
+                                   options)
+                : front()->size() + src.back()->size();
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
+        merged->Prepend(absl::string_view(*front()));
+        merged->Prepend(absl::string_view(*src.back()));
+        SetFront(std::move(merged));
       }
       (--src_iter)->block_ptr->Unref<ownership>();
-    } else if (first->empty()) {
-      if (src.end_ - src.begin_ > 1 && src_last->wasteful()) goto merge;
+    } else if (front()->empty()) {
+      if (src.end_ - src.begin_ > 1 && src.back()->wasteful()) goto merge;
       // The first block is empty and must be removed.
       PopFront();
-      first->Unref();
-    } else if (first->wasteful()) {
+    } else if (front()->wasteful()) {
       if (src.end_ - src.begin_ > 1 &&
-          (src_last->empty() || src_last->wasteful())) {
+          (src.back()->empty() || src.back()->wasteful())) {
         goto merge;
       }
       // The first block must reduce waste.
-      if (first->can_prepend(src_last->size()) &&
-          (src.end_ - src.begin_ == 1 || !first->wasteful(src_last->size())) &&
-          src_last->size() <= kAllocationCost + first->size()) {
+      if (front()->can_prepend(src.back()->size()) &&
+          (src.end_ - src.begin_ == 1 ||
+           !front()->wasteful(src.back()->size())) &&
+          src.back()->size() <= kAllocationCost + front()->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        first->Prepend(absl::string_view(*src_last));
+        front()->Prepend(absl::string_view(*src.back()));
         RefreshFront();
         (--src_iter)->block_ptr->Unref<ownership>();
       } else {
         // Prepending in place is not possible, or rewriting the first block is
         // cheaper.
-        SetFrontSameSize(first->Copy<Ownership::kSteal>());
+        SetFrontSameSize(front()->Copy());
       }
     } else if (src.end_ - src.begin_ > 1) {
-      if (src_last->empty()) {
+      if (src.back()->empty()) {
         // The last block of `src` is empty and must be skipped.
         (--src_iter)->block_ptr->Unref<ownership>();
-      } else if (src_last->wasteful()) {
+      } else if (src.back()->wasteful()) {
         // The last block of `src` must reduce waste.
-        if (first->can_prepend(src_last->size()) &&
-            !first->wasteful(src_last->size())) {
+        if (front()->can_prepend(src.back()->size()) &&
+            !front()->wasteful(src.back()->size())) {
           // Prepending in place is possible; this is always cheaper than
           // rewriting the last block of `src`.
-          first->Prepend(absl::string_view(*src_last));
+          front()->Prepend(absl::string_view(*src.back()));
           RefreshFront();
         } else {
           // Prepending in place is not possible.
-          PushFront(src_last->Copy<Ownership::kShare>());
+          PushFront(src.back()->Copy());
         }
         (--src_iter)->block_ptr->Unref<ownership>();
       }
@@ -2295,8 +2279,8 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
-template <Chain::Ownership ownership>
-inline void Chain::PrependRawBlock(RawBlock* block, Options options) {
+void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
+                            Options options) {
   RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::PrependRawBlock(): "
          "Chain size overflow";
@@ -2309,70 +2293,66 @@ inline void Chain::PrependRawBlock(RawBlock* block, Options options) {
                "RawBlock::kMaxCapacity";
         const size_t capacity =
             NewBlockCapacity(size_, block->size(), 0, options);
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
         merged->Prepend(absl::string_view(*block));
-        PushFront(merged);
+        PushFront(std::move(merged));
         size_ += block->size();
-        block->Unref<ownership>();
         return;
       }
       // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      IntrusiveSharedPtr<RawBlock> real =
+          RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushFront(real);
+      PushFront(std::move(real));
     }
   } else {
-    RawBlock* const first = front();
-    if (first->tiny() && block->tiny()) {
+    if (front()->tiny() && block->tiny()) {
       // Boundary blocks must be merged.
-      if (first->can_prepend(block->size())) {
+      if (front()->can_prepend(block->size())) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        first->Prepend(absl::string_view(*block));
+        front()->Prepend(absl::string_view(*block));
         RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - first->size())
+        RIEGELI_ASSERT_LE(block->size(),
+                          RawBlock::kMaxCapacity - front()->size())
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
-        RawBlock* const merged = RawBlock::NewInternal(
-            NewBlockCapacity(first->size(), block->size(), 0, options));
-        merged->Prepend(absl::string_view(*first));
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
+            NewBlockCapacity(front()->size(), block->size(), 0, options));
+        merged->Prepend(absl::string_view(*front()));
         merged->Prepend(absl::string_view(*block));
-        first->Unref();
-        SetFront(merged);
+        SetFront(std::move(merged));
       }
       size_ += block->size();
-      block->Unref<ownership>();
       return;
     }
-    if (first->empty()) {
+    if (front()->empty()) {
       // The first block is empty and must be removed.
-      first->Unref();
       size_ += block->size();
-      SetFront(block->Ref<ownership>());
+      SetFront(std::move(block));
       return;
     }
-    if (first->wasteful()) {
+    if (front()->wasteful()) {
       // The first block must reduce waste.
-      if (first->can_prepend(block->size()) &&
-          block->size() <= kAllocationCost + first->size()) {
+      if (front()->can_prepend(block->size()) &&
+          block->size() <= kAllocationCost + front()->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        first->Prepend(absl::string_view(*block));
+        front()->Prepend(absl::string_view(*block));
         RefreshFront();
         size_ += block->size();
-        block->Unref<ownership>();
         return;
       }
       // Prepending in place is not possible, or rewriting the first block is
       // cheaper.
-      SetFrontSameSize(first->Copy<Ownership::kSteal>());
+      SetFrontSameSize(front()->Copy());
     }
   }
   size_ += block->size();
-  PushFront(block->Ref<ownership>());
+  PushFront(std::move(block));
 }
 
 void Chain::Prepend(const absl::Cord& src, Options options) {
@@ -2416,7 +2396,7 @@ inline void Chain::PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
     Prepend(data, options);
     return;
   }
-  PrependRawBlock<Ownership::kSteal>(
+  PrependRawBlock(
       ExternalMethodsFor<SharedBufferRef>::NewBlock(
           riegeli::Maker(std::forward<SizedSharedBufferRef>(src).storage()),
           data),
@@ -2444,10 +2424,9 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      AppendRawBlock<Ownership::kSteal>(
-          ExternalMethodsFor<FlatCordRef>::NewBlock(
-              riegeli::Maker(iter, fragment.size())),
-          options);
+      AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
+                         riegeli::Maker(iter, fragment.size())),
+                     options);
       copy_options.set_size_hint(size());
     }
     length -= fragment.size();
@@ -2467,59 +2446,43 @@ void Chain::RemoveSuffix(size_t length, Options options) {
     // `Chain` has short data which have suffix removed in place.
     return;
   }
-  BlockPtr* iter = end_;
-  while (length > iter[-1].block_ptr->size()) {
-    length -= iter[-1].block_ptr->size();
-    (--iter)->block_ptr->Unref();
-    RIEGELI_ASSERT(iter != begin_)
+  while (length > back()->size()) {
+    length -= back()->size();
+    PopBack();
+    RIEGELI_ASSERT(begin_ != end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
-  RawBlock* const last = iter[-1].block_ptr;
-  if (last->TryRemoveSuffix(length)) {
-    end_ = iter;
-    if (end_ - begin_ > 1 && last->tiny()) {
-      RawBlock* const before_last = end_[-2].block_ptr;
-      if (before_last->tiny()) {
-        // Last two blocks must be merged.
-        --end_;
-        if (!last->empty()) {
-          RIEGELI_ASSERT_LE(last->size(),
-                            RawBlock::kMaxCapacity - before_last->size())
-              << "Sum of sizes of two tiny blocks exceeds "
-                 "RawBlock::kMaxCapacity";
-          RawBlock* const merged = RawBlock::NewInternal(NewBlockCapacity(
-              before_last->size() + last->size(), 0, 0, options));
-          merged->Append(absl::string_view(*before_last));
-          merged->Append(absl::string_view(*last));
-          before_last->Unref();
-          SetBack(merged);
-        }
-        last->Unref();
+  if (back()->TryRemoveSuffix(length)) {
+    if (end_ - begin_ > 1 && back()->tiny() && end_[-2].block_ptr->tiny()) {
+      // Last two blocks must be merged.
+      IntrusiveSharedPtr<RawBlock> last = PopBack();
+      if (!last->empty()) {
+        RIEGELI_ASSERT_LE(last->size(), RawBlock::kMaxCapacity - back()->size())
+            << "Sum of sizes of two tiny blocks exceeds "
+               "RawBlock::kMaxCapacity";
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
+            NewBlockCapacity(back()->size() + last->size(), 0, 0, options));
+        merged->Append(absl::string_view(*back()));
+        merged->Append(absl::string_view(*last));
+        SetBack(std::move(merged));
       }
     }
     return;
   }
-  end_ = --iter;
-  if (length == last->size()) {
-    last->Unref();
-    return;
-  }
+  IntrusiveSharedPtr<RawBlock> last = PopBack();
+  if (length == last->size()) return;
   absl::string_view data(*last);
   data.remove_suffix(length);
   // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Append(data, options);
-    last->Unref();
     return;
   }
-  AppendRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<BlockRef>::NewBlock(
-          riegeli::Maker(
-              last, std::integral_constant<Ownership, Ownership::kSteal>()),
-          data),
-      options);
+  AppendRawBlock(ExternalMethodsFor<BlockRef>::NewBlock(
+                     riegeli::Maker(std::move(last)), data),
+                 options);
 }
 
 void Chain::RemovePrefix(size_t length, Options options) {
@@ -2534,94 +2497,45 @@ void Chain::RemovePrefix(size_t length, Options options) {
                  size_);
     return;
   }
-  BlockPtr* iter = begin_;
-  while (length > iter[0].block_ptr->size()) {
-    length -= iter[0].block_ptr->size();
-    (iter++)->block_ptr->Unref();
-    RIEGELI_ASSERT(iter != end_)
+  while (length > front()->size()) {
+    length -= front()->size();
+    PopFront();
+    RIEGELI_ASSERT(begin_ != end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
-  RawBlock* const first = iter[0].block_ptr;
-  if (first->TryRemovePrefix(length)) {
-    if (has_here()) {
-      RIEGELI_ASSERT_LE(PtrDistance(begin_, iter), 1u)
-          << "Failed invariant of Chain: "
-             "only two block pointers fit without allocating their array";
-      if (iter > begin_) {
-        // Shift 1 block pointer to the left by 1 because `begin_` must remain
-        // at `block_ptrs_.here`.
-        block_ptrs_.here[0] = block_ptrs_.here[1];
-        --end_;
-      }
-    } else {
-      begin_ = iter;
-      RefreshFront();
-    }
-    if (end_ - begin_ > 1 && first->tiny()) {
-      RawBlock* const after_first = begin_[1].block_ptr;
-      if (after_first->tiny()) {
-        // First two blocks must be merged.
-        if (has_here()) {
-          RIEGELI_ASSERT_EQ(PtrDistance(begin_, end_), 2u)
-              << "Failed invariant of Chain: "
-                 "only two block pointers fit without allocating their array";
-          // Shift 1 block pointer to the left by 1 because `begin_` must remain
-          // at `block_ptrs_.here`.
-          block_ptrs_.here[0] = block_ptrs_.here[1];
-          --end_;
-        } else {
-          ++begin_;
-        }
-        if (!first->empty()) {
-          RIEGELI_ASSERT_LE(first->size(),
-                            RawBlock::kMaxCapacity - after_first->size())
-              << "Sum of sizes of two tiny blocks exceeds "
-                 "RawBlock::kMaxCapacity";
-          RawBlock* const merged = RawBlock::NewInternal(NewBlockCapacity(
-              first->size() + after_first->size(), 0, 0, options));
-          merged->Prepend(absl::string_view(*after_first));
-          merged->Prepend(absl::string_view(*first));
-          after_first->Unref();
-          SetFront(merged);
-        }
-        first->Unref();
+  if (front()->TryRemovePrefix(length)) {
+    RefreshFront();
+    if (end_ - begin_ > 1 && front()->tiny() && begin_[1].block_ptr->tiny()) {
+      // First two blocks must be merged.
+      IntrusiveSharedPtr<RawBlock> first = PopFront();
+      if (!first->empty()) {
+        RIEGELI_ASSERT_LE(first->size(),
+                          RawBlock::kMaxCapacity - front()->size())
+            << "Sum of sizes of two tiny blocks exceeds "
+               "RawBlock::kMaxCapacity";
+        IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
+            NewBlockCapacity(first->size() + front()->size(), 0, 0, options));
+        merged->Prepend(absl::string_view(*front()));
+        merged->Prepend(absl::string_view(*first));
+        SetFront(std::move(merged));
       }
     }
     return;
   }
-  ++iter;
-  if (has_here()) {
-    RIEGELI_ASSERT_LE(PtrDistance(begin_, iter), 2u)
-        << "Failed invariant of Chain: "
-           "only two block pointers fit without allocating their array";
-    // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
-    // because `begin_` must remain at `block_ptrs_.here`. There might be no
-    // pointer to copy; it is cheaper to copy the array slot unconditionally.
-    block_ptrs_.here[0] = block_ptrs_.here[1];
-    end_ -= PtrDistance(block_ptrs_.here, iter);
-  } else {
-    begin_ = iter;
-  }
-  if (length == first->size()) {
-    first->Unref();
-    return;
-  }
+  IntrusiveSharedPtr<RawBlock> first = PopFront();
+  if (length == first->size()) return;
   absl::string_view data(*first);
   data.remove_prefix(length);
   // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Prepend(data, options);
-    first->Unref();
     return;
   }
-  PrependRawBlock<Ownership::kSteal>(
-      ExternalMethodsFor<BlockRef>::NewBlock(
-          riegeli::Maker(
-              first, std::integral_constant<Ownership, Ownership::kSteal>()),
-          data),
-      options);
+  PrependRawBlock(ExternalMethodsFor<BlockRef>::NewBlock(
+                      riegeli::Maker(std::move(first)), data),
+                  options);
 }
 
 void swap(Chain& a, Chain& b) noexcept {
