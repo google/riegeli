@@ -100,13 +100,11 @@ inline std::vector<std::string> ToStringVector(Values&& values) {
 
 #if __cplusplus >= 202002L
 
-namespace std {
-
 template <typename T1, typename T2, template <typename> class TQual,
           template <typename> class UQual>
-struct basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
-                              std::pair<std::string, std::string>, TQual,
-                              UQual> {
+struct std::basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
+                                   std::pair<std::string, std::string>, TQual,
+                                   UQual> {
   using type = riegeli::csv_internal::ReferencePair<
       std::common_reference_t<TQual<T1>, UQual<std::string>>,
       std::common_reference_t<TQual<T2>, UQual<std::string>>>;
@@ -114,9 +112,9 @@ struct basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
 
 template <typename T1, typename T2, template <typename> class TQual,
           template <typename> class UQual>
-struct basic_common_reference<std::pair<std::string, std::string>,
-                              riegeli::csv_internal::ReferencePair<T1, T2>,
-                              TQual, UQual> {
+struct std::basic_common_reference<std::pair<std::string, std::string>,
+                                   riegeli::csv_internal::ReferencePair<T1, T2>,
+                                   TQual, UQual> {
   using type = riegeli::csv_internal::ReferencePair<
       std::common_reference_t<TQual<std::string>, UQual<T1>>,
       std::common_reference_t<TQual<std::string>, UQual<T2>>>;
@@ -124,15 +122,13 @@ struct basic_common_reference<std::pair<std::string, std::string>,
 
 template <typename T1, typename T2, typename U1, typename U2,
           template <typename> class TQual, template <typename> class UQual>
-struct basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
-                              riegeli::csv_internal::ReferencePair<U1, U2>,
-                              TQual, UQual> {
+struct std::basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
+                                   riegeli::csv_internal::ReferencePair<U1, U2>,
+                                   TQual, UQual> {
   using type = riegeli::csv_internal::ReferencePair<
       std::common_reference_t<TQual<T1>, UQual<U1>>,
       std::common_reference_t<TQual<T2>, UQual<U2>>>;
 };
-
-}  // namespace std
 
 #endif
 
