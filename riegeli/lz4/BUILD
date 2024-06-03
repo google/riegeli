@@ -29,7 +29,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@lz4",
+        "@lz4//:lz4_frame",
     ],
 )
 
@@ -60,6 +60,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@lz4",
+        "@lz4//:lz4_frame",
     ],
 )
 
@@ -76,6 +77,6 @@ cc_library(
         "//riegeli/base:shared_ptr",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
-        "@lz4",
+        "@lz4//:lz4_frame",
     ],
 )

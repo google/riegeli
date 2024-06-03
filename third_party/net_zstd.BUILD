@@ -6,7 +6,7 @@ package(
 licenses(["notice"])
 
 cc_library(
-    name = "zstdlib",
+    name = "zstd",
     srcs = glob([
         "common/*.c",
         "common/*.h",

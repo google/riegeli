@@ -6,7 +6,7 @@ package(
 licenses(["notice"])
 
 cc_library(
-    name = "bz2lib",
+    name = "bz2",
     srcs = [
         "blocksort.c",
         "bzlib.c",

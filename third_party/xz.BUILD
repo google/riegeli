@@ -107,7 +107,7 @@ filegroup(
 )
 
 cc_library(
-    name = "liblzma",
+    name = "lzma",
     hdrs = [lzma_dir + "api/lzma.h"],
     strip_include_prefix = lzma_dir + "api",
     deps = ["liblzma_impl"],

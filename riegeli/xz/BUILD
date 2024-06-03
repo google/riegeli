@@ -26,7 +26,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@xz//:liblzma",
+        "@xz//:lzma",
     ],
 )
 
@@ -53,7 +53,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@xz//:liblzma",
+        "@xz//:lzma",
     ],
 )
 
@@ -66,6 +66,6 @@ cc_library(
         "//riegeli/base:assert",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@xz//:liblzma",
+        "@xz//:lzma",
     ],
 )

@@ -29,7 +29,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@net_zstd//:zstdlib",
+        "@net_zstd//:zstd",
     ],
 )
 
@@ -59,7 +59,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@net_zstd//:zstdlib",
+        "@net_zstd//:zstd",
     ],
 )
 
@@ -79,6 +79,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "@net_zstd//:zstdlib",
+        "@net_zstd//:zstd",
     ],
 )
