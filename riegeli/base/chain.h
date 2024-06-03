@@ -466,7 +466,7 @@ class Chain : public WithCompare<Chain> {
 
   explicit Chain(RawBlock* block);
 
-  void ClearSlow();
+  bool ClearSlow();
   absl::string_view FlattenSlow();
 
   bool has_here() const { return begin_ == block_ptrs_.here; }
@@ -506,6 +506,24 @@ class Chain : public WithCompare<Chain> {
   // array of block offset, e.g. with `RefreshFront()`.
   RawBlock* const& front() const { return begin_[0].block_ptr; }
 
+  void Initialize(RawBlock* block);
+  void Initialize(absl::string_view src);
+  void InitializeSlow(absl::string_view src);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void Initialize(Src&& src);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void InitializeSlow(Src&& src);
+  void Initialize(const absl::Cord& src);
+  void Initialize(absl::Cord&& src);
+  // This template is defined and used only in chain.cc.
+  template <typename CordRef>
+  void InitializeFromCord(CordRef&& src);
+  void Initialize(const Chain& src);
+  void CopyToSlow(char* dest) const;
+  std::string ToString() const;
+
   void SetBack(RawBlock* block);
   void SetFront(RawBlock* block);
   // Like `SetFront()`, but skips the `RefreshFront()` step. This is enough if
@@ -525,7 +543,6 @@ class Chain : public WithCompare<Chain> {
   void PrependBlocks(const BlockPtr* begin, const BlockPtr* end);
   void ReserveBack(size_t extra_capacity);
   void ReserveFront(size_t extra_capacity);
-
   void ReserveBackSlow(size_t extra_capacity);
   void ReserveFrontSlow(size_t extra_capacity);
 
@@ -544,19 +561,19 @@ class Chain : public WithCompare<Chain> {
   template <Ownership ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, Options options);
 
-  // If `ref_block` is present, it should be a functor equivalent to
-  // `[&] { return block->Ref(); }`, but it can achieve that by stealing
-  // a reference to `block` from elsewhere instead.
+  // This template is defined and used only in chain.cc.
+  template <Ownership ownership>
   void AppendRawBlock(RawBlock* block, Options options);
-  template <typename RefBlock>
-  void AppendRawBlock(RawBlock* block, Options options, RefBlock ref_block);
+  // This template is defined and used only in chain.cc.
+  template <Ownership ownership>
   void PrependRawBlock(RawBlock* block, Options options);
-  template <typename RefBlock>
-  void PrependRawBlock(RawBlock* block, Options options, RefBlock ref_block);
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
   void AppendCord(CordRef&& src, Options options);
+  // This template is defined and used only in chain.cc.
+  template <typename CordRef>
+  void AppendCordSlow(CordRef&& src, Options options);
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
   void PrependCord(CordRef&& src, Options options);
@@ -638,13 +655,13 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
       // rounds in the same way as right shift (towards -inf), not as division
       // (towards zero), so the right shift allows the compiler to eliminate the
       // `is_special()` check.
-      switch (sizeof(Chain::RawBlock*)) {
+      switch (sizeof(RawBlock*)) {
         case 1 << 2:
           return byte_diff >> 2;
         case 1 << 3:
           return byte_diff >> 3;
         default:
-          return byte_diff / ptrdiff_t{sizeof(Chain::RawBlock*)};
+          return byte_diff / ptrdiff_t{sizeof(RawBlock*)};
       }
     }
     return a.as_ptr() - b.as_ptr();
@@ -1172,12 +1189,10 @@ template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
   // `object`, and sets block data to `absl::string_view(new_object)`.
-  template <typename... Args>
   static RawBlock* NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
   // `object`, and sets block data to `data`.
-  template <typename... Args>
   static RawBlock* NewBlock(Initializer<T> object, absl::string_view data);
 
  private:
@@ -1201,7 +1216,6 @@ constexpr Chain::ExternalMethods Chain::ExternalMethodsFor<T>::kMethods;
 #endif
 
 template <typename T>
-template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     Initializer<T> object) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
@@ -1209,7 +1223,6 @@ inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
 }
 
 template <typename T>
-template <typename... Args>
 inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     Initializer<T> object, absl::string_view data) {
   return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
@@ -1626,13 +1639,13 @@ template <typename T,
                                                  InitializerTargetT<T>&>::value,
                            int>>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(Chain::ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+  return Chain(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
       std::forward<T>(object)));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
-  return Chain(Chain::ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+  return Chain(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
       std::forward<T>(object), data));
 }
 
@@ -1641,35 +1654,16 @@ constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();
 }
 
-inline Chain::Chain(RawBlock* block) {
-  (end_++)->block_ptr = block;
-  size_ = block->size();
-}
+inline Chain::Chain(RawBlock* block) { Initialize(block); }
 
-// In converting constructors below, `set_size_hint(src.size())` optimizes
-// for the case when the resulting `Chain` will not be appended to further,
-// reducing the size of allocations.
-
-inline Chain::Chain(absl::string_view src) {
-  Append(src, Options().set_size_hint(src.size()));
-}
+inline Chain::Chain(absl::string_view src) { Initialize(src); }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline Chain::Chain(Src&& src) {
-  const size_t size = src.size();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Append(std::move(src), Options().set_size_hint(size));
-}
-
-inline Chain::Chain(const absl::Cord& src) {
-  Append(src, Options().set_size_hint(src.size()));
-}
-
-inline Chain::Chain(absl::Cord&& src) {
-  const size_t size = src.size();
-  Append(std::move(src), Options().set_size_hint(size));
+  Initialize(std::move(src));
 }
 
 inline Chain::Chain(const SizedSharedBuffer& src) {
@@ -1734,36 +1728,43 @@ inline Chain::~Chain() {
 
 inline void Chain::Reset() { Clear(); }
 
-inline void Chain::Reset(absl::string_view src) {
-  Clear();
-  Append(src, Options().set_size_hint(src.size()));
+extern template void Chain::Reset(std::string&& src);
+
+inline void Chain::Clear() {
+  size_ = 0;
+  if (begin_ != end_) ClearSlow();
+}
+
+inline void Chain::Initialize(RawBlock* block) {
+  size_ = block->size();
+  (end_++)->block_ptr = block;
+}
+
+inline void Chain::Initialize(absl::string_view src) {
+  if (src.size() <= kMaxShortDataSize) {
+    if (src.empty()) return;
+    size_ = src.size();
+    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
+    return;
+  }
+  InitializeSlow(src);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Reset(Src&& src) {
-  Clear();
-  const size_t size = src.size();
+inline void Chain::Initialize(Src&& src) {
+  if (src.size() <= kMaxShortDataSize) {
+    if (src.empty()) return;
+    size_ = src.size();
+    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
+    return;
+  }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Append(std::move(src), Options().set_size_hint(size));
+  InitializeSlow(std::move(src));
 }
 
-inline void Chain::Reset(const absl::Cord& src) {
-  Clear();
-  Append(src, Options().set_size_hint(src.size()));
-}
-
-inline void Chain::Reset(absl::Cord&& src) {
-  Clear();
-  const size_t size = src.size();
-  Append(std::move(src), Options().set_size_hint(size));
-}
-
-inline void Chain::Clear() {
-  if (begin_ != end_) ClearSlow();
-  size_ = 0;
-}
+extern template void Chain::InitializeSlow(std::string&& src);
 
 inline absl::string_view Chain::short_data() const {
   RIEGELI_ASSERT(begin_ == end_)
@@ -1784,30 +1785,6 @@ inline void Chain::UnrefBlocks() { UnrefBlocks(begin_, end_); }
 
 inline void Chain::UnrefBlocks(const BlockPtr* begin, const BlockPtr* end) {
   if (begin != end) UnrefBlocksSlow(begin, end);
-}
-
-inline void Chain::SetBack(RawBlock* block) {
-  end_[-1].block_ptr = block;
-  // There is no need to adjust block offsets because the size of the last block
-  // is not reflected in block offsets.
-}
-
-inline void Chain::SetFront(RawBlock* block) {
-  SetFrontSameSize(block);
-  RefreshFront();
-}
-
-inline void Chain::SetFrontSameSize(RawBlock* block) {
-  begin_[0].block_ptr = block;
-}
-
-inline void Chain::RefreshFront() {
-  if (has_allocated()) {
-    begin_[block_offsets()].block_offset =
-        begin_ + 1 == end_ ? size_t{0}
-                           : begin_[block_offsets() + 1].block_offset -
-                                 begin_[0].block_ptr->size();
-  }
 }
 
 inline Chain::Blocks Chain::blocks() const { return Blocks(this); }

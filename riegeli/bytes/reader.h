@@ -824,13 +824,13 @@ inline bool Reader::Read(size_t length, std::string& dest,
 }
 
 inline bool Reader::Read(size_t length, Chain& dest, size_t* length_read) {
-  dest.Clear();
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    dest.Append(absl::string_view(cursor(), length));
+    dest.Reset(absl::string_view(cursor(), length));
     move_cursor(length);
     if (length_read != nullptr) *length_read = length;
     return true;
   }
+  dest.Clear();
   if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
   return ReadSlow(length, dest);
 }
@@ -893,7 +893,7 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest,
     if (length_read != nullptr) *length_read = length;
     return true;
   }
-  // Check the size in case it would overflow in the fast path. and also before
+  // Check the size in case it would overflow in the fast path, and before
   // calling virtual `ReadSlow(absl::Cord&)`.
   if (length_read != nullptr) {
     return ReadSlowWithSizeCheck(length, dest, *length_read);
