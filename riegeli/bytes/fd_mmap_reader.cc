@@ -170,11 +170,13 @@ class MMapRef {
 
   void operator()(absl::string_view data) const;
 
+  // Support `Chain::FromExternal()`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
                                    std::ostream& out) {
     out << "[mmap] { }";
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const MMapRef* self,

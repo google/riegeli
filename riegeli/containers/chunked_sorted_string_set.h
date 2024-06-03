@@ -233,17 +233,17 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
   friend bool operator==(const ChunkedSortedStringSet& a,
                          const ChunkedSortedStringSet& b) {
-    return EqualImpl(a, b);
+    return Equal(a, b);
   }
   friend StrongOrdering RIEGELI_COMPARE(const ChunkedSortedStringSet& a,
                                         const ChunkedSortedStringSet& b) {
-    return CompareImpl(a, b);
+    return Compare(a, b);
   }
 
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state,
                                  const ChunkedSortedStringSet& self) {
-    return self.AbslHashValueImpl(std::move(hash_state));
+    return self.HashValue(std::move(hash_state));
   }
 
   // Estimates the amount of memory used by this `ChunkedSortedStringSet`,
@@ -343,12 +343,12 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
   uintptr_t CopyAllocatedRepr() const;
 
-  static bool EqualImpl(const ChunkedSortedStringSet& a,
-                        const ChunkedSortedStringSet& b);
-  static StrongOrdering CompareImpl(const ChunkedSortedStringSet& a,
-                                    const ChunkedSortedStringSet& b);
+  static bool Equal(const ChunkedSortedStringSet& a,
+                    const ChunkedSortedStringSet& b);
+  static StrongOrdering Compare(const ChunkedSortedStringSet& a,
+                                const ChunkedSortedStringSet& b);
   template <typename HashState>
-  HashState AbslHashValueImpl(HashState hash_state);
+  HashState HashValue(HashState hash_state);
 
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
@@ -646,9 +646,7 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   }
   std::vector<SrcIterator> iterators;
   iterators.reserve(options.size_hint());
-  for (; iter != end_iter; ++iter) {
-    iterators.push_back(iter);
-  }
+  for (; iter != end_iter; ++iter) iterators.push_back(iter);
   std::sort(iterators.begin(), iterators.end(),
             [](const SrcIterator& a, const SrcIterator& b) {
               return absl::string_view(*a) < absl::string_view(*b);
@@ -704,7 +702,7 @@ inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
 }
 
 template <typename HashState>
-HashState ChunkedSortedStringSet::AbslHashValueImpl(HashState hash_state) {
+HashState ChunkedSortedStringSet::HashValue(HashState hash_state) {
   for (const absl::string_view element : *this) {
     hash_state = HashState::combine(std::move(hash_state), element);
   }

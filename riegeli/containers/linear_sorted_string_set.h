@@ -204,17 +204,17 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
 
   friend bool operator==(const LinearSortedStringSet& a,
                          const LinearSortedStringSet& b) {
-    return EqualImpl(a, b);
+    return Equal(a, b);
   }
   friend StrongOrdering RIEGELI_COMPARE(const LinearSortedStringSet& a,
                                         const LinearSortedStringSet& b) {
-    return CompareImpl(a, b);
+    return Compare(a, b);
   }
 
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state,
                                  const LinearSortedStringSet& self) {
-    return self.AbslHashValueImpl(std::move(hash_state));
+    return self.HashValue(std::move(hash_state));
   }
 
   // Estimates the amount of memory used by this `LinearSortedStringSet`,
@@ -248,12 +248,12 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
  private:
   explicit LinearSortedStringSet(CompactString&& encoded);
 
-  static bool EqualImpl(const LinearSortedStringSet& a,
-                        const LinearSortedStringSet& b);
-  static StrongOrdering CompareImpl(const LinearSortedStringSet& a,
-                                    const LinearSortedStringSet& b);
+  static bool Equal(const LinearSortedStringSet& a,
+                    const LinearSortedStringSet& b);
+  static StrongOrdering Compare(const LinearSortedStringSet& a,
+                                const LinearSortedStringSet& b);
   template <typename HashState>
-  HashState AbslHashValueImpl(HashState hash_state);
+  HashState HashValue(HashState hash_state);
 
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
@@ -708,9 +708,7 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
           std::random_access_iterator_tag>::value) {
     iterators.reserve(std::distance(iter, end_iter));
   }
-  for (; iter != end_iter; ++iter) {
-    iterators.push_back(iter);
-  }
+  for (; iter != end_iter; ++iter) iterators.push_back(iter);
   std::sort(iterators.begin(), iterators.end(),
             [](const SrcIterator& a, const SrcIterator& b) {
               return absl::string_view(*a) < absl::string_view(*b);
@@ -745,7 +743,7 @@ LinearSortedStringSet::split_elements() const {
 }
 
 template <typename HashState>
-HashState LinearSortedStringSet::AbslHashValueImpl(HashState hash_state) {
+HashState LinearSortedStringSet::HashValue(HashState hash_state) {
   size_t size = 0;
   for (const absl::string_view element : *this) {
     hash_state = HashState::combine(std::move(hash_state), element);

@@ -50,7 +50,7 @@ using StrongOrdering = absl::strong_ordering;
 //
 // It should return `PartialOrdering` or `StrongOrdering`.
 //
-// It is meant to be called by `Compare(a, b)`, not directly as
+// It is meant to be called by `riegeli::Compare(a, b)`, not directly as
 // `RIEGELI_COMPARE(a, b)`.
 #if __cpp_impl_three_way_comparison
 #define RIEGELI_COMPARE operator<=>
@@ -259,7 +259,7 @@ struct HasCompareWithLiteral0<T, absl::void_t<decltype(
 
 }  // namespace compare_internal
 
-// Call `Compare(a, b)` instead of C++20 `a <=> b`.
+// Call `riegeli::Compare(a, b)` instead of C++20 `a <=> b`.
 template <typename A, typename B,
           std::enable_if_t<compare_internal::HasCompare<A, B>::value, int> = 0>
 inline auto Compare(const A& a, const B& b) {
@@ -272,8 +272,8 @@ inline auto Compare(const A& a, const B& b) {
 
 // Call `NegateOrdering(ordering)` instead of C++20 `0 <=> ordering`.
 //
-// `Compare(0, ordering)` does not work because it does not properly forward to
-// `<=>` the property that the argument is a literal 0.
+// `riegeli::Compare(0, ordering)` does not work because it does not properly
+// forward to `<=>` the property that the argument is a literal 0.
 
 template <typename Ordering,
           std::enable_if_t<

@@ -241,13 +241,13 @@ struct HasRiegeliDynamicSizeOf<
 
 template <typename T,
           std::enable_if_t<HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOfImpl(const T* object) {
+inline size_t DynamicSizeOf(const T* object) {
   return RiegeliDynamicSizeOf(object);
 }
 
 template <typename T,
           std::enable_if_t<!HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOfImpl(ABSL_ATTRIBUTE_UNUSED const T* object) {
+inline size_t DynamicSizeOf(ABSL_ATTRIBUTE_UNUSED const T* object) {
   return sizeof(T);
 }
 
@@ -262,8 +262,8 @@ struct HasRiegeliRegisterSubobjects<
 
 template <typename T,
           std::enable_if_t<HasRiegeliRegisterSubobjects<T>::value, int> = 0>
-inline void RegisterSubobjectsImpl(const T* object,
-                                   MemoryEstimator& memory_estimator) {
+inline void RegisterSubobjects(const T* object,
+                               MemoryEstimator& memory_estimator) {
   RiegeliRegisterSubobjects(object, memory_estimator);
 }
 
@@ -272,7 +272,7 @@ template <typename T,
               absl::conjunction<absl::negation<HasRiegeliRegisterSubobjects<T>>,
                                 std::is_trivially_destructible<T>>::value,
               int> = 0>
-inline void RegisterSubobjectsImpl(
+inline void RegisterSubobjects(
     ABSL_ATTRIBUTE_UNUSED const T* object,
     ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
@@ -282,8 +282,8 @@ template <typename T,
                   absl::negation<HasRiegeliRegisterSubobjects<T>>,
                   absl::negation<std::is_trivially_destructible<T>>>::value,
               int> = 0>
-inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T* object,
-                                   MemoryEstimator& memory_estimator) {
+inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
+                               MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
 }
 
@@ -291,12 +291,12 @@ inline void RegisterSubobjectsImpl(ABSL_ATTRIBUTE_UNUSED const T* object,
 
 template <typename T>
 inline size_t MemoryEstimator::DynamicSizeOf(const T* object) {
-  return memory_estimator_internal::DynamicSizeOfImpl(object);
+  return memory_estimator_internal::DynamicSizeOf(object);
 }
 
 template <typename T>
 inline void MemoryEstimator::RegisterSubobjects(const T* object) {
-  memory_estimator_internal::RegisterSubobjectsImpl(object, *this);
+  memory_estimator_internal::RegisterSubobjects(object, *this);
 }
 
 template <typename T, std::enable_if_t<std::is_reference<T>::value, int>>
@@ -321,9 +321,7 @@ inline void MemoryEstimator::RegisterSubobjectsOfElements(const T* iterable) {
   using std::begin;
   if (!RegisterSubobjectsIsTrivial<
           std::remove_reference_t<decltype(*begin(*iterable))>>::value) {
-    for (const auto& element : *iterable) {
-      RegisterSubobjects(&element);
-    }
+    for (const auto& element : *iterable) RegisterSubobjects(&element);
   }
 }
 

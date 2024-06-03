@@ -247,13 +247,13 @@ bool LinearSortedStringSet::contains(absl::string_view element) const {
   return false;  // Not found.
 }
 
-bool LinearSortedStringSet::EqualImpl(const LinearSortedStringSet& a,
-                                      const LinearSortedStringSet& b) {
+bool LinearSortedStringSet::Equal(const LinearSortedStringSet& a,
+                                  const LinearSortedStringSet& b) {
   return std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
 }
 
-StrongOrdering LinearSortedStringSet::CompareImpl(
-    const LinearSortedStringSet& a, const LinearSortedStringSet& b) {
+StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
+                                              const LinearSortedStringSet& b) {
   Iterator a_iter = a.cbegin();
   Iterator b_iter = b.cbegin();
   while (a_iter != a.cend()) {

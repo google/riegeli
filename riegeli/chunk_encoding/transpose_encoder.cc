@@ -144,13 +144,13 @@ struct PriorityQueueEntry : WithCompare<PriorityQueueEntry> {
     // Sort by `num_transitions`. Largest first.
     {
       const StrongOrdering ordering =
-          Compare(b.num_transitions, a.num_transitions);
+          riegeli::Compare(b.num_transitions, a.num_transitions);
       if (ordering != 0) {
         return ordering;
       }
     }
     // Break ties for reproducible ordering.
-    return Compare(a.dest_index, b.dest_index);
+    return riegeli::Compare(a.dest_index, b.dest_index);
   }
 
   // Index of the destination in `tags_list_`.

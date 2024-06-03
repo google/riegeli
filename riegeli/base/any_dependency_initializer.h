@@ -81,7 +81,7 @@ class AnyDependencyInitializer {
       : construct_(ConstructMethod<Manager>),
         context_(const_cast<absl::remove_cvref_t<Manager>*>(&manager)) {}
 
-  AnyDependencyInitializer(AnyDependencyInitializer&& other) = default;
+  AnyDependencyInitializer(AnyDependencyInitializer&& that) = default;
   AnyDependencyInitializer& operator=(AnyDependencyInitializer&&) = delete;
 
  private:

@@ -94,7 +94,7 @@ class InitializerBase {
   template <typename Arg>
   explicit InitializerBase(const Methods* methods, Arg&& arg);
 
-  InitializerBase(InitializerBase&& other) = default;
+  InitializerBase(InitializerBase&& that) = default;
   InitializerBase& operator=(InitializerBase&&) = delete;
 
   template <typename Dummy = void>
@@ -287,7 +287,7 @@ class InitializerValueBase : public InitializerBase<T> {
       : InitializerValueBase::InitializerBase(methods, std::forward<Arg>(arg)) {
   }
 
-  InitializerValueBase(InitializerValueBase&& other) = default;
+  InitializerValueBase(InitializerValueBase&& that) = default;
   InitializerValueBase& operator=(InitializerValueBase&&) = delete;
 
   const Methods* methods() const {
@@ -404,7 +404,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
       : InitializerAssignableValueBase::InitializerValueBase(
             methods, std::forward<Arg>(arg)) {}
 
-  InitializerAssignableValueBase(InitializerAssignableValueBase&& other) =
+  InitializerAssignableValueBase(InitializerAssignableValueBase&& that) =
       default;
   InitializerAssignableValueBase& operator=(InitializerAssignableValueBase&&) =
       delete;
@@ -520,7 +520,7 @@ class Initializer
   /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
       : Initializer::InitializerAssignableValueBase(std::move(initializer)) {}
 
-  Initializer(Initializer&& other) = default;
+  Initializer(Initializer&& that) = default;
   Initializer& operator=(Initializer&&) = delete;
 };
 
@@ -610,7 +610,7 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
       : Initializer::InitializerValueBase(std::move(initializer)) {}
 
-  Initializer(Initializer&& other) = default;
+  Initializer(Initializer&& that) = default;
   Initializer& operator=(Initializer&&) = delete;
 };
 
@@ -687,7 +687,7 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
       : Initializer::InitializerBase(std::move(initializer)) {}
 
-  Initializer(Initializer&& other) = default;
+  Initializer(Initializer&& that) = default;
   Initializer& operator=(Initializer&&) = delete;
 
   // `Reference()` and `ConstReference()` can be defined in terms of

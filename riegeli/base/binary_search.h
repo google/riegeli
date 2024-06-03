@@ -80,37 +80,37 @@ struct SearchGuide {
   explicit SearchGuide(Ordering ordering, Pos&& next)
       : ordering(AsPartialOrdering(ordering)), next(std::move(next)) {}
 
-  SearchGuide(const SearchGuide& other) = default;
-  SearchGuide& operator=(const SearchGuide& other) = default;
+  SearchGuide(const SearchGuide& that) = default;
+  SearchGuide& operator=(const SearchGuide& that) = default;
 
-  SearchGuide(SearchGuide&& other) = default;
-  SearchGuide& operator=(SearchGuide&& other) = default;
+  SearchGuide(SearchGuide&& that) = default;
+  SearchGuide& operator=(SearchGuide&& that) = default;
 
   template <
       typename OtherPos,
       std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
-  /*implicit*/ SearchGuide(const SearchGuide<OtherPos>& other)
-      : ordering(other.ordering), next(other.next) {}
+  /*implicit*/ SearchGuide(const SearchGuide<OtherPos>& that)
+      : ordering(that.ordering), next(that.next) {}
   template <
       typename OtherPos,
       std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
-  SearchGuide& operator=(const SearchGuide<OtherPos>& other) {
-    ordering = other.ordering;
-    next = other.next;
+  SearchGuide& operator=(const SearchGuide<OtherPos>& that) {
+    ordering = that.ordering;
+    next = that.next;
     return *this;
   }
 
   template <
       typename OtherPos,
       std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
-  /*implicit*/ SearchGuide(SearchGuide<OtherPos>&& other)
-      : ordering(other.ordering), next(std::move(other.next)) {}
+  /*implicit*/ SearchGuide(SearchGuide<OtherPos>&& that)
+      : ordering(that.ordering), next(std::move(that.next)) {}
   template <
       typename OtherPos,
       std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
-  SearchGuide& operator=(SearchGuide<OtherPos>&& other) {
-    ordering = other.ordering;
-    next = std::move(other.next);
+  SearchGuide& operator=(SearchGuide<OtherPos>&& that) {
+    ordering = that.ordering;
+    next = std::move(that.next);
     return *this;
   }
 

@@ -87,12 +87,13 @@ class RecordPosition : public WithCompare<RecordPosition> {
   friend StrongOrdering RIEGELI_COMPARE(const RecordPosition& a,
                                         const RecordPosition& b) {
     {
-      const StrongOrdering ordering = Compare(a.chunk_begin(), b.chunk_begin());
+      const StrongOrdering ordering =
+          riegeli::Compare(a.chunk_begin(), b.chunk_begin());
       if (ordering != 0) {
         return ordering;
       }
     }
-    return Compare(a.record_index(), b.record_index());
+    return riegeli::Compare(a.record_index(), b.record_index());
   }
 
   template <typename HashState>
@@ -111,12 +112,12 @@ class RecordPosition : public WithCompare<RecordPosition> {
 
   // Writes `self.ToString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, RecordPosition self) {
-    self.OutputImpl(out);
+    self.Output(out);
     return out;
   }
 
  private:
-  void OutputImpl(std::ostream& out) const;
+  void Output(std::ostream& out) const;
 
   // Invariant:
   //   `record_index_ <= std::numeric_limits<uint64_t>::max() - chunk_begin_`
@@ -157,6 +158,7 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   Position get() const;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FutureChunkBegin* self,
                                         MemoryEstimator& memory_estimator) {
@@ -207,6 +209,7 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   RecordPosition get() const;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FutureRecordPosition* self,
                                         MemoryEstimator& memory_estimator) {
@@ -239,6 +242,7 @@ class FutureChunkBegin::Unresolved {
 
   Position get() const;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Unresolved* self,
                                         MemoryEstimator& memory_estimator) {

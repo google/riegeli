@@ -285,7 +285,7 @@ absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
   return iter->second;
 }
 
-bool CsvHeader::EqualImpl(const CsvHeader& a, const CsvHeader& b) {
+bool CsvHeader::Equal(const CsvHeader& a, const CsvHeader& b) {
   if (ABSL_PREDICT_TRUE(a.payload_ == b.payload_)) return true;
   if (a.payload_ == nullptr || b.payload_ == nullptr) return false;
   return a.payload_->index_to_name == b.payload_->index_to_name;
@@ -314,7 +314,7 @@ std::string CsvHeader::DebugString() const {
   return result;
 }
 
-void CsvHeader::OutputImpl(std::ostream& out) const {
+void CsvHeader::Output(std::ostream& out) const {
   OStreamWriter<> writer(&out);
   WriteDebugStringTo(writer);
   writer.Close();
@@ -440,7 +440,7 @@ absl::Status CsvRecord::FailMissingNames(
   return absl::FailedPreconditionError(message.dest());
 }
 
-bool CsvRecord::EqualImpl(const CsvRecord& a, const CsvRecord& b) {
+bool CsvRecord::Equal(const CsvRecord& a, const CsvRecord& b) {
   return a.header() == b.header() && a.fields() == b.fields();
 }
 
@@ -464,7 +464,7 @@ std::string CsvRecord::DebugString() const {
   return result;
 }
 
-void CsvRecord::OutputImpl(std::ostream& out) const {
+void CsvRecord::Output(std::ostream& out) const {
   OStreamWriter<> writer(&out);
   WriteDebugStringTo(writer);
   writer.Close();

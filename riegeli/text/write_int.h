@@ -49,7 +49,7 @@ class DecType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsInt<DependentT>::value, int> = 0>
   friend void AbslStringify(Sink& sink, const DecType& self) {
-    self.AbslStringifyImpl(sink);
+    self.Stringify(sink);
   }
 
   template <typename DependentT = T,
@@ -64,14 +64,12 @@ class DecType {
  private:
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(Sink& sink) const;
+  void Stringify(Sink& sink) const;
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(Sink& sink) const;
+  void Stringify(Sink& sink) const;
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const {
-    WriteTo(*sink.dest());
-  }
+  void Stringify(WriterAbslStringifySink& sink) const { WriteTo(*sink.dest()); }
 
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
@@ -140,7 +138,7 @@ class HexType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsInt<DependentT>::value, int> = 0>
   friend void AbslStringify(Sink& sink, const HexType& self) {
-    self.AbslStringifyImpl(sink);
+    self.Stringify(sink);
   }
 
   template <typename DependentT = T,
@@ -155,14 +153,12 @@ class HexType {
  private:
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(Sink& sink) const;
+  void Stringify(Sink& sink) const;
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
-  void AbslStringifyImpl(Sink& sink) const;
+  void Stringify(Sink& sink) const;
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void AbslStringifyImpl(WriterAbslStringifySink& sink) const {
-    WriteTo(*sink.dest());
-  }
+  void Stringify(WriterAbslStringifySink& sink) const { WriteTo(*sink.dest()); }
 
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
@@ -384,7 +380,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
 template <typename T>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void DecType<T>::AbslStringifyImpl(Sink& sink) const {
+inline void DecType<T>::Stringify(Sink& sink) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
   char str[kMaxNumDigits];
@@ -398,7 +394,7 @@ inline void DecType<T>::AbslStringifyImpl(Sink& sink) const {
 template <typename T>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void DecType<T>::AbslStringifyImpl(Sink& sink) const {
+inline void DecType<T>::Stringify(Sink& sink) const {
   // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
   constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
   // `+ 1` for the minus sign.
@@ -458,7 +454,7 @@ inline void DecType<T>::WriteTo(Writer& dest) const {
 template <typename T>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void HexType<T>::AbslStringifyImpl(Sink& sink) const {
+inline void HexType<T>::Stringify(Sink& sink) const {
   constexpr size_t kMaxNumDigits =
       write_int_internal::MaxLengthWriteHexUnsignedBackward<T>();
   size_t width = width_;
@@ -476,7 +472,7 @@ inline void HexType<T>::AbslStringifyImpl(Sink& sink) const {
 template <typename T>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void HexType<T>::AbslStringifyImpl(Sink& sink) const {
+inline void HexType<T>::Stringify(Sink& sink) const {
   constexpr size_t kMaxNumDigits =
       write_int_internal::MaxLengthWriteHexUnsignedBackward<MakeUnsignedT<T>>();
   size_t width = width_;

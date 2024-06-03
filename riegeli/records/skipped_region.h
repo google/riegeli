@@ -67,12 +67,12 @@ class SkippedRegion {
   // Writes `self.ToString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out,
                                   const SkippedRegion& self) {
-    self.OutputImpl(out);
+    self.Output(out);
     return out;
   }
 
  private:
-  void OutputImpl(std::ostream& out) const;
+  void Output(std::ostream& out) const;
 
   Position begin_ = 0;
   Position end_ = 0;

@@ -41,9 +41,7 @@ bool DigesterBaseHandle::WriteChainFallback(
 void DigesterBaseHandle::WriteChainFallback(
     void* target, const Chain& src,
     void (*write)(void* target, absl::string_view src)) {
-  for (const absl::string_view fragment : src.blocks()) {
-    write(target, fragment);
-  }
+  for (const absl::string_view fragment : src.blocks()) write(target, fragment);
 }
 
 bool DigesterBaseHandle::WriteCordFallback(
@@ -71,9 +69,7 @@ void DigesterBaseHandle::WriteCordFallback(
       return;
     }
   }
-  for (const absl::string_view fragment : src.Chunks()) {
-    write(target, fragment);
-  }
+  for (const absl::string_view fragment : src.Chunks()) write(target, fragment);
 }
 
 bool DigesterBaseHandle::WriteZerosFallback(

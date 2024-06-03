@@ -202,11 +202,12 @@ class
   // Allow Nullability annotations on `IntrusiveSharedPtr`.
   using absl_nullability_compatible = void;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedPtr* self,
                                         MemoryEstimator& memory_estimator) {
     if (memory_estimator.RegisterNode(self->get())) {
-      self->RegisterSubobjectsImpl(memory_estimator);
+      self->RegisterSubobjects(memory_estimator);
     }
   }
 
@@ -386,7 +387,7 @@ class
   template <typename MemoryEstimator, typename DependentT = T,
             std::enable_if_t<!std::has_virtual_destructor<DependentT>::value,
                              int> = 0>
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
     memory_estimator.RegisterDynamicMemory(
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
@@ -399,7 +400,7 @@ class
                 absl::conjunction<std::has_virtual_destructor<DependentT>,
                                   std::is_final<DependentT>>::value,
                 int> = 0>
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     memory_estimator.RegisterDynamicMemory(
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
@@ -413,7 +414,7 @@ class
           absl::conjunction<std::has_virtual_destructor<DependentT>,
                             absl::negation<std::is_final<DependentT>>>::value,
           int> = 0>
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     // `kOffset` is not necessarily accurate because the object can be of a
     // subtype of `T`, so do not pass the pointer to `RegisterDynamicMemory()`.

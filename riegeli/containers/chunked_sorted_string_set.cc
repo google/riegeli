@@ -101,13 +101,13 @@ bool ChunkedSortedStringSet::contains(absl::string_view element) const {
   return found_linear_set->contains(element);
 }
 
-bool ChunkedSortedStringSet::EqualImpl(const ChunkedSortedStringSet& a,
-                                       const ChunkedSortedStringSet& b) {
+bool ChunkedSortedStringSet::Equal(const ChunkedSortedStringSet& a,
+                                   const ChunkedSortedStringSet& b) {
   return a.size() == b.size() &&
          std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
 }
 
-StrongOrdering ChunkedSortedStringSet::CompareImpl(
+StrongOrdering ChunkedSortedStringSet::Compare(
     const ChunkedSortedStringSet& a, const ChunkedSortedStringSet& b) {
   Iterator a_iter = a.cbegin();
   Iterator b_iter = b.cbegin();

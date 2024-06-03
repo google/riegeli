@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <new>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -93,6 +92,7 @@ class
   // `*this` is left unchanged or deallocated.
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Buffer* self,
                                         MemoryEstimator& memory_estimator) {

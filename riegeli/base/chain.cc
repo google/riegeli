@@ -91,11 +91,13 @@ class FlatCordRef {
 
   explicit operator absl::string_view() const;
 
+  // Support `Chain::FromExternal()`.
   friend void RiegeliDumpStructure(
       ABSL_ATTRIBUTE_UNUSED const FlatCordRef* self, std::ostream& out) {
     out << "[cord] { }";
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FlatCordRef* self,
                                         MemoryEstimator& memory_estimator) {
@@ -210,6 +212,7 @@ class SharedBufferRef {
   SharedBufferRef(const SharedBufferRef&) = delete;
   SharedBufferRef& operator=(const SharedBufferRef&) = delete;
 
+  // Support `Chain::FromExternal()`.
   friend void RiegeliDumpStructure(const SharedBufferRef* self,
                                    absl::string_view data, std::ostream& out) {
     out << "[shared_buffer] {";
@@ -224,6 +227,7 @@ class SharedBufferRef {
     out << " }";
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBufferRef* self,
                                         MemoryEstimator& memory_estimator) {
@@ -241,6 +245,7 @@ class ZeroRef {
   ZeroRef(const ZeroRef&) = delete;
   ZeroRef& operator=(const ZeroRef&) = delete;
 
+  // Support `Chain::FromExternal()`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroRef* self,
                                    std::ostream& out) {
     out << "[zero] { }";
@@ -249,11 +254,20 @@ class ZeroRef {
 
 }  // namespace
 
+void RiegeliDumpStructure(const void* self, std::ostream& out) {
+  out << "[external] { }";
+}
+
+void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
+  out << "[string] { capacity: " << self->capacity() << " }";
+}
+
 class Chain::BlockRef {
  public:
   explicit BlockRef(RawBlock* block);
   explicit BlockRef(IntrusiveSharedPtr<RawBlock> block);
 
+  // Support `Chain::FromExternal()`.
   BlockRef(const BlockRef&) = delete;
   BlockRef& operator=(const BlockRef&) = delete;
 
@@ -265,6 +279,7 @@ class Chain::BlockRef {
     out << " }";
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const BlockRef* self,
                                         MemoryEstimator& memory_estimator) {
@@ -382,7 +397,7 @@ inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   out << " }";
 }
 
-size_t Chain::RawBlock::DynamicSizeOfImpl() const {
+size_t Chain::RawBlock::DynamicSizeOf() const {
   if (is_internal()) {
     return kInternalAllocatedOffset() + capacity();
   } else {
@@ -390,7 +405,7 @@ size_t Chain::RawBlock::DynamicSizeOfImpl() const {
   }
 }
 
-void Chain::RawBlock::RegisterSubobjectsImpl(
+void Chain::RawBlock::RegisterSubobjects(
     MemoryEstimator& memory_estimator) const {
   if (!is_internal()) {
     external_.methods->register_subobjects(this, memory_estimator);
@@ -1264,7 +1279,7 @@ size_t Chain::EstimateMemory() const {
   return memory_estimator.TotalMemory();
 }
 
-void Chain::RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const {
+void Chain::RegisterSubobjects(MemoryEstimator& memory_estimator) const {
   if (has_allocated()) {
     memory_estimator.RegisterMemory(
         2 *
@@ -2554,7 +2569,7 @@ void swap(Chain& a, Chain& b) noexcept {
   swap(a.size_, b.size_);
 }
 
-StrongOrdering Chain::CompareImpl(const Chain& a, const Chain& b) {
+StrongOrdering Chain::Compare(const Chain& a, const Chain& b) {
   BlockIterator a_iter = a.blocks().cbegin();
   BlockIterator b_iter = b.blocks().cbegin();
   size_t this_pos = 0;
@@ -2594,7 +2609,7 @@ StrongOrdering Chain::CompareImpl(const Chain& a, const Chain& b) {
   return StrongOrdering::equal;
 }
 
-StrongOrdering Chain::CompareImpl(const Chain& a, absl::string_view b) {
+StrongOrdering Chain::Compare(const Chain& a, absl::string_view b) {
   BlockIterator a_iter = a.blocks().cbegin();
   size_t this_pos = 0;
   size_t that_pos = 0;
@@ -2625,7 +2640,7 @@ StrongOrdering Chain::CompareImpl(const Chain& a, absl::string_view b) {
   return that_pos == b.size() ? StrongOrdering::equal : StrongOrdering::less;
 }
 
-void Chain::OutputImpl(std::ostream& out) const {
+void Chain::Output(std::ostream& out) const {
   std::ostream::sentry sentry(out);
   if (sentry) {
     if (ABSL_PREDICT_FALSE(

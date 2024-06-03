@@ -87,6 +87,7 @@ class DependencyBase {
 
   static constexpr bool kIsStable = false;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const DependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
@@ -122,6 +123,7 @@ class DependencyBase<Manager&> {
 
   static constexpr bool kIsStable = true;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,
@@ -153,6 +155,7 @@ class DependencyBase<Manager&&> {
 
   static constexpr bool kIsStable = true;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,

@@ -281,10 +281,10 @@ class Chain : public WithCompare<Chain> {
   void DumpStructure(std::ostream& out) const;
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
-  // Registers this `Chain` with `MemoryEstimator`.
+  // Support `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const Chain* self,
                                         MemoryEstimator& memory_estimator) {
-    self->RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjects(memory_estimator);
   }
 
   // Appends/prepends some uninitialized space. The buffer will have length at
@@ -357,32 +357,32 @@ class Chain : public WithCompare<Chain> {
   friend void swap(Chain& a, Chain& b) noexcept;
 
   friend bool operator==(const Chain& a, const Chain& b) {
-    return a.size() == b.size() && CompareImpl(a, b) == 0;
+    return a.size() == b.size() && Compare(a, b) == 0;
   }
   friend StrongOrdering RIEGELI_COMPARE(const Chain& a, const Chain& b) {
-    return CompareImpl(a, b);
+    return Compare(a, b);
   }
 
   friend bool operator==(const Chain& a, absl::string_view b) {
-    return a.size() == b.size() && CompareImpl(a, b) == 0;
+    return a.size() == b.size() && Compare(a, b) == 0;
   }
   friend StrongOrdering RIEGELI_COMPARE(const Chain& a, absl::string_view b) {
-    return CompareImpl(a, b);
+    return Compare(a, b);
   }
 
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state, const Chain& self) {
-    return self.AbslHashValueImpl(std::move(hash_state));
+    return self.HashValue(std::move(hash_state));
   }
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const Chain& self) {
-    self.AbslStringifyImpl(sink);
+    self.Stringify(sink);
   }
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& self) {
-    self.OutputImpl(out);
+    self.Output(out);
     return out;
   }
 
@@ -584,14 +584,14 @@ class Chain : public WithCompare<Chain> {
   template <typename SizedSharedBufferRef>
   void PrependSizedSharedBuffer(SizedSharedBufferRef&& src, Options options);
 
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
-  static StrongOrdering CompareImpl(const Chain& a, const Chain& b);
-  static StrongOrdering CompareImpl(const Chain& a, absl::string_view b);
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
+  static StrongOrdering Compare(const Chain& a, const Chain& b);
+  static StrongOrdering Compare(const Chain& a, absl::string_view b);
   template <typename HashState>
-  HashState AbslHashValueImpl(HashState hash_state) const;
+  HashState HashValue(HashState hash_state) const;
   template <typename Sink>
-  void AbslStringifyImpl(Sink& sink) const;
-  void OutputImpl(std::ostream& out) const;
+  void Stringify(Sink& sink) const;
+  void Output(std::ostream& out) const;
 
   BlockPtrs block_ptrs_;
 
@@ -637,8 +637,8 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
   friend StrongOrdering RIEGELI_COMPARE(BlockPtrPtr a, BlockPtrPtr b) {
     RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
         << "Incompatible BlockPtrPtr values";
-    if (a.is_special()) return Compare(a.repr_, b.repr_);
-    return Compare(a.as_ptr(), b.as_ptr());
+    if (a.is_special()) return riegeli::Compare(a.repr_, b.repr_);
+    return riegeli::Compare(a.as_ptr(), b.as_ptr());
   }
 
  private:
@@ -729,7 +729,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
     RIEGELI_ASSERT(a.chain_ == b.chain_)
         << "Failed precondition of operator<=>(Chain::BlockIterator): "
            "incomparable iterators";
-    return Compare(a.ptr_, b.ptr_);
+    return riegeli::Compare(a.ptr_, b.ptr_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
     RIEGELI_ASSERT(a.chain_ == b.chain_)
@@ -994,13 +994,14 @@ class Chain::RawBlock {
 
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
-  // Registers this `RawBlock` with `MemoryEstimator`.
+
+  // Support `MemoryEstimator`.
   friend size_t RiegeliDynamicSizeOf(const RawBlock* self) {
-    return self->DynamicSizeOfImpl();
+    return self->DynamicSizeOf();
   }
   friend void RiegeliRegisterSubobjects(const RawBlock* self,
                                         MemoryEstimator& memory_estimator) {
-    self->RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjects(memory_estimator);
   }
 
   bool can_append(size_t length) const;
@@ -1075,8 +1076,8 @@ class Chain::RawBlock {
   size_t space_before() const;
   size_t space_after() const;
 
-  size_t DynamicSizeOfImpl() const;
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
+  size_t DynamicSizeOf() const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 
   RefCount ref_count_;
   const char* data_;
@@ -1166,15 +1167,13 @@ inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
 
 }  // namespace chain_internal
 
-template <typename T>
-inline void RiegeliDumpStructure(const T* self, std::ostream& out) {
-  out << "[external] { }";
-}
+// Support `Chain::FromExternal()`.
+void RiegeliDumpStructure(const void* self, std::ostream& out);
 
-inline void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
-  out << "[string] { capacity: " << self->capacity() << " }";
-}
+// Support `Chain::FromExternal()`.
+void RiegeliDumpStructure(const std::string* self, std::ostream& out);
 
+// Support `Chain::FromExternal()`.
 template <typename T>
 inline void RiegeliDumpStructure(const T* self,
                                  ABSL_ATTRIBUTE_UNUSED absl::string_view data,
@@ -1829,7 +1828,7 @@ extern template void Chain::Append(std::string&& src, Options options);
 extern template void Chain::Prepend(std::string&& src, Options options);
 
 template <typename HashState>
-HashState Chain::AbslHashValueImpl(HashState hash_state) const {
+HashState Chain::HashValue(HashState hash_state) const {
   {
     const absl::optional<absl::string_view> flat = TryFlat();
     if (flat != absl::nullopt) {
@@ -1845,10 +1844,8 @@ HashState Chain::AbslHashValueImpl(HashState hash_state) const {
 }
 
 template <typename Sink>
-void Chain::AbslStringifyImpl(Sink& sink) const {
-  for (const absl::string_view block : blocks()) {
-    sink.Append(block);
-  }
+void Chain::Stringify(Sink& sink) const {
+  for (const absl::string_view block : blocks()) sink.Append(block);
 }
 
 }  // namespace riegeli

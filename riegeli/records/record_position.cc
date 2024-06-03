@@ -109,7 +109,7 @@ bool RecordPosition::FromBytes(absl::string_view serialized) {
   return true;
 }
 
-void RecordPosition::OutputImpl(std::ostream& out) const { out << ToString(); }
+void RecordPosition::Output(std::ostream& out) const { out << ToString(); }
 
 namespace records_internal {
 
@@ -138,9 +138,7 @@ void FutureChunkBegin::Unresolved::Resolve() const {
     Position pos;
   };
   Visitor visitor{pos_before_chunks_};
-  for (const Action& action : actions_) {
-    absl::visit(visitor, action);
-  }
+  for (const Action& action : actions_) absl::visit(visitor, action);
   pos_before_chunks_ = visitor.pos;
   actions_ = std::vector<Action>();
 }

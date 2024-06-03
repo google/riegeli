@@ -392,7 +392,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   // Compares the sequence of field names. Does not compare the normalizer.
   friend bool operator==(const CsvHeader& a, const CsvHeader& b) {
-    return EqualImpl(a, b);
+    return Equal(a, b);
   }
 
   // Renders contents in a human-readable way.
@@ -410,10 +410,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   // Writes `self.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self) {
-    self.OutputImpl(out);
+    self.Output(out);
     return out;
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvHeader* self,
                                         MemoryEstimator& memory_estimator) {
@@ -427,6 +428,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
         : normalizer(std::move(normalizer)) {}
     Payload(const Payload& that);
 
+    // Support `MemoryEstimator`.
     template <typename MemoryEstimator>
     friend void RiegeliRegisterSubobjects(const Payload* self,
                                           MemoryEstimator& memory_estimator) {
@@ -475,10 +477,10 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   void EnsureUnique();
 
-  static bool EqualImpl(const CsvHeader& a, const CsvHeader& b);
+  static bool Equal(const CsvHeader& a, const CsvHeader& b);
 
   void WriteDebugStringTo(Writer& writer) const;
-  void OutputImpl(std::ostream& out) const;
+  void Output(std::ostream& out) const;
 
   // A one-element cache of a recently constructed `Payload`, to reuse the
   // `Payload` when multiple `CsvHeader` objects are created from the same
@@ -890,7 +892,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
   absl::Status TrySplit(Dest& dest) const;
 
   friend bool operator==(const CsvRecord& a, const CsvRecord& b) {
-    return EqualImpl(a, b);
+    return Equal(a, b);
   }
 
   // Renders contents in a human-readable way.
@@ -908,10 +910,11 @@ class CsvRecord : public WithEqual<CsvRecord> {
 
   // Writes `self.DebugString()` to `out`.
   friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self) {
-    self.OutputImpl(out);
+    self.Output(out);
     return out;
   }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvRecord* self,
                                         MemoryEstimator& memory_estimator) {
@@ -930,10 +933,10 @@ class CsvRecord : public WithEqual<CsvRecord> {
   absl::Status FailMissingNames(
       absl::Span<const std::string> missing_names) const;
 
-  static bool EqualImpl(const CsvRecord& a, const CsvRecord& b);
+  static bool Equal(const CsvRecord& a, const CsvRecord& b);
 
   void WriteDebugStringTo(Writer& writer) const;
-  void OutputImpl(std::ostream& out) const;
+  void Output(std::ostream& out) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;

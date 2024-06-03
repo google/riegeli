@@ -399,7 +399,7 @@ absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object) {
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) {
     return absl::nullopt;
   }
-  return Compare(long_value, 0);
+  return riegeli::Compare(long_value, 0);
 }
 
 }  // namespace python

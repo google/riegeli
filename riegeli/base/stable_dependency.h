@@ -88,6 +88,7 @@ class StableDependencyDefault
 
   bool IsOwning() const { return EnsureAllocated().IsOwning(); }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StableDependencyDefault* self,
                                         MemoryEstimator& memory_estimator) {
@@ -141,6 +142,7 @@ class StableDependencyNoDefault
 
   bool IsOwning() const { return dep_->IsOwning(); }
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StableDependencyNoDefault* self,
                                         MemoryEstimator& memory_estimator) {
@@ -163,8 +165,8 @@ class StableDependency<Handle, Manager,
  public:
   using StableDependency::Dependency::Dependency;
 
-  StableDependency(StableDependency&& other) = default;
-  StableDependency& operator=(StableDependency&& other) = default;
+  StableDependency(StableDependency&& that) = default;
+  StableDependency& operator=(StableDependency&& that) = default;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
@@ -182,8 +184,8 @@ class StableDependency<
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
-  StableDependency(StableDependency&& other) = default;
-  StableDependency& operator=(StableDependency&& other) = default;
+  StableDependency(StableDependency&& that) = default;
+  StableDependency& operator=(StableDependency&& that) = default;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
@@ -203,8 +205,8 @@ class StableDependency<
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
-  StableDependency(StableDependency&& other) = default;
-  StableDependency& operator=(StableDependency&& other) = default;
+  StableDependency(StableDependency&& that) = default;
+  StableDependency& operator=(StableDependency&& that) = default;
 };
 
 // Implementation details follow.

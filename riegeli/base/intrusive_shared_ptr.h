@@ -247,6 +247,7 @@ class
   // Allow Nullability annotations on `IntrusiveSharedPtr`.
   using absl_nullability_compatible = void;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const IntrusiveSharedPtr* self,
                                         MemoryEstimator& memory_estimator) {

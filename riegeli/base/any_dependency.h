@@ -121,6 +121,7 @@ class
   void* GetIf(TypeId type_id);
   const void* GetIf(TypeId type_id) const;
 
+  // Support `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const AnyDependencyBase* self,
                                         MemoryEstimator& memory_estimator) {
     self->methods_and_handle_.methods->register_subobjects(self->repr_.storage,

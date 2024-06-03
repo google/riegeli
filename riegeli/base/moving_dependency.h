@@ -269,9 +269,9 @@ class MovingDependency<Handle, Manager, Mover,
   using MovingDependency::Dependency::Dependency;
 
   // Not supported when `Host` uses virtual inheritance.
-  MovingDependency(MovingDependency&& other) = default;
+  MovingDependency(MovingDependency&& that) = default;
   // Not supported when `Host` uses virtual inheritance.
-  MovingDependency& operator=(MovingDependency&& other) = default;
+  MovingDependency& operator=(MovingDependency&& that) = default;
 
   // Required when `Host` uses virtual inheritance.
   template <typename Host>
@@ -313,8 +313,8 @@ class MovingDependency<
  public:
   using MovingDependency::MovingDependencyImpl::MovingDependencyImpl;
 
-  MovingDependency(MovingDependency&& other) = default;
-  MovingDependency& operator=(MovingDependency&& other) = default;
+  MovingDependency(MovingDependency&& that) = default;
+  MovingDependency& operator=(MovingDependency&& that) = default;
 };
 
 }  // namespace riegeli

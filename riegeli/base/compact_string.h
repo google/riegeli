@@ -224,11 +224,11 @@ class
     dest->append(src);
   }
 
-  // Registers this `CompactString` with `MemoryEstimator`.
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CompactString* self,
                                         MemoryEstimator& memory_estimator) {
-    self->RegisterSubobjectsImpl(memory_estimator);
+    self->RegisterSubobjects(memory_estimator);
   }
 
  private:
@@ -400,7 +400,7 @@ class
   void ReserveOneMoreByteSlow();
 
   template <typename MemoryEstimator>
-  void RegisterSubobjectsImpl(MemoryEstimator& memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 
   uintptr_t repr_ = kDefaultRepr;
 };
@@ -674,7 +674,7 @@ inline const char* CompactString::c_str() {
 }
 
 template <typename MemoryEstimator>
-inline void CompactString::RegisterSubobjectsImpl(
+inline void CompactString::RegisterSubobjects(
     MemoryEstimator& memory_estimator) const {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return;

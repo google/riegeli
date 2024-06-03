@@ -100,6 +100,7 @@ class SharedBuffer {
                        absl::Cord& dest) const&;
   void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
 
+  // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {
