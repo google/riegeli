@@ -39,8 +39,8 @@ namespace messages_internal {
 
 class StringErrorCollector : public google::protobuf::io::ErrorCollector {
  public:
-  void AddError(int line, google::protobuf::io::ColumnNumber column,
-                const std::string& message) override;
+  void RecordError(int line, google::protobuf::io::ColumnNumber column,
+                   absl::string_view message) override;
 
   absl::string_view errors() const { return errors_; }
 

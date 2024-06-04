@@ -35,9 +35,9 @@ namespace riegeli {
 
 namespace messages_internal {
 
-void StringErrorCollector::AddError(int line,
-                                    google::protobuf::io::ColumnNumber column,
-                                    const std::string& message) {
+void StringErrorCollector::RecordError(
+    int line, google::protobuf::io::ColumnNumber column,
+    absl::string_view message) {
   if (line >= 0) {
     absl::StrAppend(&errors_, "\nAt ", line + 1, ":", column + 1, ": ",
                     message);
