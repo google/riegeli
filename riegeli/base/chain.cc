@@ -903,6 +903,7 @@ void Chain::Reset(absl::string_view src) {
     Append(src, Options().set_size_hint(src.size()));
     return;
   }
+  EnsureHasHere();
   Initialize(src);
 }
 
@@ -917,6 +918,7 @@ void Chain::Reset(Src&& src) {
     Append(std::move(src), Options().set_size_hint(size));
     return;
   }
+  EnsureHasHere();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   Initialize(std::move(src));
@@ -930,6 +932,7 @@ void Chain::Reset(const absl::Cord& src) {
     Append(src, Options().set_size_hint(src.size()));
     return;
   }
+  EnsureHasHere();
   Initialize(src);
 }
 
@@ -940,6 +943,7 @@ void Chain::Reset(absl::Cord&& src) {
     Append(std::move(src), Options().set_size_hint(size));
     return;
   }
+  EnsureHasHere();
   Initialize(std::move(src));
 }
 
