@@ -1,4 +1,6 @@
-load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//python/riegeli:py_extension.bzl", "py_extension")
 
 package(
@@ -37,7 +39,7 @@ py_extension(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@local_config_python//:python_headers",
+        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -59,7 +61,7 @@ py_extension(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@local_config_python//:python_headers",
+        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -80,7 +82,7 @@ py_extension(
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@local_config_python//:python_headers",
+        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -90,8 +92,13 @@ py_library(
     srcs_version = "PY3",
 )
 
+proto_library(
+    name = "records_metadata_proto",
+    srcs = ["records_metadata.proto"],
+    deps = ["@com_google_protobuf//:descriptor_proto"],
+)
+
 py_proto_library(
     name = "records_metadata_py_pb2",
-    srcs = ["records_metadata.proto"],
-    deps = ["@com_google_protobuf//:protobuf_python"],
+    deps = [":records_metadata_proto"],
 )

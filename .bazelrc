@@ -1,3 +1,6 @@
+# Enable Bzlmod by default.
+common --enable_bzlmod
+
 # Use C++17.
 build --cxxopt=-std=c++17
 build --host_cxxopt=-std=c++17
@@ -6,4 +9,6 @@ build --host_cxxopt=-std=c++17
 build --define=use_fast_cpp_protos=true
 
 # Options from ./configure
-import %workspace%/configure.bazelrc
+# This is currently disabled because TensorFlow does not support bzlmod,
+# hence Riegeli/TensorFlow bindings are broken anyway.
+# import %workspace%/configure.bazelrc

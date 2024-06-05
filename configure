@@ -38,3 +38,5 @@ fi
   printf 'build --action_env TF_SHARED_LIBRARY_DIR="%s"\n' "$TF_SHARED_LIBRARY_DIR"
   printf 'build --action_env TF_SHARED_LIBRARY_NAME="%s"\n' "$TF_SHARED_LIBRARY_NAME"
 } >configure.bazelrc
+
+echo "Set up configure.bazelrc. Make sure to include it in your .bazelrc file."

@@ -24,7 +24,6 @@ from absl.testing import parameterized
 from google.protobuf import message
 import riegeli
 from riegeli.records.tests import records_test_pb2
-import tensorflow as tf
 
 
 def combine_named_parameters(*testcase_sets):
@@ -196,16 +195,6 @@ class BuiltinFileSpec(LocalFileSpecBase):
     self._file = open(self._filename, mode='rb')
 
 
-class TensorFlowGFileSpec(LocalFileSpecBase):
-  __slots__ = ()
-
-  def _open_for_writing(self):
-    self._file = tf.io.gfile.GFile(self._filename, mode='wb')
-
-  def _open_for_reading(self):
-    self._file = tf.io.gfile.GFile(self._filename, mode='rb')
-
-
 def sample_string(i, size):
   piece = f'{i} '.encode()
   result = piece * -(-size // len(piece))  # len(result) >= size
@@ -231,21 +220,20 @@ def record_writer_options(parallelism, transpose=False, chunk_size=35000):
   )
 
 
-# pyformat: disable
-_FILE_SPEC_VALUES = (('BytesIO', BytesIOSpec),
-                     ('FileIO', FileIOSpec),
-                     ('BufferedIO', BufferedIOSpec),
-                     ('BuiltinFile', BuiltinFileSpec),
-                     ('TensorFlowGFile', TensorFlowGFileSpec))
+_FILE_SPEC_VALUES = (
+    ('BytesIO', BytesIOSpec),
+    ('FileIO', FileIOSpec),
+    ('BufferedIO', BufferedIOSpec),
+    ('BuiltinFile', BuiltinFileSpec),
+)
 
 _RANDOM_ACCESS_VALUES = (
     ('randomAccess', RandomAccess.RANDOM_ACCESS),
     ('sequentialAccessDetected', RandomAccess.SEQUENTIAL_ACCESS_DETECTED),
-    ('sequentialAccessExplicit', RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT))
+    ('sequentialAccessExplicit', RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT),
+)
 
-_PARALLELISM_VALUES = (('serial', 0),
-                       ('parallel', 10))
-# pyformat: enable
+_PARALLELISM_VALUES = (('serial', 0), ('parallel', 10))
 
 _PARAMETERIZE_BY_FILE_SPEC = parameterized.named_parameters(*_FILE_SPEC_VALUES)
 

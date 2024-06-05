@@ -1,5 +1,7 @@
 # Riegeli, file format for storing a sequence of records.
 
+load("@rules_python//python:defs.bzl", "py_library")
+
 package(
     default_visibility = ["//visibility:public"],
     features = ["header_modules"],

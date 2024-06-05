@@ -116,8 +116,12 @@ cc_library(
     hdrs = ["crc32c_digester.h"],
     deps = [
         "//riegeli/base:arithmetic",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/crc:crc32c",
         "@com_google_absl//absl/strings",
-        "@crc32c",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 

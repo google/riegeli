@@ -15,11 +15,18 @@
 #ifndef RIEGELI_DIGESTS_CRC32C_DIGESTER_H_
 #define RIEGELI_DIGESTS_CRC32C_DIGESTER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
+
+#include "absl/base/optimization.h"
+#include "absl/crc/crc32c.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "crc32c/crc32c.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
 
@@ -42,6 +49,8 @@ class Crc32cDigester {
   Crc32cDigester& operator=(const Crc32cDigester& that) = default;
 
   void Write(absl::string_view src);
+  void Write(const absl::Cord& src);
+  void WriteZeros(Position length);
   uint32_t Digest() { return crc_; }
 
  private:
@@ -67,8 +76,40 @@ constexpr uint32_t UnmaskCrc32c(uint32_t masked) {
 // Implementation details follow.
 
 inline void Crc32cDigester::Write(absl::string_view src) {
-  crc_ = crc32c::Extend(crc_, reinterpret_cast<const uint8_t*>(src.data()),
-                        src.size());
+  crc_ = static_cast<uint32_t>(absl::ExtendCrc32c(absl::crc32c_t{crc_}, src));
+}
+
+inline void Crc32cDigester::Write(const absl::Cord& src) {
+  {
+    const absl::optional<uint32_t> src_crc = src.ExpectedChecksum();
+    if (src_crc != absl::nullopt) {
+      crc_ = static_cast<uint32_t>(absl::ConcatCrc32c(
+          absl::crc32c_t{crc_}, absl::crc32c_t{*src_crc}, src.size()));
+      return;
+    }
+  }
+  {
+    const absl::optional<absl::string_view> flat = src.TryFlat();
+    if (flat != absl::nullopt) {
+      crc_ = static_cast<uint32_t>(
+          absl::ExtendCrc32c(absl::crc32c_t{crc_}, *flat));
+      return;
+    }
+  }
+  for (const absl::string_view fragment : src.Chunks()) {
+    crc_ = static_cast<uint32_t>(
+        absl::ExtendCrc32c(absl::crc32c_t{crc_}, fragment));
+  }
+}
+
+inline void Crc32cDigester::WriteZeros(Position length) {
+  while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
+    crc_ = static_cast<uint32_t>(absl::ExtendCrc32cByZeroes(
+        absl::crc32c_t{crc_}, std::numeric_limits<size_t>::max()));
+    length -= std::numeric_limits<size_t>::max();
+  }
+  crc_ = static_cast<uint32_t>(absl::ExtendCrc32cByZeroes(
+      absl::crc32c_t{crc_}, IntCast<size_t>(length)));
 }
 
 }  // namespace riegeli

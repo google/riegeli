@@ -1,5 +1,7 @@
 """Supports writing Python modules in C++."""
 
+load("@rules_python//python:defs.bzl", "py_library")
+
 def py_extension(
         name = None,
         srcs = None,
@@ -45,7 +47,7 @@ def py_extension(
         deps = [cc_library_name],
     )
 
-    native.py_library(
+    py_library(
         name = name,
         data = [cc_binary_name],
         visibility = visibility,

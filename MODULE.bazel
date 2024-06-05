@@ -1,0 +1,88 @@
+module(
+    name = "riegeli",
+    repo_name = "com_google_riegeli",
+)
+
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20230125.1",
+    repo_name = "com_google_absl",
+)
+bazel_dep(
+    name = "abseil-py",
+    version = "2.1.0",
+    repo_name = "absl_py",
+)
+bazel_dep(
+    name = "boringssl",
+    version = "0.0.0-20240530-2db0eb3",
+)
+bazel_dep(
+    name = "brotli",
+    version = "1.1.0",
+    repo_name = "org_brotli",
+)
+bazel_dep(
+    name = "bzip2",
+    version = "1.0.8",
+)
+bazel_dep(
+    name = "highwayhash",
+    version = "0.0.0-20240305-5ad3bf8",
+)
+bazel_dep(
+    name = "lz4",
+    version = "1.9.4",
+)
+bazel_dep(
+    name = "platforms",
+    version = "0.0.9",
+)
+bazel_dep(
+    name = "protobuf",
+    version = "23.1",
+    repo_name = "com_google_protobuf",
+)
+bazel_dep(
+    name = "rules_proto",
+    version = "4.0.0",
+)
+bazel_dep(
+    name = "rules_python",
+    version = "0.31.0",
+)
+bazel_dep(
+    name = "snappy",
+    version = "1.2.0",
+)
+bazel_dep(
+    name = "xz",
+    version = "5.4.5.bcr.1",
+)
+bazel_dep(
+    name = "zlib",
+    version = "1.2.13",
+)
+bazel_dep(
+    name = "zstd",
+    version = "1.5.6",
+    repo_name = "net_zstd",
+)
+
+# Configure hermetic Python toolchain
+SUPPORTED_PYTHON_VERSIONS = [
+    "3.8",
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+]
+DEFAULT_PYTHON_VERSION = SUPPORTED_PYTHON_VERSIONS[-1]
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+[
+    python.toolchain(
+        python_version = version,
+        is_default = version == DEFAULT_PYTHON_VERSION,
+    )
+    for version in SUPPORTED_PYTHON_VERSIONS
+]

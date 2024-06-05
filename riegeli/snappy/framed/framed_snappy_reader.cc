@@ -22,10 +22,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/crc/crc32c.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "crc32c/crc32c.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -150,8 +150,9 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
           return FailInvalidStream("invalid compressed data");
         }
         if (ABSL_PREDICT_FALSE(
-                MaskChecksum(crc32c::Crc32c(
-                    uncompressed_.data(), uncompressed_length)) != checksum)) {
+                MaskChecksum(static_cast<uint32_t>(absl::ComputeCrc32c(
+                    absl::string_view(uncompressed_.data(),
+                                      uncompressed_length)))) != checksum)) {
           set_buffer();
           return FailInvalidStream(
               "Invalid FramedSnappy-compressed stream: wrong checksum");
@@ -183,9 +184,10 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
           set_buffer();
           return FailInvalidStream("uncompressed length too large");
         }
-        if (ABSL_PREDICT_FALSE(MaskChecksum(crc32c::Crc32c(
-                                   uncompressed_data, uncompressed_length)) !=
-                               checksum)) {
+        if (ABSL_PREDICT_FALSE(
+                MaskChecksum(static_cast<uint32_t>(absl::ComputeCrc32c(
+                    absl::string_view(uncompressed_data,
+                                      uncompressed_length)))) != checksum)) {
           set_buffer();
           return FailInvalidStream("wrong checksum");
         }

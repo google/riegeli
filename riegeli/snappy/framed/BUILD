@@ -23,9 +23,9 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/endian:endian_reading",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/crc:crc32c",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@crc32c",
         "@snappy",
     ],
 )

@@ -1,4 +1,6 @@
-load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_python//python:defs.bzl", "py_test")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
@@ -28,5 +30,5 @@ proto_library(
 
 py_proto_library(
     name = "records_test_py_pb2",
-    srcs = ["records_test.proto"],
+    deps = ["records_test_proto"],
 )
