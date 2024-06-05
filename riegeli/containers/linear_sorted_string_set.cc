@@ -598,10 +598,17 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
 
 LinearSortedStringSet::Builder::Builder() = default;
 
-LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;
+LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept
+    : writer_(
+          std::exchange(that.writer_, CompactStringWriter<CompactString>())),
+      last_(std::exchange(that.last_, std::string())) {}
 
 LinearSortedStringSet::Builder& LinearSortedStringSet::Builder::operator=(
-    Builder&& that) noexcept = default;
+    Builder&& that) noexcept {
+  writer_ = std::exchange(that.writer_, CompactStringWriter<CompactString>());
+  last_ = std::exchange(that.last_, std::string());
+  return *this;
+}
 
 LinearSortedStringSet::Builder::~Builder() = default;
 

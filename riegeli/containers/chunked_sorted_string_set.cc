@@ -272,10 +272,26 @@ ChunkedSortedStringSet::Builder::Builder(Options options)
   }
 }
 
-ChunkedSortedStringSet::Builder::Builder(Builder&& that) noexcept = default;
+ChunkedSortedStringSet::Builder::Builder(Builder&& that) noexcept
+    : size_(std::exchange(that.size_, 0)),
+      chunk_size_(that.chunk_size_),
+      remaining_current_chunk_size_(
+          std::exchange(that.remaining_current_chunk_size_, that.chunk_size_)),
+      first_chunk_(std::exchange(that.first_chunk_, absl::nullopt)),
+      chunks_(std::move(that.chunks_)),
+      current_builder_(std::move(that.current_builder_)) {}
 
 ChunkedSortedStringSet::Builder& ChunkedSortedStringSet::Builder::operator=(
-    Builder&& that) noexcept = default;
+    Builder&& that) noexcept {
+  size_ = std::exchange(that.size_, 0);
+  chunk_size_ = that.chunk_size_;
+  remaining_current_chunk_size_ =
+      std::exchange(that.remaining_current_chunk_size_, that.chunk_size_);
+  first_chunk_ = std::exchange(that.first_chunk_, absl::nullopt);
+  chunks_ = std::move(that.chunks_);
+  current_builder_ = std::move(that.current_builder_);
+  return *this;
+}
 
 ChunkedSortedStringSet::Builder::~Builder() = default;
 
