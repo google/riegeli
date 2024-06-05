@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "riegeli",
+    srcs = [
+        "Riegeli.kt"
+    ],
+    deps = [
+        "@highwayhash//:java",
+        "@maven//:org_apache_commons_commons_compress",
+        "@maven//:org_brotli_dec",
+    ]
+)
