@@ -198,6 +198,7 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
   bool Next(void** data, int* size) override;
   void BackUp(int length) override;
   int64_t ByteCount() const override;
+  bool WriteCord(const absl::Cord& src) override;
 
  private:
   Writer* dest_ = nullptr;

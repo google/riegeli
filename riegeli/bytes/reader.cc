@@ -20,12 +20,10 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -35,7 +33,6 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
@@ -207,69 +204,6 @@ bool Reader::ReadSlow(size_t length, Chain& dest, size_t& length_read) {
   return true;
 }
 
-// `absl::Cord::GetCustomAppendBuffer()` was introduced after Abseil LTS version
-// 20220623. Use it if available, with fallback code if not.
-
-namespace {
-
-template <typename T, typename Enable = void>
-struct HasGetCustomAppendBuffer : std::false_type {};
-
-template <typename T>
-struct HasGetCustomAppendBuffer<
-    T, absl::void_t<decltype(std::declval<T&>().GetCustomAppendBuffer(
-           std::declval<size_t>(), std::declval<size_t>(),
-           std::declval<size_t>()))>> : std::true_type {};
-
-template <
-    typename DependentCord = absl::Cord,
-    std::enable_if_t<HasGetCustomAppendBuffer<DependentCord>::value, int> = 0>
-inline bool ReadSlowToCord(Reader& src, size_t length, DependentCord& dest) {
-  absl::CordBuffer buffer = dest.GetCustomAppendBuffer(
-      cord_internal::kCordBufferBlockSize, length, 1);
-  absl::Span<char> span = buffer.available_up_to(length);
-  if (buffer.capacity() < kDefaultMinBlockSize && length > span.size()) {
-    absl::CordBuffer new_buffer = absl::CordBuffer::CreateWithCustomLimit(
-        cord_internal::kCordBufferBlockSize, buffer.length() + length);
-    std::memcpy(new_buffer.data(), buffer.data(), buffer.length());
-    new_buffer.SetLength(buffer.length());
-    buffer = std::move(new_buffer);
-    span = buffer.available_up_to(length);
-  }
-  for (;;) {
-    size_t length_read;
-    const bool read_ok = src.Read(span.size(), span.data(), &length_read);
-    buffer.IncreaseLengthBy(length_read);
-    dest.Append(std::move(buffer));
-    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    length -= length_read;
-    if (length == 0) return true;
-    buffer = absl::CordBuffer::CreateWithCustomLimit(
-        cord_internal::kCordBufferBlockSize, length);
-    span = buffer.available_up_to(length);
-  }
-}
-
-template <
-    typename DependentCord = absl::Cord,
-    std::enable_if_t<!HasGetCustomAppendBuffer<DependentCord>::value, int> = 0>
-inline bool ReadSlowToCord(Reader& src, size_t length, DependentCord& dest) {
-  Buffer buffer;
-  do {
-    buffer.Reset(UnsignedMin(length, kDefaultMaxBlockSize));
-    const size_t length_to_read = UnsignedMin(length, buffer.capacity());
-    size_t length_read;
-    const bool read_ok = src.Read(length_to_read, buffer.data(), &length_read);
-    const char* const data = buffer.data();
-    std::move(buffer).AppendSubstrTo(data, length_read, dest);
-    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    length -= length_read;
-  } while (length > 0);
-  return true;
-}
-
-}  // namespace
-
 bool Reader::ReadSlowWithSizeCheck(size_t length, absl::Cord& dest) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadAndAppend(Cord&): "
@@ -284,7 +218,29 @@ bool Reader::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  return ReadSlowToCord(*this, length, dest);
+  absl::CordBuffer buffer = dest.GetCustomAppendBuffer(
+      cord_internal::kCordBufferBlockSize, length, 1);
+  absl::Span<char> span = buffer.available_up_to(length);
+  if (buffer.capacity() < kDefaultMinBlockSize && length > span.size()) {
+    absl::CordBuffer new_buffer = absl::CordBuffer::CreateWithCustomLimit(
+        cord_internal::kCordBufferBlockSize, buffer.length() + length);
+    std::memcpy(new_buffer.data(), buffer.data(), buffer.length());
+    new_buffer.SetLength(buffer.length());
+    buffer = std::move(new_buffer);
+    span = buffer.available_up_to(length);
+  }
+  for (;;) {
+    size_t length_read;
+    const bool read_ok = Read(span.size(), span.data(), &length_read);
+    buffer.IncreaseLengthBy(length_read);
+    dest.Append(std::move(buffer));
+    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+    length -= length_read;
+    if (length == 0) return true;
+    buffer = absl::CordBuffer::CreateWithCustomLimit(
+        cord_internal::kCordBufferBlockSize, length);
+    span = buffer.available_up_to(length);
+  }
 }
 
 bool Reader::ReadSlowWithSizeCheck(size_t length, absl::Cord& dest,

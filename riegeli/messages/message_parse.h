@@ -187,6 +187,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   void BackUp(int length) override;
   bool Skip(int length) override;
   int64_t ByteCount() const override;
+  bool ReadCord(absl::Cord* cord, int length) override;
 
  private:
   Reader* src_ = nullptr;

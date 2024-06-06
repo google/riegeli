@@ -25,14 +25,13 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/cord_buffer.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compact_string.h"
@@ -294,7 +293,12 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
-    Buffer buffer(size);
+    absl::CordBuffer buffer = dest.GetAppendBuffer(0, 0);
+    dest.Clear();
+    if (buffer.capacity() < size) {
+      buffer = absl::CordBuffer::CreateWithDefaultLimit(size);
+    }
+    buffer.SetLength(size);
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(buffer.data())));
@@ -306,7 +310,7 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
            "may indicate a bug in protocol buffers or it may be caused by "
            "concurrent modification of "
         << src.GetTypeName();
-    dest = std::move(buffer).ToCord(buffer.data(), size);
+    dest.Append(std::move(buffer));
     return absl::OkStatus();
   }
   riegeli::CordWriter<> writer(&dest);
@@ -355,6 +359,18 @@ int64_t WriterOutputStream::ByteCount() const {
       << "Failed precondition of WriterOutputStream::ByteCount(): "
          "WriterOutputStream not initialized";
   return SaturatingIntCast<int64_t>(dest_->pos());
+}
+
+bool WriterOutputStream::WriteCord(const absl::Cord& src) {
+  RIEGELI_ASSERT(dest_ != nullptr)
+      << "Failed precondition of WriterOutputStream::WriteCord(): "
+         "WriterOutputStream not initialized";
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         Position{std::numeric_limits<int64_t>::max()} -
+                             dest_->pos())) {
+    return false;
+  }
+  return dest_->Write(src);
 }
 
 }  // namespace riegeli

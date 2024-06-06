@@ -37,7 +37,6 @@ cc_library(
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:buffer",
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
         "//riegeli/base:compact_string",

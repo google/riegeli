@@ -337,4 +337,19 @@ int64_t ReaderInputStream::ByteCount() const {
   return SaturatingIntCast<int64_t>(src_->pos());
 }
 
+bool ReaderInputStream::ReadCord(absl::Cord* cord, int length) {
+  RIEGELI_ASSERT(src_ != nullptr)
+      << "Failed precondition of ReaderInputStream::ReadCord(): "
+         "ReaderInputStream not initialized";
+  RIEGELI_ASSERT_GE(length, 0)
+      << "Failed precondition of ZeroCopyInputStream::ReadCord(): "
+         "negative length";
+  const Position max_length =
+      SaturatingSub(Position{std::numeric_limits<int64_t>::max()}, src_->pos());
+  const size_t length_to_read =
+      UnsignedMin(IntCast<size_t>(length), max_length);
+  return src_->ReadAndAppend(length_to_read, *cord) &&
+         length_to_read == IntCast<size_t>(length);
+}
+
 }  // namespace riegeli
