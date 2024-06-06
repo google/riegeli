@@ -18,6 +18,7 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/maker.h"
@@ -155,13 +156,11 @@ class InitializerValueBase : public InitializerBase<T> {
                                     TemporaryStorage<T>&& storage);
 
   template <typename Arg,
-            std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value,
-                             int> = 0>
+            std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
                                        TemporaryStorage<T>&& storage);
   template <typename Arg,
-            std::enable_if_t<
-                !initializer_internal::CanBindTo<T&&, Arg&&>::value, int> = 0>
+            std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(void* context,
                                        TemporaryStorage<T>&& storage);
 
@@ -705,7 +704,7 @@ class Initializer<T, allow_explicit,
     // `T` is a reference type here, but it can be an rvalue reference, in which
     // case `const T&` collapses to an lvalue reference.
     T reference = std::move(*this).Construct();
-    return static_cast<const T&>(reference);
+    return reference;
   }
 };
 
@@ -800,9 +799,7 @@ T&& InitializerValueBase<T>::ReferenceMethodDefault(
 }
 
 template <typename T>
-template <
-    typename Arg,
-    std::enable_if_t<initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
+template <typename Arg, std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
     void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
   return std::forward<Arg>(
@@ -810,9 +807,7 @@ T&& InitializerValueBase<T>::ReferenceMethodFromObject(
 }
 
 template <typename T>
-template <
-    typename Arg,
-    std::enable_if_t<!initializer_internal::CanBindTo<T&&, Arg&&>::value, int>>
+template <typename Arg, std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
     void* context, TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace(
@@ -846,8 +841,8 @@ template <typename Arg,
           std::enable_if_t<CanBindTo<const T&, Arg&&>::value, int>>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromObject(
     void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
-  return std::forward<Arg>(
-      *static_cast<std::remove_reference_t<Arg>*>(context));
+  return *absl::implicit_cast<const T*>(
+      static_cast<std::remove_reference_t<Arg>*>(context));
 }
 
 template <typename T>

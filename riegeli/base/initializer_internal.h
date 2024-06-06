@@ -23,6 +23,11 @@ namespace initializer_internal {
 // `CanBindTo<T&&, Args&&...>::value` is `true` if constructing `T(args...)`
 // with `args...` of type `Args&&...` can be elided, with `T&&` binding directly
 // to the only element of `args...` instead.
+//
+// Due to not all compilers implementing http://wg21.link/cwg2352 (converting
+// `T*&` to `const T* const&` could have bound the result to a temporary),
+// binding a const reference should be done by converting between the
+// corresponding pointer types and then dereferencing.
 
 template <typename T, typename... Args>
 struct CanBindTo : std::false_type {};

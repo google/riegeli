@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
@@ -155,7 +156,9 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                        int> = 0>
   T&& ReferenceImpl(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
                         TemporaryStorage<T>()) && {
-    return std::get<0>(std::move(args_));
+    auto&& reference = std::get<0>(std::move(args_));
+    return std::forward<T>(
+        *absl::implicit_cast<std::remove_reference_t<T>*>(&reference));
   }
   template <
       typename T,
@@ -177,7 +180,9 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
           initializer_internal::CanBindTo<T&&, const Args&...>::value, int> = 0>
   T&& ReferenceImpl(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
                         TemporaryStorage<T>()) const& {
-    return std::get<0>(args_);
+    const auto& reference = std::get<0>(args_);
+    return std::forward<T>(
+        *absl::implicit_cast<std::remove_reference_t<T>*>(&reference));
   }
   template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
                                              T&&, const Args&...>::value,
@@ -198,7 +203,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
           initializer_internal::CanBindTo<const T&, Args&&...>::value, int> = 0>
   const T& ConstReferenceImpl(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&&
                                   storage = TemporaryStorage<T>()) && {
-    return std::get<0>(std::move(args_));
+    auto&& reference = std::get<0>(std::move(args_));
+    return *absl::implicit_cast<std::remove_reference_t<const T>*>(&reference);
   }
   template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
                                              const T&, Args&&...>::value,
@@ -218,7 +224,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                                          int> = 0>
   const T& ConstReferenceImpl(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&&
                                   storage = TemporaryStorage<T>()) const& {
-    return std::get<0>(args_);
+    const auto& reference = std::get<0>(args_);
+    return *absl::implicit_cast<std::remove_reference_t<const T>*>(&reference);
   }
   template <typename T, std::enable_if_t<!initializer_internal::CanBindTo<
                                              const T&, const Args&...>::value,
