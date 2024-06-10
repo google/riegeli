@@ -1034,6 +1034,14 @@ absl::string_view Chain::FlattenSlow() {
   RIEGELI_ASSERT_GT(end_ - begin_, 1)
       << "Failed precondition of Chain::FlattenSlow(): "
          "contents already flat, use Flatten() instead";
+  if (front()->empty()) {
+    PopFront();
+    if (end_ - begin_ == 1) return absl::string_view(*front());
+  }
+  if (back()->empty()) {
+    PopBack();
+    if (end_ - begin_ == 1) return absl::string_view(*back());
+  }
   IntrusiveSharedPtr<RawBlock> block =
       RawBlock::NewInternal(NewBlockCapacity(0, size_, size_, Options()));
   const BlockPtr* iter = begin_;
