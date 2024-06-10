@@ -85,7 +85,7 @@ template <
 const std::decay_t<global_internal::InitResultT<Init>>& Global(Init init);
 
 // `Global<T>(init)` returns a reference to an object of type `T` initialized by
-// `init()`, which returns `void`, `T`, a constructor argument for `T`.
+// `init()`, which returns `void`, `T`, or a constructor argument for `T`.
 //
 // Returning `void` makes the object default-constructed. Returning `void` or a
 // constructor argument allows to construct immovable objects before C++17 which
