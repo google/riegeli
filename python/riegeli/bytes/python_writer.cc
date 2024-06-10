@@ -29,6 +29,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -146,7 +147,8 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
     size_t length_written;
     {
       const size_t length_to_write = UnsignedMin(
-          src.size(), size_t{std::numeric_limits<Py_ssize_t>::max()});
+          src.size(),
+          absl::bit_floor(size_t{std::numeric_limits<Py_ssize_t>::max()}));
       PythonPtr write_result;
       if (!use_bytes_) {
         // Prefer passing a `memoryview` to avoid copying memory.

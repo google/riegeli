@@ -51,6 +51,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/strings/match.h"
@@ -464,12 +465,13 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   do {
 #ifndef _WIN32
   again:
-    const size_t length_to_write =
-        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()},
-                    // Darwin and FreeBSD cannot write more than 2 GB - 1
-                    // at a time. Limit to 1 GB for better alignment of writes.
-                    // https://codereview.appspot.com/89900044#msg9
-                    size_t{1} << 30);
+    const size_t length_to_write = UnsignedMin(
+        src.size(),
+        absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}),
+        // Darwin and FreeBSD cannot write more than 2 GB - 1 at a time.
+        // Limit to 1 GB for better alignment of writes.
+        // https://codereview.appspot.com/89900044#msg9
+        size_t{1} << 30);
     const ssize_t length_written =
         has_independent_pos_ ? pwrite(dest, src.data(), length_to_write,
                                       IntCast<fd_internal::Offset>(start_pos()))
@@ -486,8 +488,8 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
                              file_handle == reinterpret_cast<HANDLE>(-2))) {
         return FailWindowsOperation("_get_osfhandle()");
       }
-      const DWORD length_to_write =
-          UnsignedMin(src.size(), std::numeric_limits<DWORD>::max());
+      const DWORD length_to_write = UnsignedMin(
+          src.size(), absl::bit_floor(std::numeric_limits<DWORD>::max()));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(start_pos() & 0xffffffff);
       overlapped.OffsetHigh = IntCast<DWORD>(start_pos() >> 32);
@@ -497,8 +499,9 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
         return FailWindowsOperation("WriteFile()");
       }
     } else {
-      const unsigned length_to_write =
-          UnsignedMin(src.size(), unsigned{std::numeric_limits<int>::max()});
+      const unsigned length_to_write = UnsignedMin(
+          src.size(),
+          absl::bit_floor(unsigned{std::numeric_limits<int>::max()}));
       const int length_written_int = _write(dest, src.data(), length_to_write);
       if (ABSL_PREDICT_FALSE(length_written_int < 0)) {
         return FailOperation("_write()");

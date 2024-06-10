@@ -24,6 +24,7 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -217,7 +218,8 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   errno = 0;
   do {
     const size_t length_to_write = UnsignedMin(
-        src.size(), UnsignedCast(std::numeric_limits<std::streamsize>::max()));
+        src.size(), absl::bit_floor(UnsignedCast(
+                        std::numeric_limits<std::streamsize>::max())));
     dest.write(src.data(), IntCast<std::streamsize>(length_to_write));
     if (ABSL_PREDICT_FALSE(dest.fail())) {
       return FailOperation("ostream::write()");

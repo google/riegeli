@@ -64,6 +64,7 @@
 #ifndef _WIN32
 #include "absl/meta/type_traits.h"
 #endif
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/strings/match.h"
@@ -394,7 +395,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     const size_t length_to_read = UnsignedMin(
         max_length,
         Position{std::numeric_limits<fd_internal::Offset>::max()} - limit_pos(),
-        size_t{std::numeric_limits<ssize_t>::max()},
+        absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}),
         // Darwin and FreeBSD cannot read more than 2 GB - 1 at a time.
         // Limit to 1 GB for better alignment of reads.
         // https://codereview.appspot.com/89900044#msg9
@@ -420,7 +421,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
           max_length,
           Position{std::numeric_limits<fd_internal::Offset>::max()} -
               limit_pos(),
-          std::numeric_limits<DWORD>::max()));
+          absl::bit_floor(std::numeric_limits<DWORD>::max())));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(limit_pos() & 0xffffffff);
       overlapped.OffsetHigh = IntCast<DWORD>(limit_pos() >> 32);
@@ -434,7 +435,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
           max_length,
           Position{std::numeric_limits<fd_internal::Offset>::max()} -
               limit_pos(),
-          unsigned{std::numeric_limits<int>::max()});
+          absl::bit_floor(unsigned{std::numeric_limits<int>::max()}));
       const int length_read_int = _read(src, dest, length_to_read);
       if (ABSL_PREDICT_FALSE(length_read_int < 0)) {
         return FailOperation("_read()");
@@ -491,7 +492,7 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
               length,
               Position{std::numeric_limits<fd_internal::Offset>::max()} -
                   limit_pos(),
-              size_t{std::numeric_limits<ssize_t>::max()});
+              absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}));
           if (ABSL_PREDICT_FALSE(
                   length_to_copy >
                   Position{std::numeric_limits<fd_internal::Offset>::max()} -

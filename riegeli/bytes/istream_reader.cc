@@ -23,6 +23,7 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -147,12 +148,14 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
     std::streamsize length_to_read = IntCast<std::streamsize>(UnsignedMin(
         min_length,
         Position{std::numeric_limits<std::streamoff>::max()} - limit_pos(),
-        UnsignedCast(std::numeric_limits<std::streamsize>::max())));
+        absl::bit_floor(
+            UnsignedCast(std::numeric_limits<std::streamsize>::max()))));
     const std::streamsize max_length_to_read =
         IntCast<std::streamsize>(UnsignedMin(
             max_length,
             Position{std::numeric_limits<std::streamoff>::max()} - limit_pos(),
-            UnsignedCast(std::numeric_limits<std::streamsize>::max())));
+            absl::bit_floor(
+                UnsignedCast(std::numeric_limits<std::streamsize>::max()))));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
       // Use `std::istream::readsome()` to read as much data as is available,

@@ -29,6 +29,7 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -181,7 +182,7 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
     }
     const size_t length_to_read = UnsignedMin(
         max_length, std::numeric_limits<Position>::max() - limit_pos(),
-        size_t{std::numeric_limits<Py_ssize_t>::max()});
+        absl::bit_floor(size_t{std::numeric_limits<Py_ssize_t>::max()}));
     size_t length_read;
     if (!use_bytes_) {
       PythonPtr read_result;
