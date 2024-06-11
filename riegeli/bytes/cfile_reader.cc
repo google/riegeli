@@ -320,7 +320,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
           << "fread() succeeded but read less than requested";
       clearerr(src);
       if (!growing_source_) set_exact_size(limit_pos());
-      return length_read >= min_length;
+      return false;
     }
     if (length_read >= min_length) return true;
     dest += length_read;

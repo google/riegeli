@@ -144,11 +144,11 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
     }
   }
   do {
+    const size_t length_to_write = UnsignedMin(
+        src.size(),
+        absl::bit_floor(size_t{std::numeric_limits<Py_ssize_t>::max()}));
     size_t length_written;
     {
-      const size_t length_to_write = UnsignedMin(
-          src.size(),
-          absl::bit_floor(size_t{std::numeric_limits<Py_ssize_t>::max()}));
       PythonPtr write_result;
       if (!use_bytes_) {
         // Prefer passing a `memoryview` to avoid copying memory.
@@ -198,7 +198,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
         length_written = *length_written_opt;
       }
     }
-    if (ABSL_PREDICT_FALSE(length_written > src.size())) {
+    if (ABSL_PREDICT_FALSE(length_written > length_to_write)) {
       return Fail(absl::InternalError("write() wrote more than requested"));
     }
     move_start_pos(length_written);

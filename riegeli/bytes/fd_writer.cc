@@ -481,6 +481,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       return FailOperation(has_independent_pos_ ? "pwrite()" : "write()");
     }
 #else   // _WIN32
+    DWORD length_to_write;
     DWORD length_written;
     if (has_independent_pos_) {
       const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(dest));
@@ -488,7 +489,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
                              file_handle == reinterpret_cast<HANDLE>(-2))) {
         return FailWindowsOperation("_get_osfhandle()");
       }
-      const DWORD length_to_write = UnsignedMin(
+      length_to_write = UnsignedMin(
           src.size(), absl::bit_floor(std::numeric_limits<DWORD>::max()));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(start_pos() & 0xffffffff);
@@ -499,10 +500,11 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
         return FailWindowsOperation("WriteFile()");
       }
     } else {
-      const unsigned length_to_write = UnsignedMin(
+      length_to_write = UnsignedMin(
           src.size(),
           absl::bit_floor(unsigned{std::numeric_limits<int>::max()}));
-      const int length_written_int = _write(dest, src.data(), length_to_write);
+      const int length_written_int =
+          _write(dest, src.data(), IntCast<unsigned>(length_to_write));
       if (ABSL_PREDICT_FALSE(length_written_int < 0)) {
         return FailOperation("_write()");
       }
@@ -516,7 +518,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
         << (has_independent_pos_ ? "WriteFile()" : "_write()")
 #endif
         << " returned 0";
-    RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
+    RIEGELI_ASSERT_LE(UnsignedCast(length_written), length_to_write)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pwrite()" : "write()")
 #else

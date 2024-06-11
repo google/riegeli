@@ -410,6 +410,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
 #else   // _WIN32
+    DWORD length_to_read;
     DWORD length_read;
     if (has_independent_pos_) {
       const HANDLE file_handle = reinterpret_cast<HANDLE>(_get_osfhandle(src));
@@ -417,11 +418,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                              file_handle == reinterpret_cast<HANDLE>(-2))) {
         return FailWindowsOperation("_get_osfhandle()");
       }
-      const DWORD length_to_read = IntCast<DWORD>(UnsignedMin(
+      length_to_read = UnsignedMin(
           max_length,
           Position{std::numeric_limits<fd_internal::Offset>::max()} -
               limit_pos(),
-          absl::bit_floor(std::numeric_limits<DWORD>::max())));
+          absl::bit_floor(std::numeric_limits<DWORD>::max()));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(limit_pos() & 0xffffffff);
       overlapped.OffsetHigh = IntCast<DWORD>(limit_pos() >> 32);
@@ -431,12 +432,13 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
         return FailWindowsOperation("ReadFile()");
       }
     } else {
-      const unsigned length_to_read = UnsignedMin(
+      length_to_read = UnsignedMin(
           max_length,
           Position{std::numeric_limits<fd_internal::Offset>::max()} -
               limit_pos(),
           absl::bit_floor(unsigned{std::numeric_limits<int>::max()}));
-      const int length_read_int = _read(src, dest, length_to_read);
+      const int length_read_int =
+          _read(src, dest, IntCast<unsigned>(length_to_read));
       if (ABSL_PREDICT_FALSE(length_read_int < 0)) {
         return FailOperation("_read()");
       }
@@ -447,7 +449,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       if (!growing_source_) set_exact_size(limit_pos());
       return false;
     }
-    RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
+    RIEGELI_ASSERT_LE(UnsignedCast(length_read), length_to_read)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pread()" : "read()")
 #else

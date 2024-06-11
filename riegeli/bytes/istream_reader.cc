@@ -175,7 +175,7 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
       }
       length_read = src.readsome(dest, max_length_to_read);
       RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::readsome()";
-      RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
+      RIEGELI_ASSERT_LE(length_read, max_length_to_read)
           << "istream::readsome() read more than requested";
       if (ABSL_PREDICT_TRUE(length_read > 0)) goto fragment_read;
       // `std::istream::peek()` returned non-`eof()` but
