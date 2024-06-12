@@ -45,9 +45,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#ifndef _WIN32
-#include "absl/strings/match.h"
-#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -194,7 +191,8 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
         return absl::UnimplementedError("Append mode excludes random access");
       });
     } else {
-      // `ftell()` succeeded, and `fseek(SEEK_END)` will be checked later.
+      // `cfile_internal::FTell()` succeeded, and
+      // `cfile_internal::FSeek(SEEK_END)` will be checked later.
       // `supports_random_access_` and `supports_read_mode_` are left as
       // `LazyBoolState::kUnknown`.
     }
@@ -243,13 +241,6 @@ absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
 inline absl::Status CFileWriterBase::SizeStatus() {
   RIEGELI_ASSERT(ok())
       << "Failed precondition of CFileWriterBase::SizeStatus(): " << status();
-#ifndef _WIN32
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `CFileWriter` checks the filename.
-    return absl::UnimplementedError("/sys files do not support random access");
-  }
-#endif  // !_WIN32
   FILE* const dest = DestFile();
   if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     // Not supported.
@@ -269,22 +260,6 @@ inline absl::Status CFileWriterBase::SizeStatus() {
     FailOperation(cfile_internal::kFSeekFunctionName);
     return status();
   }
-#ifndef _WIN32
-  if (file_size == 0 &&
-      ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-    // Some "/proc" files do not support random access. It is hard to reliably
-    // recognize them using the `FILE` API, so `CFileWriter` checks the
-    // filename. Random access is assumed to be unsupported if they claim to
-    // have a zero size, except for "/proc/*/fd" files.
-    const absl::string_view after_proc = filename().substr(6);
-    const size_t slash = after_proc.find('/');
-    if (slash == absl::string_view::npos ||
-        !absl::StartsWith(after_proc.substr(slash), "/fd/")) {
-      return absl::UnimplementedError(
-          "/proc files claiming zero size do not support random access");
-    }
-  }
-#endif  // !_WIN32
   // Supported.
   return absl::OkStatus();
 }

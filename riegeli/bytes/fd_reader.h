@@ -284,7 +284,6 @@ class FdReaderBase : public BufferedReader {
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
-  void CheckRandomAccess(int src);
 
   bool SeekInternal(int src, Position new_pos);
 
@@ -326,15 +325,6 @@ class FdReaderBase : public BufferedReader {
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
 // this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
 // On Windows binary mode is also required.
-//
-// On Linux, some virtual file systems ("/proc", "/sys") contain files with
-// contents generated on the fly when the files are read. The files appear as
-// regular files, with an apparent size of 0 or 4096, and random access is only
-// partially supported. `FdReader` properly detects lack of random access for
-// "/proc" files; for "/sys" files this is detected only if the filename seen by
-// `FdReader` starts with "/sys/". An explicit
-// `FdReaderBase::Options().set_assumed_pos(0)` can be used to disable random
-// access for such files.
 //
 // `FdReader` supports `NewReader()` if it supports random access. On Windows
 // `independent_pos() != absl::nullopt` is also required.

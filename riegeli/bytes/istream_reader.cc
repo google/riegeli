@@ -79,27 +79,72 @@ void IStreamReaderBase::Initialize(std::istream* src,
     }
     set_limit_pos(IntCast<Position>(stream_pos));
 
-    // Check if random access is supported.
+    // Check the size, and whether random access is supported.
     src->seekg(0, std::ios_base::end);
     if (src->fail()) {
-      // Not supported. `supports_random_access_` is left as `false`.
+      // Random access is not supported. `supports_random_access_` is left as
+      // `false`.
       random_access_status_ = FailedOperationStatus("istream::seekg()");
       src->clear(src->rdstate() & ~std::ios_base::failbit);
-    } else {
-      // Supported.
-      supports_random_access_ = true;
-      const std::streamoff stream_size = src->tellg();
-      if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-        FailOperation("istream::tellg()");
-        return;
-      }
+      return;
+    }
+    std::streamoff stream_size = src->tellg();
+    if (ABSL_PREDICT_FALSE(stream_size < 0)) {
+      FailOperation("istream::tellg()");
+      return;
+    }
+    if (limit_pos() != IntCast<Position>(stream_size)) {
       src->seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
       if (ABSL_PREDICT_FALSE(src->fail())) {
         FailOperation("istream::seekg()");
         return;
       }
-      if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
     }
+#ifndef _WIN32
+    if (stream_size == 0 && limit_pos() == 0) {
+      // Some "/proc" and "/sys" files claim to have zero size but have
+      // non-empty contents when read.
+      if (BufferedReader::PullSlow(1, 0)) {
+        if (growing_source_) {
+          // Check the size again. Maybe the stream has grown.
+          src->seekg(0, std::ios_base::end);
+          if (ABSL_PREDICT_FALSE(src->fail())) {
+            FailOperation("istream::seekg()");
+            return;
+          }
+          stream_size = src->tellg();
+          if (ABSL_PREDICT_FALSE(stream_size < 0)) {
+            FailOperation("istream::tellg()");
+            return;
+          }
+          if (limit_pos() != IntCast<Position>(stream_size)) {
+            src->seekg(IntCast<std::streamoff>(limit_pos()),
+                       std::ios_base::beg);
+            if (ABSL_PREDICT_FALSE(src->fail())) {
+              FailOperation("istream::seekg()");
+              return;
+            }
+          }
+          if (stream_size > 0) goto regular;
+        }
+        // This is one of "/proc" or "/sys" files which claim to have zero size
+        // but have non-empty contents when read. Random access is not
+        // supported. `supports_random_access_` is left as `false`.
+        random_access_status_ = Global([] {
+          return absl::UnimplementedError(
+              "Random access is not supported because "
+              "the file claims zero size but has non-empty contents when read");
+        });
+        return;
+      }
+      if (ABSL_PREDICT_FALSE(!ok())) return;
+      // This is a regular empty stream.
+    }
+  regular:
+#endif
+    // Random access is supported.
+    supports_random_access_ = true;
+    if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
   }
   BeginRun();
 }

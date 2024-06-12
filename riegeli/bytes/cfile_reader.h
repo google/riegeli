@@ -235,7 +235,6 @@ class CFileReaderBase : public BufferedReader {
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
-  void CheckRandomAccess(FILE* src);
 
   std::string filename_;
   bool growing_source_ = false;
@@ -254,15 +253,6 @@ class CFileReaderBase : public BufferedReader {
 // `CFileReader` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the `FILE` supports random
 // access (this is checked by calling `ftell()` and `fseek(SEEK_END)`).
-//
-// On Linux, some virtual file systems ("/proc", "/sys") contain files with
-// contents generated on the fly when the files are read. The files appear as
-// regular files, with an apparent size of 0 or 4096, and random access is only
-// partially supported. `CFileReader` detects lack of random access for them
-// only if the filename seen `CFileReader` starts with "/proc/" (for zero-sized
-// files) or "/sys/". An explicit
-// `CFileReaderBase::Options().set_assumed_pos(0)` can be used to disable random
-// access for such files.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `FILE` being read from. `Src` must support

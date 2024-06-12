@@ -498,15 +498,6 @@ class FdWriterBase : public BufferedWriter {
 // this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
 // On Windows binary mode is also required.
 //
-// On Linux, some virtual file systems ("/proc", "/sys") contain files with
-// contents generated on the fly when the files are read. The files appear as
-// regular files, with an apparent size of 0 or 4096, and random access is only
-// partially supported. `FdWriter` properly detects lack of random access for
-// "/proc" files; for "/sys" files this is detected only if the filename seen by
-// `FdWriter` starts with "/sys/". An explicit
-// `FdWriterBase::Options().set_assumed_pos(0)` can be used to disable random
-// access for such files.
-//
 // `FdWriter` supports `ReadMode()` if it supports random access and the fd was
 // opened with `O_RDWR` (`_O_RDWR` on Windows).
 //

@@ -354,15 +354,6 @@ class CFileWriterBase : public BufferedWriter {
 // `Options::assumed_pos() == absl::nullopt` and the `FILE` supports random
 // access (this is checked by calling `ftell()` and `fseek(SEEK_END)`).
 //
-// On Linux, some virtual file systems ("/proc", "/sys") contain files with
-// contents generated on the fly when the files are read. The files appear as
-// regular files, with an apparent size of 0 or 4096, and random access is only
-// partially supported. `CFileWriter` detects lack of random access for them
-// only if the filename seen `CFileWriter` starts with "/proc/" (for zero-sized
-// files) or "/sys/". An explicit
-// `CFileWriterBase::Options().set_assumed_pos(0)` can be used to disable random
-// access for such files.
-//
 // `CFileWriter` supports `ReadMode()` if it supports random access and the
 // `FILE` supports reading (this is checked by calling `fread()`).
 //

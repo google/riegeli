@@ -45,9 +45,6 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#ifndef _WIN32
-#include "absl/strings/match.h"
-#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -193,7 +190,76 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
-    CheckRandomAccess(src);
+
+    // Check the size, and whether random access is supported.
+    if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
+      // Random access is not supported. `supports_random_access_` is left as
+      // `false`.
+      random_access_status_ =
+          FailedOperationStatus(cfile_internal::kFSeekFunctionName);
+      clearerr(src);
+      return;
+    }
+    cfile_internal::Offset file_size = cfile_internal::FTell(src);
+    if (ABSL_PREDICT_FALSE(file_size < 0)) {
+      FailOperation(cfile_internal::kFTellFunctionName);
+      return;
+    }
+    if (limit_pos() != IntCast<Position>(file_size)) {
+      if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
+                                 src,
+                                 IntCast<cfile_internal::Offset>(limit_pos()),
+                                 SEEK_SET) != 0)) {
+        FailOperation(cfile_internal::kFSeekFunctionName);
+        return;
+      }
+    }
+#ifndef _WIN32
+    if (file_size == 0 && limit_pos() == 0) {
+      // Some "/proc" and "/sys" files claim to have zero size but have
+      // non-empty contents when read.
+      if (BufferedReader::PullSlow(1, 0)) {
+        if (growing_source_) {
+          // Check the size again. Maybe the file has grown.
+          if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END) !=
+                                 0)) {
+            FailOperation(cfile_internal::kFSeekFunctionName);
+            return;
+          }
+          file_size = cfile_internal::FTell(src);
+          if (ABSL_PREDICT_FALSE(file_size < 0)) {
+            FailOperation(cfile_internal::kFTellFunctionName);
+            return;
+          }
+          if (limit_pos() != IntCast<Position>(file_size)) {
+            if (ABSL_PREDICT_FALSE(
+                    cfile_internal::FSeek(
+                        src, IntCast<cfile_internal::Offset>(limit_pos()),
+                        SEEK_SET) != 0)) {
+              FailOperation(cfile_internal::kFSeekFunctionName);
+              return;
+            }
+          }
+          if (file_size > 0) goto regular;
+        }
+        // This is one of "/proc" or "/sys" files which claim to have zero size
+        // but have non-empty contents when read. Random access is not
+        // supported. `supports_random_access_` is left as `false`.
+        random_access_status_ = Global([] {
+          return absl::UnimplementedError(
+              "Random access is not supported because "
+              "the file claims zero size but has non-empty contents when read");
+        });
+        return;
+      }
+      if (ABSL_PREDICT_FALSE(!ok())) return;
+      // This is a regular empty file.
+    }
+  regular:
+#endif
+    // Random access is supported.
+    supports_random_access_ = true;
+    if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
   }
   BeginRun();
 }
@@ -221,59 +287,6 @@ inline absl::Status CFileReaderBase::FailedOperationStatus(
       << "Failed precondition of CFileReaderBase::FailedOperationStatus(): "
          "zero errno";
   return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
-}
-
-inline void CFileReaderBase::CheckRandomAccess(FILE* src) {
-#ifndef _WIN32
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `CFileReader` checks the filename.
-    //
-    // `supports_random_access_` is left as `false`.
-    random_access_status_ =
-        absl::UnimplementedError("/sys files do not support random access");
-    return;
-  }
-#endif  // !_WIN32
-  if (cfile_internal::FSeek(src, 0, SEEK_END) != 0) {
-    // Not supported. `supports_random_access_` is left as `false`.
-    random_access_status_ =
-        FailedOperationStatus(cfile_internal::kFSeekFunctionName);
-    clearerr(src);
-    return;
-  }
-  const cfile_internal::Offset file_size = cfile_internal::FTell(src);
-  if (ABSL_PREDICT_FALSE(file_size < 0)) {
-    FailOperation(cfile_internal::kFTellFunctionName);
-    return;
-  }
-  if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
-                             src, IntCast<cfile_internal::Offset>(limit_pos()),
-                             SEEK_SET) != 0)) {
-    FailOperation(cfile_internal::kFSeekFunctionName);
-    return;
-  }
-#ifndef _WIN32
-  if (file_size == 0 &&
-      ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/proc/"))) {
-    // Some "/proc" files do not support random access. It is hard to reliably
-    // recognize them using the `FILE` API, so `CFileReader` checks the
-    // filename. Random access is assumed to be unsupported if they claim to
-    // have a zero size, except for "/proc/*/fd" files.
-    const absl::string_view after_proc = filename().substr(6);
-    const size_t slash = after_proc.find('/');
-    if (slash == absl::string_view::npos ||
-        !absl::StartsWith(after_proc.substr(slash), "/fd/")) {
-      // `supports_random_access_` is left as `false`.
-      random_access_status_ = absl::UnimplementedError(
-          "/proc files claiming zero size do not support random access");
-      return;
-    }
-  }
-#endif  // !_WIN32
-  // Supported.
-  supports_random_access_ = true;
-  if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
 }
 
 bool CFileReaderBase::FailOperation(absl::string_view operation) {

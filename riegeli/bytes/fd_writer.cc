@@ -53,9 +53,6 @@
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
-#ifndef _WIN32
-#include "absl/strings/match.h"
-#endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -301,16 +298,6 @@ absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
 inline absl::Status FdWriterBase::SizeStatus() {
   RIEGELI_ASSERT(ok()) << "Failed precondition of FdWriterBase::SizeStatus(): "
                        << status();
-#ifndef _WIN32
-  if (ABSL_PREDICT_FALSE(absl::StartsWith(filename(), "/sys/"))) {
-    // "/sys" files do not support random access. It is hard to reliably
-    // recognize them, so `FdWriter` checks the filename.
-    //
-    // Some "/proc" files also do not support random access, but they are
-    // recognized by a failing `fd_internal::LSeek(SEEK_END)`.
-    return absl::UnimplementedError("/sys files do not support random access");
-  }
-#endif  // !_WIN32
   const int dest = DestFd();
   if (fd_internal::LSeek(dest, 0, SEEK_END) < 0) {
     // Not supported.
