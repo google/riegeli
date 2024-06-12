@@ -60,8 +60,9 @@ class
         SharedPtr : public WithEqual<SharedPtr<T>> {
  private:
   template <typename SubT>
-  struct IsCompatibleSubtype
-      : absl::conjunction<std::is_convertible<SubT*, T*>,
+  struct IsCompatibleProperSubtype
+      : absl::conjunction<absl::negation<std::is_same<SubT, T>>,
+                          std::is_convertible<SubT*, T*>,
                           absl::disjunction<std::is_same<std::remove_cv_t<SubT>,
                                                          std::remove_cv_t<T>>,
                                             std::has_virtual_destructor<T>>> {};
@@ -80,20 +81,20 @@ class
 
   // Creates a `SharedPtr` holding a constructed value of a compatible type.
   template <typename SubInitializer,
-            std::enable_if_t<
-                IsCompatibleSubtype<InitializerTargetT<SubInitializer>>::value,
-                int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<
+                                 InitializerTargetT<SubInitializer>>::value,
+                             int> = 0>
   explicit SharedPtr(SubInitializer&& value)
       : ptr_(UpCast(New<InitializerTargetT<SubInitializer>>(
             std::forward<SubInitializer>(value)))) {}
 
   // Converts from a `SharedPtr` with a compatible type.
   template <typename SubT,
-            std::enable_if_t<IsCompatibleSubtype<SubT>::value, int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   /*implicit*/ SharedPtr(const SharedPtr<SubT>& that) noexcept
       : ptr_(UpCast(Ref(that.ptr_))) {}
   template <typename SubT,
-            std::enable_if_t<IsCompatibleSubtype<SubT>::value, int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   SharedPtr& operator=(const SharedPtr<SubT>& that) noexcept {
     Unref(std::exchange(ptr_, UpCast(Ref(that.ptr_))));
     return *this;
@@ -103,11 +104,11 @@ class
   //
   // The source `SharedPtr` is left empty.
   template <typename SubT,
-            std::enable_if_t<IsCompatibleSubtype<SubT>::value, int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   /*implicit*/ SharedPtr(SharedPtr<SubT>&& that) noexcept
       : ptr_(UpCast(that.Release())) {}
   template <typename SubT,
-            std::enable_if_t<IsCompatibleSubtype<SubT>::value, int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   SharedPtr& operator=(SharedPtr<SubT>&& that) noexcept {
     Unref(std::exchange(ptr_, UpCast(that.Release())));
     return *this;
@@ -148,9 +149,9 @@ class
   //
   // The old object, if any, is destroyed afterwards.
   template <typename SubInitializer,
-            std::enable_if_t<
-                IsCompatibleSubtype<InitializerTargetT<SubInitializer>>::value,
-                int> = 0>
+            std::enable_if_t<IsCompatibleProperSubtype<
+                                 InitializerTargetT<SubInitializer>>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
     Unref(std::exchange(ptr_, UpCast(New<InitializerTargetT<SubInitializer>>(
                                   std::forward<SubInitializer>(value)))));
@@ -357,14 +358,16 @@ class
     if (ptr != nullptr && ref_count(ptr).Unref()) Delete(ptr);
   }
 
+  template <typename DependentT>
+  struct IsAssignable
+      : public absl::conjunction<
+            absl::disjunction<
+                absl::negation<std::has_virtual_destructor<DependentT>>,
+                std::is_final<DependentT>>,
+            std::is_move_assignable<DependentT>> {};
+
   template <typename DependentT = T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::disjunction<
-                        absl::negation<std::has_virtual_destructor<DependentT>>,
-                        std::is_final<DependentT>>,
-                    std::is_move_assignable<DependentT>>::value,
-                int> = 0>
+            std::enable_if_t<IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
     if (IsUnique()) {
       std::move(value).AssignTo(*ptr_);
@@ -372,14 +375,8 @@ class
     }
     Unref(std::exchange(ptr_, New(std::move(value))));
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          absl::disjunction<
-              absl::conjunction<std::has_virtual_destructor<DependentT>,
-                                absl::negation<std::is_final<DependentT>>>,
-              absl::negation<std::is_move_assignable<DependentT>>>::value,
-          int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
     Unref(std::exchange(ptr_, New(std::move(value))));
   }
