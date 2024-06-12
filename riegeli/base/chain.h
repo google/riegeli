@@ -1144,7 +1144,8 @@ inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view data) {}
 
 template <typename T,
-          std::enable_if_t<RegisterSubobjectsIsGood<T>::value, int> = 0>
+          std::enable_if_t<MemoryEstimator::RegisterSubobjectsIsGood<T>::value,
+                           int> = 0>
 inline void RegisterSubobjects(const T* object,
                                ABSL_ATTRIBUTE_UNUSED absl::string_view data,
                                MemoryEstimator& memory_estimator) {
@@ -1152,7 +1153,8 @@ inline void RegisterSubobjects(const T* object,
 }
 
 template <typename T,
-          std::enable_if_t<!RegisterSubobjectsIsGood<T>::value, int> = 0>
+          std::enable_if_t<!MemoryEstimator::RegisterSubobjectsIsGood<T>::value,
+                           int> = 0>
 inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
                                absl::string_view data,
                                MemoryEstimator& memory_estimator) {

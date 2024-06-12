@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <array>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -47,6 +48,21 @@ class Message;
 
 namespace riegeli {
 
+class MemoryEstimator;
+
+namespace memory_estimator_internal {
+
+template <typename T, typename Enable = void>
+struct HasRiegeliRegisterSubobjects : std::false_type {};
+
+template <typename T>
+struct HasRiegeliRegisterSubobjects<
+    T, absl::void_t<decltype(RiegeliRegisterSubobjects(
+           std::declval<const T*>(), std::declval<MemoryEstimator&>()))>>
+    : std::true_type {};
+
+}  // namespace memory_estimator_internal
+
 // Estimates the amount of memory used by multiple objects which may share their
 // subobjects (e.g. by reference counting).
 //
@@ -55,6 +71,33 @@ namespace riegeli {
 // perform their part.
 class MemoryEstimator {
  public:
+  // Determines whether `RegisterSubobjects(const T*)` might be considered good:
+  // either the corresponding `RiegeliRegisterSubobjects()` is defined, or `T`
+  // is trivially destructible so the default definition which does nothing is
+  // likely appropriate.
+  //
+  // This is not necessarily accurate, in particular traversing a `T` might
+  // encounter types which do not have a good estimation, but if this yields
+  // `false`, then `RegisterSubobjects()` is most likely an underestimation and
+  // the caller might have some different way to estimate memory.
+  template <typename T>
+  struct RegisterSubobjectsIsGood
+      : absl::disjunction<
+            memory_estimator_internal::HasRiegeliRegisterSubobjects<T>,
+            std::is_trivially_destructible<T>> {};
+
+  // Determines whether `RegisterSubobjects(const T*)` definitely does nothing:
+  // the corresponding `RiegeliRegisterSubobjects()` is not defined and `T` is
+  // trivially destructible.
+  //
+  // This can be used to skip a loop over elements of type `T`.
+  template <typename T>
+  struct RegisterSubobjectsIsTrivial
+      : absl::conjunction<
+            absl::negation<
+                memory_estimator_internal::HasRiegeliRegisterSubobjects<T>>,
+            std::is_trivially_destructible<T>> {};
+
   MemoryEstimator() = default;
 
   MemoryEstimator(const MemoryEstimator& that);
@@ -162,9 +205,9 @@ class MemoryEstimator {
   template <typename T, std::enable_if_t<std::is_reference<T>::value, int> = 0>
   void RegisterSubobjects(const std::remove_reference_t<T>* object);
 
-  // Iterates over elements of `iterable`, registering subobjects of each.
-  template <typename T>
-  void RegisterSubobjectsOfElements(const T* iterable);
+  // Registers each element of a range.
+  template <typename Iterator>
+  void RegisterSubobjects(Iterator begin, Iterator end);
 
   // A shortcut for `RegisterDynamicMemory(object, DynamicSizeOf(object))`
   // followed by `RegisterSubobjects(object)`.
@@ -191,26 +234,6 @@ class MemoryEstimator {
   absl::flat_hash_set<const void*> objects_seen_;
   absl::flat_hash_set<std::type_index> unknown_types_;
 };
-
-// Determines whether `RegisterSubobjects(const T&)` might be considered good:
-// either the corresponding `RiegeliRegisterSubobjects()` is defined, or `T` is
-// trivially destructible so the default definition which does nothing is likely
-// appropriate.
-//
-// This is not necessarily accurate, in particular traversing a `T` might
-// encounter types which do not have a good estimation, but if this yields
-// `false`, then `RegisterSubobjects()` is most likely an underestimation and
-// the caller might have some different way to estimate memory.
-template <typename T>
-struct RegisterSubobjectsIsGood;
-
-// Determines whether `RegisterSubobjects(const T&)` definitely does nothing:
-// the corresponding `RiegeliRegisterSubobjects()` is not defined and `T` is
-// trivially destructible.
-//
-// This can be used to skip a loop over elements of type `T`.
-template <typename T>
-struct RegisterSubobjectsIsTrivial;
 
 // Implementation details follow.
 
@@ -244,21 +267,11 @@ template <typename T,
 inline size_t DynamicSizeOf(const T* object) {
   return RiegeliDynamicSizeOf(object);
 }
-
 template <typename T,
           std::enable_if_t<!HasRiegeliDynamicSizeOf<T>::value, int> = 0>
 inline size_t DynamicSizeOf(ABSL_ATTRIBUTE_UNUSED const T* object) {
   return sizeof(T);
 }
-
-template <typename T, typename Enable = void>
-struct HasRiegeliRegisterSubobjects : std::false_type {};
-
-template <typename T>
-struct HasRiegeliRegisterSubobjects<
-    T, absl::void_t<decltype(RiegeliRegisterSubobjects(
-           std::declval<const T*>(), std::declval<MemoryEstimator&>()))>>
-    : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasRiegeliRegisterSubobjects<T>::value, int> = 0>
@@ -266,7 +279,6 @@ inline void RegisterSubobjects(const T* object,
                                MemoryEstimator& memory_estimator) {
   RiegeliRegisterSubobjects(object, memory_estimator);
 }
-
 template <typename T,
           std::enable_if_t<
               absl::conjunction<absl::negation<HasRiegeliRegisterSubobjects<T>>,
@@ -275,7 +287,6 @@ template <typename T,
 inline void RegisterSubobjects(
     ABSL_ATTRIBUTE_UNUSED const T* object,
     ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-
 template <typename T,
           std::enable_if_t<
               absl::conjunction<
@@ -303,25 +314,11 @@ template <typename T, std::enable_if_t<std::is_reference<T>::value, int>>
 inline void MemoryEstimator::RegisterSubobjects(
     ABSL_ATTRIBUTE_UNUSED const std::remove_reference_t<T>* object) {}
 
-template <typename T>
-struct RegisterSubobjectsIsGood
-    : absl::disjunction<
-          memory_estimator_internal::HasRiegeliRegisterSubobjects<T>,
-          std::is_trivially_destructible<T>> {};
-
-template <typename T>
-struct RegisterSubobjectsIsTrivial
-    : absl::conjunction<
-          absl::negation<
-              memory_estimator_internal::HasRiegeliRegisterSubobjects<T>>,
-          std::is_trivially_destructible<T>> {};
-
-template <typename T>
-inline void MemoryEstimator::RegisterSubobjectsOfElements(const T* iterable) {
-  using std::begin;
+template <typename Iterator>
+inline void MemoryEstimator::RegisterSubobjects(Iterator begin, Iterator end) {
   if (!RegisterSubobjectsIsTrivial<
-          std::remove_reference_t<decltype(*begin(*iterable))>>::value) {
-    for (const auto& element : *iterable) RegisterSubobjects(&element);
+          typename std::iterator_traits<Iterator>::value_type>::value) {
+    for (; begin != end; ++begin) RegisterSubobjects(&*begin);
   }
 }
 
@@ -451,7 +448,7 @@ inline void RiegeliRegisterSubobjects(const std::tuple<T...>* self,
 template <typename T, size_t size>
 inline void RiegeliRegisterSubobjects(const std::array<T, size>* self,
                                       MemoryEstimator& memory_estimator) {
-  memory_estimator.RegisterSubobjectsOfElements(self);
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <typename T, typename Alloc>
@@ -459,7 +456,7 @@ inline void RiegeliRegisterSubobjects(const std::vector<T, Alloc>* self,
                                       MemoryEstimator& memory_estimator) {
   if (self->capacity() > 0) {
     memory_estimator.RegisterDynamicMemory(self->capacity() * sizeof(T));
-    memory_estimator.RegisterSubobjectsOfElements(self);
+    memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
   }
 }
 
@@ -478,7 +475,7 @@ inline void RiegeliRegisterSubobjects(
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
           absl::flat_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
-  memory_estimator.RegisterSubobjectsOfElements(self);
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
@@ -489,7 +486,7 @@ inline void RiegeliRegisterSubobjects(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
           absl::flat_hash_map<K, V, Eq, Hash,
                               Alloc>>::AllocatedByteSize(*self));
-  memory_estimator.RegisterSubobjectsOfElements(self);
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <typename T, typename Eq, typename Hash, typename Alloc>
@@ -499,7 +496,7 @@ inline void RiegeliRegisterSubobjects(
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
           absl::node_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
-  memory_estimator.RegisterSubobjectsOfElements(self);
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
@@ -510,7 +507,7 @@ inline void RiegeliRegisterSubobjects(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
           absl::node_hash_map<K, V, Eq, Hash,
                               Alloc>>::AllocatedByteSize(*self));
-  memory_estimator.RegisterSubobjectsOfElements(self);
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <
