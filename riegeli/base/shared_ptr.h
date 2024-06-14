@@ -225,7 +225,6 @@ class
   // padding at the beginning of the allocation, before `RefCount` or `Control`.
   // Hence if `std::has_virtual_destructor<SubT>::value` then the beginning of
   // the allocation is known only to `Control::destroy()`.
-
   struct Control {
     explicit Control(void (*destroy)(void* ptr)) : destroy(destroy) {}
 
@@ -235,10 +234,11 @@ class
 
   template <typename SubT>
   static void DestroyMethod(void* ptr) {
-    static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
     static_cast<SubT*>(ptr)->SubT::~SubT();
+    static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
+    void* const allocated_ptr = static_cast<char*>(ptr) - kOffset;
     DeleteAligned<void, UnsignedMax(alignof(Control), alignof(SubT))>(
-        static_cast<char*>(ptr) - kOffset, kOffset + sizeof(SubT));
+        allocated_ptr, kOffset + sizeof(SubT));
   }
 
   template <typename SubT>
@@ -290,12 +290,13 @@ class
             std::enable_if_t<!std::has_virtual_destructor<DependentT>::value,
                              int> = 0>
   static void Delete(T* ptr) {
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
     ptr->~T();
-    DeleteAligned<void, UnsignedMax(alignof(RefCount), alignof(T))>(
+    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
+    void* const allocated_ptr =
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
-            kOffset,
-        kOffset + sizeof(T));
+        kOffset;
+    DeleteAligned<void, UnsignedMax(alignof(RefCount), alignof(T))>(
+        allocated_ptr, kOffset + sizeof(T));
   }
   template <typename DependentT = T,
             std::enable_if_t<
@@ -303,12 +304,13 @@ class
                                   std::is_final<DependentT>>::value,
                 int> = 0>
   static void Delete(T* ptr) {
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     ptr->~T();
-    DeleteAligned<void, UnsignedMax(alignof(Control), alignof(T))>(
+    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
+    void* const allocated_ptr =
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
-            kOffset,
-        kOffset + sizeof(T));
+        kOffset;
+    DeleteAligned<void, UnsignedMax(alignof(Control), alignof(T))>(
+        allocated_ptr, kOffset + sizeof(T));
   }
   template <
       typename DependentT = T,
@@ -386,10 +388,10 @@ class
                              int> = 0>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
-    memory_estimator.RegisterDynamicMemory(
+    void* const allocated_ptr =
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
-            kOffset,
-        kOffset + sizeof(T));
+        kOffset;
+    memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
     memory_estimator.RegisterSubobjects(ptr_);
   }
   template <typename MemoryEstimator, typename DependentT = T,
@@ -399,10 +401,10 @@ class
                 int> = 0>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
-    memory_estimator.RegisterDynamicMemory(
+    void* const allocated_ptr =
         reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
-            kOffset,
-        kOffset + sizeof(T));
+        kOffset;
+    memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
     memory_estimator.RegisterSubobjects(ptr_);
   }
   template <
@@ -414,7 +416,8 @@ class
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     // `kOffset` is not necessarily accurate because the object can be of a
-    // subtype of `T`, so do not pass the pointer to `RegisterDynamicMemory()`.
+    // subtype of `T`, so do not pass `allocated_ptr` to
+    // `RegisterDynamicMemory()`.
     memory_estimator.RegisterDynamicMemory(
         kOffset + memory_estimator.DynamicSizeOf(ptr_));
     memory_estimator.RegisterSubobjects(ptr_);
