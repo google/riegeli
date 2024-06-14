@@ -217,7 +217,7 @@ class CordReader<Src>::Mover {
  public:
   static auto member() { return &CordReader::src_; }
 
-  explicit Mover(CordReader& self, CordReader& that)
+  explicit Mover(CordReader& self, ABSL_ATTRIBUTE_UNUSED CordReader& that)
       : behind_scratch_(&self),
         uses_buffer_(self.start() != nullptr),
         position_(IntCast<size_t>(self.start_pos())),

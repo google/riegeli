@@ -174,7 +174,7 @@ class ChainReader<Src>::Mover {
  public:
   static auto member() { return &ChainReader::src_; }
 
-  explicit Mover(ChainReader& self, ChainReader& that)
+  explicit Mover(ChainReader& self)
       : behind_scratch_(&self),
         has_chain_(self.iter().chain() != nullptr),
         block_index_(self.iter().block_index()),
