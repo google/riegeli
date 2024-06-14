@@ -504,7 +504,7 @@ class FdWriterBase : public BufferedWriter {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
 // `Dependency<FdHandle, Dest>`, e.g. `OwnedFd` (owned, default),
-// `UnownedFd` (not owned), `AnyDependency<FdHandle>` (maybe owned).
+// `UnownedFd` (not owned), `AnyFd` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as

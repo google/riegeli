@@ -360,7 +360,7 @@ class CFileWriterBase : public BufferedWriter {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `FILE` being written to. `Dest` must support
 // `Dependency<CFileHandle, Dest>`, e.g. `OwnedCFile` (owned, default),
-// `UnownedCFile` (not owned), `AnyDependency<CFileHandle>` (maybe owned).
+// `UnownedCFile` (not owned), `AnyCFile` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as

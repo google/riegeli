@@ -109,7 +109,7 @@ class DigestingWriterBase : public Writer {
 // and possibly owning the digester. `Digester` must support
 // `Dependency<DigesterBaseHandle, Digester>`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
-// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
+// `AnyDigester<uint32_t>>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the original `Writer`. `Dest` must support
@@ -217,7 +217,7 @@ explicit DigestingWriter(Dest&& dest, Digester&& digester = riegeli::Maker())
 // `Dependency<DigesterBaseHandle, Digester&&>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
-// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
+// `AnyDigester<uint32_t>>` (maybe owned).
 //
 // The digester should not be expected to fail. If it fails, the process
 // terminates.

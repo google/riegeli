@@ -104,7 +104,7 @@ class DigestingReaderBase : public Reader {
 // and possibly owning the digester. `Digester` must support
 // `Dependency<DigesterBaseHandle, Digester>`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
-// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
+// `AnyDigester<uint32_t>` (maybe owned).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the original `Reader`. `Src` must support
@@ -211,7 +211,7 @@ explicit DigestingReader(Src&& src, Digester&& digester = riegeli::Maker())
 // `Dependency<DigesterBaseHandle, Digester&&>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
-// `AnyDependency<DigesterHandle<uint32_t>>` (maybe owned).
+// `AnyDigester<uint32_t>` (maybe owned).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
