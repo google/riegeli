@@ -161,6 +161,8 @@ class
   //
   // This can be used to check if the object may be modified (in contrast to
   // `std::shared_ptr::unique()`).
+  //
+  // If `*this` is empty, returns `false`.
   bool IsUnique() const {
     return ptr_ != nullptr && ref_count(ptr_).HasUniqueOwner();
   }

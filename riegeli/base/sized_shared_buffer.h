@@ -58,6 +58,8 @@ class
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
   // Returns `true` if `*this` is the only owner of the data.
+  //
+  // If `capacity() == 0`, returns `false`.
   bool IsUnique() const { return buffer_.IsUnique(); }
 
   explicit operator absl::string_view() const {
@@ -181,9 +183,9 @@ class
 
   SharedBuffer buffer_;
   // Invariant:
-  //   `(data_ >= buffer_.data() &&
-  //     data_ + size_ <= buffer_.data() + buffer_.capacity()) ||
-  //    (data_ == nullptr && size_ == 0)`
+  //   `(data_ == nullptr && size_ == 0) ||
+  //    (data_ >= buffer_.data() &&
+  //     data_ + size_ <= buffer_.data() + buffer_.capacity())`
   char* data_ = nullptr;
   size_t size_ = 0;
 };

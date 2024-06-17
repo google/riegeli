@@ -207,6 +207,8 @@ class
   // This can be used to check if the object may be modified (in contrast to
   // `std::shared_ptr::unique()`).
   //
+  // If `*this` is empty, returns `false`.
+  //
   // Supported if `T` supports `HasUniqueOwner()`.
   template <typename DependentT = T,
             std::enable_if_t<intrusive_shared_ptr_internal::HasHasUniqueOwner<

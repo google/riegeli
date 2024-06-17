@@ -43,14 +43,16 @@ class SharedBuffer {
   SharedBuffer(SharedBuffer&& that) = default;
   SharedBuffer& operator=(SharedBuffer&& that) = default;
 
-  // Ensures at least `min_capacity` of space and unique ownership of the data.
-  // Existing contents are lost.
+  // Ensures at least `min_capacity` of space, and unique ownership of the data
+  // if `min_capacity > 0`. Existing contents are lost.
   //
   // Drops the allocation if the resulting capacity would be wasteful for
   // `min_capacity`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity = 0);
 
   // Returns `true` if `*this` is the only owner of the data.
+  //
+  // If `capacity() == 0`, returns `false`.
   bool IsUnique() const;
 
   // Returns the mutable data pointer.
@@ -108,20 +110,21 @@ class SharedBuffer {
   }
 
  private:
-  SharedPtr<Buffer> buffer_;
+  SharedPtr<Buffer> buffer_;  // `nullptr` means `capacity() == 0`.
 };
 
 // Implementation details follow.
 
-inline SharedBuffer::SharedBuffer(size_t min_capacity) {
-  if (min_capacity > 0) buffer_.Reset(riegeli::Maker(min_capacity));
-}
+inline SharedBuffer::SharedBuffer(size_t min_capacity)
+    : buffer_(min_capacity == 0
+                  ? nullptr
+                  : SharedPtr<Buffer>(riegeli::Maker(min_capacity))) {}
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
-  if (min_capacity > 0) {
-    buffer_.Reset(riegeli::Maker(min_capacity));
-  } else {
+  if (min_capacity == 0) {
     if (!buffer_.IsUnique()) buffer_.Reset();
+  } else {
+    buffer_.Reset(riegeli::Maker(min_capacity));
   }
 }
 
@@ -131,7 +134,6 @@ inline char* SharedBuffer::mutable_data() const {
   RIEGELI_ASSERT(IsUnique())
       << "Failed precondition of SharedBuffer::mutable_data(): "
          "ownership is shared";
-  if (buffer_ == nullptr) return nullptr;
   return buffer_->data();
 }
 
