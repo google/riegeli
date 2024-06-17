@@ -91,7 +91,7 @@ class ChainReaderBase : public PullableReader {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Chain` being read from. `Src` must support
 // `Dependency<const Chain*, Src>`, e.g. `const Chain*` (not owned, default),
-// `Chain` (owned), `AnyDependency<const Chain*>` (maybe owned).
+// `Chain` (owned), `Any<const Chain*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

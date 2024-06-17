@@ -70,7 +70,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // possibly owning the compressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.
@@ -138,13 +138,13 @@ explicit SnappyReader(
 // possibly owning the compressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // The compressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with

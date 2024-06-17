@@ -50,7 +50,7 @@ cc_library(
     hdrs = ["text_reader.h"],
     deps = [
         ":newline",
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
@@ -75,7 +75,7 @@ cc_library(
     deps = [
         ":line_writing",
         ":newline",
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",

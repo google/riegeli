@@ -24,7 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -134,8 +134,8 @@ class Decompressor : public Object {
   void Initialize(Initializer<Src> src, CompressionType compression_type,
                   const RecyclingPoolOptions& recycling_pool_options);
 
-  AnyDependency<Reader*>::Inlining<Src, BrotliReader<Src>, ZstdReader<Src>,
-                                   SnappyReader<Src>>
+  Any<Reader*>::Inlining<Src, BrotliReader<Src>, ZstdReader<Src>,
+                         SnappyReader<Src>>
       decompressed_;
 };
 

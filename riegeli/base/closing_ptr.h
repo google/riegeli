@@ -31,7 +31,7 @@ struct NullDeleter {
 // object when done with the pointer, even though the object is not moved nor
 // destroyed.
 //
-// In the context of `Dependency` and `AnyDependency`, passing `ClosingPtr(&m)`
+// In the context of `Dependency` and `Any`, passing `ClosingPtr(&m)`
 // instead of `std::move(m)` avoids moving `m`, but the caller must ensure that
 // the dependent object is valid while the host object needs it.
 

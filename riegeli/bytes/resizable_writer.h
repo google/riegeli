@@ -245,7 +245,7 @@ class ResizableWriterBase : public Writer {
 // `ResizableTraits::Resizable*` (not owned, default),
 // `ResizableTraits::Resizable` (owned),
 // `std::unique_ptr<ResizableTraits::Resizable>` (owned),
-// `AnyDependency<ResizableTraits::Resizable*>` (maybe owned).
+// `Any<ResizableTraits::Resizable*>` (maybe owned).
 //
 // The `ResizableTraits::Resizable` must not be accessed until the
 // `ResizableWriter` is closed or no longer used, except that it is allowed

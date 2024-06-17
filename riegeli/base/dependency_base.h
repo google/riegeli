@@ -28,7 +28,7 @@
 namespace riegeli {
 
 // `RiegeliDependencySentinel(T*)` specifies how to initialize a default
-// `Manager` (for `Dependency`) or `Handle` (for `AnyDependency`) of type `T`.
+// `Manager` (for `Dependency`) or `Handle` (for `Any`) of type `T`.
 //
 // To customize that for a class `T`, define a free function
 // `friend Result RiegeliDependencySentinel(T*)` as a friend of `T` inside class

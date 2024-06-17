@@ -44,7 +44,7 @@ namespace riegeli {
 // `Writer` / `BackwardWriter`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
+// `Any<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 
 template <typename... Args,
           std::enable_if_t<

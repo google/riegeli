@@ -22,7 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -155,9 +155,9 @@ explicit TextWriter(Dest&& dest,
 // Wraps a `TextWriter` for a line terminator specified at runtime.
 template <typename Dest = Writer*>
 using AnyTextWriter =
-    AnyDependency<Writer*>::Inlining<TextWriter<WriteNewline::kLf, Dest>,
-                                     TextWriter<WriteNewline::kCr, Dest>,
-                                     TextWriter<WriteNewline::kCrLf, Dest>>;
+    Any<Writer*>::Inlining<TextWriter<WriteNewline::kLf, Dest>,
+                           TextWriter<WriteNewline::kCr, Dest>,
+                           TextWriter<WriteNewline::kCrLf, Dest>>;
 
 // Options for `MakeAnyTextWriter()`.
 class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {

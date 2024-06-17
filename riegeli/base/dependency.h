@@ -41,7 +41,7 @@ namespace riegeli {
 //
 // Often `Handle` is some pointer `Base*`, and then `Manager` can be e.g.
 // `T` (owned), `T*` (not owned), `std::unique_ptr<T, Deleter>` (owned),
-// or `AnyDependency<T*>` (maybe owned), with some `T` derived from `Base`.
+// or `Any<T*>` (maybe owned), with some `T` derived from `Base`.
 //
 // Often `Dependency<Handle, Manager>` is a member of a host class template
 // parameterized by `Manager`, with `Handle` fixed by the host class. The member
@@ -196,9 +196,9 @@ namespace riegeli {
 //   static constexpr bool kIsStable;
 //
 //   // If the `Manager` has exactly this type or a reference to it, returns
-//   // a pointer to the `Manager`. If the `Manager` is an `AnyDependency`
-//   // (possibly wrapped in a reference or `std::unique_ptr`), propagates
-//   // `GetIf()` to it. Otherwise returns `nullptr`.
+//   // a pointer to the `Manager`. If the `Manager` is an `Any` (possibly
+//   // wrapped in a reference or `std::unique_ptr`), propagates `GetIf()`
+//   // to it. Otherwise returns `nullptr`.
 //   //
 //   // Provided by `DependencyManagerImpl`, `DependencyImpl`, or `Dependency`.
 //   // In `Dependency` implemented in terms of `GetIf(TypeId)` if that is

@@ -40,7 +40,7 @@ namespace riegeli {
 //  * `std::nullptr_t DependencyManager<std::nullptr_t>::ptr()`
 //  * `T* DependencyManager<std::unique_ptr<T, Deleter>>::ptr()`
 //  * `T* DependencyManager<absl::optional<T>>::ptr()`
-//  * `Handle DependencyManager<AnyDependency<Handle>>::ptr()`
+//  * `Handle DependencyManager<Any<Handle>>::ptr()`
 //
 // `DependencyManager<Manager>` derives from
 // `DependencyManagerImpl<Manager, ManagerStorage>` (where `ManagerStorage` is
@@ -84,7 +84,7 @@ class DependencyManagerImpl<T*, ManagerStorage> : public DependencyBase<T*> {
 
 // Specialization of `DependencyManagerImpl<std::nullptr_t, ManagerStorage>`:
 // an unowned dependency stored by pointer, always missing. This is useful for
-// `AnyDependency` and `AnyDependencyRef`.
+// `Any` and `AnyRef`.
 template <typename ManagerStorage>
 class DependencyManagerImpl<std::nullptr_t, ManagerStorage>
     : public DependencyBase<std::nullptr_t> {

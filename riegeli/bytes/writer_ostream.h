@@ -172,7 +172,7 @@ class WriterOStreamBase : public std::iostream {
 // possibly owning the `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

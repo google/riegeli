@@ -203,7 +203,7 @@ class XzReaderBase : public BufferedReader {
 // possibly owning the compressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

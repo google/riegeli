@@ -144,7 +144,7 @@ cc_library(
     hdrs = ["decompressor.h"],
     deps = [
         ":constants",
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",

@@ -30,7 +30,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -340,7 +340,7 @@ constexpr FdHandle::Methods FdHandle::kMethods;
 
 // Type-erased object like `OwnedFd` or `UnownedFd` which stores and possibly
 // owns a fd.
-using AnyFd = AnyDependency<FdHandle>::Inlining<OwnedFd, UnownedFd>;
+using AnyFd = Any<FdHandle>::Inlining<OwnedFd, UnownedFd>;
 
 }  // namespace riegeli
 

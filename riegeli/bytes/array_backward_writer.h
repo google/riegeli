@@ -82,7 +82,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
 // possibly owning the array being written to. `Dest` must support
 // `Dependency<absl::Span<char>, Dest>`, e.g.
 // `absl::Span<char>` (not owned, default), `std::string*` (not owned),
-// `std::string` (owned), `AnyDependency<absl::Span<char>>` (maybe owned).
+// `std::string` (owned), `Any<absl::Span<char>>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument, except

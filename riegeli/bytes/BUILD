@@ -1007,7 +1007,7 @@ cc_library(
     srcs = ["fd_handle.cc"],
     hdrs = ["fd_handle.h"],
     deps = [
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:compare",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
@@ -1274,7 +1274,7 @@ cc_library(
     # included files provide.
     features = ["-use_header_modules"],
     deps = [
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:compare",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",

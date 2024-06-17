@@ -76,7 +76,7 @@ using CompactStringWriterBase = ResizableWriterBase;
 // possibly owning the `CompactString` being written to. `Dest` must support
 // `Dependency<CompactString*, Dest>`, e.g.
 // `CompactString*` (not owned, default), `CompactString` (owned),
-// `AnyDependency<CompactString*>` (maybe owned).
+// `Any<CompactString*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `CompactString`
 // if there are no constructor arguments or the only argument is `Options`,

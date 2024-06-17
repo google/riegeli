@@ -53,7 +53,7 @@ using StringViewCallResult =
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // Reading to `absl::string_view` is supported in two ways:
 //
@@ -108,7 +108,7 @@ StatusOrMakerT<read_all_internal::StringViewCallResult<Work>> ReadAll(
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAll(Src&& src, char* dest, size_t max_length,
@@ -149,7 +149,7 @@ absl::Status ReadAll(Src&& src, absl::Cord& dest, size_t* length_read);
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 template <typename Src,
           std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
 absl::Status ReadAndAppendAll(

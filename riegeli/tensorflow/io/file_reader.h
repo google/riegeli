@@ -235,7 +235,7 @@ class FileReaderBase : public Reader {
 // must support `Dependency<::tensorflow::RandomAccessFile*, Src>`, e.g.
 // `std::unique_ptr<::tensorflow::RandomAccessFile>` (owned, default),
 // `::tensorflow::RandomAccessFile*` (not owned),
-// `AnyDependency<::tensorflow::RandomAccessFile*>` (maybe owned).
+// `Any<::tensorflow::RandomAccessFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

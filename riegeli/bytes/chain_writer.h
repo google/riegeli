@@ -221,7 +221,7 @@ class ChainWriterBase : public Writer {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Chain` being written to. `Dest` must support
 // `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
-// `Chain` (owned), `AnyDependency<Chain*>` (maybe owned).
+// `Chain` (owned), `Any<Chain*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `Chain` if there
 // are no constructor arguments or the only argument is `Options`, otherwise as

@@ -80,7 +80,7 @@ class WriterCFileOptions {
 // possibly owning the `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // `dest` supports `riegeli::Maker<Dest>(args...)` to construct `Dest` in-place.
 //

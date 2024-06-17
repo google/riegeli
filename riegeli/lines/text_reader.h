@@ -23,7 +23,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -121,7 +121,7 @@ class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
 // possibly owning the original `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the second template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.
@@ -210,9 +210,9 @@ explicit TextReader(Src&& src,
 // Wraps a `TextReader` for a line terminator specified at runtime.
 template <typename Src = Reader*>
 using AnyTextReader =
-    AnyDependency<Reader*>::Inlining<TextReader<ReadNewline::kLf, Src>,
-                                     TextReader<ReadNewline::kCrLfOrLf, Src>,
-                                     TextReader<ReadNewline::kAny, Src>>;
+    Any<Reader*>::Inlining<TextReader<ReadNewline::kLf, Src>,
+                           TextReader<ReadNewline::kCrLfOrLf, Src>,
+                           TextReader<ReadNewline::kAny, Src>>;
 
 // Options for `MakeAnyTextReader()`.
 class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {

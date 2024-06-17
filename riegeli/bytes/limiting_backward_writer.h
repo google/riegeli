@@ -207,7 +207,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 // `Dependency<BackwardWriter*, Dest>`, e.g.
 // `BackwardWriter*` (not owned, default),
 // `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
-// `AnyDependency<BackwardWriter*>` (maybe owned).
+// `Any<BackwardWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

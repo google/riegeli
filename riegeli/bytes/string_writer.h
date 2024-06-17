@@ -184,7 +184,7 @@ class StringWriterBase : public Writer {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `std::string` being written to. `Dest` must support
 // `Dependency<std::string*, Dest>`, e.g. `std::string*` (not owned, default),
-// `std::string` (owned), `AnyDependency<std::string*>` (maybe owned).
+// `std::string` (owned), `Any<std::string*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `std::string`
 // if there are no constructor arguments or the only argument is `Options`,

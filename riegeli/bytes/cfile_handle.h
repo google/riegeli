@@ -27,7 +27,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -316,7 +316,7 @@ constexpr CFileHandle::Methods CFileHandle::kMethods;
 
 // Type-erased object like `OwnedCFile` or `UnownedCFile` which stores and
 // possibly owns a `FILE*`.
-using AnyCFile = AnyDependency<CFileHandle>::Inlining<OwnedCFile, UnownedCFile>;
+using AnyCFile = Any<CFileHandle>::Inlining<OwnedCFile, UnownedCFile>;
 
 }  // namespace riegeli
 

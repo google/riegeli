@@ -231,7 +231,7 @@ class CordWriterBase : public Writer {
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `absl::Cord` being written to. `Dest` must support
 // `Dependency<absl::Cord*, Dest>`, e.g. `absl::Cord*` (not owned, default),
-// `absl::Cord` (owned), `AnyDependency<absl::Cord*>` (maybe owned).
+// `absl::Cord` (owned), `Any<absl::Cord*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `absl::Cord`
 // if there are no constructor arguments or the only argument is `Options`,

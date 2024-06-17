@@ -29,7 +29,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/dependency_manager.h"
@@ -578,7 +578,7 @@ using DigestOf =
 
 // Type-erased digester returning a digest of type `DigestType`.
 template <typename DigestType>
-using AnyDigester = AnyDependency<DigesterHandle<DigestType>>;
+using AnyDigester = Any<DigesterHandle<DigestType>>;
 
 // Implementation details follow.
 

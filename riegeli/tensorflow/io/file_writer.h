@@ -180,7 +180,7 @@ class FileWriterBase : public Writer {
 // must support `Dependency<::tensorflow::WritableFile*, Dest>`, e.g.
 // `std::unique_ptr<::tensorflow::WritableFile>` (owned, default),
 // `::tensorflow::WritableFile*` (not owned),
-// `AnyDependency<::tensorflow::WritableFile*>` (maybe owned).
+// `Any<::tensorflow::WritableFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

@@ -611,13 +611,12 @@ class RecordWriterBase : public Object {
 // possibly owning the byte `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // `Dest` can also specify a `ChunkWriter` instead of a byte `Writer`. In this
 // case `Dest` must support `Dependency<ChunkWriter*, Dest>`, e.g.
 // `ChunkWriter*` (not owned), `DefaultChunkWriter<>` (owned),
-// `std::unique_ptr<ChunkWriter>` (owned),
-// `AnyDependency<ChunkWriter*>` (maybe owned).
+// `std::unique_ptr<ChunkWriter>` (owned), `Any<ChunkWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

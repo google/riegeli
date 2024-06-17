@@ -573,13 +573,12 @@ class RecordReaderBase : public Object {
 // possibly owning the byte `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // `Src` may also specify a `ChunkReader` instead of a byte `Reader`. In this
 // case `Src` must support `Dependency<ChunkReader*, Src>`, e.g.
 // `ChunkReader*` (not owned), `DefaultChunkReader<>` (owned),
-// `std::unique_ptr<ChunkReader>` (owned),
-// `AnyDependency<ChunkReader*>` (maybe owned).
+// `std::unique_ptr<ChunkReader>` (owned), `Any<ChunkReader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

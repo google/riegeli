@@ -260,11 +260,11 @@ cc_library(
 )
 
 cc_library(
-    name = "any_dependency",
-    srcs = ["any_dependency_internal.h"],
+    name = "any",
+    srcs = ["any_internal.h"],
     hdrs = [
-        "any_dependency.h",
-        "any_dependency_initializer.h",
+        "any.h",
+        "any_initializer.h",
     ],
     deps = [
         ":arithmetic",
@@ -279,6 +279,18 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "any_dependency",
+    hdrs = [
+        "any_dependency.h",
+        "any_dependency_initializer.h",
+    ],
+    deps = [
+        ":any",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

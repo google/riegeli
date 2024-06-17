@@ -21,7 +21,7 @@ cc_library(
     hdrs = ["digester_handle.h"],
     deps = [
         ":digest_converter",
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",

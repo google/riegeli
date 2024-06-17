@@ -131,7 +131,7 @@ class IStreamReaderBase : public BufferedReader {
 // possibly owning the stream being read from. `Src` must support
 // `Dependency<std::istream*, Src>`, e.g. `std::istream*` (not owned, default),
 // `std::ifstream` (owned), `std::unique_ptr<std::istream>` (owned),
-// `AnyDependency<std::istream*>` (maybe owned).
+// `Any<std::istream*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

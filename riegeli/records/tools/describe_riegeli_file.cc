@@ -29,7 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/repeated_ptr_field.h"
-#include "riegeli/base/any_dependency.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -227,8 +227,7 @@ absl::Status DescribeTransposedChunk(
     src.Seek(0);
     TransposeDecoder transpose_decoder;
     Chain dest;
-    AnyDependency<BackwardWriter*>::Inlining<ChainBackwardWriter<>,
-                                             NullBackwardWriter>
+    Any<BackwardWriter*>::Inlining<ChainBackwardWriter<>, NullBackwardWriter>
         dest_writer;
     if (show_records) {
       dest_writer = riegeli::Maker<ChainBackwardWriter<>>(&dest);

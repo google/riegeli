@@ -98,7 +98,7 @@ class TextParseOptions {
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)

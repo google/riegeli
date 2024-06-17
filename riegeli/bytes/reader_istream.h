@@ -150,7 +150,7 @@ class ReaderIStreamBase : public std::istream {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
 // e.g. `Reader*` (not owned, default), `ChainReader<>` (owned),
-// `std::unique_ptr<Reader>` (owned), `AnyDependency<Reader*>` (maybe owned).
+// `std::unique_ptr<Reader>` (owned), `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

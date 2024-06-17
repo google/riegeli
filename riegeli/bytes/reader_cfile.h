@@ -48,7 +48,7 @@ class ReaderCFileOptions {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
 // e.g. `Reader*` (not owned), `ChainReader<>` (owned),
-// `std::unique_ptr<Reader>` (owned), `AnyDependency<Reader*>` (maybe owned).
+// `std::unique_ptr<Reader>` (owned), `Any<Reader*>` (maybe owned).
 //
 // `src` supports `riegeli::Maker<Src>(args...)` to construct `Src` in-place.
 //

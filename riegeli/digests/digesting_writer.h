@@ -115,7 +115,7 @@ class DigestingWriterBase : public Writer {
 // possibly owning the original `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the `Digester` template argument can be deduced as
 // `InitializerTargetT` of the type of the `digester` constructor argument, and

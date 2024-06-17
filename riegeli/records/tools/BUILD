@@ -12,7 +12,7 @@ cc_binary(
     srcs = ["describe_riegeli_file.cc"],
     deps = [
         ":riegeli_summary_cc_proto",
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
@@ -103,7 +103,7 @@ cc_library(
     srcs = ["tfrecord_recognizer.cc"],
     hdrs = ["tfrecord_recognizer.h"],
     deps = [
-        "//riegeli/base:any_dependency",
+        "//riegeli/base:any",
         "//riegeli/base:assert",
         "//riegeli/base:initializer",
         "//riegeli/base:object",

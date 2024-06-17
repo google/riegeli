@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_ANY_DEPENDENCY_INTERNAL_H_
-#define RIEGELI_BASE_ANY_DEPENDENCY_INTERNAL_H_
+#ifndef RIEGELI_BASE_ANY_INTERNAL_H_
+#define RIEGELI_BASE_ANY_INTERNAL_H_
 
 #include <stddef.h>
 
@@ -36,14 +36,14 @@
 namespace riegeli {
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-class AnyDependency;
+class Any;
 template <typename Handle>
-class AnyDependencyRef;
+class AnyRef;
 
-namespace any_dependency_internal {
+namespace any_internal {
 
 // Variants of `Repr`:
-//  * Empty `AnyDependency`: `Repr` is not used
+//  * Empty `Any`: `Repr` is not used
 //  * Stored inline: `storage` holds `Dependency<Handle, Manager>`
 //  * Held by pointer: `storage` holds `Dependency<Handle, Manager>*`
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -60,21 +60,21 @@ using Storage = char[];
 // A `Dependency<Handle, Manager>` is stored inline in
 // `Repr<Handle, inline_size, inline_align>` if it is movable and it fits there.
 //
-// If `inline_size == 0`, the dependency is also required to be stable
-// (because then `AnyDependency` declares itself stable) and trivially
-// relocatable (because then `AnyDependency` declares itself with trivial ABI
-// and optimizes moving to a plain memory copy of the representation).
+// If `inline_size == 0`, the dependency is also required to be stable (because
+// then `Any` declares itself stable) and trivially relocatable (because then
+// `Any` declares itself with trivial ABI and optimizes moving to a plain memory
+// copy of the representation).
 
-// Properties of inline storage in an `AnyDepenency` instance are expressed as
-// two numbers: `available_size` and `available_align`, while constraints of a
+// Properties of inline storage in an `Any` instance are expressed as two
+// numbers: `available_size` and `available_align`, while constraints of a
 // movable `Dependency` instance on its storage are expressed as two numbers:
 // `used_size` and `used_align`, such that
 // `used_size <= available_size && used_align <= available_align` implies that
-// the movable `Dependency` can be stored inline in the `AnyDependency`.
+// the movable `Dependency` can be stored inline in the `Any`.
 //
 // This formulation allows reevaluating the condition with different values of
 // `available_size` and `available_align` when considering adopting the storage
-// for a different `AnyDependency` instance, at either compile time or runtime.
+// for a different `Any` instance, at either compile time or runtime.
 
 // Returns `available_size`: `sizeof` the storage, except that 0 indicates
 // `inline_size == 0`, which means the minimal size of any inline storage with
@@ -193,17 +193,16 @@ struct MethodsFor;
 template <typename Handle>
 struct NullMethods;
 
-// `IsAnyDependency` detects `AnyDependency` or `AnyDependencyRef` type with the
-// given `Handle`.
+// `IsAny` detects `Any` or `AnyRef` type with the given `Handle`.
 
 template <typename Handle, typename T>
-struct IsAnyDependency : std::false_type {};
+struct IsAny : std::false_type {};
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-struct IsAnyDependency<Handle, AnyDependency<Handle, inline_size, inline_align>>
-    : std::true_type {};
+struct IsAny<Handle, Any<Handle, inline_size, inline_align>> : std::true_type {
+};
 template <typename Handle>
-struct IsAnyDependency<Handle, AnyDependencyRef<Handle>> : std::true_type {};
+struct IsAny<Handle, AnyRef<Handle>> : std::true_type {};
 
 // Implementation details follow.
 
@@ -365,7 +364,7 @@ template <typename Handle, typename Manager>
 constexpr Methods<Handle> MethodsFor<Handle, Manager, false>::kMethods;
 #endif
 
-}  // namespace any_dependency_internal
+}  // namespace any_internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_ANY_DEPENDENCY_INTERNAL_H_
+#endif  // RIEGELI_BASE_ANY_INTERNAL_H_

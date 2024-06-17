@@ -117,7 +117,7 @@ class CordReaderBase : public PullableReader {
 // possibly owning the `absl::Cord` being read from. `Src` must support
 // `Dependency<const absl::Cord*, Src>`, e.g.
 // `const absl::Cord*` (not owned, default), `absl::Cord` (owned),
-// `AnyDependency<const absl::Cord*>` (maybe owned).
+// `Any<const absl::Cord*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.

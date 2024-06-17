@@ -92,7 +92,7 @@ class TextPrintOptions {
 // possibly owning the `Writer`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned).
+// `Any<Writer*>` (maybe owned).
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is written to)

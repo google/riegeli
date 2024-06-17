@@ -54,13 +54,13 @@ namespace riegeli {
 // possibly owning the `Reader`. `Src` must support
 // `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `AnyDependency<Reader*>` (maybe owned).
+// `Any<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer` / `BackwardWriter`. `Dest` must support
 // `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
-// `AnyDependency<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
+// `Any<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 template <typename Src, typename Dest,
           std::enable_if_t<
               absl::conjunction<IsValidDependency<Reader*, Src&&>,

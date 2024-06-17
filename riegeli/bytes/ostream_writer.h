@@ -157,7 +157,7 @@ class OStreamWriterBase : public BufferedWriter {
 // possibly owning the stream being written to. `Dest` must support
 // `Dependency<std::ostream*, Dest>`, e.g. `std::ostream*` (not owned, default),
 // `std::ofstream` (owned), `std::unique_ptr<std::ostream>` (owned),
-// `AnyDependency<std::ostream*>` (maybe owned).
+// `Any<std::ostream*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
 // `InitializerTargetT` of the type of the first constructor argument.
