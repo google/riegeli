@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <ios>
 #include <iosfwd>
 #include <limits>
@@ -86,6 +87,16 @@ int ReaderStreambuf::underflow() {
 std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
+  if (ABSL_PREDICT_TRUE(length <= egptr() - gptr())) {
+    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+    // undefined.
+    if (ABSL_PREDICT_TRUE(length > 0)) {
+      std::memcpy(dest, gptr(), IntCast<size_t>(length));
+      // Do not use `gbump()` because its parameter has type `int`.
+      setg(eback(), gptr() + length, egptr());
+    }
+    return length;
+  }
   if (ABSL_PREDICT_FALSE(!ok())) return 0;
   BufferSync buffer_sync(this);
   size_t length_read;
