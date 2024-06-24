@@ -345,7 +345,7 @@ struct SharedPtrControlBlock {
 
 }  // namespace memory_estimator_internal
 
-template <typename T>
+template <typename T, std::enable_if_t<!std::is_void<T>::value, int> = 0>
 inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {
@@ -353,6 +353,15 @@ inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
         sizeof(memory_estimator_internal::SharedPtrControlBlock) +
         MemoryEstimator::DynamicSizeOf(&**self));
     memory_estimator.RegisterSubobjects(&**self);
+  }
+}
+
+template <typename T, std::enable_if_t<std::is_void<T>::value, int> = 0>
+inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
+                                      MemoryEstimator& memory_estimator) {
+  if (memory_estimator.RegisterNode(self->get())) {
+    memory_estimator.RegisterDynamicMemory(
+        sizeof(memory_estimator_internal::SharedPtrControlBlock));
   }
 }
 
