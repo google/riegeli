@@ -254,9 +254,11 @@ class ZeroRef {
 
 }  // namespace
 
-void RiegeliDumpStructure(const void* self, std::ostream& out) {
-  out << "[external] { }";
-}
+namespace chain_internal {
+
+void DumpStructureDefault(std::ostream& out) { out << "[external] { }"; }
+
+}  // namespace chain_internal
 
 void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
   out << "[string] { capacity: " << self->capacity() << " }";

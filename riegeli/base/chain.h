@@ -1166,21 +1166,61 @@ inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
   }
 }
 
+template <typename T, typename Enable = void>
+struct HasRiegeliDumpStructureWithData : std::false_type {};
+
+template <typename T>
+struct HasRiegeliDumpStructureWithData<
+    T, absl::void_t<decltype(RiegeliDumpStructure(
+           std::declval<const T*>(), std::declval<absl::string_view>(),
+           std::declval<std::ostream&>()))>> : std::true_type {};
+
+template <typename T, typename Enable = void>
+struct HasRiegeliDumpStructureWithoutData : std::false_type {};
+
+template <typename T>
+struct HasRiegeliDumpStructureWithoutData<
+    T, absl::void_t<decltype(RiegeliDumpStructure(
+           std::declval<const T*>(), std::declval<std::ostream&>()))>>
+    : std::true_type {};
+
+void DumpStructureDefault(std::ostream& out);
+
+template <typename T,
+          std::enable_if_t<HasRiegeliDumpStructureWithData<T>::value, int> = 0>
+inline void DumpStructure(const T* object, absl::string_view data,
+                          std::ostream& out) {
+  RiegeliDumpStructure(object, data, out);
+}
+
+template <
+    typename T,
+    std::enable_if_t<
+        absl::conjunction<absl::negation<HasRiegeliDumpStructureWithData<T>>,
+                          HasRiegeliDumpStructureWithoutData<T>>::value,
+        int> = 0>
+inline void DumpStructure(const T* object,
+                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
+                          std::ostream& out) {
+  RiegeliDumpStructure(object, out);
+}
+
+template <typename T,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<HasRiegeliDumpStructureWithData<T>>,
+                  absl::negation<HasRiegeliDumpStructureWithoutData<T>>>::value,
+              int> = 0>
+inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
+                          ABSL_ATTRIBUTE_UNUSED absl::string_view data,
+                          std::ostream& out) {
+  chain_internal::DumpStructureDefault(out);
+}
+
 }  // namespace chain_internal
 
 // Support `Chain::FromExternal()`.
-void RiegeliDumpStructure(const void* self, std::ostream& out);
-
-// Support `Chain::FromExternal()`.
 void RiegeliDumpStructure(const std::string* self, std::ostream& out);
-
-// Support `Chain::FromExternal()`.
-template <typename T>
-inline void RiegeliDumpStructure(const T* self,
-                                 ABSL_ATTRIBUTE_UNUSED absl::string_view data,
-                                 std::ostream& out) {
-  RiegeliDumpStructure(self, out);
-}
 
 template <typename T>
 struct Chain::ExternalMethodsFor {
@@ -1242,8 +1282,8 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
                                                  std::ostream& out) {
-  RiegeliDumpStructure(&block.unchecked_external_object<T>(),
-                       absl::string_view(block), out);
+  chain_internal::DumpStructure(&block.unchecked_external_object<T>(),
+                                absl::string_view(block), out);
 }
 
 template <typename T>
