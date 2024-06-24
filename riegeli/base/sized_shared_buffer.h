@@ -22,12 +22,12 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/shared_buffer.h"
 
 namespace riegeli {
@@ -57,23 +57,18 @@ class
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
-  // Returns `true` if `*this` is the only owner of the data.
-  //
-  // If `capacity() == 0`, returns `false`.
-  bool IsUnique() const { return buffer_.IsUnique(); }
-
   explicit operator absl::string_view() const {
     return absl::string_view(data_, size_);
   }
+
+  // Returns `true` if the data size is 0.
+  bool empty() const { return size_ == 0; }
 
   // Returns the data pointer.
   const char* data() const { return data_; }
 
   // Returns the data size.
   size_t size() const { return size_; }
-
-  // Returns `true` if the data size is 0.
-  bool empty() const { return size_ == 0; }
 
   // Returns the allocated size, to which the `SizedSharedBuffer` can be resized
   // without reallocation.
@@ -130,31 +125,62 @@ class
   void RemoveSuffix(size_t length);
   void RemovePrefix(size_t length);
 
-  // Returns a `SizedSharedBuffer` containing [`data`..`data + length`).
+  // Converts `*this` to `ExternalRef`.
   //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  SizedSharedBuffer Substr(const char* data, size_t length) const&;
-  SizedSharedBuffer&& Substr(const char* data, size_t length) &&;
-
-  // Exposes the `SharedBuffer` storing the data.
-  const SharedBuffer& storage() const& { return buffer_; }
-  SharedBuffer&& storage() && {
-    data_ = nullptr;
-    size_ = 0;
-    return std::move(buffer_);
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  ExternalRef ToExternalRef(
+      ExternalRef::StorageSubstr<const SharedBuffer&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<const SharedBuffer&>()) const& {
+    return ToExternalRef(absl::string_view(*this), std::move(storage));
+  }
+  ExternalRef ToExternalRef(
+      ExternalRef::StorageSubstr<SharedBuffer&&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<SharedBuffer&&>()) && {
+    return std::move(*this).ToExternalRef(absl::string_view(*this),
+                                          std::move(storage));
   }
 
-  explicit operator absl::Cord() const&;
-  explicit operator absl::Cord() &&;
-
-  // Appends `*this` to `dest`.
-  void AppendTo(absl::Cord& dest) const&;
-  void AppendTo(absl::Cord& dest) &&;
-
-  // Prepends `*this` to `dest`.
-  void PrependTo(absl::Cord& dest) const&;
-  void PrependTo(absl::Cord& dest) &&;
+  // Converts a substring of `*this` to `ExternalRef`.
+  //
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  //
+  // Precondition: if `!substr.empty()` then `substr` is a substring of `**this`
+  ExternalRef ToExternalRef(
+      absl::string_view substr,
+      ExternalRef::StorageSubstr<const SharedBuffer&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<const SharedBuffer&>()) const& {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data_))
+          << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+      RIEGELI_ASSERT(
+          std::less_equal<>()(substr.data() + substr.size(), data_ + size_))
+          << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+    }
+    return buffer_.ToExternalRef(substr, std::move(storage));
+  }
+  ExternalRef ToExternalRef(
+      absl::string_view substr,
+      ExternalRef::StorageSubstr<SharedBuffer&&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<SharedBuffer&&>()) && {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data_))
+          << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+      RIEGELI_ASSERT(
+          std::less_equal<>()(substr.data() + substr.size(), data_ + size_))
+          << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+    }
+    data_ = nullptr;
+    size_ = 0;
+    return std::move(buffer_).ToExternalRef(substr, std::move(storage));
+  }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
@@ -243,34 +269,6 @@ inline void SizedSharedBuffer::RemovePrefix(size_t length) {
       << "length to remove greater than current size";
   data_ += length;
   size_ -= length;
-}
-
-inline SizedSharedBuffer SizedSharedBuffer::Substr(const char* data,
-                                                   size_t length) const& {
-  if (data != nullptr || length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
-        << "Failed precondition of SizedSharedBuffer::Substr(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + size_))
-        << "Failed precondition of SizedSharedBuffer::Substr(): "
-           "substring not contained in the buffer";
-  }
-  return SizedSharedBuffer(buffer_, const_cast<char*>(data), length);
-}
-
-inline SizedSharedBuffer&& SizedSharedBuffer::Substr(const char* data,
-                                                     size_t length) && {
-  if (data != nullptr || length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
-        << "Failed precondition of SizedSharedBuffer::Substr(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + size_))
-        << "Failed precondition of SizedSharedBuffer::Substr(): "
-           "substring not contained in the buffer";
-  }
-  data_ = const_cast<char*>(data);
-  size_ = length;
-  return std::move(*this);
 }
 
 }  // namespace riegeli

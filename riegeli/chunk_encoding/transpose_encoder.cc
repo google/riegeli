@@ -35,8 +35,10 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -227,6 +229,16 @@ bool TransposeEncoder::AddRecord(const Chain& record) {
 bool TransposeEncoder::AddRecord(const absl::Cord& record) {
   CordReader<> reader(&record);
   return AddRecordInternal(reader);
+}
+
+bool TransposeEncoder::AddRecord(ExternalRef record) {
+  if (record.size() <= kMaxBytesToCopy) {
+    StringReader<> reader(absl::string_view(std::move(record)));
+    return AddRecordInternal(reader);
+  } else {
+    ChainReader<Chain> reader(riegeli::Maker<Chain>(std::move(record)));
+    return AddRecordInternal(reader);
+  }
 }
 
 bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {

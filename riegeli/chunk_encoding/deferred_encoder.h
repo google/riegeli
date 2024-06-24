@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -51,6 +52,7 @@ class DeferredEncoder : public ChunkEncoder {
   bool AddRecord(Chain&& record) override;
   bool AddRecord(const absl::Cord& record) override;
   bool AddRecord(absl::Cord&& record) override;
+  bool AddRecord(ExternalRef record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

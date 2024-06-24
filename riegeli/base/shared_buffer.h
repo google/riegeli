@@ -17,10 +17,16 @@
 
 #include <stddef.h>
 
+#include <functional>
+#include <iosfwd>
+#include <utility>
+
 #include "absl/base/attributes.h"
-#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/base/external_data.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 
@@ -66,41 +72,65 @@ class SharedBuffer {
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const;
 
-  // Returns an opaque pointer, which represents a share of ownership of the
-  // data; an active share keeps the data alive. The returned pointer must be
-  // deleted using `DeleteShared()`.
+  // Converts a substring of `*this` to `ExternalRef`.
   //
-  // If the returned pointer is `nullptr`, it allowed but not required to call
-  // `DeleteShared()`.
-  void* Share() const&;
-  void* Share() &&;
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  //
+  // Precondition:
+  //   if `!substr.empty()` then `substr` is a substring of
+  //       [`data()`..`data() + capacity()`).
+  ExternalRef ToExternalRef(
+      absl::string_view substr,
+      ExternalRef::StorageSubstr<const SharedBuffer&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<const SharedBuffer&>()) const& {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
+          << "Failed precondition of SharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
+                                         data() + capacity()))
+          << "Failed precondition of SharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+    }
+    return ExternalRef(*this, substr, std::move(storage));
+  }
+  ExternalRef ToExternalRef(
+      absl::string_view substr,
+      ExternalRef::StorageSubstr<SharedBuffer&&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<SharedBuffer&&>()) && {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
+          << "Failed precondition of SharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
+                                         data() + capacity()))
+          << "Failed precondition of SharedBuffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+    }
+    return ExternalRef(std::move(*this), substr, std::move(storage));
+  }
 
-  // Deletes the pointer obtained by `Share()`.
-  //
-  // Does nothing if `ptr == nullptr`.
-  static void DeleteShared(void* ptr);
+  // Support `ExternalRef`.
+  friend size_t RiegeliAllocatedMemory(const SharedBuffer* self) {
+    if (self->buffer_ == nullptr) return 0;
+    return sizeof(size_t) + sizeof(Buffer) + self->buffer_->capacity();
+  }
 
-  // Converts [`data`..`data + length`) to `absl::Cord`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  //  contained in `*this`.
-  absl::Cord ToCord(const char* data, size_t length) const&;
-  absl::Cord ToCord(const char* data, size_t length) &&;
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(SharedBuffer* self) {
+    return ExternalStorage(self->buffer_.Release(), [](void* ptr) {
+      SharedPtr<Buffer>::DeleteReleased(static_cast<Buffer*>(ptr));
+    });
+  }
 
-  // Appends [`data`..`data + length`) to `dest`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const&;
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
-
-  // Prepends [`data`..`data + length`) to `dest`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  void PrependSubstrTo(const char* data, size_t length,
-                       absl::Cord& dest) const&;
-  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
+  // Support `Chain::FromExternal()` and `ExternalRef`.
+  friend void RiegeliDumpStructure(const SharedBuffer* self,
+                                   absl::string_view substr,
+                                   std::ostream& out) {
+    self->DumpStructure(substr, out);
+  }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
@@ -110,6 +140,8 @@ class SharedBuffer {
   }
 
  private:
+  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+
   SharedPtr<Buffer> buffer_;  // `nullptr` means `capacity() == 0`.
 };
 
@@ -145,16 +177,6 @@ inline const char* SharedBuffer::data() const {
 inline size_t SharedBuffer::capacity() const {
   if (buffer_ == nullptr) return 0;
   return buffer_->capacity();
-}
-
-inline void* SharedBuffer::Share() const& {
-  return SharedPtr<Buffer>(buffer_).Release();
-}
-
-inline void* SharedBuffer::Share() && { return buffer_.Release(); }
-
-inline void SharedBuffer::DeleteShared(void* ptr) {
-  SharedPtr<Buffer>::DeleteReleased(static_cast<Buffer*>(ptr));
 }
 
 }  // namespace riegeli

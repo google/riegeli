@@ -31,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -76,15 +77,9 @@ inline bool PushableWriter::SyncScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source SizedSharedBuffer cleared";
   const char* const data = buffer.data();
-  if (length_to_write <= kMaxBytesToCopy || PrefersCopying()) {
-    if (ABSL_PREDICT_FALSE(!Write(absl::string_view(data, length_to_write)))) {
-      return false;
-    }
-  } else {
-    if (ABSL_PREDICT_FALSE(
-            !Write(Chain(std::move(buffer).Substr(data, length_to_write))))) {
-      return false;
-    }
+  if (ABSL_PREDICT_FALSE(!Write(std::move(buffer).ToExternalRef(
+          absl::string_view(data, length_to_write))))) {
+    return false;
   }
   RIEGELI_ASSERT(!scratch_used())
       << "WriteSlow(absl::string_view) must not start using scratch, "
@@ -236,6 +231,18 @@ bool PushableWriter::WriteBehindScratch(absl::Cord&& src) {
   return WriteBehindScratch(src);
 }
 
+bool PushableWriter::WriteBehindScratch(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ExternalRef): "
+         "scratch used";
+  return Write(absl::string_view(std::move(src)));
+}
+
 bool PushableWriter::WriteZerosBehindScratch(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PushableWriter::WriteZerosBehindScratch(): "
@@ -375,6 +382,26 @@ bool PushableWriter::WriteSlow(absl::Cord&& src) {
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       cord_internal::CopyCordToArray(src, cursor());
       move_cursor(src.size());
+      return true;
+    }
+  }
+  return WriteBehindScratch(std::move(src));
+}
+
+bool PushableWriter::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
+      const absl::string_view data(std::move(src));
+      // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+      // undefined.
+      if (ABSL_PREDICT_TRUE(!data.empty())) {
+        std::memcpy(cursor(), data.data(), data.size());
+        move_cursor(data.size());
+      }
       return true;
     }
   }

@@ -45,7 +45,6 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   // `Close()` or `Flush()`.
   absl::Span<char> written() const { return written_; }
 
-  bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:

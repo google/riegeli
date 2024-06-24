@@ -25,6 +25,7 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -61,7 +62,6 @@ class NullBackwardWriter : public BackwardWriter {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
-  bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
@@ -71,6 +71,7 @@ class NullBackwardWriter : public BackwardWriter {
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool TruncateImpl(Position new_size) override;
 

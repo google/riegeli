@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_CHAIN_H_
-#define RIEGELI_BASE_CHAIN_H_
+#ifndef RIEGELI_BASE_EXTERNAL_REF_H_
+#define RIEGELI_BASE_EXTERNAL_REF_H_
 
-#include "riegeli/base/chain_base.h"         // IWYU pragma: export
-#include "riegeli/base/chain_details.h"      // IWYU pragma: export
-#include "riegeli/base/external_ref_base.h"  // IWYU pragma: keep
+#include "riegeli/base/chain_base.h"         // IWYU pragma: keep
+#include "riegeli/base/chain_details.h"      // IWYU pragma: keep
+#include "riegeli/base/external_ref_base.h"  // IWYU pragma: export
 
-#endif  // RIEGELI_BASE_CHAIN_H_
+#endif  // RIEGELI_BASE_EXTERNAL_REF_H_

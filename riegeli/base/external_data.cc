@@ -1,4 +1,4 @@
-// Copyright 2023 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/base/shared_buffer.h"
+#include "riegeli/base/external_data.h"
 
-#include <ostream>
+#include <cstring>
 
 #include "absl/strings/string_view.h"
-#include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
 
-void SharedBuffer::DumpStructure(absl::string_view substr,
-                                 std::ostream& out) const {
-  out << "[shared_buffer] {";
-  if (!substr.empty()) {
-    if (substr.data() != data()) {
-      out << " space_before: " << PtrDistance(data(), substr.data());
-    }
-    out << " space_after: "
-        << PtrDistance(substr.data() + substr.size(), data() + capacity());
+ExternalData ExternalDataCopy(absl::string_view data) {
+  char* storage = nullptr;
+  if (!data.empty()) {
+    storage = static_cast<char*>(operator new(data.size()));
+    std::memcpy(storage, data.data(), data.size());
   }
-  out << " }";
+  return ExternalData{ExternalStorage(storage, operator delete),
+                      absl::string_view(storage, data.size())};
 }
 
 }  // namespace riegeli

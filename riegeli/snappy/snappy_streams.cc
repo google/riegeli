@@ -22,7 +22,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -59,7 +59,7 @@ char* WriterSnappySink::GetAppendBuffer(size_t length, char* scratch) {
 void WriterSnappySink::AppendAndTakeOwnership(
     char* src, size_t length, void (*deleter)(void*, const char*, size_t),
     void* deleter_arg) {
-  dest_->Write(Chain::FromExternal(
+  dest_->Write(ExternalRef(
       [deleter, deleter_arg](absl::string_view data) {
         deleter(deleter_arg, data.data(), data.size());
       },

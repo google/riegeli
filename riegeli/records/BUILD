@@ -58,6 +58,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:external_ref",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/base:options_parser",

@@ -28,6 +28,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
@@ -42,7 +43,6 @@ class WrappingBackwardWriterBase : public BackwardWriter {
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
   virtual BackwardWriter* DestWriter() const = 0;
 
-  bool PrefersCopying() const override;
   bool SupportsTruncate() override;
 
  protected:
@@ -71,6 +71,7 @@ class WrappingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool TruncateImpl(Position new_size) override;
 

@@ -22,6 +22,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -29,6 +30,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
@@ -214,6 +216,35 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
   }
   move_start_pos(src.size());
   secondary_buffer_.Append(std::move(src), options_);
+  MakeSecondaryBuffer();
+  return true;
+}
+
+bool ResizableWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  if (!uses_secondary_buffer()) {
+    GrowDestToCapacityAndMakeBuffer();
+    if (src.size() <= available()) {
+      const absl::string_view data(std::move(src));
+      std::memcpy(cursor(), data.data(), data.size());
+      move_cursor(data.size());
+      return true;
+    }
+    set_start_pos(pos());
+    set_buffer();
+    written_size_ = 0;
+  } else {
+    SyncSecondaryBuffer();
+  }
+  move_start_pos(src.size());
+  std::move(src).AppendTo(secondary_buffer_, options_);
   MakeSecondaryBuffer();
   return true;
 }

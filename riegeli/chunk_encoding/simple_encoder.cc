@@ -29,6 +29,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
@@ -102,6 +103,10 @@ bool SimpleEncoder::AddRecord(const absl::Cord& record) {
 }
 
 bool SimpleEncoder::AddRecord(absl::Cord&& record) {
+  return AddRecordImpl(std::move(record));
+}
+
+bool SimpleEncoder::AddRecord(ExternalRef record) {
   return AddRecordImpl(std::move(record));
 }
 

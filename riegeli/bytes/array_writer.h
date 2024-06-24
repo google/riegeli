@@ -54,7 +54,6 @@ class ArrayWriterBase : public PushableWriter {
     return written();
   }
 
-  bool PrefersCopying() const override { return true; }
   bool SupportsRandomAccess() override { return true; }
   bool SupportsReadMode() override { return true; }
 

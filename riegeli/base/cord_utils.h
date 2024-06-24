@@ -31,9 +31,6 @@
 namespace riegeli {
 namespace cord_internal {
 
-// `absl::cord_internal::kMaxInline`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxInline, 15);
-
 // `absl::cord_internal::kFlatOverhead`. Does not have to be accurate.
 RIEGELI_INLINE_CONSTEXPR(size_t, kFlatOverhead,
                          sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t));
@@ -53,15 +50,28 @@ RIEGELI_INLINE_CONSTEXPR(
     absl::CordBuffer::MaximumPayload(kCordBufferBlockSize));
 
 // When deciding whether to copy an array of bytes or share memory to an
-// `absl::Cord`, prefer copying up to this length.
+// `absl::Cord`, prefer copying up to this length when creating a new
+// `absl::Cord`.
+//
+// This is `absl::cord_internal::kMaxInline`. Does not have to be accurate.
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopyToEmptyCord, 15);
+
+// When deciding whether to copy an array of bytes or share memory to an
+// `absl::Cord`, prefer copying up to this length when appending to a non-empty
+// `absl::Cord`.
+//
+// This is `absl::cord_internal::kMaxBytesToCopy`. Does not have to be accurate.
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopyToNonEmptyCord, 511);
+
+// When deciding whether to copy an array of bytes or share memory to an
+// `absl::Cord`, prefer copying up to this length when appending to `dest`.
 //
 // `absl::Cord::Append(absl::Cord)` chooses to copy bytes from a source up to
 // this length, so it is better to avoid constructing the source as `absl::Cord`
 // if it will not be shared anyway.
 inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
-  // `absl::cord_internal::kMaxBytesToCopy`. Does not have to be accurate.
-  static constexpr size_t kMaxBytesToCopy = 511;
-  return dest.empty() ? kMaxInline : kMaxBytesToCopy;
+  if (dest.empty()) return kMaxBytesToCopyToEmptyCord;
+  return kMaxBytesToCopyToNonEmptyCord;
 }
 
 // Copies `src` to `dest[]`.

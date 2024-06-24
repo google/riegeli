@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
@@ -136,6 +137,7 @@ class FileWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   Reader* ReadModeImpl(Position initial_pos) override;

@@ -194,7 +194,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     if (flat_buffer.empty()) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
-      dest.Append(std::move(buffer_).Substr(cursor(), available_length));
+      std::move(buffer_)
+          .ToExternalRef(absl::string_view(cursor(), available_length))
+          .AppendTo(dest);
       length -= available_length;
       buffer_.ClearAndShrink(buffer_length);
       if (ABSL_PREDICT_FALSE(buffer_length == 0)) {
@@ -236,7 +238,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       break;
     }
   }
-  dest.Append(buffer_.Substr(cursor(), length));
+  buffer_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
   move_cursor(length);
   return enough_read;
 }
@@ -265,7 +267,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     if (flat_buffer.empty()) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
-      std::move(buffer_).Substr(cursor(), available_length).AppendTo(dest);
+      std::move(buffer_)
+          .ToExternalRef(absl::string_view(cursor(), available_length))
+          .AppendTo(dest);
       length -= available_length;
       buffer_.ClearAndShrink(buffer_length);
       if (ABSL_PREDICT_FALSE(buffer_length == 0)) {
@@ -307,7 +311,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       break;
     }
   }
-  buffer_.Substr(cursor(), length).AppendTo(dest);
+  buffer_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
   move_cursor(length);
   return enough_read;
 }
@@ -327,7 +331,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     }
     const bool read_directly = length >= buffer_sizer_.BufferLength(pos());
     if (read_directly) {
-      if (available_length <= kMaxBytesToCopy || dest.PrefersCopying()) {
+      if (available_length <= kMaxBytesToCopy) {
         if (ABSL_PREDICT_FALSE(
                 !dest.Write(absl::string_view(cursor(), available_length)))) {
           move_cursor(available_length);
@@ -350,11 +354,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
       if (available_length > 0) {
-        const bool write_ok =
-            available_length <= kMaxBytesToCopy || dest.PrefersCopying()
-                ? dest.Write(absl::string_view(cursor(), available_length))
-                : dest.Write(Chain(
-                      std::move(buffer_).Substr(cursor(), available_length)));
+        const bool write_ok = dest.Write(std::move(buffer_).ToExternalRef(
+            absl::string_view(cursor(), available_length)));
         if (ABSL_PREDICT_FALSE(!write_ok)) {
           buffer_.ClearAndShrink(buffer_length);
           set_buffer();
@@ -406,11 +407,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       break;
     }
   }
-  const bool write_ok =
-      IntCast<size_t>(length) <= kMaxBytesToCopy || dest.PrefersCopying()
-          ? dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)))
-          : dest.Write(
-                Chain(buffer_.Substr(cursor(), IntCast<size_t>(length))));
+  const bool write_ok = dest.Write(buffer_.ToExternalRef(
+      absl::string_view(cursor(), IntCast<size_t>(length))));
   move_cursor(IntCast<size_t>(length));
   return write_ok && enough_read;
 }

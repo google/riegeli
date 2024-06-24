@@ -22,12 +22,14 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -74,11 +76,12 @@ inline void ChainWriterBase::MoveFromTail(size_t length, Chain& dest) {
   Chain::BlockIterator iter = tail_->blocks().cbegin();
   size_t remaining = length;
   while (remaining > iter->size()) {
-    iter.AppendTo(dest, options_);
+    iter.ToExternalRef().AppendTo(dest, options_);
     remaining -= iter->size();
     ++iter;
   }
-  iter.AppendSubstrTo(iter->data(), remaining, dest, options_);
+  iter.ToExternalRef(absl::string_view(iter->data(), remaining))
+      .AppendTo(dest, options_);
   tail_->RemovePrefix(length, options_);
 }
 
@@ -97,11 +100,12 @@ inline void ChainWriterBase::MoveToTail(size_t length, Chain& dest) {
   for (;;) {
     --iter;
     if (remaining <= iter->size()) break;
-    iter.PrependTo(*tail_, options_);
+    iter.ToExternalRef().PrependTo(*tail_, options_);
     remaining -= iter->size();
   }
-  iter.PrependSubstrTo(iter->data() + iter->size() - remaining, remaining,
-                       *tail_, options_);
+  iter.ToExternalRef(
+          absl::string_view(iter->data() + iter->size() - remaining, remaining))
+      .PrependTo(*tail_, options_);
   dest.RemoveSuffix(length, options_);
 }
 
@@ -238,6 +242,26 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
   ShrinkTail(src.size());
   move_start_pos(src.size());
   dest.Append(std::move(src), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
+bool ChainWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Chain& dest = *DestChain();
+  RIEGELI_ASSERT_LE(limit_pos(), dest.size())
+      << "ChainWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  ShrinkTail(src.size());
+  move_start_pos(src.size());
+  std::move(src).AppendTo(dest, options_);
   MakeBuffer(dest);
   return true;
 }

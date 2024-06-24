@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <cstring>
+#include <functional>
 #include <iosfwd>
 #include <limits>
 #include <utility>
@@ -31,6 +32,8 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/external_data.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/new_aligned.h"
 
 namespace riegeli {
@@ -224,6 +227,68 @@ class
     dest->append(src);
   }
 
+  // Converts `*this` to `ExternalRef`.
+  //
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  ExternalRef ToExternalRef(
+      ExternalRef::StorageSubstr<CompactString&&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<CompactString&&>()) && {
+    const uintptr_t tag = repr_ & 7;
+    if (tag == 1) {
+      return ExternalRef(absl::string_view(inline_data(), inline_size()),
+                         std::move(storage));
+    }
+    const absl::string_view data(allocated_data(), allocated_size_for_tag(tag));
+    return ExternalRef(std::move(*this), data, std::move(storage));
+  }
+
+  // Converts a substring of `*this` to `ExternalRef`.
+  //
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  //
+  // Precondition: if `!substr.empty()` then `substr` is a substring of `**this`
+  ExternalRef ToExternalRef(
+      absl::string_view substr,
+      ExternalRef::StorageSubstr<CompactString&&>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND =
+              ExternalRef::StorageSubstr<CompactString&&>()) && {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
+          << "Failed precondition of CompactString::ToExternalRef(): "
+             "substring not contained in the string";
+      RIEGELI_ASSERT(
+          std::less_equal<>()(substr.data() + substr.size(), data() + size()))
+          << "Failed precondition of CompactString::ToExternalRef(): "
+             "substring not contained in the string";
+    }
+    const uintptr_t tag = repr_ & 7;
+    if (tag == 1) return ExternalRef(substr, std::move(storage));
+    return ExternalRef(std::move(*this), substr, std::move(storage));
+  }
+
+  // Support `ExternalRef`.
+  friend size_t RiegeliAllocatedMemory(const CompactString* self) {
+    const uintptr_t tag = self->repr_ & 7;
+    if (ABSL_PREDICT_FALSE(tag == 1)) return 0;
+    const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
+    return offset + self->allocated_capacity_for_tag(tag);
+  }
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(CompactString* self) {
+    return ExternalStorage(
+        reinterpret_cast<void*>(std::exchange(self->repr_, kDefaultRepr)),
+        [](void* ptr) { DeleteRepr(reinterpret_cast<uintptr_t>(ptr)); });
+  }
+
+  // Support `Chain::FromExternal()` and `ExternalRef`.
+  friend void RiegeliDumpStructure(const CompactString* self,
+                                   absl::string_view substr,
+                                   std::ostream& out) {
+    self->DumpStructure(substr, out);
+  }
+
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CompactString* self,
@@ -399,6 +464,7 @@ class
   void AppendSlow(absl::string_view src);
   void ReserveOneMoreByteSlow();
 
+  void DumpStructure(absl::string_view substr, std::ostream& out) const;
   template <typename MemoryEstimator>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 
@@ -680,7 +746,7 @@ inline void CompactString::RegisterSubobjects(
   if (tag == 1) return;
   const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
   memory_estimator.RegisterDynamicMemory(
-      allocated_data() - offset, allocated_capacity_for_tag(tag) + offset);
+      allocated_data() - offset, offset + allocated_capacity_for_tag(tag));
 }
 
 }  // namespace riegeli

@@ -388,12 +388,15 @@ bool PullableReader::ReadSlow(size_t length, Chain& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        dest.Append(scratch_->buffer.Substr(cursor(), length));
+        scratch_->buffer.ToExternalRef(absl::string_view(cursor(), length))
+            .AppendTo(dest);
         move_cursor(length);
         return true;
       }
       length -= available();
-      dest.Append(std::move(scratch_->buffer).Substr(cursor(), available()));
+      std::move(scratch_->buffer)
+          .ToExternalRef(absl::string_view(cursor(), available()))
+          .AppendTo(dest);
       ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
@@ -415,12 +418,15 @@ bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        scratch_->buffer.Substr(cursor(), length).AppendTo(dest);
+        scratch_->buffer.ToExternalRef(absl::string_view(cursor(), length))
+            .AppendTo(dest);
         move_cursor(length);
         return true;
       }
       length -= available();
-      std::move(scratch_->buffer).Substr(cursor(), available()).AppendTo(dest);
+      std::move(scratch_->buffer)
+          .ToExternalRef(absl::string_view(cursor(), available()))
+          .AppendTo(dest);
       ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
@@ -439,19 +445,15 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok =
-            length <= kMaxBytesToCopy || dest.PrefersCopying()
-                ? dest.Write(absl::string_view(cursor(), length))
-                : dest.Write(Chain(scratch_->buffer.Substr(cursor(), length)));
+        const bool write_ok = dest.Write(scratch_->buffer.ToExternalRef(
+            absl::string_view(cursor(), length)));
         move_cursor(length);
         return write_ok;
       }
       length -= available();
-      const bool write_ok =
-          available() <= kMaxBytesToCopy || dest.PrefersCopying()
-              ? dest.Write(absl::string_view(cursor(), available()))
-              : dest.Write(Chain(
-                    std::move(scratch_->buffer).Substr(cursor(), available())));
+      const bool write_ok = dest.Write(
+          std::move(scratch_->buffer)
+              .ToExternalRef(absl::string_view(cursor(), available())));
       ClearScratch();
       if (ABSL_PREDICT_FALSE(!write_ok)) return false;
     }
@@ -472,16 +474,15 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     Chain from_scratch;
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok =
-            length <= kMaxBytesToCopy || dest.PrefersCopying()
-                ? dest.Write(absl::string_view(cursor(), length))
-                : dest.Write(Chain(scratch_->buffer.Substr(cursor(), length)));
+        const bool write_ok = dest.Write(scratch_->buffer.ToExternalRef(
+            absl::string_view(cursor(), length)));
         move_cursor(length);
         return write_ok;
       }
       length -= available();
       from_scratch =
-          Chain(std::move(scratch_->buffer).Substr(cursor(), available()));
+          Chain(std::move(scratch_->buffer)
+                    .ToExternalRef(absl::string_view(cursor(), available())));
       ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {

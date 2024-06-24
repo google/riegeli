@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
@@ -71,7 +72,6 @@ class PositionShiftingWriterBase : public Writer {
   // Returns the base position of the original `Writer`.
   Position base_pos() const { return base_pos_; }
 
-  bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
   bool SupportsTruncate() override;
   bool SupportsReadMode() override;
@@ -107,6 +107,7 @@ class PositionShiftingWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;

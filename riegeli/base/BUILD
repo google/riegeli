@@ -349,6 +349,13 @@ cc_library(
 )
 
 cc_library(
+    name = "external_data",
+    srcs = ["external_data.cc"],
+    hdrs = ["external_data.h"],
+    deps = ["@com_google_absl//absl/strings"],
+)
+
+cc_library(
     name = "shared_ptr",
     hdrs = [
         "intrusive_shared_ptr.h",
@@ -359,6 +366,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":compare",
+        ":external_data",
         ":initializer",
         ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
@@ -371,13 +379,14 @@ cc_library(
     srcs = ["buffer.cc"],
     hdrs = ["buffer.h"],
     deps = [
+        ":arithmetic",
         ":assert",
         ":buffering",
-        ":cord_utils",
         ":estimated_allocated_size",
+        ":external_data",
+        ":external_ref",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -386,15 +395,15 @@ cc_library(
     srcs = ["shared_buffer.cc"],
     hdrs = ["shared_buffer.h"],
     deps = [
+        ":arithmetic",
         ":assert",
         ":buffer",
-        ":buffering",
-        ":cord_utils",
+        ":external_data",
+        ":external_ref",
         ":initializer",
         ":shared_ptr",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -406,31 +415,35 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":buffering",
+        ":external_ref",
         ":shared_buffer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:span",
     ],
 )
 
 cc_library(
-    name = "chain",
+    name = "chain_and_external_ref",
     srcs = ["chain.cc"],
-    hdrs = ["chain.h"],
+    hdrs = [
+        "chain_base.h",
+        "chain_details.h",
+        "external_ref_base.h",
+    ],
+    visibility = ["//visibility:private"],
     deps = [
         ":arithmetic",
         ":assert",
         ":buffering",
         ":compare",
         ":cord_utils",
+        ":external_data",
         ":global",
         ":initializer",
         ":memory_estimator",
         ":new_aligned",
-        ":shared_buffer",
         ":shared_ptr",
-        ":sized_shared_buffer",
         ":string_utils",
         ":zeros",
         "@com_google_absl//absl/base:core_headers",
@@ -444,6 +457,18 @@ cc_library(
 )
 
 cc_library(
+    name = "chain",
+    hdrs = ["chain.h"],
+    deps = [":chain_and_external_ref"],
+)
+
+cc_library(
+    name = "external_ref",
+    hdrs = ["external_ref.h"],
+    deps = [":chain_and_external_ref"],
+)
+
+cc_library(
     name = "compact_string",
     srcs = ["compact_string.cc"],
     hdrs = ["compact_string.h"],
@@ -452,6 +477,8 @@ cc_library(
         ":assert",
         ":compare",
         ":estimated_allocated_size",
+        ":external_data",
+        ":external_ref",
         ":new_aligned",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",

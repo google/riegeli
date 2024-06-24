@@ -31,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/base/zeros.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -44,6 +45,15 @@ void CordBackwardWriterBase::Done() {
   buffer_ = Buffer();
 }
 
+inline size_t CordBackwardWriterBase::MaxBytesToCopy() const {
+  if (size_hint_ != absl::nullopt && pos() < *size_hint_) {
+    return UnsignedMin(*size_hint_ - pos() - 1,
+                       cord_internal::kMaxBytesToCopyToNonEmptyCord);
+  }
+  if (pos() == 0) return cord_internal::kMaxBytesToCopyToEmptyCord;
+  return cord_internal::kMaxBytesToCopyToNonEmptyCord;
+}
+
 inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
   if (limit() == nullptr) return;
   set_start_pos(pos());
@@ -53,16 +63,16 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
         PtrDistance(cord_buffer_.data(), data.data());
     if (prefix_to_remove == 0) {
       dest.Prepend(std::move(cord_buffer_));
-    } else if (!Wasteful(cord_internal::kFlatOverhead + cord_buffer_.capacity(),
-                         data.size()) &&
-               data.size() > cord_internal::MaxBytesToCopyToCord(dest)) {
+    } else if (Wasteful(cord_internal::kFlatOverhead + cord_buffer_.capacity(),
+                        data.size()) ||
+               data.size() <= MaxBytesToCopy()) {
+      cord_internal::PrependToBlockyCord(data, dest);
+    } else {
       dest.Prepend(std::move(cord_buffer_));
       dest.RemovePrefix(prefix_to_remove);
-    } else {
-      cord_internal::PrependToBlockyCord(data, dest);
     }
   } else {
-    std::move(buffer_).PrependSubstrTo(data.data(), data.size(), dest);
+    std::move(buffer_).ToExternalRef(data).PrependTo(dest);
   }
   set_buffer();
 }
@@ -167,7 +177,7 @@ bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
-  if (src.size() <= kMaxBytesToCopy) return BackwardWriter::WriteSlow(src);
+  if (src.size() <= MaxBytesToCopy()) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
@@ -186,7 +196,7 @@ bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  if (src.size() <= kMaxBytesToCopy) {
+  if (src.size() <= MaxBytesToCopy()) {
     // Not `std::move(src)`: forward to
     // `BackwardWriter::WriteSlow(const Chain&)`, because
     // `BackwardWriter::WriteSlow(Chain&&)` would forward to
@@ -211,7 +221,7 @@ bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (src.size() <= kMaxBytesToCopy) return BackwardWriter::WriteSlow(src);
+  if (src.size() <= MaxBytesToCopy()) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
@@ -230,7 +240,7 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  if (src.size() <= kMaxBytesToCopy) {
+  if (src.size() <= MaxBytesToCopy()) {
     // Not `std::move(src)`: forward to
     // `BackwardWriter::WriteSlow(const absl::Cord&)`, because
     // `BackwardWriter::WriteSlow(absl::Cord&&)` would forward to
@@ -251,11 +261,32 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   return true;
 }
 
+bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (src.size() <= MaxBytesToCopy()) {
+    return BackwardWriter::WriteSlow(std::move(src));
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Cord& dest = *DestCord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+      << "CordBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  std::move(src).PrependTo(dest);
+  return true;
+}
+
 bool CordBackwardWriterBase::WriteZerosSlow(Position length) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
          "enough space available, use WriteZeros() instead";
-  if (length <= kMaxBytesToCopy) return BackwardWriter::WriteZerosSlow(length);
+  if (length <= MaxBytesToCopy()) return BackwardWriter::WriteZerosSlow(length);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())

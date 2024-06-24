@@ -39,6 +39,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/type_traits.h"
@@ -110,6 +111,7 @@ inline Position StringifiedSize(Src&& src) {
 }
 inline Position StringifiedSize(const Chain& src) { return src.size(); }
 inline Position StringifiedSize(const absl::Cord& src) { return src.size(); }
+inline Position StringifiedSize(const ExternalRef& src) { return src.size(); }
 void StringifiedSize(signed char);
 void StringifiedSize(unsigned char);
 void StringifiedSize(short src);
@@ -310,6 +312,7 @@ class Writer : public Object {
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
+  bool Write(ExternalRef src);
 
   // Writes a stringified value to the buffer and/or the destination.
   //
@@ -340,8 +343,8 @@ class Writer : public Object {
               absl::negation<
                   std::is_convertible<Src&&, absl::Span<const char>>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-              value,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              absl::negation<std::is_convertible<Src&&, ExternalRef>>>::value,
           int> = 0>
   bool Write(Src&& src);
 
@@ -395,12 +398,6 @@ class Writer : public Object {
   //  * `false` - failure (less than `length` bytes written, `!ok()`)
   bool WriteChars(Position length, char src);
   bool WriteBytes(Position length, uint8_t src);
-
-  // If `true`, a hint that there is no benefit in preparing a `Chain` or
-  // `absl::Cord` for writing instead of `absl::string_view`, e.g. because
-  // `WriteSlow(const Chain&)` and `WriteSlow(const absl::Cord&)` are
-  // implemented in terms of `WriteSlow(absl::string_view)` anyway.
-  virtual bool PrefersCopying() const { return false; }
 
   // Pushes buffered data to the destination.
   //
@@ -583,21 +580,20 @@ class Writer : public Object {
   //
   // By default:
   //  * `WriteSlow(absl::string_view)` is implemented in terms of `PushSlow()`
-  //  * `WriteSlow(const Chain&)` and `WriteSlow(const absl::Cord&)` are
-  //    implemented in terms of `WriteSlow(absl::string_view)`
+  //  * `WriteSlow(const Chain&)`, `WriteSlow(const absl::Cord&)`, and
+  //    `WriteSlow(ExternalRef)` are implemented in terms of
+  //    `WriteSlow(absl::string_view)`
   //  * `WriteSlow(Chain&&)` is implemented in terms of
-  //    `WriteSlow(const Chain&)`;
+  //    `WriteSlow(const Chain&)`
   //  * `WriteSlow(absl::Cord&&)` is implemented in terms of
   //    `WriteSlow(const absl::Cord&)`
   //
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `available() < src.size()`
   //
-  // Precondition for `WriteStringSlow()`:
-  //   `src.size() >= kMaxBytesToCopy`
-  //
-  // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
-  // `WriteSlow(const absl::Cord&)`, and `WriteSlow(absl::Cord&&):
+  // Precondition for `WriteStringSlow()`, `WriteSlow(const Chain&)`,
+  // `WriteSlow(Chain&&)`, `WriteSlow(const absl::Cord&)`,
+  // `WriteSlow(absl::Cord&&), and `WriteSlow(ExternalRef)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
   bool WriteStringSlow(std::string&& src);
@@ -605,6 +601,7 @@ class Writer : public Object {
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
   virtual bool WriteSlow(absl::Cord&& src);
+  virtual bool WriteSlow(ExternalRef src);
 
   // Implementation of the slow part of `WriteZeros()`.
   //
@@ -861,10 +858,9 @@ inline bool Writer::Write(char src) {
 inline bool Writer::Write(absl::string_view src) {
   AssertInitialized(src.data(), src.size());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
-    if (ABSL_PREDICT_TRUE(
-            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
-            // are undefined.
-            !src.empty())) {
+    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+    // undefined.
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
       std::memcpy(cursor(), src.data(), src.size());
       move_cursor(src.size());
     }
@@ -877,9 +873,16 @@ inline bool Writer::Write(absl::string_view src) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool Writer::Write(Src&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
-    return Write(absl::string_view(src));
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    // `std::memcpy(nullptr, _, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
+    }
+    return true;
   }
+  AssertInitialized(start(), start_to_cursor());
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   return WriteStringSlow(std::move(src));
@@ -961,6 +964,22 @@ inline bool Writer::Write(absl::Cord&& src) {
   return WriteSlow(std::move(src));
 }
 
+inline bool Writer::Write(ExternalRef src) {
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    const absl::string_view data(std::move(src));
+    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+    // undefined.
+    if (ABSL_PREDICT_TRUE(!data.empty())) {
+      std::memcpy(cursor(), data.data(), data.size());
+      move_cursor(data.size());
+    }
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
 inline bool Writer::Write(signed char src) {
   return write_int_internal::WriteSigned(src, *this);
 }
@@ -1017,8 +1036,8 @@ template <
             absl::negation<std::is_convertible<Src&&, absl::string_view>>,
             absl::negation<std::is_convertible<Src&&, absl::Span<const char>>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-            value,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+            absl::negation<std::is_convertible<Src&&, ExternalRef>>>::value,
         int>>
 inline bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);

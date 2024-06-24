@@ -22,6 +22,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -29,6 +30,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
@@ -297,6 +299,47 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
   }
   move_start_pos(src.size());
   secondary_buffer_.Append(std::move(src), options_);
+  MakeSecondaryBuffer();
+  return true;
+}
+
+bool StringWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  std::string& dest = *DestString();
+  RIEGELI_ASSERT_EQ(UnsignedMax(limit_pos(), written_size_),
+                    dest.size() + secondary_buffer_.size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         dest.max_size() - IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  if (!uses_secondary_buffer()) {
+    SyncDestBuffer(dest);
+    const size_t cursor_index = IntCast<size_t>(start_pos());
+    const size_t new_cursor_index = cursor_index + src.size();
+    if (new_cursor_index <= dest.capacity()) {
+      const absl::string_view data(std::move(src));
+      if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
+        std::memcpy(&dest[cursor_index], data.data(), data.size());
+      } else {
+        dest.erase(cursor_index);
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `dest.append(data)`
+        dest.append(data.data(), data.size());
+      }
+      GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
+      return true;
+    }
+    dest.erase(cursor_index);
+    written_size_ = 0;
+  } else {
+    SyncSecondaryBuffer();
+  }
+  move_start_pos(src.size());
+  std::move(src).AppendTo(secondary_buffer_, options_);
   MakeSecondaryBuffer();
   return true;
 }

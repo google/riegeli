@@ -30,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -125,6 +126,7 @@ class TransposeEncoder : public ChunkEncoder {
   bool AddRecord(absl::string_view record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(const absl::Cord& record) override;
+  bool AddRecord(ExternalRef record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

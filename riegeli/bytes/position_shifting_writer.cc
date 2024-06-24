@@ -29,6 +29,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -125,6 +126,13 @@ bool PositionShiftingWriterBase::WriteSlow(absl::Cord&& src) {
   return WriteInternal(std::move(src));
 }
 
+bool PositionShiftingWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src));
+}
+
 template <typename Src>
 inline bool PositionShiftingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -165,11 +173,6 @@ bool PositionShiftingWriterBase::SeekSlow(Position new_pos) {
   const bool seek_ok = dest.Seek(new_pos - base_pos_);
   MakeBuffer(dest);
   return seek_ok;
-}
-
-bool PositionShiftingWriterBase::PrefersCopying() const {
-  const Writer* const dest = DestWriter();
-  return dest != nullptr && dest->PrefersCopying();
 }
 
 absl::optional<Position> PositionShiftingWriterBase::SizeImpl() {

@@ -26,6 +26,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -121,6 +122,13 @@ bool DigestingWriterBase::WriteSlow(absl::Cord&& src) {
   return WriteInternal(std::move(src));
 }
 
+bool DigestingWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(Chain(std::move(src)));
+}
+
 template <typename Src>
 inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -147,11 +155,6 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;
-}
-
-bool DigestingWriterBase::PrefersCopying() const {
-  const Writer* const dest = DestWriter();
-  return dest != nullptr && dest->PrefersCopying();
 }
 
 bool DigestingWriterBase::SupportsReadMode() {

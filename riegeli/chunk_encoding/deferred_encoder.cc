@@ -30,6 +30,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -87,6 +88,10 @@ bool DeferredEncoder::AddRecord(const absl::Cord& record) {
 }
 
 bool DeferredEncoder::AddRecord(absl::Cord&& record) {
+  return AddRecordImpl(std::move(record));
+}
+
+bool DeferredEncoder::AddRecord(ExternalRef record) {
   return AddRecordImpl(std::move(record));
 }
 

@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -69,7 +68,7 @@ inline bool SizedSharedBuffer::CanAppendMovingData(size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanAppendMovingData(): "
          "SizedSharedBuffer size overflow";
-  if (IsUnique()) {
+  if (buffer_.IsUnique()) {
     if (empty()) data_ = buffer_.mutable_data();
     if (space_after() >= length) return true;
     if (size_ + length <= capacity() && 2 * size_ <= capacity()) {
@@ -98,7 +97,7 @@ inline bool SizedSharedBuffer::CanPrependMovingData(size_t length,
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanPrependMovingData(): "
          "SizedSharedBuffer size overflow";
-  if (IsUnique()) {
+  if (buffer_.IsUnique()) {
     if (empty()) data_ = buffer_.mutable_data() + buffer_.capacity();
     if (space_before() >= length) return true;
     if (size_ + length <= capacity() && 2 * size_ <= capacity()) {
@@ -230,36 +229,6 @@ absl::Span<char> SizedSharedBuffer::PrependBufferIfExisting(size_t length) {
   data_ -= length;
   size_ += length;
   return absl::Span<char>(data_, length);
-}
-
-SizedSharedBuffer::operator absl::Cord() const& {
-  return storage().ToCord(data_, size_);
-}
-
-SizedSharedBuffer::operator absl::Cord() && {
-  const char* const data = data_;
-  const size_t size = size_;
-  return std::move(*this).storage().ToCord(data, size);
-}
-
-void SizedSharedBuffer::AppendTo(absl::Cord& dest) const& {
-  return storage().AppendSubstrTo(data_, size_, dest);
-}
-
-void SizedSharedBuffer::AppendTo(absl::Cord& dest) && {
-  const char* const data = data_;
-  const size_t size = size_;
-  return std::move(*this).storage().AppendSubstrTo(data, size, dest);
-}
-
-void SizedSharedBuffer::PrependTo(absl::Cord& dest) const& {
-  return storage().PrependSubstrTo(data_, size_, dest);
-}
-
-void SizedSharedBuffer::PrependTo(absl::Cord& dest) && {
-  const char* const data = data_;
-  const size_t size = size_;
-  return std::move(*this).storage().PrependSubstrTo(data, size, dest);
 }
 
 }  // namespace riegeli

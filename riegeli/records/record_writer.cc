@@ -44,6 +44,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
@@ -958,6 +959,12 @@ bool RecordWriterBase::WriteRecord(const absl::Cord& record) {
 }
 
 bool RecordWriterBase::WriteRecord(absl::Cord&& record) {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = record.size();
+  return WriteRecordImpl(size, std::move(record));
+}
+
+bool RecordWriterBase::WriteRecord(ExternalRef record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = record.size();
   return WriteRecordImpl(size, std::move(record));

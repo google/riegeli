@@ -34,6 +34,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
@@ -148,6 +149,7 @@ class CordWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
@@ -156,11 +158,15 @@ class CordWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  // When deciding whether to copy an array of bytes or share memory, prefer
+  // copying up to this length.
+  size_t MaxBytesToCopy() const;
+
   // If the buffer is not empty, appends it to `dest`. Ensures that data which
   // follow the current position are separated in `*tail_`.
   void SyncBuffer(absl::Cord& dest);
 
-  // Move `cord_buffer_`, adjusting buffer pointers if they point to it.
+  // Moves `cord_buffer_`, adjusting buffer pointers if they point to it.
   void MoveCordBuffer(CordWriterBase& that);
 
   // Moves `length` of data from the beginning of `*tail_` to the end of `dest`.

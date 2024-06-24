@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -110,6 +111,7 @@ class SnappyWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
@@ -117,14 +119,15 @@ class SnappyWriterBase : public Writer {
   // `snappy::kBlockSize`
   static constexpr size_t kBlockSize = size_t{64} << 10;
 
-  void MoveUncompressed(SnappyWriterBase& that);
-
-  // Prefer sharing instead of copying data at least of this length.
-  size_t MinBytesToShare() const;
+  // When deciding whether to copy an array of bytes or share memory, prefer
+  // copying up to this length.
+  size_t MaxBytesToCopy() const;
 
   // Discards uninitialized space from the end of `uncompressed_`, so that it
   // contains only actual data written.
   bool SyncBuffer();
+
+  void MoveUncompressed(SnappyWriterBase& that);
 
   int compression_level_ = Options::kDefaultCompressionLevel;
   Chain::Options options_;

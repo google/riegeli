@@ -29,6 +29,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/moving_dependency.h"
@@ -100,6 +101,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;

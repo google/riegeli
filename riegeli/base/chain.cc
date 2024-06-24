@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/base/chain.h"
-
 #include <stddef.h>
 
 #include <algorithm>
 #include <cstring>
-#include <functional>
 #include <ios>
 #include <limits>
 #include <memory>
@@ -37,16 +34,16 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/chain_base.h"
+#include "riegeli/base/chain_details.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref_base.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
-#include "riegeli/base/shared_buffer.h"
-#include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/string_utils.h"
 #include "riegeli/base/zeros.h"
 
@@ -89,9 +86,11 @@ class FlatCordRef {
   FlatCordRef(const FlatCordRef&) = delete;
   FlatCordRef& operator=(const FlatCordRef&) = delete;
 
+  const absl::Cord& src() const { return src_; }
+
   explicit operator absl::string_view() const;
 
-  // Support `Chain::FromExternal()`.
+  // Support `Chain::FromExternal()` and `ExternalRef`.
   friend void RiegeliDumpStructure(
       ABSL_ATTRIBUTE_UNUSED const FlatCordRef* self, std::ostream& out) {
     out << "[cord] { }";
@@ -103,20 +102,6 @@ class FlatCordRef {
                                         MemoryEstimator& memory_estimator) {
     memory_estimator.RegisterSubobjects(&self->src_);
   }
-
-  // Appends the `absl::Cord` to `dest`.
-  void AppendTo(absl::Cord& dest) const;
-
-  // Appends [`data`..`data + length`) to `dest`.
-  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
-
-  // Prepends the `absl::Cord` to `dest`.
-  void PrependTo(absl::Cord& dest) const;
-
-  // Prepends [`data`..`data + length`) to `dest`.
-  // [`data`..`data + length`) must be contained in `absl::string_view(*this)`.
-  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) const;
 
  private:
   // Invariant: `src_.TryFlat() != absl::nullopt`
@@ -148,96 +133,6 @@ inline FlatCordRef::operator absl::string_view() const {
       << "Failed invariant of FlatCordRef: Cord is not flat";
 }
 
-inline void FlatCordRef::AppendTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of FlatCordRef::AppendTo(): "
-         "Cord size overflow";
-  dest.Append(src_);
-}
-
-inline void FlatCordRef::AppendSubstrTo(const char* data, size_t length,
-                                        absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
-         "Cord size overflow";
-  if (length == src_.size()) {
-    dest.Append(src_);
-    return;
-  }
-  const absl::string_view fragment(*this);
-  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
-      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
-      << "Failed precondition of FlatCordRef::AppendSubstrTo(): "
-         "substring not contained in data";
-  dest.Append(src_.Subcord(PtrDistance(fragment.data(), data), length));
-}
-
-inline void FlatCordRef::PrependTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of FlatCordRef::PrependTo(): "
-         "Cord size overflow";
-  dest.Prepend(src_);
-}
-
-inline void FlatCordRef::PrependSubstrTo(const char* data, size_t length,
-                                         absl::Cord& dest) const {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
-         "Cord size overflow";
-  if (length == src_.size()) {
-    dest.Prepend(src_);
-    return;
-  }
-  const absl::string_view fragment(*this);
-  RIEGELI_ASSERT(std::greater_equal<>()(data, fragment.data()))
-      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, fragment.data() + fragment.size()))
-      << "Failed precondition of FlatCordRef::PrependSubstrTo(): "
-         "substring not contained in data";
-  dest.Prepend(src_.Subcord(PtrDistance(fragment.data(), data), length));
-}
-
-class SharedBufferRef {
- public:
-  explicit SharedBufferRef(Initializer<SharedBuffer> src)
-      : src_(std::move(src).Construct()) {}
-
-  SharedBufferRef(const SharedBufferRef&) = delete;
-  SharedBufferRef& operator=(const SharedBufferRef&) = delete;
-
-  // Support `Chain::FromExternal()`.
-  friend void RiegeliDumpStructure(const SharedBufferRef* self,
-                                   absl::string_view data, std::ostream& out) {
-    out << "[shared_buffer] {";
-    if (!data.empty()) {
-      if (data.data() != self->src_.data()) {
-        out << " space_before: " << PtrDistance(self->src_.data(), data.data());
-      }
-      out << " space_after: "
-          << PtrDistance(data.data() + data.size(),
-                         self->src_.data() + self->src_.capacity());
-    }
-    out << " }";
-  }
-
-  // Support `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const SharedBufferRef* self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->src_);
-  }
-
- private:
-  SharedBuffer src_;
-};
-
 class ZeroRef {
  public:
   ZeroRef() = default;
@@ -245,7 +140,7 @@ class ZeroRef {
   ZeroRef(const ZeroRef&) = delete;
   ZeroRef& operator=(const ZeroRef&) = delete;
 
-  // Support `Chain::FromExternal()`.
+  // Support `Chain::FromExternal()` and `ExternalRef`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroRef* self,
                                    std::ostream& out) {
     out << "[zero] { }";
@@ -262,52 +157,6 @@ void DumpStructureDefault(std::ostream& out) { out << "[external] { }"; }
 
 void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
   out << "[string] { capacity: " << self->capacity() << " }";
-}
-
-class Chain::BlockRef {
- public:
-  explicit BlockRef(RawBlock* block);
-  explicit BlockRef(IntrusiveSharedPtr<RawBlock> block);
-
-  // Support `Chain::FromExternal()`.
-  BlockRef(const BlockRef&) = delete;
-  BlockRef& operator=(const BlockRef&) = delete;
-
-  friend void RiegeliDumpStructure(const BlockRef* self, absl::string_view data,
-                                   std::ostream& out) {
-    out << "[block] { offset: "
-        << PtrDistance(self->block_->data_begin(), data.data()) << " ";
-    self->block_->DumpStructure(out);
-    out << " }";
-  }
-
-  // Support `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const BlockRef* self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->block_);
-  }
-
- private:
-  IntrusiveSharedPtr<RawBlock> block_;
-};
-
-inline Chain::BlockRef::BlockRef(RawBlock* block) {
-  if (const BlockRef* const block_ref =
-          block->checked_external_object<BlockRef>()) {
-    // `block` is already a `BlockRef`. Refer to its target instead.
-    block = block_ref->block_.get();
-  }
-  block_.Reset(block->Ref());
-}
-
-inline Chain::BlockRef::BlockRef(IntrusiveSharedPtr<RawBlock> block) {
-  if (const BlockRef* const block_ref =
-          block->checked_external_object<BlockRef>()) {
-    // `block` is already a `BlockRef`. Refer to its target instead.
-    block = block_ref->block_;
-  }
-  block_ = std::move(block);
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::NewInternal(
@@ -539,176 +388,6 @@ inline void Chain::RawBlock::Prepend(absl::string_view src,
   size_ += src.size();
 }
 
-inline void Chain::RawBlock::AppendTo(Chain& dest, Options options) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::AppendTo(Chain&): "
-         "Chain size overflow";
-  dest.AppendRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
-}
-
-template <Chain::Ownership ownership>
-inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::AppendTo(Cord&): "
-         "Cord size overflow";
-  if (size() <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
-    cord_internal::AppendToBlockyCord(absl::string_view(*this), dest);
-    Unref<ownership>();
-    return;
-  }
-  if (const FlatCordRef* const cord_ref =
-          checked_external_object<FlatCordRef>()) {
-    RIEGELI_ASSERT_EQ(size(), absl::string_view(*cord_ref).size())
-        << "Failed invariant of Chain::RawBlock: "
-           "block size differs from Cord size";
-    cord_ref->AppendTo(dest);
-    Unref<ownership>();
-    return;
-  }
-  Ref<ownership>();
-  dest.Append(absl::MakeCordFromExternal(absl::string_view(*this),
-                                         [this] { Unref(); }));
-}
-
-inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
-                                            Chain& dest, Options options) {
-  RIEGELI_ASSERT(std::greater_equal<>()(data, data_begin()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(std::less_equal<>()(data + length, data_end()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
-         "Chain size overflow";
-  if (length == size()) {
-    if (wasteful()) {
-      dest.Append(absl::string_view(data, length), options);
-      return;
-    }
-    dest.AppendRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
-    return;
-  }
-  if (length <= kMaxBytesToCopy || wasteful()) {
-    dest.Append(absl::string_view(data, length), options);
-    return;
-  }
-  dest.AppendRawBlock(
-      ExternalMethodsFor<BlockRef>::NewBlock(riegeli::Maker(this),
-                                             absl::string_view(data, length)),
-      options);
-}
-
-inline void Chain::RawBlock::AppendSubstrTo(const char* data, size_t length,
-                                            absl::Cord& dest) {
-  RIEGELI_ASSERT(std::greater_equal<>()(data, data_begin()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(std::less_equal<>()(data + length, data_end()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
-         "Cord size overflow";
-  if (length <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
-    cord_internal::AppendToBlockyCord(absl::string_view(data, length), dest);
-    return;
-  }
-  if (const FlatCordRef* const cord_ref =
-          checked_external_object<FlatCordRef>()) {
-    cord_ref->AppendSubstrTo(data, length, dest);
-    return;
-  }
-  Ref();
-  dest.Append(absl::MakeCordFromExternal(absl::string_view(data, length),
-                                         [this] { Unref(); }));
-}
-
-inline void Chain::RawBlock::PrependTo(Chain& dest, Options options) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::PrependTo(Chain&): "
-         "Chain size overflow";
-  dest.PrependRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
-}
-
-template <Chain::Ownership ownership>
-inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::PrependTo(Cord&): "
-         "Chain size overflow";
-  if (size() <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
-    cord_internal::PrependToBlockyCord(absl::string_view(*this), dest);
-    Unref<ownership>();
-    return;
-  }
-  if (const FlatCordRef* const cord_ref =
-          checked_external_object<FlatCordRef>()) {
-    RIEGELI_ASSERT_EQ(size(), absl::string_view(*cord_ref).size())
-        << "Failed invariant of Chain::RawBlock: "
-           "block size differs from Cord size";
-    cord_ref->PrependTo(dest);
-    Unref<ownership>();
-    return;
-  }
-  Ref<ownership>();
-  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(*this),
-                                          [this] { Unref(); }));
-}
-
-inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
-                                             Chain& dest, Options options) {
-  RIEGELI_ASSERT(std::greater_equal<>()(data, data_begin()))
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(std::less_equal<>()(data + length, data_end()))
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Chain&): "
-         "Chain size overflow";
-  if (length == size()) {
-    if (wasteful()) {
-      dest.Prepend(absl::string_view(data, length), options);
-      return;
-    }
-    dest.PrependRawBlock(IntrusiveSharedPtr<RawBlock>(Ref()), options);
-    return;
-  }
-  if (length <= kMaxBytesToCopy || wasteful()) {
-    dest.Prepend(absl::string_view(data, length), options);
-    return;
-  }
-  dest.PrependRawBlock(
-      ExternalMethodsFor<BlockRef>::NewBlock(riegeli::Maker(this),
-                                             absl::string_view(data, length)),
-      options);
-}
-
-inline void Chain::RawBlock::PrependSubstrTo(const char* data, size_t length,
-                                             absl::Cord& dest) {
-  RIEGELI_ASSERT(std::greater_equal<>()(data, data_begin()))
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(std::less_equal<>()(data + length, data_end()))
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Chain::RawBlock::PrependSubstrTo(Cord&): "
-         "Cord size overflow";
-  if (length <= cord_internal::MaxBytesToCopyToCord(dest) || wasteful()) {
-    cord_internal::PrependToBlockyCord(absl::string_view(data, length), dest);
-    return;
-  }
-  if (const FlatCordRef* const cord_ref =
-          checked_external_object<FlatCordRef>()) {
-    cord_ref->PrependSubstrTo(data, length, dest);
-    return;
-  }
-  Ref();
-  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(data, length),
-                                          [this] { Unref(); }));
-}
-
 size_t Chain::BlockIterator::CharIndexInChainInternal() const {
   if (ptr_ == kBeginShortData) {
     return 0;
@@ -733,145 +412,29 @@ size_t Chain::BlockIterator::CharIndexInChainInternal() const {
   }
 }
 
-IntrusiveSharedPtr<Chain::RawBlock> Chain::BlockIterator::PinImpl() {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::Pin(): "
-         "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    IntrusiveSharedPtr<RawBlock> block =
-        RawBlock::NewInternal(kMaxShortDataSize);
-    block->AppendWithExplicitSizeToCopy(chain_->short_data(),
-                                        kMaxShortDataSize);
-    return block;
-  }
-  return IntrusiveSharedPtr<RawBlock>(ptr_.as_ptr()->block_ptr->Ref());
+IntrusiveSharedPtr<Chain::RawBlock> Chain::BlockRef::ToChainRawBlock(
+    absl::string_view substr) && {
+  if (substr.size() == block_->size()) return std::move(block_);
+  return ExternalMethodsFor<BlockRef>::NewBlock(std::move(*this), substr);
 }
 
-void Chain::BlockIterator::AppendTo(Chain& dest, Options options) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain&): "
-         "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Append(chain_->short_data(), options);
-  } else {
-    ptr_.as_ptr()->block_ptr->AppendTo(dest, options);
+absl::Cord Chain::BlockRef::ToCord(absl::string_view substr) && {
+  if (const FlatCordRef* const cord_ref =
+          block_->checked_external_object<FlatCordRef>()) {
+    if (substr.size() == cord_ref->src().size()) return cord_ref->src();
+    return cord_ref->src().Subcord(
+        PtrDistance(absl::string_view(*cord_ref).data(), substr.data()),
+        substr.size());
   }
+  return absl::MakeCordFromExternal(substr, [block = std::move(block_)] {});
 }
 
-void Chain::BlockIterator::AppendTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Cord&): "
-         "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Append(chain_->short_data());
-  } else {
-    ptr_.as_ptr()->block_ptr->AppendTo<Ownership::kShare>(dest);
-  }
-}
-
-void Chain::BlockIterator::AppendSubstrTo(const char* data, size_t length,
-                                          Chain& dest, Options options) const {
-  if (length == 0) return;
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain&): "
-         "iterator is end()";
-  RIEGELI_ASSERT(std::greater_equal<>()(data, (*this)->data()))
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, (*this)->data() + (*this)->size()))
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain&): "
-         "substring not contained in data";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Append(absl::string_view(data, length), options);
-  } else {
-    ptr_.as_ptr()->block_ptr->AppendSubstrTo(data, length, dest, options);
-  }
-}
-
-void Chain::BlockIterator::AppendSubstrTo(const char* data, size_t length,
-                                          absl::Cord& dest) const {
-  if (length == 0) return;
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord&): "
-         "iterator is end()";
-  RIEGELI_ASSERT(std::greater_equal<>()(data, (*this)->data()))
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, (*this)->data() + (*this)->size()))
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord&): "
-         "substring not contained in data";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Append(absl::string_view(data, length));
-  } else {
-    ptr_.as_ptr()->block_ptr->AppendSubstrTo(data, length, dest);
-  }
-}
-
-void Chain::BlockIterator::PrependTo(Chain& dest, Options options) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::PrependTo(Chain&): "
-         "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Prepend(chain_->short_data(), options);
-  } else {
-    ptr_.as_ptr()->block_ptr->PrependTo(dest, options);
-  }
-}
-
-void Chain::BlockIterator::PrependTo(absl::Cord& dest) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::PrependTo(Cord&): "
-         "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Prepend(chain_->short_data());
-  } else {
-    ptr_.as_ptr()->block_ptr->PrependTo<Ownership::kShare>(dest);
-  }
-}
-
-void Chain::BlockIterator::PrependSubstrTo(const char* data, size_t length,
-                                           Chain& dest, Options options) const {
-  if (length == 0) return;
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of "
-         "Chain::BlockIterator::PrependSubstrTo(Chain&): "
-         "iterator is end()";
-  RIEGELI_ASSERT(std::greater_equal<>()(data, (*this)->data()))
-      << "Failed precondition of "
-         "Chain::BlockIterator::PrependSubstrTo(Chain&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, (*this)->data() + (*this)->size()))
-      << "Failed precondition of "
-         "Chain::BlockIterator::PrependSubstrTo(Chain&): "
-         "substring not contained in data";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Prepend(absl::string_view(data, length), options);
-  } else {
-    ptr_.as_ptr()->block_ptr->PrependSubstrTo(data, length, dest, options);
-  }
-}
-
-void Chain::BlockIterator::PrependSubstrTo(const char* data, size_t length,
-                                           absl::Cord& dest) const {
-  if (length == 0) return;
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::PrependSubstrTo(Cord&): "
-         "iterator is end()";
-  RIEGELI_ASSERT(std::greater_equal<>()(data, (*this)->data()))
-      << "Failed precondition of Chain::BlockIterator::PrependSubstrTo(Cord&): "
-         "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<>()(data + length, (*this)->data() + (*this)->size()))
-      << "Failed precondition of Chain::BlockIterator::PrependSubstrTo(Cord&): "
-         "substring not contained in data";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest.Prepend(absl::string_view(data, length));
-  } else {
-    ptr_.as_ptr()->block_ptr->PrependSubstrTo(data, length, dest);
-  }
+void Chain::BlockRef::DumpStructure(absl::string_view substr,
+                                    std::ostream& out) const {
+  out << "[block] { offset: "
+      << PtrDistance(block_->data_begin(), substr.data()) << " ";
+  block_->DumpStructure(out);
+  out << " }";
 }
 
 Chain::Chain(const absl::Cord& src) { Initialize(src); }
@@ -997,7 +560,7 @@ inline void Chain::InitializeFromCord(CordRef&& src) {
   {
     const absl::optional<absl::string_view> flat = src.TryFlat();
     if (flat != absl::nullopt) {
-      if (flat->size() <= kMaxBytesToCopy) {
+      if (flat->size() <= kMaxBytesToCopyToEmpty) {
         Initialize(*flat);
       } else {
         Initialize(ExternalMethodsFor<FlatCordRef>::NewBlock(
@@ -1145,28 +708,47 @@ void Chain::AppendTo(std::string& dest) && {
 void Chain::AppendTo(absl::Cord& dest) const& {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
-  const BlockPtr* iter = begin_;
-  if (iter == end_) {
+  if (begin_ == end_) {
     dest.Append(short_data());
     return;
   }
-  do {
-    iter->block_ptr->AppendTo<Ownership::kShare>(dest);
-    ++iter;
-  } while (iter != end_);
+  AppendToSlow(dest);
 }
 
 void Chain::AppendTo(absl::Cord& dest) && {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
-  const BlockPtr* iter = begin_;
-  if (iter == end_) {
+  if (begin_ == end_) {
     dest.Append(short_data());
     return;
   }
-  size_ = 0;
+  std::move(*this).AppendToSlow(dest);
+}
+
+inline void Chain::AppendToSlow(absl::Cord& dest) const& {
+  RIEGELI_ASSERT(begin_ != end_)
+      << "Failed precondition of Chain::AppendToSlow(Cord&): "
+         "no blocks, use AppendTo() instead";
+  const BlockPtr* iter = begin_;
   do {
-    iter->block_ptr->AppendTo<Ownership::kSteal>(dest);
+    ExternalRef(riegeli::Maker<BlockRef>(iter->block_ptr),
+                absl::string_view(*iter->block_ptr))
+        .AppendTo(dest);
+    ++iter;
+  } while (iter != end_);
+}
+
+inline void Chain::AppendToSlow(absl::Cord& dest) && {
+  RIEGELI_ASSERT(begin_ != end_)
+      << "Failed precondition of Chain::AppendToSlow(Cord&): "
+         "no blocks, use AppendTo() instead";
+  size_ = 0;
+  const BlockPtr* iter = begin_;
+  do {
+    ExternalRef(
+        riegeli::Maker<BlockRef>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+        absl::string_view(*iter->block_ptr))
+        .AppendTo(dest);
     ++iter;
   } while (iter != end_);
   end_ = begin_;
@@ -1175,29 +757,48 @@ void Chain::AppendTo(absl::Cord& dest) && {
 void Chain::PrependTo(absl::Cord& dest) const& {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
-  const BlockPtr* iter = end_;
-  if (iter == begin_) {
+  if (begin_ == end_) {
     dest.Prepend(short_data());
     return;
   }
-  do {
-    --iter;
-    iter->block_ptr->PrependTo<Ownership::kShare>(dest);
-  } while (iter != begin_);
+  PrependToSlow(dest);
 }
 
 void Chain::PrependTo(absl::Cord& dest) && {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
-  const BlockPtr* iter = end_;
-  if (iter == begin_) {
+  if (begin_ == end_) {
     dest.Prepend(short_data());
     return;
   }
+  std::move(*this).PrependToSlow(dest);
+}
+
+inline void Chain::PrependToSlow(absl::Cord& dest) const& {
+  RIEGELI_ASSERT(end_ != begin_)
+      << "Failed precondition of Chain::PrependToSlow(Cord&): "
+         "no blocks, use PrependTo() instead";
+  const BlockPtr* iter = end_;
+  do {
+    --iter;
+    ExternalRef(riegeli::Maker<BlockRef>(iter->block_ptr),
+                absl::string_view(*iter->block_ptr))
+        .PrependTo(dest);
+  } while (iter != begin_);
+}
+
+inline void Chain::PrependToSlow(absl::Cord& dest) && {
+  RIEGELI_ASSERT(end_ != begin_)
+      << "Failed precondition of Chain::PrependToSlow(Cord&): "
+         "no blocks, use PrependTo() instead";
+  const BlockPtr* iter = end_;
   size_ = 0;
   do {
     --iter;
-    iter->block_ptr->PrependTo<Ownership::kSteal>(dest);
+    ExternalRef(
+        riegeli::Maker<BlockRef>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+        absl::string_view(*iter->block_ptr))
+        .PrependTo(dest);
   } while (iter != begin_);
   end_ = begin_;
 }
@@ -1221,26 +822,16 @@ Chain::operator std::string() && {
 }
 
 Chain::operator absl::Cord() const& {
-  const BlockPtr* iter = begin_;
-  if (iter == end_) return absl::Cord(short_data());
+  if (begin_ == end_) return absl::Cord(short_data());
   absl::Cord dest;
-  do {
-    iter->block_ptr->AppendTo<Ownership::kShare>(dest);
-    ++iter;
-  } while (iter != end_);
+  AppendToSlow(dest);
   return dest;
 }
 
 Chain::operator absl::Cord() && {
-  const BlockPtr* iter = begin_;
-  if (iter == end_) return absl::Cord(short_data());
+  if (begin_ == end_) return absl::Cord(short_data());
   absl::Cord dest;
-  size_ = 0;
-  do {
-    iter->block_ptr->AppendTo<Ownership::kSteal>(dest);
-    ++iter;
-  } while (iter != end_);
-  end_ = begin_;
+  std::move(*this).AppendToSlow(dest);
   return dest;
 }
 
@@ -1375,7 +966,7 @@ inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopFront() {
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
     // `begin_` must remain at `block_ptrs_.here`. There might be no pointer to
-    // copy; it is cheaper to copy the array slot unconditionally.
+    // copy; it is more efficient to copy the array slot unconditionally.
     IntrusiveSharedPtr<RawBlock> block(
         std::exchange(block_ptrs_.here[0], block_ptrs_.here[1]).block_ptr);
     --end_;
@@ -1849,18 +1440,10 @@ void Chain::Append(absl::string_view src, Options options) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 void Chain::Append(Src&& src, Options options) {
-  if (src.size() <= kMaxBytesToCopy ||
-      Wasteful(
-          RawBlock::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
-          src.size())) {
-    // Not `std::move(src)`: forward to `Append(absl::string_view)`.
-    Append(src, options);
-    return;
-  }
+  const size_t size = src.size();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  AppendRawBlock(ExternalMethodsFor<std::string>::NewBlock(std::move(src)),
-                 options);
+  ExternalRef(std::move(src), size).AppendTo(*this, options);
 }
 
 template void Chain::Append(std::string&& src, Options options);
@@ -2081,7 +1664,7 @@ void Chain::AppendCord(CordRef&& src, Options options) {
   {
     const absl::optional<absl::string_view> flat = src.TryFlat();
     if (flat != absl::nullopt) {
-      if (flat->size() <= kMaxBytesToCopy) {
+      if (flat->size() <= MaxBytesToCopy(options)) {
         Append(*flat, options);
       } else {
         AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
@@ -2125,32 +1708,6 @@ inline void Chain::AppendCordSlow(CordRef&& src, Options options) {
   }
 }
 
-void Chain::Append(const SizedSharedBuffer& src, Options options) {
-  AppendSizedSharedBuffer(src, options);
-}
-
-void Chain::Append(SizedSharedBuffer&& src, Options options) {
-  AppendSizedSharedBuffer(std::move(src), options);
-}
-
-template <typename SizedSharedBufferRef>
-inline void Chain::AppendSizedSharedBuffer(SizedSharedBufferRef&& src,
-                                           Options options) {
-  const absl::string_view data(src);
-  if (src.size() <= kMaxBytesToCopy ||
-      Wasteful(
-          RawBlock::kExternalAllocatedSize<SharedBufferRef>() + src.capacity(),
-          src.size())) {
-    Append(data, options);
-    return;
-  }
-  AppendRawBlock(
-      ExternalMethodsFor<SharedBufferRef>::NewBlock(
-          riegeli::Maker(std::forward<SizedSharedBufferRef>(src).storage()),
-          data),
-      options);
-}
-
 void Chain::Prepend(absl::string_view src, Options options) {
   while (!src.empty()) {
     const absl::Span<char> buffer =
@@ -2164,18 +1721,10 @@ void Chain::Prepend(absl::string_view src, Options options) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 void Chain::Prepend(Src&& src, Options options) {
-  if (src.size() <= kMaxBytesToCopy ||
-      Wasteful(
-          RawBlock::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
-          src.size())) {
-    // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
-    Prepend(src, options);
-    return;
-  }
+  const size_t size = src.size();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  PrependRawBlock(ExternalMethodsFor<std::string>::NewBlock(std::move(src)),
-                  options);
+  ExternalRef(std::move(src), size).PrependTo(*this, options);
 }
 
 template void Chain::Prepend(std::string&& src, Options options);
@@ -2384,6 +1933,26 @@ void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
   PushFront(std::move(block));
 }
 
+IntrusiveSharedPtr<Chain::RawBlock> Chain::ToRawBlock() && {
+  switch (end_ - begin_) {
+    case 0: {
+      RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
+          << "Failed invariant of Chain: short data size too large";
+      IntrusiveSharedPtr<RawBlock> block =
+          RawBlock::NewInternal(kMaxShortDataSize);
+      block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+      return block;
+    }
+    default:
+      FlattenSlow();
+      RIEGELI_ASSERT_EQ(end_ - begin_, 1u);
+      ABSL_FALLTHROUGH_INTENDED;
+    case 1:
+      size_ = 0;
+      return PopBack();
+  }
+}
+
 void Chain::Prepend(const absl::Cord& src, Options options) {
   PrependCord(src, options);
 }
@@ -2394,42 +1963,16 @@ void Chain::Prepend(absl::Cord&& src, Options options) {
 
 template <typename CordRef>
 inline void Chain::PrependCord(CordRef&& src, Options options) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      if (flat->size() <= kMaxBytesToCopy) {
+  if (src.size() <= MaxBytesToCopy(options)) {
+    {
+      const absl::optional<absl::string_view> flat = src.TryFlat();
+      if (flat != absl::nullopt) {
         Prepend(*flat, options);
         return;
       }
     }
   }
   Prepend(Chain(std::forward<CordRef>(src)), options);
-}
-
-void Chain::Prepend(const SizedSharedBuffer& src, Options options) {
-  PrependSizedSharedBuffer(src, options);
-}
-
-void Chain::Prepend(SizedSharedBuffer&& src, Options options) {
-  PrependSizedSharedBuffer(std::move(src), options);
-}
-
-template <typename SizedSharedBufferRef>
-inline void Chain::PrependSizedSharedBuffer(SizedSharedBufferRef&& src,
-                                            Options options) {
-  const absl::string_view data(src);
-  if (src.size() <= kMaxBytesToCopy ||
-      Wasteful(
-          RawBlock::kExternalAllocatedSize<SharedBufferRef>() + src.capacity(),
-          src.size())) {
-    Prepend(data, options);
-    return;
-  }
-  PrependRawBlock(
-      ExternalMethodsFor<SharedBufferRef>::NewBlock(
-          riegeli::Maker(std::forward<SizedSharedBufferRef>(src).storage()),
-          data),
-      options);
 }
 
 void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
@@ -2735,7 +2278,8 @@ Chain ChainOfZeros(size_t length) {
     length -= kArrayOfZeros.size();
   }
   if (length > 0) {
-    if (length <= kMaxBytesToCopy) {
+    if (length <=
+        result.MaxBytesToCopy(Chain::Options().set_size_hint(length))) {
       const absl::Span<char> buffer = result.AppendFixedBuffer(length);
       std::memset(buffer.data(), '\0', buffer.size());
     } else {

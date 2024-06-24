@@ -14,10 +14,11 @@
 
 #include "riegeli/base/compact_string.h"
 
-#include <stddef.h>  // IWYU pragma: keep
+#include <stddef.h>
 #include <stdint.h>
 
 #include <cstring>
+#include <ostream>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -187,6 +188,19 @@ void CompactString::ReserveOneMoreByteSlow() {
   char* const ptr = allocated_data(new_repr);
   std::memcpy(ptr, data(), used_size);
   DeleteRepr(std::exchange(repr_, new_repr));
+}
+
+void CompactString::DumpStructure(absl::string_view substr,
+                                  std::ostream& out) const {
+  out << "[compact_string] {";
+  if (!substr.empty()) {
+    if (substr.data() != data()) {
+      out << " space_before: " << PtrDistance(data(), substr.data());
+    }
+    out << " space_after: "
+        << PtrDistance(substr.data() + substr.size(), data() + capacity());
+  }
+  out << " }";
 }
 
 }  // namespace riegeli

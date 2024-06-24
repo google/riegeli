@@ -243,12 +243,13 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
   if (length <= available()) {
-    iter_.AppendSubstrTo(cursor(), length, dest);
+    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.AppendSubstrTo(cursor(), available(), dest);
+    iter_.ToExternalRef(absl::string_view(cursor(), available()))
+        .AppendTo(dest);
     length -= available();
     ++iter_;
   }
@@ -258,10 +259,11 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.AppendSubstrTo(start(), start_to_cursor(), dest);
+        iter_.ToExternalRef(absl::string_view(start(), start_to_cursor()))
+            .AppendTo(dest);
         return true;
       }
-      iter_.AppendTo(dest);
+      iter_.ToExternalRef().AppendTo(dest);
       length -= iter_->size();
       ++iter_;
     }
@@ -299,12 +301,13 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
   if (length <= available()) {
-    iter_.AppendSubstrTo(cursor(), length, dest);
+    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.AppendSubstrTo(cursor(), available(), dest);
+    iter_.ToExternalRef(absl::string_view(cursor(), available()))
+        .AppendTo(dest);
     length -= available();
     ++iter_;
   }
@@ -314,10 +317,11 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.AppendSubstrTo(start(), start_to_cursor(), dest);
+        iter_.ToExternalRef(absl::string_view(start(), start_to_cursor()))
+            .AppendTo(dest);
         return true;
       }
-      iter_.AppendTo(dest);
+      iter_.ToExternalRef().AppendTo(dest);
       length -= iter_->size();
       ++iter_;
     }
@@ -352,21 +356,17 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (length <= available()) {
-    Chain data;
-    iter_.AppendSubstrTo(cursor(), length, data);
+    if (ABSL_PREDICT_FALSE(!dest.Write(
+            iter_.ToExternalRef(absl::string_view(cursor(), length))))) {
+      return false;
+    }
     move_cursor(length);
-    return dest.Write(std::move(data));
+    return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    if (available() <= kMaxBytesToCopy) {
-      if (ABSL_PREDICT_FALSE(
-              !dest.Write(absl::string_view(cursor(), available())))) {
-        return false;
-      }
-    } else {
-      Chain data;
-      iter_.AppendSubstrTo(cursor(), available(), data);
-      if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
+    if (ABSL_PREDICT_FALSE(!dest.Write(
+            iter_.ToExternalRef(absl::string_view(cursor(), available()))))) {
+      return false;
     }
     length -= available();
     ++iter_;
@@ -377,21 +377,10 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        if (start_to_cursor() <= kMaxBytesToCopy) {
-          return dest.Write(absl::string_view(start(), start_to_cursor()));
-        } else {
-          Chain data;
-          iter_.AppendSubstrTo(start(), start_to_cursor(), data);
-          return dest.Write(std::move(data));
-        }
+        return dest.Write(
+            iter_.ToExternalRef(absl::string_view(start(), start_to_cursor())));
       }
-      if (iter_->size() <= kMaxBytesToCopy) {
-        if (ABSL_PREDICT_FALSE(!dest.Write(*iter_))) return false;
-      } else {
-        Chain data;
-        iter_.AppendTo(data);
-        if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
-      }
+      if (ABSL_PREDICT_FALSE(!dest.Write(iter_.ToExternalRef()))) return false;
       length -= iter_->size();
       ++iter_;
     }

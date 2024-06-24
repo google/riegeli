@@ -27,6 +27,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 
@@ -169,6 +170,25 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   }
   move_start_pos(src.size());
   dest.Prepend(std::move(src), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
+bool ChainBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Chain& dest = *DestChain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+      << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  std::move(src).PrependTo(dest, options_);
   MakeBuffer(dest);
   return true;
 }

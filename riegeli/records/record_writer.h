@@ -36,6 +36,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -459,6 +460,7 @@ class RecordWriterBase : public Object {
   bool WriteRecord(Chain&& record);
   bool WriteRecord(const absl::Cord& record);
   bool WriteRecord(absl::Cord&& record);
+  bool WriteRecord(ExternalRef record);
 
   // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism() > 0`, waits for any background writing to

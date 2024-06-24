@@ -26,6 +26,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 
@@ -99,6 +100,13 @@ bool WrappingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   return WriteInternal(std::move(src));
 }
 
+bool WrappingBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src));
+}
+
 template <typename Src>
 inline bool WrappingBackwardWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -119,11 +127,6 @@ bool WrappingBackwardWriterBase::WriteZerosSlow(Position length) {
   const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;
-}
-
-bool WrappingBackwardWriterBase::PrefersCopying() const {
-  const BackwardWriter* const dest = DestWriter();
-  return dest != nullptr && dest->PrefersCopying();
 }
 
 bool WrappingBackwardWriterBase::SupportsTruncate() {

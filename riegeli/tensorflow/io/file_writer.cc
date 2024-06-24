@@ -32,6 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/shared_buffer.h"
@@ -141,7 +142,8 @@ absl::Status FileWriterBase::AnnotateStatusImpl(absl::Status status) {
 inline bool FileWriterBase::SyncBuffer() {
   if (start_to_cursor() > kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    const absl::Cord data = buffer_.ToCord(start(), start_to_cursor());
+    const absl::Cord data(
+        buffer_.ToExternalRef(absl::string_view(start(), start_to_cursor())));
     set_buffer();
     return WriteInternal(data);
   }
@@ -249,6 +251,19 @@ bool FileWriterBase::WriteSlow(const absl::Cord& src) {
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);
+}
+
+bool FileWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `src`.
+    if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    return WriteInternal(absl::Cord(std::move(src)));
+  }
+  return Writer::WriteSlow(std::move(src));
 }
 
 bool FileWriterBase::WriteZerosSlow(Position length) {

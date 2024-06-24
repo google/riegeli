@@ -23,12 +23,11 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -70,6 +69,7 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(Chain&& record);
   virtual bool AddRecord(const absl::Cord& record) = 0;
   virtual bool AddRecord(absl::Cord&& record);
+  virtual bool AddRecord(ExternalRef record) = 0;
 
   // Add multiple records, expressed as concatenated record values and sorted
   // record end positions.
@@ -123,13 +123,10 @@ inline bool ChunkEncoder::AddRecord(
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool ChunkEncoder::AddRecord(Src&& record) {
-  if (ABSL_PREDICT_TRUE(record.size() <= kMaxBytesToCopy)) {
-    return AddRecord(absl::string_view(record));
-  } else {
-    // `std::move(record)` is correct and `std::forward<Src>(record)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
-    return AddRecord(Chain(std::move(record)));
-  }
+  const size_t size = record.size();
+  // `std::move(record)` is correct and `std::forward<Src>(record)` is not
+  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  return AddRecord(ExternalRef(std::move(record), size));
 }
 
 }  // namespace riegeli

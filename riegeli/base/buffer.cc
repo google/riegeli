@@ -1,4 +1,4 @@
-// Copyright 2017 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,90 +14,23 @@
 
 #include "riegeli/base/buffer.h"
 
-#include <stddef.h>
+#include <ostream>
 
-#include <functional>
-#include <utility>
-
-#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
-#include "riegeli/base/buffering.h"
-#include "riegeli/base/cord_utils.h"
+#include "riegeli/base/arithmetic.h"
 
 namespace riegeli {
 
-namespace {
-
-// A releasing callback for embedding a `Buffer` in an `absl::Cord`.
-struct Releaser {
-  void operator()() const {
-    // Nothing to do: the destructor does the work.
+void Buffer::DumpStructure(absl::string_view substr, std::ostream& out) const {
+  out << "[buffer] {";
+  if (!substr.empty()) {
+    if (substr.data() != data()) {
+      out << " space_before: " << PtrDistance(data(), substr.data());
+    }
+    out << " space_after: "
+        << PtrDistance(substr.data() + substr.size(), data() + capacity());
   }
-  Buffer buffer;
-};
-
-}  // namespace
-
-absl::Cord Buffer::ToCord(const char* data, size_t length) && {
-  if (data != nullptr || length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
-        << "Failed precondition of Buffer::ToCord(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
-        << "Failed precondition of Buffer::ToCord(): "
-           "substring not contained in the buffer";
-  }
-  if (length <= cord_internal::kMaxInline ||
-      Wasteful(
-          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
-          length)) {
-    return cord_internal::MakeBlockyCord(absl::string_view(data, length));
-  }
-  return absl::MakeCordFromExternal(absl::string_view(data, length),
-                                    Releaser{std::move(*this)});
-}
-
-void Buffer::AppendSubstrTo(const char* data, size_t length,
-                            absl::Cord& dest) && {
-  if (data != nullptr || length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
-        << "Failed precondition of Buffer::AppendSubstrTo(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
-        << "Failed precondition of Buffer::AppendSubstrTo(): "
-           "substring not contained in the buffer";
-  }
-  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
-      Wasteful(
-          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
-          length)) {
-    cord_internal::AppendToBlockyCord(absl::string_view(data, length), dest);
-    return;
-  }
-  dest.Append(absl::MakeCordFromExternal(absl::string_view(data, length),
-                                         Releaser{std::move(*this)}));
-}
-
-void Buffer::PrependSubstrTo(const char* data, size_t length,
-                             absl::Cord& dest) && {
-  if (data != nullptr || length > 0) {
-    RIEGELI_ASSERT(std::greater_equal<>()(data, data_))
-        << "Failed precondition of Buffer::PrependSubstrTo(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(data + length, data_ + capacity_))
-        << "Failed precondition of Buffer::PrependSubstrTo(): "
-           "substring not contained in the buffer";
-  }
-  if (length <= cord_internal::MaxBytesToCopyToCord(dest) ||
-      Wasteful(
-          cord_internal::kSizeOfCordRepExternal + sizeof(Releaser) + capacity_,
-          length)) {
-    cord_internal::PrependToBlockyCord(absl::string_view(data, length), dest);
-    return;
-  }
-  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(data, length),
-                                          Releaser{std::move(*this)}));
+  out << " }";
 }
 
 }  // namespace riegeli

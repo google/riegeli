@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
@@ -139,7 +140,6 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   // Clears the limit.
   void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
 
-  bool PrefersCopying() const override;
   bool SupportsTruncate() override;
 
  protected:
@@ -175,6 +175,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteZerosSlow(Position length) override;
   bool TruncateImpl(Position new_size) override;
 

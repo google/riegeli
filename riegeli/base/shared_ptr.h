@@ -27,6 +27,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ref_count.h"
@@ -204,6 +205,13 @@ class
 
   // Allow Nullability annotations on `IntrusiveSharedPtr`.
   using absl_nullability_compatible = void;
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(SharedPtr* self) {
+    return ExternalStorage(self->Release(), [](void* ptr) {
+      SharedPtr::DeleteReleased(static_cast<T*>(ptr));
+    });
+  }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>

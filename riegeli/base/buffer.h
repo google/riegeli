@@ -17,12 +17,17 @@
 
 #include <stddef.h>
 
+#include <functional>
+#include <iosfwd>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/estimated_allocated_size.h"
+#include "riegeli/base/external_data.h"
+#include "riegeli/base/external_ref.h"
 
 namespace riegeli {
 
@@ -56,41 +61,46 @@ class
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const { return capacity_; }
 
-  // Returns the data pointer, releasing its ownership; the `Buffer` is left
-  // deallocated. The returned pointer must be deleted using `DeleteReleased()`.
+  // Converts a substring of `*this` to `ExternalRef`.
   //
-  // If the returned pointer is `nullptr`, it allowed but not required to call
-  // `DeleteReleased()`.
-  char* Release();
+  // `storage` must outlive usages of the returned `ExternalRef`.
+  //
+  // Precondition:
+  //   if `!substr.empty()` then `substr` is a substring of
+  //       [`data()`..`data() + capacity()`).
+  ExternalRef ToExternalRef(absl::string_view substr,
+                            ExternalRef::StorageSubstr<Buffer&&>&& storage
+                                ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                    ExternalRef::StorageSubstr<Buffer&&>()) && {
+    if (!substr.empty()) {
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
+          << "Failed precondition of Buffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
+                                         data() + capacity()))
+          << "Failed precondition of Buffer::ToExternalRef(): "
+             "substring not contained in the buffer";
+    }
+    return ExternalRef(std::move(*this), substr, std::move(storage));
+  }
 
-  // Deletes the pointer obtained by `Release()`.
-  //
-  // Does nothing if `ptr == nullptr`.
-  static void DeleteReleased(void* ptr);
+  // Support `ExternalRef`.
+  friend size_t RiegeliAllocatedMemory(const Buffer* self) {
+    return self->capacity();
+  }
 
-  // Converts [`data`..`data + length`) to `absl::Cord`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  //
-  // `*this` is left unchanged or deallocated.
-  absl::Cord ToCord(const char* data, size_t length) &&;
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(Buffer* self) {
+    self->capacity_ = 0;
+    return ExternalStorage(
+        std::exchange(self->data_, nullptr), operator delete);
+  }
 
-  // Appends [`data`..`data + length`) to `dest`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  //
-  // `*this` is left unchanged or deallocated.
-  void AppendSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
-
-  // Prepends [`data`..`data + length`) to `dest`.
-  //
-  // If `data != nullptr || length > 0` then [`data`..`data + length`) must be
-  // contained in `*this`.
-  //
-  // `*this` is left unchanged or deallocated.
-  void PrependSubstrTo(const char* data, size_t length, absl::Cord& dest) &&;
+  // Support `Chain::FromExternal()` and `ExternalRef`.
+  friend void RiegeliDumpStructure(const Buffer* self, absl::string_view substr,
+                                   std::ostream& out) {
+    self->DumpStructure(substr, out);
+  }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
@@ -102,6 +112,7 @@ class
  private:
   void AllocateInternal(size_t min_capacity);
   void DeleteInternal();
+  void DumpStructure(absl::string_view substr, std::ostream& out) const;
 
   char* data_ = nullptr;
   size_t capacity_ = 0;
@@ -150,13 +161,6 @@ inline void Buffer::DeleteInternal() {
   if (data_ != nullptr) operator delete(data_);
 #endif
 }
-
-inline char* Buffer::Release() {
-  capacity_ = 0;
-  return std::exchange(data_, nullptr);
-}
-
-inline void Buffer::DeleteReleased(void* ptr) { operator delete(ptr); }
 
 }  // namespace riegeli
 

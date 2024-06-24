@@ -26,6 +26,7 @@
 #include "absl/types/optional.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -106,6 +107,7 @@ class SimpleEncoder : public ChunkEncoder {
   bool AddRecord(Chain&& record) override;
   bool AddRecord(const absl::Cord& record) override;
   bool AddRecord(absl::Cord&& record) override;
+  bool AddRecord(ExternalRef record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

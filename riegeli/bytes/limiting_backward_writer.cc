@@ -27,6 +27,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 
@@ -146,6 +147,17 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
                        });
 }
 
+bool LimitingBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
+    Chain result(std::move(src));
+    result.RemovePrefix(length);
+    return result;
+  });
+}
+
 template <typename Src, typename RemovePrefix>
 inline bool LimitingBackwardWriterBase::WriteInternal(
     Src&& src, RemovePrefix&& remove_prefix) {
@@ -190,11 +202,6 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
     return false;
   }
   return FailLimitExceeded(dest);
-}
-
-bool LimitingBackwardWriterBase::PrefersCopying() const {
-  const BackwardWriter* const dest = DestWriter();
-  return dest != nullptr && dest->PrefersCopying();
 }
 
 bool LimitingBackwardWriterBase::SupportsTruncate() {
