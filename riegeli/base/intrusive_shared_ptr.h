@@ -25,6 +25,7 @@
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 
 namespace riegeli {
@@ -248,6 +249,12 @@ class
 
   // Allow Nullability annotations on `IntrusiveSharedPtr`.
   using absl_nullability_compatible = void;
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {
+    return ExternalStorage(self->Release(),
+                           [](void* ptr) { Unref(static_cast<T*>(ptr)); });
+  }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
