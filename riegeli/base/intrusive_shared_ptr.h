@@ -314,6 +314,14 @@ class
   T* ptr_ = nullptr;
 };
 
+#if __cpp_deduction_guides
+template <typename T>
+explicit IntrusiveSharedPtr(T* ptr) -> IntrusiveSharedPtr<T>;
+template <typename T, std::enable_if_t<!std::is_pointer<T>::value, int> = 0>
+explicit IntrusiveSharedPtr(T&& value)
+    -> IntrusiveSharedPtr<InitializerTargetT<T>>;
+#endif
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_INTRUSIVE_SHARED_PTR_H_
