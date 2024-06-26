@@ -162,17 +162,16 @@ template <
 inline void Done(ABSL_ATTRIBUTE_UNUSED Mover& mover,
                  ABSL_ATTRIBUTE_UNUSED Host& self) {}
 
-template <typename T, typename Enable, typename... Args>
+template <typename Enable, typename T, typename... Args>
 struct HasResetImpl : std::false_type {};
 
 template <typename T, typename... Args>
 struct HasResetImpl<
-    T,
     absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args&&>()...))>,
-    Args...> : std::true_type {};
+    T, Args...> : std::true_type {};
 
 template <typename T, typename... Args>
-struct HasReset : HasResetImpl<T, void, Args...> {};
+struct HasReset : HasResetImpl<void, T, Args...> {};
 
 template <typename Handle, typename Manager, typename Mover>
 class MovingDependencyImpl : public Dependency<Handle, Manager> {

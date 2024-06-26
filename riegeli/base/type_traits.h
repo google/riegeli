@@ -61,21 +61,20 @@ std::tuple<std::tuple_element_t<indices, Tuple>...> SelectFromTuple(
 }
 
 // SFINAE-friendly helper for `GetTypeFromEnd`.
-template <size_t reverse_index, typename Enable, typename... T>
+template <typename Enable, size_t reverse_index, typename... T>
 struct GetTypeFromEndImpl {};
 template <size_t reverse_index, typename... T>
 struct GetTypeFromEndImpl<
-    reverse_index,
     std::enable_if_t<(reverse_index > 0 && reverse_index <= sizeof...(T))>,
-    T...> : std::tuple_element<sizeof...(T) - reverse_index, std::tuple<T...>> {
-};
+    reverse_index, T...>
+    : std::tuple_element<sizeof...(T) - reverse_index, std::tuple<T...>> {};
 
 // SFINAE-friendly helper for `RemoveTypesFromEnd`.
-template <size_t num_from_end, typename Enable, typename... T>
+template <typename Enable, size_t num_from_end, typename... T>
 struct RemoveTypesFromEndImpl {};
 template <size_t num_from_end, typename... T>
-struct RemoveTypesFromEndImpl<
-    num_from_end, std::enable_if_t<(num_from_end <= sizeof...(T))>, T...>
+struct RemoveTypesFromEndImpl<std::enable_if_t<(num_from_end <= sizeof...(T))>,
+                              num_from_end, T...>
     : SelectTypesFromTuple<std::tuple<T...>, std::make_index_sequence<
                                                  sizeof...(T) - num_from_end>> {
 };
@@ -120,7 +119,7 @@ struct FilterTypeImpl<Predicate, Tuple, std::index_sequence<indices...>>
 // by its index from the end (1 = last).
 template <size_t reverse_index, typename... T>
 struct GetTypeFromEnd
-    : type_traits_internal::GetTypeFromEndImpl<reverse_index, void, T...> {};
+    : type_traits_internal::GetTypeFromEndImpl<void, reverse_index, T...> {};
 template <size_t reverse_index, typename... T>
 using GetTypeFromEndT = typename GetTypeFromEnd<reverse_index, T...>::type;
 
@@ -139,7 +138,7 @@ inline GetTypeFromEndT<reverse_index, Args&&...> GetFromEnd(Args&&... args) {
 // `std::tuple` type by removing the given number of elements from the end.
 template <size_t num_from_end, typename... T>
 struct RemoveTypesFromEnd
-    : type_traits_internal::RemoveTypesFromEndImpl<num_from_end, void, T...> {};
+    : type_traits_internal::RemoveTypesFromEndImpl<void, num_from_end, T...> {};
 template <size_t num_from_end, typename... T>
 using RemoveTypesFromEndT =
     typename RemoveTypesFromEnd<num_from_end, T...>::type;

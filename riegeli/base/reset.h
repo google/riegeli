@@ -76,72 +76,76 @@ inline void RiegeliReset(absl::Cord& self, absl::string_view src) {
 
 namespace reset_internal {
 
-template <typename T, typename Enable, typename... Args>
-struct HasAssignment : std::false_type {};
+template <typename Enable, typename T, typename... Args>
+struct HasAssignmentImpl : std::false_type {};
 
 template <typename T, typename Arg>
-struct HasAssignment<
-    T, absl::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, Arg>
+struct HasAssignmentImpl<
+    absl::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, T, Arg>
     : std::true_type {};
 
-template <typename T, typename Enable, typename... Args>
-struct HasRiegeliReset : std::false_type {};
+template <typename T, typename... Args>
+struct HasAssignment : HasAssignmentImpl<void, T, Args...> {};
+
+template <typename Enable, typename T, typename... Args>
+struct HasRiegeliResetImpl : std::false_type {};
 
 template <typename T, typename... Args>
-struct HasRiegeliReset<T,
-                       absl::void_t<decltype(RiegeliReset(
-                           std::declval<T&>(), std::declval<Args>()...))>,
-                       Args...> : std::true_type {};
-
-template <typename T, typename Enable, typename... Args>
-struct HasReset : std::false_type {};
+struct HasRiegeliResetImpl<absl::void_t<decltype(RiegeliReset(
+                               std::declval<T&>(), std::declval<Args>()...))>,
+                           T, Args...> : std::true_type {};
 
 template <typename T, typename... Args>
-struct HasReset<
-    T,
+struct HasRiegeliReset : HasRiegeliResetImpl<void, T, Args...> {};
+
+template <typename Enable, typename T, typename... Args>
+struct HasResetImpl : std::false_type {};
+
+template <typename T, typename... Args>
+struct HasResetImpl<
     absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args>()...))>,
-    Args...> : std::true_type {};
+    T, Args...> : std::true_type {};
+
+template <typename T, typename... Args>
+struct HasReset : HasResetImpl<void, T, Args...> {};
 
 }  // namespace reset_internal
 
-template <typename T, typename Arg,
-          std::enable_if_t<reset_internal::HasAssignment<T, void, Arg>::value,
-                           int> = 0>
+template <
+    typename T, typename Arg,
+    std::enable_if_t<reset_internal::HasAssignment<T, Arg>::value, int> = 0>
 inline void Reset(T& object, Arg&& arg) {
   object = std::forward<Arg>(arg);
 }
 
-template <
-    typename T, typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<reset_internal::HasAssignment<T, void, Args...>>,
-            reset_internal::HasRiegeliReset<T, void, Args...>>::value,
-        int> = 0>
+template <typename T, typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
+                  reset_internal::HasRiegeliReset<T, Args...>>::value,
+              int> = 0>
 inline void Reset(T& object, Args&&... args) {
   RiegeliReset(object, std::forward<Args>(args)...);
 }
 
-template <
-    typename T, typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<reset_internal::HasAssignment<T, void, Args...>>,
-            absl::negation<reset_internal::HasRiegeliReset<T, void, Args...>>,
-            reset_internal::HasReset<T, void, Args...>>::value,
-        int> = 0>
+template <typename T, typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
+                  absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
+                  reset_internal::HasReset<T, Args...>>::value,
+              int> = 0>
 inline void Reset(T& object, Args&&... args) {
   object.Reset(std::forward<Args>(args)...);
 }
 
-template <
-    typename T, typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<reset_internal::HasAssignment<T, void, Args...>>,
-            absl::negation<reset_internal::HasRiegeliReset<T, void, Args...>>,
-            absl::negation<reset_internal::HasReset<T, void, Args...>>>::value,
-        int> = 0>
+template <typename T, typename... Args,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
+                  absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
+                  absl::negation<reset_internal::HasReset<T, Args...>>>::value,
+              int> = 0>
 inline void Reset(T& object, Args&&... args) {
   object = T(std::forward<Args>(args)...);
 }
