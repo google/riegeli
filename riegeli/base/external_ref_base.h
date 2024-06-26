@@ -873,10 +873,6 @@ class ExternalRef {
       arg_ = &arg;
     }
 
-    static absl::string_view ToStringView(StorageBase* storage) {
-      return substr(storage);
-    }
-
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
                         void* context, UseStringViewFunction use_string_view,
                         UseChainRawBlockFunction use_chain_raw_block) {
@@ -959,10 +955,6 @@ class ExternalRef {
       StorageSubstrBase::Initialize(substr);
       T&& reference = std::move(object).Reference(temporary_storage(this));
       object_ = &reference;
-    }
-
-    static absl::string_view ToStringView(StorageBase* storage) {
-      return substr(storage);
     }
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
