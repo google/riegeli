@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -34,16 +35,13 @@ template <typename Init>
 using InitResultT = typename InitResult<Init>::type;
 
 template <typename T, typename Init>
-struct IsInitFor
-    : absl::disjunction<
-          absl::conjunction<std::is_void<global_internal::InitResultT<Init>>,
-                            std::is_default_constructible<T>>,
-#if __cpp_guaranteed_copy_elision
-          std::is_same<std::remove_cv_t<T>,
-                       std::remove_cv_t<global_internal::InitResultT<Init>>>,
-#endif
-          std::is_constructible<T, global_internal::InitResultT<Init>>> {
-};
+struct IsInitFor : IsConstructibleFromResult<T, InitResultT<Init>> {};
+
+template <typename T, typename Init>
+struct IsInitForOrVoid
+    : absl::disjunction<absl::conjunction<std::is_void<InitResultT<Init>>,
+                                          std::is_default_constructible<T>>,
+                        IsInitFor<T, Init>> {};
 
 }  // namespace global_internal
 
@@ -103,16 +101,12 @@ const std::decay_t<global_internal::InitResultT<Init>>& Global(Init init);
 // misleadingly ignored for subsequent calls. Since distinct lambdas have
 // distinct types, distinct call sites with lambdas return references to
 // distinct objects.
-template <typename T, typename Init,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::is_empty<Init>,
-                  absl::disjunction<
-                      absl::conjunction<
-                          std::is_void<global_internal::InitResultT<Init>>,
-                          std::is_default_constructible<T>>,
-                      global_internal::IsInitFor<T, Init>>>::value,
-              int> = 0>
+template <
+    typename T, typename Init,
+    std::enable_if_t<
+        absl::conjunction<std::is_empty<Init>,
+                          global_internal::IsInitForOrVoid<T, Init>>::value,
+        int> = 0>
 T& Global(Init init);
 
 // Implementation details follow.
@@ -184,16 +178,12 @@ inline const std::decay_t<global_internal::InitResultT<Init>>& Global(
   return kStorage.value();
 }
 
-template <typename T, typename Init,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::is_empty<Init>,
-                  absl::disjunction<
-                      absl::conjunction<
-                          std::is_void<global_internal::InitResultT<Init>>,
-                          std::is_default_constructible<T>>,
-                      global_internal::IsInitFor<T, Init>>>::value,
-              int>>
+template <
+    typename T, typename Init,
+    std::enable_if_t<
+        absl::conjunction<std::is_empty<Init>,
+                          global_internal::IsInitForOrVoid<T, Init>>::value,
+        int>>
 inline T& Global(Init init) {
   static global_internal::NoDestructor<T> kStorage(init);
   return kStorage.value();

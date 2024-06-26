@@ -25,7 +25,10 @@ cc_library(
 cc_library(
     name = "global",
     hdrs = ["global.h"],
-    deps = ["@com_google_absl//absl/meta:type_traits"],
+    deps = [
+        ":type_traits",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
 )
 
 cc_library(

@@ -375,30 +375,6 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   MakerType<Args...> maker_;
 };
 
-namespace initializer_internal {
-
-// In `MakerType()`, pass arguments by reference unless they are cheap to pass
-// by value.
-
-template <typename T, typename Enable = void>
-struct ArgMode {
-  using type = T&&;
-};
-
-template <typename T>
-struct ArgMode<
-    T, std::enable_if_t<absl::conjunction<
-           std::is_trivially_copyable<T>, std::is_trivially_destructible<T>,
-           std::integral_constant<bool,
-                                  (sizeof(T) <= 2 * sizeof(void*))>>::value>> {
-  using type = T;
-};
-
-template <typename T>
-using ArgModeT = typename ArgMode<T>::type;
-
-}  // namespace initializer_internal
-
 // `riegeli::Maker(args...)` returns `MakerType<Args&&...>` which packs
 // constructor arguments for a yet unspecified type, which will be specified by
 // the caller. `riegeli::Maker(args...)` is convertible to `Initializer<T>` for
@@ -424,7 +400,7 @@ using ArgModeT = typename ArgMode<T>::type;
 // The `generic` template parameter lets `riegeli::Maker<T>()` with an explicit
 // template argument unambiguously call another overload of `riegeli::Maker()`.
 template <int generic = 0, typename... Args>
-MakerType<initializer_internal::ArgModeT<Args>...> Maker(
+MakerType<initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
@@ -449,7 +425,7 @@ MakerType<initializer_internal::ArgModeT<Args>...> Maker(
 // optimization: some of `Args&&...` in the result type can be `Args...`.
 template <typename T, typename... Args,
           std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-MakerTypeFor<T, initializer_internal::ArgModeT<Args>...> Maker(
+MakerTypeFor<T, initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
@@ -466,7 +442,7 @@ template <template <typename...> class Template, typename... Args,
                                Args&&...>::value,
                            int> = 0>
 MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>,
-             initializer_internal::ArgModeT<Args>...>
+             initializer_internal::ReferenceOrCheapValueT<Args>...>
 Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }

@@ -39,6 +39,34 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
+// `IsConvertibleFromResult<T, Result>` is like
+// `std::is_convertible<Result, T>`, except that `Result` represents the
+// result of a function. Since C++17 which guarantees copy elision, `T` and
+// `Result` can also be the same immovable type, possibly with different
+// qualifiers.
+template <typename T, typename Result>
+struct IsConvertibleFromResult
+    : absl::disjunction<
+#if __cpp_guaranteed_copy_elision
+          std::is_same<std::remove_cv_t<T>, std::remove_cv_t<Result>>,
+#endif
+          std::is_convertible<Result, T>> {
+};
+
+// `IsConstructibleFromResult<T, Result>` is like
+// `std::is_constructible<T, Result>`, except that `Result` represents the
+// result of a function. Since C++17 which guarantees copy elision, `T` and
+// `Result` can also be the same immovable type, possibly with different
+// qualifiers.
+template <typename T, typename Result>
+struct IsConstructibleFromResult
+    : absl::disjunction<
+#if __cpp_guaranteed_copy_elision
+          std::is_same<std::remove_cv_t<T>, std::remove_cv_t<Result>>,
+#endif
+          std::is_constructible<T, Result>> {
+};
+
 namespace type_traits_internal {
 
 // Transforms a `std::tuple` type to another `std::tuple` type by selecting
