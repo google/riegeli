@@ -44,6 +44,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/ownership.h"
 #include "riegeli/base/string_utils.h"
 #include "riegeli/base/zeros.h"
 
@@ -235,7 +236,7 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
 
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
   out << "block {";
-  const size_t ref_count = ref_count_.get_count();
+  const size_t ref_count = ref_count_.GetCount();
   if (ref_count != 1) out << " ref_count: " << ref_count;
   out << " size: " << size();
   if (is_internal()) {
@@ -580,7 +581,7 @@ inline void Chain::Initialize(const Chain& src) {
     std::memcpy(block_ptrs_.short_data, src.block_ptrs_.short_data,
                 kMaxShortDataSize);
   } else {
-    AppendBlocks<Ownership::kShare>(src.begin_, src.end_);
+    AppendBlocks<ShareOwnership>(src.begin_, src.end_);
   }
 }
 
@@ -643,14 +644,12 @@ void Chain::UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end) {
   } while (begin != end);
 }
 
-inline void Chain::DropStolenBlocks(
-    std::integral_constant<Ownership, Ownership::kShare>) const {}
-
-inline void Chain::DropStolenBlocks(
-    std::integral_constant<Ownership, Ownership::kSteal>) {
+inline void Chain::DropPassedBlocks(PassOwnership) {
   size_ = 0;
   end_ = begin_;
 }
+
+inline void Chain::DropPassedBlocks(ShareOwnership) const {}
 
 void Chain::CopyTo(char* dest) const {
   if (empty()) return;  // `std::memcpy(nullptr, _, 0)` is undefined.
@@ -977,12 +976,12 @@ inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopFront() {
   }
 }
 
-template <Chain::Ownership ownership>
+template <typename Ownership>
 inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
   if (begin == end) return;
   ReserveBack(PtrDistance(begin, end));
   BlockPtr* dest_iter = end_;
-  dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+  dest_iter->block_ptr = begin->block_ptr->Ref<Ownership>();
   if (has_allocated()) {
     const size_t offsets = block_offsets();
     size_t offset = begin_ == end_ ? size_t{0}
@@ -992,7 +991,7 @@ inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
     ++begin;
     ++dest_iter;
     while (begin != end) {
-      dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+      dest_iter->block_ptr = begin->block_ptr->Ref<Ownership>();
       offset += dest_iter[-1].block_ptr->size();
       dest_iter[offsets].block_offset = offset;
       ++begin;
@@ -1002,7 +1001,7 @@ inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
     ++begin;
     ++dest_iter;
     if (begin != end) {
-      dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+      dest_iter->block_ptr = begin->block_ptr->Ref<Ownership>();
       ++begin;
       ++dest_iter;
       RIEGELI_ASSERT(begin == end)
@@ -1013,7 +1012,7 @@ inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
   end_ = dest_iter;
 }
 
-template <Chain::Ownership ownership>
+template <typename Ownership>
 inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
   if (begin == end) return;
   ReserveFront(PtrDistance(begin, end));
@@ -1022,7 +1021,7 @@ inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
   begin_ -= PtrDistance(begin, end);  // For `has_allocated()` to work.
   --end;
   --dest_iter;
-  dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+  dest_iter->block_ptr = end->block_ptr->Ref<Ownership>();
   if (has_allocated()) {
     const size_t offsets = block_offsets();
     size_t offset = old_begin == end_ ? size_t{0}
@@ -1032,7 +1031,7 @@ inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
     while (end != begin) {
       --end;
       --dest_iter;
-      dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+      dest_iter->block_ptr = end->block_ptr->Ref<Ownership>();
       offset -= dest_iter->block_ptr->size();
       dest_iter[offsets].block_offset = offset;
     }
@@ -1040,7 +1039,7 @@ inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
     if (end != begin) {
       --end;
       --dest_iter;
-      dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+      dest_iter->block_ptr = end->block_ptr->Ref<Ownership>();
       RIEGELI_ASSERT(begin == end)
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
@@ -1449,14 +1448,14 @@ void Chain::Append(Src&& src, Options options) {
 template void Chain::Append(std::string&& src, Options options);
 
 void Chain::Append(const Chain& src, Options options) {
-  AppendChain<Ownership::kShare>(src, options);
+  AppendChain<ShareOwnership>(src, options);
 }
 
 void Chain::Append(Chain&& src, Options options) {
-  AppendChain<Ownership::kSteal>(std::move(src), options);
+  AppendChain<PassOwnership>(std::move(src), options);
 }
 
-template <Chain::Ownership ownership, typename ChainRef>
+template <typename Ownership, typename ChainRef>
 inline void Chain::AppendChain(ChainRef&& src, Options options) {
   if (src.begin_ == src.end_) {
     Append(src.short_data(), options);
@@ -1467,8 +1466,8 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
          "Chain size overflow";
   const BlockPtr* src_iter = src.begin_;
   // If the first block of `src` is handled specially,
-  // `(src_iter++)->block_ptr->Unref<ownership>()` skips it so that
-  // `AppendBlocks<ownership>()` does not append it again.
+  // `(src_iter++)->block_ptr->Unref<Ownership>()` skips it so that
+  // `AppendBlocks<Ownership>()` does not append it again.
   if (begin_ == end_) {
     if (src.front()->tiny() ||
         (src.end_ - src.begin_ > 1 && src.front()->wasteful())) {
@@ -1490,7 +1489,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
         merged->Append(absl::string_view(*src.front()));
         PushBack(std::move(merged));
       }
-      (src_iter++)->block_ptr->Unref<ownership>();
+      (src_iter++)->block_ptr->Unref<Ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
       IntrusiveSharedPtr<RawBlock> real =
@@ -1528,7 +1527,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
         merged->Append(absl::string_view(*src.front()));
         SetBack(std::move(merged));
       }
-      (src_iter++)->block_ptr->Unref<ownership>();
+      (src_iter++)->block_ptr->Unref<Ownership>();
     } else if (back()->empty()) {
       if (src.end_ - src.begin_ > 1 && src.front()->wasteful()) goto merge;
       // The last block is empty and must be removed.
@@ -1546,7 +1545,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
         back()->Append(absl::string_view(*src.front()));
-        (src_iter++)->block_ptr->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<Ownership>();
       } else {
         // Appending in place is not possible, or rewriting the last block is
         // cheaper.
@@ -1555,7 +1554,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
     } else if (src.end_ - src.begin_ > 1) {
       if (src.front()->empty()) {
         // The first block of `src` is empty and must be skipped.
-        (src_iter++)->block_ptr->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<Ownership>();
       } else if (src.front()->wasteful()) {
         // The first block of `src` must reduce waste.
         if (back()->can_append(src.front()->size()) &&
@@ -1567,13 +1566,13 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
           // Appending in place is not possible.
           PushBack(src.front()->Copy());
         }
-        (src_iter++)->block_ptr->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<Ownership>();
       }
     }
   }
   size_ += src.size_;
-  AppendBlocks<ownership>(src_iter, src.end_);
-  src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
+  AppendBlocks<Ownership>(src_iter, src.end_);
+  src.DropPassedBlocks(Ownership());
 }
 
 void Chain::AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
@@ -1730,14 +1729,14 @@ void Chain::Prepend(Src&& src, Options options) {
 template void Chain::Prepend(std::string&& src, Options options);
 
 void Chain::Prepend(const Chain& src, Options options) {
-  PrependChain<Ownership::kShare>(src, options);
+  PrependChain<ShareOwnership>(src, options);
 }
 
 void Chain::Prepend(Chain&& src, Options options) {
-  PrependChain<Ownership::kSteal>(std::move(src), options);
+  PrependChain<PassOwnership>(std::move(src), options);
 }
 
-template <Chain::Ownership ownership, typename ChainRef>
+template <typename Ownership, typename ChainRef>
 inline void Chain::PrependChain(ChainRef&& src, Options options) {
   if (src.begin_ == src.end_) {
     Prepend(src.short_data(), options);
@@ -1748,8 +1747,8 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
          "Chain size overflow";
   const BlockPtr* src_iter = src.end_;
   // If the last block of src is handled specially,
-  // `(--src_iter)->block_ptr->Unref<ownership>()` skips it so that
-  // `PrependBlocks<ownership>()` does not prepend it again.
+  // `(--src_iter)->block_ptr->Unref<Ownership>()` skips it so that
+  // `PrependBlocks<Ownership>()` does not prepend it again.
   if (begin_ == end_) {
     if (src.back()->tiny() ||
         (src.end_ - src.begin_ > 1 && src.back()->wasteful())) {
@@ -1768,7 +1767,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
         merged->Prepend(absl::string_view(*src.back()));
         PushFront(std::move(merged));
       }
-      (--src_iter)->block_ptr->Unref<ownership>();
+      (--src_iter)->block_ptr->Unref<Ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
       IntrusiveSharedPtr<RawBlock> real =
@@ -1807,7 +1806,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
         merged->Prepend(absl::string_view(*src.back()));
         SetFront(std::move(merged));
       }
-      (--src_iter)->block_ptr->Unref<ownership>();
+      (--src_iter)->block_ptr->Unref<Ownership>();
     } else if (front()->empty()) {
       if (src.end_ - src.begin_ > 1 && src.back()->wasteful()) goto merge;
       // The first block is empty and must be removed.
@@ -1826,7 +1825,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
         // first block.
         front()->Prepend(absl::string_view(*src.back()));
         RefreshFront();
-        (--src_iter)->block_ptr->Unref<ownership>();
+        (--src_iter)->block_ptr->Unref<Ownership>();
       } else {
         // Prepending in place is not possible, or rewriting the first block is
         // cheaper.
@@ -1835,7 +1834,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
     } else if (src.end_ - src.begin_ > 1) {
       if (src.back()->empty()) {
         // The last block of `src` is empty and must be skipped.
-        (--src_iter)->block_ptr->Unref<ownership>();
+        (--src_iter)->block_ptr->Unref<Ownership>();
       } else if (src.back()->wasteful()) {
         // The last block of `src` must reduce waste.
         if (front()->can_prepend(src.back()->size()) &&
@@ -1848,13 +1847,13 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
           // Prepending in place is not possible.
           PushFront(src.back()->Copy());
         }
-        (--src_iter)->block_ptr->Unref<ownership>();
+        (--src_iter)->block_ptr->Unref<Ownership>();
       }
     }
   }
   size_ += src.size_;
-  PrependBlocks<ownership>(src.begin_, src_iter);
-  src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
+  PrependBlocks<Ownership>(src.begin_, src_iter);
+  src.DropPassedBlocks(Ownership());
 }
 
 void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,

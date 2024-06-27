@@ -27,6 +27,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/ownership.h"
 
 namespace riegeli {
 
@@ -94,8 +95,13 @@ class
     return *this;
   }
 
-  // Creates an `IntrusiveSharedPtr` taking ownership of `ptr`.
-  explicit IntrusiveSharedPtr(T* ptr) noexcept : ptr_(ptr) {}
+  // Creates an `IntrusiveSharedPtr` holding `ptr`.
+  //
+  // Takes ownership of `ptr` unless the second parameter is `kShareOwnership`.
+  explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership) noexcept
+      : ptr_(ptr) {}
+  explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) noexcept
+      : ptr_(Ref(ptr)) {}
 
   // Creates an `IntrusiveSharedPtr` holding a constructed value.
   //
@@ -163,12 +169,17 @@ class
 
   ~IntrusiveSharedPtr() { Unref(ptr_); }
 
-  // Replaces the object, taking ownership of `ptr`, or making `*this` empty
-  // if `ptr == nullptr`.
+  // Replaces the object, or makes `*this` empty if `ptr == nullptr`.
+  //
+  // Takes ownership of `ptr` unless the second parameter is `kShareOwnership`.
   //
   // The old object, if any, is destroyed afterwards.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T* ptr = nullptr) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T* ptr = nullptr,
+                                          PassOwnership = kPassOwnership) {
     Unref(std::exchange(ptr_, ptr));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T* ptr, ShareOwnership) {
+    Unref(std::exchange(ptr_, Ref(ptr)));
   }
 
   // Replaces the object with a constructed value.
@@ -316,7 +327,10 @@ class
 
 #if __cpp_deduction_guides
 template <typename T>
-explicit IntrusiveSharedPtr(T* ptr) -> IntrusiveSharedPtr<T>;
+explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership)
+    -> IntrusiveSharedPtr<T>;
+template <typename T>
+explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) -> IntrusiveSharedPtr<T>;
 template <typename T, std::enable_if_t<!std::is_pointer<T>::value, int> = 0>
 explicit IntrusiveSharedPtr(T&& value)
     -> IntrusiveSharedPtr<InitializerTargetT<T>>;

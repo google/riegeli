@@ -362,6 +362,7 @@ cc_library(
     name = "shared_ptr",
     hdrs = [
         "intrusive_shared_ptr.h",
+        "ownership.h",
         "ref_count.h",
         "shared_ptr.h",
     ],
@@ -369,6 +370,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":compare",
+        ":constexpr",
         ":external_data",
         ":initializer",
         ":new_aligned",

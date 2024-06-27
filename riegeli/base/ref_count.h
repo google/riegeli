@@ -18,6 +18,9 @@
 #include <stddef.h>
 
 #include <atomic>
+#include <type_traits>
+
+#include "riegeli/base/ownership.h"
 
 namespace riegeli {
 
@@ -30,18 +33,31 @@ class RefCount {
   RefCount& operator=(const RefCount&) = delete;
 
   // Increments the reference count.
-  void Ref() const { ref_count_.fetch_add(1, std::memory_order_relaxed); }
+  //
+  // Does nothing if `Ownership` is `PassOwnership`.
+  template <typename Ownership = ShareOwnership,
+            std::enable_if_t<IsOwnership<Ownership>::value, int> = 0>
+  void Ref() const {
+    if (std::is_same<Ownership, ShareOwnership>::value) {
+      ref_count_.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
 
   // Decrements the reference count. Returns `true` when this was the last
   // reference.
+  //
+  // Does nothing and returns `false` if `Ownership` is `ShareOwnership`.
   //
   // When `Unref()` returns `true`, the decrement can be skipped and the actual
   // value of the reference count is unspecified. This avoids an expensive
   // atomic read-modify-write operation, making the last `Unref()` much faster,
   // at the cost of making a non-last `Unref()` a bit slower.
+  template <typename Ownership = PassOwnership,
+            std::enable_if_t<IsOwnership<Ownership>::value, int> = 0>
   bool Unref() const {
-    return HasUniqueOwner() ||
-           ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1;
+    return std::is_same<Ownership, PassOwnership>::value &&
+           (HasUniqueOwner() ||
+            ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1);
   }
 
   // Returns `true` if there is only one owner of the object.
@@ -57,9 +73,7 @@ class RefCount {
   // the count which may change asynchronously, hence usage of `get_count()`
   // should be limited to cases not important for correctness, like producing
   // debugging output.
-  size_t get_count() const {
-    return ref_count_.load(std::memory_order_relaxed);
-  }
+  size_t GetCount() const { return ref_count_.load(std::memory_order_relaxed); }
 
  private:
   mutable std::atomic<size_t> ref_count_ = 1;

@@ -49,6 +49,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/ownership.h"
 #include "riegeli/base/temporary_storage.h"
 
 namespace riegeli {
@@ -593,17 +594,15 @@ constexpr size_t Chain::RawBlock::kExternalAllocatedSize() {
   return kExternalObjectOffset<T>() + sizeof(T);
 }
 
-template <Chain::Ownership ownership>
+template <typename Ownership>
 inline Chain::RawBlock* Chain::RawBlock::Ref() {
-  if (ownership == Ownership::kShare) ref_count_.Ref();
+  ref_count_.Ref<Ownership>();
   return this;
 }
 
-template <Chain::Ownership ownership>
-void Chain::RawBlock::Unref() {
-  // Optimization: avoid an expensive atomic read-modify-write operation if the
-  // reference count is 1.
-  if (ownership == Ownership::kSteal && ref_count_.Unref()) {
+template <typename Ownership>
+inline void Chain::RawBlock::Unref() {
+  if (ref_count_.Unref<Ownership>()) {
     if (is_internal()) {
       DeleteAligned<RawBlock>(this, kInternalAllocatedOffset() + capacity());
     } else {
@@ -888,7 +887,7 @@ inline Chain::BlockRef::BlockRef(RawBlock* block) {
     // `block` is already a `BlockRef`. Refer to its target instead.
     block = block_ref->block_.get();
   }
-  block_.Reset(block->Ref());
+  block_.Reset(block, kShareOwnership);
 }
 
 inline Chain::BlockRef::BlockRef(IntrusiveSharedPtr<RawBlock> block) {

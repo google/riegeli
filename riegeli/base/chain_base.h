@@ -39,6 +39,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/ownership.h"
 #include "riegeli/base/ref_count.h"
 
 namespace riegeli {
@@ -452,17 +453,6 @@ class Chain : public WithCompare<Chain> {
     Allocated allocated;
   };
 
-  // Specifies how ownership of a potentially shared object is transferred,
-  // for cases when this is not implied by parameter types.
-  enum class Ownership {
-    // The original owner keeps its reference. The reference count is increased
-    // if the new owner also gets a reference.
-    kShare,
-    // The original owner drops its reference. The reference count is decreased
-    // unless the new owner gets a reference instead.
-    kSteal,
-  };
-
   // When deciding whether to copy an array of bytes or perform a small memory
   // allocation, prefer copying up to this length.
   static constexpr size_t kAllocationCost = 256;
@@ -489,9 +479,8 @@ class Chain : public WithCompare<Chain> {
   static void UnrefBlocks(const BlockPtr* begin, const BlockPtr* end);
   static void UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end);
 
-  void DropStolenBlocks(
-      std::integral_constant<Ownership, Ownership::kShare>) const;
-  void DropStolenBlocks(std::integral_constant<Ownership, Ownership::kSteal>);
+  void DropPassedBlocks(PassOwnership);
+  void DropPassedBlocks(ShareOwnership) const;
 
   // The offset of the block offsets part of the block pointer array, in array
   // elements.
@@ -544,10 +533,10 @@ class Chain : public WithCompare<Chain> {
   IntrusiveSharedPtr<RawBlock> PopBack();
   IntrusiveSharedPtr<RawBlock> PopFront();
   // This template is defined and used only in chain.cc.
-  template <Ownership ownership>
+  template <typename Ownership>
   void AppendBlocks(const BlockPtr* begin, const BlockPtr* end);
   // This template is defined and used only in chain.cc.
-  template <Ownership ownership>
+  template <typename Ownership>
   void PrependBlocks(const BlockPtr* begin, const BlockPtr* end);
   void ReserveBack(size_t extra_capacity);
   void ReserveFront(size_t extra_capacity);
@@ -563,10 +552,10 @@ class Chain : public WithCompare<Chain> {
                           size_t recommended_length, Options options) const;
 
   // This template is defined and used only in chain.cc.
-  template <Ownership ownership, typename ChainRef>
+  template <typename Ownership, typename ChainRef>
   void AppendChain(ChainRef&& src, Options options);
   // This template is defined and used only in chain.cc.
-  template <Ownership ownership, typename ChainRef>
+  template <typename Ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, Options options);
 
   void AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
@@ -663,10 +652,10 @@ class Chain::RawBlock {
   template <typename T>
   static constexpr size_t kExternalAllocatedSize();
 
-  template <Ownership ownership = Ownership::kShare>
+  template <typename Ownership = ShareOwnership>
   RawBlock* Ref();
 
-  template <Ownership ownership = Ownership::kSteal>
+  template <typename Ownership = PassOwnership>
   void Unref();
 
   IntrusiveSharedPtr<RawBlock> Copy();
