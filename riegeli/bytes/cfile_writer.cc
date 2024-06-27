@@ -467,9 +467,6 @@ bool CFileWriterBase::TruncateBehindBuffer(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   read_mode_ = false;
   FILE* const dest = DestFile();
-  if (ABSL_PREDICT_FALSE(fflush(dest) != 0)) {
-    return FailOperation("fflush()");
-  }
 #ifndef _WIN32
   const int fd = fileno(dest);
   if (ABSL_PREDICT_FALSE(fd < 0)) return FailOperation("fileno()");
@@ -491,6 +488,9 @@ bool CFileWriterBase::TruncateBehindBuffer(Position new_size) {
       set_start_pos(IntCast<Position>(file_size));
       return false;
     }
+  }
+  if (ABSL_PREDICT_FALSE(fflush(dest) != 0)) {
+    return FailOperation("fflush()");
   }
 #ifndef _WIN32
 again:
