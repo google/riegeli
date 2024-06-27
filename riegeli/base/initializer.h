@@ -21,9 +21,11 @@
 #include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
+#include "riegeli/base/invoker.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -32,20 +34,37 @@ class Initializer;
 
 namespace initializer_internal {
 
-// `IsConstructible<false, T, Arg>::value` is `true` if `T` is implicitly
-// constructible from `Arg`.
+// `IsCompatibleArg<false, T, Arg>::value` is `true` if `T` is implicitly
+// constructible from `Arg`, i.e. if `Arg` is convertible to `T`.
 //
-// `IsConstructible<true, T, Arg>::value` is `true` if `T` is implicitly or
-// explicitly constructible from `Arg`.
+// `IsCompatibleArg<true, T, Arg>::value` is `true` if `T` is implicitly
+// or explicitly constructible from `Arg`.
 
 template <bool allow_explicit, typename T, typename Arg>
-struct IsConstructible;
+struct IsCompatibleArg;
 
 template <typename T, typename Arg>
-struct IsConstructible<false, T, Arg> : std::is_convertible<Arg, T> {};
+struct IsCompatibleArg<false, T, Arg> : std::is_convertible<Arg, T> {};
 
 template <typename T, typename Arg>
-struct IsConstructible<true, T, Arg> : std::is_constructible<T, Arg> {};
+struct IsCompatibleArg<true, T, Arg> : std::is_constructible<T, Arg> {};
+
+// `IsCompatibleResult<allow_explicit, T, Result>` is like
+// `IsCompatibleArg<allow_explicit, T, Result>`, except that `Result`
+// represents the result of a function. Since C++17 which guarantees copy
+// elision, `T` and `Result` can also be the same immovable type, possibly with
+// different qualifiers.
+
+template <bool allow_explicit, typename T, typename Arg>
+struct IsCompatibleResult;
+
+template <typename T, typename Result>
+struct IsCompatibleResult<false, T, Result>
+    : IsConvertibleFromResult<T, Result> {};
+
+template <typename T, typename Result>
+struct IsCompatibleResult<true, T, Result>
+    : IsConstructibleFromResult<T, Result> {};
 
 // `IsInitializer` detects `Initializer` type with the given type parameter and
 // any `allow_explicit`.
@@ -85,6 +104,12 @@ class InitializerBase {
   template <typename... Args>
   static T ConstructMethodFromConstMaker(void* context);
 
+  template <typename Function, typename... Args>
+  static T ConstructMethodFromInvoker(void* context);
+
+  template <typename Function, typename... Args>
+  static T ConstructMethodFromConstInvoker(void* context);
+
  protected:
   struct Methods {
     T (*construct)(void* context);
@@ -112,6 +137,14 @@ class InitializerBase {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker = {
       ConstructMethodFromConstMaker<Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromInvoker = {
+      ConstructMethodFromInvoker<Function, Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromConstInvoker = {
+      ConstructMethodFromConstInvoker<Function, Args...>};
 
   const Methods* methods() const { return methods_; }
   void* context() const { return context_; }
@@ -172,6 +205,14 @@ class InitializerValueBase : public InitializerBase<T> {
   static T&& ReferenceMethodFromConstMaker(void* context,
                                            TemporaryStorage<T>&& storage);
 
+  template <typename Function, typename... Args>
+  static T&& ReferenceMethodFromInvoker(void* context,
+                                        TemporaryStorage<T>&& storage);
+
+  template <typename Function, typename... Args>
+  static T&& ReferenceMethodFromConstInvoker(void* context,
+                                             TemporaryStorage<T>&& storage);
+
   static const T& ConstReferenceMethodDefault(void* context,
                                               TemporaryStorage<T>&& storage);
 
@@ -190,6 +231,14 @@ class InitializerValueBase : public InitializerBase<T> {
 
   template <typename... Args>
   static const T& ConstReferenceMethodFromConstMaker(
+      void* context, TemporaryStorage<T>&& storage);
+
+  template <typename Function, typename... Args>
+  static const T& ConstReferenceMethodFromInvoker(
+      void* context, TemporaryStorage<T>&& storage);
+
+  template <typename Function, typename... Args>
+  static const T& ConstReferenceMethodFromConstInvoker(
       void* context, TemporaryStorage<T>&& storage);
 
  protected:
@@ -222,6 +271,20 @@ class InitializerValueBase : public InitializerBase<T> {
           Args...>,
       ReferenceMethodFromConstMaker<Args...>,
       ConstReferenceMethodFromConstMaker<Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromInvoker = {
+      InitializerValueBase::InitializerBase::template kMethodsFromInvoker<
+          Function, Args...>,
+      ReferenceMethodFromInvoker<Function, Args...>,
+      ConstReferenceMethodFromInvoker<Function, Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromConstInvoker = {
+      InitializerValueBase::InitializerBase::template kMethodsFromConstInvoker<
+          Function, Args...>,
+      ReferenceMethodFromConstInvoker<Function, Args...>,
+      ConstReferenceMethodFromConstInvoker<Function, Args...>};
 #else
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -276,6 +339,37 @@ class InitializerValueBase : public InitializerBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
+
+  template <typename Function, typename... Args>
+  static constexpr Methods MakeMethodsFromInvoker() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) =
+        InitializerValueBase::InitializerBase::template kMethodsFromInvoker<
+            Function, Args...>;
+    methods.reference = ReferenceMethodFromInvoker<Function, Args...>;
+    methods.const_reference =
+        ConstReferenceMethodFromInvoker<Function, Args...>;
+    return methods;
+  }
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromInvoker =
+      MakeMethodsFromInvoker<Function, Args...>();
+
+  template <typename Function, typename... Args>
+  static constexpr Methods MakeMethodsFromConstInvoker() {
+    Methods methods;
+    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
+        methods) = InitializerValueBase::InitializerBase::
+        template kMethodsFromConstInvoker<Function, Args...>;
+    methods.reference = ReferenceMethodFromConstInvoker<Function, Args...>;
+    methods.const_reference =
+        ConstReferenceMethodFromConstInvoker<Function, Args...>;
+    return methods;
+  }
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromConstInvoker =
+      MakeMethodsFromConstInvoker<Function, Args...>();
 #endif
 
   explicit InitializerValueBase(const Methods* methods)
@@ -315,6 +409,12 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   template <typename... Args>
   static void AssignToMethodFromConstMaker(void* context, T& object);
 
+  template <typename Function, typename... Args>
+  static void AssignToMethodFromInvoker(void* context, T& object);
+
+  template <typename Function, typename... Args>
+  static void AssignToMethodFromConstInvoker(void* context, T& object);
+
  protected:
   struct Methods
       : InitializerAssignableValueBase::InitializerValueBase::Methods {
@@ -345,6 +445,18 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromConstMaker<Args...>,
       AssignToMethodFromConstMaker<Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromInvoker = {
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsFromInvoker<Function, Args...>,
+      AssignToMethodFromInvoker<Function, Args...>};
+
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromConstInvoker = {
+      InitializerAssignableValueBase::InitializerValueBase::
+          template kMethodsFromConstInvoker<Function, Args...>,
+      AssignToMethodFromConstInvoker<Function, Args...>};
 #else
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -393,6 +505,33 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
+
+  template <typename Function, typename... Args>
+  static constexpr Methods MakeMethodsFromInvoker() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) = InitializerAssignableValueBase::
+        InitializerValueBase::template kMethodsFromInvoker<Function, Args...>;
+    methods.assign_to = AssignToMethodFromInvoker<Function, Args...>;
+    return methods;
+  }
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromInvoker =
+      MakeMethodsFromInvoker<Function, Args...>();
+
+  template <typename Function, typename... Args>
+  static constexpr Methods MakeMethodsFromConstInvoker() {
+    Methods methods;
+    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
+                    Methods&>(methods) =
+        InitializerAssignableValueBase::InitializerValueBase::
+            template kMethodsFromConstInvoker<Function, Args...>;
+    methods.assign_to = AssignToMethodFromConstInvoker<Function, Args...>;
+    return methods;
+  }
+  template <typename Function, typename... Args>
+  static constexpr Methods kMethodsFromConstInvoker =
+      MakeMethodsFromConstInvoker<Function, Args...>();
 #endif
 
   explicit InitializerAssignableValueBase(const Methods* methods)
@@ -457,7 +596,7 @@ class Initializer
       std::enable_if_t<
           absl::conjunction<absl::negation<initializer_internal::IsInitializer<
                                 T, std::decay_t<Arg>>>,
-                            initializer_internal::IsConstructible<
+                            initializer_internal::IsCompatibleArg<
                                 allow_explicit, T, Arg&&>>::value,
           int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -513,6 +652,35 @@ class Initializer
                 template kMethodsFromConstMaker<Args...>,
             args.maker()) {}
 
+  template <typename Function, typename... Args,
+            std::enable_if_t<
+                initializer_internal::IsCompatibleResult<
+                    allow_explicit, T,
+                    typename InvokerType<Function, Args...>::Result>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromInvoker<Function, Args...>,
+            std::move(invoker)) {}
+  template <
+      typename Function, typename... Args,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<
+                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
+              initializer_internal::IsCompatibleResult<
+                  allow_explicit, T,
+                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          int> = 0>
+  /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
+                               ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerAssignableValueBase(
+            &Initializer::InitializerAssignableValueBase::
+                template kMethodsFromConstInvoker<Function, Args...>,
+            invoker) {}
+
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
   // `allow_explicit` by adopting its state instead of wrapping.
   template <bool other_allow_explicit>
@@ -549,7 +717,7 @@ class Initializer<T, allow_explicit,
       std::enable_if_t<
           absl::conjunction<absl::negation<initializer_internal::IsInitializer<
                                 T, std::decay_t<Arg>>>,
-                            initializer_internal::IsConstructible<
+                            initializer_internal::IsCompatibleArg<
                                 allow_explicit, T, Arg&&>>::value,
           int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -603,6 +771,35 @@ class Initializer<T, allow_explicit,
                 Args...>,
             args.maker()) {}
 
+  template <typename Function, typename... Args,
+            std::enable_if_t<
+                initializer_internal::IsCompatibleResult<
+                    allow_explicit, T,
+                    typename InvokerType<Function, Args...>::Result>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::template kMethodsFromInvoker<
+                Function, Args...>,
+            std::move(invoker)) {}
+  template <
+      typename Function, typename... Args,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<
+                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
+              initializer_internal::IsCompatibleResult<
+                  allow_explicit, T,
+                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          int> = 0>
+  /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
+                               ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerValueBase(
+            &Initializer::InitializerValueBase::
+                template kMethodsFromConstInvoker<Function, Args...>,
+            invoker) {}
+
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
   // `allow_explicit` by adopting its state instead of wrapping.
   template <bool other_allow_explicit>
@@ -629,7 +826,7 @@ class Initializer<T, allow_explicit,
       std::enable_if_t<
           absl::conjunction<absl::negation<initializer_internal::IsInitializer<
                                 T, std::decay_t<Arg>>>,
-                            initializer_internal::IsConstructible<
+                            initializer_internal::IsCompatibleArg<
                                 allow_explicit, T, Arg&&>>::value,
           int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -680,6 +877,35 @@ class Initializer<T, allow_explicit,
                 Args...>,
             args.maker()) {}
 
+  template <typename Function, typename... Args,
+            std::enable_if_t<
+                initializer_internal::IsCompatibleResult<
+                    allow_explicit, T,
+                    typename InvokerType<Function, Args...>::Result>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromInvoker<
+                Function, Args...>,
+            std::move(invoker)) {}
+  template <
+      typename Function, typename... Args,
+      std::enable_if_t<
+          absl::conjunction<
+              std::integral_constant<
+                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
+              initializer_internal::IsCompatibleResult<
+                  allow_explicit, T,
+                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          int> = 0>
+  /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
+                               ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer::InitializerBase(
+            &Initializer::InitializerBase::template kMethodsFromConstInvoker<
+                Function, Args...>,
+            invoker) {}
+
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
   // `allow_explicit` by adopting its state instead of wrapping.
   template <bool other_allow_explicit>
@@ -722,23 +948,28 @@ class Initializer<T, allow_explicit,
 
 namespace initializer_internal {
 
-template <typename T>
+template <typename Value, typename Original>
 struct InitializerTargetImpl {
-  using type = T;
+  using type = Value;
 };
 
-template <typename... Args>
-struct InitializerTargetImpl<MakerType<Args...>> {
+template <typename... Args, typename Original>
+struct InitializerTargetImpl<MakerType<Args...>, Original> {
   // No `type` member when the target type is unspecified.
 };
 
-template <typename T, typename... Args>
-struct InitializerTargetImpl<MakerTypeFor<T, Args...>> {
+template <typename T, typename... Args, typename Original>
+struct InitializerTargetImpl<MakerTypeFor<T, Args...>, Original> {
   using type = T;
 };
 
-template <typename T>
-struct InitializerTargetImpl<Initializer<T>> {
+template <typename Function, typename... Args, typename Original>
+struct InitializerTargetImpl<InvokerType<Function, Args...>, Original> {
+  using type = decltype(std::declval<Original>()());
+};
+
+template <typename T, typename Original>
+struct InitializerTargetImpl<Initializer<T>, Original> {
   using type = T;
 };
 
@@ -746,7 +977,7 @@ struct InitializerTargetImpl<Initializer<T>> {
 
 template <typename T>
 struct InitializerTarget
-    : initializer_internal::InitializerTargetImpl<std::decay_t<T>> {};
+    : initializer_internal::InitializerTargetImpl<std::decay_t<T>, T> {};
 
 template <typename T>
 using InitializerTargetT = typename InitializerTarget<T>::type;
@@ -793,6 +1024,18 @@ T InitializerBase<T>::ConstructMethodFromConstMaker(void* context) {
 }
 
 template <typename T>
+template <typename Function, typename... Args>
+T InitializerBase<T>::ConstructMethodFromInvoker(void* context) {
+  return T(std::move(*static_cast<InvokerType<Function, Args...>*>(context))());
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+T InitializerBase<T>::ConstructMethodFromConstInvoker(void* context) {
+  return T((*static_cast<const InvokerType<Function, Args...>*>(context))());
+}
+
+template <typename T>
 T&& InitializerValueBase<T>::ReferenceMethodDefault(
     ABSL_ATTRIBUTE_UNUSED void* context, TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace();
@@ -828,6 +1071,22 @@ T&& InitializerValueBase<T>::ReferenceMethodFromConstMaker(
     void* context, TemporaryStorage<T>&& storage) {
   return static_cast<const MakerType<Args...>*>(context)->template Reference<T>(
       std::move(storage));
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+T&& InitializerValueBase<T>::ReferenceMethodFromInvoker(
+    void* context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).invoke(
+      std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+T&& InitializerValueBase<T>::ReferenceMethodFromConstInvoker(
+    void* context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).invoke(
+      *static_cast<const InvokerType<Function, Args...>*>(context));
 }
 
 template <typename T>
@@ -871,6 +1130,22 @@ const T& InitializerValueBase<T>::ConstReferenceMethodFromConstMaker(
 }
 
 template <typename T>
+template <typename Function, typename... Args>
+const T& InitializerValueBase<T>::ConstReferenceMethodFromInvoker(
+    void* context, TemporaryStorage<T>&& storage) {
+  return storage.invoke(
+      std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+const T& InitializerValueBase<T>::ConstReferenceMethodFromConstInvoker(
+    void* context, TemporaryStorage<T>&& storage) {
+  return storage.invoke(
+      *static_cast<const InvokerType<Function, Args...>*>(context));
+}
+
+template <typename T>
 void InitializerAssignableValueBase<T>::AssignToMethodDefault(
     ABSL_ATTRIBUTE_UNUSED void* context, T& object) {
   riegeli::Reset(object);
@@ -898,6 +1173,23 @@ template <typename... Args>
 void InitializerAssignableValueBase<T>::AssignToMethodFromConstMaker(
     void* context, T& object) {
   static_cast<const MakerType<Args...>*>(context)->template AssignTo<T>(object);
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+void InitializerAssignableValueBase<T>::AssignToMethodFromInvoker(void* context,
+                                                                  T& object) {
+  riegeli::Reset(
+      object,
+      std::move(*static_cast<InvokerType<Function, Args...>*>(context))());
+}
+
+template <typename T>
+template <typename Function, typename... Args>
+void InitializerAssignableValueBase<T>::AssignToMethodFromConstInvoker(
+    void* context, T& object) {
+  riegeli::Reset(
+      object, (*static_cast<const InvokerType<Function, Args...>*>(context))());
 }
 
 }  // namespace initializer_internal

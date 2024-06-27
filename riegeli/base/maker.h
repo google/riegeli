@@ -39,6 +39,9 @@ namespace riegeli {
 //
 // In contrast to `MakerTypeFor<T, Args...>`, `MakerType<Args...>` requires the
 // caller to know `T`.
+//
+// `InvokerType` complements `MakerType` by extending constructors with factory
+// functions.
 template <typename... Args>
 class MakerType : public ConditionallyAssignable<absl::conjunction<
                       absl::negation<std::is_reference<Args>>...>::value> {
@@ -388,6 +391,9 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 // `Template(riegeli::Maker<T>(args...))` over
 // `Template<T>(riegeli::Maker(args...))` if CTAD of `Template` can be used.
 //
+// `riegeli::Invoker()` complements `riegeli::Maker()` by extending constructors
+// with factory functions.
+//
 // `riegeli::Maker(args...)` does not generally own `args`, even if they
 // involve temporaries, hence it should be used only as a parameter of a
 // function or constructor, so that the temporaries outlive its usage.
@@ -411,6 +417,9 @@ MakerType<initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
 //
 // This allows the function taking `Initializer<T>` to construct the object
 // in-place, avoiding constructing a temporary and moving from it.
+//
+// `riegeli::Invoker()` complements `riegeli::Maker<T>()` by extending
+// constructors with factory functions.
 //
 // In contrast to `riegeli::Maker(args...)`, `riegeli::Maker<T>(args...)` allows
 // the caller to deduce `T`, e.g. using `InitializerTargetT`.

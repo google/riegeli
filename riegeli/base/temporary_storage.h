@@ -21,6 +21,7 @@
 
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -65,6 +66,28 @@ class TemporaryStorage {
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
   T&& emplace(Args&&... args) && {
     return std::move(emplace(std::forward<Args>(args)...));
+  }
+
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T& invoke(Function&& function) & {
+    RIEGELI_ASSERT(!initialized_)
+        << "Failed precondition of TemporaryStorage::invoke(): "
+           "already initialized";
+    new (&value_) T(std::forward<Function>(function)());
+    initialized_ = true;
+    return value_;
+  }
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T&& invoke(Function&& function) && {
+    return std::move(invoke(std::forward<Function>(function)));
   }
 
   T& operator*() & {
@@ -126,6 +149,24 @@ class TemporaryStorage<T, std::enable_if_t<absl::conjunction<
     return std::move(emplace(std::forward<Args>(args)...));
   }
 
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T& invoke(Function&& function) & {
+    new (&value_) T(std::forward<Function>(function)());
+    return value_;
+  }
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T&& invoke(Function&& function) && {
+    return std::move(invoke(std::forward<Function>(function)));
+  }
+
   T& operator*() & { return value_; }
   const T& operator*() const& { return value_; }
   T&& operator*() && { return std::move(value_); }
@@ -156,6 +197,25 @@ class TemporaryStorage<T, std::enable_if_t<std::is_reference<T>::value>> {
             std::enable_if_t<std::is_convertible<Arg&&, T>::value, int> = 0>
   T&& emplace(Arg&& arg) && {
     return std::forward<T>(emplace(std::forward<Arg>(arg)));
+  }
+
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T& invoke(Function&& function) & {
+    T reference = std::forward<Function>(function)();
+    value_ = &reference;
+    return value_;
+  }
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T&& invoke(Function&& function) && {
+    return std::forward<T>(invoke(std::forward<Function>(function)));
   }
 
   T& operator*() & { return *value_; }

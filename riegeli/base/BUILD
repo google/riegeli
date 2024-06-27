@@ -179,6 +179,7 @@ cc_library(
     srcs = ["initializer_internal.h"],
     hdrs = [
         "initializer.h",
+        "invoker.h",
         "maker.h",
         "temporary_storage.h",
     ],
@@ -189,6 +190,7 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/utility",
     ],
 )
 

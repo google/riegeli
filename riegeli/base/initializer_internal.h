@@ -22,8 +22,8 @@
 namespace riegeli {
 namespace initializer_internal {
 
-// In `Maker()`, pass arguments by reference unless they are cheap to pass by
-// value.
+// In `Maker()` and `Invoker()`, pass arguments by reference unless they are
+// cheap to pass by value.
 
 template <typename T, typename Enable = void>
 struct ReferenceOrCheapValue {
