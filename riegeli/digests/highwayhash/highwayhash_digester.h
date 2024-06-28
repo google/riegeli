@@ -43,6 +43,14 @@ class HighwayHashDigester {
  public:
   explicit HighwayHashDigester(const HighwayHashKey& key) : cat_(key) {}
 
+  HighwayHashDigester(const HighwayHashDigester& that) = default;
+  HighwayHashDigester& operator=(const HighwayHashDigester& that) = default;
+
+  void Reset(const HighwayHashKey& key) {
+    cat_.Reset(key);
+    is_open_ = true;
+  }
+
   void Write(absl::string_view chunk) {
     cat_.Append(chunk.data(), chunk.size());
   }

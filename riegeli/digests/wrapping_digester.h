@@ -83,7 +83,7 @@ class WrappingDigester {
               absl::negation<std::is_same<std::tuple<std::decay_t<Args>...>,
                                           std::tuple<WrappingDigester>>>,
               std::is_constructible<BaseDigester, Args&&...>>::value,
-          int> = true>
+          int> = 0>
   explicit WrappingDigester(Args&&... args)
       : base_(riegeli::Maker(std::forward<Args>(args)...)) {}
 
@@ -92,6 +92,13 @@ class WrappingDigester {
 
   WrappingDigester(WrappingDigester&& that) = default;
   WrappingDigester& operator=(WrappingDigester&& that) = default;
+
+  template <typename... Args,
+            std::enable_if_t<
+                std::is_constructible<BaseDigester, Args&&...>::value, int> = 0>
+  void Reset(Args&&... args) {
+    base_.Reset(riegeli::Maker(std::forward<Args>(args)...));
+  }
 
   bool Write(absl::string_view src) { return base_.get().Write(src); }
   bool Write(const Chain& src) { return base_.get().Write(src); }

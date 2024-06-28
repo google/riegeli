@@ -35,6 +35,11 @@ class OpenSslDigester {
   OpenSslDigester(const OpenSslDigester& that) = default;
   OpenSslDigester& operator=(const OpenSslDigester& that) = default;
 
+  void Reset() {
+    init(&ctx_);
+    is_open_ = true;
+  }
+
   void Write(absl::string_view src) { update(&ctx_, src.data(), src.size()); }
 
   void Close() {
