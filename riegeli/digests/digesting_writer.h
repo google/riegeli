@@ -28,6 +28,8 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/utility/utility.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -348,7 +350,14 @@ void DigestingWriter<Digester, Dest>::SetWriteSizeHintImpl(
   if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(write_size_hint);
+    if (digester_.IsOwning()) digester_.get().SetWriteSizeHint(write_size_hint);
     MakeBuffer(*dest_);
+  } else if (digester_.IsOwning()) {
+    digester_.get().SetWriteSizeHint(
+        write_size_hint == absl::nullopt
+            ? absl::nullopt
+            : absl::make_optional(SaturatingAdd(Position{start_to_cursor()},
+                                                *write_size_hint)));
   }
 }
 
@@ -367,6 +376,22 @@ bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
 namespace digesting_writer_internal {
 
 ABSL_ATTRIBUTE_COLD absl::Status FailedStatus(DigesterBaseHandle digester);
+
+template <typename DigesterOrWriter, typename... Srcs,
+          std::enable_if_t<
+              absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
+    DigesterOrWriter&& dest, const Srcs&... srcs) {
+  std::forward<DigesterOrWriter>(dest).SetWriteSizeHint(
+      SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
+}
+
+template <typename DigesterOrWriter, typename... Srcs,
+          std::enable_if_t<
+              !absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
+    ABSL_ATTRIBUTE_UNUSED DigesterOrWriter&& dest,
+    ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
 
 template <typename T, typename Enable = void>
 struct SupportedByDigesterHandle : std::false_type {};
@@ -400,6 +425,13 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   Dependency<DigesterBaseHandle, Digester&&> digester_dep(
       std::forward<Digester>(digester));
+  if (digester_dep.IsOwning()) {
+    absl::apply(
+        [&](const Srcs&... srcs) {
+          SetWriteSizeHint(digester_dep.get(), srcs...);
+        },
+        srcs);
+  }
   bool ok = WriteTuple<0>(srcs, digester_dep.get());
   if (digester_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!digester_dep.get().Close())) ok = false;
@@ -416,6 +448,9 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<Digester&&, NullWriter> writer(
       riegeli::Maker(), std::forward<Digester>(digester));
+  absl::apply(
+      [&](const Srcs&... srcs) { SetWriteSizeHint(writer.get(), srcs...); },
+      srcs);
   writer.WriteTuple(srcs);
   RIEGELI_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();

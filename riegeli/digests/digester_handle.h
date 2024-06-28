@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
@@ -61,6 +62,16 @@ struct IsValidDigesterBaseTarget<
 // ```
 //   // All of the following methods returning `bool` return `true` on success.
 //   // They may also return `void` which is treated as `true`.
+//
+//   // If `write_size_hint` is not `absl::nullopt`, hints that this amount of
+//   // data will be written from the current position. This may improve
+//   // performance and memory usage.
+//   //
+//   // If the hint turns out to not match reality, nothing breaks. It is better
+//   // if `write_size_hint` is slightly too large than slightly too small.
+//   //
+//   // Optional. If absent, does nothing.
+//   void SetWriteSizeHint(absl::optional<Position> write_size_hint);
 //
 //   // Called with consecutive fragments of data.
 //   //
@@ -131,6 +142,16 @@ class DigesterBaseHandle {
 
   // Allow Nullability annotations on `DigesterBaseHandle`.
   using absl_nullability_compatible = void;
+
+  // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
+  // will be written from the current position. This may improve performance and
+  // memory usage.
+  //
+  // If the hint turns out to not match reality, nothing breaks. It is better if
+  // `write_size_hint` is slightly too large than slightly too small.
+  void SetWriteSizeHint(absl::optional<Position> write_size_hint) {
+    methods_->set_write_size_hint(target_, write_size_hint);
+  }
 
   // Called with consecutive fragments of data.
   //
@@ -232,6 +253,14 @@ class DigesterBaseHandle {
   }
 
   template <typename T, typename Enable = void>
+  struct DigesterTargetHasSetWriteSizeHint : std::false_type {};
+
+  template <typename T>
+  struct DigesterTargetHasSetWriteSizeHint<
+      T, absl::void_t<decltype(std::declval<T&>().SetWriteSizeHint(
+             std::declval<absl::optional<Position>>()))>> : std::true_type {};
+
+  template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteChain : std::false_type {};
 
   template <typename T>
@@ -271,6 +300,20 @@ class DigesterBaseHandle {
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<const T&>().status()), absl::Status>::value>>
       : std::true_type {};
+
+  template <
+      typename T,
+      std::enable_if_t<DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
+  static void SetWriteSizeHintMethod(void* target,
+                                     absl::optional<Position> write_size_hint) {
+    static_cast<T*>(target)->SetWriteSizeHint(write_size_hint);
+  }
+  template <
+      typename T,
+      std::enable_if_t<!DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
+  static void SetWriteSizeHintMethod(
+      ABSL_ATTRIBUTE_UNUSED void* target,
+      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
 
   template <typename T>
   static auto RawWriteMethod(void* target, absl::string_view src) {
@@ -364,6 +407,8 @@ class DigesterBaseHandle {
 
  protected:
   struct Methods {
+    void (*set_write_size_hint)(void* target,
+                                absl::optional<Position> write_size_hint);
     bool (*write)(void* target, absl::string_view src);
     bool (*write_chain)(void* target, const Chain& src);
     bool (*write_cord)(void* target, const absl::Cord& src);
@@ -373,9 +418,13 @@ class DigesterBaseHandle {
   };
 
   template <typename T>
-  static constexpr Methods kMethods = {WriteMethod<T>,     WriteChainMethod<T>,
-                                       WriteCordMethod<T>, WriteZerosMethod<T>,
-                                       CloseMethod<T>,     StatusMethod<T>};
+  static constexpr Methods kMethods = {SetWriteSizeHintMethod<T>,
+                                       WriteMethod<T>,
+                                       WriteChainMethod<T>,
+                                       WriteCordMethod<T>,
+                                       WriteZerosMethod<T>,
+                                       CloseMethod<T>,
+                                       StatusMethod<T>};
 
   template <typename T>
   explicit DigesterBaseHandle(const Methods* methods, T* target)
