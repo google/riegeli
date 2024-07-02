@@ -406,7 +406,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 // The `generic` template parameter lets `riegeli::Maker<T>()` with an explicit
 // template argument unambiguously call another overload of `riegeli::Maker()`.
 template <int generic = 0, typename... Args>
-MakerType<initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
+MakerType<ReferenceOrCheapValueT<Args>...> Maker(
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
@@ -434,7 +434,7 @@ MakerType<initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
 // optimization: some of `Args&&...` in the result type can be `Args...`.
 template <typename T, typename... Args,
           std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-MakerTypeFor<T, initializer_internal::ReferenceOrCheapValueT<Args>...> Maker(
+MakerTypeFor<T, ReferenceOrCheapValueT<Args>...> Maker(
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
@@ -451,7 +451,7 @@ template <template <typename...> class Template, typename... Args,
                                Args&&...>::value,
                            int> = 0>
 MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>,
-             initializer_internal::ReferenceOrCheapValueT<Args>...>
+             ReferenceOrCheapValueT<Args>...>
 Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }

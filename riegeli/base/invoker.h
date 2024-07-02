@@ -22,7 +22,6 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
-#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -185,8 +184,8 @@ explicit InvokerType(Function&&, Args&&...)
 // optimization: some of `Function&&` or `Args&&...` in the result type can be
 // `Function` or `Args...`.
 template <typename Function, typename... Args>
-inline InvokerType<initializer_internal::ReferenceOrCheapValueT<Function>,
-                   initializer_internal::ReferenceOrCheapValueT<Args>...>
+inline InvokerType<ReferenceOrCheapValueT<Function>,
+                   ReferenceOrCheapValueT<Args>...>
 Invoker(Function&& function ABSL_ATTRIBUTE_LIFETIME_BOUND,
         Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Function>(function), std::forward<Args>(args)...};

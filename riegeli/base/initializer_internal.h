@@ -17,30 +17,8 @@
 
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
-
 namespace riegeli {
 namespace initializer_internal {
-
-// In `Maker()` and `Invoker()`, pass arguments by reference unless they are
-// cheap to pass by value.
-
-template <typename T, typename Enable = void>
-struct ReferenceOrCheapValue {
-  using type = T&&;
-};
-
-template <typename T>
-struct ReferenceOrCheapValue<
-    T, std::enable_if_t<absl::conjunction<
-           std::is_trivially_copyable<T>, std::is_trivially_destructible<T>,
-           std::integral_constant<bool,
-                                  (sizeof(T) <= 2 * sizeof(void*))>>::value>> {
-  using type = T;
-};
-
-template <typename T>
-using ReferenceOrCheapValueT = typename ReferenceOrCheapValue<T>::type;
 
 // `CanBindTo<T&&, Args&&...>::value` is `true` if constructing `T(args...)`
 // with `args...` of type `Args&&...` can be elided, with `T&&` binding directly
