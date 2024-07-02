@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
@@ -123,12 +124,14 @@ class TemporaryStorage {
 };
 
 // Specialization of `TemporaryStorage<T>` for non-reference trivially
-// destructible types. There is no need to track whether the object was
-// initialized.
+// destructible but not trivially default constructible types. There is no need
+// to track whether the object was initialized.
 template <typename T>
-class TemporaryStorage<T, std::enable_if_t<absl::conjunction<
-                              absl::negation<std::is_reference<T>>,
-                              std::is_trivially_destructible<T>>::value>> {
+class TemporaryStorage<
+    T,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
+        absl::negation<std::is_trivially_default_constructible<T>>>::value>> {
  public:
   TemporaryStorage() noexcept {}
 
@@ -178,11 +181,68 @@ class TemporaryStorage<T, std::enable_if_t<absl::conjunction<
   };
 };
 
+// Specialization of `TemporaryStorage<T>` for non-reference trivially
+// destructible and trivially default constructible types. There is no need to
+// track whether the object was initialized, and
+// `ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS` can be applied.
+template <typename T>
+class TemporaryStorage<
+    T,
+    std::enable_if_t<absl::conjunction<
+        absl::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
+        std::is_trivially_default_constructible<T>>::value>> {
+ public:
+  TemporaryStorage() = default;
+
+  TemporaryStorage(const TemporaryStorage&) = delete;
+  TemporaryStorage& operator=(const TemporaryStorage&) = delete;
+
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  T& emplace(Args&&... args) & {
+    new (&value_) T(std::forward<Args>(args)...);
+    return value_;
+  }
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  T&& emplace(Args&&... args) && {
+    return std::move(emplace(std::forward<Args>(args)...));
+  }
+
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T& invoke(Function&& function) & {
+    new (&value_) T(std::forward<Function>(function)());
+    return value_;
+  }
+  template <
+      typename Function,
+      std::enable_if_t<IsConstructibleFromResult<
+                           T, decltype(std::declval<Function&&>()())>::value,
+                       int> = 0>
+  T&& invoke(Function&& function) && {
+    return std::move(invoke(std::forward<Function>(function)));
+  }
+
+  T& operator*() & { return value_; }
+  const T& operator*() const& { return value_; }
+  T&& operator*() && { return std::move(value_); }
+  const T&& operator*() const&& { return std::move(value_); }
+
+ private:
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::remove_cv_t<T> value_;
+};
+
 // Specialization of `TemporaryStorage<T>` for reference types.
 template <typename T>
 class TemporaryStorage<T, std::enable_if_t<std::is_reference<T>::value>> {
  public:
-  TemporaryStorage() noexcept {}
+  TemporaryStorage() = default;
 
   TemporaryStorage(const TemporaryStorage&) = delete;
   TemporaryStorage& operator=(const TemporaryStorage&) = delete;

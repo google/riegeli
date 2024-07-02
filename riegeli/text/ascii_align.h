@@ -153,7 +153,7 @@ class AsciiLeftType {
                              int> = 0>
   void WriteTo(Writer& dest) &&;
 
-  std::tuple<T...> values_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<T...> values_;
   AlignOptions options_;
 };
 
@@ -275,7 +275,7 @@ class AsciiCenterType {
                              int> = 0>
   void WriteTo(Writer& dest) &&;
 
-  std::tuple<T...> values_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<T...> values_;
   AlignOptions options_;
 };
 
@@ -398,7 +398,7 @@ class AsciiRightType {
                              int> = 0>
   void WriteTo(Writer& dest) &&;
 
-  std::tuple<T...> values_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<T...> values_;
   AlignOptions options_;
 };
 

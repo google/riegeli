@@ -445,7 +445,7 @@ class ExternalRef {
     }
 
    private:
-    T object_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS T object_;
   };
 
   template <typename T, typename Enable = void>
@@ -483,7 +483,7 @@ class ExternalRef {
                   int> = 0>
     void CallOperator() {}
 
-    T object_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS T object_;
   };
 
   template <typename T, typename Enable = void>
@@ -502,7 +502,7 @@ class ExternalRef {
     const T& operator*() const { return object_; }
 
    private:
-    T object_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS T object_;
     absl::string_view substr_;
   };
 
@@ -743,7 +743,7 @@ class ExternalRef {
     }
 
     std::remove_reference_t<Arg>* arg_;
-    TemporaryStorage<T> temporary_storage_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
   template <typename T>
@@ -858,7 +858,7 @@ class ExternalRef {
     }
 
     std::remove_reference_t<T>* object_ = nullptr;
-    TemporaryStorage<T> temporary_storage_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
   template <typename Arg>
@@ -1038,7 +1038,7 @@ class ExternalRef {
     }
 
     std::remove_reference_t<T>* object_ = nullptr;
-    TemporaryStorage<T> temporary_storage_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
   template <typename Arg, typename Enable = void>

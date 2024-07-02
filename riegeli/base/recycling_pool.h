@@ -403,10 +403,7 @@ class RecyclerRepr {
   const Deleter& deleter() const { return deleter_; }
 
  private:
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  [[no_unique_address]]
-#endif
-  Deleter deleter_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Deleter deleter_;
   RecyclingPool* pool_ = nullptr;
 };
 

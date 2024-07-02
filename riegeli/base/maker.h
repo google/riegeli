@@ -243,7 +243,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         args_);
   }
 
-  std::tuple<Args...> args_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
 // Support CTAD.
@@ -375,7 +375,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   const MakerType<Args...>& maker() const& { return maker_; }
 
  private:
-  MakerType<Args...> maker_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS MakerType<Args...> maker_;
 };
 
 // `riegeli::Maker(args...)` returns `MakerType<Args&&...>` which packs

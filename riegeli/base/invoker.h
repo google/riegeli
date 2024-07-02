@@ -140,11 +140,8 @@ class InvokerType : public ConditionallyAssignable<absl::conjunction<
   }
 
  private:
-  Function function_;
-#if ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-  [[no_unique_address]]
-#endif
-  std::tuple<Args...> args_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
