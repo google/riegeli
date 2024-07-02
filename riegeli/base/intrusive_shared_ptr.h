@@ -263,7 +263,7 @@ class
 
   // Support `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {
-    return ExternalStorage(self->Release(),
+    return ExternalStorage(const_cast<std::remove_cv_t<T>*>(self->Release()),
                            [](void* ptr) { Unref(static_cast<T*>(ptr)); });
   }
 

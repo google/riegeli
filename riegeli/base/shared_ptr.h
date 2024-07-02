@@ -208,9 +208,9 @@ class
 
   // Support `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedPtr* self) {
-    return ExternalStorage(self->Release(), [](void* ptr) {
-      SharedPtr::DeleteReleased(static_cast<T*>(ptr));
-    });
+    return ExternalStorage(
+        const_cast<std::remove_cv_t<T>*>(self->Release()),
+        [](void* ptr) { SharedPtr::DeleteReleased(static_cast<T*>(ptr)); });
   }
 
   // Support `MemoryEstimator`.
