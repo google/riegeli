@@ -23,6 +23,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/initializer_internal.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -74,7 +75,8 @@ struct ConstResult : ConstResultImpl<void, Function, Args...> {};
 // function can also be a member pointer, in which case the first argument is
 // the target reference, reference wrapper, or pointer.
 template <typename Function, typename... Args>
-class InvokerType {
+class InvokerType : public ConditionallyAssignable<absl::conjunction<
+                        absl::negation<std::is_reference<Args>>...>::value> {
  public:
   // The result of calling `InvokerType&&` with no arguments.
   using Result = decltype(absl::apply(std::declval<Function&&>(),
