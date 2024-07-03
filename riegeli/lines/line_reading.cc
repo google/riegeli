@@ -208,7 +208,6 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
 }  // namespace
 
 bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
-  options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
   size_t length = 0;
   if (ABSL_PREDICT_FALSE(!src.Pull())) {
     dest = absl::string_view();
@@ -293,7 +292,6 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
 
 bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
   dest.clear();
-  options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
   return ReadLineInternal(src, dest, options);
 }
 

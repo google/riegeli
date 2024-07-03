@@ -151,10 +151,8 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   }
   skip_empty_lines_ = options.skip_empty_lines();
   quote_ = options.quote().value_or('\0');
-  max_num_fields_ = UnsignedMin(options.max_num_fields(),
-                                std::vector<std::string>().max_size());
-  max_field_length_ =
-      UnsignedMin(options.max_field_length(), std::string().max_size());
+  max_num_fields_ = options.max_num_fields();
+  max_field_length_ = options.max_field_length();
 
   if (ABSL_PREDICT_FALSE(!src->ok())) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));

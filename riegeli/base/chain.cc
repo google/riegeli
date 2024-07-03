@@ -587,9 +587,6 @@ inline void Chain::Initialize(const Chain& src) {
 inline std::string Chain::ToString() const {
   if (begin_ == end_) return std::string(short_data());
   std::string dest;
-  RIEGELI_CHECK_LE(size_, dest.max_size())
-      << "Failed precondition of Chain::operator string: "
-         "string size overflow";
   dest.resize(size_);
   CopyToSlow(&dest[0]);
   return dest;
@@ -673,7 +670,7 @@ inline void Chain::CopyToSlow(char* dest) const {
 
 void Chain::AppendTo(std::string& dest) const& {
   const size_t size_before = dest.size();
-  RIEGELI_CHECK_LE(size_, dest.max_size() - size_before)
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - size_before)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
   ResizeStringAmortized(dest, size_before + size_);
@@ -681,10 +678,6 @@ void Chain::AppendTo(std::string& dest) const& {
 }
 
 void Chain::AppendTo(std::string& dest) && {
-  const size_t size_before = dest.size();
-  RIEGELI_CHECK_LE(size_, dest.max_size() - size_before)
-      << "Failed precondition of Chain::AppendTo(string&): "
-         "string size overflow";
   if (dest.empty() && PtrDistance(begin_, end_) == 1) {
     if (std::string* const string_ptr =
             back()->checked_external_object_with_unique_owner<std::string>()) {
@@ -699,6 +692,10 @@ void Chain::AppendTo(std::string& dest) && {
       }
     }
   }
+  const size_t size_before = dest.size();
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - size_before)
+      << "Failed precondition of Chain::AppendTo(string&): "
+         "string size overflow";
   ResizeStringAmortized(dest, size_before + size_);
   CopyTo(&dest[size_before]);
 }

@@ -46,7 +46,6 @@ ABSL_ATTRIBUTE_COLD absl::Status MaxLengthExceeded(Reader& src,
 
 absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
                          size_t max_length) {
-  max_length = UnsignedMin(max_length, dest.max_size());
   if (src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
@@ -81,7 +80,6 @@ absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
 
 absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
                                   size_t max_length) {
-  max_length = UnsignedMin(max_length, dest.max_size() - dest.size());
   if (src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();

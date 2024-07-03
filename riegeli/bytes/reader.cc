@@ -111,10 +111,10 @@ bool Reader::ReadSlow(size_t length, std::string& dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(string&): "
          "enough data available, use Read(string&) instead";
-  RIEGELI_CHECK_LE(length, dest.max_size() - dest.size())
+  const size_t dest_pos = dest.size();
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest_pos)
       << "Failed precondition of Reader::ReadSlow(string&): "
          "string size overflow";
-  const size_t dest_pos = dest.size();
   ResizeStringAmortized(dest, dest_pos + length);
   size_t length_read;
   if (ABSL_PREDICT_FALSE(!ReadSlow(length, &dest[dest_pos], length_read))) {
@@ -128,7 +128,7 @@ bool Reader::ReadSlow(size_t length, std::string& dest, size_t& length_read) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(string&): "
          "enough data available, use Read(string&) instead";
-  RIEGELI_ASSERT_LE(length, dest.max_size() - dest.size())
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(string&): "
          "string size overflow";
   const Position pos_before = pos();
@@ -377,7 +377,8 @@ bool Reader::ReadSomeSlow(size_t max_length, std::string& dest) {
       << "Failed precondition of Reader::ReadSomeSlow(string&): "
          "enough data available, use ReadSome(string&) instead";
   const size_t dest_size_before = dest.size();
-  const size_t remaining = dest.max_size() - dest_size_before;
+  const size_t remaining =
+      std::numeric_limits<size_t>::max() - dest_size_before;
   RIEGELI_CHECK_GT(remaining, 0u)
       << "Failed precondition of Reader::ReadSome(string&): "
          "string size overflow";
