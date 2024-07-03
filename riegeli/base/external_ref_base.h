@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <new>
 #include <string>
@@ -39,6 +40,11 @@
 #include "riegeli/base/temporary_storage.h"
 
 namespace riegeli {
+
+// Support `ExternalRef`.
+inline size_t RiegeliAllocatedMemory(ABSL_ATTRIBUTE_UNUSED const void* self) {
+  return 0;
+}
 
 // Support `ExternalRef`.
 inline size_t RiegeliAllocatedMemory(const std::string* self) {
@@ -194,27 +200,15 @@ class ExternalRef {
       void (*)(void* context, IntrusiveSharedPtr<Chain::RawBlock> data);
   using UseCordFunction = void (*)(void* context, absl::Cord data);
 
-  template <typename T, typename Enable = void>
-  struct HasRiegeliAllocatedMemory : std::false_type {};
-
   template <typename T>
-  struct HasRiegeliAllocatedMemory<
-      T, std::enable_if_t<std::is_convertible<decltype(RiegeliAllocatedMemory(
-                                                  std::declval<const T*>())),
-                                              size_t>::value>>
-      : std::true_type {};
-
-  template <typename T,
-            std::enable_if_t<HasRiegeliAllocatedMemory<T>::value, int> = 0>
-  static size_t GetAllocatedMemory(const T& object,
-                                   ABSL_ATTRIBUTE_UNUSED size_t fallback) {
-    return RiegeliAllocatedMemory(&object);
-  }
-  template <typename T,
-            std::enable_if_t<!HasRiegeliAllocatedMemory<T>::value, int> = 0>
-  static size_t GetAllocatedMemory(ABSL_ATTRIBUTE_UNUSED const T& object,
-                                   size_t fallback) {
-    return fallback;
+  static bool Wasteful(const T& object, size_t extra_allocated, size_t used) {
+    size_t allocated = RiegeliAllocatedMemory(&object);
+    if (extra_allocated > std::numeric_limits<size_t>::max() - allocated) {
+      RIEGELI_ASSERT_UNREACHABLE() << "Result of RiegeliAllocatedMemory() "
+                                      "suspiciously close to size_t range";
+    }
+    allocated += extra_allocated;
+    return allocated >= used && riegeli::Wasteful(allocated, used);
   }
 
   template <typename T, typename Enable = void>
@@ -682,9 +676,7 @@ class ExternalRef {
       const absl::string_view data(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
-      if (Wasteful(Chain::kExternalAllocatedSize<T>() +
-                       ExternalRef::GetAllocatedMemory(object, data.size()),
-                   data.size())) {
+      if (Wasteful(object, Chain::kExternalAllocatedSize<T>(), data.size())) {
         use_string_view(context, data);
         return;
       }
@@ -708,9 +700,9 @@ class ExternalRef {
       const absl::string_view data(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
-      if (Wasteful(cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordWholeData<T>) + sizeof(T) +
-                       ExternalRef::GetAllocatedMemory(object, data.size()),
+      if (Wasteful(object,
+                   cord_internal::kSizeOfCordRepExternal +
+                       sizeof(ObjectForCordWholeData<T>) + sizeof(T),
                    data.size())) {
         use_string_view(context, data);
         return;
@@ -724,9 +716,7 @@ class ExternalRef {
       const absl::string_view data(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
-      if (Wasteful(sizeof(ExternalObjectWhole<T>) +
-                       ExternalRef::GetAllocatedMemory(object, data.size()),
-                   data.size())) {
+      if (Wasteful(object, sizeof(ExternalObjectWhole<T>), data.size())) {
         return ExternalDataCopy(data);
       }
       return ExternalRef::ToExternalDataExternal(std::move(object));
@@ -779,9 +769,7 @@ class ExternalRef {
                         void* context, UseStringViewFunction use_string_view,
                         UseChainRawBlockFunction use_chain_raw_block) {
       if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(Chain::kExternalAllocatedSize<T>() +
-                       ExternalRef::GetAllocatedMemory(object(storage),
-                                                       storage->size()),
+          Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
         use_string_view(context, absl::string_view(object(storage)));
         return;
@@ -801,9 +789,9 @@ class ExternalRef {
       const absl::string_view data(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
-      if (Wasteful(cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordWholeData<T>) + sizeof(T) +
-                       ExternalRef::GetAllocatedMemory(object, data.size()),
+      if (Wasteful(object,
+                   cord_internal::kSizeOfCordRepExternal +
+                       sizeof(ObjectForCordWholeData<T>) + sizeof(T),
                    data.size())) {
         use_string_view(context, data);
         StorageWholeWithCallOperator::CallOperator(std::forward<T>(object));
@@ -818,9 +806,7 @@ class ExternalRef {
       const absl::string_view data(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
-      if (Wasteful(sizeof(ExternalObjectWhole<T>) +
-                       ExternalRef::GetAllocatedMemory(object, data.size()),
-                   data.size())) {
+      if (Wasteful(object, sizeof(ExternalObjectWhole<T>), data.size())) {
         ExternalData result = ExternalDataCopy(data);
         StorageWholeWithCallOperator::CallOperator(std::forward<T>(object));
         return result;
@@ -882,8 +868,7 @@ class ExternalRef {
       }
       TemporaryStorage<T> temporary_storage;
       T&& object = initializer(storage).Reference(std::move(temporary_storage));
-      if (Wasteful(Chain::kExternalAllocatedSize<T>() +
-                       ExternalRef::GetAllocatedMemory(object, storage->size()),
+      if (Wasteful(object, Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
         use_string_view(context, substr(storage));
         return;
@@ -901,9 +886,8 @@ class ExternalRef {
         return;
       }
       ObjectForCordSubstr<T> object_for_cord(initializer(storage));
-      if (Wasteful(cord_internal::kSizeOfCordRepExternal + sizeof(T) +
-                       ExternalRef::GetAllocatedMemory(*object_for_cord,
-                                                       storage->size()),
+      if (Wasteful(*object_for_cord,
+                   cord_internal::kSizeOfCordRepExternal + sizeof(T),
                    storage->size())) {
         use_string_view(context, substr(storage));
         return;
@@ -914,9 +898,7 @@ class ExternalRef {
     static ExternalData ToExternalData(StorageBase* storage) {
       TemporaryStorage<T> temporary_storage;
       T&& object = initializer(storage).Reference(std::move(temporary_storage));
-      if (Wasteful(sizeof(ExternalObjectWhole<T>) +
-                       ExternalRef::GetAllocatedMemory(object, storage->size()),
-                   storage->size())) {
+      if (Wasteful(object, sizeof(ExternalObjectWhole<T>), storage->size())) {
         return ExternalDataCopy(substr(storage));
       }
       return ExternalRef::ToExternalDataExternal(std::forward<T>(object),
@@ -961,9 +943,7 @@ class ExternalRef {
                         void* context, UseStringViewFunction use_string_view,
                         UseChainRawBlockFunction use_chain_raw_block) {
       if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(Chain::kExternalAllocatedSize<T>() +
-                       ExternalRef::GetAllocatedMemory(object(storage),
-                                                       storage->size()),
+          Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
         use_string_view(context, substr(storage));
         return;
@@ -981,9 +961,8 @@ class ExternalRef {
         return;
       }
       ObjectForCordSubstr<T> object_for_cord(ExtractObject(storage));
-      if (Wasteful(cord_internal::kSizeOfCordRepExternal + sizeof(T) +
-                       ExternalRef::GetAllocatedMemory(*object_for_cord,
-                                                       storage->size()),
+      if (Wasteful(*object_for_cord,
+                   cord_internal::kSizeOfCordRepExternal + sizeof(T),
                    storage->size())) {
         use_string_view(context, substr(storage));
         StorageSubstrWithCallOperator::CallOperator(
@@ -995,9 +974,7 @@ class ExternalRef {
 
     static ExternalData ToExternalData(StorageBase* storage) {
       T&& object = ExtractObject(storage);
-      if (Wasteful(sizeof(ExternalObjectSubstr<T>) +
-                       ExternalRef::GetAllocatedMemory(object, storage->size()),
-                   storage->size())) {
+      if (Wasteful(object, sizeof(ExternalObjectSubstr<T>), storage->size())) {
         ExternalData result = ExternalDataCopy(substr(storage));
         StorageSubstrWithCallOperator::CallOperator(storage,
                                                     std::forward<T>(object));
