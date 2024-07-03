@@ -37,6 +37,7 @@
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/temporary_storage.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -590,7 +591,7 @@ class ExternalRef {
 
     void Initialize(Arg arg, size_t size) {
       StorageBase::Initialize(size);
-      arg_ = &arg;
+      arg_.emplace(std::forward<Arg>(arg));
     }
 
     static absl::string_view ToStringView(StorageBase* storage) {
@@ -674,7 +675,8 @@ class ExternalRef {
                            ->temporary_storage_);
     }
 
-    std::remove_reference_t<Arg>* arg_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS
+    TemporaryStorage<ReferenceOrCheapValueT<Arg>> arg_;
     ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
@@ -798,7 +800,7 @@ class ExternalRef {
 
     void Initialize(Arg arg, absl::string_view substr) {
       StorageSubstrBase::Initialize(substr);
-      arg_ = &arg;
+      arg_.emplace(std::forward<Arg>(arg));
     }
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
@@ -851,7 +853,8 @@ class ExternalRef {
           *static_cast<StorageSubstrWithoutCallOperator*>(storage)->arg_);
     }
 
-    std::remove_reference_t<Arg>* arg_;
+    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS
+    TemporaryStorage<ReferenceOrCheapValueT<Arg>> arg_;
   };
 
   template <typename T>
