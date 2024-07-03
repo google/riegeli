@@ -149,6 +149,7 @@ class Chain : public WithCompare<Chain> {
   };
 
   class Block;
+  struct MakeBlock;
   class BlockIterator;
   class Blocks;
   struct BlockAndChar;
@@ -799,10 +800,6 @@ class Chain::Block {
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);
 
-  // Internal constructors. They are public so that other classes can use them.
-  explicit Block(RawBlock* block);
-  explicit Block(IntrusiveSharedPtr<RawBlock> block);
-
   Block(const Block& that) = default;
   Block& operator=(const Block& that) = default;
 
@@ -843,7 +840,10 @@ class Chain::Block {
   }
 
  private:
-  friend class Chain;
+  friend class Chain;  // For `Block()` and `raw_block()`.
+
+  explicit Block(RawBlock* block);
+  explicit Block(IntrusiveSharedPtr<RawBlock> block);
 
   const IntrusiveSharedPtr<RawBlock>& raw_block() const& { return block_; }
   IntrusiveSharedPtr<RawBlock>&& raw_block() && { return std::move(block_); }

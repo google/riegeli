@@ -45,7 +45,7 @@
 #include "riegeli/base/external_ref_base.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
-#include "riegeli/base/maker.h"
+#include "riegeli/base/invoker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
@@ -108,6 +108,14 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
   uintptr_t repr_;
 };
 
+// Access private constructors of `Chain::Block`.
+struct Chain::MakeBlock {
+  Block operator()(IntrusiveSharedPtr<RawBlock> block) const {
+    return Block(std::move(block));
+  }
+  Block operator()(RawBlock* block) const { return Block(block); }
+};
+
 class Chain::BlockIterator : public WithCompare<BlockIterator> {
  public:
   using iterator_concept = std::random_access_iterator_tag;
@@ -129,7 +137,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
     reference ref_;
   };
 
-  using BlockMaker = MakerTypeFor<Block, RawBlock*>;
+  using BlockMaker = InvokerType<MakeBlock, RawBlock*>;
 
   BlockIterator() = default;
 
@@ -784,10 +792,10 @@ inline ExternalRef Chain::BlockIterator::ToExternalRef(
   if (ptr_ == kBeginShortData) {
     return ExternalRef(chain_->short_data(), std::move(external_storage));
   } else {
-    return ExternalRef(
-        std::move(temporary_storage).emplace(ptr_.as_ptr()->block_ptr),
-        absl::string_view(*ptr_.as_ptr()->block_ptr),
-        std::move(external_storage));
+    return ExternalRef(std::move(temporary_storage)
+                           .emplace(MakeBlock(), ptr_.as_ptr()->block_ptr),
+                       absl::string_view(*ptr_.as_ptr()->block_ptr),
+                       std::move(external_storage));
   }
 }
 
@@ -809,9 +817,9 @@ inline ExternalRef Chain::BlockIterator::ToExternalRef(
   if (ptr_ == kBeginShortData) {
     return ExternalRef(substr, std::move(external_storage));
   } else {
-    return ExternalRef(
-        std::move(temporary_storage).emplace(ptr_.as_ptr()->block_ptr), substr,
-        std::move(external_storage));
+    return ExternalRef(std::move(temporary_storage)
+                           .emplace(MakeBlock(), ptr_.as_ptr()->block_ptr),
+                       substr, std::move(external_storage));
   }
 }
 

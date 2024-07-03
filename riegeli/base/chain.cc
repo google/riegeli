@@ -41,6 +41,7 @@
 #include "riegeli/base/global.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
+#include "riegeli/base/invoker.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
@@ -82,7 +83,6 @@ void WritePadding(std::ostream& out, size_t pad) {
 class FlatCordBlock {
  public:
   explicit FlatCordBlock(Initializer<absl::Cord> src);
-  explicit FlatCordBlock(absl::Cord::CharIterator& iter, size_t length);
 
   FlatCordBlock(const FlatCordBlock&) = delete;
   FlatCordBlock& operator=(const FlatCordBlock&) = delete;
@@ -111,14 +111,6 @@ class FlatCordBlock {
 
 inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
     : src_(std::move(src).Construct()) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
-         "Cord is not flat";
-}
-
-inline FlatCordBlock::FlatCordBlock(absl::Cord::CharIterator& iter,
-                                    size_t length)
-    : src_(absl::Cord::AdvanceAndRead(&iter, length)) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
       << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";
@@ -737,7 +729,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) const& {
          "no blocks, use AppendTo() instead";
   const BlockPtr* iter = begin_;
   do {
-    ExternalRef(riegeli::Maker<Block>(iter->block_ptr),
+    ExternalRef(riegeli::Invoker(MakeBlock(), iter->block_ptr),
                 absl::string_view(*iter->block_ptr))
         .AppendTo(dest);
     ++iter;
@@ -751,9 +743,9 @@ inline void Chain::AppendToSlow(absl::Cord& dest) && {
   size_ = 0;
   const BlockPtr* iter = begin_;
   do {
-    ExternalRef(
-        riegeli::Maker<Block>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
-        absl::string_view(*iter->block_ptr))
+    ExternalRef(riegeli::Invoker(MakeBlock(),
+                                 IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+                absl::string_view(*iter->block_ptr))
         .AppendTo(dest);
     ++iter;
   } while (iter != end_);
@@ -787,7 +779,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) const& {
   const BlockPtr* iter = end_;
   do {
     --iter;
-    ExternalRef(riegeli::Maker<Block>(iter->block_ptr),
+    ExternalRef(riegeli::Invoker(MakeBlock(), iter->block_ptr),
                 absl::string_view(*iter->block_ptr))
         .PrependTo(dest);
   } while (iter != begin_);
@@ -801,9 +793,9 @@ inline void Chain::PrependToSlow(absl::Cord& dest) && {
   size_ = 0;
   do {
     --iter;
-    ExternalRef(
-        riegeli::Maker<Block>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
-        absl::string_view(*iter->block_ptr))
+    ExternalRef(riegeli::Invoker(MakeBlock(),
+                                 IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+                absl::string_view(*iter->block_ptr))
         .PrependTo(dest);
   } while (iter != begin_);
   end_ = begin_;
@@ -1712,7 +1704,10 @@ inline void Chain::AppendCordSlow(CordRef&& src, Options options) {
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(Block(riegeli::Maker<FlatCordBlock>(iter, fragment.size())),
+      Append(Block(riegeli::Maker<FlatCordBlock>(
+                 riegeli::Invoker([&iter, size = fragment.size()]() {
+                   return absl::Cord::AdvanceAndRead(&iter, size);
+                 }))),
              options);
       copy_options.set_size_hint(size());
     }
@@ -2000,7 +1995,10 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      Append(Block(riegeli::Maker<FlatCordBlock>(iter, fragment.size())),
+      Append(Block(riegeli::Maker<FlatCordBlock>(
+                 riegeli::Invoker([&iter, size = fragment.size()]() {
+                   return absl::Cord::AdvanceAndRead(&iter, size);
+                 }))),
              options);
       copy_options.set_size_hint(size());
     }
@@ -2055,7 +2053,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
     Append(data, options);
     return;
   }
-  Append(Block(riegeli::Maker<Block>(std::move(last)), data), options);
+  Append(Block(riegeli::Invoker(MakeBlock(), std::move(last)), data), options);
 }
 
 void Chain::RemovePrefix(size_t length, Options options) {
@@ -2106,7 +2104,8 @@ void Chain::RemovePrefix(size_t length, Options options) {
     Prepend(data, options);
     return;
   }
-  Prepend(Block(riegeli::Maker<Block>(std::move(first)), data), options);
+  Prepend(Block(riegeli::Invoker(MakeBlock(), std::move(first)), data),
+          options);
 }
 
 void swap(Chain& a, Chain& b) noexcept {
