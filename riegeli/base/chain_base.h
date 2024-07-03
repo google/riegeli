@@ -36,6 +36,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/memory_estimator.h"
@@ -147,7 +148,7 @@ class Chain : public WithCompare<Chain> {
     uint32_t max_block_size_ = uint32_t{kDefaultMaxBlockSize};
   };
 
-  class BlockRef;
+  class Block;
   class BlockIterator;
   class Blocks;
   struct BlockAndChar;
@@ -166,53 +167,15 @@ class Chain : public WithCompare<Chain> {
     return kMaxBytesToCopy;
   }
 
-  // Given an object which owns a byte array, converts it to a `Chain` by
-  // attaching the object, avoiding copying the bytes.
-  //
-  // `object` supports `riegeli::Maker<T>(args...)` to construct `T` in-place.
-  //
-  // If the `substr` parameter is given, `substr` must be valid for the new
-  // object.
-  //
-  // If the `substr` parameter is not given, `T` must support:
-  // ```
-  //   // Returns contents of the object. Called when it is moved to its final
-  //   // location.
-  //   explicit operator absl::string_view() const;
-  // ```
-  //
-  // `T` may also support the following member functions, either with or without
-  // the `substr` parameter, with the following definitions assumed by default:
-  // ```
-  //   // Called once before the destructor, except on a moved-from object.
-  //   // If only this function is needed, `T` can be a lambda.
-  //   void operator()(absl::string_view substr) && {}
-  //
-  //   // Shows internal structure in a human-readable way, for debugging.
-  //   friend void RiegeliDumpStructure(const T* self, absl::string_view substr,
-  //                                    std::ostream& out) {
-  //     out << "[external] { }";
-  //   }
-  //
-  //   // Registers this object with `MemoryEstimator`.
-  //   //
-  //   // By default calls `memory_estimator.RegisterUnknownType<T>()` and
-  //   // as an approximation of memory usage of an unknown type, registers just
-  //   // the stored `substr` if unique.
-  //   friend void RiegeliRegisterSubobjects(
-  //       const T* self, riegeli::MemoryEstimator& memory_estimator);
-  // ```
-  //
-  // The `substr` parameter of these member functions, if present, will get the
-  // `substr` parameter passed to `FromExternal()`. Having `substr` available in
-  // these functions might avoid storing `substr` in the external object.
   template <
       typename T,
       std::enable_if_t<std::is_constructible<absl::string_view,
                                              InitializerTargetT<T>&>::value,
                        int> = 0>
+  ABSL_DEPRECATED("Use ExternalRef or Chain::Block instead")
   static Chain FromExternal(T&& object);
   template <typename T>
+  ABSL_DEPRECATED("Use ExternalRef or Chain::Block instead")
   static Chain FromExternal(T&& object, absl::string_view substr);
 
   // Allocated size of an external block containing an external object of type
@@ -231,6 +194,7 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   explicit Chain(Src&& src);
+  explicit Chain(Block src);
   explicit Chain(const absl::Cord& src);
   explicit Chain(absl::Cord&& src);
 
@@ -253,6 +217,7 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Block src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
 
@@ -344,6 +309,8 @@ class Chain : public WithCompare<Chain> {
   void Append(Src&& src, Options options = Options());
   void Append(const Chain& src, Options options = Options());
   void Append(Chain&& src, Options options = Options());
+  void Append(const Block& src, Options options = Options());
+  void Append(Block&& src, Options options = Options());
   void Append(const absl::Cord& src, Options options = Options());
   void Append(absl::Cord&& src, Options options = Options());
   void Prepend(absl::string_view src, Options options = Options());
@@ -352,6 +319,8 @@ class Chain : public WithCompare<Chain> {
   void Prepend(Src&& src, Options options = Options());
   void Prepend(const Chain& src, Options options = Options());
   void Prepend(Chain&& src, Options options = Options());
+  void Prepend(const Block& src, Options options = Options());
+  void Prepend(Block&& src, Options options = Options());
   void Prepend(const absl::Cord& src, Options options = Options());
   void Prepend(absl::Cord&& src, Options options = Options());
 
@@ -408,10 +377,6 @@ class Chain : public WithCompare<Chain> {
   void VerifyInvariants() const;
 
  private:
-  // For `RawBlock`, `ExternalMethodsFor()`, `AppendRawBlock()`,
-  // `PrependRawBlock()`, and `ToRawBlock()`.
-  friend class ExternalRef;
-
   class BlockPtrPtr;
   struct ExternalMethods;
   template <typename T>
@@ -457,8 +422,6 @@ class Chain : public WithCompare<Chain> {
   // allocation, prefer copying up to this length.
   static constexpr size_t kAllocationCost = 256;
 
-  explicit Chain(IntrusiveSharedPtr<RawBlock> block);
-
   bool ClearSlow();
   absl::string_view FlattenSlow();
 
@@ -498,7 +461,6 @@ class Chain : public WithCompare<Chain> {
   // array of block offset, e.g. with `RefreshFront()`.
   RawBlock* const& front() const { return begin_[0].block_ptr; }
 
-  void Initialize(IntrusiveSharedPtr<RawBlock> block);
   void Initialize(absl::string_view src);
   void InitializeSlow(absl::string_view src);
   template <typename Src,
@@ -507,6 +469,7 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   void InitializeSlow(Src&& src);
+  void Initialize(Block src);
   void Initialize(const absl::Cord& src);
   void Initialize(absl::Cord&& src);
   // This template is defined and used only in chain.cc.
@@ -558,11 +521,12 @@ class Chain : public WithCompare<Chain> {
   template <typename Ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, Options options);
 
-  void AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
-                      Options options = Options());
-  void PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
-                       Options options = Options());
-  IntrusiveSharedPtr<RawBlock> ToRawBlock() &&;
+  // This template is defined and used only in chain.cc.
+  template <typename RawBlockPtrRef>
+  void AppendRawBlock(RawBlockPtrRef&& block, Options options = Options());
+  // This template is defined and used only in chain.cc.
+  template <typename RawBlockPtrRef>
+  void PrependRawBlock(RawBlockPtrRef&& block, Options options = Options());
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
@@ -774,6 +738,123 @@ class Chain::RawBlock {
     // If `is_external()`, the remaining fields.
     External external_;
   };
+};
+
+// Represents a reference counted pointer to a single block of a `Chain`.
+class Chain::Block {
+ public:
+  // Creates an empty `Block`.
+  Block() = default;
+
+  // Given an object which owns a byte array, converts it to a `Block` by
+  // attaching the object, avoiding copying the bytes.
+  //
+  // `ExternalRef` is a higher level mechanism which chooses between sharing the
+  // object and copying the data.
+  //
+  // The `object` parameter supports `riegeli::Maker<T>(args...)` to construct
+  // `T` in-place.
+  //
+  // If the `substr` parameter is given, `substr` must be valid for the new
+  // object.
+  //
+  // If the `substr` parameter is not given, `T` must support:
+  // ```
+  //   // Returns contents of the object. Called when it is moved to its final
+  //   // location.
+  //   explicit operator absl::string_view() const;
+  // ```
+  //
+  // `T` may also support the following member functions, either with or without
+  // the `substr` parameter, with the following definitions assumed by default:
+  // ```
+  //   // Called once before the destructor, except on a moved-from object.
+  //   // If only this function is needed, `T` can be a lambda.
+  //   void operator()(absl::string_view substr) && {}
+  //
+  //   // Shows internal structure in a human-readable way, for debugging.
+  //   friend void RiegeliDumpStructure(const T* self, absl::string_view substr,
+  //                                    std::ostream& out) {
+  //     out << "[external] { }";
+  //   }
+  //
+  //   // Registers this object with `MemoryEstimator`.
+  //   //
+  //   // By default calls `memory_estimator.RegisterUnknownType<T>()` and
+  //   // as an approximation of memory usage of an unknown type, registers just
+  //   // the stored `substr` if unique.
+  //   friend void RiegeliRegisterSubobjects(
+  //       const T* self, riegeli::MemoryEstimator& memory_estimator);
+  // ```
+  //
+  // The `substr` parameter of these member functions, if present, will get the
+  // `substr` parameter passed to `FromExternal()`. Having `substr` available in
+  // these functions might avoid storing `substr` in the external object.
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<absl::string_view,
+                                             InitializerTargetT<T>&>::value,
+                       int> = 0>
+  explicit Block(T&& object);
+  template <typename T>
+  explicit Block(T&& object, absl::string_view substr);
+
+  // Internal constructors. They are public so that other classes can use them.
+  explicit Block(RawBlock* block);
+  explicit Block(IntrusiveSharedPtr<RawBlock> block);
+
+  Block(const Block& that) = default;
+  Block& operator=(const Block& that) = default;
+
+  Block(Block&& that) = default;
+  Block& operator=(Block&& that) = default;
+
+  // Support `ExternalRef`.
+  friend size_t RiegeliAllocatedMemory(const Block* self) {
+    return self->AllocatedMemory();
+  }
+
+  // Support `ExternalRef`.
+  friend Block RiegeliToChainBlock(Block* self, absl::string_view substr) {
+    return std::move(*self).ToChainBlock(substr);
+  }
+
+  // Support `ExternalRef`.
+  friend absl::Cord RiegeliToCord(Block* self, absl::string_view substr) {
+    return std::move(*self).ToCord(substr);
+  }
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(Block* self) {
+    return std::move(*self).ToExternalStorage();
+  }
+
+  // Support `ExternalRef` and `Chain::Block`.
+  friend void RiegeliDumpStructure(const Block* self, absl::string_view substr,
+                                   std::ostream& out) {
+    self->DumpStructure(substr, out);
+  }
+
+  // Support `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const Block* self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(&self->block_);
+  }
+
+ private:
+  friend class Chain;
+
+  const IntrusiveSharedPtr<RawBlock>& raw_block() const& { return block_; }
+  IntrusiveSharedPtr<RawBlock>&& raw_block() && { return std::move(block_); }
+
+  size_t AllocatedMemory() const;
+  Block ToChainBlock(absl::string_view substr) &&;
+  absl::Cord ToCord(absl::string_view substr) &&;
+  ExternalStorage ToExternalStorage() &&;
+  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+
+  IntrusiveSharedPtr<RawBlock> block_;
 };
 
 }  // namespace riegeli

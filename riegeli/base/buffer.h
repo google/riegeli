@@ -96,7 +96,7 @@ class
         std::exchange(self->data_, nullptr), operator delete);
   }
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
+  // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const Buffer* self, absl::string_view substr,
                                    std::ostream& out) {
     self->DumpStructure(substr, out);

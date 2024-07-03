@@ -282,7 +282,7 @@ class
         [](void* ptr) { DeleteRepr(reinterpret_cast<uintptr_t>(ptr)); });
   }
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
+  // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const CompactString* self,
                                    absl::string_view substr,
                                    std::ostream& out) {

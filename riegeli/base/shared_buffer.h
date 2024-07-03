@@ -125,7 +125,7 @@ class SharedBuffer {
     });
   }
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
+  // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const SharedBuffer* self,
                                    absl::string_view substr,
                                    std::ostream& out) {

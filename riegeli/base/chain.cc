@@ -79,27 +79,27 @@ void WritePadding(std::ostream& out, size_t pad) {
 //
 // This design relies on the fact that moving a flat `absl::Cord` results in a
 // flat `absl::Cord`.
-class FlatCordRef {
+class FlatCordBlock {
  public:
-  explicit FlatCordRef(Initializer<absl::Cord> src);
-  explicit FlatCordRef(absl::Cord::CharIterator& iter, size_t length);
+  explicit FlatCordBlock(Initializer<absl::Cord> src);
+  explicit FlatCordBlock(absl::Cord::CharIterator& iter, size_t length);
 
-  FlatCordRef(const FlatCordRef&) = delete;
-  FlatCordRef& operator=(const FlatCordRef&) = delete;
+  FlatCordBlock(const FlatCordBlock&) = delete;
+  FlatCordBlock& operator=(const FlatCordBlock&) = delete;
 
   const absl::Cord& src() const { return src_; }
 
   explicit operator absl::string_view() const;
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
+  // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(
-      ABSL_ATTRIBUTE_UNUSED const FlatCordRef* self, std::ostream& out) {
+      ABSL_ATTRIBUTE_UNUSED const FlatCordBlock* self, std::ostream& out) {
     out << "[cord] { }";
   }
 
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const FlatCordRef* self,
+  friend void RiegeliRegisterSubobjects(const FlatCordBlock* self,
                                         MemoryEstimator& memory_estimator) {
     memory_estimator.RegisterSubobjects(&self->src_);
   }
@@ -109,21 +109,22 @@ class FlatCordRef {
   absl::Cord src_;
 };
 
-inline FlatCordRef::FlatCordRef(Initializer<absl::Cord> src)
+inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
     : src_(std::move(src).Construct()) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of FlatCordRef::FlatCordRef(): "
+      << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";
 }
 
-inline FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter, size_t length)
+inline FlatCordBlock::FlatCordBlock(absl::Cord::CharIterator& iter,
+                                    size_t length)
     : src_(absl::Cord::AdvanceAndRead(&iter, length)) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
-      << "Failed precondition of FlatCordRef::FlatCordRef(): "
+      << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";
 }
 
-inline FlatCordRef::operator absl::string_view() const {
+inline FlatCordBlock::operator absl::string_view() const {
   {
     const absl::optional<absl::string_view> flat = src_.TryFlat();
     if (flat != absl::nullopt) {
@@ -131,18 +132,18 @@ inline FlatCordRef::operator absl::string_view() const {
     }
   }
   RIEGELI_ASSERT_UNREACHABLE()
-      << "Failed invariant of FlatCordRef: Cord is not flat";
+      << "Failed invariant of FlatCordBlock: Cord is not flat";
 }
 
-class ZeroRef {
+class ZeroBlock {
  public:
-  ZeroRef() = default;
+  ZeroBlock() = default;
 
-  ZeroRef(const ZeroRef&) = delete;
-  ZeroRef& operator=(const ZeroRef&) = delete;
+  ZeroBlock(const ZeroBlock&) = delete;
+  ZeroBlock& operator=(const ZeroBlock&) = delete;
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
-  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroRef* self,
+  // Support `ExternalRef` and `Chain::Block`.
+  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
                                    std::ostream& out) {
     out << "[zero] { }";
   }
@@ -413,25 +414,24 @@ size_t Chain::BlockIterator::CharIndexInChainInternal() const {
   }
 }
 
-IntrusiveSharedPtr<Chain::RawBlock> Chain::BlockRef::ToChainRawBlock(
-    absl::string_view substr) && {
-  if (substr.size() == block_->size()) return std::move(block_);
-  return ExternalMethodsFor<BlockRef>::NewBlock(std::move(*this), substr);
+Chain::Block Chain::Block::ToChainBlock(absl::string_view substr) && {
+  if (substr.size() == block_->size()) return std::move(*this);
+  return Block(std::move(*this), substr);
 }
 
-absl::Cord Chain::BlockRef::ToCord(absl::string_view substr) && {
-  if (const FlatCordRef* const cord_ref =
-          block_->checked_external_object<FlatCordRef>()) {
-    if (substr.size() == cord_ref->src().size()) return cord_ref->src();
-    return cord_ref->src().Subcord(
-        PtrDistance(absl::string_view(*cord_ref).data(), substr.data()),
+absl::Cord Chain::Block::ToCord(absl::string_view substr) && {
+  if (const FlatCordBlock* const cord_ptr =
+          block_->checked_external_object<FlatCordBlock>()) {
+    if (substr.size() == cord_ptr->src().size()) return cord_ptr->src();
+    return cord_ptr->src().Subcord(
+        PtrDistance(absl::string_view(*cord_ptr).data(), substr.data()),
         substr.size());
   }
   return absl::MakeCordFromExternal(substr, [block = std::move(block_)] {});
 }
 
-void Chain::BlockRef::DumpStructure(absl::string_view substr,
-                                    std::ostream& out) const {
+void Chain::Block::DumpStructure(absl::string_view substr,
+                                 std::ostream& out) const {
   out << "[block] { offset: "
       << PtrDistance(block_->data_begin(), substr.data()) << " ";
   block_->DumpStructure(out);
@@ -492,6 +492,13 @@ void Chain::Reset(Src&& src) {
 
 template void Chain::Reset(std::string&& src);
 
+void Chain::Reset(Block src) {
+  size_ = 0;
+  UnrefBlocks();
+  end_ = begin_;
+  if (src.raw_block() != nullptr) Initialize(std::move(src));
+}
+
 void Chain::Reset(const absl::Cord& src) {
   size_ = 0;
   if (begin_ != end_ && ClearSlow()) {
@@ -521,7 +528,7 @@ void Chain::InitializeSlow(absl::string_view src) {
       RawBlock::NewInternal(UnsignedMin(src.size(), kDefaultMaxBlockSize));
   const absl::Span<char> buffer = block->AppendBuffer(src.size());
   std::memcpy(buffer.data(), src.data(), buffer.size());
-  Initialize(std::move(block));
+  Initialize(Block(std::move(block)));
   Options options;
   options.set_size_hint(src.size());
   src.remove_prefix(buffer.size());
@@ -543,7 +550,7 @@ void Chain::InitializeSlow(Src&& src) {
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  Initialize(ExternalMethodsFor<std::string>::NewBlock(std::move(src)));
+  Initialize(Block(std::move(src)));
 }
 
 template void Chain::InitializeSlow(std::string&& src);
@@ -564,8 +571,8 @@ inline void Chain::InitializeFromCord(CordRef&& src) {
       if (flat->size() <= kMaxBytesToCopyToEmpty) {
         Initialize(*flat);
       } else {
-        Initialize(ExternalMethodsFor<FlatCordRef>::NewBlock(
-            riegeli::Maker(std::forward<CordRef>(src))));
+        Initialize(
+            Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))));
       }
       return;
     }
@@ -687,13 +694,13 @@ void Chain::AppendTo(std::string& dest) && {
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
   if (dest.empty() && PtrDistance(begin_, end_) == 1) {
-    if (std::string* const string_ref =
+    if (std::string* const string_ptr =
             back()->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(back()->size(), string_ref->size())
+      RIEGELI_ASSERT_EQ(back()->size(), string_ptr->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      if (dest.capacity() <= string_ref->capacity()) {
-        dest = std::move(*string_ref);
+      if (dest.capacity() <= string_ptr->capacity()) {
+        dest = std::move(*string_ptr);
         size_ = 0;
         PopBack();
         return;
@@ -730,7 +737,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) const& {
          "no blocks, use AppendTo() instead";
   const BlockPtr* iter = begin_;
   do {
-    ExternalRef(riegeli::Maker<BlockRef>(iter->block_ptr),
+    ExternalRef(riegeli::Maker<Block>(iter->block_ptr),
                 absl::string_view(*iter->block_ptr))
         .AppendTo(dest);
     ++iter;
@@ -745,7 +752,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) && {
   const BlockPtr* iter = begin_;
   do {
     ExternalRef(
-        riegeli::Maker<BlockRef>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+        riegeli::Maker<Block>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
         absl::string_view(*iter->block_ptr))
         .AppendTo(dest);
     ++iter;
@@ -780,7 +787,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) const& {
   const BlockPtr* iter = end_;
   do {
     --iter;
-    ExternalRef(riegeli::Maker<BlockRef>(iter->block_ptr),
+    ExternalRef(riegeli::Maker<Block>(iter->block_ptr),
                 absl::string_view(*iter->block_ptr))
         .PrependTo(dest);
   } while (iter != begin_);
@@ -795,7 +802,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) && {
   do {
     --iter;
     ExternalRef(
-        riegeli::Maker<BlockRef>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
+        riegeli::Maker<Block>(IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
         absl::string_view(*iter->block_ptr))
         .PrependTo(dest);
   } while (iter != begin_);
@@ -806,12 +813,12 @@ Chain::operator std::string() const& { return ToString(); }
 
 Chain::operator std::string() && {
   if (PtrDistance(begin_, end_) == 1) {
-    if (std::string* const string_ref =
+    if (std::string* const string_ptr =
             back()->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(back()->size(), string_ref->size())
+      RIEGELI_ASSERT_EQ(back()->size(), string_ptr->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      const std::string dest = std::move(*string_ref);
+      const std::string dest = std::move(*string_ptr);
       size_ = 0;
       PopBack();
       return dest;
@@ -1575,10 +1582,20 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
   src.DropPassedBlocks(Ownership());
 }
 
-void Chain::AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
-                           Options options) {
+void Chain::Append(const Block& src, Options options) {
+  if (src.raw_block() != nullptr) AppendRawBlock(src.raw_block(), options);
+}
+
+void Chain::Append(Block&& src, Options options) {
+  if (src.raw_block() != nullptr) {
+    AppendRawBlock(std::move(src).raw_block(), options);
+  }
+}
+
+template <typename RawBlockPtrRef>
+inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
   RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::AppendRawBlock(): "
+      << "Failed precondition of Chain::Append(Block): "
          "Chain size overflow";
   if (begin_ == end_) {
     if (!short_data().empty()) {
@@ -1628,7 +1645,7 @@ void Chain::AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
     if (back()->empty()) {
       // The last block is empty and must be removed.
       size_ += block->size();
-      SetBack(std::move(block));
+      SetBack(std::forward<RawBlockPtrRef>(block));
       return;
     }
     if (back()->wasteful()) {
@@ -1647,7 +1664,7 @@ void Chain::AppendRawBlock(IntrusiveSharedPtr<RawBlock> block,
     }
   }
   size_ += block->size();
-  PushBack(std::move(block));
+  PushBack(std::forward<RawBlockPtrRef>(block));
 }
 
 void Chain::Append(const absl::Cord& src, Options options) {
@@ -1666,9 +1683,8 @@ void Chain::AppendCord(CordRef&& src, Options options) {
       if (flat->size() <= MaxBytesToCopy(options)) {
         Append(*flat, options);
       } else {
-        AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
-                           riegeli::Maker(std::forward<CordRef>(src))),
-                       options);
+        Append(Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))),
+               options);
       }
       return;
     }
@@ -1696,9 +1712,8 @@ inline void Chain::AppendCordSlow(CordRef&& src, Options options) {
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
-                         riegeli::Maker(iter, fragment.size())),
-                     options);
+      Append(Block(riegeli::Maker<FlatCordBlock>(iter, fragment.size())),
+             options);
       copy_options.set_size_hint(size());
     }
   }
@@ -1856,10 +1871,20 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
   src.DropPassedBlocks(Ownership());
 }
 
-void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
-                            Options options) {
+void Chain::Prepend(const Block& src, Options options) {
+  if (src.raw_block() != nullptr) PrependRawBlock(src.raw_block(), options);
+}
+
+void Chain::Prepend(Block&& src, Options options) {
+  if (src.raw_block() != nullptr) {
+    PrependRawBlock(std::move(src).raw_block(), options);
+  }
+}
+
+template <typename RawBlockPtrRef>
+inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
   RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::PrependRawBlock(): "
+      << "Failed precondition of Chain::Prepend(Block): "
          "Chain size overflow";
   if (begin_ == end_) {
     if (!short_data().empty()) {
@@ -1909,7 +1934,7 @@ void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
     if (front()->empty()) {
       // The first block is empty and must be removed.
       size_ += block->size();
-      SetFront(std::move(block));
+      SetFront(std::forward<RawBlockPtrRef>(block));
       return;
     }
     if (front()->wasteful()) {
@@ -1929,27 +1954,7 @@ void Chain::PrependRawBlock(IntrusiveSharedPtr<RawBlock> block,
     }
   }
   size_ += block->size();
-  PushFront(std::move(block));
-}
-
-IntrusiveSharedPtr<Chain::RawBlock> Chain::ToRawBlock() && {
-  switch (end_ - begin_) {
-    case 0: {
-      RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
-          << "Failed invariant of Chain: short data size too large";
-      IntrusiveSharedPtr<RawBlock> block =
-          RawBlock::NewInternal(kMaxShortDataSize);
-      block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      return block;
-    }
-    default:
-      FlattenSlow();
-      RIEGELI_ASSERT_EQ(end_ - begin_, 1u);
-      ABSL_FALLTHROUGH_INTENDED;
-    case 1:
-      size_ = 0;
-      return PopBack();
-  }
+  PushFront(std::forward<RawBlockPtrRef>(block));
 }
 
 void Chain::Prepend(const absl::Cord& src, Options options) {
@@ -1995,9 +2000,8 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
         Append(copied_fragment, copy_options);
       }
       copied_fragments.clear();
-      AppendRawBlock(ExternalMethodsFor<FlatCordRef>::NewBlock(
-                         riegeli::Maker(iter, fragment.size())),
-                     options);
+      Append(Block(riegeli::Maker<FlatCordBlock>(iter, fragment.size())),
+             options);
       copy_options.set_size_hint(size());
     }
     length -= fragment.size();
@@ -2051,9 +2055,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
     Append(data, options);
     return;
   }
-  AppendRawBlock(ExternalMethodsFor<BlockRef>::NewBlock(
-                     riegeli::Maker(std::move(last)), data),
-                 options);
+  Append(Block(riegeli::Maker<Block>(std::move(last)), data), options);
 }
 
 void Chain::RemovePrefix(size_t length, Options options) {
@@ -2104,9 +2106,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
     Prepend(data, options);
     return;
   }
-  PrependRawBlock(ExternalMethodsFor<BlockRef>::NewBlock(
-                      riegeli::Maker(std::move(first)), data),
-                  options);
+  Prepend(Block(riegeli::Maker<Block>(std::move(first)), data), options);
 }
 
 void swap(Chain& a, Chain& b) noexcept {
@@ -2272,7 +2272,7 @@ Chain ChainOfZeros(size_t length) {
   Chain result;
   while (length >= kArrayOfZeros.size()) {
     result.Append(Global([] {
-      return Chain::FromExternal(riegeli::Maker<ZeroRef>(), ArrayOfZeros());
+      return Chain::Block(riegeli::Maker<ZeroBlock>(), ArrayOfZeros());
     }));
     length -= kArrayOfZeros.size();
   }
@@ -2283,8 +2283,8 @@ Chain ChainOfZeros(size_t length) {
       std::memset(buffer.data(), '\0', buffer.size());
     } else {
       result.Append(
-          Chain::FromExternal(riegeli::Maker<ZeroRef>(),
-                              absl::string_view(kArrayOfZeros.data(), length)));
+          Chain::Block(riegeli::Maker<ZeroBlock>(),
+                       absl::string_view(kArrayOfZeros.data(), length)));
     }
   }
   return result;

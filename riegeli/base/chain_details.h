@@ -34,7 +34,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
-#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -109,58 +108,6 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
   uintptr_t repr_;
 };
 
-class Chain::BlockRef {
- public:
-  explicit BlockRef(RawBlock* block);
-  explicit BlockRef(IntrusiveSharedPtr<RawBlock> block);
-
-  BlockRef(BlockRef&& that) = default;
-  BlockRef& operator=(BlockRef&& that) = default;
-
-  // Support `ExternalRef`.
-  friend size_t RiegeliAllocatedMemory(const BlockRef* self) {
-    return self->AllocatedMemory();
-  }
-
-  // Support `ExternalRef`.
-  friend IntrusiveSharedPtr<RawBlock> RiegeliToChainRawBlock(
-      BlockRef* self, absl::string_view substr) {
-    return std::move(*self).ToChainRawBlock(substr);
-  }
-
-  // Support `ExternalRef`.
-  friend absl::Cord RiegeliToCord(BlockRef* self, absl::string_view substr) {
-    return std::move(*self).ToCord(substr);
-  }
-
-  // Support `ExternalRef`.
-  friend ExternalStorage RiegeliToExternalStorage(BlockRef* self) {
-    return std::move(*self).ToExternalStorage();
-  }
-
-  // Support `Chain::FromExternal()` and `ExternalRef`.
-  friend void RiegeliDumpStructure(const BlockRef* self,
-                                   absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
-  }
-
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const BlockRef* self,
-                                        MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->block_);
-  }
-
- private:
-  size_t AllocatedMemory() const;
-  IntrusiveSharedPtr<RawBlock> ToChainRawBlock(absl::string_view substr) &&;
-  absl::Cord ToCord(absl::string_view substr) &&;
-  ExternalStorage ToExternalStorage() &&;
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
-
-  IntrusiveSharedPtr<RawBlock> block_;
-};
-
 class Chain::BlockIterator : public WithCompare<BlockIterator> {
  public:
   using iterator_concept = std::random_access_iterator_tag;
@@ -182,7 +129,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
     reference ref_;
   };
 
-  using BlockRefMaker = MakerTypeFor<BlockRef, RawBlock*>;
+  using BlockMaker = MakerTypeFor<Block, RawBlock*>;
 
   BlockIterator() = default;
 
@@ -241,11 +188,11 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   //
   // Precondition: `*this` is not past the end iterator
   ExternalRef ToExternalRef(
-      TemporaryStorage<BlockRefMaker>&& temporary_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockRefMaker>(),
-      ExternalRef::StorageSubstr<BlockRefMaker&&>&& external_storage
+      TemporaryStorage<BlockMaker>&& temporary_storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockMaker>(),
+      ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage
           ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<BlockRefMaker&&>()) const;
+              ExternalRef::StorageSubstr<BlockMaker&&>()) const;
 
   // Converts a substring of the block pointed to `*this` to `ExternalRef`.
   //
@@ -257,11 +204,11 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   //   if `!substr.empty()` then `substr` is a substring of `**this`
   ExternalRef ToExternalRef(
       absl::string_view substr,
-      TemporaryStorage<BlockRefMaker>&& temporary_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockRefMaker>(),
-      ExternalRef::StorageSubstr<BlockRefMaker&&>&& external_storage
+      TemporaryStorage<BlockMaker>&& temporary_storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockMaker>(),
+      ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage
           ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<BlockRefMaker&&>()) const;
+              ExternalRef::StorageSubstr<BlockMaker&&>()) const;
 
   // Returns a pointer to the external object if this points to an external
   // block holding an object of type `T`, otherwise returns `nullptr`.
@@ -478,7 +425,7 @@ inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
 
 }  // namespace chain_internal
 
-// Support `Chain::FromExternal()` and `ExternalRef`.
+// Support `ExternalRef` and `Chain::Block`.
 void RiegeliDumpStructure(const std::string* self, std::ostream& out);
 
 template <typename T>
@@ -829,8 +776,8 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 }
 
 inline ExternalRef Chain::BlockIterator::ToExternalRef(
-    TemporaryStorage<BlockRefMaker>&& temporary_storage,
-    ExternalRef::StorageSubstr<BlockRefMaker&&>&& external_storage) const {
+    TemporaryStorage<BlockMaker>&& temporary_storage,
+    ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::ToExternalRef(): "
          "iterator is end()";
@@ -845,9 +792,8 @@ inline ExternalRef Chain::BlockIterator::ToExternalRef(
 }
 
 inline ExternalRef Chain::BlockIterator::ToExternalRef(
-    absl::string_view substr,
-    TemporaryStorage<BlockRefMaker>&& temporary_storage,
-    ExternalRef::StorageSubstr<BlockRefMaker&&>&& external_storage) const {
+    absl::string_view substr, TemporaryStorage<BlockMaker>&& temporary_storage,
+    ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::ToExternalRef(): "
          "iterator is end()";
@@ -881,29 +827,40 @@ inline const T* Chain::BlockIterator::external_object() const {
   }
 }
 
-inline Chain::BlockRef::BlockRef(RawBlock* block) {
-  if (const BlockRef* const block_ref =
-          block->checked_external_object<BlockRef>()) {
-    // `block` is already a `BlockRef`. Refer to its target instead.
-    block = block_ref->block_.get();
+template <typename T,
+          std::enable_if_t<std::is_constructible<absl::string_view,
+                                                 InitializerTargetT<T>&>::value,
+                           int>>
+inline Chain::Block::Block(T&& object)
+    : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+          std::forward<T>(object))) {}
+
+template <typename T>
+inline Chain::Block::Block(T&& object, absl::string_view substr)
+    : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
+          std::forward<T>(object), substr)) {}
+
+inline Chain::Block::Block(RawBlock* block) {
+  if (const Block* const block_ptr = block->checked_external_object<Block>()) {
+    // `block` is already a `Block`. Refer to its target instead.
+    block = block_ptr->block_.get();
   }
   block_.Reset(block, kShareOwnership);
 }
 
-inline Chain::BlockRef::BlockRef(IntrusiveSharedPtr<RawBlock> block) {
-  if (const BlockRef* const block_ref =
-          block->checked_external_object<BlockRef>()) {
-    // `block` is already a `BlockRef`. Refer to its target instead.
-    block = block_ref->block_;
+inline Chain::Block::Block(IntrusiveSharedPtr<RawBlock> block) {
+  if (const Block* const block_ptr = block->checked_external_object<Block>()) {
+    // `block` is already a `Block`. Refer to its target instead.
+    block = block_ptr->block_;
   }
   block_ = std::move(block);
 }
 
-inline size_t Chain::BlockRef::AllocatedMemory() const {
+inline size_t Chain::Block::AllocatedMemory() const {
   return block_->AllocatedMemory();
 }
 
-inline ExternalStorage Chain::BlockRef::ToExternalStorage() && {
+inline ExternalStorage Chain::Block::ToExternalStorage() && {
   return ExternalStorage(block_.Release(), [](void* ptr) {
     static_cast<RawBlock*>(ptr)->Unref();
   });
@@ -981,23 +938,17 @@ template <typename T,
                                                  InitializerTargetT<T>&>::value,
                            int>>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
-      std::forward<T>(object)));
+  return Chain(Block(std::forward<T>(object)));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view substr) {
-  return Chain(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
-      std::forward<T>(object), substr));
+  return Chain(Block(std::forward<T>(object), substr));
 }
 
 template <typename T>
 constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();
-}
-
-inline Chain::Chain(IntrusiveSharedPtr<RawBlock> block) {
-  Initialize(std::move(block));
 }
 
 inline Chain::Chain(absl::string_view src) { Initialize(src); }
@@ -1008,6 +959,10 @@ inline Chain::Chain(Src&& src) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   Initialize(std::move(src));
+}
+
+inline Chain::Chain(Block src) {
+  if (src.raw_block() != nullptr) Initialize(std::move(src));
 }
 
 inline Chain::Chain(Chain&& that) noexcept
@@ -1070,11 +1025,6 @@ inline void Chain::Clear() {
   if (begin_ != end_) ClearSlow();
 }
 
-inline void Chain::Initialize(IntrusiveSharedPtr<RawBlock> block) {
-  size_ = block->size();
-  (end_++)->block_ptr = block.Release();
-}
-
 inline void Chain::Initialize(absl::string_view src) {
   if (src.size() <= kMaxShortDataSize) {
     if (src.empty()) return;
@@ -1100,6 +1050,11 @@ inline void Chain::Initialize(Src&& src) {
 }
 
 extern template void Chain::InitializeSlow(std::string&& src);
+
+inline void Chain::Initialize(Block src) {
+  size_ = src.raw_block()->size();
+  (end_++)->block_ptr = std::move(src).raw_block().Release();
+}
 
 inline absl::string_view Chain::short_data() const {
   RIEGELI_ASSERT(begin_ == end_)

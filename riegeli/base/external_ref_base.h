@@ -36,7 +36,6 @@
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/temporary_storage.h"
 
 namespace riegeli {
@@ -88,7 +87,7 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // or `ExternalData`, or appended or prepended to a `Chain` or `absl::Cord`.
 // It can be consumed at most once.
 //
-// In contrast to `Chain::FromExternal()` and `absl::MakeCordFromExternal()`,
+// In contrast to `Chain::Block` and `absl::MakeCordFromExternal()`,
 // `ExternalRef` chooses between sharing the object and copying the data,
 // depending on the size of the data, whether the object is wasteful, the method
 // of consuming the data, and the state of the destination for appending or
@@ -99,8 +98,7 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // default argument to the original `ExternalRef` constructor.
 //
 // The expected interface of the object which owns the data is a superset of the
-// interfaces expected by `Chain::FromExternal()` and
-// `absl::MakeCordFromExternal()`.
+// interfaces expected by `Chain::Block` and `absl::MakeCordFromExternal()`.
 //
 // If the `substr` parameter to `ExternalRef` constructor is given, `substr`
 // must be valid for the new object if it gets created.
@@ -136,13 +134,13 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 //   // into account.
 //   friend size_t RiegeliAllocatedMemory(const T* self);
 //
-//   // Converts `*self` or its `substr` to `Chain`, if this can be done more
-//   // efficiently than with `Chain::FromExternal()`. Can modify `*self`.
-//   // `operator()` will no longer be called.
+//   // Converts `*self` or its `substr` to `Chain::Block`, if this can be done
+//   // more efficiently than with `Chain::Block` constructor. Can modify
+//   // `*self`. `operator()` will no longer be called.
 //   //
 //   // The `substr` parameter is given here when the `substr` parameter to
 //   // `ExternalRef` constructor was given.
-//   friend Chain RiegeliToChain(T* self, absl::string_view substr);
+//   friend Chain::Block RiegeliToChainBlock(T* self, absl::string_view substr);
 //
 //   // Converts `*self` or its `substr` to `absl::Cord`, if this can be done
 //   // more efficiently than with `absl::MakeCordFromExternal()`. Can modify
@@ -196,8 +194,7 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 class ExternalRef {
  private:
   using UseStringViewFunction = void (*)(void* context, absl::string_view data);
-  using UseChainRawBlockFunction =
-      void (*)(void* context, IntrusiveSharedPtr<Chain::RawBlock> data);
+  using UseChainBlockFunction = void (*)(void* context, Chain::Block data);
   using UseCordFunction = void (*)(void* context, absl::Cord data);
 
   template <typename T>
@@ -254,102 +251,47 @@ class ExternalRef {
                            ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {}
 
   template <typename T, typename Enable = void>
-  struct HasRiegeliToChainRawBlockWhole : std::false_type {};
+  struct HasRiegeliToChainBlockWhole : std::false_type {};
 
   template <typename T>
-  struct HasRiegeliToChainRawBlockWhole<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChainRawBlock(std::declval<T*>())),
-             IntrusiveSharedPtr<Chain::RawBlock>>::value>> : std::true_type {};
-
-  template <typename T, typename Enable = void>
-  struct HasRiegeliToChainWhole : std::false_type {};
-
-  template <typename T>
-  struct HasRiegeliToChainWhole<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChain(std::declval<T*>())), Chain>::value>>
+  struct HasRiegeliToChainBlockWhole<
+      T, std::enable_if_t<std::is_convertible<decltype(RiegeliToChainBlock(
+                                                  std::declval<T*>())),
+                                              Chain::Block>::value>>
       : std::true_type {};
 
   template <typename T,
-            std::enable_if_t<HasRiegeliToChainRawBlockWhole<T>::value, int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object) {
-    // The possibility of providing `RiegeliToChainRawBlock()` is intentionally
-    // undocumented because it uses private `Chain::RawBlock`. This is meant for
-    // `Chain::BlockRef`.
-    return RiegeliToChainRawBlock(&object);
+            std::enable_if_t<HasRiegeliToChainBlockWhole<T>::value, int> = 0>
+  static Chain::Block ToChainBlockExternal(T&& object) {
+    return RiegeliToChainBlock(&object);
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToChainRawBlockWhole<T>>,
-                            HasRiegeliToChainWhole<T>>::value,
-          int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object) {
-    return RiegeliToChain(&object).ToRawBlock();
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToChainRawBlockWhole<T>>,
-                            absl::negation<HasRiegeliToChainWhole<T>>>::value,
-          int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object) {
-    return Chain::ExternalMethodsFor<T>::NewBlock(std::forward<T>(object));
+  template <typename T,
+            std::enable_if_t<!HasRiegeliToChainBlockWhole<T>::value, int> = 0>
+  static Chain::Block ToChainBlockExternal(T&& object) {
+    return Chain::Block(std::forward<T>(object));
   }
 
   template <typename T, typename Enable = void>
-  struct HasRiegeliToChainRawBlockSubstr : std::false_type {};
+  struct HasRiegeliToChainBlockSubstr : std::false_type {};
 
   template <typename T>
-  struct HasRiegeliToChainRawBlockSubstr<
+  struct HasRiegeliToChainBlockSubstr<
       T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChainRawBlock(
-                 std::declval<T*>(), std::declval<absl::string_view>())),
-             IntrusiveSharedPtr<Chain::RawBlock>>::value>> : std::true_type {};
+             decltype(RiegeliToChainBlock(std::declval<T*>(),
+                                          std::declval<absl::string_view>())),
+             Chain::Block>::value>> : std::true_type {};
 
-  template <typename T, typename Enable = void>
-  struct HasRiegeliToChainSubstr : std::false_type {};
-
-  template <typename T>
-  struct HasRiegeliToChainSubstr<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChain(std::declval<T*>(),
-                                     std::declval<absl::string_view>())),
-             Chain>::value>> : std::true_type {};
-
-  template <typename T, std::enable_if_t<
-                            HasRiegeliToChainRawBlockSubstr<T>::value, int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object, absl::string_view substr) {
-    // The possibility of providing `RiegeliToChainRawBlock()` is intentionally
-    // undocumented because it uses private `Chain::RawBlock`. This is meant for
-    // `Chain::BlockRef`.
-    return RiegeliToChainRawBlock(&object, substr);
+  template <typename T,
+            std::enable_if_t<HasRiegeliToChainBlockSubstr<T>::value, int> = 0>
+  static Chain::Block ToChainBlockExternal(T&& object,
+                                           absl::string_view substr) {
+    return RiegeliToChainBlock(&object, substr);
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToChainRawBlockSubstr<T>>,
-                            HasRiegeliToChainSubstr<T>>::value,
-          int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object, absl::string_view substr) {
-    return RiegeliToChain(&object, substr).ToRawBlock();
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToChainRawBlockSubstr<T>>,
-                            absl::negation<HasRiegeliToChainSubstr<T>>>::value,
-          int> = 0>
-  static IntrusiveSharedPtr<Chain::RawBlock> ToChainRawBlockExternal(
-      T&& object, absl::string_view substr) {
-    return Chain::ExternalMethodsFor<T>::NewBlock(std::forward<T>(object),
-                                                  substr);
+  template <typename T,
+            std::enable_if_t<!HasRiegeliToChainBlockSubstr<T>::value, int> = 0>
+  static Chain::Block ToChainBlockExternal(T&& object,
+                                           absl::string_view substr) {
+    return Chain::Block(std::forward<T>(object), substr);
   }
 
   template <typename T>
@@ -607,7 +549,7 @@ class ExternalRef {
     static void ToChain(
         StorageBase* storage, ABSL_ATTRIBUTE_UNUSED size_t max_bytes_to_copy,
         void* context, UseStringViewFunction use_string_view,
-        ABSL_ATTRIBUTE_UNUSED UseChainRawBlockFunction use_chain_raw_block) {
+        ABSL_ATTRIBUTE_UNUSED UseChainBlockFunction use_chain_block) {
       use_string_view(context, substr(storage));
     }
 
@@ -662,7 +604,7 @@ class ExternalRef {
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
                         void* context, UseStringViewFunction use_string_view,
-                        UseChainRawBlockFunction use_chain_raw_block) {
+                        UseChainBlockFunction use_chain_block) {
       if (storage->size() <= max_bytes_to_copy) {
         const T& object =
             initializer(storage).ConstReference(temporary_storage(storage));
@@ -680,8 +622,8 @@ class ExternalRef {
         use_string_view(context, data);
         return;
       }
-      use_chain_raw_block(context, ExternalRef::ToChainRawBlockExternal(
-                                       std::forward<T>(object)));
+      use_chain_block(
+          context, ExternalRef::ToChainBlockExternal(std::forward<T>(object)));
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -767,15 +709,15 @@ class ExternalRef {
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
                         void* context, UseStringViewFunction use_string_view,
-                        UseChainRawBlockFunction use_chain_raw_block) {
+                        UseChainBlockFunction use_chain_block) {
       if (storage->size() <= max_bytes_to_copy ||
           Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
         use_string_view(context, absl::string_view(object(storage)));
         return;
       }
-      use_chain_raw_block(context, ExternalRef::ToChainRawBlockExternal(
-                                       ExtractObject(storage)));
+      use_chain_block(
+          context, ExternalRef::ToChainBlockExternal(ExtractObject(storage)));
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -861,7 +803,7 @@ class ExternalRef {
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
                         void* context, UseStringViewFunction use_string_view,
-                        UseChainRawBlockFunction use_chain_raw_block) {
+                        UseChainBlockFunction use_chain_block) {
       if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, substr(storage));
         return;
@@ -873,9 +815,8 @@ class ExternalRef {
         use_string_view(context, substr(storage));
         return;
       }
-      use_chain_raw_block(
-          context, ExternalRef::ToChainRawBlockExternal(std::forward<T>(object),
-                                                        substr(storage)));
+      use_chain_block(context, ExternalRef::ToChainBlockExternal(
+                                   std::forward<T>(object), substr(storage)));
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -941,16 +882,15 @@ class ExternalRef {
 
     static void ToChain(StorageBase* storage, size_t max_bytes_to_copy,
                         void* context, UseStringViewFunction use_string_view,
-                        UseChainRawBlockFunction use_chain_raw_block) {
+                        UseChainBlockFunction use_chain_block) {
       if (storage->size() <= max_bytes_to_copy ||
           Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
         use_string_view(context, substr(storage));
         return;
       }
-      use_chain_raw_block(
-          context, ExternalRef::ToChainRawBlockExternal(ExtractObject(storage),
-                                                        substr(storage)));
+      use_chain_block(context, ExternalRef::ToChainBlockExternal(
+                                   ExtractObject(storage), substr(storage)));
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -1146,7 +1086,7 @@ class ExternalRef {
         [](void* context, absl::string_view data) {
           new (context) Chain(data);
         },
-        [](void* context, IntrusiveSharedPtr<Chain::RawBlock> data) {
+        [](void* context, Chain::Block data) {
           new (context) Chain(std::move(data));
         });
     return result;
@@ -1176,8 +1116,8 @@ class ExternalRef {
         [](void* context, absl::string_view data) {
           static_cast<Chain*>(context)->Append(data);
         },
-        [](void* context, IntrusiveSharedPtr<Chain::RawBlock> data) {
-          static_cast<Chain*>(context)->AppendRawBlock(std::move(data));
+        [](void* context, Chain::Block data) {
+          static_cast<Chain*>(context)->Append(std::move(data));
         });
   }
   void AppendTo(Chain& dest, Chain::Options options) && {
@@ -1188,8 +1128,8 @@ class ExternalRef {
           static_cast<ChainWithOptions*>(context)->dest->Append(
               data, static_cast<ChainWithOptions*>(context)->options);
         },
-        [](void* context, IntrusiveSharedPtr<Chain::RawBlock> data) {
-          static_cast<ChainWithOptions*>(context)->dest->AppendRawBlock(
+        [](void* context, Chain::Block data) {
+          static_cast<ChainWithOptions*>(context)->dest->Append(
               std::move(data),
               static_cast<ChainWithOptions*>(context)->options);
         });
@@ -1215,8 +1155,8 @@ class ExternalRef {
         [](void* context, absl::string_view data) {
           static_cast<Chain*>(context)->Prepend(data);
         },
-        [](void* context, IntrusiveSharedPtr<Chain::RawBlock> data) {
-          static_cast<Chain*>(context)->PrependRawBlock(std::move(data));
+        [](void* context, Chain::Block data) {
+          static_cast<Chain*>(context)->Prepend(std::move(data));
         });
   }
   void PrependTo(Chain& dest, Chain::Options options) && {
@@ -1227,8 +1167,8 @@ class ExternalRef {
           static_cast<ChainWithOptions*>(context)->dest->Prepend(
               data, static_cast<ChainWithOptions*>(context)->options);
         },
-        [](void* context, IntrusiveSharedPtr<Chain::RawBlock> data) {
-          static_cast<ChainWithOptions*>(context)->dest->PrependRawBlock(
+        [](void* context, Chain::Block data) {
+          static_cast<ChainWithOptions*>(context)->dest->Prepend(
               std::move(data),
               static_cast<ChainWithOptions*>(context)->options);
         });
@@ -1253,10 +1193,10 @@ class ExternalRef {
  private:
   struct Methods {
     absl::string_view (*to_string_view)(StorageBase* storage);
-    // Calls once either `use_string_view` or `use_chain_raw_block`.
+    // Calls once either `use_string_view` or `use_chain_block`.
     void (*to_chain)(StorageBase* storage, size_t max_bytes_to_copy,
                      void* context, UseStringViewFunction use_string_view,
-                     UseChainRawBlockFunction use_chain_raw_block);
+                     UseChainBlockFunction use_chain_block);
     // Calls once either `use_string_view` or `use_cord`.
     void (*to_cord)(StorageBase* storage, size_t max_bytes_to_copy,
                     void* context, UseStringViewFunction use_string_view,

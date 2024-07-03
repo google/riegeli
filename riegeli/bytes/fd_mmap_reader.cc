@@ -1,4 +1,3 @@
-#include "riegeli/base/external_ref.h"
 // Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,9 +30,9 @@
 
 #endif
 
-#include <fcntl.h>
-
 #include "riegeli/bytes/fd_mmap_reader.h"
+
+#include <fcntl.h>
 #ifdef _WIN32
 #include <io.h>
 #endif
@@ -80,6 +79,7 @@
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
+#include "riegeli/base/external_ref.h"
 #ifndef _WIN32
 #include "riegeli/base/global.h"
 #endif
@@ -162,18 +162,18 @@ inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
 
 #endif  // !_WIN32
 
-class MMapRef {
+class MMapBlock {
  public:
-  explicit MMapRef(const char* addr) : addr_(addr) {}
+  explicit MMapBlock(const char* addr) : addr_(addr) {}
 
-  MMapRef(MMapRef&& that) = default;
-  MMapRef& operator=(MMapRef&& that) = default;
+  MMapBlock(MMapBlock&& that) = default;
+  MMapBlock& operator=(MMapBlock&& that) = default;
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
+  // Support `ExternalRef` and `Chain::Block`.
   void operator()(absl::string_view data) const;
 
-  // Support `Chain::FromExternal()` and `ExternalRef`.
-  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
+  // Support `ExternalRef` and `Chain::Block`.
+  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapBlock* self,
                                    std::ostream& out) {
     out << "[mmap] { }";
   }
@@ -181,14 +181,14 @@ class MMapRef {
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const MMapRef* self,
+      ABSL_ATTRIBUTE_UNUSED const MMapBlock* self,
       ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  private:
   const char* addr_;
 };
 
-void MMapRef::operator()(absl::string_view data) const {
+void MMapBlock::operator()(absl::string_view data) const {
 #ifndef _WIN32
   RIEGELI_CHECK_EQ(munmap(const_cast<char*>(addr_),
                           data.size() + PtrDistance(addr_, data.data())),
@@ -301,7 +301,7 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
   // Set it now.
   ChainReader::Reset(riegeli::Maker(
-      ExternalRef(riegeli::Maker<MMapRef>(static_cast<const char*>(addr)),
+      ExternalRef(riegeli::Maker<MMapBlock>(static_cast<const char*>(addr)),
                   absl::string_view(static_cast<const char*>(addr) + rounding,
                                     IntCast<size_t>(length)))));
   if (options.max_length() == absl::nullopt) Seek(initial_pos);
