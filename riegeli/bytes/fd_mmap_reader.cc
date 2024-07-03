@@ -178,12 +178,6 @@ class MMapBlock {
     out << "[mmap] { }";
   }
 
-  // Support `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const MMapBlock* self,
-      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-
  private:
   const char* addr_;
 };

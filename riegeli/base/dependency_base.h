@@ -123,12 +123,6 @@ class DependencyBase<Manager&> {
 
   static constexpr bool kIsStable = true;
 
-  // Support `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,
-      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-
  protected:
   DependencyBase(const DependencyBase& that) = default;
   DependencyBase& operator=(const DependencyBase&) = delete;
@@ -154,12 +148,6 @@ class DependencyBase<Manager&&> {
   Manager& manager() const { return manager_; }
 
   static constexpr bool kIsStable = true;
-
-  // Support `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const DependencyBase* self,
-      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
 
  protected:
   DependencyBase(DependencyBase&& that) = default;
