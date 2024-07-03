@@ -667,12 +667,9 @@ class Initializer
   template <
       typename Function, typename... Args,
       std::enable_if_t<
-          absl::conjunction<
-              std::integral_constant<
-                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
-              initializer_internal::IsCompatibleResult<
-                  allow_explicit, T,
-                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          initializer_internal::IsCompatibleResult<
+              allow_explicit, T,
+              typename InvokerType<Function, Args...>::ConstResult>::value,
           int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -786,12 +783,9 @@ class Initializer<T, allow_explicit,
   template <
       typename Function, typename... Args,
       std::enable_if_t<
-          absl::conjunction<
-              std::integral_constant<
-                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
-              initializer_internal::IsCompatibleResult<
-                  allow_explicit, T,
-                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          initializer_internal::IsCompatibleResult<
+              allow_explicit, T,
+              typename InvokerType<Function, Args...>::ConstResult>::value,
           int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -892,12 +886,9 @@ class Initializer<T, allow_explicit,
   template <
       typename Function, typename... Args,
       std::enable_if_t<
-          absl::conjunction<
-              std::integral_constant<
-                  bool, InvokerType<Function, Args...>::kIsConstCallable>,
-              initializer_internal::IsCompatibleResult<
-                  allow_explicit, T,
-                  typename InvokerType<Function, Args...>::ConstResult>>::value,
+          initializer_internal::IsCompatibleResult<
+              allow_explicit, T,
+              typename InvokerType<Function, Args...>::ConstResult>::value,
           int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)

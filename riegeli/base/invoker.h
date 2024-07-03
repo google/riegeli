@@ -26,7 +26,64 @@
 
 namespace riegeli {
 
+template <typename Function, typename... Args>
+class InvokerType;
+
 namespace invoker_internal {
+
+template <typename Function, typename... Args>
+class InvokerBase {
+ public:
+  // The result of calling `InvokerType&&` with no arguments.
+  using Result = decltype(absl::apply(std::declval<Function&&>(),
+                                      std::declval<std::tuple<Args...>&&>()));
+
+  // Constructs `InvokerType` from `function` convertible to `Function` and
+  // `args...` convertible to `Args...`.
+  template <
+      typename SrcFunction, typename... SrcArgs,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::disjunction<
+                  std::integral_constant<bool, (sizeof...(SrcArgs) > 0)>,
+                  absl::negation<std::is_same<std::decay_t<SrcFunction>,
+                                              InvokerType<Function, Args...>>>>,
+              std::is_convertible<SrcFunction&&, Function>,
+              std::is_convertible<SrcArgs&&, Args>...>::value,
+          int> = 0>
+  /*implicit*/ InvokerBase(SrcFunction&& function, SrcArgs&&... args)
+      : function_(std::forward<SrcFunction>(function)),
+        args_{std::forward<SrcArgs>(args)...} {}
+
+  InvokerBase(InvokerBase&& that) = default;
+  InvokerBase& operator=(InvokerBase&& that) = default;
+
+  InvokerBase(const InvokerBase& that) = default;
+  InvokerBase& operator=(const InvokerBase& that) = default;
+
+  // Calls the function.
+  Result operator()() && {
+    return absl::apply(std::forward<Function>(function_), std::move(args_));
+  }
+
+  // Calls the function by an implicit conversion to `Result`.
+  //
+  // It is preferred to explicitly call `operator()` instead. This conversion
+  // allows to pass `InvokerType<Function, Args...>` to another function which
+  // accepts a value convertible to `Result` for construction in-place,
+  // including functions like `std::make_unique<Result>()`,
+  // `std::vector<Result>::emplace_back()`, or the constructor of
+  // `absl::optional<Result>` or `absl::StatusOr<Result>`.
+  /*implicit*/ operator Result() && { return std::move(*this)(); }
+
+ protected:
+  const Function& function() const { return function_; }
+  const std::tuple<Args...>& args() const { return args_; }
+
+ private:
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
+};
 
 template <typename Enable, typename Function, typename... Args>
 struct IsConstCallableImpl : std::false_type {};
@@ -40,22 +97,57 @@ struct IsConstCallableImpl<absl::void_t<decltype(absl::apply(
 template <typename Function, typename... Args>
 struct IsConstCallable : IsConstCallableImpl<void, Function, Args...> {};
 
-template <typename Enable, typename Function, typename... Args>
-struct ConstResultImpl {
-  using type = void;
+template <bool is_const_callable, typename Function, typename... Args>
+class InvokerConstBase;
+
+template <typename Function, typename... Args>
+class InvokerConstBase</*is_const_callable=*/false, Function, Args...>
+    : public InvokerBase<Function, Args...> {
+ public:
+  using InvokerConstBase::InvokerBase::InvokerBase;
+
+  InvokerConstBase(InvokerConstBase&& that) = default;
+  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
+
+  InvokerConstBase(const InvokerConstBase& that) = default;
+  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
 };
 
 template <typename Function, typename... Args>
-struct ConstResultImpl<
-    std::enable_if_t<IsConstCallable<Function, Args...>::value>, Function,
-    Args...> {
-  using type =
+class InvokerConstBase</*is_const_callable=*/true, Function, Args...>
+    : public InvokerBase<Function, Args...> {
+ public:
+  using InvokerConstBase::InvokerBase::InvokerBase;
+
+  InvokerConstBase(InvokerConstBase&& that) = default;
+  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
+
+  InvokerConstBase(const InvokerConstBase& that) = default;
+  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
+
+  // The result of calling `const InvokerType&` with no arguments.
+  using ConstResult =
       decltype(absl::apply(std::declval<const Function&>(),
                            std::declval<const std::tuple<Args...>&>()));
-};
 
-template <typename Function, typename... Args>
-struct ConstResult : ConstResultImpl<void, Function, Args...> {};
+  // Calls the function.
+  using InvokerConstBase::InvokerBase::operator();
+  ConstResult operator()() const& {
+    return absl::apply(this->function(), this->args());
+  }
+
+  // Calls the function by an implicit conversion to `ConstResult`.
+  //
+  // It is preferred to explicitly call `operator()` instead. This conversion
+  // allows to pass `InvokerType<Function, Args...>` to another function which
+  // accepts a value convertible to `ConstResult` for construction in-place,
+  // including functions like `std::make_unique<ConstResult>()`,
+  // `std::vector<ConstResult>::emplace_back()`, or the constructor of
+  // `absl::optional<ConstResult>` or `absl::StatusOr<ConstResult>`.
+  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
+      Result;
+  /*implicit*/ operator ConstResult() const& { return (*this)(); }
+};
 
 }  // namespace invoker_internal
 
@@ -74,82 +166,21 @@ struct ConstResult : ConstResultImpl<void, Function, Args...> {};
 // function can also be a member pointer, in which case the first argument is
 // the target reference, reference wrapper, or pointer.
 template <typename Function, typename... Args>
-class InvokerType : public ConditionallyAssignable<absl::conjunction<
-                        absl::negation<std::is_reference<Args>>...>::value> {
+class InvokerType
+    : public invoker_internal::InvokerConstBase<
+          invoker_internal::IsConstCallable<Function, Args...>::value, Function,
+          Args...>,
+      public ConditionallyAssignable<absl::conjunction<
+          absl::negation<std::is_reference<Args>>...>::value> {
  public:
-  // The result of calling `InvokerType&&` with no arguments.
-  using Result = decltype(absl::apply(std::declval<Function&&>(),
-                                      std::declval<std::tuple<Args...>&&>()));
-
-  // If `true`, `const InvokerType&` can be called too.
-  static constexpr bool kIsConstCallable =
-      invoker_internal::IsConstCallable<Function, Args...>::value;
-
-  // The result of calling `const InvokerType&` with no arguments,
-  // or `void` placeholder if `!kIsConstCallable`.
-  using ConstResult =
-      typename invoker_internal::ConstResult<Function, Args...>::type;
-
-  // Constructs `InvokerType` from `function` convertible to `Function` and
-  // `args...` convertible to `Args...`.
-  template <typename SrcFunction, typename... SrcArgs,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::disjunction<
-                        std::integral_constant<bool, (sizeof...(SrcArgs) > 0)>,
-                        absl::negation<std::is_same<std::decay_t<SrcFunction>,
-                                                    InvokerType>>>,
-                    std::is_convertible<SrcFunction&&, Function>,
-                    std::is_convertible<SrcArgs&&, Args>...>::value,
-                int> = 0>
-  /*implicit*/ InvokerType(SrcFunction&& function, SrcArgs&&... args)
-      : function_(std::forward<SrcFunction>(function)),
-        args_{std::forward<SrcArgs>(args)...} {}
+  using InvokerType::InvokerConstBase::InvokerConstBase;
 
   InvokerType(InvokerType&& that) = default;
   InvokerType& operator=(InvokerType&& that) = default;
 
   InvokerType(const InvokerType& that) = default;
   InvokerType& operator=(const InvokerType& that) = default;
-
-  // Calls the function.
-  Result operator()() && {
-    return absl::apply(std::forward<Function>(function_), std::move(args_));
-  }
-  template <bool dependent_is_const_callable = kIsConstCallable,
-            std::enable_if_t<dependent_is_const_callable, int> = 0>
-  ConstResult operator()() const& {
-    return absl::apply(function_, args_);
-  }
-
-  // Calls the function by an implicit conversion to `Result` or `ConstResult`.
-  //
-  // It is preferred to explicitly call `operator()` instead. This conversion
-  // allows to pass `InvokerType<Function, Args...>` to another function which
-  // accepts a value convertible to `Result` or `ConstResult` for construction
-  // in-place, including functions like `std::make_unique<T>()`,
-  // `std::vector<T>::emplace_back()`, or the constructor of `absl::optional<T>`
-  // or `absl::StatusOr<T>`.
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
-  template <typename DependentConstResult = ConstResult,
-            bool dependent_is_const_callable = kIsConstCallable,
-            std::enable_if_t<dependent_is_const_callable, int> = 0>
-  /*implicit*/ operator DependentConstResult() const& {
-    return (*this)();
-  }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Function, typename... Args>
-constexpr bool InvokerType<Function, Args...>::kIsConstCallable;
-#endif
 
 // Support CTAD.
 #if __cpp_deduction_guides
