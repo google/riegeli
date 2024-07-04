@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -537,7 +538,7 @@ class LinearSortedStringSet::Builder {
   ~Builder();
 
   // Makes `*this` equivalent to a newly constructed `Builder`.
-  void Reset();
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
   // Returns an output iterator which inserts elements to this `Builder`.
   // Consecutive duplicates are inserted only once.

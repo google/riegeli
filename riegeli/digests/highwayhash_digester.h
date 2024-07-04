@@ -20,6 +20,7 @@
 #include <array>
 #include <type_traits>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "highwayhash/arch_specific.h"
@@ -46,6 +47,7 @@ class HighwayHashDigester {
   HighwayHashDigester(const HighwayHashDigester& that) = default;
   HighwayHashDigester& operator=(const HighwayHashDigester& that) = default;
 
+  ABSL_ATTRIBUTE_REINITIALIZES
   void Reset(const HighwayHashKey& key) {
     cat_.Reset(key);
     is_open_ = true;

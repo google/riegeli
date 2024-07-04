@@ -49,6 +49,7 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
@@ -157,6 +158,7 @@ cc_library(
     name = "highwayhash_digester",
     hdrs = ["highwayhash_digester.h"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@highwayhash",
@@ -168,7 +170,10 @@ cc_library(
 cc_library(
     name = "openssl_digester",
     hdrs = ["openssl_digester.h"],
-    deps = ["@com_google_absl//absl/strings"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 # Warning: MD5 as a cryptographic hash function is broken.

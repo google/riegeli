@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -460,6 +461,9 @@ class ChunkedSortedStringSet::Builder {
   Builder& operator=(Builder&& that) noexcept;
 
   ~Builder();
+
+  // Makes `*this` equivalent to a newly constructed `Builder`.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns an output iterator which inserts elements to this `Builder`.
   // Consecutive duplicates are inserted only once.

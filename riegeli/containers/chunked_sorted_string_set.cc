@@ -295,6 +295,18 @@ ChunkedSortedStringSet::Builder& ChunkedSortedStringSet::Builder::operator=(
 
 ChunkedSortedStringSet::Builder::~Builder() = default;
 
+void ChunkedSortedStringSet::Builder::Reset(Options options) {
+  size_ = 0;
+  chunk_size_ = options.chunk_size();
+  remaining_current_chunk_size_ = chunk_size_;
+  first_chunk_ = absl::nullopt;
+  chunks_.clear();
+  current_builder_.Reset();
+  if (options.size_hint() > 0) {
+    chunks_.reserve((options.size_hint() - 1) / chunk_size_);
+  }
+}
+
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
   const absl::StatusOr<bool> inserted = TryInsertNext(element);
   RIEGELI_CHECK(inserted.ok())

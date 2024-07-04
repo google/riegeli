@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -97,7 +98,7 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 std::is_constructible<BaseDigester, Args&&...>::value, int> = 0>
-  void Reset(Args&&... args) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {
     base_.Reset(riegeli::Maker(std::forward<Args>(args)...));
   }
 

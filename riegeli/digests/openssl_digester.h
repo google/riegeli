@@ -20,6 +20,7 @@
 
 #include <array>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 
 namespace riegeli {
@@ -35,7 +36,7 @@ class OpenSslDigester {
   OpenSslDigester(const OpenSslDigester& that) = default;
   OpenSslDigester& operator=(const OpenSslDigester& that) = default;
 
-  void Reset() {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     init(&ctx_);
     is_open_ = true;
   }
