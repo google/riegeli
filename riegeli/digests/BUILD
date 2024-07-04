@@ -154,6 +154,18 @@ cc_library(
 )
 
 cc_library(
+    name = "highwayhash_digester",
+    hdrs = ["highwayhash_digester.h"],
+    deps = [
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@highwayhash",
+        "@highwayhash//:arch_specific",
+        "@highwayhash//:hh_types",
+    ],
+)
+
+cc_library(
     name = "openssl_digester",
     hdrs = ["openssl_digester.h"],
     deps = ["@com_google_absl//absl/strings"],

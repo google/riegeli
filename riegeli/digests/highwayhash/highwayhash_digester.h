@@ -15,71 +15,8 @@
 #ifndef RIEGELI_DIGESTS_HIGHWAYHASH_HIGHWAYHASH_DIGESTER_H_
 #define RIEGELI_DIGESTS_HIGHWAYHASH_HIGHWAYHASH_DIGESTER_H_
 
-#include <stddef.h>
-
-#include <array>
-#include <type_traits>
-
-#include "absl/meta/type_traits.h"
-#include "absl/strings/string_view.h"
-#include "highwayhash/arch_specific.h"
-#include "highwayhash/hh_types.h"
-#include "highwayhash/highwayhash.h"
-
-namespace riegeli {
-
-// `uint64_t[4]`; prefer `alignas(32)` for constants of this type.
-using HighwayHashKey = highwayhash::HHKey;
-
-template <typename ResultType>
-class HighwayHashDigester {
- private:
-  using DigestType =
-      std::conditional_t<std::is_array<ResultType>::value,
-                         const std::array<std::remove_extent_t<ResultType>,
-                                          std::extent<ResultType>::value>&,
-                         ResultType>;
-
- public:
-  explicit HighwayHashDigester(const HighwayHashKey& key) : cat_(key) {}
-
-  HighwayHashDigester(const HighwayHashDigester& that) = default;
-  HighwayHashDigester& operator=(const HighwayHashDigester& that) = default;
-
-  void Reset(const HighwayHashKey& key) {
-    cat_.Reset(key);
-    is_open_ = true;
-  }
-
-  void Write(absl::string_view chunk) {
-    cat_.Append(chunk.data(), chunk.size());
-  }
-
-  void Close() {
-    if (is_open_) {
-      cat_.Finalize(reinterpret_cast<ResultType*>(&digest_));
-      is_open_ = false;
-    }
-  }
-
-  DigestType Digest() {
-    if (is_open_) {
-      highwayhash::HighwayHashCatT<HH_TARGET>(cat_).Finalize(
-          reinterpret_cast<ResultType*>(&digest_));
-    }
-    return digest_;
-  }
-
- private:
-  highwayhash::HighwayHashCatT<HH_TARGET> cat_;
-  absl::remove_cvref_t<DigestType> digest_;
-  bool is_open_ = true;
-};
-
-using HighwayHash64Digester = HighwayHashDigester<highwayhash::HHResult64>;
-using HighwayHash128Digester = HighwayHashDigester<highwayhash::HHResult128>;
-using HighwayHash256Digester = HighwayHashDigester<highwayhash::HHResult256>;
-
-}  // namespace riegeli
+// Deprecated: include "riegeli/digests/highwayhash_digester.h"
+// instead.
+#include "riegeli/digests/highwayhash_digester.h"  // IWYU pragma: keep
 
 #endif  // RIEGELI_DIGESTS_HIGHWAYHASH_HIGHWAYHASH_DIGESTER_H_
