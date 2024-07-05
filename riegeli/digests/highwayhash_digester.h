@@ -42,13 +42,17 @@ class HighwayHashDigester {
                          ResultType>;
 
  public:
-  explicit HighwayHashDigester(const HighwayHashKey& key) : cat_(key) {}
+  // The default keys were chosen once with `openssl rand`.
+  alignas(32) static const HighwayHashKey kDefaultKey;
+
+  explicit HighwayHashDigester(const HighwayHashKey& key = kDefaultKey)
+      : cat_(key) {}
 
   HighwayHashDigester(const HighwayHashDigester& that) = default;
   HighwayHashDigester& operator=(const HighwayHashDigester& that) = default;
 
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(const HighwayHashKey& key) {
+  void Reset(const HighwayHashKey& key = kDefaultKey) {
     cat_.Reset(key);
     is_open_ = true;
   }
@@ -81,6 +85,20 @@ class HighwayHashDigester {
 using HighwayHash64Digester = HighwayHashDigester<highwayhash::HHResult64>;
 using HighwayHash128Digester = HighwayHashDigester<highwayhash::HHResult128>;
 using HighwayHash256Digester = HighwayHashDigester<highwayhash::HHResult256>;
+
+// Implementation details follow.
+
+template <>
+alignas(32) const HighwayHashKey
+    HighwayHashDigester<highwayhash::HHResult64>::kDefaultKey;
+
+template <>
+alignas(32) const HighwayHashKey
+    HighwayHashDigester<highwayhash::HHResult128>::kDefaultKey;
+
+template <>
+alignas(32) const HighwayHashKey
+    HighwayHashDigester<highwayhash::HHResult256>::kDefaultKey;
 
 }  // namespace riegeli
 

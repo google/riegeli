@@ -156,6 +156,7 @@ cc_library(
 
 cc_library(
     name = "highwayhash_digester",
+    srcs = ["highwayhash_digester.cc"],
     hdrs = ["highwayhash_digester.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
