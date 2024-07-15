@@ -196,7 +196,7 @@ class DigestingReader : public DigestingReaderBase {
 #if __cpp_deduction_guides
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
-explicit DigestingReader(Src&& src, Digester&& digester = riegeli::Maker())
+explicit DigestingReader(Src&& src, Digester&& digester)
     -> DigestingReader<InitializerTargetT<Digester>, InitializerTargetT<Src>>;
 #endif
 

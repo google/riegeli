@@ -123,7 +123,8 @@ class DigestingWriterBase : public Writer {
 // By relying on CTAD the `Digester` template argument can be deduced as
 // `InitializerTargetT` of the type of the `digester` constructor argument, and
 // the `Dest` template argument can be deduced as `InitializerTargetT` of the
-// type of the `dest` constructor argument. This requires C++17.
+// type of the `dest` constructor argument, or as `NullWriter` if the `dest`
+// constructor argument is omitted. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -139,8 +140,22 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Will write to the original `Writer` provided by `dest`, using the
   // digester provided by `digester`.
+  //
+  // If `Dest` is `NullWriter` and one constructor parameter is given,
+  // it is interpreted as `digester` (overload below), not `dest`.
+  template <typename DependentDest = Dest,
+            std::enable_if_t<!std::is_same<DependentDest, NullWriter>::value,
+                             int> = 0>
+  explicit DigestingWriter(Initializer<Dest> dest);
   explicit DigestingWriter(Initializer<Dest> dest,
-                           Initializer<Digester> digester = riegeli::Maker());
+                           Initializer<Digester> digester);
+
+  // In the common case of `DigestingWriter<Digester, NullWriter>`,
+  // an initializer for the `NullWriter` can be omitted.
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, NullWriter>::value, int> = 0>
+  explicit DigestingWriter(Initializer<Digester> digester = riegeli::Maker());
 
   DigestingWriter(DigestingWriter&& that) = default;
   DigestingWriter& operator=(DigestingWriter&& that) = default;
@@ -148,8 +163,16 @@ class DigestingWriter : public DigestingWriterBase {
   // Makes `*this` equivalent to a newly constructed `DigestingWriter`. This
   // avoids constructing a temporary `DigestingWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
+  template <typename DependentDest = Dest,
+            std::enable_if_t<!std::is_same<DependentDest, NullWriter>::value,
+                             int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
+                                          Initializer<Digester> digester);
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same<DependentDest, NullWriter>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<Dest> dest,
       Initializer<Digester> digester = riegeli::Maker());
 
   // Digests buffered data if needed, and returns the digest.
@@ -206,8 +229,11 @@ class DigestingWriter : public DigestingWriterBase {
 #if __cpp_deduction_guides
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
-explicit DigestingWriter(Dest&& dest, Digester&& digester = riegeli::Maker())
+explicit DigestingWriter(Dest&& dest, Digester&& digester)
     -> DigestingWriter<InitializerTargetT<Digester>, InitializerTargetT<Dest>>;
+template <typename Digester>
+explicit DigestingWriter(Digester&& digester)
+    -> DigestingWriter<InitializerTargetT<Digester>, NullWriter>;
 #endif
 
 // Returns the digest of the concatenation of stringifiable values.
@@ -309,11 +335,25 @@ class DigestingWriter<Digester, Dest>::Mover {
 };
 
 template <typename Digester, typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<!std::is_same<DependentDest, NullWriter>::value, int>>
+inline DigestingWriter<Digester, Dest>::DigestingWriter(Initializer<Dest> dest)
+    : DigestingWriter(std::move(dest), riegeli::Maker()) {}
+
+template <typename Digester, typename Dest>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     Initializer<Dest> dest, Initializer<Digester> digester)
     : digester_(std::move(digester)), dest_(std::move(dest)) {
   Initialize(dest_.get(), digester_.get());
 }
+
+template <typename Digester, typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, NullWriter>::value, int>>
+inline DigestingWriter<Digester, Dest>::DigestingWriter(
+    Initializer<Digester> digester)
+    : DigestingWriter(riegeli::Maker(), std::move(digester)) {}
 
 template <typename Digester, typename Dest>
 inline void DigestingWriter<Digester, Dest>::Reset(Closed) {
@@ -323,12 +363,28 @@ inline void DigestingWriter<Digester, Dest>::Reset(Closed) {
 }
 
 template <typename Digester, typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<!std::is_same<DependentDest, NullWriter>::value, int>>
+inline void DigestingWriter<Digester, Dest>::Reset(Initializer<Dest> dest) {
+  Reset(std::move(dest), riegeli::Maker());
+}
+
+template <typename Digester, typename Dest>
 inline void DigestingWriter<Digester, Dest>::Reset(
     Initializer<Dest> dest, Initializer<Digester> digester) {
   DigestingWriterBase::Reset();
   digester_.Reset(std::move(digester));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), digester_.get());
+}
+
+template <typename Digester, typename Dest>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same<DependentDest, NullWriter>::value, int>>
+inline void DigestingWriter<Digester, Dest>::Reset(
+    Initializer<Digester> digester) {
+  Reset(riegeli::Maker(), std::move(digester));
 }
 
 template <typename Digester, typename Dest>
@@ -447,7 +503,7 @@ template <
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<Digester&&, NullWriter> writer(
-      riegeli::Maker(), std::forward<Digester>(digester));
+      std::forward<Digester>(digester));
   absl::apply(
       [&](const Srcs&... srcs) { SetWriteSizeHint(writer.get(), srcs...); },
       srcs);
