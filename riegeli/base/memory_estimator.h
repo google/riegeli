@@ -185,7 +185,7 @@ class MemoryEstimator {
   // is trivially destructible and does not need to be registered.
   //
   // Predefined customizations include:
-  //  * `std::unique_ptr<T>`
+  //  * `std::unique_ptr<T, Deleter>` (`Deleter` is ignored)
   //  * `std::shared_ptr<T>`
   //  * `std::basic_string<Char, Traits, Alloc>` (`Alloc` is ignored)
   //  * `absl::Cord`
@@ -328,8 +328,12 @@ inline void MemoryEstimator::RegisterDynamicObject(const T* object) {
   RegisterSubobjects(object);
 }
 
-template <typename T>
-inline void RiegeliRegisterSubobjects(const std::unique_ptr<T>* self,
+template <
+    typename T, typename Deleter,
+    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
+                                       absl::negation<std::is_array<T>>>::value,
+                     int> = 0>
+inline void RiegeliRegisterSubobjects(const std::unique_ptr<T, Deleter>* self,
                                       MemoryEstimator& memory_estimator) {
   if (*self != nullptr) memory_estimator.RegisterDynamicObject(self->get());
 }
@@ -345,7 +349,11 @@ struct SharedPtrControlBlock {
 
 }  // namespace memory_estimator_internal
 
-template <typename T, std::enable_if_t<!std::is_void<T>::value, int> = 0>
+template <
+    typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
+                                       absl::negation<std::is_array<T>>>::value,
+                     int> = 0>
 inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {
@@ -356,12 +364,14 @@ inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
   }
 }
 
-template <typename T, std::enable_if_t<std::is_void<T>::value, int> = 0>
-inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
+template <typename T, size_t size>
+inline void RiegeliRegisterSubobjects(const std::shared_ptr<T[size]>* self,
                                       MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {
     memory_estimator.RegisterDynamicMemory(
-        sizeof(memory_estimator_internal::SharedPtrControlBlock));
+        sizeof(memory_estimator_internal::SharedPtrControlBlock) +
+        sizeof(T[size]));
+    memory_estimator.RegisterSubobjects(self->get(), self->get() + size);
   }
 }
 
