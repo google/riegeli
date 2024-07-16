@@ -570,7 +570,7 @@ inline bool Chain::RawBlock::has_unique_owner() const {
   return ref_count_.HasUniqueOwner();
 }
 
-inline size_t Chain::RawBlock::AllocatedMemory() const {
+inline size_t Chain::RawBlock::ExternalMemory() const {
   if (is_internal()) {
     return kInternalAllocatedOffset() + capacity();
   } else {
@@ -864,8 +864,8 @@ inline Chain::Block::Block(IntrusiveSharedPtr<RawBlock> block) {
   block_ = std::move(block);
 }
 
-inline size_t Chain::Block::AllocatedMemory() const {
-  return block_->AllocatedMemory();
+inline size_t Chain::Block::ExternalMemory() const {
+  return block_->ExternalMemory();
 }
 
 inline ExternalStorage Chain::Block::ToExternalStorage() && {

@@ -60,10 +60,6 @@ class WriteLineOptions {
 // The last one or two arguments are the `Writer&`, optionally followed by
 // `WriteLineOptions`. The remaining arguments are the values.
 //
-// `std::string&&` is accepted with a template to avoid implicit conversions
-// to `std::string` which can be ambiguous against `absl::string_view`
-// (e.g. `const char*`).
-//
 // Return values:
 //  * `true`  - success
 //  * `false` - failure (`!ok()`)

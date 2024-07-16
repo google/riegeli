@@ -113,7 +113,7 @@ class SharedBuffer {
   }
 
   // Support `ExternalRef`.
-  friend size_t RiegeliAllocatedMemory(const SharedBuffer* self) {
+  friend size_t RiegeliExternalMemory(const SharedBuffer* self) {
     if (self->buffer_ == nullptr) return 0;
     return sizeof(size_t) + sizeof(Buffer) + self->buffer_->capacity();
   }

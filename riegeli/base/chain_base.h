@@ -627,7 +627,7 @@ class Chain::RawBlock {
 
   bool TryClear();
 
-  size_t AllocatedMemory() const;
+  size_t ExternalMemory() const;
 
   explicit operator absl::string_view() const {
     return absl::string_view(data_, size_);
@@ -807,8 +807,8 @@ class Chain::Block {
   Block& operator=(Block&& that) = default;
 
   // Support `ExternalRef`.
-  friend size_t RiegeliAllocatedMemory(const Block* self) {
-    return self->AllocatedMemory();
+  friend size_t RiegeliExternalMemory(const Block* self) {
+    return self->ExternalMemory();
   }
 
   // Support `ExternalRef`.
@@ -848,7 +848,7 @@ class Chain::Block {
   const IntrusiveSharedPtr<RawBlock>& raw_block() const& { return block_; }
   IntrusiveSharedPtr<RawBlock>&& raw_block() && { return std::move(block_); }
 
-  size_t AllocatedMemory() const;
+  size_t ExternalMemory() const;
   Block ToChainBlock(absl::string_view substr) &&;
   absl::Cord ToCord(absl::string_view substr) &&;
   ExternalStorage ToExternalStorage() &&;

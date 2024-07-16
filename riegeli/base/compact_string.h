@@ -268,7 +268,7 @@ class
   }
 
   // Support `ExternalRef`.
-  friend size_t RiegeliAllocatedMemory(const CompactString* self) {
+  friend size_t RiegeliExternalMemory(const CompactString* self) {
     const uintptr_t tag = self->repr_ & 7;
     if (ABSL_PREDICT_FALSE(tag == 1)) return 0;
     const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
