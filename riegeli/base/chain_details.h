@@ -50,6 +50,7 @@
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/temporary_storage.h"
+#include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
 
@@ -439,7 +440,8 @@ void RiegeliDumpStructure(const std::string* self, std::ostream& out);
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // `object`, and sets block data to `absl::string_view(new_object)`.
+  // `object`, and sets block data to `RiegeliToStringView(&new_object)`,
+  // `absl::string_view(new_object)`, or `absl::Span<const char>(new_object)`.
   static IntrusiveSharedPtr<RawBlock> NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
@@ -517,7 +519,8 @@ template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>()) T(std::move(object).Construct());
-  const absl::string_view data(unchecked_external_object<T>());
+  const absl::string_view data =
+      riegeli::ToStringView(unchecked_external_object<T>());
   data_ = data.data();
   size_ = data.size();
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
@@ -835,10 +838,9 @@ inline const T* Chain::BlockIterator::external_object() const {
   }
 }
 
-template <typename T,
-          std::enable_if_t<std::is_constructible<absl::string_view,
-                                                 InitializerTargetT<T>&>::value,
-                           int>>
+template <
+    typename T,
+    std::enable_if_t<SupportsToStringView<InitializerTargetT<T>>::value, int>>
 inline Chain::Block::Block(T&& object)
     : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
           std::forward<T>(object))) {}

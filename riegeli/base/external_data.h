@@ -30,6 +30,11 @@ using ExternalStorage = std::unique_ptr<void, void (*)(void*)>;
 // Type-erased external object with its deleter and a substring of a byte array
 // it ows.
 struct ExternalData {
+  // Support `ExternalRef`.
+  friend absl::string_view RiegeliToStringView(const ExternalData* self) {
+    return self->substr;
+  }
+
   ExternalStorage storage;  // Must outlive usages of `substr`.
   absl::string_view substr;
 };

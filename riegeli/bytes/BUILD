@@ -39,6 +39,7 @@ cc_library(
         "//riegeli/base:external_ref",
         "//riegeli/base:object",
         "//riegeli/base:reset",
+        "//riegeli/base:to_string_view",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
@@ -48,7 +49,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -64,6 +64,7 @@ cc_library(
         "//riegeli/base:cord_utils",
         "//riegeli/base:external_ref",
         "//riegeli/base:object",
+        "//riegeli/base:to_string_view",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
@@ -73,7 +74,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -104,6 +104,7 @@ cc_library(
         "//riegeli/base:reset",
         "//riegeli/base:status",
         "//riegeli/base:string_utils",
+        "//riegeli/base:to_string_view",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",

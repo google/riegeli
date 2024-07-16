@@ -195,6 +195,16 @@ cc_library(
 )
 
 cc_library(
+    name = "to_string_view",
+    hdrs = ["to_string_view.h"],
+    deps = [
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "memory_estimator",
     srcs = ["memory_estimator.cc"],
     hdrs = ["memory_estimator.h"],
@@ -231,6 +241,7 @@ cc_library(
         ":assert",
         ":compare",
         ":initializer",
+        ":to_string_view",
         ":type_id",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
@@ -452,6 +463,7 @@ cc_library(
         ":new_aligned",
         ":shared_ptr",
         ":string_utils",
+        ":to_string_view",
         ":type_traits",
         ":zeros",
         "@com_google_absl//absl/base:core_headers",

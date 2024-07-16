@@ -33,7 +33,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -41,6 +40,7 @@
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
@@ -156,9 +156,6 @@ class BackwardWriter : public Object {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   //
-  // `absl::Span<const char>` is accepted with a template to avoid ambiguity
-  // with `absl::string_view` (e.g. `std::string`).
-  //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
   //  * `false` - failure (a suffix of less than `src.size()` bytes written,
@@ -168,18 +165,14 @@ class BackwardWriter : public Object {
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
   bool Write(absl::string_view src);
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  bool Write(const char* src) { return Write(absl::string_view(src)); }
+  template <typename Src,
+            std::enable_if_t<absl::conjunction<SupportsToStringView<Src>,
+                                               absl::negation<std::is_same<
+                                                   Src, std::string>>>::value,
+                             int> = 0>
+  bool Write(Src&& src);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  bool Write(Src&& src);
-  template <
-      typename Src,
-      std::enable_if_t<
-          absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
-                            absl::negation<std::is_convertible<
-                                Src&&, absl::string_view>>>::value,
-          int> = 0>
   bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
@@ -211,13 +204,10 @@ class BackwardWriter : public Object {
       typename Src,
       std::enable_if_t<
           absl::conjunction<
-              HasAbslStringify<Src>,
-              absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-              absl::negation<
-                  std::is_convertible<Src&&, absl::Span<const char>>>,
+              HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<std::is_convertible<Src&&, ExternalRef>>>::value,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+              value,
           int> = 0>
   bool Write(Src&& src);
 
@@ -635,6 +625,16 @@ inline bool BackwardWriter::Write(absl::string_view src) {
   return WriteSlow(src);
 }
 
+template <
+    typename Src,
+    std::enable_if_t<absl::conjunction<
+                         SupportsToStringView<Src>,
+                         absl::negation<std::is_same<Src, std::string>>>::value,
+                     int>>
+inline bool BackwardWriter::Write(Src&& src) {
+  return Write(riegeli::ToStringView(src));
+}
+
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool BackwardWriter::Write(Src&& src) {
@@ -651,18 +651,6 @@ inline bool BackwardWriter::Write(Src&& src) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   return WriteStringSlow(std::move(src));
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
-                          absl::negation<std::is_convertible<
-                              Src&&, absl::string_view>>>::value,
-        int>>
-inline bool BackwardWriter::Write(Src&& src) {
-  const absl::Span<const char> span = std::forward<Src>(src);
-  return Write(absl::string_view(span.data(), span.size()));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
@@ -797,12 +785,10 @@ template <
     typename Src,
     std::enable_if_t<
         absl::conjunction<
-            HasAbslStringify<Src>,
-            absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-            absl::negation<std::is_convertible<Src&&, absl::Span<const char>>>,
+            HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-            absl::negation<std::is_convertible<Src&&, ExternalRef>>>::value,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
+            value,
         int>>
 inline bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;

@@ -37,6 +37,7 @@
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/temporary_storage.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -104,11 +105,13 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // If the `substr` parameter to `ExternalRef` constructor is given, `substr`
 // must be valid for the new object if it gets created.
 //
-// If the `substr` parameter is not given, `T` must support:
+// If the `substr` parameter is not given, `T` must support any of:
 // ```
 //   // Returns contents of the object. Called when it is moved to its final
 //   // location.
+//   friend absl::string_view RiegeliToStringView(const T* self);
 //   explicit operator absl::string_view() const;
+//   explicit operator absl::Span<const char>() const;
 // ```
 //
 // `T` may also support the following member functions, either with or without
@@ -338,7 +341,7 @@ class ExternalRef {
   static absl::Cord ToCordExternal(T&& object, size_t size) {
     ObjectForCordWhole<std::decay_t<T>> object_for_cord(
         std::forward<T>(object));
-    const absl::string_view data(*object_for_cord);
+    const absl::string_view data = riegeli::ToStringView(*object_for_cord);
     RIEGELI_ASSERT_EQ(size, data.size()) << "ExternalRef: size mismatch";
     return absl::MakeCordFromExternal(data, std::move(object_for_cord));
   }
@@ -402,7 +405,7 @@ class ExternalRef {
         typename DependentT = T,
         std::enable_if_t<HasCallOperatorSubstr<DependentT>::value, int> = 0>
     void CallOperator() {
-      std::forward<T>(object_)(absl::string_view(object_));
+      std::forward<T>(object_)(riegeli::ToStringView(object_));
     }
     template <
         typename DependentT = T,
@@ -475,14 +478,13 @@ class ExternalRef {
   static ExternalData ToExternalDataExternal(T&& object) {
     auto* const storage =
         new ExternalObjectWhole<std::decay_t<T>>(std::forward<T>(object));
-    const absl::string_view data(**storage);
     return ExternalData{
         ExternalStorage(
             storage,
             [](void* ptr) {
               delete static_cast<ExternalObjectWhole<std::decay_t<T>>*>(ptr);
             }),
-        data};
+        riegeli::ToStringView(**storage)};
   }
 
   template <typename T, typename Enable = void>
@@ -602,7 +604,7 @@ class ExternalRef {
     static absl::string_view ToStringView(StorageBase* storage) {
       const T& object =
           initializer(storage).ConstReference(temporary_storage(storage));
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       return data;
@@ -615,14 +617,14 @@ class ExternalRef {
       if (storage->size() <= max_bytes_to_copy) {
         const T& object =
             initializer(storage).ConstReference(temporary_storage(storage));
-        const absl::string_view data(object);
+        const absl::string_view data = riegeli::ToStringView(object);
         RIEGELI_ASSERT_EQ(storage->size(), data.size())
             << "ExternalRef: size mismatch";
         use_string_view(context, data);
         return;
       }
       T&& object = initializer(storage).Reference(temporary_storage(storage));
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       if (Wasteful(object, Chain::kExternalAllocatedSize<T>(), data.size())) {
@@ -639,14 +641,14 @@ class ExternalRef {
       if (storage->size() <= max_bytes_to_copy) {
         const T& object =
             initializer(storage).ConstReference(temporary_storage(storage));
-        const absl::string_view data(object);
+        const absl::string_view data = riegeli::ToStringView(object);
         RIEGELI_ASSERT_EQ(storage->size(), data.size())
             << "ExternalRef: size mismatch";
         use_string_view(context, data);
         return;
       }
       T&& object = initializer(storage).Reference(temporary_storage(storage));
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       if (Wasteful(object,
@@ -662,7 +664,7 @@ class ExternalRef {
 
     static ExternalData ToExternalData(StorageBase* storage) {
       T&& object = initializer(storage).Reference(temporary_storage(storage));
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       if (Wasteful(object, sizeof(ExternalObjectWhole<std::decay_t<T>>),
@@ -713,7 +715,7 @@ class ExternalRef {
     }
 
     static absl::string_view ToStringView(StorageBase* storage) {
-      return absl::string_view(object(storage));
+      return riegeli::ToStringView(object(storage));
     }
 
     static void ToChainBlock(StorageBase* storage, size_t max_bytes_to_copy,
@@ -723,7 +725,7 @@ class ExternalRef {
       if (storage->size() <= max_bytes_to_copy ||
           Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
                    storage->size())) {
-        use_string_view(context, absl::string_view(object(storage)));
+        use_string_view(context, riegeli::ToStringView(object(storage)));
         return;
       }
       use_chain_block(
@@ -734,11 +736,11 @@ class ExternalRef {
                        void* context, UseStringViewFunction use_string_view,
                        UseCordFunction use_cord) {
       if (storage->size() <= max_bytes_to_copy) {
-        use_string_view(context, absl::string_view(object(storage)));
+        use_string_view(context, riegeli::ToStringView(object(storage)));
         return;
       }
       T&& object = ExtractObject(storage);
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       if (Wasteful(object,
@@ -755,7 +757,7 @@ class ExternalRef {
 
     static ExternalData ToExternalData(StorageBase* storage) {
       T&& object = ExtractObject(storage);
-      const absl::string_view data(object);
+      const absl::string_view data = riegeli::ToStringView(object);
       RIEGELI_ASSERT_EQ(storage->size(), data.size())
           << "ExternalRef: size mismatch";
       if (Wasteful(object, sizeof(ExternalObjectWhole<std::decay_t<T>>),
@@ -771,7 +773,7 @@ class ExternalRef {
         typename DependentT = T,
         std::enable_if_t<HasCallOperatorSubstr<DependentT>::value, int> = 0>
     static void CallOperator(T&& object) {
-      std::forward<T>(object)(absl::string_view(object));
+      std::forward<T>(object)(riegeli::ToStringView(object));
     }
     template <
         typename DependentT = T,
@@ -1004,13 +1006,15 @@ class ExternalRef {
   // data.
   using StorageCopy = StorageSubstrBase;
 
-  // The type of the `storage` parameter for the constructor which takes an
-  // external object convertible to `absl::string_view` and its size.
+  // The type of the `storage` parameter for the constructor which takes
+  // an external object supporting `RiegeliToStringView(&object)`,
+  // `absl::string_view(object)`, or `absl::Span<const char>(object)`,
+  // and its size.
   template <typename Arg>
   using StorageWhole = typename StorageWholeImpl<Arg>::type;
 
   // The type of the `storage` parameter for the constructor which takes an
-  // external object and a substring.
+  // external object and its substring.
   template <typename Arg>
   using StorageSubstr = typename StorageSubstrImpl<Arg>::type;
 
@@ -1044,9 +1048,7 @@ class ExternalRef {
   // `storage` must outlive usages of the returned `ExternalRef`.
   template <typename Arg,
             std::enable_if_t<
-                std::is_constructible<absl::string_view,
-                                      const InitializerTargetT<Arg>&>::value,
-                int> = 0>
+                SupportsToStringView<InitializerTargetT<Arg>>::value, int> = 0>
   explicit ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t size,
                        StorageWhole<Arg&&>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND =

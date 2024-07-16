@@ -42,6 +42,7 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/ref_count.h"
+#include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
 
@@ -601,9 +602,10 @@ class Chain::RawBlock {
   // `SizeReturningNewAligned()`.
   explicit RawBlock(const size_t* raw_capacity);
 
-  // Constructs an external block containing an external object of type `T`, and
-  // sets block data to `absl::string_view(new_object)`. This constructor is
-  // public for `NewAligned()`.
+  // Constructs an external block containing an external object of type `T`,
+  // and sets block data to `RiegeliToStringView(&new_object)`,
+  // `absl::string_view(new_object)`, or `absl::Span<const char>(new_object)`.
+  // This constructor is public for `NewAligned()`.
   template <typename T>
   explicit RawBlock(Initializer<T> object);
 
@@ -759,11 +761,13 @@ class Chain::Block {
   // If the `substr` parameter is given, `substr` must be valid for the new
   // object.
   //
-  // If the `substr` parameter is not given, `T` must support:
+  // If the `substr` parameter is not given, `T` must support any of:
   // ```
   //   // Returns contents of the object. Called when it is moved to its final
   //   // location.
+  //   friend absl::string_view RiegeliToStringView(const T* self);
   //   explicit operator absl::string_view() const;
+  //   explicit operator absl::Span<const char>() const;
   // ```
   //
   // `T` may also support the following member functions, either with or without
@@ -791,11 +795,9 @@ class Chain::Block {
   // The `substr` parameter of these member functions, if present, will get the
   // `substr` parameter passed to `FromExternal()`. Having `substr` available in
   // these functions might avoid storing `substr` in the external object.
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<absl::string_view,
-                                             InitializerTargetT<T>&>::value,
-                       int> = 0>
+  template <typename T,
+            std::enable_if_t<SupportsToStringView<InitializerTargetT<T>>::value,
+                             int> = 0>
   explicit Block(T&& object);
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);

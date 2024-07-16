@@ -26,6 +26,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency_manager.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
 
@@ -328,31 +329,23 @@ class DependencyImpl<
 };
 
 // Specialization of `DependencyImpl<absl::string_view, Manager>` when
-// `DependencyManagerRef<Manager>` is not convertible to `absl::string_view` but
-// is explicitly convertible to `absl::Span<const char>`.
-//
-// Specialized separately because `absl::Span<const char>` provides more
-// conversions than `absl::string_view`, e.g. from `std::vector<char>`.
+// `DependencyManagerRef<Manager>` supports `RiegeliToStringView(&object)` or is
+// explicitly convertible to `absl::string_view` or `absl::Span<const char>`.
 template <typename Manager>
 class DependencyImpl<
     absl::string_view, Manager,
     std::enable_if_t<absl::conjunction<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        absl::negation<std::is_constructible<absl::string_view,
-                                             DependencyManagerRef<Manager>>>,
-        std::is_constructible<absl::Span<const char>,
-                              DependencyManagerRef<Manager>>>::value>>
+        SupportsToStringView<DependencyManagerRef<Manager>>>::value>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
-  absl::string_view get() const {
-    const absl::Span<const char> span(*this->ptr());
-    return absl::string_view(span.data(), span.size());
-  }
+  absl::string_view get() const { return riegeli::ToStringView(*this->ptr()); }
 
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
+      std::is_same<Manager, absl::string_view>::value ||
       std::is_same<Manager, absl::Span<const char>>::value ||
       std::is_same<Manager, absl::Span<char>>::value;
 

@@ -25,6 +25,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:to_string_view",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/base:zeros",
@@ -35,7 +36,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

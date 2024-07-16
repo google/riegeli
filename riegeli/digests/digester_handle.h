@@ -29,11 +29,11 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/dependency_manager.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/digests/digest_converter.h"
@@ -161,18 +161,10 @@ class DigesterBaseHandle {
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
   bool Write(absl::string_view src) { return methods()->write(target(), src); }
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  bool Write(const char* src) { return Write(absl::string_view(src)); }
-  template <
-      typename Src,
-      std::enable_if_t<
-          absl::conjunction<std::is_convertible<Src&&, absl::Span<const char>>,
-                            absl::negation<std::is_convertible<
-                                Src&&, absl::string_view>>>::value,
-          int> = 0>
+  template <typename Src,
+            std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
   bool Write(Src&& src) {
-    const absl::Span<const char> span = std::forward<Src>(src);
-    return Write(absl::string_view(span.data(), span.size()));
+    return Write(riegeli::ToStringView(src));
   }
   bool Write(const Chain& src) { return methods()->write_chain(target(), src); }
   bool Write(const absl::Cord& src) {
@@ -182,10 +174,7 @@ class DigesterBaseHandle {
       typename Src,
       std::enable_if_t<
           absl::conjunction<
-              HasAbslStringify<Src>,
-              absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-              absl::negation<
-                  std::is_convertible<Src&&, absl::Span<const char>>>,
+              HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
               value,
@@ -668,9 +657,7 @@ template <
     typename Src,
     std::enable_if_t<
         absl::conjunction<
-            HasAbslStringify<Src>,
-            absl::negation<std::is_convertible<Src&&, absl::string_view>>,
-            absl::negation<std::is_convertible<Src&&, absl::Span<const char>>>,
+            HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
             absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
             value,
