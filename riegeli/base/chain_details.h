@@ -1023,10 +1023,14 @@ inline void Chain::Clear() {
 }
 
 inline void Chain::Initialize(absl::string_view src) {
+  RIEGELI_ASSERT_EQ(size_, 0u)
+      << "Failed precondition of Chain::Initialize(string_view): "
+         "size not reset";
   if (src.size() <= kMaxShortDataSize) {
     if (src.empty()) return;
+    EnsureHasHere();
     size_ = src.size();
-    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
+    std::memcpy(short_data_begin(), src.data(), src.size());
     return;
   }
   InitializeSlow(src);
@@ -1035,10 +1039,14 @@ inline void Chain::Initialize(absl::string_view src) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline void Chain::Initialize(Src&& src) {
+  RIEGELI_ASSERT_EQ(size_, 0u)
+      << "Failed precondition of Chain::Initialize(string&&): "
+         "size not reset";
   if (src.size() <= kMaxShortDataSize) {
     if (src.empty()) return;
+    EnsureHasHere();
     size_ = src.size();
-    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
+    std::memcpy(short_data_begin(), src.data(), src.size());
     return;
   }
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
@@ -1054,9 +1062,25 @@ inline void Chain::Initialize(Block src) {
 }
 
 inline absl::string_view Chain::short_data() const {
+  return absl::string_view(short_data_begin(), size_);
+}
+
+inline char* Chain::short_data_begin() {
   RIEGELI_ASSERT(begin_ == end_)
-      << "Failed precondition of Chain::short_data(): blocks exist";
-  return absl::string_view(block_ptrs_.short_data, size_);
+      << "Failed precondition of Chain::short_data_begin(): blocks exist";
+  RIEGELI_ASSERT(empty() || has_here())
+      << "Failed precondition of Chain::short_data_begin(): "
+         "block pointer array is allocated";
+  return block_ptrs_.short_data;
+}
+
+inline const char* Chain::short_data_begin() const {
+  RIEGELI_ASSERT(begin_ == end_)
+      << "Failed precondition of Chain::short_data_begin(): blocks exist";
+  RIEGELI_ASSERT(empty() || has_here())
+      << "Failed precondition of Chain::short_data_begin(): "
+         "block pointer array is allocated";
+  return block_ptrs_.short_data;
 }
 
 inline void Chain::DeleteBlockPtrs() {
@@ -1065,6 +1089,16 @@ inline void Chain::DeleteBlockPtrs() {
         block_ptrs_.allocated.begin,
         2 * PtrDistance(block_ptrs_.allocated.begin,
                         block_ptrs_.allocated.end));
+  }
+}
+
+inline void Chain::EnsureHasHere() {
+  RIEGELI_ASSERT(begin_ == end_)
+      << "Failed precondition of Chain::EnsureHasHere(): blocks exist";
+  if (ABSL_PREDICT_FALSE(has_allocated())) {
+    DeleteBlockPtrs();
+    begin_ = block_ptrs_.here;
+    end_ = block_ptrs_.here;
   }
 }
 

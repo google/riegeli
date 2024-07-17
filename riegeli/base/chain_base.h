@@ -420,6 +420,8 @@ class Chain : public WithCompare<Chain> {
   bool has_allocated() const { return begin_ != block_ptrs_.here; }
 
   absl::string_view short_data() const;
+  char* short_data_begin();
+  const char* short_data_begin() const;
 
   static BlockPtr* NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();

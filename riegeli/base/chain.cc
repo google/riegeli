@@ -461,7 +461,6 @@ void Chain::Reset(absl::string_view src) {
     Append(src, Options().set_size_hint(src.size()));
     return;
   }
-  EnsureHasHere();
   Initialize(src);
 }
 
@@ -476,7 +475,6 @@ void Chain::Reset(Src&& src) {
     Append(std::move(src), Options().set_size_hint(size));
     return;
   }
-  EnsureHasHere();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
   Initialize(std::move(src));
@@ -497,7 +495,6 @@ void Chain::Reset(const absl::Cord& src) {
     Append(src, Options().set_size_hint(src.size()));
     return;
   }
-  EnsureHasHere();
   Initialize(src);
 }
 
@@ -508,7 +505,6 @@ void Chain::Reset(absl::Cord&& src) {
     Append(std::move(src), Options().set_size_hint(size));
     return;
   }
-  EnsureHasHere();
   Initialize(std::move(src));
 }
 
@@ -548,10 +544,16 @@ void Chain::InitializeSlow(Src&& src) {
 template void Chain::InitializeSlow(std::string&& src);
 
 inline void Chain::Initialize(const absl::Cord& src) {
+  RIEGELI_ASSERT_EQ(size_, 0u)
+      << "Failed precondition of Chain::Initialize(const Cord&): "
+         "size not reset";
   InitializeFromCord(src);
 }
 
 inline void Chain::Initialize(absl::Cord&& src) {
+  RIEGELI_ASSERT_EQ(size_, 0u)
+      << "Failed precondition of Chain::Initialize(absl::Cord&&): "
+         "size not reset";
   InitializeFromCord(std::move(src));
 }
 
@@ -577,8 +579,8 @@ inline void Chain::Initialize(const Chain& src) {
   size_ = src.size_;
   end_ = begin_;
   if (src.begin_ == src.end_) {
-    std::memcpy(block_ptrs_.short_data, src.block_ptrs_.short_data,
-                kMaxShortDataSize);
+    EnsureHasHere();
+    std::memcpy(short_data_begin(), src.short_data_begin(), kMaxShortDataSize);
   } else {
     AppendBlocks<ShareOwnership>(src.begin_, src.end_);
   }
@@ -621,16 +623,6 @@ inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
   return std::allocator<BlockPtr>().allocate(2 * capacity);
 }
 
-inline void Chain::EnsureHasHere() {
-  RIEGELI_ASSERT(begin_ == end_)
-      << "Failed precondition of Chain::EnsureHasHere(): blocks exist";
-  if (ABSL_PREDICT_FALSE(has_allocated())) {
-    DeleteBlockPtrs();
-    begin_ = block_ptrs_.here;
-    end_ = block_ptrs_.here;
-  }
-}
-
 void Chain::UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end) {
   RIEGELI_ASSERT(begin < end)
       << "Failed precondition of Chain::UnrefBlocksSlow(): "
@@ -650,7 +642,7 @@ inline void Chain::DropPassedBlocks(ShareOwnership) const {}
 void Chain::CopyTo(char* dest) const {
   if (empty()) return;  // `std::memcpy(nullptr, _, 0)` is undefined.
   if (begin_ == end_) {
-    std::memcpy(dest, block_ptrs_.short_data, size_);
+    std::memcpy(dest, short_data_begin(), size_);
     return;
   }
   CopyToSlow(dest);
@@ -1267,7 +1259,7 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
         // Append the new space to short data.
         EnsureHasHere();
         const absl::Span<char> buffer(
-            block_ptrs_.short_data + size_,
+            short_data_begin() + size_,
             UnsignedMin(max_length, kMaxShortDataSize - size_));
         size_ += buffer.size();
         return buffer;
@@ -1355,10 +1347,9 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
         // Prepend the new space to short data.
         EnsureHasHere();
         const absl::Span<char> buffer(
-            block_ptrs_.short_data,
+            short_data_begin(),
             UnsignedMin(max_length, kMaxShortDataSize - size_));
-        std::memmove(buffer.data() + buffer.size(), block_ptrs_.short_data,
-                     size_);
+        std::memmove(buffer.data() + buffer.size(), short_data_begin(), size_);
         size_ += buffer.size();
         return buffer;
       } else if (min_length == 0) {
@@ -2061,8 +2052,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
   size_ -= length;
   if (begin_ == end_) {
     // `Chain` has short data which have prefix removed by shifting the rest.
-    std::memmove(block_ptrs_.short_data, block_ptrs_.short_data + length,
-                 size_);
+    std::memmove(short_data_begin(), short_data_begin() + length, size_);
     return;
   }
   while (length > front()->size()) {
