@@ -299,18 +299,6 @@ cc_library(
 )
 
 cc_library(
-    name = "any_dependency",
-    hdrs = [
-        "any_dependency.h",
-        "any_dependency_initializer.h",
-    ],
-    deps = [
-        ":any",
-        "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-cc_library(
     name = "iterable",
     hdrs = ["iterable.h"],
     deps = [

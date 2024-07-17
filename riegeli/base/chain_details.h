@@ -943,19 +943,6 @@ inline Chain::Blocks::reference Chain::Blocks::back() const {
   }
 }
 
-template <typename T,
-          std::enable_if_t<std::is_constructible<absl::string_view,
-                                                 InitializerTargetT<T>&>::value,
-                           int>>
-inline Chain Chain::FromExternal(T&& object) {
-  return Chain(Block(std::forward<T>(object)));
-}
-
-template <typename T>
-inline Chain Chain::FromExternal(T&& object, absl::string_view substr) {
-  return Chain(Block(std::forward<T>(object), substr));
-}
-
 template <typename T>
 constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();

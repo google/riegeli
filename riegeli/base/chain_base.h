@@ -169,17 +169,6 @@ class Chain : public WithCompare<Chain> {
     return kMaxBytesToCopy;
   }
 
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<absl::string_view,
-                                             InitializerTargetT<T>&>::value,
-                       int> = 0>
-  ABSL_DEPRECATED("Use ExternalRef or Chain::Block instead")
-  static Chain FromExternal(T&& object);
-  template <typename T>
-  ABSL_DEPRECATED("Use ExternalRef or Chain::Block instead")
-  static Chain FromExternal(T&& object, absl::string_view substr);
-
   // Allocated size of an external block containing an external object of type
   // `T`.
   template <typename T>
