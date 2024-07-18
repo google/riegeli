@@ -36,6 +36,7 @@
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/csv_record.h"
@@ -74,7 +75,7 @@ class CsvWriterBase : public Object {
     //
     // Default: `absl::nullopt`.
     Options& set_header(Initializer<absl::optional<CsvHeader>> header) & {
-      std::move(header).AssignTo(header_);
+      riegeli::Reset(header_, std::move(header));
       return *this;
     }
     Options&& set_header(Initializer<absl::optional<CsvHeader>> header) && {
@@ -98,7 +99,7 @@ class CsvWriterBase : public Object {
     // Default: `absl::nullopt`.
     Options& set_assumed_header(
         Initializer<absl::optional<CsvHeader>> header) & {
-      std::move(header).AssignTo(assumed_header_);
+      riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(

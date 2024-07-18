@@ -34,6 +34,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_handle.h"
@@ -64,7 +65,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     Options& set_assumed_filename(
         Initializer<absl::optional<std::string>>::AllowingExplicit
             assumed_filename) & {
-      std::move(assumed_filename).AssignTo(assumed_filename_);
+      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
       return *this;
     }
     Options&& set_assumed_filename(
@@ -391,7 +392,7 @@ inline void FdMMapReaderBase::Reset() {
 
 inline const std::string& FdMMapReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
-  std::move(filename).AssignTo(filename_);
+  riegeli::Reset(filename_, std::move(filename));
   return filename_;
 }
 

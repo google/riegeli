@@ -35,6 +35,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/csv/csv_record.h"
 
@@ -75,7 +76,7 @@ class CsvReaderBase : public Object {
     // Default: `absl::nullopt`.
     Options& set_required_header(
         Initializer<absl::optional<CsvHeader>> header) & {
-      std::move(header).AssignTo(required_header_);
+      riegeli::Reset(required_header_, std::move(header));
       return *this;
     }
     Options&& set_required_header(
@@ -104,7 +105,7 @@ class CsvReaderBase : public Object {
     // Default: `absl::nullopt`.
     Options& set_assumed_header(
         Initializer<absl::optional<CsvHeader>> header) & {
-      std::move(header).AssignTo(assumed_header_);
+      riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(
@@ -282,7 +283,7 @@ class CsvReaderBase : public Object {
     Options& set_recovery(
         Initializer<std::function<bool(absl::Status, CsvReaderBase&)>>
             recovery) & {
-      std::move(recovery).AssignTo(recovery_);
+      riegeli::Reset(recovery_, std::move(recovery));
       return *this;
     }
     Options&& set_recovery(
@@ -320,7 +321,7 @@ class CsvReaderBase : public Object {
   // See `Options::set_recovery()` for details.
   void set_recovery(
       Initializer<std::function<bool(absl::Status, CsvReaderBase&)>> recovery) {
-    std::move(recovery).AssignTo(recovery_);
+    riegeli::Reset(recovery_, std::move(recovery));
   }
 
   // Returns `true` if reading the header was requested or assumed, i.e.

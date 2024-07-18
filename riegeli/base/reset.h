@@ -27,65 +27,54 @@
 
 namespace riegeli {
 
-// To make an existing `object` of some class `T` equivalent to a newly
+// To make an existing `dest` object of some class `T` equivalent to a newly
 // constructed `T`, certain classes use a convention of providing member
 // functions `Reset()`, which mirror constructors of these classes (except for
 // copy and move constructors which are mirrored by the assignment operators).
 // This avoids constructing a temporary `T` and moving from it.
 //
 // If it is not known whether the given class provides member functions
-// `Reset()`, generic code can use `riegeli::Reset(object, args...)`.
+// `Reset()`, generic code can use `riegeli::Reset(dest, args...)`.
 // This calls the first defined form among the following:
-//  * `object = args...` (if `args...` has a single element)
-//  * `RiegeliReset(object, args...)`
-//  * `object.Reset(args...)`
-//  * `object = T(args...)`
+//  * `RiegeliReset(dest, args...)`
+//  * `dest.Reset(args...)`
+//  * `dest = args...` (if `args...` has a single element)
+//  * `dest = T(args...)`
 //
 // Hence to customize `riegeli::Reset()` for a class `T`, define overloads of
 // either a member function `void T::Reset(...)`, or a free function
-// `friend void RiegeliReset(T& self, ...)` as a friend of `T` inside class
+// `friend void RiegeliReset(T& dest, ...)` as a friend of `T` inside class
 // definition or in the same namespace as `T`, so that it can be found via ADL.
 //
 // `RiegeliReset()` is predefined for `std::string` and `absl::Cord`.
 
-inline void RiegeliReset(std::string& self) { self.clear(); }
+inline void RiegeliReset(std::string& dest) { dest.clear(); }
 
-inline void RiegeliReset(std::string& self, size_t length, char ch) {
-  self.assign(length, ch);
+inline void RiegeliReset(std::string& dest, size_t length, char ch) {
+  dest.assign(length, ch);
 }
 
-inline void RiegeliReset(std::string& self, absl::string_view src) {
+inline void RiegeliReset(std::string& dest, absl::string_view src) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `self.assign(src)`
-  self.assign(src.data(), src.size());
+  // `dest.assign(src)`
+  dest.assign(src.data(), src.size());
 }
 
-inline void RiegeliReset(std::string& self, const char* src) {
-  self.assign(src);
+inline void RiegeliReset(std::string& dest, const char* src) {
+  dest.assign(src);
 }
 
-inline void RiegeliReset(std::string& self, const char* src, size_t length) {
-  self.assign(src, length);
+inline void RiegeliReset(std::string& dest, const char* src, size_t length) {
+  dest.assign(src, length);
 }
 
-inline void RiegeliReset(absl::Cord& self) { self.Clear(); }
+inline void RiegeliReset(absl::Cord& dest) { dest.Clear(); }
 
-inline void RiegeliReset(absl::Cord& self, absl::string_view src) {
-  self = src;
+inline void RiegeliReset(absl::Cord& dest, absl::string_view src) {
+  dest = src;
 }
 
 namespace reset_internal {
-
-template <typename Enable, typename T, typename... Args>
-struct HasAssignmentImpl : std::false_type {};
-
-template <typename T, typename Arg>
-struct HasAssignmentImpl<
-    absl::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, T, Arg>
-    : std::true_type {};
-
-template <typename T, typename... Args>
-struct HasAssignment : HasAssignmentImpl<void, T, Args...> {};
 
 template <typename Enable, typename T, typename... Args>
 struct HasRiegeliResetImpl : std::false_type {};
@@ -109,45 +98,58 @@ struct HasResetImpl<
 template <typename T, typename... Args>
 struct HasReset : HasResetImpl<void, T, Args...> {};
 
+template <typename Enable, typename T, typename... Args>
+struct HasAssignmentImpl : std::false_type {};
+
+template <typename T, typename Arg>
+struct HasAssignmentImpl<
+    absl::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, T, Arg>
+    : std::true_type {};
+
+template <typename T, typename... Args>
+struct HasAssignment : HasAssignmentImpl<void, T, Args...> {};
+
 }  // namespace reset_internal
 
-template <
-    typename T, typename Arg,
-    std::enable_if_t<reset_internal::HasAssignment<T, Arg>::value, int> = 0>
-inline void Reset(T& object, Arg&& arg) {
-  object = std::forward<Arg>(arg);
+template <typename T, typename... Args,
+          std::enable_if_t<reset_internal::HasRiegeliReset<T, Args...>::value,
+                           int> = 0>
+inline void Reset(T& dest, Args&&... args) {
+  RiegeliReset(dest, std::forward<Args>(args)...);
 }
 
 template <typename T, typename... Args,
           std::enable_if_t<
               absl::conjunction<
-                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
-                  reset_internal::HasRiegeliReset<T, Args...>>::value,
-              int> = 0>
-inline void Reset(T& object, Args&&... args) {
-  RiegeliReset(object, std::forward<Args>(args)...);
-}
-
-template <typename T, typename... Args,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
                   absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
                   reset_internal::HasReset<T, Args...>>::value,
               int> = 0>
-inline void Reset(T& object, Args&&... args) {
-  object.Reset(std::forward<Args>(args)...);
+inline void Reset(T& dest, Args&&... args) {
+  dest.Reset(std::forward<Args>(args)...);
+}
+
+template <typename T, typename Arg,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<reset_internal::HasRiegeliReset<T, Arg>>,
+                  absl::negation<reset_internal::HasReset<T, Arg>>,
+                  reset_internal::HasAssignment<T, Arg>>::value,
+              int> = 0>
+inline void Reset(T& dest, Arg&& arg) {
+  dest = std::forward<Arg>(arg);
 }
 
 template <typename T, typename... Args,
           std::enable_if_t<
               absl::conjunction<
-                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
                   absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
-                  absl::negation<reset_internal::HasReset<T, Args...>>>::value,
+                  absl::negation<reset_internal::HasReset<T, Args...>>,
+                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
+                  std::is_constructible<T, Args...>,
+                  std::is_move_assignable<T>>::value,
               int> = 0>
-inline void Reset(T& object, Args&&... args) {
-  object = T(std::forward<Args>(args)...);
+inline void Reset(T& dest, Args&&... args) {
+  dest = T(std::forward<Args>(args)...);
 }
 
 }  // namespace riegeli

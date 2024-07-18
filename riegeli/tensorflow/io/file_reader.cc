@@ -37,6 +37,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -69,7 +70,7 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
 
 bool FileReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
-  std::move(filename).AssignTo(filename_);
+  riegeli::Reset(filename_, std::move(filename));
   {
     const ::tensorflow::Status status =
         env_->GetFileSystemForFile(filename_, &file_system_);

@@ -40,6 +40,7 @@ cc_library(
         "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/base:recycling_pool",
+        "//riegeli/base:reset",
         "//riegeli/bytes:array_backward_writer",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",

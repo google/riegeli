@@ -40,6 +40,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -95,7 +96,7 @@ class RecordReaderBase : public Object {
     // Default: `FieldProjection::All()`.
     Options& set_field_projection(
         Initializer<FieldProjection> field_projection) & {
-      std::move(field_projection).AssignTo(field_projection_);
+      riegeli::Reset(field_projection_, std::move(field_projection));
       return *this;
     }
     Options&& set_field_projection(
@@ -149,7 +150,7 @@ class RecordReaderBase : public Object {
         Initializer<
             std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
             recovery) & {
-      std::move(recovery).AssignTo(recovery_);
+      riegeli::Reset(recovery_, std::move(recovery));
       return *this;
     }
     Options&& set_recovery(
@@ -260,7 +261,7 @@ class RecordReaderBase : public Object {
   void set_recovery(
       Initializer<std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
           recovery) {
-    std::move(recovery).AssignTo(recovery_);
+    riegeli::Reset(recovery_, std::move(recovery));
   }
 
   // Returns the function set by `Options::set_recovery` or `set_recovery()`.

@@ -138,20 +138,21 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         args_);
   }
 
-  // Makes `object` equivalent to the constructed `T`. This avoids constructing
-  // a temporary `T` and moving from it.
+  // `riegeli::Reset(dest, MakerType)` makes `dest` equivalent to the
+  // constructed `T`. This avoids constructing a temporary `T` and moving from
+  // it.
   template <typename T,
             std::enable_if_t<
                 absl::conjunction<absl::negation<std::is_reference<T>>,
                                   std::is_move_assignable<T>,
                                   std::is_constructible<T, Args&&...>>::value,
                 int> = 0>
-  void AssignTo(T& object) && {
+  friend void RiegeliReset(T& dest, MakerType&& src) {
     absl::apply(
         [&](Args&&... args) {
-          riegeli::Reset(object, std::forward<Args>(args)...);
+          riegeli::Reset(dest, std::forward<Args>(args)...);
         },
-        std::move(args_));
+        std::move(src.args_));
   }
   template <
       typename T,
@@ -160,9 +161,9 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                             std::is_move_assignable<T>,
                             std::is_constructible<T, const Args&...>>::value,
           int> = 0>
-  void AssignTo(T& object) const& {
-    absl::apply([&](const Args&... args) { riegeli::Reset(object, args...); },
-                args_);
+  friend void RiegeliReset(T& dest, const MakerType& src) {
+    absl::apply([&](const Args&... args) { riegeli::Reset(dest, args...); },
+                src.args_);
   }
 
  private:
@@ -212,8 +213,8 @@ class MakerType<> {
                                   std::is_move_assignable<T>,
                                   std::is_default_constructible<T>>::value,
                 int> = 0>
-  void AssignTo(T& object) const {
-    riegeli::Reset(object);
+  friend void RiegeliReset(T& dest, ABSL_ATTRIBUTE_UNUSED MakerType src) {
+    riegeli::Reset(dest);
   }
 };
 
@@ -283,8 +284,8 @@ class MakerType<Arg0> {
                                   std::is_move_assignable<T>,
                                   std::is_constructible<T, Arg0&&>>::value,
                 int> = 0>
-  void AssignTo(T& object) && {
-    riegeli::Reset(object, std::forward<Arg0>(arg0_));
+  friend void RiegeliReset(T& dest, MakerType&& src) {
+    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_));
   }
   template <typename T,
             std::enable_if_t<
@@ -292,8 +293,8 @@ class MakerType<Arg0> {
                                   std::is_move_assignable<T>,
                                   std::is_constructible<T, const Arg0&>>::value,
                 int> = 0>
-  void AssignTo(T& object) const& {
-    riegeli::Reset(object, arg0_);
+  friend void RiegeliReset(T& dest, const MakerType& src) {
+    riegeli::Reset(dest, src.arg0_);
   }
 
  private:
@@ -447,19 +448,18 @@ class MakerType<Arg0, Arg1> {
                             std::is_move_assignable<T>,
                             std::is_constructible<T, Arg0&&, Arg1&&>>::value,
           int> = 0>
-  void AssignTo(T& object) && {
-    riegeli::Reset(object, std::forward<Arg0>(arg0_),
-                   std::forward<Arg1>(arg1_));
+  friend void RiegeliReset(T& dest, MakerType&& src) {
+    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
+                   std::forward<Arg1>(src.arg1_));
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
-              std::is_constructible<T, const Arg0&, const Arg1&>>::value,
-          int> = 0>
-  void AssignTo(T& object) const& {
-    riegeli::Reset(object, arg0_, arg1_);
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::is_move_assignable<T>,
+                    std::is_constructible<T, const Arg0&, const Arg1&>>::value,
+                int> = 0>
+  friend void RiegeliReset(T& dest, const MakerType& src) {
+    riegeli::Reset(dest, src.arg0_, src.arg1_);
   }
 
  private:
@@ -549,9 +549,10 @@ class MakerType<Arg0, Arg1, Arg2> {
               absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
               std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>>::value,
           int> = 0>
-  void AssignTo(T& object) && {
-    riegeli::Reset(object, std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                   std::forward<Arg2>(arg2_));
+  friend void RiegeliReset(T& dest, MakerType&& src) {
+    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
+                   std::forward<Arg1>(src.arg1_),
+                   std::forward<Arg2>(src.arg2_));
   }
   template <
       typename T,
@@ -561,8 +562,8 @@ class MakerType<Arg0, Arg1, Arg2> {
                             std::is_constructible<T, const Arg0&, const Arg1&,
                                                   const Arg2&>>::value,
           int> = 0>
-  void AssignTo(T& object) const& {
-    riegeli::Reset(object, arg0_, arg1_, arg2_);
+  friend void RiegeliReset(T& dest, const MakerType& src) {
+    riegeli::Reset(dest, src.arg0_, src.arg1_, src.arg2_);
   }
 
  private:
@@ -661,9 +662,10 @@ class MakerType<Arg0, Arg1, Arg2, Arg3> {
               absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
               std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>>::value,
           int> = 0>
-  void AssignTo(T& object) && {
-    riegeli::Reset(object, std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                   std::forward<Arg2>(arg2_), std::forward<Arg3>(arg3_));
+  friend void RiegeliReset(T& dest, MakerType&& src) {
+    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
+                   std::forward<Arg1>(src.arg1_), std::forward<Arg2>(src.arg2_),
+                   std::forward<Arg3>(src.arg3_));
   }
   template <
       typename T,
@@ -673,8 +675,8 @@ class MakerType<Arg0, Arg1, Arg2, Arg3> {
               std::is_constructible<T, const Arg0&, const Arg1&, const Arg2&,
                                     const Arg3&>>::value,
           int> = 0>
-  void AssignTo(T& object) const& {
-    riegeli::Reset(object, arg0_, arg1_, arg2_, arg3_);
+  friend void RiegeliReset(T& dest, const MakerType& src) {
+    riegeli::Reset(dest, src.arg0_, src.arg1_, src.arg2_, src.arg3_);
   }
 
  private:
@@ -789,15 +791,16 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
     return maker_.template ConstReference<T>(std::move(storage));
   }
 
-  // Makes `object` equivalent to the constructed `T`. This avoids constructing
-  // a temporary `T` and moving from it.
+  // `riegeli::Reset(dest, MakerTypeFor)` makes `dest` equivalent to the
+  // constructed `T`. This avoids constructing a temporary `T` and moving from
+  // it.
   template <typename DependentT = T,
             std::enable_if_t<
                 absl::conjunction<absl::negation<std::is_reference<DependentT>>,
                                   std::is_move_assignable<DependentT>>::value,
                 int> = 0>
-  void AssignTo(T& object) && {
-    std::move(maker_).template AssignTo<T>(object);
+  friend void RiegeliReset(T& dest, MakerTypeFor&& src) {
+    riegeli::Reset(dest, std::move(src.maker_));
   }
   template <typename DependentT = T,
             std::enable_if_t<
@@ -806,8 +809,8 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
                     std::is_move_assignable<DependentT>,
                     std::is_constructible<DependentT, const Args&...>>::value,
                 int> = 0>
-  void AssignTo(T& object) const& {
-    return maker_.template AssignTo<T>(object);
+  friend void RiegeliReset(T& dest, const MakerTypeFor& src) {
+    riegeli::Reset(dest, src.maker_);
   }
 
   // Returns the corresponding `MakerType` which does not specify `T`.

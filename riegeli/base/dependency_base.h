@@ -24,6 +24,7 @@
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/reset.h"
 
 namespace riegeli {
 
@@ -79,7 +80,7 @@ class DependencyBase {
             std::enable_if_t<std::is_move_assignable<DependentManager>::value,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
-    std::move(manager).AssignTo(manager_);
+    riegeli::Reset(manager_, std::move(manager));
   }
 
   Manager& manager() { return manager_; }

@@ -35,6 +35,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -71,7 +72,7 @@ class FdWriterBase : public BufferedWriter {
     Options& set_assumed_filename(
         Initializer<absl::optional<std::string>>::AllowingExplicit
             assumed_filename) & {
-      std::move(assumed_filename).AssignTo(assumed_filename_);
+      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
       return *this;
     }
     Options&& set_assumed_filename(
@@ -684,7 +685,7 @@ inline void FdWriterBase::Reset(BufferOptions buffer_options) {
 
 inline const std::string& FdWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
-  std::move(filename).AssignTo(filename_);
+  riegeli::Reset(filename_, std::move(filename));
   return filename_;
 }
 

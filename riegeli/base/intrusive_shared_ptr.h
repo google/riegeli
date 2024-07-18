@@ -28,6 +28,7 @@
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/ownership.h"
+#include "riegeli/base/reset.h"
 
 namespace riegeli {
 
@@ -303,7 +304,7 @@ class
           int> = 0>
   void ResetImpl(Initializer<T> value) {
     if (IsUnique()) {
-      std::move(value).AssignTo(*ptr_);
+      riegeli::Reset(*ptr_, std::move(value));
       return;
     }
     Unref(std::exchange(ptr_, new T(std::move(value).Construct())));

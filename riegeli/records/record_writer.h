@@ -40,6 +40,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
@@ -305,7 +306,7 @@ class RecordWriterBase : public Object {
     // Default: `absl::nullopt`.
     Options& set_metadata(
         Initializer<absl::optional<RecordsMetadata>> metadata) & {
-      std::move(metadata).AssignTo(metadata_);
+      riegeli::Reset(metadata_, std::move(metadata));
       serialized_metadata_ = absl::nullopt;
       return *this;
     }
@@ -324,7 +325,7 @@ class RecordWriterBase : public Object {
     Options& set_serialized_metadata(
         Initializer<absl::optional<Chain>> serialized_metadata) & {
       metadata_ = absl::nullopt;
-      std::move(serialized_metadata).AssignTo(serialized_metadata_);
+      riegeli::Reset(serialized_metadata_, std::move(serialized_metadata));
       return *this;
     }
     Options&& set_serialized_metadata(

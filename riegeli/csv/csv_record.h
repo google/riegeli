@@ -44,6 +44,7 @@
 #include "riegeli/base/global.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -1360,9 +1361,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
     if (this_iter == this->end() || this_iter->first != src_iter->first) break;
-    Initializer<std::string>::AllowingExplicit(
-        (*MaybeMakeMoveIterator<Src>(src_iter)).second)
-        .AssignTo(this_iter->second);
+    riegeli::Reset(this_iter->second,
+                   Initializer<std::string>::AllowingExplicit(
+                       (*MaybeMakeMoveIterator<Src>(src_iter)).second));
     ++this_iter;
     ++src_iter;
   }
@@ -1377,9 +1378,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       missing_names.emplace_back(src_iter->first);
     } else {
-      Initializer<std::string>::AllowingExplicit(
-          (*MaybeMakeMoveIterator<Src>(src_iter)).second)
-          .AssignTo(this_iter->second);
+      riegeli::Reset(this_iter->second,
+                     Initializer<std::string>::AllowingExplicit(
+                         (*MaybeMakeMoveIterator<Src>(src_iter)).second));
     }
     ++src_iter;
   } while (src_iter != src_end_iter);

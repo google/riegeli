@@ -36,6 +36,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -56,7 +57,7 @@ class ChunkDecoder : public Object {
     // Default: `FieldProjection::All()`.
     Options& set_field_projection(
         Initializer<FieldProjection> field_projection) & {
-      std::move(field_projection).AssignTo(field_projection_);
+      riegeli::Reset(field_projection_, std::move(field_projection));
       return *this;
     }
     Options&& set_field_projection(
@@ -119,7 +120,7 @@ class ChunkDecoder : public Object {
   void ClearAndSetFieldProjection(
       Initializer<FieldProjection> field_projection) {
     Clear();
-    std::move(field_projection).AssignTo(field_projection_);
+    riegeli::Reset(field_projection_, std::move(field_projection));
   }
   void ClearAndSetFieldProjection(
       std::initializer_list<Field> field_projection) {

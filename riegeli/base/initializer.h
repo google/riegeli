@@ -393,32 +393,35 @@ class InitializerValueBase : public InitializerBase<T> {
 template <typename T>
 class InitializerAssignableValueBase : public InitializerValueBase<T> {
  public:
-  // Makes `object` equivalent to the constructed `T`. This avoids constructing
-  // a temporary `T` and moving from it.
-  void AssignTo(T& object) && { methods()->assign_to(this->context(), object); }
+  // `riegeli::Reset(dest, Initializer)` makes `dest` equivalent to the
+  // constructed `T`. This avoids constructing a temporary `T` and moving from
+  // it.
+  friend void RiegeliReset(T& dest, InitializerAssignableValueBase&& src) {
+    src.methods()->reset(src.context(), dest);
+  }
 
  private:
-  static void AssignToMethodDefault(void* context, T& object);
+  static void ResetMethodDefault(void* context, T& dest);
 
   template <typename Arg>
-  static void AssignToMethodFromObject(void* context, T& object);
+  static void ResetMethodFromObject(void* context, T& dest);
 
   template <typename... Args>
-  static void AssignToMethodFromMaker(void* context, T& object);
+  static void ResetMethodFromMaker(void* context, T& dest);
 
   template <typename... Args>
-  static void AssignToMethodFromConstMaker(void* context, T& object);
+  static void ResetMethodFromConstMaker(void* context, T& dest);
 
   template <typename Function, typename... Args>
-  static void AssignToMethodFromInvoker(void* context, T& object);
+  static void ResetMethodFromInvoker(void* context, T& dest);
 
   template <typename Function, typename... Args>
-  static void AssignToMethodFromConstInvoker(void* context, T& object);
+  static void ResetMethodFromConstInvoker(void* context, T& dest);
 
  protected:
   struct Methods
       : InitializerAssignableValueBase::InitializerValueBase::Methods {
-    void (*assign_to)(void* context, T& object);
+    void (*reset)(void* context, T& dest);
   };
 
 #if __cpp_aggregate_bases
@@ -426,44 +429,44 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   static constexpr Methods kMethodsDefault = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsDefault<>,
-      AssignToMethodDefault};
+      ResetMethodDefault};
 
   template <typename Arg>
   static constexpr Methods kMethodsFromObject = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromObject<Arg>,
-      AssignToMethodFromObject<Arg>};
+      ResetMethodFromObject<Arg>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromMaker = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromMaker<Args...>,
-      AssignToMethodFromMaker<Args...>};
+      ResetMethodFromMaker<Args...>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromConstMaker<Args...>,
-      AssignToMethodFromConstMaker<Args...>};
+      ResetMethodFromConstMaker<Args...>};
 
   template <typename Function, typename... Args>
   static constexpr Methods kMethodsFromInvoker = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromInvoker<Function, Args...>,
-      AssignToMethodFromInvoker<Function, Args...>};
+      ResetMethodFromInvoker<Function, Args...>};
 
   template <typename Function, typename... Args>
   static constexpr Methods kMethodsFromConstInvoker = {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromConstInvoker<Function, Args...>,
-      AssignToMethodFromConstInvoker<Function, Args...>};
+      ResetMethodFromConstInvoker<Function, Args...>};
 #else
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
     static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
                     Methods&>(methods) = InitializerAssignableValueBase::
         InitializerValueBase::template kMethodsDefault<>;
-    methods.assign_to = AssignToMethodDefault;
+    methods.reset = ResetMethodDefault;
     return methods;
   }
   template <typename Dummy = void>
@@ -475,7 +478,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
     static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
                     Methods&>(methods) = InitializerAssignableValueBase::
         InitializerValueBase::template kMethodsFromObject<Arg>;
-    methods.assign_to = AssignToMethodFromObject<Arg>;
+    methods.reset = ResetMethodFromObject<Arg>;
     return methods;
   }
   template <typename Arg>
@@ -487,7 +490,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
     static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
                     Methods&>(methods) = InitializerAssignableValueBase::
         InitializerValueBase::template kMethodsFromMaker<Args...>;
-    methods.assign_to = AssignToMethodFromMaker<Args...>;
+    methods.reset = ResetMethodFromMaker<Args...>;
     return methods;
   }
   template <typename... Args>
@@ -499,7 +502,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
     static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
                     Methods&>(methods) = InitializerAssignableValueBase::
         InitializerValueBase::template kMethodsFromConstMaker<Args...>;
-    methods.assign_to = AssignToMethodFromConstMaker<Args...>;
+    methods.reset = ResetMethodFromConstMaker<Args...>;
     return methods;
   }
   template <typename... Args>
@@ -512,7 +515,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
     static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
                     Methods&>(methods) = InitializerAssignableValueBase::
         InitializerValueBase::template kMethodsFromInvoker<Function, Args...>;
-    methods.assign_to = AssignToMethodFromInvoker<Function, Args...>;
+    methods.reset = ResetMethodFromInvoker<Function, Args...>;
     return methods;
   }
   template <typename Function, typename... Args>
@@ -526,7 +529,7 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
                     Methods&>(methods) =
         InitializerAssignableValueBase::InitializerValueBase::
             template kMethodsFromConstInvoker<Function, Args...>;
-    methods.assign_to = AssignToMethodFromConstInvoker<Function, Args...>;
+    methods.reset = ResetMethodFromConstInvoker<Function, Args...>;
     return methods;
   }
   template <typename Function, typename... Args>
@@ -1137,50 +1140,49 @@ const T& InitializerValueBase<T>::ConstReferenceMethodFromConstInvoker(
 }
 
 template <typename T>
-void InitializerAssignableValueBase<T>::AssignToMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, T& object) {
-  riegeli::Reset(object);
+void InitializerAssignableValueBase<T>::ResetMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED void* context, T& dest) {
+  riegeli::Reset(dest);
 }
 
 template <typename T>
 template <typename Arg>
-void InitializerAssignableValueBase<T>::AssignToMethodFromObject(void* context,
-                                                                 T& object) {
+void InitializerAssignableValueBase<T>::ResetMethodFromObject(void* context,
+                                                              T& dest) {
   riegeli::Reset(
-      object,
+      dest,
       std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
 }
 
 template <typename T>
 template <typename... Args>
-void InitializerAssignableValueBase<T>::AssignToMethodFromMaker(void* context,
-                                                                T& object) {
-  std::move(*static_cast<MakerType<Args...>*>(context))
-      .template AssignTo<T>(object);
+void InitializerAssignableValueBase<T>::ResetMethodFromMaker(void* context,
+                                                             T& dest) {
+  riegeli::Reset(dest, std::move(*static_cast<MakerType<Args...>*>(context)));
 }
 
 template <typename T>
 template <typename... Args>
-void InitializerAssignableValueBase<T>::AssignToMethodFromConstMaker(
-    void* context, T& object) {
-  static_cast<const MakerType<Args...>*>(context)->template AssignTo<T>(object);
+void InitializerAssignableValueBase<T>::ResetMethodFromConstMaker(void* context,
+                                                                  T& dest) {
+  riegeli::Reset(dest, *static_cast<const MakerType<Args...>*>(context));
 }
 
 template <typename T>
 template <typename Function, typename... Args>
-void InitializerAssignableValueBase<T>::AssignToMethodFromInvoker(void* context,
-                                                                  T& object) {
+void InitializerAssignableValueBase<T>::ResetMethodFromInvoker(void* context,
+                                                               T& dest) {
   riegeli::Reset(
-      object,
+      dest,
       std::move(*static_cast<InvokerType<Function, Args...>*>(context))());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
-void InitializerAssignableValueBase<T>::AssignToMethodFromConstInvoker(
-    void* context, T& object) {
+void InitializerAssignableValueBase<T>::ResetMethodFromConstInvoker(
+    void* context, T& dest) {
   riegeli::Reset(
-      object, (*static_cast<const InvokerType<Function, Args...>*>(context))());
+      dest, (*static_cast<const InvokerType<Function, Args...>*>(context))());
 }
 
 }  // namespace initializer_internal

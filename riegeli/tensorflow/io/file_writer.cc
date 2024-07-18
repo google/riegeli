@@ -35,6 +35,7 @@
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -68,7 +69,7 @@ bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
 
 bool FileWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
-  std::move(filename).AssignTo(filename_);
+  riegeli::Reset(filename_, std::move(filename));
   {
     const ::tensorflow::Status status =
         env_->GetFileSystemForFile(filename_, &file_system_);

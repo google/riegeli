@@ -33,6 +33,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -67,7 +68,7 @@ class FdReaderBase : public BufferedReader {
     Options& set_assumed_filename(
         Initializer<absl::optional<std::string>>::AllowingExplicit
             assumed_filename) & {
-      std::move(assumed_filename).AssignTo(assumed_filename_);
+      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
       return *this;
     }
     Options&& set_assumed_filename(
@@ -500,7 +501,7 @@ inline void FdReaderBase::Reset(BufferOptions buffer_options,
 
 inline const std::string& FdReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
-  std::move(filename).AssignTo(filename_);
+  riegeli::Reset(filename_, std::move(filename));
   return filename_;
 }
 
