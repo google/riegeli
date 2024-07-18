@@ -22,7 +22,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -232,9 +231,8 @@ bool ResizableWriterBase::WriteSlow(ExternalRef src) {
   if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
-      const absl::string_view data(std::move(src));
-      std::memcpy(cursor(), data.data(), data.size());
-      move_cursor(data.size());
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
       return true;
     }
     set_start_pos(pos());

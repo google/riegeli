@@ -944,12 +944,11 @@ inline bool Writer::Write(absl::Cord&& src) {
 inline bool Writer::Write(ExternalRef src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    const absl::string_view data(std::move(src));
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
     // undefined.
-    if (ABSL_PREDICT_TRUE(!data.empty())) {
-      std::memcpy(cursor(), data.data(), data.size());
-      move_cursor(data.size());
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
     }
     return true;
   }

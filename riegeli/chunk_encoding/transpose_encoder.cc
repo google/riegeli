@@ -233,7 +233,7 @@ bool TransposeEncoder::AddRecord(const absl::Cord& record) {
 
 bool TransposeEncoder::AddRecord(ExternalRef record) {
   if (record.size() <= kMaxBytesToCopy) {
-    StringReader<> reader(absl::string_view(std::move(record)));
+    StringReader<> reader{absl::string_view(record)};
     return AddRecordInternal(reader);
   } else {
     ChainReader<Chain> reader(riegeli::Maker<Chain>(std::move(record)));

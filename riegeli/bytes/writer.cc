@@ -88,8 +88,7 @@ bool Writer::WriteStringSlow(std::string&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteStringSlow(): "
          "enough space available, use Write(string&&) instead";
-  const size_t size = src.size();
-  return WriteSlow(ExternalRef(std::move(src), size));
+  return WriteSlow(ExternalRef(std::move(src)));
 }
 
 bool Writer::WriteSlow(const Chain& src) {
@@ -138,7 +137,7 @@ bool Writer::WriteSlow(ExternalRef src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
-  return Write(absl::string_view(std::move(src)));
+  return Write(absl::string_view(src));
 }
 
 bool Writer::WriteZerosSlow(Position length) {

@@ -261,7 +261,7 @@ bool PushableBackwardWriter::WriteBehindScratch(ExternalRef src) {
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(ExternalRef): "
          "scratch used";
-  return Write(absl::string_view(std::move(src)));
+  return Write(absl::string_view(src));
 }
 
 bool PushableBackwardWriter::WriteZerosBehindScratch(Position length) {
@@ -394,12 +394,11 @@ bool PushableBackwardWriter::WriteSlow(ExternalRef src) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
-      const absl::string_view data(std::move(src));
       // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
       // undefined.
-      if (ABSL_PREDICT_TRUE(!data.empty())) {
-        move_cursor(data.size());
-        std::memcpy(cursor(), data.data(), data.size());
+      if (ABSL_PREDICT_TRUE(!src.empty())) {
+        move_cursor(src.size());
+        std::memcpy(cursor(), src.data(), src.size());
       }
       return true;
     }

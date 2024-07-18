@@ -1426,10 +1426,9 @@ void Chain::Append(absl::string_view src, Options options) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 void Chain::Append(Src&& src, Options options) {
-  const size_t size = src.size();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  ExternalRef(std::move(src), size).AppendTo(*this, options);
+  ExternalRef(std::move(src)).AppendTo(*this, options);
 }
 
 template void Chain::Append(std::string&& src, Options options);
@@ -1718,10 +1717,9 @@ void Chain::Prepend(absl::string_view src, Options options) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 void Chain::Prepend(Src&& src, Options options) {
-  const size_t size = src.size();
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  ExternalRef(std::move(src), size).PrependTo(*this, options);
+  ExternalRef(std::move(src)).PrependTo(*this, options);
 }
 
 template void Chain::Prepend(std::string&& src, Options options);

@@ -123,10 +123,9 @@ inline bool ChunkEncoder::AddRecord(
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool ChunkEncoder::AddRecord(Src&& record) {
-  const size_t size = record.size();
   // `std::move(record)` is correct and `std::forward<Src>(record)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  return AddRecord(ExternalRef(std::move(record), size));
+  return AddRecord(ExternalRef(std::move(record)));
 }
 
 }  // namespace riegeli

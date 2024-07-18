@@ -720,12 +720,11 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
 inline bool BackwardWriter::Write(ExternalRef src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    const absl::string_view data(std::move(src));
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
     // undefined.
-    if (ABSL_PREDICT_TRUE(!data.empty())) {
-      move_cursor(data.size());
-      std::memcpy(cursor(), data.data(), data.size());
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
+      move_cursor(src.size());
+      std::memcpy(cursor(), src.data(), src.size());
     }
     return true;
   }

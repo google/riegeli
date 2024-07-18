@@ -17,12 +17,12 @@
 #include <stddef.h>
 
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -320,14 +320,13 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
     const size_t cursor_index = IntCast<size_t>(start_pos());
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
-      const absl::string_view data(std::move(src));
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        std::memcpy(&dest[cursor_index], data.data(), data.size());
+        std::memcpy(&dest[cursor_index], src.data(), src.size());
       } else {
         dest.erase(cursor_index);
         // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `dest.append(data)`
-        dest.append(data.data(), data.size());
+        // `std::string_view`: `dest.append(absl::string_view(src))`
+        dest.append(src.data(), src.size());
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;

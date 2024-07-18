@@ -126,7 +126,7 @@ bool DigestingWriterBase::WriteSlow(ExternalRef src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
-  return WriteInternal(Chain(std::move(src)));
+  return WriteInternal(std::move(src));
 }
 
 template <typename Src>
