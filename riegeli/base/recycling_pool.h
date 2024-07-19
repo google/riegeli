@@ -389,7 +389,7 @@ inline uint32_t RecyclingPoolOptions::AgeToSeconds(absl::Duration age) {
 
 namespace recycling_pool_internal {
 
-template <typename RecyclingPool, typename Deleter, typename Enable = void>
+template <typename RecyclingPool, typename Deleter>
 class RecyclerRepr {
  public:
   RecyclerRepr() = default;
@@ -406,33 +406,6 @@ class RecyclerRepr {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Deleter deleter_;
   RecyclingPool* pool_ = nullptr;
 };
-
-#if !ABSL_HAVE_CPP_ATTRIBUTE(no_unique_address)
-
-// If `[[no_unique_address]]` is not available, use empty base optimization for
-// non-final classes.
-template <typename RecyclingPool, typename Deleter>
-class RecyclerRepr<
-    RecyclingPool, Deleter,
-    std::enable_if_t<absl::conjunction<
-        std::is_class<Deleter>, absl::negation<std::is_final<Deleter>>>::value>>
-    : private Deleter {
- public:
-  RecyclerRepr() = default;
-
-  explicit RecyclerRepr(RecyclingPool* pool, Deleter&& deleter)
-      : Deleter(std::move(deleter)), pool_(pool) {}
-
-  RecyclingPool* pool() const { return pool_; }
-
-  Deleter& deleter() { return *this; }
-  const Deleter& deleter() const { return *this; }
-
- private:
-  RecyclingPool* pool_ = nullptr;
-};
-
-#endif
 
 // Returns a number which does not change for the current thread, but is not
 // necessarily unique for the current thread. Numbers are assigned densely.
