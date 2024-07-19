@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/types.h"
 #include "riegeli/digests/digest_converter.h"
@@ -78,14 +79,14 @@ class WrappingDigester {
   WrappingDigester() : base_(riegeli::Maker()) {}
 
   // Forwards constructor arguments to the `BaseDigester`.
-  template <
-      typename... Args,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::tuple<std::decay_t<Args>...>,
-                                          std::tuple<WrappingDigester>>>,
-              std::is_constructible<BaseDigester, Args&&...>>::value,
-          int> = 0>
+  template <typename... Args,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::tuple<InitializerTargetT<Args>...>,
+                                     std::tuple<WrappingDigester>>>,
+                    std::is_constructible<BaseDigester, Args&&...>>::value,
+                int> = 0>
   explicit WrappingDigester(Args&&... args)
       : base_(riegeli::Maker(std::forward<Args>(args)...)) {}
 
@@ -97,7 +98,12 @@ class WrappingDigester {
 
   template <typename... Args,
             std::enable_if_t<
-                std::is_constructible<BaseDigester, Args&&...>::value, int> = 0>
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::tuple<InitializerTargetT<Args>...>,
+                                     std::tuple<WrappingDigester>>>,
+                    std::is_constructible<BaseDigester, Args&&...>>::value,
+                int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {
     base_.Reset(riegeli::Maker(std::forward<Args>(args)...));
   }

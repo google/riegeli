@@ -81,19 +81,9 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   InvokerBase& operator=(const InvokerBase& that) = default;
 
   // Calls the function.
-  Result operator()() && {
+  /*implicit*/ operator Result() && {
     return absl::apply(std::forward<Function>(function_), std::move(args_));
   }
-
-  // Calls the function by an implicit conversion to `Result`.
-  //
-  // It is preferred to explicitly call `operator()` instead. This conversion
-  // allows to pass `InvokerType<Function, Args...>` to another function which
-  // accepts a value convertible to `Result` for construction in-place,
-  // including functions like `std::make_unique<Result>()`,
-  // `std::vector<Result>::emplace_back()`, or the constructor of
-  // `absl::optional<Result>` or `absl::StatusOr<Result>`.
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
 
  protected:
   const Function& function() const { return function_; }
@@ -129,9 +119,9 @@ class InvokerBase<Function> {
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  Result operator()() && { return std::forward<Function>(function_)(); }
-
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
+  /*implicit*/ operator Result() && {
+    return std::forward<Function>(function_)();
+  }
 
  protected:
   const Function& function() const { return function_; }
@@ -161,12 +151,10 @@ class InvokerBase<Function, Arg0> {
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  Result operator()() && {
+  /*implicit*/ operator Result() && {
     return invoker_internal::Invoke(std::forward<Function>(function_),
                                     std::forward<Arg0>(arg0_));
   }
-
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
 
  protected:
   const Function& function() const { return function_; }
@@ -202,13 +190,11 @@ class InvokerBase<Function, Arg0, Arg1> {
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  Result operator()() && {
+  /*implicit*/ operator Result() && {
     return invoker_internal::Invoke(std::forward<Function>(function_),
                                     std::forward<Arg0>(arg0_),
                                     std::forward<Arg1>(arg1_));
   }
-
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
 
  protected:
   const Function& function() const { return function_; }
@@ -249,13 +235,11 @@ class InvokerBase<Function, Arg0, Arg1, Arg2> {
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  Result operator()() && {
+  /*implicit*/ operator Result() && {
     return invoker_internal::Invoke(
         std::forward<Function>(function_), std::forward<Arg0>(arg0_),
         std::forward<Arg1>(arg1_), std::forward<Arg2>(arg2_));
   }
-
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
 
  protected:
   const Function& function() const { return function_; }
@@ -301,14 +285,12 @@ class InvokerBase<Function, Arg0, Arg1, Arg2, Arg3> {
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  Result operator()() && {
+  /*implicit*/ operator Result() && {
     return invoker_internal::Invoke(
         std::forward<Function>(function_), std::forward<Arg0>(arg0_),
         std::forward<Arg1>(arg1_), std::forward<Arg2>(arg2_),
         std::forward<Arg3>(arg3_));
   }
-
-  /*implicit*/ operator Result() && { return std::move(*this)(); }
 
  protected:
   const Function& function() const { return function_; }
@@ -370,22 +352,11 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Args...>
       std::declval<const Function&>(), std::declval<const Args&>()...));
 
   // Calls the function.
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& {
-    return absl::apply(this->function(), this->args());
-  }
-
-  // Calls the function by an implicit conversion to `ConstResult`.
-  //
-  // It is preferred to explicitly call `operator()` instead. This conversion
-  // allows to pass `InvokerType<Function, Args...>` to another function which
-  // accepts a value convertible to `ConstResult` for construction in-place,
-  // including functions like `std::make_unique<ConstResult>()`,
-  // `std::vector<ConstResult>::emplace_back()`, or the constructor of
-  // `absl::optional<ConstResult>` or `absl::StatusOr<ConstResult>`.
   using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
       Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
+  /*implicit*/ operator ConstResult() const& {
+    return absl::apply(this->function(), this->args());
+  }
 };
 
 // Specializations of `InvokerConstBase<true, ...>` for 0 to 4 arguments to make
@@ -405,12 +376,9 @@ class InvokerConstBase</*is_const_callable=*/true, Function>
 
   using ConstResult = decltype(std::declval<const Function&>()());
 
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& { return this->function()(); }
-
   using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
       Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
+  /*implicit*/ operator ConstResult() const& { return this->function()(); }
 };
 
 template <typename Function, typename Arg0>
@@ -428,14 +396,11 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Arg0>
   using ConstResult = decltype(invoker_internal::Invoke(
       std::declval<const Function&>(), std::declval<const Arg0&>()));
 
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& {
-    return invoker_internal::Invoke(this->function(), this->arg0());
-  }
-
   using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
       Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
+  /*implicit*/ operator ConstResult() const& {
+    return invoker_internal::Invoke(this->function(), this->arg0());
+  }
 };
 
 template <typename Function, typename Arg0, typename Arg1>
@@ -454,15 +419,12 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1>
       std::declval<const Function&>(), std::declval<const Arg0&>(),
       std::declval<const Arg1&>()));
 
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& {
+  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
+      Result;
+  /*implicit*/ operator ConstResult() const& {
     return invoker_internal::Invoke(this->function(), this->arg0(),
                                     this->arg1());
   }
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
 };
 
 template <typename Function, typename Arg0, typename Arg1, typename Arg2>
@@ -481,15 +443,12 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1, Arg2>
       std::declval<const Function&>(), std::declval<const Arg0&>(),
       std::declval<const Arg1&>, std::declval<const Arg2&>()));
 
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& {
+  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
+      Result;
+  /*implicit*/ operator ConstResult() const& {
     return invoker_internal::Invoke(this->function(), this->arg0(),
                                     this->arg1(), this->arg2());
   }
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
 };
 
 template <typename Function, typename Arg0, typename Arg1, typename Arg2,
@@ -511,15 +470,12 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1, Arg2,
       std::declval<const Arg1&>, std::declval<const Arg2&>(),
       std::declval<const Arg3&>()));
 
-  using InvokerConstBase::InvokerBase::operator();
-  ConstResult operator()() const& {
+  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
+      Result;
+  /*implicit*/ operator ConstResult() const& {
     return invoker_internal::Invoke(this->function(), this->arg0(),
                                     this->arg1(), this->arg2(), this->arg3());
   }
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& { return (*this)(); }
 };
 
 }  // namespace invoker_internal
@@ -559,6 +515,49 @@ template <typename Function, typename... Args>
 explicit InvokerType(Function&&, Args&&...)
     -> InvokerType<std::decay_t<Function>, std::decay_t<Args>...>;
 #endif
+
+// `InvokerResult<T>::type` and `InvokerResultT<T>` deduce the appropriate
+// result type of a possibly const-qualified invoker or invoker reference,
+// such that `T` is convertible to `InvokerResultT<T>`.
+//
+// This is undefined when the invoker is not callable in the given const and
+// reference context.
+
+namespace invoker_internal {
+
+template <typename T, typename Enable = void>
+struct InvokerResultImpl {
+  // No `type` member when the invoker is not callable in the given const and
+  // reference context.
+};
+
+template <typename T>
+struct InvokerResultImpl<T&, absl::void_t<typename T::ConstResult>> {
+  using type = typename T::ConstResult;
+};
+
+template <typename T>
+struct InvokerResultImpl<const T&, absl::void_t<typename T::ConstResult>> {
+  using type = typename T::ConstResult;
+};
+
+template <typename T>
+struct InvokerResultImpl<T&&, absl::void_t<typename T::Result>> {
+  using type = typename T::Result;
+};
+
+template <typename T>
+struct InvokerResultImpl<const T&&, absl::void_t<typename T::ConstResult>> {
+  using type = typename T::ConstResult;
+};
+
+}  // namespace invoker_internal
+
+template <typename T>
+struct InvokerResult : invoker_internal::InvokerResultImpl<T&&> {};
+
+template <typename T>
+using InvokerResultT = typename InvokerResult<T>::type;
 
 // `riegeli::Invoker(function, args...)` returns
 // `InvokerType<Function, Args...>` which packs a function together with its

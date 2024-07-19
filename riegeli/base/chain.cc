@@ -110,7 +110,7 @@ class FlatCordBlock {
 };
 
 inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
-    : src_(std::move(src).Construct()) {
+    : src_(std::move(src)) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
       << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";

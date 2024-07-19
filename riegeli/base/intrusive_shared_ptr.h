@@ -109,7 +109,7 @@ class
   // The object is constructed with `new`, which means that `T::Unref()` should
   // delete the object with `delete this`.
   explicit IntrusiveSharedPtr(Initializer<T> value)
-      : ptr_(new T(std::move(value).Construct())) {}
+      : ptr_(new T(std::move(value))) {}
 
   // Creates an `IntrusiveSharedPtr` holding a constructed value of a compatible
   // type.
@@ -124,8 +124,7 @@ class
   explicit IntrusiveSharedPtr(SubInitializer&& value)
       : ptr_(new InitializerTargetT<SubInitializer>(
             Initializer<InitializerTargetT<SubInitializer>>(
-                std::forward<SubInitializer>(value))
-                .Construct())) {}
+                std::forward<SubInitializer>(value)))) {}
 
   // Converts from an `IntrusiveSharedPtr` with a compatible type.
   template <typename SubT,
@@ -211,8 +210,7 @@ class
     Unref(
         std::exchange(ptr_, new InitializerTargetT<SubInitializer>(
                                 Initializer<InitializerTargetT<SubInitializer>>(
-                                    std::forward<SubInitializer>(value))
-                                    .Construct())));
+                                    std::forward<SubInitializer>(value)))));
   }
 
   // Returns `true` if `*this` is the only owner of the object.
@@ -307,7 +305,7 @@ class
       riegeli::Reset(*ptr_, std::move(value));
       return;
     }
-    Unref(std::exchange(ptr_, new T(std::move(value).Construct())));
+    Unref(std::exchange(ptr_, new T(std::move(value))));
   }
   template <
       typename DependentT = T,
@@ -320,7 +318,7 @@ class
               absl::negation<std::is_move_assignable<DependentT>>>::value,
           int> = 0>
   void ResetImpl(Initializer<T> value) {
-    Unref(std::exchange(ptr_, new T(std::move(value).Construct())));
+    Unref(std::exchange(ptr_, new T(std::move(value))));
   }
 
   T* ptr_ = nullptr;

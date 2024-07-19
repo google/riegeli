@@ -230,7 +230,7 @@ void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name) {
 absl::Status CsvHeader::TryAdd(
     Initializer<std::string>::AllowingExplicit name) {
   EnsureUnique();
-  std::string name_string = std::move(name).Construct();
+  std::string name_string = std::move(name);
   const size_t index = payload_->index_to_name.size();
   const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
       insert_result = payload_->normalizer == nullptr

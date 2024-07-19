@@ -180,8 +180,7 @@ class OptionsParser : public Object {
   struct Option {
     explicit Option(Initializer<std::string>::AllowingExplicit key,
                     Initializer<ValueParser::Function> function)
-        : key(std::move(key).Construct()),
-          function(std::move(function).Construct()) {}
+        : key(std::move(key)), function(std::move(function)) {}
 
     std::string key;
     ValueParser::Function function;

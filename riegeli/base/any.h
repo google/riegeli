@@ -237,7 +237,7 @@ class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
       typename Manager,
       std::enable_if_t<
           absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<Manager>, Any>>,
+              absl::negation<std::is_same<InitializerTargetT<Manager>, Any>>,
               IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
           int> = 0>
   /*implicit*/ Any(Manager&& manager);
@@ -245,10 +245,21 @@ class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
       typename Manager,
       std::enable_if_t<
           absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<Manager>, Any>>,
+              absl::negation<std::is_same<InitializerTargetT<Manager>, Any>>,
               IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
+  template <
+      typename Manager,
+      std::enable_if_t<
+          absl::conjunction<
+              std::is_same<InitializerTargetT<Manager>, Any>,
+              absl::negation<std::is_same<std::decay_t<Manager>, Any>>>::value,
+          int> = 0>
+  Any& operator=(Manager&& manager) {
+    riegeli::Reset(*this, std::forward<Manager>(manager));
+    return *this;
+  }
 
   // Holds the `Dependency` specified when the `AnyInitializer` was constructed.
   /*implicit*/ Any(AnyInitializer<Handle> manager);
@@ -568,16 +579,6 @@ template <typename Manager,
           std::enable_if_t<IsAny<Handle, Manager>::value, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
-  // This is called only from `Any<Handle, inline_size, inline_align>` so the
-  // type of `*this` matches.
-  if (std::is_same<Manager, Any<Handle, inline_size, inline_align>>::value) {
-    // Adopt `manager` instead of wrapping it. Doing this here if possible
-    // avoids creating a temporary `Any` and moving from it.
-    //
-    // `*this` is formally already constructed, but nothing was initialized yet.
-    new (this) Manager(std::move(manager).Construct());
-    return;
-  }
   // Materialize `Manager` to consider adopting its storage.
   Initialize(std::move(manager).Reference());
 }
@@ -637,8 +638,9 @@ template <
     typename Manager,
     std::enable_if_t<
         absl::conjunction<
-            absl::negation<std::is_same<
-                std::decay_t<Manager>, Any<Handle, inline_size, inline_align>>>,
+            absl::negation<
+                std::is_same<InitializerTargetT<Manager>,
+                             Any<Handle, inline_size, inline_align>>>,
             IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
@@ -651,8 +653,9 @@ template <
     typename Manager,
     std::enable_if_t<
         absl::conjunction<
-            absl::negation<std::is_same<
-                std::decay_t<Manager>, Any<Handle, inline_size, inline_align>>>,
+            absl::negation<
+                std::is_same<InitializerTargetT<Manager>,
+                             Any<Handle, inline_size, inline_align>>>,
             IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>&

@@ -729,30 +729,16 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   MakerTypeFor& operator=(const MakerTypeFor& that) = default;
 
   // Constructs the `T`.
-  T Construct() && { return std::move(maker_).template Construct<T>(); }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
-  T Construct() const& {
-    return maker_.template Construct<T>();
+  /*implicit*/ operator T() && {
+    return std::move(maker_).template Construct<T>();
   }
-
-  // Constructs the `T` by an implicit conversion to `T`.
-  //
-  // It is preferred to explicitly call `Construct()` instead. This conversion
-  // allows to pass `MakerTypeFor<T, Args...>` to another function which accepts
-  // a value convertible to `T` for construction in-place, including functions
-  // like `std::make_unique<T>()`, `std::vector<T>::emplace_back()`, or the
-  // constructor of `absl::optional<T>` or `absl::StatusOr<T>`.
-  /*implicit*/ operator T() && { return std::move(*this).Construct(); }
-  /*implicit*/ operator T() const& { return Construct(); }
+  /*implicit*/ operator T() const& { return maker_.template Construct<T>(); }
 
   // Constructs the `T`, or returns a reference to an already constructed object
   // if that was passed to the `MakerTypeFor`.
   //
-  // `Reference()` instead of `Construct()` can avoid moving the object if the
-  // caller does not need to store the object, or if it will be moved later
+  // `Reference()` instead of conversion to `T` can avoid moving the object if
+  // the caller does not need to store the object, or if it will be moved later
   // because the target location for the object is not ready yet.
   //
   // `storage` must outlive usages of the returned reference.

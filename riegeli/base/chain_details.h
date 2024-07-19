@@ -518,7 +518,7 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
 template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>()) T(std::move(object).Construct());
+  new (&unchecked_external_object<T>()) T(std::move(object));
   const absl::string_view data =
       riegeli::ToStringView(unchecked_external_object<T>());
   data_ = data.data();
@@ -532,7 +532,7 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object,
                                  absl::string_view substr)
     : data_(substr.data()), size_(substr.size()) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>()) T(std::move(object).Construct());
+  new (&unchecked_external_object<T>()) T(std::move(object));
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }

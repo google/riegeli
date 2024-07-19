@@ -358,7 +358,7 @@ class ExternalRef {
   class ObjectForCordSubstr {
    public:
     explicit ObjectForCordSubstr(Initializer<T> object)
-        : object_(std::move(object).Construct()) {}
+        : object_(std::move(object)) {}
 
     ObjectForCordSubstr(ObjectForCordSubstr&& that) = default;
     ObjectForCordSubstr& operator=(ObjectForCordSubstr&& that) = default;
@@ -391,7 +391,7 @@ class ExternalRef {
   class ExternalObjectWhole {
    public:
     explicit ExternalObjectWhole(Initializer<T> object)
-        : object_(std::move(object).Construct()) {}
+        : object_(std::move(object)) {}
 
     ~ExternalObjectWhole() { CallOperator(); }
 
@@ -434,7 +434,7 @@ class ExternalRef {
    public:
     explicit ExternalObjectSubstr(Initializer<T> object,
                                   absl::string_view substr)
-        : object_(std::move(object).Construct()), substr_(substr) {}
+        : object_(std::move(object)), substr_(substr) {}
 
     ~ExternalObjectSubstr() { std::forward<T>(object_)(substr_); }
 

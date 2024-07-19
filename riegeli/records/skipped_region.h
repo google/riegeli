@@ -84,7 +84,7 @@ class SkippedRegion {
 inline SkippedRegion::SkippedRegion(
     Position begin, Position end,
     Initializer<std::string>::AllowingExplicit message)
-    : begin_(begin), end_(end), message_(std::move(message).Construct()) {
+    : begin_(begin), end_(end), message_(std::move(message)) {
   RIEGELI_ASSERT_LE(begin, end)
       << "Failed precondition of SkippedRegion::SkippedRegion: "
          "positions in the wrong order";

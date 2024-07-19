@@ -81,16 +81,7 @@ template <typename T>
 class InitializerBase {
  public:
   // Constructs the `T`.
-  T Construct() && { return methods()->construct(context()); }
-
-  // Constructs the `T` by an implicit conversion to `T`.
-  //
-  // It is preferred to explicitly call `Construct()` instead. This conversion
-  // allows to pass `Initializer<T>` to another function which accepts a value
-  // convertible to `T` for construction in-place, including functions like
-  // `std::make_unique<T>()`, `std::vector<T>::emplace_back()`, or the
-  // constructor of `absl::optional<T>` or `absl::StatusOr<T>`.
-  /*implicit*/ operator T() && { return std::move(*this).Construct(); }
+  /*implicit*/ operator T() && { return methods()->construct(context()); }
 
  private:
   static T ConstructMethodDefault(void* context);
@@ -161,8 +152,8 @@ class InitializerValueBase : public InitializerBase<T> {
   // Constructs the `T`, or returns a reference to an already constructed object
   // if that was passed to the `Initializer`.
   //
-  // `Reference()` instead of `Construct()` can avoid moving the object if the
-  // caller does not need to store the object, or if it will be moved later
+  // `Reference()` instead of conversion to `T` can avoid moving the object if
+  // the caller does not need to store the object, or if it will be moved later
   // because the target location for the object is not ready yet.
   //
   // `storage` must outlive usages of the returned reference.
@@ -910,20 +901,21 @@ class Initializer<T, allow_explicit,
   Initializer& operator=(Initializer&&) = delete;
 
   // `Reference()` and `ConstReference()` can be defined in terms of
-  // `Construct()` because reference storage is never used for reference types.
+  // conversion to `T` because reference storage is never used for reference
+  // types.
   //
   // Unused `storage` parameter makes the signature compatible with
   // the non-reference specialization.
   T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
                     TemporaryStorage<T>()) && {
     // `T` is a reference type here, so `T&&` is the same as `T`.
-    return std::move(*this).Construct();
+    return std::move(*this);
   }
   const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
                               TemporaryStorage<T>()) && {
     // `T` is a reference type here, but it can be an rvalue reference, in which
     // case `const T&` collapses to an lvalue reference.
-    T reference = std::move(*this).Construct();
+    T reference = std::move(*this);
     return reference;
   }
 };
@@ -958,9 +950,8 @@ struct InitializerTargetImpl<MakerTypeFor<T, Args...>, Original> {
 };
 
 template <typename Function, typename... Args, typename Original>
-struct InitializerTargetImpl<InvokerType<Function, Args...>, Original> {
-  using type = decltype(std::declval<Original>()());
-};
+struct InitializerTargetImpl<InvokerType<Function, Args...>, Original>
+    : InvokerResult<Original> {};
 
 template <typename T, typename Original>
 struct InitializerTargetImpl<Initializer<T>, Original> {
@@ -1020,13 +1011,13 @@ T InitializerBase<T>::ConstructMethodFromConstMaker(void* context) {
 template <typename T>
 template <typename Function, typename... Args>
 T InitializerBase<T>::ConstructMethodFromInvoker(void* context) {
-  return T(std::move(*static_cast<InvokerType<Function, Args...>*>(context))());
+  return T(std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 T InitializerBase<T>::ConstructMethodFromConstInvoker(void* context) {
-  return T((*static_cast<const InvokerType<Function, Args...>*>(context))());
+  return T(*static_cast<const InvokerType<Function, Args...>*>(context));
 }
 
 template <typename T>
@@ -1071,7 +1062,7 @@ template <typename T>
 template <typename Function, typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromInvoker(
     void* context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).invoke(
+  return std::move(storage).emplace(
       std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
 }
 
@@ -1079,7 +1070,7 @@ template <typename T>
 template <typename Function, typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromConstInvoker(
     void* context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).invoke(
+  return std::move(storage).emplace(
       *static_cast<const InvokerType<Function, Args...>*>(context));
 }
 
@@ -1127,7 +1118,7 @@ template <typename T>
 template <typename Function, typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromInvoker(
     void* context, TemporaryStorage<T>&& storage) {
-  return storage.invoke(
+  return storage.emplace(
       std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
 }
 
@@ -1135,7 +1126,7 @@ template <typename T>
 template <typename Function, typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromConstInvoker(
     void* context, TemporaryStorage<T>&& storage) {
-  return storage.invoke(
+  return storage.emplace(
       *static_cast<const InvokerType<Function, Args...>*>(context));
 }
 
@@ -1173,16 +1164,15 @@ template <typename Function, typename... Args>
 void InitializerAssignableValueBase<T>::ResetMethodFromInvoker(void* context,
                                                                T& dest) {
   riegeli::Reset(
-      dest,
-      std::move(*static_cast<InvokerType<Function, Args...>*>(context))());
+      dest, std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 void InitializerAssignableValueBase<T>::ResetMethodFromConstInvoker(
     void* context, T& dest) {
-  riegeli::Reset(
-      dest, (*static_cast<const InvokerType<Function, Args...>*>(context))());
+  riegeli::Reset(dest,
+                 *static_cast<const InvokerType<Function, Args...>*>(context));
 }
 
 }  // namespace initializer_internal

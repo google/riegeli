@@ -153,9 +153,7 @@ class ZstdDictionary::Repr {
   // Owns a copy of `data`.
   explicit Repr(Type type, Initializer<std::string>::AllowingExplicit data,
                 std::integral_constant<Ownership, Ownership::kCopied>)
-      : type_(type),
-        owned_data_(std::move(data).Construct()),
-        data_(owned_data_) {}
+      : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
 
   // Does not take ownership of `data`, which must not be changed until the
   // last `ZstdWriter` or `ZstdReader` using this dictionary is closed or no

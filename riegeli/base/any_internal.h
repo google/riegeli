@@ -209,8 +209,7 @@ struct IsAny<Handle, AnyRef<Handle>> : std::true_type {};
 template <typename Handle>
 inline Handle SentinelHandle() {
   return Initializer<Handle>(
-             RiegeliDependencySentinel(static_cast<Handle*>(nullptr)))
-      .Construct();
+      RiegeliDependencySentinel(static_cast<Handle*>(nullptr)));
 }
 
 template <typename Handle>

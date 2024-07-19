@@ -62,7 +62,7 @@ class DependencyBase {
             RiegeliDependencySentinel(static_cast<Manager*>(nullptr))) {}
 
   explicit DependencyBase(Initializer<Manager> manager)
-      : manager_(std::move(manager).Construct()) {}
+      : manager_(std::move(manager)) {}
 
   template <
       typename DependentManager = Manager,
@@ -118,7 +118,7 @@ template <typename Manager>
 class DependencyBase<Manager&> {
  public:
   explicit DependencyBase(Initializer<Manager&> manager) noexcept
-      : manager_(std::move(manager).Construct()) {}
+      : manager_(std::move(manager)) {}
 
   Manager& manager() const { return manager_; }
 
@@ -144,7 +144,7 @@ template <typename Manager>
 class DependencyBase<Manager&&> {
  public:
   explicit DependencyBase(Initializer<Manager&&> manager) noexcept
-      : manager_(std::move(manager).Construct()) {}
+      : manager_(std::move(manager)) {}
 
   Manager& manager() const { return manager_; }
 

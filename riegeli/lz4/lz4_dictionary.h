@@ -121,9 +121,7 @@ class Lz4Dictionary::Repr {
   explicit Repr(Initializer<std::string>::AllowingExplicit data,
                 std::integral_constant<Ownership, Ownership::kCopied>,
                 uint32_t dict_id)
-      : owned_data_(std::move(data).Construct()),
-        data_(owned_data_),
-        dict_id_(dict_id) {}
+      : owned_data_(std::move(data)), data_(owned_data_), dict_id_(dict_id) {}
 
   // Does not take ownership of `data`, which must not be changed until the
   // last `Lz4Reader` or `Lz4Writer` using this dictionary is closed or no
