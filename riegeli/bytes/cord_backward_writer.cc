@@ -47,8 +47,9 @@ void CordBackwardWriterBase::Done() {
 
 inline size_t CordBackwardWriterBase::MaxBytesToCopy() const {
   if (size_hint_ != absl::nullopt && pos() < *size_hint_) {
-    return UnsignedMin(*size_hint_ - pos() - 1,
-                       cord_internal::kMaxBytesToCopyToNonEmptyCord);
+    return UnsignedClamp(*size_hint_ - pos() - 1,
+                         cord_internal::kMaxBytesToCopyToEmptyCord,
+                         cord_internal::kMaxBytesToCopyToNonEmptyCord);
   }
   if (pos() == 0) return cord_internal::kMaxBytesToCopyToEmptyCord;
   return cord_internal::kMaxBytesToCopyToNonEmptyCord;

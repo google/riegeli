@@ -163,7 +163,8 @@ class Chain : public WithCompare<Chain> {
 
   size_t MaxBytesToCopy(Options options = Options()) const {
     if (options.size_hint() != absl::nullopt && size() < *options.size_hint()) {
-      return UnsignedMin(*options.size_hint() - size() - 1, kMaxBytesToCopy);
+      return UnsignedClamp(*options.size_hint() - size() - 1,
+                           kMaxBytesToCopyToEmpty, kMaxBytesToCopy);
     }
     if (empty()) return kMaxBytesToCopyToEmpty;
     return kMaxBytesToCopy;
