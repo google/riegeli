@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 
@@ -537,7 +538,11 @@ template <bool is_pointer>
 class ConditionallyAbslNullabilityCompatible {};
 
 template <>
-class ConditionallyAbslNullabilityCompatible<true> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        ConditionallyAbslNullabilityCompatible<true> {
  public:
   using absl_nullability_compatible = void;
 };

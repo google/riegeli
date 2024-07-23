@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
@@ -86,7 +87,10 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+        ABSL_NULLABILITY_COMPATIBLE
+#endif
+            IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
  public:
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;

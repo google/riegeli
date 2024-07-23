@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -35,7 +36,11 @@ namespace riegeli {
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class OwnedCFile : public WithEqual<OwnedCFile> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        OwnedCFile : public WithEqual<OwnedCFile> {
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() = default;
@@ -124,7 +129,11 @@ class OwnedCFile : public WithEqual<OwnedCFile> {
 // Stores a `FILE*` but does not own it, i.e. is not responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class UnownedCFile : public WithEqual<UnownedCFile> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        UnownedCFile : public WithEqual<UnownedCFile> {
  public:
   // Creates an `UnownedCFile` which does not store a file.
   UnownedCFile() = default;
@@ -212,7 +221,11 @@ struct CFileTargetHasOpen<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class CFileHandle : public WithEqual<CFileHandle> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        CFileHandle : public WithEqual<CFileHandle> {
  public:
   // Creates a `CFileHandle` which does not point to a target.
   CFileHandle() = default;

@@ -30,6 +30,7 @@ cc_library(
         "//riegeli/base:types",
         "//riegeli/base:zeros",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",

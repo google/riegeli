@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -236,7 +237,11 @@ struct FdTargetHasOpenAt<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class FdHandle : public WithEqual<FdHandle> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        FdHandle : public WithEqual<FdHandle> {
  public:
   // Creates an `FdHandle` which does not point to a target.
   FdHandle() = default;

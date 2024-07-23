@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
@@ -121,7 +122,11 @@ struct IsValidDigesterBaseTarget<
 //
 // For digesting many small values it is better to use `DigestingWriter` which
 // adds a buffering layer.
-class DigesterBaseHandle {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        DigesterBaseHandle {
  public:
   // Creates a `DigesterBaseHandle` which does not point to a target.
   DigesterBaseHandle() = default;

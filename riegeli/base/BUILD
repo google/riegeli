@@ -10,6 +10,7 @@ cc_library(
     hdrs = ["type_traits.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
@@ -378,6 +379,7 @@ cc_library(
         ":new_aligned",
         ":reset",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )

@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -59,7 +60,10 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        SharedPtr : public WithEqual<SharedPtr<T>> {
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+        ABSL_NULLABILITY_COMPATIBLE
+#endif
+            SharedPtr : public WithEqual<SharedPtr<T>> {
  private:
   template <typename SubT>
   struct IsCompatibleProperSubtype
