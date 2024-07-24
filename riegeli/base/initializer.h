@@ -904,14 +904,16 @@ class Initializer<T, allow_explicit,
   // conversion to `T` because reference storage is never used for reference
   // types.
   //
+  // `Initializer<const T&>::Reference()` returns `const T&`.
+  //
   // Unused `storage` parameter makes the signature compatible with
   // the non-reference specialization.
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
+  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
                     TemporaryStorage<T>()) && {
     // `T` is a reference type here, so `T&&` is the same as `T`.
     return std::move(*this);
   }
-  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T> storage =
+  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
                               TemporaryStorage<T>()) && {
     // `T` is a reference type here, but it can be an rvalue reference, in which
     // case `const T&` collapses to an lvalue reference.
@@ -934,27 +936,28 @@ class Initializer<T, allow_explicit,
 
 namespace initializer_internal {
 
-template <typename Value, typename Original>
+template <typename Value, typename Reference, typename Default>
 struct InitializerTargetImpl {
-  using type = Value;
+  using type = Default;
 };
 
-template <typename... Args, typename Original>
-struct InitializerTargetImpl<MakerType<Args...>, Original> {
+template <typename... Args, typename Reference, typename Default>
+struct InitializerTargetImpl<MakerType<Args...>, Reference, Default> {
   // No `type` member when the target type is unspecified.
 };
 
-template <typename T, typename... Args, typename Original>
-struct InitializerTargetImpl<MakerTypeFor<T, Args...>, Original> {
+template <typename T, typename... Args, typename Reference, typename Default>
+struct InitializerTargetImpl<MakerTypeFor<T, Args...>, Reference, Default> {
   using type = T;
 };
 
-template <typename Function, typename... Args, typename Original>
-struct InitializerTargetImpl<InvokerType<Function, Args...>, Original>
-    : InvokerResult<Original> {};
+template <typename Function, typename... Args, typename Reference,
+          typename Default>
+struct InitializerTargetImpl<InvokerType<Function, Args...>, Reference, Default>
+    : InvokerResult<Reference> {};
 
-template <typename T, typename Original>
-struct InitializerTargetImpl<Initializer<T>, Original> {
+template <typename T, typename Reference, typename Default>
+struct InitializerTargetImpl<Initializer<T>, Reference, Default> {
   using type = T;
 };
 
@@ -962,10 +965,26 @@ struct InitializerTargetImpl<Initializer<T>, Original> {
 
 template <typename T>
 struct InitializerTarget
-    : initializer_internal::InitializerTargetImpl<std::decay_t<T>, T> {};
+    : initializer_internal::InitializerTargetImpl<std::decay_t<T>, T&&,
+                                                  std::decay_t<T>> {};
 
 template <typename T>
 using InitializerTargetT = typename InitializerTarget<T>::type;
+
+// `InitializerTargetRef<T>::type` and `InitializerTargetRefT<T>` are like
+// `InitializerTargetT<T>`, but if the object is already constructed, then they
+// are the corresponding reference type instead of the value type.
+//
+// This allows to avoid copying the object if a const reference to it can be
+// sufficient under some conditions. `Initializer<const T&>::Reference()`
+// returns `const T&`.
+
+template <typename T>
+struct InitializerTargetRef
+    : initializer_internal::InitializerTargetImpl<std::decay_t<T>, T&&, T&&> {};
+
+template <typename T>
+using InitializerTargetRefT = typename InitializerTargetRef<T>::type;
 
 // Implementation details follow.
 
