@@ -22,6 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
