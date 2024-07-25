@@ -40,3 +40,20 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
+
+cc_library(
+    name = "join",
+    hdrs = ["join.h"],
+    deps = [
+        "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
+        "//riegeli/base:iterable",
+        "//riegeli/base:type_traits",
+        "//riegeli/bytes:absl_stringify_writer",
+        "//riegeli/bytes:ostream_writer",
+        "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
+    ],
+)
