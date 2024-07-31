@@ -24,6 +24,7 @@ cc_library(
         "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:chain",
+        "//riegeli/base:compare",
         "//riegeli/base:dependency",
         "//riegeli/base:to_string_view",
         "//riegeli/base:type_traits",

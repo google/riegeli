@@ -32,6 +32,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/to_string_view.h"
@@ -126,7 +127,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        DigesterBaseHandle {
+        DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
  public:
   // Creates a `DigesterBaseHandle` which does not point to a target.
   DigesterBaseHandle() = default;

@@ -30,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -180,7 +181,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   // We build a tree structure of protocol buffer tags. `NodeId` uniquely
   // identifies a node in this tree.
-  struct NodeId {
+  struct NodeId : public WithEqual<NodeId> {
     explicit NodeId(chunk_encoding_internal::MessageId parent_message_id,
                     uint32_t tag);
 
