@@ -20,7 +20,6 @@
 
 #include <cstring>
 #include <limits>
-#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -68,12 +67,9 @@ class WriterAbslStringifySink {
   Writer* dest() const { return dest_; }
 
   void Append(size_t length, char src);
-  void Append(absl::string_view src);
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<std::is_convertible<Src, absl::string_view>::value,
+                             int> = 0>
   void Append(Src&& src);
   friend void AbslFormatFlush(WriterAbslStringifySink* dest,
                               absl::string_view src) {
@@ -269,10 +265,6 @@ class Writer : public Object {
   // Writes a fixed number of bytes from `src` to the buffer and/or the
   // destination.
   //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
   //  * `false` - failure (less than `src.size()` bytes written, `!ok()`)
@@ -282,19 +274,20 @@ class Writer : public Object {
 #endif
   bool Write(absl::string_view src);
   template <typename Src,
-            std::enable_if_t<absl::conjunction<SupportsToStringView<Src>,
-                                               absl::negation<std::is_same<
-                                                   Src, std::string>>>::value,
-                             int> = 0>
-  bool Write(Src&& src);
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
   bool Write(ExternalRef src);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  bool Write(Src&& src);
 
   // Writes a stringified value to the buffer and/or the destination.
   //
@@ -322,8 +315,8 @@ class Writer : public Object {
           absl::conjunction<
               HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-              value,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              absl::negation<SupportsExternalRefWhole<Src>>>::value,
           int> = 0>
   bool Write(Src&& src);
 
@@ -570,12 +563,11 @@ class Writer : public Object {
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `available() < src.size()`
   //
-  // Precondition for `WriteStringSlow()`, `WriteSlow(const Chain&)`,
-  // `WriteSlow(Chain&&)`, `WriteSlow(const absl::Cord&)`,
-  // `WriteSlow(absl::Cord&&), and `WriteSlow(ExternalRef)`:
+  // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
+  // `WriteSlow(const absl::Cord&)`, `WriteSlow(absl::Cord&&), and
+  // `WriteSlow(ExternalRef)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
-  bool WriteStringSlow(std::string&& src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
@@ -733,16 +725,11 @@ inline void WriterAbslStringifySink::Append(size_t length, char src) {
   dest_->WriteChars(length, src);
 }
 
-inline void WriterAbslStringifySink::Append(absl::string_view src) {
-  dest_->Write(src);
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<std::is_convertible<Src, absl::string_view>::value, int>>
 inline void WriterAbslStringifySink::Append(Src&& src) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  dest_->Write(std::move(src));
+  dest_->Write(std::forward<Src>(src));
 }
 
 inline Writer::Writer(Writer&& that) noexcept
@@ -851,30 +838,12 @@ inline bool Writer::Write(absl::string_view src) {
 
 template <
     typename Src,
-    std::enable_if_t<absl::conjunction<
-                         SupportsToStringView<Src>,
-                         absl::negation<std::is_same<Src, std::string>>>::value,
-                     int>>
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
 inline bool Writer::Write(Src&& src) {
   return Write(riegeli::ToStringView(src));
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline bool Writer::Write(Src&& src) {
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    // `std::memcpy(nullptr, _, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      std::memcpy(cursor(), src.data(), src.size());
-      move_cursor(src.size());
-    }
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  return WriteStringSlow(std::move(src));
 }
 
 inline bool Writer::Write(const Chain& src) {
@@ -956,6 +925,12 @@ inline bool Writer::Write(ExternalRef src) {
   return WriteSlow(std::move(src));
 }
 
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline bool Writer::Write(Src&& src) {
+  return Write(ExternalRef(src));
+}
+
 inline bool Writer::Write(signed char src) {
   return write_int_internal::WriteSigned(src, *this);
 }
@@ -1010,8 +985,8 @@ template <
         absl::conjunction<
             HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-            value,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+            absl::negation<SupportsExternalRefWhole<Src>>>::value,
         int>>
 inline bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);

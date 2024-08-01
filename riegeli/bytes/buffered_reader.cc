@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -194,9 +195,8 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     if (flat_buffer.empty()) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
-      std::move(buffer_)
-          .ToExternalRef(absl::string_view(cursor(), available_length))
-          .AppendTo(dest);
+      dest.Append(ExternalRef(std::move(buffer_),
+                              absl::string_view(cursor(), available_length)));
       length -= available_length;
       buffer_.ClearAndShrink(buffer_length);
       if (ABSL_PREDICT_FALSE(buffer_length == 0)) {
@@ -238,7 +238,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       break;
     }
   }
-  buffer_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+  dest.Append(ExternalRef(buffer_, absl::string_view(cursor(), length)));
   move_cursor(length);
   return enough_read;
 }
@@ -267,8 +267,8 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     if (flat_buffer.empty()) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
-      std::move(buffer_)
-          .ToExternalRef(absl::string_view(cursor(), available_length))
+      ExternalRef(std::move(buffer_),
+                  absl::string_view(cursor(), available_length))
           .AppendTo(dest);
       length -= available_length;
       buffer_.ClearAndShrink(buffer_length);
@@ -311,7 +311,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       break;
     }
   }
-  buffer_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+  ExternalRef(buffer_, absl::string_view(cursor(), length)).AppendTo(dest);
   move_cursor(length);
   return enough_read;
 }
@@ -354,8 +354,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       // Not enough space in `buffer_`. Append available data to `dest` and make
       // a new buffer.
       if (available_length > 0) {
-        const bool write_ok = dest.Write(std::move(buffer_).ToExternalRef(
-            absl::string_view(cursor(), available_length)));
+        const bool write_ok = dest.Write(ExternalRef(
+            std::move(buffer_), absl::string_view(cursor(), available_length)));
         if (ABSL_PREDICT_FALSE(!write_ok)) {
           buffer_.ClearAndShrink(buffer_length);
           set_buffer();
@@ -407,8 +407,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       break;
     }
   }
-  const bool write_ok = dest.Write(buffer_.ToExternalRef(
-      absl::string_view(cursor(), IntCast<size_t>(length))));
+  const bool write_ok = dest.Write(ExternalRef(
+      buffer_, absl::string_view(cursor(), IntCast<size_t>(length))));
   move_cursor(IntCast<size_t>(length));
   return write_ok && enough_read;
 }

@@ -77,8 +77,8 @@ inline bool PushableBackwardWriter::SyncScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source SizedSharedBuffer cleared";
   const char* const data = buffer.data() + buffer.size() - length_to_write;
-  if (ABSL_PREDICT_FALSE(!Write(std::move(buffer).ToExternalRef(
-          absl::string_view(data, length_to_write))))) {
+  if (ABSL_PREDICT_FALSE(!Write(ExternalRef(
+          std::move(buffer), absl::string_view(data, length_to_write))))) {
     return false;
   }
   RIEGELI_ASSERT(!scratch_used())
@@ -192,7 +192,7 @@ bool PushableBackwardWriter::WriteBehindScratch(const Chain& src) {
          "scratch used";
   for (Chain::Blocks::const_reverse_iterator iter = src.blocks().crbegin();
        iter != src.blocks().crend(); ++iter) {
-    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
+    if (ABSL_PREDICT_FALSE(!Write(absl::string_view(*iter)))) return false;
   }
   return true;
 }

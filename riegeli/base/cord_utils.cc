@@ -48,6 +48,15 @@ absl::Cord MakeBlockyCord(absl::string_view src) {
   return dest;
 }
 
+void AssignToBlockyCord(absl::string_view src, absl::Cord& dest) {
+  if (src.size() <= absl::CordBuffer::kDefaultLimit) {
+    dest = src;
+    return;
+  }
+  dest.Clear();
+  AppendToBlockyCord(src, dest);
+}
+
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest) {
   if (src.empty()) return;
   {

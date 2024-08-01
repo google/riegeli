@@ -21,7 +21,6 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -422,6 +421,17 @@ absl::Cord Chain::Block::ToCord(absl::string_view substr) && {
   return absl::MakeCordFromExternal(substr, [block = std::move(block_)] {});
 }
 
+absl::Cord Chain::Block::ToCord(absl::string_view substr) const& {
+  if (const FlatCordBlock* const cord_ptr =
+          block_->checked_external_object<FlatCordBlock>()) {
+    if (substr.size() == cord_ptr->src().size()) return cord_ptr->src();
+    return cord_ptr->src().Subcord(
+        PtrDistance(absl::string_view(*cord_ptr).data(), substr.data()),
+        substr.size());
+  }
+  return absl::MakeCordFromExternal(substr, [block = block_] {});
+}
+
 void Chain::Block::DumpStructure(absl::string_view substr,
                                  std::ostream& out) const {
   out << "[block] { offset: "
@@ -464,24 +474,6 @@ void Chain::Reset(absl::string_view src) {
   Initialize(src);
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-void Chain::Reset(Src&& src) {
-  size_ = 0;
-  if (begin_ != end_ && ClearSlow()) {
-    const size_t size = src.size();
-    // `std::move(src)` is correct and `std::forward<Src>(src)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
-    Append(std::move(src), Options().set_size_hint(size));
-    return;
-  }
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  Initialize(std::move(src));
-}
-
-template void Chain::Reset(std::string&& src);
-
 void Chain::Reset(Block src) {
   size_ = 0;
   UnrefBlocks();
@@ -523,26 +515,6 @@ void Chain::InitializeSlow(absl::string_view src) {
   Append(src, options);
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-void Chain::InitializeSlow(Src&& src) {
-  RIEGELI_ASSERT_GT(src.size(), kMaxShortDataSize)
-      << "Failed precondition of Chain::InitializeSlow(string&&): "
-         "string too short, use Initialize() instead";
-  if (Wasteful(
-          RawBlock::kExternalAllocatedSize<std::string>() + src.capacity() + 1,
-          src.size())) {
-    // Not `std::move(src)`: forward to `InitializeSlow(absl::string_view)`.
-    InitializeSlow(src);
-    return;
-  }
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  Initialize(Block(std::move(src)));
-}
-
-template void Chain::InitializeSlow(std::string&& src);
-
 inline void Chain::Initialize(const absl::Cord& src) {
   RIEGELI_ASSERT_EQ(size_, 0u)
       << "Failed precondition of Chain::Initialize(const Cord&): "
@@ -571,8 +543,8 @@ inline void Chain::InitializeFromCord(CordRef&& src) {
       return;
     }
   }
-  const size_t size = src.size();
-  AppendCordSlow(std::forward<CordRef>(src), Options().set_size_hint(size));
+  AppendCordSlow(std::forward<CordRef>(src),
+                 Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Initialize(const Chain& src) {
@@ -1423,16 +1395,6 @@ void Chain::Append(absl::string_view src, Options options) {
   }
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-void Chain::Append(Src&& src, Options options) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  ExternalRef(std::move(src)).AppendTo(*this, options);
-}
-
-template void Chain::Append(std::string&& src, Options options);
-
 void Chain::Append(const Chain& src, Options options) {
   AppendChain<ShareOwnership>(src, options);
 }
@@ -1713,16 +1675,6 @@ void Chain::Prepend(absl::string_view src, Options options) {
     src.remove_suffix(buffer.size());
   }
 }
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-void Chain::Prepend(Src&& src, Options options) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  ExternalRef(std::move(src)).PrependTo(*this, options);
-}
-
-template void Chain::Prepend(std::string&& src, Options options);
 
 void Chain::Prepend(const Chain& src, Options options) {
   PrependChain<ShareOwnership>(src, options);
@@ -2035,11 +1987,8 @@ void Chain::RemoveSuffix(size_t length, Options options) {
   data.remove_suffix(length);
   // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopy) {
-    Append(data, options);
-    return;
-  }
-  Append(Block(riegeli::Invoker(MakeBlock(), std::move(last)), data), options);
+  Append(ExternalRef(riegeli::Invoker(MakeBlock(), std::move(last)), data),
+         options);
 }
 
 void Chain::RemovePrefix(size_t length, Options options) {
@@ -2085,11 +2034,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
   data.remove_prefix(length);
   // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopy) {
-    Prepend(data, options);
-    return;
-  }
-  Prepend(Block(riegeli::Invoker(MakeBlock(), std::move(first)), data),
+  Prepend(ExternalRef(riegeli::Invoker(MakeBlock(), std::move(first)), data),
           options);
 }
 

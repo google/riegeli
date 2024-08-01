@@ -35,10 +35,6 @@ namespace cord_internal {
 RIEGELI_INLINE_CONSTEXPR(size_t, kFlatOverhead,
                          sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t));
 
-// `sizeof(absl::cord_internal::CordRepExternal)`. Does not have to be
-// accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kSizeOfCordRepExternal, 4 * sizeof(void*));
-
 // The `block_size` parameter for `absl::CordBuffer::CreateWithCustomLimit()`.
 RIEGELI_INLINE_CONSTEXPR(size_t, kCordBufferBlockSize,
                          UnsignedMin(kDefaultMaxBlockSize,
@@ -82,14 +78,14 @@ void AppendCordToString(const absl::Cord& src, std::string& dest);
 
 // Variants of `absl::Cord` operations with different block sizing tradeoffs:
 //  * `MakeBlockyCord(src)` is like `absl::Cord(src)`.
+//  * `AssignToBlockyCord(src, dest)` is like `dest = src`.
 //  * `AppendToBlockyCord(src, dest)` is like `dest.Append(src)`.
 //  * `PrependToBlockyCord(src, dest)` is like `dest.Prepend(src)`.
 //
-// They assume that the `absl::Cord` is constructed from fragments of reasonable
-// sizes, with adjacent sizes being not too small.
-//
-// They avoid splitting `src` into 4083-byte fragments and avoid overallocation.
+// They avoid splitting `src` into 4083-byte fragments and avoid overallocation,
+// without guarantees.
 absl::Cord MakeBlockyCord(absl::string_view src);
+void AssignToBlockyCord(absl::string_view src, absl::Cord& dest);
 void AppendToBlockyCord(absl::string_view src, absl::Cord& dest);
 void PrependToBlockyCord(absl::string_view src, absl::Cord& dest);
 

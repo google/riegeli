@@ -169,7 +169,10 @@ class MMapBlock {
   MMapBlock(MMapBlock&& that) = default;
   MMapBlock& operator=(MMapBlock&& that) = default;
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Indicate support for `ExternalRef(MMapBlock&&, substr)`.
+  friend void RiegeliSupportsExternalRef(MMapBlock*) {}
+
+  // Support `ExternalRef`, `Chain::Block`, and `absl::MakeCordFromExternal()`.
   void operator()(absl::string_view data) const;
 
   // Support `ExternalRef` and `Chain::Block`.

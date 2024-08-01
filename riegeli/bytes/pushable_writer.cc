@@ -77,8 +77,8 @@ inline bool PushableWriter::SyncScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source SizedSharedBuffer cleared";
   const char* const data = buffer.data();
-  if (ABSL_PREDICT_FALSE(!Write(std::move(buffer).ToExternalRef(
-          absl::string_view(data, length_to_write))))) {
+  if (ABSL_PREDICT_FALSE(!Write(ExternalRef(
+          std::move(buffer), absl::string_view(data, length_to_write))))) {
     return false;
   }
   RIEGELI_ASSERT(!scratch_used())

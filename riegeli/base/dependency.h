@@ -329,8 +329,7 @@ class DependencyImpl<
 };
 
 // Specialization of `DependencyImpl<absl::string_view, Manager>` when
-// `DependencyManagerRef<Manager>` supports `RiegeliToStringView(&object)` or is
-// explicitly convertible to `absl::string_view` or `absl::Span<const char>`.
+// `DependencyManagerRef<Manager>` supports `riegeli::ToStringView(object)`.
 template <typename Manager>
 class DependencyImpl<
     absl::string_view, Manager,

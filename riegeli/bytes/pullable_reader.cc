@@ -33,6 +33,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -388,15 +389,14 @@ bool PullableReader::ReadSlow(size_t length, Chain& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        scratch_->buffer.ToExternalRef(absl::string_view(cursor(), length))
-            .AppendTo(dest);
+        dest.Append(
+            ExternalRef(scratch_->buffer, absl::string_view(cursor(), length)));
         move_cursor(length);
         return true;
       }
       length -= available();
-      std::move(scratch_->buffer)
-          .ToExternalRef(absl::string_view(cursor(), available()))
-          .AppendTo(dest);
+      dest.Append(ExternalRef(std::move(scratch_->buffer),
+                              absl::string_view(cursor(), available())));
       ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {
@@ -418,14 +418,14 @@ bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        scratch_->buffer.ToExternalRef(absl::string_view(cursor(), length))
+        ExternalRef(scratch_->buffer, absl::string_view(cursor(), length))
             .AppendTo(dest);
         move_cursor(length);
         return true;
       }
       length -= available();
-      std::move(scratch_->buffer)
-          .ToExternalRef(absl::string_view(cursor(), available()))
+      ExternalRef(std::move(scratch_->buffer),
+                  absl::string_view(cursor(), available()))
           .AppendTo(dest);
       ClearScratch();
     }
@@ -445,15 +445,15 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok = dest.Write(scratch_->buffer.ToExternalRef(
-            absl::string_view(cursor(), length)));
+        const bool write_ok = dest.Write(
+            ExternalRef(scratch_->buffer, absl::string_view(cursor(), length)));
         move_cursor(length);
         return write_ok;
       }
       length -= available();
-      const bool write_ok = dest.Write(
-          std::move(scratch_->buffer)
-              .ToExternalRef(absl::string_view(cursor(), available())));
+      const bool write_ok =
+          dest.Write(ExternalRef(std::move(scratch_->buffer),
+                                 absl::string_view(cursor(), available())));
       ClearScratch();
       if (ABSL_PREDICT_FALSE(!write_ok)) return false;
     }
@@ -474,15 +474,15 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     Chain from_scratch;
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok = dest.Write(scratch_->buffer.ToExternalRef(
-            absl::string_view(cursor(), length)));
+        const bool write_ok = dest.Write(
+            ExternalRef(scratch_->buffer, absl::string_view(cursor(), length)));
         move_cursor(length);
         return write_ok;
       }
       length -= available();
       from_scratch =
-          Chain(std::move(scratch_->buffer)
-                    .ToExternalRef(absl::string_view(cursor(), available())));
+          Chain(ExternalRef(std::move(scratch_->buffer),
+                            absl::string_view(cursor(), available())));
       ClearScratch();
     }
     if (available() >= length && length <= kMaxBytesToCopy) {

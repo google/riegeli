@@ -258,7 +258,7 @@ bool SnappyWriterBase::WriteSlow(ExternalRef src) {
     return FailOverflow();
   }
   move_start_pos(src.size());
-  std::move(src).AppendTo(uncompressed_, options_);
+  uncompressed_.Append(std::move(src), options_);
   return true;
 }
 

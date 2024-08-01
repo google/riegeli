@@ -18,17 +18,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/messages/message_serialize.h"
@@ -51,10 +52,6 @@ class ChunkEncoder : public Object {
   // `AddRecord(google::protobuf::MessageLite)` serializes a proto message to
   // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  //
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
@@ -63,13 +60,20 @@ class ChunkEncoder : public Object {
                          SerializeOptions serialize_options);
   virtual bool AddRecord(absl::string_view record) = 0;
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   bool AddRecord(Src&& record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
   virtual bool AddRecord(const absl::Cord& record) = 0;
   virtual bool AddRecord(absl::Cord&& record);
   virtual bool AddRecord(ExternalRef record) = 0;
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  bool AddRecord(Src&& src);
 
   // Add multiple records, expressed as concatenated record values and sorted
   // record end positions.
@@ -120,12 +124,20 @@ inline bool ChunkEncoder::AddRecord(
   return AddRecord(record, SerializeOptions());
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
 inline bool ChunkEncoder::AddRecord(Src&& record) {
-  // `std::move(record)` is correct and `std::forward<Src>(record)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  return AddRecord(ExternalRef(std::move(record)));
+  return AddRecord(riegeli::ToStringView(record));
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline bool ChunkEncoder::AddRecord(Src&& src) {
+  return AddRecord(ExternalRef(std::forward<Src>(src)));
 }
 
 }  // namespace riegeli

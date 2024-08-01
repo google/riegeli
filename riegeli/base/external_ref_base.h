@@ -19,10 +19,10 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <new>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -35,43 +35,13 @@
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_data.h"
+#include "riegeli/base/external_ref_support.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
-
-// Support `ExternalRef`.
-inline size_t RiegeliExternalMemory(ABSL_ATTRIBUTE_UNUSED const void* self) {
-  return 0;
-}
-
-// Support `ExternalRef`.
-inline size_t RiegeliExternalMemory(const std::string* self) {
-  // Do not bother checking for short string optimization. Such strings will
-  // likely not be considered wasteful anyway.
-  return self->capacity() + 1;
-}
-
-// Support `ExternalRef`.
-template <typename T>
-inline ExternalStorage RiegeliToExternalStorage(std::unique_ptr<T>* self) {
-  return ExternalStorage(const_cast<std::remove_cv_t<T>*>(self->release()),
-                         [](void* ptr) { delete static_cast<T*>(ptr); });
-}
-
-// Support `ExternalRef`.
-template <typename T>
-inline ExternalStorage RiegeliToExternalStorage(std::unique_ptr<T[]>* self) {
-  return ExternalStorage(const_cast<std::remove_cv_t<T>*>(self->release()),
-                         [](void* ptr) { delete[] static_cast<T*>(ptr); });
-}
-
-// Support `ExternalRef`.
-inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
-  return std::move(*self);
-}
 
 // `ExternalRef` specifies a byte array in a way which allows sharing it with
 // other objects without copying if that is considered more efficient than
@@ -86,8 +56,9 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // constructed object is not needed otherwise.
 //
 // `ExternalRef` can be converted to `absl::string_view`, `Chain`, `absl::Cord`,
-// or `ExternalData`, or appended or prepended to a `Chain` or `absl::Cord`.
-// It can be consumed at most once.
+// or `ExternalData`, or assigned, appended, or prepended to a `Chain` or
+// `absl::Cord`. Apart from conversion to `absl::string_view` it can be consumed
+// at most once.
 //
 // In contrast to `Chain::Block` and `absl::MakeCordFromExternal()`,
 // `ExternalRef` chooses between sharing the object and copying the data,
@@ -102,17 +73,43 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // The expected interface of the object which owns the data is a superset of the
 // interfaces expected by `Chain::Block` and `absl::MakeCordFromExternal()`.
 //
-// If the `substr` parameter to `ExternalRef` constructor is given, `substr`
-// must be valid for the new object if it gets created.
+// `ExternalRef` constructors require the external object type to indicate
+// that it supports `ExternalRef` by providing one of the following functions
+// (only their presence is checked, they are never called):
+// ```
+//   // Indicate support for `ExternalRef(T&&, substr)`.
+//   //
+//   // `substr` must be owned by the object if it gets created or moved, unless
+//   // `RiegeliExternalCopy()` (see below) recognizes cases when it is not.
+//   //
+//   // If `T` supports `riegeli::ToStringView()`, then also indicates support
+//   // for `ExternalRef(T&&)`.
+//   //
+//   // The parameter can also have type `const T*`. This also indicates
+//   // support for `ExternalRef(const T&, substr)` and possibly
+//   // `ExternalRef(const T&)`, i.e. that `T` is copyable and copying it is
+//   // more efficient than copying the data.
+//   //
+//   // If the `ExternalRef` is later converted to `absl::Cord` and
+//   // `absl::MakeCordFromExternal()` gets used, then this avoids an allocation
+//   // by taking advantage of the promise that `substr` will be owned also by
+//   // the moved object (`absl::MakeCordFromExternal()` requires knowing the
+//   // data before specifying the object to be moved).
+//   friend void RiegeliSupportsExternalRef(T*) {}
 //
-// If the `substr` parameter is not given, `T` must support any of:
+//   // Indicate support for `ExternalRef(T&&)` as long as `T` supports
+//   // `riegeli::ToStringView()`.
+//   //
+//   // The parameter can also have type `const T*`. This also indicates support
+//   // for `ExternalRef(const T&)`, i.e. that `T` is copyable and copying it is
+//   // more efficient than copying the data.
+//   friend void RiegeliSupportsExternalRefWhole(T*) {}
 // ```
-//   // Returns contents of the object. Called when it is moved to its final
-//   // location.
-//   friend absl::string_view RiegeliToStringView(const T* self);
-//   explicit operator absl::string_view() const;
-//   explicit operator absl::Span<const char>() const;
-// ```
+//
+// `ExternalRef::From()` are like `ExternalRef` constructors, but
+// `RiegeliSupportsExternalRef()` or `RiegeliSupportsExternalRefWhole()` is not
+// needed. The caller is responsible for using an appropriate type of the
+// external object.
 //
 // `T` may also support the following member functions, either with or without
 // the `substr` parameter, with the following definitions assumed by default:
@@ -127,6 +124,15 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 //   // object is passed by const or lvalue reference, this will be called on a
 //   // mutable copy of the object.
 //   void operator()(absl::string_view substr) && {}
+//
+//   // If this returns `true`, the data will be copied instead of wrapping the
+//   // object. The data does not need to be stable while the object is moved.
+//   // `RiegeliExternalMemory()`, `RiegeliToChainBlock()`, `RiegeliToCord()`,
+//   // `RiegeliToExternalData()`, `RiegeliToExternalStorage()`, nor
+//   // `RiegeliExternalDelegate()` will not be called.
+//   //
+//   // Typically this indicates an object with short data stored inline.
+//   friend bool RiegeliExternalCopy(const T* self) { return false; }
 //
 //   // Returns an approximate amount of memory allocated by the object,
 //   // excluding data stored inside the object itself.
@@ -150,8 +156,8 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 //   // and the object is passed by const or lvalue reference, this will be
 //   // called on a mutable copy of the object.
 //   //
-//   // The `substr` parameter is given here when the `substr` parameter to
-//   // `ExternalRef` constructor was given.
+//   // If the `substr` parameter was given to `ExternalRef` constructor, the
+//   // `substr` parameter is required here, otherwise it is optional.
 //   friend Chain::Block RiegeliToChainBlock(T* self, absl::string_view substr);
 //
 //   // Converts `*self` or its `substr` to `absl::Cord`, if this can be done
@@ -162,8 +168,8 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 //   // and the object is passed by const or lvalue reference, this will be
 //   // called on a mutable copy of the object.
 //   //
-//   // The `substr` parameter is given here when the `substr` parameter to
-//   // `ExternalRef` constructor was given.
+//   // If the `substr` parameter was given to `ExternalRef` constructor, the
+//   // `substr` parameter is required here, otherwise it is optional.
 //   friend absl::Cord RiegeliToCord(T* self, absl::string_view substr);
 //
 //   // Converts `*self` to `ExternalData`, if this can be done more efficiently
@@ -174,23 +180,45 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 //   // and the object is passed by const or lvalue reference, this will be
 //   // called on a mutable copy of the object.
 //   //
-//   // Used for conversion to `ExternalData` when the `substr` parameter to
-//   // `ExternalRef` constructor was not given.
-//   friend ExternalData RiegeliToExternalData(T* self);
+//   // If the `substr` parameter was given to `ExternalRef` constructor, the
+//   // `substr` parameter is required here, otherwise it is optional.
+//   friend ExternalData RiegeliToExternalData(T* self,
+//                                             absl::string_view substr);
 //
-//   // Convert `*self` to `ExternalStorage`, if this can be done more
-//   // efficiently than allocating the object on the heap, e.g. if the object
-//   // fits in a pointer. Can modify `*self`. `operator()` will no longer be
-//   // called.
+//   // This can be defined instead of `RiegeliToExternalData()` with `substr`,
+//   // which would return `ExternalData` with the same `substr`.
+//   friend ExternalStorage RiegeliToExternalStorage(T* self);
+//
+//   // If defined, indicates a subobject to wrap instead of the whole object.
+//   // It must call `std::forward<Callback>(delegate_to)(subobject)` or
+//   // `std::forward<Callback>(delegate_to)(subobject, substr)`, preferably
+//   // with `std::move(subobject)`. `delegate_to` must be called exactly once.
+//   //
+//   // Typically this indicates a smaller object which is sufficient to keep
+//   // the data alive, or the active variant if the object stores one of
+//   // multiple subobjects.
+//   //
+//   // `RiegeliToChainBlock()`, `RiegeliToCord()`, `RiegeliToExternalData()`,
+//   // and `RiegeliToExternalStorage()`, if defined, are used in preference to
+//   // this.
+//   //
+//   // The subobject will be processed like by `ExternalRef::From()`, including
+//   // the possibility of further delegation, except that `Initializer` is not
+//   // supported. The subobject must not be `*self`.
 //   //
 //   // The `self` parameter can also have type `const T*`. If it has type `T*`
 //   // and the object is passed by const or lvalue reference, this will be
 //   // called on a mutable copy of the object.
 //   //
-//   // Used for conversion to `ExternalData` when the `substr` parameter to
-//   // `ExternalRef` constructor was given. The same `substr` will be used in
-//   // the returned `ExternalData`.
-//   friend ExternalStorage RiegeliToExternalStorage(T* self);
+//   // The `substr` parameter is optional here. If absent here while the
+//   // `substr` parameter was given to `ExternalRef` constructor, then it is
+//   // propagated. If absent here while the `substr` parameter was not given
+//   // to `ExternalRef` constructor, then `riegeli::ToStringView(subobject)`
+//   // must be supported. If present here, it can be used to specify the data
+//   // if `riegeli::ToStringView(subobject)` is not supported.
+//   template <typename Callback>
+//   friend void RiegeliExternalDelegate(T* self, absl::string_view substr,
+//                                       Callback&& delegate_to);
 //
 //   // Shows internal structure in a human-readable way, for debugging.
 //   //
@@ -220,15 +248,16 @@ class ExternalRef {
   using UseStringViewFunction = void (*)(void* context, absl::string_view data);
   using UseChainBlockFunction = void (*)(void* context, Chain::Block data);
   using UseCordFunction = void (*)(void* context, absl::Cord data);
+  using UseExternalDataFunction = void (*)(void* context, ExternalData data);
 
   template <typename T>
-  static bool Wasteful(const T& object, size_t extra_allocated, size_t used) {
+  static bool Wasteful(const T& object, size_t used) {
     size_t allocated = RiegeliExternalMemory(&object);
-    if (extra_allocated > std::numeric_limits<size_t>::max() - allocated) {
+    if (sizeof(T) > std::numeric_limits<size_t>::max() - allocated) {
       RIEGELI_ASSERT_UNREACHABLE() << "Result of RiegeliExternalMemory() "
                                       "suspiciously close to size_t range";
     }
-    allocated += extra_allocated;
+    allocated += sizeof(T);
     return allocated >= used && riegeli::Wasteful(allocated, used);
   }
 
@@ -254,7 +283,8 @@ class ExternalRef {
   template <typename T,
             std::enable_if_t<HasCallOperatorSubstr<T>::value, int> = 0>
   static void CallOperatorWhole(T&& object) {
-    std::forward<T>(object)(riegeli::ToStringView(object));
+    const absl::string_view data = riegeli::ToStringView(object);
+    std::forward<T>(object)(data);
   }
   template <typename T,
             std::enable_if_t<
@@ -272,7 +302,8 @@ class ExternalRef {
                        int> = 0>
   static void CallOperatorWhole(T&& object) {
     absl::remove_cvref_t<T> copy(object);
-    std::move(copy)(riegeli::ToStringView(copy));
+    const absl::string_view data = riegeli::ToStringView(copy);
+    std::move(copy)(data);
   }
   template <
       typename T,
@@ -312,7 +343,8 @@ class ExternalRef {
                        int> = 0>
   static void CallOperatorSubstr(T&& object, absl::string_view substr) {
     absl::remove_cvref_t<T> copy(object);
-    std::move(copy)(riegeli::ToStringView(copy));
+    const absl::string_view data = riegeli::ToStringView(copy);
+    std::move(copy)(data);
   }
   template <
       typename T,
@@ -333,24 +365,127 @@ class ExternalRef {
       ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {}
 
   template <typename T>
-  struct PointerType {
-    using type = T*;
-  };
-  template <typename T>
-  struct PointerType<T&> {
-    using type = const T*;
-  };
-  template <typename T>
-  struct PointerType<T&&> {
-    using type = T*;
-  };
-
-  template <typename T>
-  using PointerTypeT = typename PointerType<T>::type;
-
-  template <typename T>
-  static PointerTypeT<T> Pointer(T&& object) {
+  static external_ref_internal::PointerTypeT<T> Pointer(T&& object) {
     return &object;
+  }
+
+#if RIEGELI_DEBUG
+  template <typename T,
+            std::enable_if_t<SupportsToStringView<T>::value, int> = 0>
+  static void AssertSubstr(const T& object, absl::string_view substr) {
+    if (!substr.empty()) {
+      const absl::string_view whole = riegeli::ToStringView(object);
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
+          << "Failed precondition of ExternalRef: "
+             "substring not contained in whole data";
+      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
+                                         whole.data() + whole.size()))
+          << "Failed precondition of ExternalRef: "
+             "substring not contained in whole data";
+    }
+  }
+  template <typename T,
+            std::enable_if_t<!SupportsToStringView<T>::value, int> = 0>
+#else
+  template <typename T>
+#endif
+  static void AssertSubstr(ABSL_ATTRIBUTE_UNUSED const T& object,
+                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
+  }
+
+  template <typename T, typename Callback, typename Enable = void>
+  struct HasRiegeliExternalDelegateWhole : std::false_type {};
+
+  template <typename T, typename Callback>
+  struct HasRiegeliExternalDelegateWhole<
+      T, Callback,
+      absl::void_t<decltype(RiegeliExternalDelegate(
+          std::declval<external_ref_internal::PointerTypeT<T>>(),
+          std::declval<Callback>()))>> : std::true_type {};
+
+  template <typename T, typename Callback, typename Enable = void>
+  struct HasRiegeliExternalDelegateSubstr : std::false_type {};
+
+  template <typename T, typename Callback>
+  struct HasRiegeliExternalDelegateSubstr<
+      T, Callback,
+      absl::void_t<decltype(RiegeliExternalDelegate(
+          std::declval<external_ref_internal::PointerTypeT<T>>(),
+          std::declval<absl::string_view>(), std::declval<Callback>()))>>
+      : std::true_type {};
+
+  template <typename T, typename Callback>
+  struct HasExternalDelegateWhole
+      : absl::disjunction<HasRiegeliExternalDelegateWhole<T, Callback>,
+                          HasRiegeliExternalDelegateSubstr<T, Callback>> {};
+
+  template <typename T, typename Callback,
+            std::enable_if_t<
+                HasRiegeliExternalDelegateWhole<T, Callback>::value, int> = 0>
+  static void ExternalDelegateWhole(T&& object, Callback&& delegate_to) {
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
+                            std::forward<Callback>(delegate_to));
+  }
+  template <
+      typename T, typename Callback,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
+              HasRiegeliExternalDelegateSubstr<T, Callback>>::value,
+          int> = 0>
+  static void ExternalDelegateWhole(T&& object, Callback&& delegate_to) {
+    const absl::string_view data = riegeli::ToStringView(object);
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)), data,
+                            std::forward<Callback>(delegate_to));
+  }
+
+  template <typename T, typename Callback,
+            std::enable_if_t<
+                HasRiegeliExternalDelegateWhole<T, Callback>::value, int> = 0>
+  static void ExternalDelegateWhole(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data,
+      Callback&& delegate_to) {
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
+                            std::forward<Callback>(delegate_to));
+  }
+  template <
+      typename T, typename Callback,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
+              HasRiegeliExternalDelegateSubstr<T, Callback>>::value,
+          int> = 0>
+  static void ExternalDelegateWhole(T&& object, absl::string_view data,
+                                    Callback&& delegate_to) {
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)), data,
+                            std::forward<Callback>(delegate_to));
+  }
+
+  template <typename T, typename Callback>
+  struct HasExternalDelegateSubstr
+      : absl::disjunction<HasRiegeliExternalDelegateSubstr<T, Callback>,
+                          HasRiegeliExternalDelegateWhole<T, Callback>> {};
+
+  template <typename T, typename Callback,
+            std::enable_if_t<
+                HasRiegeliExternalDelegateSubstr<T, Callback>::value, int> = 0>
+  static void ExternalDelegateSubstr(T&& object, absl::string_view substr,
+                                     Callback&& delegate_to) {
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
+                            substr, std::forward<Callback>(delegate_to));
+  }
+  template <
+      typename T, typename Callback,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<HasRiegeliExternalDelegateSubstr<T, Callback>>,
+              HasRiegeliExternalDelegateWhole<T, Callback>>::value,
+          int> = 0>
+  static void ExternalDelegateSubstr(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
+      Callback&& delegate_to) {
+    RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
+                            std::forward<Callback>(delegate_to));
   }
 
   template <typename T, typename Enable = void>
@@ -359,31 +494,9 @@ class ExternalRef {
   template <typename T>
   struct HasRiegeliToChainBlockWhole<
       T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChainBlock(std::declval<PointerTypeT<T>>())),
+             decltype(RiegeliToChainBlock(
+                 std::declval<external_ref_internal::PointerTypeT<T>>())),
              Chain::Block>::value>> : std::true_type {};
-
-  template <typename T,
-            std::enable_if_t<HasRiegeliToChainBlockWhole<T>::value, int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object) {
-    return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliToChainBlockWhole<T>>,
-              HasRiegeliToChainBlockWhole<absl::remove_cvref_t<T>>>::value,
-          int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object) {
-    return RiegeliToChainBlock(
-        ExternalRef::Pointer(absl::remove_cvref_t<T>(object)));
-  }
-  template <typename T, std::enable_if_t<!HasRiegeliToChainBlockWhole<
-                                             absl::remove_cvref_t<T>>::value,
-                                         int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object) {
-    return Chain::Block(std::forward<T>(object));
-  }
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToChainBlockSubstr : std::false_type {};
@@ -391,36 +504,275 @@ class ExternalRef {
   template <typename T>
   struct HasRiegeliToChainBlockSubstr<
       T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToChainBlock(std::declval<PointerTypeT<T>>(),
-                                          std::declval<absl::string_view>())),
+             decltype(RiegeliToChainBlock(
+                 std::declval<external_ref_internal::PointerTypeT<T>>(),
+                 std::declval<absl::string_view>())),
              Chain::Block>::value>> : std::true_type {};
+
+  template <typename T>
+  struct HasToChainBlockWhole
+      : absl::disjunction<HasRiegeliToChainBlockWhole<T>,
+                          HasRiegeliToChainBlockSubstr<T>> {};
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliToChainBlockWhole<T>::value, int> = 0>
+  static Chain::Block ToChainBlockWhole(T&& object) {
+    return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)));
+  }
+  template <typename T,
+            std::enable_if_t<absl::conjunction<
+                                 absl::negation<HasRiegeliToChainBlockWhole<T>>,
+                                 HasRiegeliToChainBlockSubstr<T>>::value,
+                             int> = 0>
+  static Chain::Block ToChainBlockWhole(T&& object) {
+    const absl::string_view data = riegeli::ToStringView(object);
+    return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)),
+                               data);
+  }
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliToChainBlockWhole<T>::value, int> = 0>
+  static Chain::Block ToChainBlockWhole(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
+    return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)));
+  }
+  template <typename T,
+            std::enable_if_t<absl::conjunction<
+                                 absl::negation<HasRiegeliToChainBlockWhole<T>>,
+                                 HasRiegeliToChainBlockSubstr<T>>::value,
+                             int> = 0>
+  static Chain::Block ToChainBlockWhole(T&& object, absl::string_view data) {
+    return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)),
+                               data);
+  }
+
+  template <typename T>
+  using HasToChainBlockSubstr = HasRiegeliToChainBlockSubstr<T>;
 
   template <typename T,
             std::enable_if_t<HasRiegeliToChainBlockSubstr<T>::value, int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object,
-                                           absl::string_view substr) {
+  static Chain::Block ToChainBlockSubstr(T&& object, absl::string_view substr) {
     return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)),
                                substr);
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliToChainBlockSubstr<T>>,
-              HasRiegeliToChainBlockSubstr<absl::remove_cvref_t<T>>>::value,
-          int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object,
-                                           absl::string_view substr) {
-    return RiegeliToChainBlock(
-        ExternalRef::Pointer(absl::remove_cvref_t<T>(object)), substr);
-  }
-  template <typename T, std::enable_if_t<!HasRiegeliToChainBlockSubstr<
-                                             absl::remove_cvref_t<T>>::value,
-                                         int> = 0>
-  static Chain::Block ToChainBlockExternal(T&& object,
-                                           absl::string_view substr) {
-    return Chain::Block(std::forward<T>(object), substr);
-  }
+
+  template <typename T>
+  class ConverterToChainBlockWhole {
+   public:
+    ConverterToChainBlockWhole(const ConverterToChainBlockWhole&) = delete;
+    ConverterToChainBlockWhole& operator=(const ConverterToChainBlockWhole&) =
+        delete;
+
+    template <typename SubT,
+              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+    void operator()(SubT&& subobject) && {
+      // The constructor processes the subobject.
+      const absl::string_view data = riegeli::ToStringView(subobject);
+      ConverterToChainBlockWhole<SubT> converter(
+          std::forward<SubT>(subobject), data, context_, use_string_view_,
+          use_chain_block_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      // The constructor processes the subobject.
+      ConverterToChainBlockSubstr<SubT> converter(
+          std::forward<SubT>(subobject), substr, context_, use_string_view_,
+          use_chain_block_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToChainBlockWhole(T&& object, absl::string_view data,
+                                        void* context,
+                                        UseStringViewFunction use_string_view,
+                                        UseChainBlockFunction use_chain_block)
+        : context_(context),
+          use_string_view_(use_string_view),
+          use_chain_block_(use_chain_block) {
+      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+        use_string_view_(context_, data);
+        ExternalRef::CallOperatorWhole(std::forward<T>(object));
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object), data);
+    }
+
+    template <
+        typename DependentT = T,
+        std::enable_if_t<HasToChainBlockWhole<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      use_chain_block_(context_, ExternalRef::ToChainBlockWhole(
+                                     std::forward<T>(object), data));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<HasToChainBlockWhole<DependentT>>,
+                HasToChainBlockWhole<absl::remove_cvref_t<DependentT>>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      use_chain_block_(context_, ExternalRef::ToChainBlockWhole(
+                                     absl::remove_cvref_t<T>(object)));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToChainBlockWhole<
+                          absl::remove_cvref_t<DependentT>>>,
+                      HasExternalDelegateWhole<
+                          DependentT, ConverterToChainBlockWhole>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
+                                         std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToChainBlockWhole<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateWhole<
+                    DependentT, ConverterToChainBlockWhole>>,
+                HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                         ConverterToChainBlockWhole>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
+                                         std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<absl::negation<HasToChainBlockWhole<
+                                        absl::remove_cvref_t<DependentT>>>,
+                                    absl::negation<HasExternalDelegateWhole<
+                                        absl::remove_cvref_t<DependentT>,
+                                        ConverterToChainBlockWhole>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      use_chain_block_(context_, Chain::Block(std::forward<T>(object)));
+    }
+
+    void* context_;
+    UseStringViewFunction use_string_view_;
+    UseChainBlockFunction use_chain_block_;
+  };
+
+  template <typename T>
+  class ConverterToChainBlockSubstr {
+   public:
+    ConverterToChainBlockSubstr(const ConverterToChainBlockSubstr&) = delete;
+    ConverterToChainBlockSubstr& operator=(const ConverterToChainBlockSubstr&) =
+        delete;
+
+    template <typename SubT>
+    void operator()(SubT&& subobject) && {
+      std::move (*this)(std::forward<SubT>(subobject), substr_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+          << "ExternalRef: size mismatch";
+      // The constructor processes the subobject.
+      ConverterToChainBlockSubstr<SubT> converter(
+          std::forward<SubT>(subobject), substr, context_, use_string_view_,
+          use_chain_block_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToChainBlockSubstr(T&& object, absl::string_view substr,
+                                         void* context,
+                                         UseStringViewFunction use_string_view,
+                                         UseChainBlockFunction use_chain_block)
+        : substr_(substr),
+          context_(context),
+          use_string_view_(use_string_view),
+          use_chain_block_(use_chain_block) {
+      AssertSubstr(object, substr_);
+      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+        use_string_view_(context_, substr_);
+        ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object));
+    }
+
+    template <
+        typename DependentT = T,
+        std::enable_if_t<HasToChainBlockSubstr<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_chain_block_(context_, ExternalRef::ToChainBlockSubstr(
+                                     std::forward<T>(object), substr_));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<HasToChainBlockSubstr<DependentT>>,
+                HasToChainBlockSubstr<absl::remove_cvref_t<DependentT>>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_chain_block_(context_, ExternalRef::ToChainBlockSubstr(
+                                     absl::remove_cvref_t<T>(object), substr_));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToChainBlockSubstr<
+                          absl::remove_cvref_t<DependentT>>>,
+                      HasExternalDelegateSubstr<
+                          DependentT, ConverterToChainBlockSubstr>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
+                                          std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToChainBlockSubstr<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateSubstr<
+                    DependentT, ConverterToChainBlockSubstr>>,
+                HasExternalDelegateSubstr<absl::remove_cvref_t<DependentT>,
+                                          ConverterToChainBlockSubstr>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
+                                          substr_, std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<absl::negation<HasToChainBlockSubstr<
+                                        absl::remove_cvref_t<DependentT>>>,
+                                    absl::negation<HasExternalDelegateSubstr<
+                                        absl::remove_cvref_t<DependentT>,
+                                        ConverterToChainBlockSubstr>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_chain_block_(context_,
+                       Chain::Block(std::forward<T>(object), substr_));
+    }
+
+    absl::string_view substr_;
+    void* context_;
+    UseStringViewFunction use_string_view_;
+    UseChainBlockFunction use_chain_block_;
+  };
 
   template <typename T>
   class ObjectForCordWhole {
@@ -445,50 +797,6 @@ class ExternalRef {
     std::unique_ptr<T> ptr_;
   };
 
-  template <typename T, typename Enable = void>
-  struct HasRiegeliToCordWhole : std::false_type {};
-
-  template <typename T>
-  struct HasRiegeliToCordWhole<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToCord(std::declval<PointerTypeT<T>>())),
-             absl::Cord>::value>> : std::true_type {};
-
-  template <typename T,
-            std::enable_if_t<HasRiegeliToCordWhole<T>::value, int> = 0>
-  static absl::Cord ToCordExternal(T&& object) {
-    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)));
-  }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<HasRiegeliToCordWhole<T>>,
-                    HasRiegeliToCordWhole<absl::remove_cvref_t<T>>>::value,
-                int> = 0>
-  static absl::Cord ToCordExternal(T&& object) {
-    return RiegeliToCord(ExternalRef::Pointer(absl::remove_cvref_t<T>(object)));
-  }
-  template <
-      typename T,
-      std::enable_if_t<!HasRiegeliToCordWhole<absl::remove_cvref_t<T>>::value,
-                       int> = 0>
-  static absl::Cord ToCordExternal(T&& object) {
-    ObjectForCordWhole<std::decay_t<T>> object_for_cord(
-        std::forward<T>(object));
-    return absl::MakeCordFromExternal(riegeli::ToStringView(*object_for_cord),
-                                      std::move(object_for_cord));
-  }
-
-  template <typename T, typename Enable = void>
-  struct HasRiegeliToCordSubstr : std::false_type {};
-
-  template <typename T>
-  struct HasRiegeliToCordSubstr<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToCord(std::declval<PointerTypeT<T>>(),
-                                    std::declval<absl::string_view>())),
-             absl::Cord>::value>> : std::true_type {};
-
   template <typename T>
   class ObjectForCordSubstr {
    public:
@@ -509,29 +817,308 @@ class ExternalRef {
     ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS T object_;
   };
 
+  template <typename T, typename Enable = void>
+  struct HasRiegeliToCordWhole : std::false_type {};
+
+  template <typename T>
+  struct HasRiegeliToCordWhole<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(RiegeliToCord(
+                 std::declval<external_ref_internal::PointerTypeT<T>>())),
+             absl::Cord>::value>> : std::true_type {};
+
+  template <typename T, typename Enable = void>
+  struct HasRiegeliToCordSubstr : std::false_type {};
+
+  template <typename T>
+  struct HasRiegeliToCordSubstr<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(RiegeliToCord(
+                 std::declval<external_ref_internal::PointerTypeT<T>>(),
+                 std::declval<absl::string_view>())),
+             absl::Cord>::value>> : std::true_type {};
+
+  template <typename T>
+  struct HasToCordWhole
+      : absl::disjunction<HasRiegeliToCordWhole<T>, HasRiegeliToCordSubstr<T>> {
+  };
+
   template <typename T,
-            std::enable_if_t<HasRiegeliToCordSubstr<T>::value, int> = 0>
-  static absl::Cord ToCordExternal(T&& object, absl::string_view substr) {
-    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), substr);
+            std::enable_if_t<HasRiegeliToCordWhole<T>::value, int> = 0>
+  static absl::Cord ToCordWhole(T&& object) {
+    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)));
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<HasRiegeliToCordSubstr<T>>,
-                    HasRiegeliToCordSubstr<absl::remove_cvref_t<T>>>::value,
+                absl::conjunction<absl::negation<HasRiegeliToCordWhole<T>>,
+                                  HasRiegeliToCordSubstr<T>>::value,
                 int> = 0>
-  static absl::Cord ToCordExternal(T&& object, absl::string_view substr) {
-    return RiegeliToCord(ExternalRef::Pointer(absl::remove_cvref_t<T>(object)),
-                         substr);
+  static absl::Cord ToCordWhole(T&& object) {
+    const absl::string_view data = riegeli::ToStringView(object);
+    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), data);
   }
-  template <
-      typename T,
-      std::enable_if_t<!HasRiegeliToCordSubstr<absl::remove_cvref_t<T>>::value,
-                       int> = 0>
-  static absl::Cord ToCordExternal(T&& object, absl::string_view substr) {
-    return absl::MakeCordFromExternal(
-        substr, ObjectForCordSubstr<std::decay_t<T>>(std::forward<T>(object)));
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliToCordWhole<T>::value, int> = 0>
+  static absl::Cord ToCordWhole(T&& object,
+                                ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
+    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)));
   }
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<absl::negation<HasRiegeliToCordWhole<T>>,
+                                  HasRiegeliToCordSubstr<T>>::value,
+                int> = 0>
+  static absl::Cord ToCordWhole(T&& object, absl::string_view data) {
+    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), data);
+  }
+
+  template <typename T>
+  using HasToCordSubstr = HasRiegeliToCordSubstr<T>;
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliToCordSubstr<T>::value, int> = 0>
+  static absl::Cord ToCordSubstr(T&& object, absl::string_view substr) {
+    return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), substr);
+  }
+
+  template <typename T>
+  class ConverterToCordWhole {
+   public:
+    ConverterToCordWhole(const ConverterToCordWhole&) = delete;
+    ConverterToCordWhole& operator=(const ConverterToCordWhole&) = delete;
+
+    template <typename SubT,
+              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+    void operator()(SubT&& subobject) && {
+      // The constructor processes the subobject.
+      const absl::string_view data = riegeli::ToStringView(subobject);
+      ConverterToCordWhole<SubT> converter(std::forward<SubT>(subobject), data,
+                                           context_, use_string_view_,
+                                           use_cord_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      // The constructor processes the subobject.
+      ConverterToCordSubstr<SubT> converter(std::forward<SubT>(subobject),
+                                            substr, context_, use_string_view_,
+                                            use_cord_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToCordWhole(T&& object, absl::string_view data,
+                                  void* context,
+                                  UseStringViewFunction use_string_view,
+                                  UseCordFunction use_cord)
+        : context_(context),
+          use_string_view_(use_string_view),
+          use_cord_(use_cord) {
+      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+        use_string_view_(context_, data);
+        ExternalRef::CallOperatorWhole(std::forward<T>(object));
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object), data);
+    }
+
+    template <typename DependentT = T,
+              std::enable_if_t<HasToCordWhole<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      use_cord_(context_,
+                ExternalRef::ToCordWhole(std::forward<T>(object), data));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToCordWhole<DependentT>>,
+                      HasToCordWhole<absl::remove_cvref_t<DependentT>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      use_cord_(context_, ExternalRef::ToCordWhole(absl::remove_cvref_t<T>(
+                              std::forward<T>(object))));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<absl::negation<HasToCordWhole<
+                                  absl::remove_cvref_t<DependentT>>>,
+                              HasExternalDelegateWhole<
+                                  DependentT, ConverterToCordWhole>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
+                                         std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<
+                          HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                      absl::negation<HasExternalDelegateWhole<
+                          DependentT, ConverterToCordWhole>>,
+                      HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                               ConverterToCordWhole>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
+                                         std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateWhole<
+                    absl::remove_cvref_t<DependentT>, ConverterToCordWhole>>,
+                SupportsExternalRefSubstr<std::decay_t<DependentT>>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      // If the type indicates that substrings are stable, then
+      // `ObjectForCordSubstr` can be used instead of `ObjectForCordWhole`.
+      use_cord_(context_, absl::MakeCordFromExternal(
+                              data, ObjectForCordSubstr<std::decay_t<T>>(
+                                        std::forward<T>(object))));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateWhole<
+                    absl::remove_cvref_t<DependentT>, ConverterToCordWhole>>,
+                absl::negation<SupportsExternalRefSubstr<
+                    std::decay_t<DependentT>>>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      ObjectForCordWhole<std::decay_t<T>> object_for_cord(
+          std::forward<T>(object));
+      const absl::string_view moved_data =
+          riegeli::ToStringView(*object_for_cord);
+      use_cord_(context_, absl::MakeCordFromExternal(
+                              moved_data, std::move(object_for_cord)));
+    }
+
+    void* context_;
+    UseStringViewFunction use_string_view_;
+    UseCordFunction use_cord_;
+  };
+
+  template <typename T>
+  class ConverterToCordSubstr {
+   public:
+    ConverterToCordSubstr(const ConverterToCordSubstr&) = delete;
+    ConverterToCordSubstr& operator=(const ConverterToCordSubstr&) = delete;
+
+    template <typename SubT>
+    void operator()(SubT&& subobject) && {
+      std::move (*this)(std::forward<SubT>(subobject), substr_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+          << "ExternalRef: size mismatch";
+      // The constructor processes the subobject.
+      ConverterToCordSubstr<SubT> converter(std::forward<SubT>(subobject),
+                                            substr, context_, use_string_view_,
+                                            use_cord_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToCordSubstr(T&& object, absl::string_view substr,
+                                   void* context,
+                                   UseStringViewFunction use_string_view,
+                                   UseCordFunction use_cord)
+        : substr_(substr),
+          context_(context),
+          use_string_view_(use_string_view),
+          use_cord_(use_cord) {
+      AssertSubstr(object, substr_);
+      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+        use_string_view_(context_, substr_);
+        ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object));
+    }
+
+    template <typename DependentT = T,
+              std::enable_if_t<HasToCordSubstr<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_cord_(context_,
+                ExternalRef::ToCordSubstr(std::forward<T>(object), substr_));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToCordSubstr<DependentT>>,
+                      HasToCordSubstr<absl::remove_cvref_t<DependentT>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_cord_(context_, ExternalRef::ToCordSubstr(
+                              absl::remove_cvref_t<T>(object), substr_));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<absl::negation<HasToCordSubstr<
+                                  absl::remove_cvref_t<DependentT>>>,
+                              HasExternalDelegateSubstr<
+                                  DependentT, ConverterToCordSubstr>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
+                                          std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToCordSubstr<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateSubstr<
+                    DependentT, ConverterToCordSubstr>>,
+                HasExternalDelegateSubstr<absl::remove_cvref_t<DependentT>,
+                                          ConverterToCordSubstr>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
+                                          substr_, std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<absl::negation<HasToCordSubstr<
+                                        absl::remove_cvref_t<DependentT>>>,
+                                    absl::negation<HasExternalDelegateSubstr<
+                                        absl::remove_cvref_t<DependentT>,
+                                        ConverterToCordSubstr>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_cord_(context_, absl::MakeCordFromExternal(
+                              substr_, ObjectForCordSubstr<std::decay_t<T>>(
+                                           std::forward<T>(object))));
+    }
+
+    absl::string_view substr_;
+    void* context_;
+    UseStringViewFunction use_string_view_;
+    UseCordFunction use_cord_;
+  };
 
   template <typename T, typename Enable = void>
   class ExternalObjectWhole {
@@ -540,7 +1127,7 @@ class ExternalRef {
         : object_(std::move(object)) {}
 
     ~ExternalObjectWhole() {
-      ExternalRef::CallOperatorWhole(std::forward<T>(object_));
+      ExternalRef::CallOperatorWhole(std::move(object_));
     }
 
     T& operator*() { return object_; }
@@ -561,7 +1148,7 @@ class ExternalRef {
                                   absl::string_view substr)
         : object_(std::move(object)), substr_(substr) {}
 
-    ~ExternalObjectSubstr() { std::forward<T>(object_)(substr_); }
+    ~ExternalObjectSubstr() { std::move(object_)(substr_); }
 
     T& operator*() { return object_; }
     const T& operator*() const { return object_; }
@@ -582,121 +1169,340 @@ class ExternalRef {
   };
 
   template <typename T, typename Enable = void>
-  struct HasRiegeliToExternalData : std::false_type {};
+  struct HasRiegeliToExternalDataWhole : std::false_type {};
 
   template <typename T>
-  struct HasRiegeliToExternalData<
+  struct HasRiegeliToExternalDataWhole<
       T, std::enable_if_t<std::is_convertible<
-             decltype(RiegeliToExternalData(std::declval<PointerTypeT<T>>())),
+             decltype(RiegeliToExternalData(
+                 std::declval<external_ref_internal::PointerTypeT<T>>())),
              ExternalData>::value>> : std::true_type {};
 
-  template <typename T,
-            std::enable_if_t<HasRiegeliToExternalData<T>::value, int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object) {
-    return RiegeliToExternalData(ExternalRef::Pointer(std::forward<T>(object)));
-  }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<HasRiegeliToExternalData<T>>,
-                    HasRiegeliToExternalData<absl::remove_cvref_t<T>>>::value,
-                int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object) {
-    return RiegeliToExternalData(
-        ExternalRef::Pointer(absl::remove_cvref_t<T>(object)));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          !HasRiegeliToExternalData<absl::remove_cvref_t<T>>::value, int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object) {
-    auto* const storage =
-        new ExternalObjectWhole<std::decay_t<T>>(std::forward<T>(object));
-    return ExternalData{
-        ExternalStorage(
-            storage,
-            [](void* ptr) {
-              delete static_cast<ExternalObjectWhole<std::decay_t<T>>*>(ptr);
-            }),
-        riegeli::ToStringView(**storage)};
-  }
+  template <typename T, typename Enable = void>
+  struct HasRiegeliToExternalDataSubstr : std::false_type {};
+
+  template <typename T>
+  struct HasRiegeliToExternalDataSubstr<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(RiegeliToExternalData(
+                 std::declval<external_ref_internal::PointerTypeT<T>>(),
+                 std::declval<absl::string_view>())),
+             ExternalData>::value>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToExternalStorage : std::false_type {};
 
   template <typename T>
   struct HasRiegeliToExternalStorage<
-      T,
-      std::enable_if_t<std::is_convertible<
-          decltype(RiegeliToExternalStorage(std::declval<PointerTypeT<T>>())),
-          ExternalStorage>::value>> : std::true_type {};
+      T, std::enable_if_t<std::is_convertible<
+             decltype(RiegeliToExternalStorage(
+                 std::declval<external_ref_internal::PointerTypeT<T>>())),
+             ExternalStorage>::value>> : std::true_type {};
+
+  template <typename T>
+  struct HasToExternalDataSubstr
+      : absl::disjunction<HasRiegeliToExternalDataSubstr<T>,
+                          HasRiegeliToExternalStorage<T>> {};
 
   template <typename T,
-            std::enable_if_t<HasRiegeliToExternalStorage<T>::value, int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object,
-                                             absl::string_view substr) {
+            std::enable_if_t<HasRiegeliToExternalDataSubstr<T>::value, int> = 0>
+  static ExternalData ToExternalDataSubstr(T&& object,
+                                           absl::string_view substr) {
+    return RiegeliToExternalData(ExternalRef::Pointer(std::forward<T>(object)),
+                                 substr);
+  }
+
+  template <
+      typename T,
+      std::enable_if_t<
+          absl::disjunction<absl::negation<HasRiegeliToExternalDataSubstr<T>>,
+                            HasRiegeliToExternalStorage<T>>::value,
+          int> = 0>
+  static ExternalData ToExternalDataSubstr(T&& object,
+                                           absl::string_view substr) {
     return ExternalData{
         RiegeliToExternalStorage(ExternalRef::Pointer(std::forward<T>(object))),
         substr};
   }
+
+  template <typename T>
+  struct HasToExternalDataWhole
+      : absl::disjunction<HasRiegeliToExternalDataWhole<T>,
+                          HasToExternalDataSubstr<T>> {};
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliToExternalDataWhole<T>::value, int> = 0>
+  static ExternalData ToExternalDataWhole(T&& object) {
+    return RiegeliToExternalData(ExternalRef::Pointer(std::forward<T>(object)));
+  }
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliToExternalStorage<T>>,
-              HasRiegeliToExternalStorage<absl::remove_cvref_t<T>>>::value,
+          absl::conjunction<absl::negation<HasRiegeliToExternalDataWhole<T>>,
+                            HasToExternalDataSubstr<T>>::value,
           int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object,
-                                             absl::string_view substr) {
-    return ExternalData{RiegeliToExternalStorage(ExternalRef::Pointer(
-                            absl::remove_cvref_t<T>(object))),
-                        substr};
-  }
-  template <typename T, std::enable_if_t<!HasRiegeliToExternalStorage<
-                                             absl::remove_cvref_t<T>>::value,
-                                         int> = 0>
-  static ExternalData ToExternalDataExternal(T&& object,
-                                             absl::string_view substr) {
-    return ExternalData{
-        ExternalStorage(
-            new ExternalObjectSubstr<std::decay_t<T>>(std::forward<T>(object),
-                                                      substr),
-            [](void* ptr) {
-              delete static_cast<ExternalObjectSubstr<std::decay_t<T>>*>(ptr);
-            }),
-        substr};
+  static ExternalData ToExternalDataWhole(T&& object) {
+    const absl::string_view data = riegeli::ToStringView(object);
+    return ExternalRef::ToExternalDataSubstr(std::forward<T>(object), data);
   }
 
-  class StorageBase {
+  template <typename T,
+            std::enable_if_t<HasRiegeliToExternalDataWhole<T>::value, int> = 0>
+  static ExternalData ToExternalDataWhole(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
+    return RiegeliToExternalData(ExternalRef::Pointer(std::forward<T>(object)));
+  }
+  template <
+      typename T,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<HasRiegeliToExternalDataWhole<T>>,
+                            HasToExternalDataSubstr<T>>::value,
+          int> = 0>
+  static ExternalData ToExternalDataWhole(T&& object, absl::string_view data) {
+    return ExternalRef::ToExternalDataSubstr(std::forward<T>(object), data);
+  }
+
+  template <typename T>
+  class ConverterToExternalDataWhole {
    public:
+    ConverterToExternalDataWhole(const ConverterToExternalDataWhole&) = delete;
+    ConverterToExternalDataWhole& operator=(
+        const ConverterToExternalDataWhole&) = delete;
+
+    template <typename SubT,
+              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+    void operator()(SubT&& subobject) && {
+      // The constructor processes the subobject.
+      const absl::string_view data = riegeli::ToStringView(subobject);
+      ConverterToExternalDataWhole<SubT> converter(
+          std::forward<SubT>(subobject), data, context_, use_external_data_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      // The constructor processes the subobject.
+      ConverterToExternalDataSubstr<SubT> converter(
+          std::forward<SubT>(subobject), substr, context_, use_external_data_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToExternalDataWhole(
+        T&& object, absl::string_view data, void* context,
+        UseExternalDataFunction use_external_data)
+        : context_(context), use_external_data_(use_external_data) {
+      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+        use_external_data_(context_, ExternalDataCopy(data));
+        ExternalRef::CallOperatorWhole(std::forward<T>(object));
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object), data);
+    }
+
+    template <
+        typename DependentT = T,
+        std::enable_if_t<HasToExternalDataWhole<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      use_external_data_(context_, ExternalRef::ToExternalDataWhole(
+                                       std::forward<T>(object), data));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<absl::conjunction<
+                             absl::negation<HasToExternalDataWhole<DependentT>>,
+                             HasToExternalDataWhole<
+                                 absl::remove_cvref_t<DependentT>>>::value,
+                         int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      use_external_data_(context_, ExternalRef::ToExternalDataWhole(
+                                       absl::remove_cvref_t<T>(object)));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToExternalDataWhole<
+                          absl::remove_cvref_t<DependentT>>>,
+                      HasExternalDelegateWhole<
+                          DependentT, ConverterToExternalDataWhole>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
+                                               absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
+                                         std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<
+                absl::negation<
+                    HasToExternalDataWhole<absl::remove_cvref_t<DependentT>>>,
+                absl::negation<HasExternalDelegateWhole<
+                    DependentT, ConverterToExternalDataWhole>>,
+                HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                         ConverterToExternalDataWhole>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
+        T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
+      ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
+                                         std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<absl::negation<HasToExternalDataWhole<
+                                        absl::remove_cvref_t<DependentT>>>,
+                                    absl::negation<HasExternalDelegateWhole<
+                                        absl::remove_cvref_t<DependentT>,
+                                        ConverterToExternalDataWhole>>>::value,
+                  int> = 0>
+    void Callback(T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
+      auto* const storage =
+          new ExternalObjectWhole<std::decay_t<T>>(std::forward<T>(object));
+      const absl::string_view moved_data = riegeli::ToStringView(**storage);
+      use_external_data_(
+          context_,
+          ExternalData{
+              ExternalStorage(
+                  storage,
+                  [](void* ptr) {
+                    delete static_cast<ExternalObjectWhole<std::decay_t<T>>*>(
+                        ptr);
+                  }),
+              moved_data});
+    }
+
+    void* context_;
+    UseExternalDataFunction use_external_data_;
+  };
+
+  template <typename T>
+  class ConverterToExternalDataSubstr {
+   public:
+    ConverterToExternalDataSubstr(const ConverterToExternalDataSubstr&) =
+        delete;
+    ConverterToExternalDataSubstr& operator=(
+        const ConverterToExternalDataSubstr&) = delete;
+
+    template <typename SubT>
+    void operator()(SubT&& subobject) && {
+      std::move (*this)(std::forward<SubT>(subobject), substr_);
+    }
+
+    template <typename SubT>
+    void operator()(SubT&& subobject, absl::string_view substr) && {
+      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+          << "ExternalRef: size mismatch";
+      // The constructor processes the subobject.
+      ConverterToExternalDataSubstr<SubT> converter(
+          std::forward<SubT>(subobject), substr, context_, use_external_data_);
+    }
+
+   private:
+    friend class ExternalRef;
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE
+    explicit ConverterToExternalDataSubstr(
+        T&& object, absl::string_view substr, void* context,
+        UseExternalDataFunction use_external_data)
+        : substr_(substr),
+          context_(context),
+          use_external_data_(use_external_data) {
+      AssertSubstr(object, substr_);
+      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+        use_external_data_(context_, ExternalDataCopy(substr_));
+        ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
+        return;
+      }
+      std::move(*this).Callback(std::forward<T>(object));
+    }
+
+    template <
+        typename DependentT = T,
+        std::enable_if_t<HasToExternalDataSubstr<DependentT>::value, int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_external_data_(context_, ExternalRef::ToExternalDataSubstr(
+                                       std::forward<T>(object), substr_));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToExternalDataSubstr<DependentT>>,
+                      HasToExternalDataSubstr<
+                          absl::remove_cvref_t<DependentT>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_external_data_(context_,
+                         ExternalRef::ToExternalDataSubstr(
+                             absl::remove_cvref_t<T>(object), substr_));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<
+                      absl::negation<HasToExternalDataSubstr<
+                          absl::remove_cvref_t<DependentT>>>,
+                      HasExternalDelegateSubstr<
+                          DependentT, ConverterToExternalDataSubstr>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
+                                          std::move(*this));
+    }
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            absl::conjunction<absl::negation<HasToExternalDataSubstr<
+                                  absl::remove_cvref_t<DependentT>>>,
+                              absl::negation<HasExternalDelegateSubstr<
+                                  DependentT, ConverterToExternalDataSubstr>>,
+                              HasExternalDelegateSubstr<
+                                  absl::remove_cvref_t<DependentT>,
+                                  ConverterToExternalDataSubstr>>::value,
+            int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
+                                          substr_, std::move(*this));
+    }
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  absl::conjunction<absl::negation<HasToExternalDataSubstr<
+                                        absl::remove_cvref_t<DependentT>>>,
+                                    absl::negation<HasExternalDelegateSubstr<
+                                        absl::remove_cvref_t<DependentT>,
+                                        ConverterToExternalDataSubstr>>>::value,
+                  int> = 0>
+    ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
+      use_external_data_(
+          context_,
+          ExternalData{
+              ExternalStorage(
+                  new ExternalObjectSubstr<std::decay_t<T>>(
+                      std::forward<T>(object), substr_),
+                  [](void* ptr) {
+                    delete static_cast<ExternalObjectSubstr<std::decay_t<T>>*>(
+                        ptr);
+                  }),
+              substr_});
+    }
+
+    absl::string_view substr_;
+    void* context_;
+    UseExternalDataFunction use_external_data_;
+  };
+
+  class StorageBase {
+   protected:
     StorageBase() = default;
 
     StorageBase(const StorageBase&) = delete;
     StorageBase& operator=(const StorageBase&) = delete;
 
-   protected:
     void Initialize(absl::string_view substr) { substr_ = substr; }
 
    private:
     friend class ExternalRef;
-
-    static void ToChainBlock(
-        StorageBase* storage, ABSL_ATTRIBUTE_UNUSED size_t max_bytes_to_copy,
-        void* context, UseStringViewFunction use_string_view,
-        ABSL_ATTRIBUTE_UNUSED UseChainBlockFunction use_chain_block) {
-      use_string_view(context, storage->substr());
-    }
-
-    static void ToCord(StorageBase* storage,
-                       ABSL_ATTRIBUTE_UNUSED size_t max_bytes_to_copy,
-                       void* context, UseStringViewFunction use_string_view,
-                       ABSL_ATTRIBUTE_UNUSED UseCordFunction use_cord) {
-      use_string_view(context, storage->substr());
-    }
-
-    static ExternalData ToExternalData(StorageBase* storage) {
-      return ExternalDataCopy(storage->substr());
-    }
 
     bool empty() const { return substr_.empty(); }
     const char* data() const { return substr_.data(); }
@@ -729,39 +1535,33 @@ class ExternalRef {
                              void* context,
                              UseStringViewFunction use_string_view,
                              UseChainBlockFunction use_chain_block) {
-      T&& object = StorageWholeWithoutCallOperator::object(storage);
-      if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(object, Chain::kExternalAllocatedSize<T>(),
-                   storage->size())) {
+      if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, storage->substr());
         return;
       }
-      use_chain_block(
-          context, ExternalRef::ToChainBlockExternal(std::forward<T>(object)));
+      // The constructor processes the object.
+      ConverterToChainBlockWhole<T> converter(object(storage),
+                                              storage->substr(), context,
+                                              use_string_view, use_chain_block);
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
                        void* context, UseStringViewFunction use_string_view,
                        UseCordFunction use_cord) {
-      T&& object = StorageWholeWithoutCallOperator::object(storage);
-      if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(object,
-                   cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordWhole<std::decay_t<T>>) + sizeof(T),
-                   storage->size())) {
+      if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, storage->substr());
         return;
       }
-      use_cord(context, ExternalRef::ToCordExternal(std::forward<T>(object)));
+      // The constructor processes the object.
+      ConverterToCordWhole<T> converter(object(storage), storage->substr(),
+                                        context, use_string_view, use_cord);
     }
 
-    static ExternalData ToExternalData(StorageBase* storage) {
-      T&& object = StorageWholeWithoutCallOperator::object(storage);
-      if (Wasteful(object, sizeof(ExternalObjectWhole<std::decay_t<T>>),
-                   storage->size())) {
-        return ExternalDataCopy(storage->substr());
-      }
-      return ExternalRef::ToExternalDataExternal(std::forward<T>(object));
+    static void ToExternalData(StorageBase* storage, void* context,
+                               UseExternalDataFunction use_external_data) {
+      // The constructor processes the object.
+      ConverterToExternalDataWhole<T> converter(
+          object(storage), storage->substr(), context, use_external_data);
     }
 
     static T&& object(StorageBase* storage) {
@@ -803,14 +1603,14 @@ class ExternalRef {
                              void* context,
                              UseStringViewFunction use_string_view,
                              UseChainBlockFunction use_chain_block) {
-      if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
-                   storage->size())) {
+      if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, storage->substr());
         return;
       }
-      use_chain_block(
-          context, ExternalRef::ToChainBlockExternal(ExtractObject(storage)));
+      // The constructor processes the object.
+      ConverterToChainBlockWhole<T> converter(ExtractObject(storage),
+                                              storage->substr(), context,
+                                              use_string_view, use_chain_block);
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -820,34 +1620,18 @@ class ExternalRef {
         use_string_view(context, storage->substr());
         return;
       }
-      T&& object = ExtractObject(storage);
-      if (Wasteful(object,
-                   cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordWhole<std::decay_t<T>>) + sizeof(T),
-                   storage->size())) {
-        use_string_view(context, storage->substr());
-        ExternalRef::CallOperatorSubstr(std::forward<T>(object),
-                                        storage->substr());
-        return;
-      }
-      use_cord(context, ExternalRef::ToCordExternal(std::forward<T>(object)));
+      // The constructor processes the object.
+      ConverterToCordWhole<T> converter(ExtractObject(storage),
+                                        storage->substr(), context,
+                                        use_string_view, use_cord);
     }
 
-    static ExternalData ToExternalData(StorageBase* storage) {
-      T&& object = ExtractObject(storage);
-      if (Wasteful(object, sizeof(ExternalObjectWhole<std::decay_t<T>>),
-                   storage->size())) {
-        ExternalData result = ExternalDataCopy(storage->substr());
-        ExternalRef::CallOperatorSubstr(std::forward<T>(object),
-                                        storage->substr());
-        return result;
-      }
-      return ExternalRef::ToExternalDataExternal(std::forward<T>(object));
-    }
-
-    static const T& object(const StorageBase* storage) {
-      return *static_cast<const StorageWholeWithCallOperator*>(storage)
-                  ->object_;
+    static void ToExternalData(StorageBase* storage, void* context,
+                               UseExternalDataFunction use_external_data) {
+      // The constructor processes the object.
+      ConverterToExternalDataWhole<T> converter(ExtractObject(storage),
+                                                storage->substr(), context,
+                                                use_external_data);
     }
 
     static T&& ExtractObject(StorageBase* storage) {
@@ -880,15 +1664,10 @@ class ExternalRef {
         use_string_view(context, storage->substr());
         return;
       }
-      TemporaryStorage<T> temporary_storage;
-      T&& object = initializer(storage).Reference(std::move(temporary_storage));
-      if (Wasteful(object, Chain::kExternalAllocatedSize<T>(),
-                   storage->size())) {
-        use_string_view(context, storage->substr());
-        return;
-      }
-      use_chain_block(context, ExternalRef::ToChainBlockExternal(
-                                   std::forward<T>(object), storage->substr()));
+      // The constructor processes the object.
+      ConverterToChainBlockSubstr<T> converter(
+          initializer(storage).Reference(), storage->substr(), context,
+          use_string_view, use_chain_block);
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
@@ -898,28 +1677,18 @@ class ExternalRef {
         use_string_view(context, storage->substr());
         return;
       }
-      TemporaryStorage<T> temporary_storage;
-      T&& object = initializer(storage).Reference(std::move(temporary_storage));
-      if (Wasteful(object,
-                   cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordSubstr<std::decay_t<T>>),
-                   storage->size())) {
-        use_string_view(context, storage->substr());
-        return;
-      }
-      use_cord(context, ExternalRef::ToCordExternal(std::forward<T>(object),
-                                                    storage->substr()));
+      // The constructor processes the object.
+      ConverterToCordSubstr<T> converter(initializer(storage).Reference(),
+                                         storage->substr(), context,
+                                         use_string_view, use_cord);
     }
 
-    static ExternalData ToExternalData(StorageBase* storage) {
-      TemporaryStorage<T> temporary_storage;
-      T&& object = initializer(storage).Reference(std::move(temporary_storage));
-      if (Wasteful(object, sizeof(ExternalObjectWhole<std::decay_t<T>>),
-                   storage->size())) {
-        return ExternalDataCopy(storage->substr());
-      }
-      return ExternalRef::ToExternalDataExternal(std::forward<T>(object),
-                                                 storage->substr());
+    static void ToExternalData(StorageBase* storage, void* context,
+                               UseExternalDataFunction use_external_data) {
+      // The constructor processes the object.
+      ConverterToExternalDataSubstr<T> converter(
+          initializer(storage).Reference(), storage->substr(), context,
+          use_external_data);
     }
 
     static Initializer<T> initializer(StorageBase* storage) {
@@ -961,47 +1730,35 @@ class ExternalRef {
                              void* context,
                              UseStringViewFunction use_string_view,
                              UseChainBlockFunction use_chain_block) {
-      if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(object(storage), Chain::kExternalAllocatedSize<T>(),
-                   storage->size())) {
+      if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, storage->substr());
         return;
       }
-      use_chain_block(context, ExternalRef::ToChainBlockExternal(
-                                   ExtractObject(storage), storage->substr()));
+      // The constructor processes the object.
+      ConverterToChainBlockSubstr<T> converter(
+          ExtractObject(storage), storage->substr(), context, use_string_view,
+          use_chain_block);
     }
 
     static void ToCord(StorageBase* storage, size_t max_bytes_to_copy,
                        void* context, UseStringViewFunction use_string_view,
                        UseCordFunction use_cord) {
-      if (storage->size() <= max_bytes_to_copy ||
-          Wasteful(object(storage),
-                   cord_internal::kSizeOfCordRepExternal +
-                       sizeof(ObjectForCordSubstr<std::decay_t<T>>),
-                   storage->size())) {
+      if (storage->size() <= max_bytes_to_copy) {
         use_string_view(context, storage->substr());
         return;
       }
-      use_cord(context, ExternalRef::ToCordExternal(ExtractObject(storage),
-                                                    storage->substr()));
+      // The constructor processes the object.
+      ConverterToCordSubstr<T> converter(ExtractObject(storage),
+                                         storage->substr(), context,
+                                         use_string_view, use_cord);
     }
 
-    static ExternalData ToExternalData(StorageBase* storage) {
-      T&& object = ExtractObject(storage);
-      if (Wasteful(object, sizeof(ExternalObjectSubstr<std::decay_t<T>>),
-                   storage->size())) {
-        ExternalData result = ExternalDataCopy(storage->substr());
-        ExternalRef::CallOperatorSubstr(std::forward<T>(object),
-                                        storage->substr());
-        return result;
-      }
-      return ExternalRef::ToExternalDataExternal(std::forward<T>(object),
-                                                 storage->substr());
-    }
-
-    static const T& object(const StorageBase* storage) {
-      return *static_cast<const StorageSubstrWithCallOperator*>(storage)
-                  ->object_;
+    static void ToExternalData(StorageBase* storage, void* context,
+                               UseExternalDataFunction use_external_data) {
+      // The constructor processes the object.
+      ConverterToExternalDataSubstr<T> converter(ExtractObject(storage),
+                                                 storage->substr(), context,
+                                                 use_external_data);
     }
 
     static T&& ExtractObject(StorageBase* storage) {
@@ -1049,51 +1806,27 @@ class ExternalRef {
   };
 
  public:
-  // The type of the `storage` parameter for the constructor which copies the
-  // data.
-  using StorageCopy = StorageBase;
-
-  // The type of the `storage` parameter for the constructor which takes
-  // an external object supporting `RiegeliToStringView(&object)`,
-  // `absl::string_view(object)`, or `absl::Span<const char>(object)`.
+  // The type of the `storage` parameter for the constructor and
+  // `ExternalRef::From()` which take an external object supporting
+  // `riegeli::ToStringView()`.
   template <typename Arg>
   using StorageWhole = typename StorageWholeImpl<Arg>::type;
 
-  // The type of the `storage` parameter for the constructor which takes an
-  // external object and its substring.
+  // The type of the `storage` parameter for the constructor and
+  // `ExternalRef::From()` which take an external object and its substring.
   template <typename Arg>
   using StorageSubstr = typename StorageSubstrImpl<Arg>::type;
-
-  // Constructs an `ExternalRef` from `data` which will be copied. No external
-  // object will be created.
-  //
-  // `storage` must outlive usages of the returned `ExternalRef`.
-  //
-  // `StorageSubstr<Arg>` derives from `StorageCopy` and can also be used for
-  // this constructor. This is useful in a function which conditionally uses
-  // either of these constructors.
-  explicit ExternalRef(
-      absl::string_view data = absl::string_view(),
-      StorageCopy&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND = StorageCopy())
-      : methods_(&kMethods<StorageCopy>), storage_(&storage) {
-    storage.Initialize(data);
-  }
 
   // Constructs an `ExternalRef` from an external object or its `Initializer`.
   // See class comments for expectations on the external object.
   //
-  // The object must be explicitly convertible to `absl::string_view`.
-  //
-  // If the result of conversion to `absl::string_view` is already known and it
-  // remains valid when the object gets moved, it is better to use the overload
-  // below which passes `substr`, because this may avoid creating the external
-  // object altogether, and because conversion to `absl::Cord` avoids an
-  // allocation which makes the object stable.
+  // The object must support `riegeli::ToStringView()`.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
-  template <typename Arg,
-            std::enable_if_t<
-                SupportsToStringView<InitializerTargetT<Arg>>::value, int> = 0>
+  template <
+      typename Arg,
+      std::enable_if_t<SupportsExternalRefWhole<InitializerTargetT<Arg>>::value,
+                       int> = 0>
   explicit ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        StorageWhole<Arg&&>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1105,10 +1838,13 @@ class ExternalRef {
   // Constructs an `ExternalRef` from an external object or its `Initializer`.
   // See class comments for expectations on the external object.
   //
-  // `substr` must be valid for the new object if it gets created.
+  // `substr` must be owned by the object if it gets created or moved.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
-  template <typename Arg>
+  template <
+      typename Arg,
+      std::enable_if_t<
+          SupportsExternalRefSubstr<InitializerTargetT<Arg>>::value, int> = 0>
   explicit ExternalRef(
       Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
       StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1119,6 +1855,33 @@ class ExternalRef {
 
   ExternalRef(ExternalRef&& that) = default;
   ExternalRef& operator=(ExternalRef&& that) = default;
+
+  // Like `ExternalRef` constructor, but `RiegeliSupportsExternalRef()` or
+  // `RiegeliSupportsExternalRefWhole()` is not needed. The caller is
+  // responsible for using an appropriate type of the external object.
+  template <
+      typename Arg,
+      std::enable_if_t<
+          SupportsToStringView<const InitializerTargetT<Arg>>::value, int> = 0>
+  static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                          StorageWhole<Arg&&>&& storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  StorageWhole<Arg&&>()) {
+    storage.Initialize(std::forward<Arg>(arg));
+    return ExternalRef(&kMethods<StorageWhole<Arg&&>>, &storage);
+  }
+
+  // Like `ExternalRef` constructor, but `RiegeliSupportsExternalRef()` is not
+  // needed. The caller is responsible for using an appropriate type of the
+  // external object.
+  template <typename Arg>
+  static ExternalRef From(
+      Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
+      StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
+          StorageSubstr<Arg&&>()) {
+    storage.Initialize(std::forward<Arg>(arg), substr);
+    return ExternalRef(&kMethods<StorageSubstr<Arg&&>>, &storage);
+  }
 
   // Returns `true` if the data size is 0.
   bool empty() const { return storage_->empty(); }
@@ -1136,22 +1899,11 @@ class ExternalRef {
     return storage_->substr();
   }
 
-  // Converts the data to `Chain`.
-  explicit operator Chain() && {
-    Chain result;
-    // Destruction of a just default-constructed `Chain` can be optimized out.
-    // Construction in place is more efficient than assignment.
-    result.~Chain();
-    methods_->to_chain_block(
-        storage_, Chain::kMaxBytesToCopyToEmpty, &result,
-        [](void* context, absl::string_view data) {
-          new (context) Chain(data);
-        },
-        [](void* context, Chain::Block data) {
-          new (context) Chain(std::move(data));
-        });
-    return result;
-  }
+  // The data can be converted to `Chain` using:
+  //  * `Chain::Chain(ExternalRef)`
+  //  * `Chain::Reset(ExternalRef)` or `riegeli::Reset(Chain&, ExternalRef)`
+  //  * `Chain::Append(ExternalRef)`
+  //  * `Chain::Prepend(ExternalRef)`
 
   // Converts the data to `absl::Cord`.
   explicit operator absl::Cord() && {
@@ -1168,6 +1920,107 @@ class ExternalRef {
           new (context) absl::Cord(std::move(data));
         });
     return result;
+  }
+
+  // Support `riegeli::Reset(absl::Cord&, ExternalRef)`.
+  friend void RiegeliReset(absl::Cord& dest, ExternalRef src) {
+    src.methods_->to_cord(
+        src.storage_, cord_internal::kMaxBytesToCopyToEmptyCord, &dest,
+        [](void* context, absl::string_view data) {
+          cord_internal::AssignToBlockyCord(data,
+                                            *static_cast<absl::Cord*>(context));
+        },
+        [](void* context, absl::Cord data) {
+          *static_cast<absl::Cord*>(context) = std::move(data);
+        });
+  }
+
+  // Appends the data to `dest`.
+  void AppendTo(absl::Cord& dest) && {
+    methods_->to_cord(
+        storage_, cord_internal::MaxBytesToCopyToCord(dest), &dest,
+        [](void* context, absl::string_view data) {
+          cord_internal::AppendToBlockyCord(data,
+                                            *static_cast<absl::Cord*>(context));
+        },
+        [](void* context, absl::Cord data) {
+          static_cast<absl::Cord*>(context)->Append(std::move(data));
+        });
+  }
+
+  // Prepends the data to `dest`.
+  void PrependTo(absl::Cord& dest) && {
+    methods_->to_cord(
+        storage_, cord_internal::MaxBytesToCopyToCord(dest), &dest,
+        [](void* context, absl::string_view data) {
+          cord_internal::PrependToBlockyCord(
+              data, *static_cast<absl::Cord*>(context));
+        },
+        [](void* context, absl::Cord data) {
+          static_cast<absl::Cord*>(context)->Prepend(std::move(data));
+        });
+  }
+
+  // Returns a type-erased external object with its deleter and data.
+  explicit operator ExternalData() && {
+    ExternalData result{ExternalStorage(nullptr, nullptr), absl::string_view()};
+    // Destruction of just constructed `ExternalData` can be optimized out.
+    // Construction in place is more efficient than assignment.
+    result.~ExternalData();
+    methods_->to_external_data(storage_, &result,
+                               [](void* context, ExternalData data) {
+                                 new (context) ExternalData(std::move(data));
+                               });
+    return result;
+  }
+
+ private:
+  // For `InitializeTo()`, `AssignTo()`, `AppendTo()`, and `PrependTo()`.
+  friend class Chain;
+
+  struct Methods {
+    // Calls once either `use_string_view` or `use_chain_block`.
+    void (*to_chain_block)(StorageBase* storage, size_t max_bytes_to_copy,
+                           void* context, UseStringViewFunction use_string_view,
+                           UseChainBlockFunction use_chain_block);
+    // Calls once either `use_string_view` or `use_cord`.
+    void (*to_cord)(StorageBase* storage, size_t max_bytes_to_copy,
+                    void* context, UseStringViewFunction use_string_view,
+                    UseCordFunction use_cord);
+    // Calls once `use_external_data`.
+    void (*to_external_data)(StorageBase* storage, void* context,
+                             UseExternalDataFunction use_external_data);
+  };
+
+  explicit ExternalRef(const Methods* methods, StorageBase* storage)
+      : methods_(methods), storage_(storage) {}
+
+  // Assigns the data to `dest` which is expected to be just
+  // default-constructed.
+  void InitializeTo(Chain& dest) && {
+    // Destruction of a just default-constructed `Chain` can be optimized out.
+    // Construction in place is more efficient than assignment.
+    dest.~Chain();
+    methods_->to_chain_block(
+        storage_, Chain::kMaxBytesToCopyToEmpty, &dest,
+        [](void* context, absl::string_view data) {
+          new (context) Chain(data);
+        },
+        [](void* context, Chain::Block data) {
+          new (context) Chain(std::move(data));
+        });
+  }
+
+  // Assigns the data to `dest`.
+  void AssignTo(Chain& dest) && {
+    methods_->to_chain_block(
+        storage_, Chain::kMaxBytesToCopyToEmpty, &dest,
+        [](void* context, absl::string_view data) {
+          static_cast<Chain*>(context)->Reset(data);
+        },
+        [](void* context, Chain::Block data) {
+          static_cast<Chain*>(context)->Reset(std::move(data));
+        });
   }
 
   // Appends the data to `dest`.
@@ -1196,19 +2049,6 @@ class ExternalRef {
         });
   }
 
-  // Appends the data to `dest`.
-  void AppendTo(absl::Cord& dest) && {
-    methods_->to_cord(
-        storage_, cord_internal::MaxBytesToCopyToCord(dest), &dest,
-        [](void* context, absl::string_view data) {
-          cord_internal::AppendToBlockyCord(data,
-                                            *static_cast<absl::Cord*>(context));
-        },
-        [](void* context, absl::Cord data) {
-          static_cast<absl::Cord*>(context)->Append(std::move(data));
-        });
-  }
-
   // Prepends the data to `dest`.
   void PrependTo(Chain& dest) && {
     methods_->to_chain_block(
@@ -1234,35 +2074,6 @@ class ExternalRef {
               static_cast<ChainWithOptions*>(context)->options);
         });
   }
-
-  // Prepends the data to `dest`.
-  void PrependTo(absl::Cord& dest) && {
-    methods_->to_cord(
-        storage_, cord_internal::MaxBytesToCopyToCord(dest), &dest,
-        [](void* context, absl::string_view data) {
-          cord_internal::PrependToBlockyCord(
-              data, *static_cast<absl::Cord*>(context));
-        },
-        [](void* context, absl::Cord data) {
-          static_cast<absl::Cord*>(context)->Prepend(std::move(data));
-        });
-  }
-
-  // Returns a type-erased external object with its deleter and data.
-  operator ExternalData() && { return methods_->to_external_data(storage_); }
-
- private:
-  struct Methods {
-    // Calls once either `use_string_view` or `use_chain_block`.
-    void (*to_chain_block)(StorageBase* storage, size_t max_bytes_to_copy,
-                           void* context, UseStringViewFunction use_string_view,
-                           UseChainBlockFunction use_chain_block);
-    // Calls once either `use_string_view` or `use_cord`.
-    void (*to_cord)(StorageBase* storage, size_t max_bytes_to_copy,
-                    void* context, UseStringViewFunction use_string_view,
-                    UseCordFunction use_cord);
-    ExternalData (*to_external_data)(StorageBase* storage);
-  };
 
   template <typename Impl>
   static constexpr Methods kMethods = {Impl::ToChainBlock, Impl::ToCord,

@@ -76,12 +76,12 @@ inline void ChainWriterBase::MoveFromTail(size_t length, Chain& dest) {
   Chain::BlockIterator iter = tail_->blocks().cbegin();
   size_t remaining = length;
   while (remaining > iter->size()) {
-    iter.ToExternalRef().AppendTo(dest, options_);
+    dest.Append(*iter, options_);
     remaining -= iter->size();
     ++iter;
   }
-  iter.ToExternalRef(absl::string_view(iter->data(), remaining))
-      .AppendTo(dest, options_);
+  dest.Append(ExternalRef(*iter, absl::string_view(iter->data(), remaining)),
+              options_);
   tail_->RemovePrefix(length, options_);
 }
 
@@ -100,12 +100,13 @@ inline void ChainWriterBase::MoveToTail(size_t length, Chain& dest) {
   for (;;) {
     --iter;
     if (remaining <= iter->size()) break;
-    iter.ToExternalRef().PrependTo(*tail_, options_);
+    tail_->Prepend(*iter, options_);
     remaining -= iter->size();
   }
-  iter.ToExternalRef(
-          absl::string_view(iter->data() + iter->size() - remaining, remaining))
-      .PrependTo(*tail_, options_);
+  tail_->Prepend(ExternalRef(*iter, absl::string_view(
+                                        iter->data() + iter->size() - remaining,
+                                        remaining)),
+                 options_);
   dest.RemoveSuffix(length, options_);
 }
 
@@ -261,7 +262,7 @@ bool ChainWriterBase::WriteSlow(ExternalRef src) {
   }
   ShrinkTail(src.size());
   move_start_pos(src.size());
-  std::move(src).AppendTo(dest, options_);
+  dest.Append(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }

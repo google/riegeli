@@ -188,7 +188,7 @@ bool ChainBackwardWriterBase::WriteSlow(ExternalRef src) {
     return FailOverflow();
   }
   move_start_pos(src.size());
-  std::move(src).PrependTo(dest, options_);
+  dest.Prepend(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }

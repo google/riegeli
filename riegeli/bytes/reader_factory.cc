@@ -34,6 +34,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -243,13 +244,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
   if (length <= available()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+    dest.Append(ExternalRef(*iter_, absl::string_view(cursor(), length)));
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), available()))
-        .AppendTo(dest);
+    dest.Append(ExternalRef(*iter_, absl::string_view(cursor(), available())));
     length -= available();
     ++iter_;
   }
@@ -259,11 +259,11 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.ToExternalRef(absl::string_view(start(), start_to_cursor()))
-            .AppendTo(dest);
+        dest.Append(
+            ExternalRef(*iter_, absl::string_view(start(), start_to_cursor())));
         return true;
       }
-      iter_.ToExternalRef().AppendTo(dest);
+      dest.Append(*iter_);
       length -= iter_->size();
       ++iter_;
     }
@@ -301,12 +301,12 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
   if (length <= available()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+    ExternalRef(*iter_, absl::string_view(cursor(), length)).AppendTo(dest);
     move_cursor(length);
     return true;
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), available()))
+    ExternalRef(*iter_, absl::string_view(cursor(), available()))
         .AppendTo(dest);
     length -= available();
     ++iter_;
@@ -317,11 +317,11 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
       move_limit_pos(iter_->size());
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
-        iter_.ToExternalRef(absl::string_view(start(), start_to_cursor()))
+        ExternalRef(*iter_, absl::string_view(start(), start_to_cursor()))
             .AppendTo(dest);
         return true;
       }
-      iter_.ToExternalRef().AppendTo(dest);
+      ExternalRef(*iter_).AppendTo(dest);
       length -= iter_->size();
       ++iter_;
     }
@@ -357,7 +357,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
          "scratch used";
   if (length <= available()) {
     if (ABSL_PREDICT_FALSE(!dest.Write(
-            iter_.ToExternalRef(absl::string_view(cursor(), length))))) {
+            ExternalRef(*iter_, absl::string_view(cursor(), length))))) {
       return false;
     }
     move_cursor(length);
@@ -365,7 +365,7 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
     if (ABSL_PREDICT_FALSE(!dest.Write(
-            iter_.ToExternalRef(absl::string_view(cursor(), available()))))) {
+            ExternalRef(*iter_, absl::string_view(cursor(), available()))))) {
       return false;
     }
     length -= available();
@@ -378,9 +378,9 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       if (length <= iter_->size()) {
         set_buffer(iter_->data(), iter_->size(), length);
         return dest.Write(
-            iter_.ToExternalRef(absl::string_view(start(), start_to_cursor())));
+            ExternalRef(*iter_, absl::string_view(start(), start_to_cursor())));
       }
-      if (ABSL_PREDICT_FALSE(!dest.Write(iter_.ToExternalRef()))) return false;
+      if (ABSL_PREDICT_FALSE(!dest.Write(*iter_))) return false;
       length -= iter_->size();
       ++iter_;
     }

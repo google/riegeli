@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_EXTERNAL_DATA_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 
@@ -27,12 +28,27 @@ namespace riegeli {
 // and `ExternalStorage::get_deleter() -> void (*)(void*)`.
 using ExternalStorage = std::unique_ptr<void, void (*)(void*)>;
 
+// Support `ExternalRef`.
+inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
+  return std::move(*self);
+}
+
 // Type-erased external object with its deleter and a substring of a byte array
 // it ows.
 struct ExternalData {
+  // Indicate support for:
+  //  * `ExternalRef(ExternalData&&)`
+  //  * `ExternalRef(ExternalData&&, substr)`
+  friend void RiegeliSupportsExternalRef(ExternalData*) {}
+
   // Support `ExternalRef`.
   friend absl::string_view RiegeliToStringView(const ExternalData* self) {
     return self->substr;
+  }
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(ExternalData* self) {
+    return std::move(self->storage);
   }
 
   ExternalStorage storage;  // Must outlive usages of `substr`.

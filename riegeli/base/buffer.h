@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <functional>
 #include <iosfwd>
 #include <utility>
 
@@ -27,7 +26,6 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/estimated_allocated_size.h"
 #include "riegeli/base/external_data.h"
-#include "riegeli/base/external_ref.h"
 
 namespace riegeli {
 
@@ -61,28 +59,8 @@ class
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const { return capacity_; }
 
-  // Converts a substring of `*this` to `ExternalRef`.
-  //
-  // `storage` must outlive usages of the returned `ExternalRef`.
-  //
-  // Precondition:
-  //   if `!substr.empty()` then `substr` is a substring of
-  //       [`data()`..`data() + capacity()`).
-  ExternalRef ToExternalRef(absl::string_view substr,
-                            ExternalRef::StorageSubstr<Buffer&&>&& storage
-                                ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                    ExternalRef::StorageSubstr<Buffer&&>()) && {
-    if (!substr.empty()) {
-      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-          << "Failed precondition of Buffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                         data() + capacity()))
-          << "Failed precondition of Buffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-    }
-    return ExternalRef(std::move(*this), substr, std::move(storage));
-  }
+  // Indicate support for `ExternalRef(Buffer&&, substr)`.
+  friend void RiegeliSupportsExternalRef(Buffer*) {}
 
   // Support `ExternalRef`.
   friend size_t RiegeliExternalMemory(const Buffer* self) {

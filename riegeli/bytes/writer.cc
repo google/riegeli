@@ -19,8 +19,6 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <string>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -82,13 +80,6 @@ bool Writer::WriteSlow(absl::string_view src) {
   std::memcpy(cursor(), src.data(), src.size());
   move_cursor(src.size());
   return true;
-}
-
-bool Writer::WriteStringSlow(std::string&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteStringSlow(): "
-         "enough space available, use Write(string&&) instead";
-  return WriteSlow(ExternalRef(std::move(src)));
 }
 
 bool Writer::WriteSlow(const Chain& src) {

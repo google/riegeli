@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <functional>
 #include <iosfwd>
 #include <iterator>
 #include <memory>
@@ -43,13 +42,12 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/external_ref_base.h"
+#include "riegeli/base/external_ref_support.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
-#include "riegeli/base/invoker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
-#include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
@@ -117,6 +115,64 @@ struct Chain::MakeBlock {
   Block operator()(RawBlock* block) const { return Block(block); }
 };
 
+class Chain::BlockRef {
+ public:
+  BlockRef(const BlockRef& that) = default;
+  BlockRef& operator=(const BlockRef& that) = default;
+
+  /*implicit*/ operator absl::string_view() const;
+
+  bool empty() const;
+  const char* data() const;
+  size_t size() const;
+
+  // Indicate support for:
+  //  * `ExternalRef(BlockRef)`
+  //  * `ExternalRef(BlockRef, substr)`
+  friend void RiegeliSupportsExternalRef(const BlockRef*) {}
+
+  // Support `ExternalRef`.
+  friend bool RiegeliExternalCopy(const BlockRef* self) {
+    return self->ExternalCopy();
+  }
+
+  // Support `ExternalRef`.
+  friend Chain::Block RiegeliToChainBlock(const BlockRef* self,
+                                          absl::string_view substr) {
+    return self->ToChainBlock(substr);
+  }
+
+  // Support `ExternalRef`.
+  template <typename Callback>
+  friend void RiegeliExternalDelegate(const BlockRef* self,
+                                      absl::string_view substr,
+                                      Callback&& delegate_to) {
+    self->ExternalDelegate(substr, std::forward<Callback>(delegate_to));
+  }
+
+  // Returns a pointer to the external object if this is an external block
+  // holding an object of type `T`, otherwise returns `nullptr`.
+  template <typename T>
+  const T* external_object() const;
+
+ private:
+  friend class Chain;  // For `BlockRef()`.
+
+  explicit BlockRef(const Chain* chain, BlockPtrPtr ptr)
+      : chain_(chain), ptr_(ptr) {}
+
+  bool ExternalCopy() const;
+  Chain::Block ToChainBlock(absl::string_view substr) const;
+  template <typename Callback>
+  void ExternalDelegate(absl::string_view substr, Callback&& delegate_to) const;
+
+  const Chain* chain_;
+  // If `*chain_` has short data, `kBeginShortData`.
+  // If `*chain_` has block pointers, a pointer to an element of the block
+  // pointer array.
+  BlockPtrPtr ptr_;
+};
+
 class Chain::BlockIterator : public WithCompare<BlockIterator> {
  public:
   using iterator_concept = std::random_access_iterator_tag;
@@ -124,7 +180,7 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   // `LegacyForwardIterator` requirement and above require `reference` to be
   // a true reference type.
   using iterator_category = std::input_iterator_tag;
-  using value_type = absl::string_view;
+  using value_type = BlockRef;
   using reference = value_type;
   using difference_type = ptrdiff_t;
 
@@ -137,8 +193,6 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
     explicit pointer(reference ref) : ref_(ref) {}
     reference ref_;
   };
-
-  using BlockMaker = InvokerType<MakeBlock, RawBlock*>;
 
   BlockIterator() = default;
 
@@ -190,49 +244,13 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
     return a + n;
   }
 
-  // Converts the block pointed to `*this` to `ExternalRef`.
-  //
-  // `temporary_storage` and `external_storage` must outlive usages of the
-  // returned `ExternalRef`.
-  //
-  // Precondition: `*this` is not past the end iterator
-  ExternalRef ToExternalRef(
-      TemporaryStorage<BlockMaker>&& temporary_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockMaker>(),
-      ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<BlockMaker&&>()) const;
-
-  // Converts a substring of the block pointed to `*this` to `ExternalRef`.
-  //
-  // `temporary_storage` and `external_storage` must outlive usages of the
-  // returned `ExternalRef`.
-  //
-  // Preconditions:
-  //   `*this` is not past the end iterator
-  //   if `!substr.empty()` then `substr` is a substring of `**this`
-  ExternalRef ToExternalRef(
-      absl::string_view substr,
-      TemporaryStorage<BlockMaker>&& temporary_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND = TemporaryStorage<BlockMaker>(),
-      ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<BlockMaker&&>()) const;
-
-  // Returns a pointer to the external object if this points to an external
-  // block holding an object of type `T`, otherwise returns `nullptr`.
-  //
-  // Precondition: `*this` is not past the end iterator
-  template <typename T>
-  const T* external_object() const;
-
  private:
   friend class Chain;
 
   static constexpr BlockPtrPtr kBeginShortData{0};
   static constexpr BlockPtrPtr kEndShortData{sizeof(BlockPtr)};
 
-  explicit BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
+  explicit BlockIterator(const Chain* chain, BlockPtrPtr ptr);
 
   size_t CharIndexInChainInternal() const;
 
@@ -240,13 +258,14 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   // If `chain_ == nullptr`, `kBeginShortData`.
   // If `*chain_` has no block pointers and no short data, `kEndShortData`.
   // If `*chain_` has short data, `kBeginShortData` or `kEndShortData`.
-  // If `*chain_` has block pointers, a pointer to the block pointer array.
+  // If `*chain_` has block pointers, a pointer to an element of the block
+  // pointer array.
   BlockPtrPtr ptr_ = kBeginShortData;
 };
 
 class Chain::Blocks {
  public:
-  using value_type = absl::string_view;
+  using value_type = BlockRef;
   using reference = value_type;
   using const_reference = reference;
   using iterator = BlockIterator;
@@ -440,8 +459,7 @@ void RiegeliDumpStructure(const std::string* self, std::ostream& out);
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // `object`, and sets block data to `RiegeliToStringView(&new_object)`,
-  // `absl::string_view(new_object)`, or `absl::Span<const char>(new_object)`.
+  // `object`, and sets block data to `riegeli::ToStringView(new_object)`.
   static IntrusiveSharedPtr<RawBlock> NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
@@ -694,6 +712,66 @@ inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator-(ptrdiff_t n) const {
   return BlockPtrPtr::from_ptr(as_ptr() - n);
 }
 
+inline Chain::BlockRef::operator absl::string_view() const {
+  if (ptr_ == BlockIterator::kBeginShortData) {
+    return chain_->short_data();
+  } else {
+    return absl::string_view(*ptr_.as_ptr()->block_ptr);
+  }
+}
+
+inline bool Chain::BlockRef::empty() const {
+  return ptr_ != BlockIterator::kBeginShortData &&
+         ptr_.as_ptr()->block_ptr->empty();
+}
+
+inline const char* Chain::BlockRef::data() const {
+  if (ptr_ == BlockIterator::kBeginShortData) {
+    return chain_->short_data_begin();
+  } else {
+    return ptr_.as_ptr()->block_ptr->data_begin();
+  }
+}
+
+inline size_t Chain::BlockRef::size() const {
+  if (ptr_ == BlockIterator::kBeginShortData) {
+    return chain_->size_;
+  } else {
+    return ptr_.as_ptr()->block_ptr->size();
+  }
+}
+
+inline bool Chain::BlockRef::ExternalCopy() const {
+  return ptr_ == BlockIterator::kBeginShortData;
+}
+
+inline Chain::Block Chain::BlockRef::ToChainBlock(
+    absl::string_view substr) const {
+  RIEGELI_ASSERT(ptr_ != BlockIterator::kBeginShortData)
+      << "Failed precondition of RiegeliToChainBlock(const Chain::BlockRef*): "
+         "case excluded by RiegeliExternalCopy()";
+  return Block(ptr_.as_ptr()->block_ptr, substr);
+}
+
+template <typename Callback>
+inline void Chain::BlockRef::ExternalDelegate(absl::string_view substr,
+                                              Callback&& delegate_to) const {
+  RIEGELI_ASSERT(ptr_ != BlockIterator::kBeginShortData)
+      << "Failed precondition of "
+         "RiegeliExternalDelegate(const Chain::BlockRef*): "
+         "case excluded by RiegeliExternalCopy()";
+  std::forward<Callback>(delegate_to)(Block(ptr_.as_ptr()->block_ptr), substr);
+}
+
+template <typename T>
+inline const T* Chain::BlockRef::external_object() const {
+  if (ptr_ == BlockIterator::kBeginShortData) {
+    return nullptr;
+  } else {
+    return ptr_.as_ptr()->block_ptr->checked_external_object<T>();
+  }
+}
+
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            size_t block_index)
     : chain_(chain),
@@ -703,8 +781,7 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                 : BlockPtrPtr::from_ptr(chain_->begin_)) +
            IntCast<ptrdiff_t>(block_index)) {}
 
-inline Chain::BlockIterator::BlockIterator(const Chain* chain,
-                                           BlockPtrPtr ptr) noexcept
+inline Chain::BlockIterator::BlockIterator(const Chain* chain, BlockPtrPtr ptr)
     : chain_(chain), ptr_(ptr) {}
 
 inline size_t Chain::BlockIterator::block_index() const {
@@ -726,11 +803,7 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::operator*: "
          "iterator is end()";
-  if (ptr_ == kBeginShortData) {
-    return chain_->short_data();
-  } else {
-    return absl::string_view(*ptr_.as_ptr()->block_ptr);
-  }
+  return BlockRef(chain_, ptr_);
 }
 
 inline Chain::BlockIterator::pointer Chain::BlockIterator::operator->() const {
@@ -786,61 +859,13 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
   return *(*this + n);
 }
 
-inline ExternalRef Chain::BlockIterator::ToExternalRef(
-    TemporaryStorage<BlockMaker>&& temporary_storage,
-    ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::ToExternalRef(): "
-         "iterator is end()";
-  if (ptr_ == kBeginShortData) {
-    return ExternalRef(chain_->short_data(), std::move(external_storage));
-  } else {
-    return ExternalRef(std::move(temporary_storage)
-                           .emplace(MakeBlock(), ptr_.as_ptr()->block_ptr),
-                       absl::string_view(*ptr_.as_ptr()->block_ptr),
-                       std::move(external_storage));
-  }
-}
-
-inline ExternalRef Chain::BlockIterator::ToExternalRef(
-    absl::string_view substr, TemporaryStorage<BlockMaker>&& temporary_storage,
-    ExternalRef::StorageSubstr<BlockMaker&&>&& external_storage) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::ToExternalRef(): "
-         "iterator is end()";
-  if (!substr.empty()) {
-    RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), (*this)->data()))
-        << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
-           "substring not contained in the buffer";
-    RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                       (*this)->data() + (*this)->size()))
-        << "Failed precondition of SizedSharedBuffer::ToExternalRef(): "
-           "substring not contained in the buffer";
-  }
-  if (ptr_ == kBeginShortData) {
-    return ExternalRef(substr, std::move(external_storage));
-  } else {
-    return ExternalRef(std::move(temporary_storage)
-                           .emplace(MakeBlock(), ptr_.as_ptr()->block_ptr),
-                       substr, std::move(external_storage));
-  }
-}
-
-template <typename T>
-inline const T* Chain::BlockIterator::external_object() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::external_object(): "
-         "iterator is end()";
-  if (ptr_ == kBeginShortData) {
-    return nullptr;
-  } else {
-    return ptr_.as_ptr()->block_ptr->checked_external_object<T>();
-  }
-}
-
 template <
     typename T,
-    std::enable_if_t<SupportsToStringView<InitializerTargetT<T>>::value, int>>
+    std::enable_if_t<
+        absl::conjunction<
+            absl::negation<std::is_same<InitializerTargetT<T>, Chain::Block>>,
+            SupportsToStringView<InitializerTargetT<T>>>::value,
+        int>>
 inline Chain::Block::Block(T&& object)
     : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
           std::forward<T>(object))) {}
@@ -849,6 +874,19 @@ template <typename T>
 inline Chain::Block::Block(T&& object, absl::string_view substr)
     : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
           std::forward<T>(object), substr)) {}
+
+inline Chain::Block::Block(RawBlock* block, absl::string_view substr) {
+  if (block->size() == substr.size()) {
+    block_.Reset(block, kShareOwnership);
+    return;
+  }
+  if (const Block* const block_ptr = block->checked_external_object<Block>()) {
+    // `block` is already a `Block`. Refer to its target instead.
+    block = block_ptr->block_.get();
+  }
+  block_.Reset(block, kShareOwnership);
+  block_ = ExternalMethodsFor<Block>::NewBlock(std::move(*this), substr);
+}
 
 inline Chain::Block::Block(RawBlock* block) {
   if (const Block* const block_ptr = block->checked_external_object<Block>()) {
@@ -906,41 +944,33 @@ inline Chain::Blocks::reference Chain::Blocks::operator[](size_type n) const {
   RIEGELI_ASSERT_LT(n, size())
       << "Failed precondition of Chain::Blocks::operator[]: "
          "block index out of range";
-  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
-    return chain_->short_data();
-  } else {
-    return absl::string_view(*chain_->begin_[n].block_ptr);
-  }
+  return BlockRef(chain_, chain_->begin_ == chain_->end_
+                              ? BlockIterator::kBeginShortData
+                              : BlockPtrPtr::from_ptr(chain_->begin_ + n));
 }
 
 inline Chain::Blocks::reference Chain::Blocks::at(size_type n) const {
   RIEGELI_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
                                  "block index out of range";
-  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
-    return chain_->short_data();
-  } else {
-    return absl::string_view(*chain_->begin_[n].block_ptr);
-  }
+  return BlockRef(chain_, chain_->begin_ == chain_->end_
+                              ? BlockIterator::kBeginShortData
+                              : BlockPtrPtr::from_ptr(chain_->begin_ + n));
 }
 
 inline Chain::Blocks::reference Chain::Blocks::front() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::front(): no blocks";
-  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
-    return chain_->short_data();
-  } else {
-    return absl::string_view(*chain_->begin_[0].block_ptr);
-  }
+  return BlockRef(chain_, chain_->begin_ == chain_->end_
+                              ? BlockIterator::kBeginShortData
+                              : BlockPtrPtr::from_ptr(chain_->begin_));
 }
 
 inline Chain::Blocks::reference Chain::Blocks::back() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::back(): no blocks";
-  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
-    return chain_->short_data();
-  } else {
-    return absl::string_view(*chain_->end_[-1].block_ptr);
-  }
+  return BlockRef(chain_, chain_->begin_ == chain_->end_
+                              ? BlockIterator::kBeginShortData
+                              : BlockPtrPtr::from_ptr(chain_->end_ - 1));
 }
 
 template <typename T>
@@ -950,16 +980,26 @@ constexpr size_t Chain::kExternalAllocatedSize() {
 
 inline Chain::Chain(absl::string_view src) { Initialize(src); }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
 inline Chain::Chain(Src&& src) {
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  Initialize(std::move(src));
+  Initialize(riegeli::ToStringView(src));
 }
 
 inline Chain::Chain(Block src) {
   if (src.raw_block() != nullptr) Initialize(std::move(src));
+}
+
+inline Chain::Chain(ExternalRef src) { std::move(src).InitializeTo(*this); }
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline Chain::Chain(Src&& src) {
+  ExternalRef(std::forward<Src>(src)).InitializeTo(*this);
 }
 
 inline Chain::Chain(Chain&& that) noexcept
@@ -1015,7 +1055,23 @@ inline Chain::~Chain() {
 
 inline void Chain::Reset() { Clear(); }
 
-extern template void Chain::Reset(std::string&& src);
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
+inline void Chain::Reset(Src&& src) {
+  Reset(riegeli::ToStringView(src));
+}
+
+inline void Chain::Reset(ExternalRef src) { std::move(src).AssignTo(*this); }
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline void Chain::Reset(Src&& src) {
+  ExternalRef(std::forward<Src>(src)).AssignTo(*this);
+}
 
 inline void Chain::Clear() {
   size_ = 0;
@@ -1035,26 +1091,6 @@ inline void Chain::Initialize(absl::string_view src) {
   }
   InitializeSlow(src);
 }
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Initialize(Src&& src) {
-  RIEGELI_ASSERT_EQ(size_, 0u)
-      << "Failed precondition of Chain::Initialize(string&&): "
-         "size not reset";
-  if (src.size() <= kMaxShortDataSize) {
-    if (src.empty()) return;
-    EnsureHasHere();
-    size_ = src.size();
-    std::memcpy(short_data_begin(), src.data(), src.size());
-    return;
-  }
-  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
-  // `Src` is always `std::string`, never an lvalue reference.
-  InitializeSlow(std::move(src));
-}
-
-extern template void Chain::InitializeSlow(std::string&& src);
 
 inline void Chain::Initialize(Block src) {
   size_ = src.raw_block()->size();
@@ -1142,8 +1178,61 @@ inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
   return PrependBuffer(length, length, length, options);
 }
 
-extern template void Chain::Append(std::string&& src, Options options);
-extern template void Chain::Prepend(std::string&& src, Options options);
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
+inline void Chain::Append(Src&& src, Options options) {
+  Append(riegeli::ToStringView(src), options);
+}
+
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
+inline void Chain::Prepend(Src&& src, Options options) {
+  Prepend(riegeli::ToStringView(src), options);
+}
+
+inline void Chain::Append(ExternalRef src) { std::move(src).AppendTo(*this); }
+
+inline void Chain::Append(ExternalRef src, Options options) {
+  std::move(src).AppendTo(*this, options);
+}
+
+inline void Chain::Prepend(ExternalRef src) { std::move(src).PrependTo(*this); }
+
+inline void Chain::Prepend(ExternalRef src, Options options) {
+  std::move(src).PrependTo(*this, options);
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline void Chain::Append(Src&& src) {
+  ExternalRef(std::forward<Src>(src)).AppendTo(*this);
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline void Chain::Append(Src&& src, Options options) {
+  ExternalRef(std::forward<Src>(src)).AppendTo(*this, options);
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline void Chain::Prepend(Src&& src) {
+  ExternalRef(std::forward<Src>(src)).PrependTo(*this);
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline void Chain::Prepend(Src&& src, Options options) {
+  ExternalRef(std::forward<Src>(src)).PrependTo(*this, options);
+}
 
 template <typename HashState>
 HashState Chain::HashValue(HashState hash_state) const {

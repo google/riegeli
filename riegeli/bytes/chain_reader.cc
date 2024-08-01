@@ -28,6 +28,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -81,12 +82,12 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
   if (length <= available()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+    dest.Append(ExternalRef(*iter_, absl::string_view(cursor(), length)));
     move_cursor(length);
     return true;
   }
   if (ABSL_PREDICT_FALSE(iter_ == src.blocks().cend())) return false;
-  iter_.ToExternalRef(absl::string_view(cursor(), available())).AppendTo(dest);
+  dest.Append(ExternalRef(*iter_, absl::string_view(cursor(), available())));
   length -= available();
   while (++iter_ != src.blocks().cend()) {
     RIEGELI_ASSERT_LE(iter_->size(), src.size() - limit_pos())
@@ -94,10 +95,10 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
     move_limit_pos(iter_->size());
     if (length <= iter_->size()) {
       set_buffer(iter_->data(), iter_->size(), length);
-      iter_.ToExternalRef(absl::string_view(start(), length)).AppendTo(dest);
+      dest.Append(ExternalRef(*iter_, absl::string_view(start(), length)));
       return true;
     }
-    iter_.ToExternalRef().AppendTo(dest);
+    dest.Append(*iter_);
     length -= iter_->size();
   }
   set_buffer();
@@ -119,12 +120,12 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
   if (length <= available()) {
-    iter_.ToExternalRef(absl::string_view(cursor(), length)).AppendTo(dest);
+    ExternalRef(*iter_, absl::string_view(cursor(), length)).AppendTo(dest);
     move_cursor(length);
     return true;
   }
   if (ABSL_PREDICT_FALSE(iter_ == src.blocks().cend())) return false;
-  iter_.ToExternalRef(absl::string_view(cursor(), available())).AppendTo(dest);
+  ExternalRef(*iter_, absl::string_view(cursor(), available())).AppendTo(dest);
   length -= available();
   while (++iter_ != src.blocks().cend()) {
     RIEGELI_ASSERT_LE(iter_->size(), src.size() - limit_pos())
@@ -132,10 +133,10 @@ bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
     move_limit_pos(iter_->size());
     if (length <= iter_->size()) {
       set_buffer(iter_->data(), iter_->size(), length);
-      iter_.ToExternalRef(absl::string_view(start(), length)).AppendTo(dest);
+      ExternalRef(*iter_, absl::string_view(start(), length)).AppendTo(dest);
       return true;
     }
-    iter_.ToExternalRef().AppendTo(dest);
+    ExternalRef(*iter_).AppendTo(dest);
     length -= iter_->size();
   }
   set_buffer();

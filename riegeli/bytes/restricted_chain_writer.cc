@@ -156,7 +156,7 @@ bool RestrictedChainWriter::WriteSlow(ExternalRef src) {
     return FailOverflow();
   }
   move_start_pos(src.size());
-  std::move(src).AppendTo(dest_);
+  dest_.Append(std::move(src));
   MakeBuffer();
   return true;
 }

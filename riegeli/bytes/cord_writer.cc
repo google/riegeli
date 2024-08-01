@@ -78,7 +78,7 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
       dest.Append(std::move(cord_buffer_));
     }
   } else {
-    std::move(buffer_).ToExternalRef(data).AppendTo(dest);
+    ExternalRef(std::move(buffer_), data).AppendTo(dest);
   }
   set_buffer();
 }

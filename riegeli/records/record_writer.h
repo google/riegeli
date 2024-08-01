@@ -20,12 +20,12 @@
 
 #include <future>
 #include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -42,6 +42,7 @@
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/stable_dependency.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -433,10 +434,6 @@ class RecordWriterBase : public Object {
   // `WriteRecord(google::protobuf::MessageLite)` serializes a proto message to
   // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
-  //
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
@@ -444,13 +441,20 @@ class RecordWriterBase : public Object {
                    SerializeOptions serialize_options = SerializeOptions());
   bool WriteRecord(absl::string_view record);
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   bool WriteRecord(Src&& record);
   bool WriteRecord(const Chain& record);
   bool WriteRecord(Chain&& record);
   bool WriteRecord(const absl::Cord& record);
   bool WriteRecord(absl::Cord&& record);
   bool WriteRecord(ExternalRef record);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  bool WriteRecord(Src&& src);
 
   // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism() > 0`, waits for any background writing to
@@ -665,7 +669,21 @@ explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
 
 // Implementation details follow.
 
-extern template bool RecordWriterBase::WriteRecord(std::string&& record);
+template <
+    typename Src,
+    std::enable_if_t<
+        absl::conjunction<SupportsToStringView<Src>,
+                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
+        int>>
+inline bool RecordWriterBase::WriteRecord(Src&& record) {
+  return WriteRecord(riegeli::ToStringView(record));
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline bool RecordWriterBase::WriteRecord(Src&& src) {
+  return WriteRecord(ExternalRef(std::forward<Src>(src)));
+}
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(Initializer<Dest> dest, Options options)

@@ -59,7 +59,7 @@ char* WriterSnappySink::GetAppendBuffer(size_t length, char* scratch) {
 void WriterSnappySink::AppendAndTakeOwnership(
     char* src, size_t length, void (*deleter)(void*, const char*, size_t),
     void* deleter_arg) {
-  dest_->Write(ExternalRef(
+  dest_->Write(ExternalRef::From(
       [deleter, deleter_arg](absl::string_view data) {
         deleter(deleter_arg, data.data(), data.size());
       },

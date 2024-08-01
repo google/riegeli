@@ -19,8 +19,6 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
@@ -86,20 +84,13 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
   return true;
 }
 
-bool BackwardWriter::WriteStringSlow(std::string&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of BackwardWriter::WriteStringSlow(): "
-         "enough space available, use Write(string&&) instead";
-  return WriteSlow(ExternalRef(std::move(src)));
-}
-
 bool BackwardWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   for (Chain::Blocks::const_reverse_iterator iter = src.blocks().crbegin();
        iter != src.blocks().crend(); ++iter) {
-    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
+    if (ABSL_PREDICT_FALSE(!Write(absl::string_view(*iter)))) return false;
   }
   return true;
 }

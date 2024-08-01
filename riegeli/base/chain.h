@@ -15,8 +15,9 @@
 #ifndef RIEGELI_BASE_CHAIN_H_
 #define RIEGELI_BASE_CHAIN_H_
 
-#include "riegeli/base/chain_base.h"         // IWYU pragma: export
-#include "riegeli/base/chain_details.h"      // IWYU pragma: export
-#include "riegeli/base/external_ref_base.h"  // IWYU pragma: keep
+#include "riegeli/base/chain_base.h"            // IWYU pragma: export
+#include "riegeli/base/chain_details.h"         // IWYU pragma: export
+#include "riegeli/base/external_ref_base.h"     // IWYU pragma: keep
+#include "riegeli/base/external_ref_support.h"  // IWYU pragma: keep
 
 #endif  // RIEGELI_BASE_CHAIN_H_

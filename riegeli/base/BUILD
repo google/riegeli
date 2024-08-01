@@ -362,6 +362,17 @@ cc_library(
 )
 
 cc_library(
+    name = "external_ref_support",
+    hdrs = ["external_ref_support.h"],
+    deps = [
+        ":external_data",
+        ":to_string_view",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
     name = "shared_ptr",
     hdrs = [
         "intrusive_shared_ptr.h",
@@ -375,6 +386,7 @@ cc_library(
         ":compare",
         ":constexpr",
         ":external_data",
+        ":external_ref_support",
         ":initializer",
         ":new_aligned",
         ":reset",
@@ -394,7 +406,6 @@ cc_library(
         ":buffering",
         ":estimated_allocated_size",
         ":external_data",
-        ":external_ref",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
@@ -409,7 +420,6 @@ cc_library(
         ":assert",
         ":buffer",
         ":external_data",
-        ":external_ref",
         ":initializer",
         ":shared_ptr",
         "@com_google_absl//absl/base:core_headers",
@@ -425,7 +435,6 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":buffering",
-        ":external_ref",
         ":shared_buffer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -449,6 +458,7 @@ cc_library(
         ":compare",
         ":cord_utils",
         ":external_data",
+        ":external_ref_support",
         ":global",
         ":initializer",
         ":memory_estimator",
@@ -471,13 +481,19 @@ cc_library(
 cc_library(
     name = "chain",
     hdrs = ["chain.h"],
-    deps = [":chain_and_external_ref"],
+    deps = [
+        ":chain_and_external_ref",
+        ":external_ref_support",
+    ],
 )
 
 cc_library(
     name = "external_ref",
     hdrs = ["external_ref.h"],
-    deps = [":chain_and_external_ref"],
+    deps = [
+        ":chain_and_external_ref",
+        ":external_ref_support",
+    ],
 )
 
 cc_library(
@@ -490,7 +506,6 @@ cc_library(
         ":compare",
         ":estimated_allocated_size",
         ":external_data",
-        ":external_ref",
         ":new_aligned",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",

@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -37,6 +38,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
+#include "riegeli/base/external_ref_support.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/memory_estimator.h"
@@ -45,6 +47,8 @@
 #include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
+
+class ExternalRef;
 
 // A `Chain` represents a sequence of bytes. It supports efficient appending and
 // prepending, and sharing memory with other `Chain`s and other types. It does
@@ -150,7 +154,7 @@ class Chain : public WithCompare<Chain> {
   };
 
   class Block;
-  struct MakeBlock;
+  class BlockRef;
   class BlockIterator;
   class Blocks;
   struct BlockAndChar;
@@ -178,17 +182,21 @@ class Chain : public WithCompare<Chain> {
   constexpr Chain() = default;
 
   // Converts from a string-like type.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
   explicit Chain(absl::string_view src);
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   explicit Chain(Src&& src);
   explicit Chain(Block src);
   explicit Chain(const absl::Cord& src);
   explicit Chain(absl::Cord&& src);
+  explicit Chain(ExternalRef src);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  explicit Chain(Src&& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -207,11 +215,19 @@ class Chain : public WithCompare<Chain> {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view src);
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Block src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(ExternalRef src);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
 
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
@@ -291,13 +307,13 @@ class Chain : public WithCompare<Chain> {
                                       Options options = Options());
 
   // Appends/prepends a string-like type.
-  //
-  // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `absl::string_view`
-  // (e.g. `const char*`).
   void Append(absl::string_view src, Options options = Options());
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   void Append(Src&& src, Options options = Options());
   void Append(const Chain& src, Options options = Options());
   void Append(Chain&& src, Options options = Options());
@@ -305,9 +321,21 @@ class Chain : public WithCompare<Chain> {
   void Append(Block&& src, Options options = Options());
   void Append(const absl::Cord& src, Options options = Options());
   void Append(absl::Cord&& src, Options options = Options());
+  void Append(ExternalRef src);
+  void Append(ExternalRef src, Options options);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  void Append(Src&& src);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  void Append(Src&& src, Options options);
   void Prepend(absl::string_view src, Options options = Options());
   template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    SupportsToStringView<Src>,
+                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
+                int> = 0>
   void Prepend(Src&& src, Options options = Options());
   void Prepend(const Chain& src, Options options = Options());
   void Prepend(Chain&& src, Options options = Options());
@@ -315,6 +343,14 @@ class Chain : public WithCompare<Chain> {
   void Prepend(Block&& src, Options options = Options());
   void Prepend(const absl::Cord& src, Options options = Options());
   void Prepend(absl::Cord&& src, Options options = Options());
+  void Prepend(ExternalRef src);
+  void Prepend(ExternalRef src, Options options);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  void Prepend(Src&& src);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  void Prepend(Src&& src, Options options);
 
   // `AppendFrom(iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
@@ -370,6 +406,7 @@ class Chain : public WithCompare<Chain> {
 
  private:
   class BlockPtrPtr;
+  struct MakeBlock;
   struct ExternalMethods;
   template <typename T>
   struct ExternalMethodsFor;
@@ -457,12 +494,6 @@ class Chain : public WithCompare<Chain> {
 
   void Initialize(absl::string_view src);
   void InitializeSlow(absl::string_view src);
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Initialize(Src&& src);
-  template <typename Src,
-            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void InitializeSlow(Src&& src);
   void Initialize(Block src);
   void Initialize(const absl::Cord& src);
   void Initialize(absl::Cord&& src);
@@ -595,9 +626,8 @@ class Chain::RawBlock {
   explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object of type `T`,
-  // and sets block data to `RiegeliToStringView(&new_object)`,
-  // `absl::string_view(new_object)`, or `absl::Span<const char>(new_object)`.
-  // This constructor is public for `NewAligned()`.
+  // and sets block data to `riegeli::ToStringView(new_object)`. This
+  // constructor is public for `NewAligned()`.
   template <typename T>
   explicit RawBlock(Initializer<T> object);
 
@@ -750,17 +780,11 @@ class Chain::Block {
   // The `object` parameter supports `riegeli::Maker<T>(args...)` to construct
   // `T` in-place.
   //
-  // If the `substr` parameter is given, `substr` must be valid for the new
-  // object.
+  // If the `substr` parameter is given, `substr` must be owned by the object
+  // after it gets created or moved.
   //
-  // If the `substr` parameter is not given, `T` must support any of:
-  // ```
-  //   // Returns contents of the object. Called when it is moved to its final
-  //   // location.
-  //   friend absl::string_view RiegeliToStringView(const T* self);
-  //   explicit operator absl::string_view() const;
-  //   explicit operator absl::Span<const char>() const;
-  // ```
+  // If the `substr` parameter is not given, `T` must support
+  // `riegeli::ToStringView()`.
   //
   // `T` may also support the following member functions, either with or without
   // the `substr` parameter, with the following definitions assumed by default:
@@ -788,8 +812,11 @@ class Chain::Block {
   // `substr` parameter passed to `FromExternal()`. Having `substr` available in
   // these functions might avoid storing `substr` in the external object.
   template <typename T,
-            std::enable_if_t<SupportsToStringView<InitializerTargetT<T>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<std::is_same<InitializerTargetT<T>, Block>>,
+                    SupportsToStringView<InitializerTargetT<T>>>::value,
+                int> = 0>
   explicit Block(T&& object);
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);
@@ -799,6 +826,28 @@ class Chain::Block {
 
   Block(Block&& that) = default;
   Block& operator=(Block&& that) = default;
+
+  explicit operator absl::string_view() const {
+    if (block_ == nullptr) return absl::string_view();
+    return absl::string_view(*block_);
+  }
+
+  bool empty() const { return block_ == nullptr || block_->empty(); }
+  size_t size() const {
+    if (block_ == nullptr) return 0;
+    return block_->size();
+  }
+  const char* data() const {
+    if (block_ == nullptr) return nullptr;
+    return block_->data_begin();
+  }
+
+  // Indicate support for:
+  //  * `ExternalRef(const Block&)`
+  //  * `ExternalRef(Block&&)`
+  //  * `ExternalRef(const Block&, substr)`
+  //  * `ExternalRef(Block&&, substr)`
+  friend void RiegeliSupportsExternalRef(const Block*) {}
 
   // Support `ExternalRef`.
   friend size_t RiegeliExternalMemory(const Block* self) {
@@ -813,6 +862,9 @@ class Chain::Block {
   // Support `ExternalRef`.
   friend absl::Cord RiegeliToCord(Block* self, absl::string_view substr) {
     return std::move(*self).ToCord(substr);
+  }
+  friend absl::Cord RiegeliToCord(const Block* self, absl::string_view substr) {
+    return self->ToCord(substr);
   }
 
   // Support `ExternalRef`.
@@ -837,6 +889,7 @@ class Chain::Block {
   friend class Chain;  // For `Block()` and `raw_block()`.
 
   explicit Block(RawBlock* block);
+  explicit Block(RawBlock* block, absl::string_view substr);
   explicit Block(IntrusiveSharedPtr<RawBlock> block);
 
   const IntrusiveSharedPtr<RawBlock>& raw_block() const& { return block_; }
@@ -845,6 +898,7 @@ class Chain::Block {
   size_t ExternalMemory() const;
   Block ToChainBlock(absl::string_view substr) &&;
   absl::Cord ToCord(absl::string_view substr) &&;
+  absl::Cord ToCord(absl::string_view substr) const&;
   ExternalStorage ToExternalStorage() &&;
   void DumpStructure(absl::string_view substr, std::ostream& out) const;
 

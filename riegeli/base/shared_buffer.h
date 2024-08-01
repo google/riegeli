@@ -17,16 +17,13 @@
 
 #include <stddef.h>
 
-#include <functional>
 #include <iosfwd>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/external_data.h"
-#include "riegeli/base/external_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 
@@ -72,57 +69,19 @@ class SharedBuffer {
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const;
 
-  // Converts a substring of `*this` to `ExternalRef`.
-  //
-  // `storage` must outlive usages of the returned `ExternalRef`.
-  //
-  // Precondition:
-  //   if `!substr.empty()` then `substr` is a substring of
-  //       [`data()`..`data() + capacity()`).
-  ExternalRef ToExternalRef(
-      absl::string_view substr,
-      ExternalRef::StorageSubstr<const SharedBuffer&>&& storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<const SharedBuffer&>()) const& {
-    if (!substr.empty()) {
-      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-          << "Failed precondition of SharedBuffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                         data() + capacity()))
-          << "Failed precondition of SharedBuffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-    }
-    return ExternalRef(*this, substr, std::move(storage));
-  }
-  ExternalRef ToExternalRef(
-      absl::string_view substr,
-      ExternalRef::StorageSubstr<SharedBuffer&&>&& storage
-          ABSL_ATTRIBUTE_LIFETIME_BOUND =
-              ExternalRef::StorageSubstr<SharedBuffer&&>()) && {
-    if (!substr.empty()) {
-      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
-          << "Failed precondition of SharedBuffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                         data() + capacity()))
-          << "Failed precondition of SharedBuffer::ToExternalRef(): "
-             "substring not contained in the buffer";
-    }
-    return ExternalRef(std::move(*this), substr, std::move(storage));
-  }
+  // Indicate support for:
+  //  * `ExternalRef(const SharedBuffer&, substr)`
+  //  * `ExternalRef(SharedBuffer&&, substr)`
+  friend void RiegeliSupportsExternalRef(const SharedBuffer*) {}
 
   // Support `ExternalRef`.
   friend size_t RiegeliExternalMemory(const SharedBuffer* self) {
-    if (self->buffer_ == nullptr) return 0;
-    return sizeof(size_t) + sizeof(Buffer) + self->buffer_->capacity();
+    return RiegeliExternalMemory(&self->buffer_);
   }
 
   // Support `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedBuffer* self) {
-    return ExternalStorage(self->buffer_.Release(), [](void* ptr) {
-      SharedPtr<Buffer>::DeleteReleased(static_cast<Buffer*>(ptr));
-    });
+    return RiegeliToExternalStorage(&self->buffer_);
   }
 
   // Support `ExternalRef` and `Chain::Block`.

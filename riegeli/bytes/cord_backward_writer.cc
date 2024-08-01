@@ -73,7 +73,7 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
       dest.RemovePrefix(prefix_to_remove);
     }
   } else {
-    std::move(buffer_).ToExternalRef(data).PrependTo(dest);
+    ExternalRef(std::move(buffer_), data).PrependTo(dest);
   }
   set_buffer();
 }

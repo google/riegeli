@@ -23,7 +23,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -929,18 +928,6 @@ bool RecordWriterBase::WriteRecord(absl::string_view record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   return WriteRecordImpl(record.size(), record);
 }
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-bool RecordWriterBase::WriteRecord(Src&& record) {
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  const size_t size = record.size();
-  // `std::move(record)` is correct and `std::forward<Src>(record)` is not
-  // necessary: `Src` is always `std::string`, never an lvalue reference.
-  return WriteRecordImpl(size, std::move(record));
-}
-
-template bool RecordWriterBase::WriteRecord(std::string&& record);
 
 bool RecordWriterBase::WriteRecord(const Chain& record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;

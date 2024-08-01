@@ -337,7 +337,7 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
     SyncSecondaryBuffer();
   }
   move_start_pos(src.size());
-  std::move(src).AppendTo(secondary_buffer_, options_);
+  secondary_buffer_.Append(std::move(src), options_);
   MakeSecondaryBuffer();
   return true;
 }

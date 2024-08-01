@@ -144,7 +144,7 @@ inline bool FileWriterBase::SyncBuffer() {
   if (start_to_cursor() > kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     const absl::Cord data(
-        buffer_.ToExternalRef(absl::string_view(start(), start_to_cursor())));
+        ExternalRef(buffer_, absl::string_view(start(), start_to_cursor())));
     set_buffer();
     return WriteInternal(data);
   }
