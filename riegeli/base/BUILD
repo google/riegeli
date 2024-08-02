@@ -176,6 +176,15 @@ cc_library(
 )
 
 cc_library(
+    name = "type_erased_ref",
+    hdrs = ["type_erased_ref.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
     name = "initializer",
     srcs = ["initializer_internal.h"],
     hdrs = [
@@ -187,6 +196,7 @@ cc_library(
     deps = [
         ":assert",
         ":reset",
+        ":type_erased_ref",
         ":type_traits",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
@@ -291,6 +301,7 @@ cc_library(
         ":dependency",
         ":initializer",
         ":memory_estimator",
+        ":type_erased_ref",
         ":type_id",
         ":type_traits",
         "@com_google_absl//absl/base",

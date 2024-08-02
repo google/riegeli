@@ -18,13 +18,13 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
-#include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/invoker.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
+#include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -84,26 +84,26 @@ class InitializerBase {
   /*implicit*/ operator T() && { return methods()->construct(context()); }
 
  private:
-  static T ConstructMethodDefault(void* context);
+  static T ConstructMethodDefault(TypeErasedRef context);
 
   template <typename Arg>
-  static T ConstructMethodFromObject(void* context);
+  static T ConstructMethodFromObject(TypeErasedRef context);
 
   template <typename... Args>
-  static T ConstructMethodFromMaker(void* context);
+  static T ConstructMethodFromMaker(TypeErasedRef context);
 
   template <typename... Args>
-  static T ConstructMethodFromConstMaker(void* context);
+  static T ConstructMethodFromConstMaker(TypeErasedRef context);
 
   template <typename Function, typename... Args>
-  static T ConstructMethodFromInvoker(void* context);
+  static T ConstructMethodFromInvoker(TypeErasedRef context);
 
   template <typename Function, typename... Args>
-  static T ConstructMethodFromConstInvoker(void* context);
+  static T ConstructMethodFromConstInvoker(TypeErasedRef context);
 
  protected:
   struct Methods {
-    T (*construct)(void* context);
+    T (*construct)(TypeErasedRef context);
   };
 
   explicit InitializerBase(const Methods* methods);
@@ -138,11 +138,11 @@ class InitializerBase {
       ConstructMethodFromConstInvoker<Function, Args...>};
 
   const Methods* methods() const { return methods_; }
-  void* context() const { return context_; }
+  TypeErasedRef context() const { return context_; }
 
  private:
   const Methods* methods_;
-  void* context_ = nullptr;
+  TypeErasedRef context_;
 };
 
 // Part of `Initializer<T>` for `T` being a non-reference type.
@@ -176,66 +176,67 @@ class InitializerValueBase : public InitializerBase<T> {
   }
 
  private:
-  static T&& ReferenceMethodDefault(void* context,
+  static T&& ReferenceMethodDefault(TypeErasedRef context,
                                     TemporaryStorage<T>&& storage);
 
   template <typename Arg,
             std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int> = 0>
-  static T&& ReferenceMethodFromObject(void* context,
+  static T&& ReferenceMethodFromObject(TypeErasedRef context,
                                        TemporaryStorage<T>&& storage);
   template <typename Arg,
             std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int> = 0>
-  static T&& ReferenceMethodFromObject(void* context,
+  static T&& ReferenceMethodFromObject(TypeErasedRef context,
                                        TemporaryStorage<T>&& storage);
 
   template <typename... Args>
-  static T&& ReferenceMethodFromMaker(void* context,
+  static T&& ReferenceMethodFromMaker(TypeErasedRef context,
                                       TemporaryStorage<T>&& storage);
 
   template <typename... Args>
-  static T&& ReferenceMethodFromConstMaker(void* context,
+  static T&& ReferenceMethodFromConstMaker(TypeErasedRef context,
                                            TemporaryStorage<T>&& storage);
 
   template <typename Function, typename... Args>
-  static T&& ReferenceMethodFromInvoker(void* context,
+  static T&& ReferenceMethodFromInvoker(TypeErasedRef context,
                                         TemporaryStorage<T>&& storage);
 
   template <typename Function, typename... Args>
-  static T&& ReferenceMethodFromConstInvoker(void* context,
+  static T&& ReferenceMethodFromConstInvoker(TypeErasedRef context,
                                              TemporaryStorage<T>&& storage);
 
-  static const T& ConstReferenceMethodDefault(void* context,
+  static const T& ConstReferenceMethodDefault(TypeErasedRef context,
                                               TemporaryStorage<T>&& storage);
 
   template <typename Arg,
             std::enable_if_t<CanBindTo<const T&, Arg&&>::value, int> = 0>
-  static const T& ConstReferenceMethodFromObject(void* context,
+  static const T& ConstReferenceMethodFromObject(TypeErasedRef context,
                                                  TemporaryStorage<T>&& storage);
   template <typename Arg,
             std::enable_if_t<!CanBindTo<const T&, Arg&&>::value, int> = 0>
-  static const T& ConstReferenceMethodFromObject(void* context,
+  static const T& ConstReferenceMethodFromObject(TypeErasedRef context,
                                                  TemporaryStorage<T>&& storage);
 
   template <typename... Args>
-  static const T& ConstReferenceMethodFromMaker(void* context,
+  static const T& ConstReferenceMethodFromMaker(TypeErasedRef context,
                                                 TemporaryStorage<T>&& storage);
 
   template <typename... Args>
   static const T& ConstReferenceMethodFromConstMaker(
-      void* context, TemporaryStorage<T>&& storage);
+      TypeErasedRef context, TemporaryStorage<T>&& storage);
 
   template <typename Function, typename... Args>
   static const T& ConstReferenceMethodFromInvoker(
-      void* context, TemporaryStorage<T>&& storage);
+      TypeErasedRef context, TemporaryStorage<T>&& storage);
 
   template <typename Function, typename... Args>
   static const T& ConstReferenceMethodFromConstInvoker(
-      void* context, TemporaryStorage<T>&& storage);
+      TypeErasedRef context, TemporaryStorage<T>&& storage);
 
  protected:
   struct Methods : InitializerValueBase::InitializerBase::Methods {
-    T && (*reference)(void* context, TemporaryStorage<T>&& storage);
-    const T& (*const_reference)(void* context, TemporaryStorage<T>&& storage);
+    T && (*reference)(TypeErasedRef context, TemporaryStorage<T>&& storage);
+    const T& (*const_reference)(TypeErasedRef context,
+                                TemporaryStorage<T>&& storage);
   };
 
 #if __cpp_aggregate_bases
@@ -392,27 +393,27 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   }
 
  private:
-  static void ResetMethodDefault(void* context, T& dest);
+  static void ResetMethodDefault(TypeErasedRef context, T& dest);
 
   template <typename Arg>
-  static void ResetMethodFromObject(void* context, T& dest);
+  static void ResetMethodFromObject(TypeErasedRef context, T& dest);
 
   template <typename... Args>
-  static void ResetMethodFromMaker(void* context, T& dest);
+  static void ResetMethodFromMaker(TypeErasedRef context, T& dest);
 
   template <typename... Args>
-  static void ResetMethodFromConstMaker(void* context, T& dest);
+  static void ResetMethodFromConstMaker(TypeErasedRef context, T& dest);
 
   template <typename Function, typename... Args>
-  static void ResetMethodFromInvoker(void* context, T& dest);
+  static void ResetMethodFromInvoker(TypeErasedRef context, T& dest);
 
   template <typename Function, typename... Args>
-  static void ResetMethodFromConstInvoker(void* context, T& dest);
+  static void ResetMethodFromConstInvoker(TypeErasedRef context, T& dest);
 
  protected:
   struct Methods
       : InitializerAssignableValueBase::InitializerValueBase::Methods {
-    void (*reset)(void* context, T& dest);
+    void (*reset)(TypeErasedRef context, T& dest);
   };
 
 #if __cpp_aggregate_bases
@@ -997,105 +998,102 @@ inline InitializerBase<T>::InitializerBase(const Methods* methods)
 template <typename T>
 template <typename Arg>
 inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
-    : methods_(methods),
-      context_(const_cast<absl::remove_cvref_t<Arg>*>(&arg)) {}
+    : methods_(methods), context_(std::forward<Arg>(arg)) {}
 
 template <typename T>
 T InitializerBase<T>::ConstructMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context) {
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
   return T();
 }
 
 template <typename T>
 template <typename Arg>
-T InitializerBase<T>::ConstructMethodFromObject(void* context) {
-  return T(
-      std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+T InitializerBase<T>::ConstructMethodFromObject(TypeErasedRef context) {
+  return T(context.Cast<Arg>());
 }
 
 template <typename T>
 template <typename... Args>
-T InitializerBase<T>::ConstructMethodFromMaker(void* context) {
-  return std::move(*static_cast<MakerType<Args...>*>(context))
-      .template Construct<T>();
+T InitializerBase<T>::ConstructMethodFromMaker(TypeErasedRef context) {
+  return context.Cast<MakerType<Args...>>().template Construct<T>();
 }
 
 template <typename T>
 template <typename... Args>
-T InitializerBase<T>::ConstructMethodFromConstMaker(void* context) {
-  return static_cast<const MakerType<Args...>*>(context)
-      ->template Construct<T>();
+T InitializerBase<T>::ConstructMethodFromConstMaker(TypeErasedRef context) {
+  return context.Cast<const MakerType<Args...>&>().template Construct<T>();
 }
 
 template <typename T>
 template <typename Function, typename... Args>
-T InitializerBase<T>::ConstructMethodFromInvoker(void* context) {
-  return T(std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+T InitializerBase<T>::ConstructMethodFromInvoker(TypeErasedRef context) {
+  return T(context.Cast<InvokerType<Function, Args...>>());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
-T InitializerBase<T>::ConstructMethodFromConstInvoker(void* context) {
-  return T(*static_cast<const InvokerType<Function, Args...>*>(context));
+T InitializerBase<T>::ConstructMethodFromConstInvoker(TypeErasedRef context) {
+  return T(context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 template <typename T>
 T&& InitializerValueBase<T>::ReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, TemporaryStorage<T>&& storage) {
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
+    TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace();
 }
 
 template <typename T>
 template <typename Arg, std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
-    void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
-  return std::forward<Arg>(
-      *static_cast<std::remove_reference_t<Arg>*>(context));
+    TypeErasedRef context,
+    ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
+  return context.Cast<Arg>();
 }
 
 template <typename T>
 template <typename Arg, std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int>>
 T&& InitializerValueBase<T>::ReferenceMethodFromObject(
-    void* context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).emplace(
-      std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).emplace(context.Cast<Arg>());
 }
 
 template <typename T>
 template <typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromMaker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return std::move(*static_cast<MakerType<Args...>*>(context))
-      .template Reference<T>(std::move(storage));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return context.Cast<MakerType<Args...>>().template Reference<T>(
+      std::move(storage));
 }
 
 template <typename T>
 template <typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromConstMaker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return static_cast<const MakerType<Args...>*>(context)->template Reference<T>(
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return context.Cast<const MakerType<Args...>&>().template Reference<T>(
       std::move(storage));
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromInvoker(
-    void* context, TemporaryStorage<T>&& storage) {
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace(
-      std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+      context.Cast<InvokerType<Function, Args...>>());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 T&& InitializerValueBase<T>::ReferenceMethodFromConstInvoker(
-    void* context, TemporaryStorage<T>&& storage) {
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace(
-      *static_cast<const InvokerType<Function, Args...>*>(context));
+      context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 template <typename T>
 const T& InitializerValueBase<T>::ConstReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, TemporaryStorage<T>&& storage) {
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
+    TemporaryStorage<T>&& storage) {
   return storage.emplace();
 }
 
@@ -1103,95 +1101,88 @@ template <typename T>
 template <typename Arg,
           std::enable_if_t<CanBindTo<const T&, Arg&&>::value, int>>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromObject(
-    void* context, ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
-  return *absl::implicit_cast<const T*>(
-      static_cast<std::remove_reference_t<Arg>*>(context));
+    TypeErasedRef context,
+    ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
+  return context.Cast<Arg>();
 }
 
 template <typename T>
 template <typename Arg,
           std::enable_if_t<!CanBindTo<const T&, Arg&&>::value, int>>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromObject(
-    void* context, TemporaryStorage<T>&& storage) {
-  return storage.emplace(
-      std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return storage.emplace(context.Cast<Arg>());
 }
 
 template <typename T>
 template <typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromMaker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return std::move(*static_cast<MakerType<Args...>*>(context))
-      .template ConstReference<T>(std::move(storage));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return context.Cast<MakerType<Args...>>().template ConstReference<T>(
+      std::move(storage));
 }
 
 template <typename T>
 template <typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromConstMaker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return static_cast<const MakerType<Args...>*>(context)
-      ->template ConstReference<T>(std::move(storage));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return context.Cast<const MakerType<Args...>&>().template ConstReference<T>(
+      std::move(storage));
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromInvoker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return storage.emplace(
-      std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return storage.emplace(context.Cast<InvokerType<Function, Args...>>());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 const T& InitializerValueBase<T>::ConstReferenceMethodFromConstInvoker(
-    void* context, TemporaryStorage<T>&& storage) {
-  return storage.emplace(
-      *static_cast<const InvokerType<Function, Args...>*>(context));
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return storage.emplace(context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 template <typename T>
 void InitializerAssignableValueBase<T>::ResetMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED void* context, T& dest) {
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context, T& dest) {
   riegeli::Reset(dest);
 }
 
 template <typename T>
 template <typename Arg>
-void InitializerAssignableValueBase<T>::ResetMethodFromObject(void* context,
-                                                              T& dest) {
-  riegeli::Reset(
-      dest,
-      std::forward<Arg>(*static_cast<std::remove_reference_t<Arg>*>(context)));
+void InitializerAssignableValueBase<T>::ResetMethodFromObject(
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<Arg>());
 }
 
 template <typename T>
 template <typename... Args>
-void InitializerAssignableValueBase<T>::ResetMethodFromMaker(void* context,
-                                                             T& dest) {
-  riegeli::Reset(dest, std::move(*static_cast<MakerType<Args...>*>(context)));
+void InitializerAssignableValueBase<T>::ResetMethodFromMaker(
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<MakerType<Args...>>());
 }
 
 template <typename T>
 template <typename... Args>
-void InitializerAssignableValueBase<T>::ResetMethodFromConstMaker(void* context,
-                                                                  T& dest) {
-  riegeli::Reset(dest, *static_cast<const MakerType<Args...>*>(context));
+void InitializerAssignableValueBase<T>::ResetMethodFromConstMaker(
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<const MakerType<Args...>&>());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
-void InitializerAssignableValueBase<T>::ResetMethodFromInvoker(void* context,
-                                                               T& dest) {
-  riegeli::Reset(
-      dest, std::move(*static_cast<InvokerType<Function, Args...>*>(context)));
+void InitializerAssignableValueBase<T>::ResetMethodFromInvoker(
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<InvokerType<Function, Args...>>());
 }
 
 template <typename T>
 template <typename Function, typename... Args>
 void InitializerAssignableValueBase<T>::ResetMethodFromConstInvoker(
-    void* context, T& dest) {
-  riegeli::Reset(dest,
-                 *static_cast<const InvokerType<Function, Args...>*>(context));
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 }  // namespace initializer_internal
