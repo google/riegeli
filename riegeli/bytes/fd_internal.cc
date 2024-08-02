@@ -12,47 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
+
+// Make `readlink()` available.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
+#undef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
+#endif
+
+#endif
+
 #include "riegeli/bytes/fd_internal.h"
+
+#ifndef _WIN32
+#include <stddef.h>
+#include <unistd.h>
+#endif
 
 #include <string>
 
+#ifndef _WIN32
+#include "absl/base/optimization.h"
+#endif
 #include "absl/strings/str_cat.h"
+#ifndef _WIN32
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/buffer.h"
+#endif
 
 namespace riegeli {
 namespace fd_internal {
 
 void FilenameForFd(int fd, std::string& filename) {
-  switch (fd) {
+  filename.clear();
 #ifndef _WIN32
-    case 0:
-      filename = "/dev/stdin";
-      break;
-    case 1:
-      filename = "/dev/stdout";
-      break;
-    case 2:
-      filename = "/dev/stderr";
-      break;
-    default:
-      filename.clear();
-      absl::StrAppend(&filename, "/proc/self/fd/", fd);
-      break;
+  absl::StrAppend(&filename, "/proc/self/fd/", fd);
+  Buffer buffer(PATH_MAX);
+  const ssize_t length = readlink(filename.c_str(), buffer.data(), PATH_MAX);
+  if (ABSL_PREDICT_FALSE(length < 0)) return;
+  filename.assign(buffer.data(), IntCast<size_t>(length));
 #else   // _WIN32
-    case 0:
-      filename = "CONIN$";
-      break;
-    case 1:
-      filename = "CONOUT$";
-      break;
-    case 2:
-      filename = "CONERR$";
-      break;
-    default:
-      filename.clear();
-      absl::StrAppend(&filename, "<fd ", fd, ">");
-      break;
+  absl::StrAppend(&filename, "<fd ", fd, ">");
 #endif  // _WIN32
-  }
 }
 
 }  // namespace fd_internal

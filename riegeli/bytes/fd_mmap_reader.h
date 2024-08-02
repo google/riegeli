@@ -50,36 +50,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
    public:
     Options() noexcept {}
 
-    // `assumed_filename()` allows to override the filename which is included in
-    // failure messages and returned by `filename()`.
-    //
-    // If this is `absl::nullopt` and `FdMMapReader` opens a fd with a filename,
-    // then that filename is used.
-    //
-    // If this is `absl::nullopt` and `FdMMapReader` reads from an already open
-    // fd, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd (on Windows:
-    // "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) & {
-      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
-      return *this;
-    }
-    Options&& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) && {
-      return std::move(set_assumed_filename(std::move(assumed_filename)));
-    }
-    absl::optional<std::string>& assumed_filename() {
-      return assumed_filename_;
-    }
-    const absl::optional<std::string>& assumed_filename() const {
-      return assumed_filename_;
-    }
-
     // If `FdMMapReader` opens a fd with a filename, `mode()` is the second
     // argument of `open()` (on Windows: `_open()`) and specifies the open mode
     // and flags, typically `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
@@ -205,7 +175,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void Initialize(int src, Options&& options);
   const std::string& InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
-  bool InitializeAssumedFilename(Options& options);
   void InitializePos(int src, Options&& options);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
@@ -385,8 +354,7 @@ inline void FdMMapReaderBase::Reset() {
   // The `Chain` to read from is not known yet. `ChainReader` will be reset in
   // `Initialize()` to read from the `Chain` when it is known.
   ChainReader::Reset(kClosed);
-  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
-  // `InitializeAssumedFilename()`.
+  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   base_pos_to_sync_ = absl::nullopt;
 }
 
@@ -394,15 +362,6 @@ inline const std::string& FdMMapReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   return filename_;
-}
-
-inline bool FdMMapReaderBase::InitializeAssumedFilename(Options& options) {
-  if (options.assumed_filename() != absl::nullopt) {
-    filename_ = *std::move(options.assumed_filename());
-    return true;
-  } else {
-    return false;
-  }
 }
 
 template <typename Src>
@@ -426,7 +385,6 @@ inline FdMMapReader<Src>::FdMMapReader(
   absl::Status status =
       src_.manager().Open(InitializeFilename(std::move(filename)),
                           options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
     ChainReader::Reset(kClosed);
@@ -445,7 +403,6 @@ inline FdMMapReader<Src>::FdMMapReader(
   absl::Status status =
       src_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                             options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
     ChainReader::Reset(kClosed);
@@ -485,7 +442,6 @@ inline void FdMMapReader<Src>::Reset(
   absl::Status status =
       src_.manager().Open(InitializeFilename(std::move(filename)),
                           options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
     ChainReader::Reset(kClosed);
@@ -505,7 +461,6 @@ inline void FdMMapReader<Src>::Reset(
   absl::Status status =
       src_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                             options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdMMapReaderBase::Reset()` to preserve `filename()`.
     ChainReader::Reset(kClosed);

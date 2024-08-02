@@ -53,36 +53,6 @@ class FdReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // `assumed_filename()` allows to override the filename which is included in
-    // failure messages and returned by `filename()`.
-    //
-    // If this is `absl::nullopt` and `FdReader` opens a fd with a filename,
-    // then that filename is used.
-    //
-    // If this is `absl::nullopt` and `FdReader` reads from an already open fd,
-    // then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd (on Windows:
-    // "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) & {
-      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
-      return *this;
-    }
-    Options&& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) && {
-      return std::move(set_assumed_filename(std::move(assumed_filename)));
-    }
-    absl::optional<std::string>& assumed_filename() {
-      return assumed_filename_;
-    }
-    const absl::optional<std::string>& assumed_filename() const {
-      return assumed_filename_;
-    }
-
     // If `FdReader` opens a fd with a filename, `mode()` is the second argument
     // of `open()` (on Windows: `_open()`) and specifies the open mode and
     // flags, typically `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
@@ -210,7 +180,6 @@ class FdReaderBase : public BufferedReader {
     bool growing_source() const { return growing_source_; }
 
    private:
-    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     int mode_ = O_RDONLY | fd_internal::kCloseOnExec;
 #else
@@ -258,7 +227,6 @@ class FdReaderBase : public BufferedReader {
   void Initialize(int src, Options&& options);
   const std::string& InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
-  bool InitializeAssumedFilename(Options& options);
   void InitializePos(int src, Options&& options
 #ifdef _WIN32
                      ,
@@ -488,8 +456,7 @@ inline void FdReaderBase::Reset(Closed) {
 inline void FdReaderBase::Reset(BufferOptions buffer_options,
                                 bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
-  // `InitializeAssumedFilename()`.
+  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   has_independent_pos_ = false;
   growing_source_ = growing_source;
   supports_random_access_ = false;
@@ -503,15 +470,6 @@ inline const std::string& FdReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   return filename_;
-}
-
-inline bool FdReaderBase::InitializeAssumedFilename(Options& options) {
-  if (options.assumed_filename() != absl::nullopt) {
-    filename_ = *std::move(options.assumed_filename());
-    return true;
-  } else {
-    return false;
-  }
 }
 
 template <typename Src>
@@ -537,7 +495,6 @@ inline FdReader<Src>::FdReader(
   absl::Status status =
       src_.manager().Open(InitializeFilename(std::move(filename)),
                           options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);
@@ -562,7 +519,6 @@ inline FdReader<Src>::FdReader(
   absl::Status status =
       src_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                             options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);
@@ -607,7 +563,6 @@ inline void FdReader<Src>::Reset(
   absl::Status status =
       src_.manager().Open(InitializeFilename(std::move(filename)),
                           options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);
@@ -632,7 +587,6 @@ inline void FdReader<Src>::Reset(
   absl::Status status =
       src_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                             options.mode(), OwnedFd::kDefaultPermissions);
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);

@@ -204,9 +204,7 @@ void MMapBlock::operator()(absl::string_view data) const {
 void FdMMapReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  if (!InitializeAssumedFilename(options)) {
-    fd_internal::FilenameForFd(src, filename_);
-  }
+  fd_internal::FilenameForFd(src, filename_);
   InitializePos(src, std::move(options));
 }
 

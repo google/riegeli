@@ -66,9 +66,7 @@ namespace riegeli {
 void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  if (!InitializeAssumedFilename(options)) {
-    cfile_internal::FilenameForCFile(dest, filename_);
-  }
+  cfile_internal::FilenameForCFile(dest, filename_);
   InitializePos(dest, std::move(options), /*mode_was_passed_to_fopen=*/false);
 }
 
@@ -528,9 +526,7 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return nullptr;
   }
   CFileReader<UnownedCFile>* const reader = associated_reader_.ResetReader(
-      dest, CFileReaderBase::Options()
-                .set_assumed_filename(filename())
-                .set_buffer_options(buffer_options()));
+      dest, CFileReaderBase::Options().set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   read_mode_ = true;
   return reader;

@@ -1172,7 +1172,14 @@ cc_library(
     deps = [
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/strings",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "//riegeli/base:arithmetic",
+            "//riegeli/base:buffer",
+            "@com_google_absl//absl/base:core_headers",
+        ],
+    }),
 )
 
 cc_library(

@@ -174,9 +174,7 @@ inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
 void FdReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  if (!InitializeAssumedFilename(options)) {
-    fd_internal::FilenameForFd(src, filename_);
-  }
+  fd_internal::FilenameForFd(src, filename_);
   InitializePos(src, std::move(options)
 #ifdef _WIN32
                          ,
@@ -654,7 +652,6 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
   std::unique_ptr<FdReader<UnownedFd>> reader =
       std::make_unique<FdReader<UnownedFd>>(
           src, FdReaderBase::Options()
-                   .set_assumed_filename(filename())
                    .set_independent_pos(initial_pos)
                    .set_growing_source(growing_source_)
                    .set_buffer_options(buffer_options()));

@@ -48,38 +48,6 @@ class CFileReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // `assumed_filename()` allows to override the filename which is included in
-    // failure messages and returned by `filename()`.
-    //
-    // If this is `absl::nullopt` and `CFileReader` opens a `FILE` with a
-    // filename, then that filename is used.
-    //
-    // If this is `absl::nullopt` and `CFileReader` reads from an already open
-    // `FILE`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd
-    // corresponding to the `FILE` (on Windows: "CONIN$", "CONOUT$", "CONERR$",
-    // or `absl::StrCat("<fd ", fd, ">")`), or "<unknown>" if there is no
-    // corresponding fd.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) & {
-      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
-      return *this;
-    }
-    Options&& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) && {
-      return std::move(set_assumed_filename(std::move(assumed_filename)));
-    }
-    absl::optional<std::string>& assumed_filename() {
-      return assumed_filename_;
-    }
-    const absl::optional<std::string>& assumed_filename() const {
-      return assumed_filename_;
-    }
-
     // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "r" (on
     // Windows: "rb").
@@ -179,7 +147,6 @@ class CFileReaderBase : public BufferedReader {
     bool growing_source() const { return growing_source_; }
 
    private:
-    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     std::string mode_ = "re";
 #else
@@ -219,7 +186,6 @@ class CFileReaderBase : public BufferedReader {
   void Initialize(FILE* src, Options&& options);
   const std::string& InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
-  bool InitializeAssumedFilename(Options& options);
   void InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
                      ,
@@ -391,8 +357,7 @@ inline void CFileReaderBase::Reset(Closed) {
 inline void CFileReaderBase::Reset(BufferOptions buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
-  // `InitializeAssumedFilename()`.
+  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   growing_source_ = growing_source;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
@@ -405,15 +370,6 @@ inline const std::string& CFileReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   return filename_;
-}
-
-inline bool CFileReaderBase::InitializeAssumedFilename(Options& options) {
-  if (options.assumed_filename() != absl::nullopt) {
-    filename_ = *std::move(options.assumed_filename());
-    return true;
-  } else {
-    return false;
-  }
 }
 
 template <typename Src>
@@ -438,7 +394,6 @@ inline CFileReader<Src>::CFileReader(
     : CFileReaderBase(options.buffer_options(), options.growing_source()) {
   absl::Status status = src_.manager().Open(
       InitializeFilename(std::move(filename)), options.mode());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);
@@ -482,7 +437,6 @@ inline void CFileReader<Src>::Reset(
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   absl::Status status = src_.manager().Open(
       InitializeFilename(std::move(filename)), options.mode());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);

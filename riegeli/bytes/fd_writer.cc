@@ -80,9 +80,7 @@ TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 void FdWriterBase::Initialize(int dest, Options&& options) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
-  if (!InitializeAssumedFilename(options)) {
-    fd_internal::FilenameForFd(dest, filename_);
-  }
+  fd_internal::FilenameForFd(dest, filename_);
   InitializePos(dest, std::move(options), /*mode_was_passed_to_open=*/false);
 }
 
@@ -708,7 +706,6 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   const int dest = DestFd();
   FdReader<UnownedFd>* const reader = associated_reader_.ResetReader(
       dest, FdReaderBase::Options()
-                .set_assumed_filename(filename())
                 .set_independent_pos(has_independent_pos_
                                          ? absl::make_optional(initial_pos)
                                          : absl::nullopt)

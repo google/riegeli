@@ -98,9 +98,7 @@ inline size_t AvailableLength(DependentFILE* src) {
 void CFileReaderBase::Initialize(FILE* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  if (!InitializeAssumedFilename(options)) {
-    cfile_internal::FilenameForCFile(src, filename_);
-  }
+  cfile_internal::FilenameForCFile(src, filename_);
   InitializePos(src, std::move(options)
 #ifdef _WIN32
                          ,

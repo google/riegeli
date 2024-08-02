@@ -57,36 +57,6 @@ class FdWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // `assumed_filename()` allows to override the filename which is included in
-    // failure messages and returned by `filename()`.
-    //
-    // If this is `absl::nullopt` and `FdWriter` opens a fd with a filename,
-    // then that filename is used.
-    //
-    // If this is `absl::nullopt` and `FdWriter` writes to an already open fd,
-    // then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd (on Windows:
-    // "CONIN$", "CONOUT$", "CONERR$", or `absl::StrCat("<fd ", fd, ">")`).
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) & {
-      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
-      return *this;
-    }
-    Options&& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) && {
-      return std::move(set_assumed_filename(std::move(assumed_filename)));
-    }
-    absl::optional<std::string>& assumed_filename() {
-      return assumed_filename_;
-    }
-    const absl::optional<std::string>& assumed_filename() const {
-      return assumed_filename_;
-    }
-
     // If `FdWriter` opens a fd with a filename, `mode()` is the second argument
     // of `open()` (on Windows: `_open()`) and specifies the open mode and
     // flags, typically one of:
@@ -352,7 +322,6 @@ class FdWriterBase : public BufferedWriter {
     }
 
    private:
-    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     int mode_ = O_WRONLY | O_CREAT | O_TRUNC | fd_internal::kCloseOnExec;
 #else
@@ -393,7 +362,6 @@ class FdWriterBase : public BufferedWriter {
   void Initialize(int dest, Options&& options);
   const std::string& InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
-  bool InitializeAssumedFilename(Options& options);
   void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
@@ -669,8 +637,7 @@ inline void FdWriterBase::Reset(Closed) {
 
 inline void FdWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
-  // `InitializeAssumedFilename()`.
+  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   has_independent_pos_ = false;
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
@@ -687,15 +654,6 @@ inline const std::string& FdWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   return filename_;
-}
-
-inline bool FdWriterBase::InitializeAssumedFilename(Options& options) {
-  if (options.assumed_filename() != absl::nullopt) {
-    filename_ = *std::move(options.assumed_filename());
-    return true;
-  } else {
-    return false;
-  }
 }
 
 template <typename Dest>
@@ -720,7 +678,6 @@ inline FdWriter<Dest>::FdWriter(
   absl::Status status =
       dest_.manager().Open(InitializeFilename(std::move(filename)),
                            options.mode(), options.permissions());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);
@@ -740,7 +697,6 @@ inline FdWriter<Dest>::FdWriter(
   absl::Status status =
       dest_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                              options.mode(), options.permissions());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);
@@ -780,7 +736,6 @@ inline void FdWriter<Dest>::Reset(
   absl::Status status =
       dest_.manager().Open(InitializeFilename(std::move(filename)),
                            options.mode(), options.permissions());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);
@@ -800,7 +755,6 @@ inline void FdWriter<Dest>::Reset(
   absl::Status status =
       dest_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
                              options.mode(), options.permissions());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `FdWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);

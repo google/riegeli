@@ -54,38 +54,6 @@ class CFileWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // `assumed_filename()` allows to override the filename which is included in
-    // failure messages and returned by `filename()`.
-    //
-    // If this is `absl::nullopt` and `CFileWriter` opens a `FILE` with a
-    // filename, then that filename is used.
-    //
-    // If this is `absl::nullopt` and `CFileWriter` writes to an already open
-    // `FILE`, then "/dev/stdin", "/dev/stdout", "/dev/stderr", or
-    // `absl::StrCat("/proc/self/fd/", fd)` is inferred from the fd
-    // corresponding to the `FILE` (on Windows: "CONIN$", "CONOUT$", "CONERR$",
-    // or `absl::StrCat("<fd ", fd, ">")`), or "<unknown>" if there is no
-    // corresponding fd.
-    //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) & {
-      riegeli::Reset(assumed_filename_, std::move(assumed_filename));
-      return *this;
-    }
-    Options&& set_assumed_filename(
-        Initializer<absl::optional<std::string>>::AllowingExplicit
-            assumed_filename) && {
-      return std::move(set_assumed_filename(std::move(assumed_filename)));
-    }
-    absl::optional<std::string>& assumed_filename() {
-      return assumed_filename_;
-    }
-    const absl::optional<std::string>& assumed_filename() const {
-      return assumed_filename_;
-    }
-
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "w" or "a"
     // (on Windows: "wb" or "ab").
@@ -263,7 +231,6 @@ class CFileWriterBase : public BufferedWriter {
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     std::string mode_ = "we";
 #else
@@ -300,7 +267,6 @@ class CFileWriterBase : public BufferedWriter {
   void Initialize(FILE* dest, Options&& options);
   const std::string& InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
-  bool InitializeAssumedFilename(Options& options);
   void InitializePos(FILE* dest, Options&& options,
                      bool mode_was_passed_to_fopen);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -502,8 +468,7 @@ inline void CFileWriterBase::Reset(Closed) {
 
 inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()`, `InitializeFilename()`, or
-  // `InitializeAssumedFilename()`.
+  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
@@ -519,15 +484,6 @@ inline const std::string& CFileWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   return filename_;
-}
-
-inline bool CFileWriterBase::InitializeAssumedFilename(Options& options) {
-  if (options.assumed_filename() != absl::nullopt) {
-    filename_ = *std::move(options.assumed_filename());
-    return true;
-  } else {
-    return false;
-  }
 }
 
 template <typename Dest>
@@ -551,7 +507,6 @@ inline CFileWriter<Dest>::CFileWriter(
     : CFileWriterBase(options.buffer_options()) {
   absl::Status status = dest_.manager().Open(
       InitializeFilename(std::move(filename)), options.mode());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);
@@ -590,7 +545,6 @@ inline void CFileWriter<Dest>::Reset(
   CFileWriterBase::Reset(options.buffer_options());
   absl::Status status = dest_.manager().Open(
       InitializeFilename(std::move(filename)), options.mode());
-  InitializeAssumedFilename(options);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileWriterBase::Reset()` to preserve `filename()`.
     BufferedWriter::Reset(kClosed);
