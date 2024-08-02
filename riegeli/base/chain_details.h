@@ -319,9 +319,6 @@ struct Chain::BlockAndChar {
   size_t char_index;
 };
 
-// Returns the given number of zero bytes.
-Chain ChainOfZeros(size_t length);
-
 // Implementation details follow.
 
 struct Chain::ExternalMethods {

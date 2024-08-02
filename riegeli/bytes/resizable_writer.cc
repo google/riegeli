@@ -27,6 +27,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -247,20 +248,20 @@ bool ResizableWriterBase::WriteSlow(ExternalRef src) {
   return true;
 }
 
-bool ResizableWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool ResizableWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
-                                      IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
     GrowDestToCapacityAndMakeBuffer();
-    if (length <= available()) {
-      std::memset(cursor(), 0, IntCast<size_t>(length));
-      move_cursor(IntCast<size_t>(length));
+    if (src.size() <= available()) {
+      std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
+      move_cursor(IntCast<size_t>(src.size()));
       return true;
     }
     set_start_pos(pos());
@@ -269,8 +270,8 @@ bool ResizableWriterBase::WriteZerosSlow(Position length) {
   } else {
     SyncSecondaryBuffer();
   }
-  move_start_pos(length);
-  secondary_buffer_.Append(ChainOfZeros(IntCast<size_t>(length)), options_);
+  move_start_pos(src.size());
+  src.AppendTo(secondary_buffer_, options_);
   MakeSecondaryBuffer();
   return true;
 }

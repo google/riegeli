@@ -162,6 +162,7 @@ cc_library(
         ":block",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",

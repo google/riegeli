@@ -127,18 +127,6 @@ cc_library(
 )
 
 cc_library(
-    name = "zeros",
-    srcs = ["zeros.cc"],
-    hdrs = ["zeros.h"],
-    deps = [
-        ":cord_utils",
-        ":global",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-    ],
-)
-
-cc_library(
     name = "unicode",
     srcs = ["unicode.cc"],
     hdrs = ["unicode.h"],
@@ -470,7 +458,6 @@ cc_library(
         ":cord_utils",
         ":external_data",
         ":external_ref_support",
-        ":global",
         ":initializer",
         ":memory_estimator",
         ":new_aligned",
@@ -478,7 +465,6 @@ cc_library(
         ":string_utils",
         ":to_string_view",
         ":type_traits",
-        ":zeros",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/meta:type_traits",
@@ -504,6 +490,28 @@ cc_library(
     deps = [
         ":chain_and_external_ref",
         ":external_ref_support",
+    ],
+)
+
+cc_library(
+    name = "byte_fill",
+    srcs = ["byte_fill.cc"],
+    hdrs = ["byte_fill.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":chain",
+        ":compare",
+        ":external_data",
+        ":external_ref",
+        ":global",
+        ":shared_buffer",
+        ":types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

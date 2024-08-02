@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cstring>
 #include <limits>
 
 #include "absl/base/optimization.h"
@@ -26,7 +27,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/types.h"
+#include "riegeli/base/byte_fill.h"
 
 namespace riegeli {
 
@@ -50,7 +51,7 @@ class Crc32cDigester {
 
   void Write(absl::string_view src);
   void Write(const absl::Cord& src);
-  void WriteZeros(Position length);
+  void Write(ByteFill src);
   uint32_t Digest() { return crc_; }
 
  private:
@@ -102,14 +103,22 @@ inline void Crc32cDigester::Write(const absl::Cord& src) {
   }
 }
 
-inline void Crc32cDigester::WriteZeros(Position length) {
-  while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
+inline void Crc32cDigester::Write(ByteFill src) {
+  if (src.fill() == '\0') {
+    while (
+        ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max())) {
+      crc_ = static_cast<uint32_t>(absl::ExtendCrc32cByZeroes(
+          absl::crc32c_t{crc_}, std::numeric_limits<size_t>::max()));
+      src.Extract(std::numeric_limits<size_t>::max());
+    }
     crc_ = static_cast<uint32_t>(absl::ExtendCrc32cByZeroes(
-        absl::crc32c_t{crc_}, std::numeric_limits<size_t>::max()));
-    length -= std::numeric_limits<size_t>::max();
+        absl::crc32c_t{crc_}, IntCast<size_t>(src.size())));
+    return;
   }
-  crc_ = static_cast<uint32_t>(absl::ExtendCrc32cByZeroes(
-      absl::crc32c_t{crc_}, IntCast<size_t>(length)));
+  for (const absl::string_view fragment : src.blocks()) {
+    crc_ = static_cast<uint32_t>(
+        absl::ExtendCrc32c(absl::crc32c_t{crc_}, fragment));
+  }
 }
 
 }  // namespace riegeli

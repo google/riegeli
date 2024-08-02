@@ -25,6 +25,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
@@ -139,7 +140,7 @@ class SplittingWriterBase : public PushableWriter {
   bool WriteBehindScratch(Chain&& src) override;
   bool WriteBehindScratch(const absl::Cord& src) override;
   bool WriteBehindScratch(absl::Cord&& src) override;
-  bool WriteZerosBehindScratch(Position length) override;
+  bool WriteBehindScratch(ByteFill src) override;
 
   // Flushes the current shard if `flush_type != FlushType::kFromObject`.
   // Then closes the current shard.

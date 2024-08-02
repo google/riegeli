@@ -28,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
@@ -457,7 +458,7 @@ Position StringifiedSizeOfTuple(const std::tuple<T...>& values) {
 }
 
 template <typename Sink>
-inline void WriteChars(Sink& sink, Position length, char fill) {
+inline void WritePadding(Sink& sink, Position length, char fill) {
   while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
     sink.Append(std::numeric_limits<size_t>::max(), fill);
     length -= std::numeric_limits<size_t>::max();
@@ -476,7 +477,7 @@ inline void AsciiLeftType<T...>::Stringify(Sink& sink) const& {
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
@@ -494,7 +495,7 @@ inline void AsciiLeftType<T...>::Stringify(Sink& sink) && {
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(sink, padding, options_.fill());
+  align_internal::WritePadding(sink, padding, options_.fill());
 }
 
 template <typename... T>
@@ -506,7 +507,7 @@ inline void AsciiLeftType<T...>::Stringify(Sink& sink) const& {
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink, SaturatingSub(options_.width(), writer.pos()), options_.fill());
 }
 
@@ -519,7 +520,7 @@ inline void AsciiLeftType<T...>::Stringify(Sink& sink) && {
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink, SaturatingSub(options_.width(), writer.pos()), options_.fill());
 }
 
@@ -530,10 +531,10 @@ template <
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
 inline void AsciiLeftType<T...>::WriteTo(Writer& dest) const& {
   dest.WriteTuple(values_);
-  dest.WriteChars(
-      SaturatingSub(options_.width(),
-                    align_internal::StringifiedSizeOfTuple(values_)),
-      options_.fill());
+  dest.Write(
+      ByteFill(SaturatingSub(options_.width(),
+                             align_internal::StringifiedSizeOfTuple(values_)),
+               options_.fill()));
 }
 
 template <typename... T>
@@ -545,7 +546,7 @@ inline void AsciiLeftType<T...>::WriteTo(Writer& dest) && {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
   dest.WriteTuple(std::move(values_));
-  dest.WriteChars(padding, options_.fill());
+  dest.Write(ByteFill(padding, options_.fill()));
 }
 
 template <typename... T>
@@ -556,9 +557,9 @@ template <
 inline void AsciiLeftType<T...>::WriteTo(Writer& dest) const& {
   const Position pos_before = dest.pos();
   dest.WriteTuple(values_);
-  dest.WriteChars(
+  dest.Write(ByteFill(
       SaturatingSub(options_.width(), SaturatingSub(dest.pos(), pos_before)),
-      options_.fill());
+      options_.fill()));
 }
 
 template <typename... T>
@@ -569,9 +570,9 @@ template <
 inline void AsciiLeftType<T...>::WriteTo(Writer& dest) && {
   const Position pos_before = dest.pos();
   dest.WriteTuple(std::move(values_));
-  dest.WriteChars(
+  dest.Write(ByteFill(
       SaturatingSub(options_.width(), SaturatingSub(dest.pos(), pos_before)),
-      options_.fill());
+      options_.fill()));
 }
 
 template <typename... T>
@@ -582,11 +583,11 @@ template <
 inline void AsciiCenterType<T...>::Stringify(Sink& sink) const& {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  align_internal::WriteChars(sink, padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding / 2, options_.fill());
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -597,11 +598,11 @@ template <
 inline void AsciiCenterType<T...>::Stringify(Sink& sink) && {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  align_internal::WriteChars(sink, padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding / 2, options_.fill());
   AbslStringifyWriter writer(&sink);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WriteChars(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -615,9 +616,9 @@ inline void AsciiCenterType<T...>::Stringify(Sink& sink) const& {
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  align_internal::WriteChars(sink, padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding / 2, options_.fill());
   AbslStringify(sink, chain_writer.dest());
-  align_internal::WriteChars(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -631,9 +632,9 @@ inline void AsciiCenterType<T...>::Stringify(Sink& sink) && {
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  align_internal::WriteChars(sink, padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding / 2, options_.fill());
   AbslStringify(sink, chain_writer.dest());
-  align_internal::WriteChars(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -644,9 +645,9 @@ template <
 inline void AsciiCenterType<T...>::WriteTo(Writer& dest) const& {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  dest.WriteChars(padding / 2, options_.fill());
+  dest.Write(ByteFill(padding / 2, options_.fill()));
   dest.WriteTuple(values_);
-  dest.WriteChars(padding - padding / 2, options_.fill());
+  dest.Write(ByteFill(padding - padding / 2, options_.fill()));
 }
 
 template <typename... T>
@@ -657,9 +658,9 @@ template <
 inline void AsciiCenterType<T...>::WriteTo(Writer& dest) && {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  dest.WriteChars(padding / 2, options_.fill());
+  dest.Write(ByteFill(padding / 2, options_.fill()));
   dest.WriteTuple(std::move(values_));
-  dest.WriteChars(padding - padding / 2, options_.fill());
+  dest.Write(ByteFill(padding - padding / 2, options_.fill()));
 }
 
 template <typename... T>
@@ -676,9 +677,9 @@ inline void AsciiCenterType<T...>::WriteTo(Writer& dest) const& {
   }
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  dest.WriteChars(padding / 2, options_.fill());
+  dest.Write(ByteFill(padding / 2, options_.fill()));
   dest.Write(std::move(chain_writer.dest()));
-  dest.WriteChars(padding - padding / 2, options_.fill());
+  dest.Write(ByteFill(padding - padding / 2, options_.fill()));
 }
 
 template <typename... T>
@@ -695,9 +696,9 @@ inline void AsciiCenterType<T...>::WriteTo(Writer& dest) && {
   }
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  dest.WriteChars(padding / 2, options_.fill());
+  dest.Write(ByteFill(padding / 2, options_.fill()));
   dest.Write(std::move(chain_writer.dest()));
-  dest.WriteChars(padding - padding / 2, options_.fill());
+  dest.Write(ByteFill(padding - padding / 2, options_.fill()));
 }
 
 template <typename... T>
@@ -706,7 +707,7 @@ template <
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
 inline void AsciiRightType<T...>::Stringify(Sink& sink) const& {
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
@@ -722,7 +723,7 @@ template <
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
 inline void AsciiRightType<T...>::Stringify(Sink& sink) && {
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
@@ -741,7 +742,7 @@ inline void AsciiRightType<T...>::Stringify(Sink& sink) const& {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink, SaturatingSub(options_.width(), chain_writer.dest().size()),
       options_.fill());
   AbslStringify(sink, chain_writer.dest());
@@ -756,7 +757,7 @@ inline void AsciiRightType<T...>::Stringify(Sink& sink) && {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
-  align_internal::WriteChars(
+  align_internal::WritePadding(
       sink, SaturatingSub(options_.width(), chain_writer.dest().size()),
       options_.fill());
   AbslStringify(sink, chain_writer.dest());
@@ -768,10 +769,10 @@ template <
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
 inline void AsciiRightType<T...>::WriteTo(Writer& dest) const& {
-  dest.WriteChars(
-      SaturatingSub(options_.width(),
-                    align_internal::StringifiedSizeOfTuple(values_)),
-      options_.fill());
+  dest.Write(
+      ByteFill(SaturatingSub(options_.width(),
+                             align_internal::StringifiedSizeOfTuple(values_)),
+               options_.fill()));
   dest.WriteTuple(values_);
 }
 
@@ -781,10 +782,10 @@ template <
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
 inline void AsciiRightType<T...>::WriteTo(Writer& dest) && {
-  dest.WriteChars(
-      SaturatingSub(options_.width(),
-                    align_internal::StringifiedSizeOfTuple(values_)),
-      options_.fill());
+  dest.Write(
+      ByteFill(SaturatingSub(options_.width(),
+                             align_internal::StringifiedSizeOfTuple(values_)),
+               options_.fill()));
   dest.WriteTuple(std::move(values_));
 }
 
@@ -800,8 +801,9 @@ inline void AsciiRightType<T...>::WriteTo(Writer& dest) const& {
     dest.Fail(chain_writer.status());
     return;
   }
-  dest.WriteChars(SaturatingSub(options_.width(), chain_writer.dest().size()),
-                  options_.fill());
+  dest.Write(
+      ByteFill(SaturatingSub(options_.width(), chain_writer.dest().size()),
+               options_.fill()));
   dest.Write(std::move(chain_writer.dest()));
 }
 
@@ -817,8 +819,9 @@ inline void AsciiRightType<T...>::WriteTo(Writer& dest) && {
     dest.Fail(chain_writer.status());
     return;
   }
-  dest.WriteChars(SaturatingSub(options_.width(), chain_writer.dest().size()),
-                  options_.fill());
+  dest.Write(
+      ByteFill(SaturatingSub(options_.width(), chain_writer.dest().size()),
+               options_.fill()));
   dest.Write(std::move(chain_writer.dest()));
 }
 

@@ -28,6 +28,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -301,12 +302,14 @@ inline bool SplittingWriterBase::WriteInternal(Src&& src) {
   return write_ok;
 }
 
-bool SplittingWriterBase::WriteZerosBehindScratch(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of PushableWriter::WriteZerosBehindScratch(): "
-         "enough space available, use WriteZeros() instead";
+bool SplittingWriterBase::WriteBehindScratch(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::WriteZerosBehindScratch(): "
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ByteFill): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
@@ -322,14 +325,13 @@ bool SplittingWriterBase::WriteZerosBehindScratch(Position length) {
   bool write_ok;
   for (;;) {
     const Position length_to_write =
-        UnsignedMin(length, shard_pos_limit_ - start_pos());
-    if (ABSL_PREDICT_FALSE(!shard->WriteZeros(length_to_write))) {
+        UnsignedMin(src.size(), shard_pos_limit_ - start_pos());
+    if (ABSL_PREDICT_FALSE(!shard->Write(src.Extract(length_to_write)))) {
       write_ok = false;
       break;
     }
     move_start_pos(length_to_write);
-    length -= length_to_write;
-    if (length == 0) {
+    if (src.empty()) {
       write_ok = true;
       break;
     }

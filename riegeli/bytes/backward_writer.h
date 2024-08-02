@@ -35,6 +35,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -175,6 +176,7 @@ class BackwardWriter : public Object {
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   bool Write(Src&& src);
+  bool Write(ByteFill src);
 
   // Writes a stringified value to the buffer and/or the destination.
   //
@@ -203,7 +205,8 @@ class BackwardWriter : public Object {
               HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<SupportsExternalRefWhole<Src>>>::value,
+              absl::negation<SupportsExternalRefWhole<Src>>,
+              absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
           int> = 0>
   bool Write(Src&& src);
 
@@ -247,22 +250,6 @@ class BackwardWriter : public Object {
             std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
                              int> = 0>
   bool WriteTuple(std::tuple<Srcs...>&& srcs);
-
-  // Writes the given number of zero bytes to the buffer and/or the destination.
-  //
-  // Return values:
-  //  * `true`  - success (`length` bytes written)
-  //  * `false` - failure (less than `length` bytes written, `!ok()`)
-  bool WriteZeros(Position length);
-
-  // Writes the given number of copies of the given character or byte to the
-  // buffer and/or the destination.
-  //
-  // Return values:
-  //  * `true`  - success (`length` bytes written)
-  //  * `false` - failure (less than `length` bytes written, `!ok()`)
-  bool WriteChars(Position length, char src);
-  bool WriteBytes(Position length, uint8_t src);
 
   // Pushes buffered data to the destination.
   //
@@ -391,7 +378,8 @@ class BackwardWriter : public Object {
   // Implementation of the slow part of `Write()`.
   //
   // By default:
-  //  * `WriteSlow(absl::string_view)` is implemented in terms of `PushSlow()`
+  //  * `WriteSlow(absl::string_view)` and `WriteSlow(ByteFill)` are
+  //    implemented in terms of `PushSlow()`
   //  * `WriteSlow(const Chain&)`, `WriteSlow(const absl::Cord&)`, and
   //    `WriteSlow(ExternalRef)` are implemented in terms of
   //    `WriteSlow(absl::string_view)`
@@ -404,8 +392,8 @@ class BackwardWriter : public Object {
   //   `available() < src.size()`
   //
   // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
-  // `WriteSlow(const absl::Cord&)`, `WriteSlow(absl::Cord&&), and
-  // `WriteSlow(ExternalRef)`:
+  // `WriteSlow(const absl::Cord&)`, `WriteSlow(absl::Cord&&),
+  // `WriteSlow(ExternalRef)`, and `WriteSlow(ByteFill)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
@@ -413,20 +401,7 @@ class BackwardWriter : public Object {
   virtual bool WriteSlow(const absl::Cord& src);
   virtual bool WriteSlow(absl::Cord&& src);
   virtual bool WriteSlow(ExternalRef src);
-
-  // Implementation of the slow part of `WriteZeros()`.
-  //
-  // By default implemented in terms of `Push()`.
-  //
-  // Precondition:
-  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  virtual bool WriteZerosSlow(Position length);
-
-  // Implementation of the slow part of `WriteChars()`.
-  //
-  // Precondition:
-  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  bool WriteCharsSlow(Position length, char src);
+  virtual bool WriteSlow(ByteFill src);
 
   // Implementation of `Flush()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
@@ -715,6 +690,20 @@ inline bool BackwardWriter::Write(Src&& src) {
   return Write(ExternalRef(src));
 }
 
+inline bool BackwardWriter::Write(ByteFill src) {
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    // `std::memset(nullptr, _, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(src.size() > 0)) {
+      move_cursor(IntCast<size_t>(src.size()));
+      std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
+    }
+    return true;
+  }
+  AssertInitialized(cursor(), start_to_cursor());
+  return WriteSlow(src);
+}
+
 inline bool BackwardWriter::Write(signed char src) {
   return write_int_internal::WriteSigned(src, *this);
 }
@@ -770,7 +759,8 @@ template <
             HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
             absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-            absl::negation<SupportsExternalRefWhole<Src>>>::value,
+            absl::negation<SupportsExternalRefWhole<Src>>,
+            absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
         int>>
 inline bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
@@ -806,36 +796,6 @@ template <
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::WriteTuple(
     std::tuple<Srcs...>&& srcs) {
   return WriteInternal<sizeof...(Srcs)>(std::move(srcs));
-}
-
-inline bool BackwardWriter::WriteZeros(Position length) {
-  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(length > 0)) {
-      move_cursor(IntCast<size_t>(length));
-      std::memset(cursor(), 0, IntCast<size_t>(length));
-    }
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteZerosSlow(length);
-}
-
-inline bool BackwardWriter::WriteChars(Position length, char src) {
-  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(length > 0)) {
-      move_cursor(IntCast<size_t>(length));
-      std::memset(cursor(), src, IntCast<size_t>(length));
-    }
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteCharsSlow(length, src);
-}
-
-inline bool BackwardWriter::WriteBytes(Position length, uint8_t src) {
-  return WriteChars(length, static_cast<char>(src));
 }
 
 inline bool BackwardWriter::Flush(FlushType flush_type) {

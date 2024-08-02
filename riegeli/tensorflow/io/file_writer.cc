@@ -31,6 +31,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
@@ -39,7 +40,6 @@
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
-#include "riegeli/base/zeros.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -267,24 +267,24 @@ bool FileWriterBase::WriteSlow(ExternalRef src) {
   return Writer::WriteSlow(std::move(src));
 }
 
-bool FileWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  if (length >= buffer_sizer_.BufferLength(pos())) {
-    // Write directly from `CordOfZeros()`.
+bool FileWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  if (src.size() >= buffer_sizer_.BufferLength(pos())) {
+    // Write directly from `Cord(ByteFill)`.
     if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
+    while (
+        ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max())) {
       if (ABSL_PREDICT_FALSE(!WriteInternal(
-              CordOfZeros(std::numeric_limits<size_t>::max())))) {
+              absl::Cord(src.Extract(std::numeric_limits<size_t>::max()))))) {
         return false;
       }
-      length -= std::numeric_limits<size_t>::max();
     }
-    return WriteInternal(CordOfZeros(IntCast<size_t>(length)));
+    return WriteInternal(absl::Cord(src));
   }
-  return Writer::WriteZerosSlow(length);
+  return Writer::WriteSlow(src);
 }
 
 bool FileWriterBase::WriteInternal(const absl::Cord& src) {

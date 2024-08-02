@@ -28,6 +28,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -342,29 +343,30 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
   return true;
 }
 
-bool StringWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool StringWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(UnsignedMax(limit_pos(), written_size_),
                     dest.size() + secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
-                                      IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
     SyncDestBuffer(dest);
     const size_t cursor_index = IntCast<size_t>(start_pos());
-    const size_t new_cursor_index = cursor_index + IntCast<size_t>(length);
+    const size_t new_cursor_index = cursor_index + IntCast<size_t>(src.size());
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        std::memset(&dest[cursor_index], '\0', IntCast<size_t>(length));
+        std::memset(&dest[cursor_index], src.fill(),
+                    IntCast<size_t>(src.size()));
       } else {
         dest.erase(cursor_index);
-        dest.append(IntCast<size_t>(length), '\0');
+        dest.append(IntCast<size_t>(src.size()), src.fill());
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
@@ -374,8 +376,8 @@ bool StringWriterBase::WriteZerosSlow(Position length) {
   } else {
     SyncSecondaryBuffer();
   }
-  move_start_pos(length);
-  secondary_buffer_.Append(ChainOfZeros(IntCast<size_t>(length)), options_);
+  move_start_pos(src.size());
+  src.AppendTo(secondary_buffer_, options_);
   MakeSecondaryBuffer();
   return true;
 }

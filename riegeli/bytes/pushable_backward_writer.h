@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
@@ -116,8 +117,8 @@ class PushableBackwardWriter : public BackwardWriter {
   //   `scratch_used()`
   bool ForcePushUsingScratch();
 
-  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`, and
-  // `TruncateImpl()`, called while scratch is not used.
+  // Implementation of `WriteSlow()`, `FlushImpl()`, and `TruncateImpl()`,
+  // called while scratch is not used.
   //
   // By default they are implemented analogously to the corresponding
   // `BackwardWriter` functions.
@@ -131,7 +132,7 @@ class PushableBackwardWriter : public BackwardWriter {
   virtual bool WriteBehindScratch(const absl::Cord& src);
   virtual bool WriteBehindScratch(absl::Cord&& src);
   virtual bool WriteBehindScratch(ExternalRef src);
-  virtual bool WriteZerosBehindScratch(Position length);
+  virtual bool WriteBehindScratch(ByteFill src);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool TruncateBehindScratch(Position new_size);
 
@@ -142,7 +143,7 @@ class PushableBackwardWriter : public BackwardWriter {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ExternalRef src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool TruncateImpl(Position new_size) override;
 

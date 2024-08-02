@@ -37,7 +37,6 @@
 #include "riegeli/base/chain_details.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_ref_base.h"
-#include "riegeli/base/global.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
 #include "riegeli/base/invoker.h"
@@ -46,7 +45,6 @@
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/string_utils.h"
-#include "riegeli/base/zeros.h"
 
 namespace riegeli {
 
@@ -64,14 +62,14 @@ constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
 
 namespace {
 
-void WritePadding(std::ostream& out, size_t pad) {
-  char buf[64];
-  std::memset(buf, out.fill(), sizeof(buf));
-  while (pad > 0) {
-    const size_t length = UnsignedMin(pad, sizeof(buf));
-    out.write(buf, IntCast<std::streamsize>(length));
-    pad -= length;
+void WritePadding(std::ostream& out, size_t length) {
+  char buffer[64];
+  std::memset(buffer, out.fill(), sizeof(buffer));
+  while (length > sizeof(buffer)) {
+    out.write(buffer, std::streamsize{sizeof(buffer)});
+    length -= sizeof(buffer);
   }
+  out.write(buffer, IntCast<std::streamsize>(length));
 }
 
 // Stores an `absl::Cord` which must be flat, i.e.
@@ -125,20 +123,6 @@ inline FlatCordBlock::operator absl::string_view() const {
   RIEGELI_ASSERT_UNREACHABLE()
       << "Failed invariant of FlatCordBlock: Cord is not flat";
 }
-
-class ZeroBlock {
- public:
-  ZeroBlock() = default;
-
-  ZeroBlock(const ZeroBlock&) = delete;
-  ZeroBlock& operator=(const ZeroBlock&) = delete;
-
-  // Support `ExternalRef` and `Chain::Block`.
-  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
-                                   std::ostream& out) {
-    out << "[zero] { }";
-  }
-};
 
 }  // namespace
 
@@ -2194,29 +2178,6 @@ void Chain::VerifyInvariants() const {
     RIEGELI_CHECK_EQ(size(), offset);
   }
 #endif
-}
-
-Chain ChainOfZeros(size_t length) {
-  const absl::string_view kArrayOfZeros = ArrayOfZeros();
-  Chain result;
-  while (length >= kArrayOfZeros.size()) {
-    result.Append(Global([] {
-      return Chain::Block(riegeli::Maker<ZeroBlock>(), ArrayOfZeros());
-    }));
-    length -= kArrayOfZeros.size();
-  }
-  if (length > 0) {
-    if (length <=
-        result.MaxBytesToCopy(Chain::Options().set_size_hint(length))) {
-      const absl::Span<char> buffer = result.AppendFixedBuffer(length);
-      std::memset(buffer.data(), '\0', buffer.size());
-    } else {
-      result.Append(
-          Chain::Block(riegeli::Maker<ZeroBlock>(),
-                       absl::string_view(kArrayOfZeros.data(), length)));
-    }
-  }
-  return result;
 }
 
 }  // namespace riegeli

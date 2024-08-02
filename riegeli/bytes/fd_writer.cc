@@ -62,6 +62,7 @@
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_id.h"
@@ -516,27 +517,28 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool FdWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  if (!FdWriterBase::SupportsRandomAccess()) {
-    return BufferedWriter::WriteZerosSlow(length);
+bool FdWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  if (src.fill() != '\0' || !FdWriterBase::SupportsRandomAccess()) {
+    return BufferedWriter::WriteSlow(src);
   }
   const absl::optional<Position> size = SizeImpl();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "BufferedWriter::SizeImpl() flushes the buffer";
   if (ABSL_PREDICT_FALSE(
-          length > Position{std::numeric_limits<fd_internal::Offset>::max()} -
-                       start_pos())) {
+          src.size() >
+          Position{std::numeric_limits<fd_internal::Offset>::max()} -
+              start_pos())) {
     return FailOverflow();
   }
-  const Position new_pos = start_pos() + length;
+  const Position new_pos = start_pos() + src.size();
   if (new_pos < *size) {
     // Existing data after zeros must be preserved. Optimization below is not
     // feasible.
-    return BufferedWriter::WriteZerosSlow(length);
+    return BufferedWriter::WriteSlow(src);
   }
 
   // Optimize extending with zeros by calling `ftruncate()` (`_chsize_s()` on

@@ -25,6 +25,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
@@ -129,6 +130,13 @@ bool DigestingWriterBase::WriteSlow(ExternalRef src) {
   return WriteInternal(std::move(src));
 }
 
+bool DigestingWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  return WriteInternal(src);
+}
+
 template <typename Src>
 inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -137,22 +145,6 @@ inline bool DigestingWriterBase::WriteInternal(Src&& src) {
   DigesterBaseHandle digester = GetDigester();
   if (ABSL_PREDICT_FALSE(!digester.Write(src))) return FailFromDigester();
   const bool write_ok = dest.Write(std::forward<Src>(src));
-  MakeBuffer(dest);
-  return write_ok;
-}
-
-bool DigestingWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Writer& dest = *DestWriter();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  DigesterBaseHandle digester = GetDigester();
-  if (ABSL_PREDICT_FALSE(!digester.WriteZeros(length))) {
-    return FailFromDigester();
-  }
-  const bool write_ok = dest.WriteZeros(length);
   MakeBuffer(dest);
   return write_ok;
 }

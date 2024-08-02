@@ -16,16 +16,12 @@
 
 #include <stddef.h>
 
-#include <cstring>
-
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/types.h"
-#include "riegeli/base/zeros.h"
 
 namespace riegeli {
 
@@ -72,52 +68,19 @@ void DigesterBaseHandle::WriteCordFallback(
   for (const absl::string_view fragment : src.Chunks()) write(target, fragment);
 }
 
-bool DigesterBaseHandle::WriteZerosFallback(
-    void* target, Position length,
+bool DigesterBaseHandle::WriteByteFillFallback(
+    void* target, ByteFill src,
     bool (*write)(void* target, absl::string_view src)) {
-  const absl::string_view kArrayOfZeros = ArrayOfZeros();
-  while (length > kArrayOfZeros.size()) {
-    if (ABSL_PREDICT_FALSE(!write(target, kArrayOfZeros))) return false;
-    length -= kArrayOfZeros.size();
+  for (const absl::string_view fragment : src.blocks()) {
+    if (ABSL_PREDICT_FALSE(!write(target, fragment))) return false;
   }
-  return write(
-      target, absl::string_view(kArrayOfZeros.data(), IntCast<size_t>(length)));
+  return true;
 }
 
-void DigesterBaseHandle::WriteZerosFallback(
-    void* target, Position length,
+void DigesterBaseHandle::WriteByteFillFallback(
+    void* target, ByteFill src,
     void (*write)(void* target, absl::string_view src)) {
-  const absl::string_view kArrayOfZeros = ArrayOfZeros();
-  while (length > kArrayOfZeros.size()) {
-    write(target, kArrayOfZeros);
-    length -= kArrayOfZeros.size();
-  }
-  write(target,
-        absl::string_view(kArrayOfZeros.data(), IntCast<size_t>(length)));
-}
-
-void DigesterBaseHandle::DigesterAbslStringifySink::Append(size_t length,
-                                                           char src) {
-  if (length == 0) return;
-  if (src == '\0') {
-    if (ABSL_PREDICT_FALSE(!digester_.WriteZeros(length))) ok_ = false;
-    return;
-  }
-
-  static constexpr size_t kBufferSize = 256;
-  char buffer[kBufferSize];
-  std::memset(buffer, src, kBufferSize);
-  while (length > kBufferSize) {
-    if (ABSL_PREDICT_FALSE(
-            !digester_.Write(absl::string_view(buffer, kBufferSize)))) {
-      ok_ = false;
-      return;
-    }
-    length -= kBufferSize;
-  }
-  if (ABSL_PREDICT_FALSE(!digester_.Write(absl::string_view(buffer, length)))) {
-    ok_ = false;
-  }
+  for (const absl::string_view fragment : src.blocks()) write(target, fragment);
 }
 
 }  // namespace riegeli

@@ -31,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/any.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
@@ -99,10 +100,11 @@ struct IsValidDigesterBaseTarget<
 //   // Precondition: the digester is open.
 //   //
 //   // Optional. If absent, implemented in terms of `Write(absl::string_view)`.
-//   bool WriteZeros(Position length);
+//   bool Write(ByteFill src);
 //
-//   // Called when nothing more will be digested. This can make `Digest()` more
-//   // efficient. Resources can be freed. Marks the digester as not open.
+//   // Optionally called when nothing more will be digested. This can make
+//   // `Digest()` more efficient. Resources can be freed. Marks the digester
+//   // as not open.
 //   //
 //   // Does nothing if the digester is not open.
 //   //
@@ -176,14 +178,17 @@ class
   bool Write(const absl::Cord& src) {
     return methods()->write_cord(target(), src);
   }
+  bool Write(ByteFill src) const {
+    return methods()->write_byte_fill(target(), src);
+  }
   template <
       typename Src,
       std::enable_if_t<
           absl::conjunction<
               HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-              value,
+              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
           int> = 0>
   bool Write(Src&& src);
 
@@ -209,13 +214,6 @@ class
   bool Write(wchar_t) = delete;
   bool Write(char16_t) = delete;
   bool Write(char32_t) = delete;
-
-  // Can be called instead of `Write()` when data consists of zeros.
-  //
-  // Precondition: the digester is open.
-  bool WriteZeros(riegeli::Position length) const {
-    return methods()->write_zeros(target(), length);
-  }
 
   // Called when nothing more will be digested. This can make `Digest()` more
   // efficient. Resources can be freed. Marks the digester as not open.
@@ -272,12 +270,12 @@ class
              std::declval<const absl::Cord&>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
-  struct DigesterTargetHasWriteZeros : std::false_type {};
+  struct DigesterTargetHasWriteByteFill : std::false_type {};
 
   template <typename T>
-  struct DigesterTargetHasWriteZeros<
-      T, absl::void_t<decltype(std::declval<T&>().WriteZeros(
-             std::declval<Position>()))>> : std::true_type {};
+  struct DigesterTargetHasWriteByteFill<
+      T, absl::void_t<decltype(std::declval<T&>().Write(
+             std::declval<ByteFill>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasClose : std::false_type {};
@@ -358,24 +356,23 @@ class
         [&] { return WriteCordFallback(target, src, RawWriteMethod<T>); });
   }
 
-  static bool WriteZerosFallback(void* target, Position length,
-                                 bool (*write)(void* target,
-                                               absl::string_view src));
-  static void WriteZerosFallback(void* target, Position length,
-                                 void (*write)(void* target,
-                                               absl::string_view src));
+  static bool WriteByteFillFallback(void* target, ByteFill src,
+                                    bool (*write)(void* target,
+                                                  absl::string_view src));
+  static void WriteByteFillFallback(void* target, ByteFill src,
+                                    void (*write)(void* target,
+                                                  absl::string_view src));
 
   template <typename T,
-            std::enable_if_t<DigesterTargetHasWriteZeros<T>::value, int> = 0>
-  static bool WriteZerosMethod(void* target, Position length) {
-    return ConvertToBool(
-        [&] { return static_cast<T*>(target)->WriteZeros(length); });
+            std::enable_if_t<DigesterTargetHasWriteByteFill<T>::value, int> = 0>
+  static bool WriteByteFillMethod(void* target, ByteFill src) {
+    return ConvertToBool([&] { return static_cast<T*>(target)->Write(src); });
   }
-  template <typename T,
-            std::enable_if_t<!DigesterTargetHasWriteZeros<T>::value, int> = 0>
-  static bool WriteZerosMethod(void* target, Position length) {
+  template <typename T, std::enable_if_t<
+                            !DigesterTargetHasWriteByteFill<T>::value, int> = 0>
+  static bool WriteByteFillMethod(void* target, ByteFill src) {
     return ConvertToBool(
-        [&] { return WriteZerosFallback(target, length, RawWriteMethod<T>); });
+        [&] { return WriteByteFillFallback(target, src, RawWriteMethod<T>); });
   }
 
   template <typename T,
@@ -407,7 +404,7 @@ class
     bool (*write)(void* target, absl::string_view src);
     bool (*write_chain)(void* target, const Chain& src);
     bool (*write_cord)(void* target, const absl::Cord& src);
-    bool (*write_zeros)(void* target, riegeli::Position length);
+    bool (*write_byte_fill)(void* target, ByteFill src);
     bool (*close)(void* target);
     absl::Status (*status)(const void* target);
   };
@@ -417,7 +414,7 @@ class
                                        WriteMethod<T>,
                                        WriteChainMethod<T>,
                                        WriteCordMethod<T>,
-                                       WriteZerosMethod<T>,
+                                       WriteByteFillMethod<T>,
                                        CloseMethod<T>,
                                        StatusMethod<T>};
 
@@ -643,7 +640,11 @@ class DigesterBaseHandle::DigesterAbslStringifySink {
   explicit DigesterAbslStringifySink(DigesterBaseHandle digester)
       : digester_(digester) {}
 
-  void Append(size_t length, char src);
+  void Append(size_t length, char src) {
+    if (ABSL_PREDICT_FALSE(!digester_.Write(ByteFill(length, src)))) {
+      ok_ = false;
+    }
+  }
   void Append(absl::string_view src) {
     if (ABSL_PREDICT_FALSE(!digester_.Write(src))) ok_ = false;
   }
@@ -665,8 +666,8 @@ template <
         absl::conjunction<
             HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
             absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-            value,
+            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+            absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
         int>>
 inline bool DigesterBaseHandle::Write(Src&& src) {
   DigesterAbslStringifySink sink(*this);

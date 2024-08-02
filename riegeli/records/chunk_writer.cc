@@ -25,6 +25,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -45,7 +46,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos))) {
     const Position length = records_internal::RemainingInBlock(pos);
-    dest->WriteZeros(length);
+    dest->Write(ByteFill(length));
     pos += length;
   }
   set_pos(pos);
@@ -138,7 +139,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     }
     const Position length = UnsignedMin(
         chunk_end - pos(), records_internal::RemainingInBlock(pos()));
-    if (ABSL_PREDICT_FALSE(!dest.WriteZeros(length))) {
+    if (ABSL_PREDICT_FALSE(!dest.Write(ByteFill(length)))) {
       return FailWithoutAnnotation(dest.status());
     }
     move_pos(length);
@@ -157,7 +158,7 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
   }
   length -= ChunkHeader::size();
   Chunk chunk;
-  chunk.data = ChainOfZeros(length);
+  chunk.data = Chain(ByteFill(length));
   chunk.header = ChunkHeader(chunk.data, ChunkType::kPadding, 0, 0);
   return WriteChunk(chunk);
 }

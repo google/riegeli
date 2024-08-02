@@ -31,6 +31,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -142,46 +143,24 @@ bool BackwardWriter::WriteSlow(ExternalRef src) {
   return Write(absl::string_view(src));
 }
 
-bool BackwardWriter::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  while (length > available()) {
+bool BackwardWriter::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  while (src.size() > available()) {
     const size_t available_length = available();
     // `std::memset(nullptr, _, 0)` is undefined.
     if (available_length > 0) {
       move_cursor(available_length);
-      std::memset(cursor(), 0, available_length);
-      length -= available_length;
+      std::memset(cursor(), src.fill(), available_length);
+      src.Extract(available_length);
     }
-    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(length)))) {
+    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(src.size())))) {
       return false;
     }
   }
-  move_cursor(IntCast<size_t>(length));
-  std::memset(cursor(), 0, IntCast<size_t>(length));
-  return true;
-}
-
-bool BackwardWriter::WriteCharsSlow(Position length, char src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of BackwardWriter::WriteCharsSlow(): "
-         "enough space available, use WriteChars() instead";
-  if (src == '\0') return WriteZerosSlow(length);
-  while (length > available()) {
-    const size_t available_length = available();
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (available_length > 0) {
-      move_cursor(available_length);
-      std::memset(cursor(), src, available_length);
-      length -= available_length;
-    }
-    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(length)))) {
-      return false;
-    }
-  }
-  move_cursor(IntCast<size_t>(length));
-  std::memset(cursor(), src, IntCast<size_t>(length));
+  move_cursor(IntCast<size_t>(src.size()));
+  std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
   return true;
 }
 

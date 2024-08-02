@@ -26,6 +26,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
@@ -136,21 +137,21 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
-bool ChainBackwardWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool ChainBackwardWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
-                                      IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  move_start_pos(length);
-  dest.Prepend(ChainOfZeros(IntCast<size_t>(length)), options_);
+  move_start_pos(src.size());
+  src.PrependTo(dest, options_);
   MakeBuffer(dest);
   return true;
 }

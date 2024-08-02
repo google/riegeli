@@ -30,6 +30,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/status.h"
@@ -154,35 +155,31 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
   return true;
 }
 
-bool SnappyWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool SnappyWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) >
                              std::numeric_limits<uint32_t>::max() ||
-                         length > std::numeric_limits<uint32_t>::max() -
-                                      IntCast<size_t>(pos()))) {
+                         src.size() > std::numeric_limits<uint32_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   const size_t first_length = UnsignedMin(
       RoundUp<kBlockSize>(IntCast<size_t>(pos())) - IntCast<size_t>(pos()),
-      IntCast<size_t>(length));
+      IntCast<size_t>(src.size()));
   if (first_length > 0) {
     if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
-    std::memset(cursor(), '\0', first_length);
+    std::memset(cursor(), src.fill(), first_length);
     move_cursor(first_length);
-    length -= first_length;
+    src.Extract(first_length);
   }
-  const size_t middle_length = RoundDown<kBlockSize>(IntCast<size_t>(length));
-  if (middle_length > 0) {
-    Write(ChainOfZeros(middle_length));
-    length -= middle_length;
-  }
-  const size_t last_length = IntCast<size_t>(length);
+  Write(src.Extract(RoundDown<kBlockSize>(IntCast<size_t>(src.size()))));
+  const size_t last_length = IntCast<size_t>(src.size());
   if (last_length > 0) {
     if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
-    std::memset(cursor(), '\0', last_length);
+    std::memset(cursor(), src.fill(), last_length);
     move_cursor(last_length);
   }
   return true;

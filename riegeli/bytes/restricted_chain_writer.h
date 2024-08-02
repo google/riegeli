@@ -24,10 +24,10 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -71,7 +71,7 @@ class RestrictedChainWriter : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ExternalRef src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
 
  private:
   // Discards uninitialized space from the end of `dest_`, so that it contains

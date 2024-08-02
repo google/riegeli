@@ -25,6 +25,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
@@ -121,17 +122,17 @@ bool NullWriter::WriteSlow(ExternalRef src) {
   return MakeBuffer();
 }
 
-bool NullWriter::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool NullWriter::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(length >
+  if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  move_start_pos(length);
+  move_start_pos(src.size());
   return MakeBuffer();
 }
 

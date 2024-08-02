@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -371,7 +372,7 @@ class FdWriterBase : public BufferedWriter {
   void Done() override;
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;

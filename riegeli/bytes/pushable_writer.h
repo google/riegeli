@@ -24,6 +24,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
@@ -116,9 +117,8 @@ class PushableWriter : public Writer {
   //   `scratch_used()`
   bool ForcePushUsingScratch();
 
-  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`,
-  // `SeekSlow()`, `SizeImpl()`, `TruncateImpl()`, and `ReadModeImpl()`,
-  // called while scratch is not used.
+  // Implementation of `WriteSlow()`, `FlushImpl()`,`SeekSlow()`, `SizeImpl()`,
+  // `TruncateImpl()`, and `ReadModeImpl()`, called while scratch is not used.
   //
   // By default they are implemented analogously to the corresponding `Writer`
   // functions.
@@ -132,7 +132,7 @@ class PushableWriter : public Writer {
   virtual bool WriteBehindScratch(const absl::Cord& src);
   virtual bool WriteBehindScratch(absl::Cord&& src);
   virtual bool WriteBehindScratch(ExternalRef src);
-  virtual bool WriteZerosBehindScratch(Position length);
+  virtual bool WriteBehindScratch(ByteFill src);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool SeekBehindScratch(Position new_pos);
   virtual absl::optional<Position> SizeBehindScratch();
@@ -146,7 +146,7 @@ class PushableWriter : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ExternalRef src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;

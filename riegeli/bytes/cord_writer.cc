@@ -30,11 +30,11 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
-#include "riegeli/base/zeros.h"
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -345,23 +345,23 @@ bool CordWriterBase::WriteSlow(ExternalRef src) {
   return true;
 }
 
-bool CordWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  if (length <= MaxBytesToCopy()) return Writer::WriteZerosSlow(length);
+bool CordWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
-                                      IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
-  ShrinkTail(length);
-  move_start_pos(length);
-  dest.Append(CordOfZeros(IntCast<size_t>(length)));
+  ShrinkTail(IntCast<size_t>(src.size()));
+  move_start_pos(src.size());
+  src.AppendTo(dest);
   return true;
 }
 

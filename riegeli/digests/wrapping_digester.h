@@ -26,6 +26,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -115,9 +116,7 @@ class WrappingDigester {
   bool Write(absl::string_view src) { return base_.get().Write(src); }
   bool Write(const Chain& src) { return base_.get().Write(src); }
   bool Write(const absl::Cord& src) { return base_.get().Write(src); }
-  bool WriteZeros(riegeli::Position length) {
-    return base_.get().WriteZeros(length);
-  }
+  bool Write(ByteFill src) { return base_.get().Write(src); }
   bool Close() { return !base_.IsOwning() || base_.get().Close(); }
 
   template <typename DependentBaseDigester = BaseDigester,

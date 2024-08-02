@@ -22,6 +22,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -119,7 +120,7 @@ class BufferedWriter : public Writer {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;

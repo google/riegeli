@@ -29,6 +29,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -243,28 +244,30 @@ bool PushableWriter::WriteBehindScratch(ExternalRef src) {
   return Write(absl::string_view(src));
 }
 
-bool PushableWriter::WriteZerosBehindScratch(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of PushableWriter::WriteZerosBehindScratch(): "
-         "enough space available, use WriteZeros() instead";
+bool PushableWriter::WriteBehindScratch(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::WriteZerosBehindScratch(): "
+      << "Failed precondition of "
+         "PushableWriter::WriteBehindScratch(ByteFill): "
          "scratch used";
-  while (length > available()) {
+  while (src.size() > available()) {
     const size_t available_length = available();
     // `std::memset(nullptr, _, 0)` is undefined.
     if (available_length > 0) {
-      std::memset(cursor(), 0, available_length);
+      std::memset(cursor(), src.fill(), available_length);
       move_cursor(available_length);
-      length -= available_length;
+      src.Extract(available_length);
     }
     if (ABSL_PREDICT_FALSE(
-            !PushBehindScratch(SaturatingIntCast<size_t>(length)))) {
+            !PushBehindScratch(SaturatingIntCast<size_t>(src.size())))) {
       return false;
     }
   }
-  std::memset(cursor(), 0, IntCast<size_t>(length));
-  move_cursor(IntCast<size_t>(length));
+  std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
+  move_cursor(IntCast<size_t>(src.size()));
   return true;
 }
 
@@ -407,22 +410,22 @@ bool PushableWriter::WriteSlow(ExternalRef src) {
   return WriteBehindScratch(std::move(src));
 }
 
-bool PushableWriter::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool PushableWriter::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
-    if (available() >= length && length <= kMaxBytesToCopy) {
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
       // `std::memset(nullptr, _, 0)` is undefined.
-      if (ABSL_PREDICT_TRUE(length > 0)) {
-        std::memset(cursor(), 0, IntCast<size_t>(length));
-        move_cursor(IntCast<size_t>(length));
+      if (ABSL_PREDICT_TRUE(src.size() > 0)) {
+        std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
+        move_cursor(IntCast<size_t>(src.size()));
       }
       return true;
     }
   }
-  return WriteZerosBehindScratch(length);
+  return WriteBehindScratch(src);
 }
 
 bool PushableWriter::FlushImpl(FlushType flush_type) {

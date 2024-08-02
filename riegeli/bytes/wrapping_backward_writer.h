@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/external_ref.h"
@@ -72,7 +73,7 @@ class WrappingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ExternalRef src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   bool TruncateImpl(Position new_size) override;
 
  private:

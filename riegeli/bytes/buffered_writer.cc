@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <limits>
 
 #include "absl/base/optimization.h"
@@ -26,8 +27,8 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/types.h"
-#include "riegeli/base/zeros.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -149,16 +150,14 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
   return Writer::WriteSlow(src);
 }
 
-bool BufferedWriter::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
-  const absl::string_view kArrayOfZeros = ArrayOfZeros();
-  while (length > kArrayOfZeros.size()) {
-    if (ABSL_PREDICT_FALSE(!Write(kArrayOfZeros))) return false;
-    length -= kArrayOfZeros.size();
+bool BufferedWriter::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
+  for (const absl::string_view fragment : src.blocks()) {
+    if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;
   }
-  return Write(kArrayOfZeros.substr(0, IntCast<size_t>(length)));
+  return true;
 }
 
 bool BufferedWriter::FlushImpl(FlushType flush_type) {

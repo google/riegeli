@@ -27,6 +27,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
@@ -182,10 +183,10 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src,
   return FailLimitExceeded(dest);
 }
 
-bool LimitingWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Writer::WriteZerosSlow(): "
-         "enough space available, use WriteZeros() instead";
+bool LimitingWriterBase::WriteSlow(ByteFill src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
@@ -193,12 +194,12 @@ bool LimitingWriterBase::WriteZerosSlow(Position length) {
   Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const Position max_length = max_pos_ - pos();
-  if (ABSL_PREDICT_FALSE(length <= max_pos_ - pos())) {
-    const bool write_ok = dest.WriteZeros(length);
+  if (ABSL_PREDICT_TRUE(src.size() <= max_length)) {
+    const bool write_ok = dest.Write(src);
     MakeBuffer(dest);
     return write_ok;
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteZeros(max_length))) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(src.Extract(max_length)))) {
     MakeBuffer(dest);
     return false;
   }

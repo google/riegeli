@@ -29,6 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/external_ref.h"
@@ -112,7 +113,7 @@ class SnappyWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ExternalRef src) override;
-  bool WriteZerosSlow(Position length) override;
+  bool WriteSlow(ByteFill src) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:

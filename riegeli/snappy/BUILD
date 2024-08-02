@@ -41,6 +41,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
+        "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:external_ref",
