@@ -29,6 +29,7 @@
 #include "riegeli/base/any_internal.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/type_erased_ref.h"
 
 namespace riegeli {
 
@@ -74,7 +75,7 @@ class AnyInitializer {
           int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),
-        context_(const_cast<absl::remove_cvref_t<Manager>*>(&manager)) {}
+        context_(std::forward<Manager>(manager)) {}
 
   AnyInitializer(AnyInitializer&& that) = default;
   AnyInitializer& operator=(AnyInitializer&&) = delete;
@@ -90,7 +91,7 @@ class AnyInitializer {
   template <typename Manager, bool is_inline>
   using MethodsFor = any_internal::MethodsFor<Handle, Manager, is_inline>;
 
-  static void ConstructMethodEmpty(void* context,
+  static void ConstructMethodEmpty(TypeErasedRef context,
                                    MethodsAndHandle& methods_and_handle,
                                    Storage storage, size_t available_size,
                                    size_t available_align);
@@ -99,7 +100,7 @@ class AnyInitializer {
             std::enable_if_t<!any_internal::IsAny<
                                  Handle, InitializerTargetT<Manager>>::value,
                              int> = 0>
-  static void ConstructMethod(void* context,
+  static void ConstructMethod(TypeErasedRef context,
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
                               size_t available_align);
@@ -107,7 +108,7 @@ class AnyInitializer {
             std::enable_if_t<
                 any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value,
                 int> = 0>
-  static void ConstructMethod(void* context,
+  static void ConstructMethod(TypeErasedRef context,
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
                               size_t available_align);
@@ -119,18 +120,18 @@ class AnyInitializer {
                available_align);
   }
 
-  void (*construct_)(void* context, MethodsAndHandle& methods_and_handle,
-                     Storage storage, size_t available_size,
-                     size_t available_align);
-  void* context_ = nullptr;
+  void (*construct_)(TypeErasedRef context,
+                     MethodsAndHandle& methods_and_handle, Storage storage,
+                     size_t available_size, size_t available_align);
+  TypeErasedRef context_;
 };
 
 // Implementation details follow.
 
 template <typename Handle>
 void AnyInitializer<Handle>::ConstructMethodEmpty(
-    ABSL_ATTRIBUTE_UNUSED void* context, MethodsAndHandle& methods_and_handle,
-    ABSL_ATTRIBUTE_UNUSED Storage storage,
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
+    MethodsAndHandle& methods_and_handle, ABSL_ATTRIBUTE_UNUSED Storage storage,
     ABSL_ATTRIBUTE_UNUSED size_t available_size,
     ABSL_ATTRIBUTE_UNUSED size_t available_align) {
   methods_and_handle.methods = &NullMethods::kMethods;
@@ -144,8 +145,8 @@ template <
     std::enable_if_t<
         !any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
-    void* context, MethodsAndHandle& methods_and_handle, Storage storage,
-    size_t available_size, size_t available_align) {
+    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
+    Storage storage, size_t available_size, size_t available_align) {
   using Target = InitializerTargetT<Manager>;
   // This is equivalent to calling `MethodsFor<Target, true>::Construct()`
   // or `MethodsFor<Target, false>::Construct()`. Separate allocation of
@@ -176,8 +177,7 @@ void AnyInitializer<Handle>::ConstructMethod(
     if (alignof(Dependency<Handle, Target>) > kDefaultNewAlignment) {
       // Factoring out the code constructing `Dependency<Handle, Target>` is
       // not feasible.
-      dep_ptr = new Dependency<Handle, Target>(std::forward<Manager>(
-          *static_cast<std::remove_reference_t<Manager>*>(context)));
+      dep_ptr = new Dependency<Handle, Target>(context.Cast<Manager>());
       constructed = true;
     }
 #endif
@@ -189,8 +189,7 @@ void AnyInitializer<Handle>::ConstructMethod(
   }
   methods_and_handle.methods = methods_ptr;
   if (!constructed) {
-    new (dep_ptr) Dependency<Handle, Target>(std::forward<Manager>(
-        *static_cast<std::remove_reference_t<Manager>*>(context)));
+    new (dep_ptr) Dependency<Handle, Target>(context.Cast<Manager>());
   }
   new (&methods_and_handle.handle) Handle(dep_ptr->get());
 }
@@ -201,8 +200,8 @@ template <
     std::enable_if_t<
         any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
-    void* context, MethodsAndHandle& methods_and_handle, Storage storage,
-    size_t available_size, size_t available_align) {
+    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
+    Storage storage, size_t available_size, size_t available_align) {
   using Target = InitializerTargetT<Manager>;
   // Materialize `Target` to consider adopting its storage.
   [&](Target&& target) {
@@ -247,9 +246,7 @@ void AnyInitializer<Handle>::ConstructMethod(
     // necessary: `Target` is always an `Any`, never an lvalue reference.
     MethodsFor<Target, /*is_inline=*/false>::Construct(
         storage, &methods_and_handle.handle, std::move(target));
-  }(Initializer<InitializerTargetT<Manager>>(
-        std::forward<Manager>(
-            *static_cast<std::remove_reference_t<Manager>*>(context)))
+  }(Initializer<InitializerTargetT<Manager>>(context.Cast<Manager>())
         .Reference());
 }
 
