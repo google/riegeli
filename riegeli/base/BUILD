@@ -502,6 +502,7 @@ cc_library(
         ":assert",
         ":chain",
         ":compare",
+        ":cord_utils",
         ":external_data",
         ":external_ref",
         ":global",
@@ -511,6 +512,7 @@ cc_library(
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
 )

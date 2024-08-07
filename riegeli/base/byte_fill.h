@@ -79,6 +79,14 @@ class ByteFill {
   // Converts the data to `absl::Cord`.
   explicit operator absl::Cord() const;
 
+  // Support `riegeli::Reset(Chain&, ByteFill)`.
+  friend void RiegeliReset(Chain& dest, ByteFill src) { src.AssignTo(dest); }
+
+  // Support `riegeli::Reset(absl::Cord&, ByteFill)`.
+  friend void RiegeliReset(absl::Cord& dest, ByteFill src) {
+    src.AssignTo(dest);
+  }
+
   // Appends the data to `dest`.
   void AppendTo(Chain& dest) const;
   void AppendTo(Chain& dest, Chain::Options options) const;
@@ -113,11 +121,10 @@ class ByteFill {
  private:
   class ZeroBlock;
   class SmallBlock;
+  class LargeBlock;
 
-  static constexpr size_t kBlockOfZerosSize = size_t{64} << 10;
-
-  static const char* BlockOfZeros();
-
+  void AssignTo(Chain& dest) const;
+  void AssignTo(absl::Cord& dest) const;
   void Output(std::ostream& out) const;
 
   Position size_;
@@ -127,6 +134,10 @@ class ByteFill {
 // Represents a block of zeros backed by a shared array for `ExternalRef`.
 class ByteFill::ZeroBlock {
  public:
+  static constexpr size_t kSize = size_t{64} << 10;
+
+  static const char* Data();
+
   ZeroBlock() = default;
 
   ZeroBlock(const ZeroBlock& that) = default;
@@ -183,6 +194,54 @@ class ByteFill::SmallBlock {
   char data_[kSize];
 };
 
+class ByteFill::LargeBlock {
+ public:
+  explicit LargeBlock(size_t size, char fill) : buffer_(size) {
+    std::memset(buffer_.mutable_data(), fill, size);
+  }
+
+  LargeBlock(const LargeBlock& that) = default;
+  LargeBlock& operator=(const LargeBlock& that) = default;
+
+  LargeBlock(LargeBlock&& that) = default;
+  LargeBlock& operator=(LargeBlock&& that) = default;
+
+  const char* data() const { return buffer_.data(); }
+
+  // Indicate support for:
+  //  * `ExternalRef(const LargeBlock&, substr)`
+  //  * `ExternalRef(LargeBlock&&, substr)`
+  friend void RiegeliSupportsExternalRef(const LargeBlock*) {}
+
+  // `RiegeliExternalMemory()` is intentionally not defined so that a
+  // `LargeBlock` is never considered wasteful. Even if a substring of it is
+  // shared, the whole `LargeBlock` is shared nearby.
+
+  // Support `ExternalRef`.
+  friend ExternalStorage RiegeliToExternalStorage(LargeBlock* self) {
+    return RiegeliToExternalStorage(&self->buffer_);
+  }
+
+  // Support `ExternalRef` and `Chain::Block`.
+  friend void RiegeliDumpStructure(const LargeBlock* self,
+                                   absl::string_view substr,
+                                   std::ostream& out) {
+    self->DumpStructure(substr, out);
+  }
+
+  // Support `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const LargeBlock* self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(&self->buffer_);
+  }
+
+ private:
+  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+
+  SharedBuffer buffer_;
+};
+
 class ByteFill::BlockRef {
  public:
   BlockRef(const BlockRef& that) = default;
@@ -202,11 +261,11 @@ class ByteFill::BlockRef {
   friend void RiegeliSupportsExternalRef(const BlockRef*) {}
 
   // Support `ExternalRef`.
-  template <typename Delegate>
+  template <typename Callback>
   friend void RiegeliExternalDelegate(const BlockRef* self,
                                       absl::string_view substr,
-                                      Delegate&& delegate) {
-    self->ExternalDelegate(substr, std::forward<Delegate>(delegate));
+                                      Callback&& delegate_to) {
+    self->ExternalDelegate(substr, std::forward<Callback>(delegate_to));
   }
 
  private:
@@ -216,8 +275,8 @@ class ByteFill::BlockRef {
                     Position block_index_complement)
       : blocks_(blocks), block_index_complement_(block_index_complement) {}
 
-  template <typename Delegate>
-  void ExternalDelegate(absl::string_view substr, Delegate&& delegate) const;
+  template <typename Callback>
+  void ExternalDelegate(absl::string_view substr, Callback&& delegate_to) const;
 
   const Blocks* blocks_;
   // `block_index_complement_` is `blocks_->num_blocks_ - block_index`. Working
@@ -354,8 +413,29 @@ class ByteFill::Blocks {
   }
 
  private:
-  // For `Blocks()`, `data()`, `size()`, and `ExternalDelegate()`.
+  // For `kMaxSizeForSingleBlock`, `Blocks()`, `data()`, `size()`, and
+  // `ExternalDelegate()`.
   friend class ByteFill;
+
+  // Find a balance between the number of blocks and the block size.
+  // The following parameters yield:
+  //  *    1K =   1 *  1K
+  //  *    2K =   1 *  2K
+  //  *    4K =   2 *  2K
+  //  *    8K =   2 *  4K
+  //  *   16K =   4 *  4K
+  //  *   32K =   4 *  8K
+  //  *   64K =   8 *  8K
+  //  *  128K =   8 * 16K
+  //  *  256K =  16 * 16K
+  //  *  512K =  16 * 32K
+  //  * 1M    =  32 * 32K
+  //  * 2M    =  32 * 64K
+  //  * 4M    =  64 * 64K
+  //  * 8M    = 128 * 64K
+  static constexpr int kBlockSizeBitsBias = 10;
+  static constexpr Position kMaxSizeForSingleBlock =
+      Position{1} << (kBlockSizeBitsBias + 1);
 
   explicit Blocks(Position size, char fill);
 
@@ -365,19 +445,19 @@ class ByteFill::Blocks {
                                        : non_last_block_size_;
   }
 
-  template <typename Delegate>
+  template <typename Callback>
   void ExternalDelegate(Position block_index_complement,
-                        absl::string_view substr, Delegate&& delegate) const;
+                        absl::string_view substr, Callback&& delegate_to) const;
 
   Position num_blocks_ = 0;
   uint32_t non_last_block_size_ = 0;
   uint32_t last_block_size_ = 0;
   // If `num_blocks_ > 0` then `data_` is:
-  //  * When `block_` is `ZeroBlock`:    `BlockOfZeros()`
-  //  * When `block_` is `SmallBlock`:   `small_block.data()`
-  //  * When `block_` is `SharedBuffer`: `shared_buffer.data()`
+  //  * When `block_` is `ZeroBlock`:  `ZeroBlock::Data()`
+  //  * When `block_` is `SmallBlock`: `small_block.data()`
+  //  * When `block_` is `LargeBlock`: `large_block.data()`
   const char* data_ = nullptr;
-  absl::variant<ZeroBlock, SmallBlock, SharedBuffer> block_;
+  absl::variant<ZeroBlock, SmallBlock, LargeBlock> block_;
 };
 
 // Implementation details follow.
@@ -388,11 +468,11 @@ inline size_t ByteFill::BlockRef::size() const {
   return blocks_->size(block_index_complement_);
 }
 
-template <typename Delegate>
+template <typename Callback>
 inline void ByteFill::BlockRef::ExternalDelegate(absl::string_view substr,
-                                                 Delegate&& delegate) const {
+                                                 Callback&& delegate_to) const {
   blocks_->ExternalDelegate(block_index_complement_, substr,
-                            std::forward<Delegate>(delegate));
+                            std::forward<Callback>(delegate_to));
 }
 
 inline ByteFill::BlockIterator::reference ByteFill::BlockIterator::operator*()
@@ -496,25 +576,25 @@ inline ByteFill::Blocks::Blocks(Blocks&& that) noexcept
   }
 }
 
-template <typename Delegate>
+template <typename Callback>
 inline void ByteFill::Blocks::ExternalDelegate(Position block_index_complement,
                                                absl::string_view substr,
-                                               Delegate&& delegate) const {
+                                               Callback&& delegate_to) const {
   struct Visitor {
     void operator()(const ZeroBlock& zero_ref) const {
-      std::forward<Delegate>(delegate)(zero_ref, substr);
+      std::forward<Callback>(delegate_to)(zero_ref, substr);
     }
     void operator()(const SmallBlock& small_block) const {
-      std::forward<Delegate>(delegate)(small_block, substr);
+      std::forward<Callback>(delegate_to)(small_block, substr);
     }
-    void operator()(const SharedBuffer& shared_buffer) const {
-      std::forward<Delegate>(delegate)(shared_buffer, substr);
+    void operator()(const LargeBlock& large_block) const {
+      std::forward<Callback>(delegate_to)(large_block, substr);
     }
 
     absl::string_view substr;
-    Delegate&& delegate;
+    Callback&& delegate_to;
   };
-  absl::visit(Visitor{substr, std::forward<Delegate>(delegate)}, block_);
+  absl::visit(Visitor{substr, std::forward<Callback>(delegate_to)}, block_);
 }
 
 inline ByteFill::Blocks ByteFill::blocks() const {
