@@ -56,7 +56,17 @@ class SharedBuffer {
   // Returns `true` if `*this` is the only owner of the data.
   //
   // If `capacity() == 0`, returns `false`.
-  bool IsUnique() const;
+  bool IsUnique() const { return buffer_.IsUnique(); }
+
+  // Returns the current reference count.
+  //
+  // If the `SharedBuffer` is accessed by multiple threads, this is a snapshot
+  // of the count which may change asynchronously, hence usage of
+  // `GetRefCount()` should be limited to cases not important for correctness,
+  // like producing debugging output.
+  //
+  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  size_t GetRefCount() const { return buffer_.GetRefCount(); }
 
   // Returns the mutable data pointer.
   //
@@ -118,8 +128,6 @@ inline void SharedBuffer::Reset(size_t min_capacity) {
     buffer_.Reset(riegeli::Maker(min_capacity));
   }
 }
-
-inline bool SharedBuffer::IsUnique() const { return buffer_.IsUnique(); }
 
 inline char* SharedBuffer::mutable_data() const {
   RIEGELI_ASSERT(IsUnique())

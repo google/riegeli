@@ -174,6 +174,19 @@ class
     return ptr_ != nullptr && ref_count(ptr_).HasUniqueOwner();
   }
 
+  // Returns the current reference count.
+  //
+  // If the `SharedPtr` is accessed by multiple threads, this is a snapshot of
+  // the count which may change asynchronously, hence usage of `GetRefCount()`
+  // should be limited to cases not important for correctness, like producing
+  // debugging output.
+  //
+  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  size_t GetRefCount() const {
+    if (ptr_ == nullptr) return 0;
+    return ref_count(ptr_).GetCount();
+  }
+
   // Returns the pointer.
   T* get() const { return ptr_; }
 

@@ -81,6 +81,8 @@ void ByteFill::ZeroBlock::DumpStructure(std::ostream& out) {
 void ByteFill::LargeBlock::DumpStructure(absl::string_view substr,
                                          std::ostream& out) const {
   out << "[large_fill] {";
+  const size_t ref_count = buffer_.GetRefCount();
+  if (ref_count != 1) out << " ref_count: " << ref_count;
   if (buffer_.capacity() != substr.size()) {
     out << " capacity: " << buffer_.capacity();
   }

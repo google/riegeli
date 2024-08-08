@@ -45,6 +45,15 @@ struct HasHasUniqueOwner<
            decltype(std::declval<const T&>().HasUniqueOwner()), bool>::value>>
     : std::true_type {};
 
+template <typename T, typename Enable = void>
+struct HasGetCount : std::false_type {};
+
+template <typename T>
+struct HasGetCount<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<const T&>().GetCount()), size_t>::value>>
+    : std::true_type {};
+
 }  // namespace intrusive_shared_ptr_internal
 
 // `IntrusiveSharedPtr<T>` implements shared ownership of an object of type `T`.
@@ -232,6 +241,25 @@ class
                              int> = 0>
   bool IsUnique() const {
     return ptr_ != nullptr && ptr_->HasUniqueOwner();
+  }
+
+  // Returns the current reference count.
+  //
+  // If the `IntrusiveSharedPtr` is accessed by multiple threads, this is a
+  // snapshot of the count which may change asynchronously, hence usage of
+  // `GetRefCount()` should be limited to cases not important for correctness,
+  // like producing debugging output.
+  //
+  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  //
+  // Supported if `T` supports `GetCount()`.
+  template <typename DependentT = T,
+            std::enable_if_t<
+                intrusive_shared_ptr_internal::HasGetCount<DependentT>::value,
+                int> = 0>
+  size_t GetRefCount() const {
+    if (ptr_ == nullptr) return 0;
+    return ptr_->GetRefCount();
   }
 
   // Returns the pointer.

@@ -70,9 +70,11 @@ class RefCount {
   // Returns the current count.
   //
   // If the `RefCount` is accessed by multiple threads, this is a snapshot of
-  // the count which may change asynchronously, hence usage of `get_count()`
+  // the count which may change asynchronously, hence usage of `GetCount()`
   // should be limited to cases not important for correctness, like producing
   // debugging output.
+  //
+  // The count can be reliably compared against 1 with `HasUniqueOwner()`.
   size_t GetCount() const { return ref_count_.load(std::memory_order_relaxed); }
 
  private:
