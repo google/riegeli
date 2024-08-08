@@ -1932,16 +1932,7 @@ class ExternalRef {
 
   // Support `riegeli::Reset(absl::Cord&, ExternalRef)`.
   friend void RiegeliReset(absl::Cord& dest, ExternalRef src) {
-    std::move(*src.storage_)
-        .ToCord(
-            cord_internal::kMaxBytesToCopyToEmptyCord, &dest,
-            [](void* context, absl::string_view data) {
-              cord_internal::AssignToBlockyCord(
-                  data, *static_cast<absl::Cord*>(context));
-            },
-            [](void* context, absl::Cord data) {
-              *static_cast<absl::Cord*>(context) = std::move(data);
-            });
+    std::move(src).AssignTo(dest);
   }
 
   // Appends the data to `dest`.
@@ -2014,6 +2005,19 @@ class ExternalRef {
         },
         [](void* context, Chain::Block data) {
           static_cast<Chain*>(context)->Reset(std::move(data));
+        });
+  }
+
+  // Assigns the data to `dest`.
+  void AssignTo(absl::Cord& dest) && {
+    std::move(*storage_).ToCord(
+        cord_internal::kMaxBytesToCopyToEmptyCord, &dest,
+        [](void* context, absl::string_view data) {
+          cord_internal::AssignToBlockyCord(data,
+                                            *static_cast<absl::Cord*>(context));
+        },
+        [](void* context, absl::Cord data) {
+          *static_cast<absl::Cord*>(context) = std::move(data);
         });
   }
 
