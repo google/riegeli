@@ -21,7 +21,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
-#include <new>
+#include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 

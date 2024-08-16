@@ -15,7 +15,7 @@
 #ifndef RIEGELI_BASE_TEMPORARY_STORAGE_H_
 #define RIEGELI_BASE_TEMPORARY_STORAGE_H_
 
-#include <new>
+#include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 

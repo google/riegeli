@@ -22,7 +22,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <new>
+#include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
