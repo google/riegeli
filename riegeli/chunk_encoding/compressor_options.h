@@ -29,6 +29,16 @@
 
 namespace riegeli {
 
+// The implementation of the Brotli encoder to use. Experimental, meant for
+// evaluation. Prefer to keep the default.
+//
+// Rust Brotli is currently not available in open sourced Riegeli.
+enum class BrotliEncoder {
+  kRBrotliOrCBrotli,  // Rust Brotli if available, C Brotli otherwise. Default.
+  kCBrotli,           // C Brotli.
+  kRBrotli,           // Rust Brotli if available, fail otherwise.
+};
+
 class CompressorOptions {
  public:
   CompressorOptions() noexcept {}
@@ -41,7 +51,8 @@ class CompressorOptions {
   //     "brotli" (":" brotli_level)? |
   //     "zstd" (":" zstd_level)? |
   //     "snappy" (":" snappy_level)? |
-  //     "window_log" ":" window_log
+  //     "window_log" ":" window_log |
+  //     "brotli_encoder" ":" ("rbrotli_or_cbrotli" | "cbrotli" | "rbrotli")
   //   brotli_level ::= integer in the range [0..11] (default 6)
   //   zstd_level ::= integer in the range [-131072..22] (default 3)
   //   snappy_level ::= integer in the range [1..2] (default 1)
@@ -192,10 +203,31 @@ class CompressorOptions {
   // Precondition: `compression_type() == CompressionType::kZstd`
   absl::optional<int> zstd_window_log() const;
 
+  // The implementation of the Brotli encoder to use. Experimental, meant for
+  // evaluation. Prefer to keep the default.
+  //
+  // This is ignored if `compression_type() != CompressionType::kBrotli`.
+  //
+  // If Rust Brotli is used, the interpretation of compression levels is
+  // slightly different (in particular compression levels smaller than 3 are
+  // equivalent to 3, and compression levels larger than 7 are equivalent to 7),
+  // and `window_log()` is ignored.
+  //
+  // Default: `BrotliEncoder::kRBrotliOrCBrotli`.
+  CompressorOptions& set_brotli_encoder(BrotliEncoder brotli_encoder) & {
+    brotli_encoder_ = brotli_encoder;
+    return *this;
+  }
+  CompressorOptions&& set_brotli_encoder(BrotliEncoder brotli_encoder) && {
+    return std::move(set_brotli_encoder(brotli_encoder));
+  }
+  BrotliEncoder brotli_encoder() const { return brotli_encoder_; }
+
  private:
   CompressionType compression_type_ = CompressionType::kBrotli;
   int compression_level_ = kDefaultBrotli;
   absl::optional<int> window_log_;
+  BrotliEncoder brotli_encoder_ = BrotliEncoder::kRBrotliOrCBrotli;
 };
 
 }  // namespace riegeli

@@ -27,9 +27,9 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
-#include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/chunk_encoding/brotli_encoder_selection.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/snappy/snappy_writer.h"
@@ -64,11 +64,8 @@ inline void Compressor::Initialize() {
       writer_ = std::make_unique<ChainWriter<>>(&compressed_);
       return;
     case CompressionType::kBrotli:
-      writer_ = std::make_unique<BrotliWriter<ChainWriter<>>>(
-          riegeli::Maker(&compressed_),
-          BrotliWriterBase::Options()
-              .set_compression_level(compressor_options_.compression_level())
-              .set_window_log(compressor_options_.brotli_window_log()));
+      writer_ = NewBrotliWriter(&compressed_, compressor_options_,
+                                tuning_options_.recycling_pool_options());
       return;
     case CompressionType::kZstd:
       writer_ = std::make_unique<ZstdWriter<ChainWriter<>>>(

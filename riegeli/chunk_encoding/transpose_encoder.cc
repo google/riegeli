@@ -513,7 +513,7 @@ inline bool TransposeEncoder::AddBuffer(
             .set_recycling_pool_options(recycling_pool_options_));
   }
   if (ABSL_PREDICT_FALSE(!bucket_compressor.writer().Write(buffer))) {
-    return Fail(bucket_compressor.status());
+    return Fail(bucket_compressor.writer().status());
   }
   return true;
 }

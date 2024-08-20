@@ -79,6 +79,8 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
                       }));
     options_parser.AddOption("window_log",
                              [](ValueParser& value_parser) { return true; });
+    options_parser.AddOption("brotli_encoder",
+                             [](ValueParser& value_parser) { return true; });
     if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
       return options_parser.status();
     }
@@ -149,6 +151,13 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
     RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
   }());
+  options_parser.AddOption(
+      "brotli_encoder",
+      ValueParser::Enum(
+          {{"rbrotli_or_cbrotli", BrotliEncoder::kRBrotliOrCBrotli},
+           {"cbrotli", BrotliEncoder::kCBrotli},
+           {"rbrotli", BrotliEncoder::kRBrotli}},
+          &brotli_encoder_));
   if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
     return options_parser.status();
   }
@@ -157,7 +166,7 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
 
 int CompressorOptions::brotli_window_log() const {
   RIEGELI_ASSERT(compression_type_ == CompressionType::kBrotli)
-      << "Failed precodition of CompressorOptions::brotli_window_log(): "
+      << "Failed precondition of CompressorOptions::brotli_window_log(): "
          "compression type must be Brotli";
   if (window_log_ == absl::nullopt) {
     return BrotliWriterBase::Options::kDefaultWindowLog;
@@ -174,7 +183,7 @@ int CompressorOptions::brotli_window_log() const {
 
 absl::optional<int> CompressorOptions::zstd_window_log() const {
   RIEGELI_ASSERT(compression_type_ == CompressionType::kZstd)
-      << "Failed precodition of CompressorOptions::zstd_window_log(): "
+      << "Failed precondition of CompressorOptions::zstd_window_log(): "
          "compression type must be Zstd";
   if (window_log_ != absl::nullopt) {
     RIEGELI_ASSERT_GE(*window_log_, ZstdWriterBase::Options::kMinWindowLog)

@@ -12,6 +12,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "zstd" (":" zstd_level)? |
     "snappy" (":" snappy_level)? |
     "window_log" ":" window_log |
+    "brotli_encoder" ":" ("rbrotli_or_cbrotli" | "cbrotli" | "rbrotli") |
     "chunk_size" ":" chunk_size |
     "bucket_fraction" ":" bucket_fraction |
     "pad_to_block_boundary" (":" ("true" | "false" | "initially"))? |

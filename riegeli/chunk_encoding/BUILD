@@ -120,6 +120,7 @@ cc_library(
     srcs = ["compressor.cc"],
     hdrs = ["compressor.h"],
     deps = [
+        ":brotli_encoder_selection",
         ":compressor_options",
         ":constants",
         "//riegeli/base:arithmetic",
@@ -129,7 +130,6 @@ cc_library(
         "//riegeli/base:object",
         "//riegeli/base:recycling_pool",
         "//riegeli/base:types",
-        "//riegeli/brotli:brotli_writer",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:writer",
         "//riegeli/snappy:snappy_writer",
@@ -164,6 +164,25 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "brotli_encoder_selection",
+    srcs = ["brotli_encoder_selection.cc"],
+    hdrs = ["brotli_encoder_selection.h"],
+    deps = [
+        ":compressor_options",
+        "//riegeli/base:assert",
+        "//riegeli/base:chain",
+        "//riegeli/base:initializer",
+        "//riegeli/base:recycling_pool",
+        "//riegeli/brotli:brotli_writer",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:null_writer",
+        "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
     ],
 )
 
