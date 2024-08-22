@@ -95,12 +95,6 @@ class InitializerBase {
   template <typename... Args>
   static T ConstructMethodFromConstMaker(TypeErasedRef context);
 
-  template <typename Function, typename... Args>
-  static T ConstructMethodFromInvoker(TypeErasedRef context);
-
-  template <typename Function, typename... Args>
-  static T ConstructMethodFromConstInvoker(TypeErasedRef context);
-
  protected:
   struct Methods {
     T (*construct)(TypeErasedRef context);
@@ -128,14 +122,6 @@ class InitializerBase {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker = {
       ConstructMethodFromConstMaker<Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromInvoker = {
-      ConstructMethodFromInvoker<Function, Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromConstInvoker = {
-      ConstructMethodFromConstInvoker<Function, Args...>};
 
   const Methods* methods() const { return methods_; }
   TypeErasedRef context() const { return context_; }
@@ -196,14 +182,6 @@ class InitializerValueBase : public InitializerBase<T> {
   static T&& ReferenceMethodFromConstMaker(TypeErasedRef context,
                                            TemporaryStorage<T>&& storage);
 
-  template <typename Function, typename... Args>
-  static T&& ReferenceMethodFromInvoker(TypeErasedRef context,
-                                        TemporaryStorage<T>&& storage);
-
-  template <typename Function, typename... Args>
-  static T&& ReferenceMethodFromConstInvoker(TypeErasedRef context,
-                                             TemporaryStorage<T>&& storage);
-
   static const T& ConstReferenceMethodDefault(TypeErasedRef context,
                                               TemporaryStorage<T>&& storage);
 
@@ -222,14 +200,6 @@ class InitializerValueBase : public InitializerBase<T> {
 
   template <typename... Args>
   static const T& ConstReferenceMethodFromConstMaker(
-      TypeErasedRef context, TemporaryStorage<T>&& storage);
-
-  template <typename Function, typename... Args>
-  static const T& ConstReferenceMethodFromInvoker(
-      TypeErasedRef context, TemporaryStorage<T>&& storage);
-
-  template <typename Function, typename... Args>
-  static const T& ConstReferenceMethodFromConstInvoker(
       TypeErasedRef context, TemporaryStorage<T>&& storage);
 
  protected:
@@ -263,20 +233,6 @@ class InitializerValueBase : public InitializerBase<T> {
           Args...>,
       ReferenceMethodFromConstMaker<Args...>,
       ConstReferenceMethodFromConstMaker<Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromInvoker = {
-      InitializerValueBase::InitializerBase::template kMethodsFromInvoker<
-          Function, Args...>,
-      ReferenceMethodFromInvoker<Function, Args...>,
-      ConstReferenceMethodFromInvoker<Function, Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromConstInvoker = {
-      InitializerValueBase::InitializerBase::template kMethodsFromConstInvoker<
-          Function, Args...>,
-      ReferenceMethodFromConstInvoker<Function, Args...>,
-      ConstReferenceMethodFromConstInvoker<Function, Args...>};
 #else
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -331,37 +287,6 @@ class InitializerValueBase : public InitializerBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
-
-  template <typename Function, typename... Args>
-  static constexpr Methods MakeMethodsFromInvoker() {
-    Methods methods;
-    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
-        methods) =
-        InitializerValueBase::InitializerBase::template kMethodsFromInvoker<
-            Function, Args...>;
-    methods.reference = ReferenceMethodFromInvoker<Function, Args...>;
-    methods.const_reference =
-        ConstReferenceMethodFromInvoker<Function, Args...>;
-    return methods;
-  }
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromInvoker =
-      MakeMethodsFromInvoker<Function, Args...>();
-
-  template <typename Function, typename... Args>
-  static constexpr Methods MakeMethodsFromConstInvoker() {
-    Methods methods;
-    static_cast<typename InitializerValueBase::InitializerBase::Methods&>(
-        methods) = InitializerValueBase::InitializerBase::
-        template kMethodsFromConstInvoker<Function, Args...>;
-    methods.reference = ReferenceMethodFromConstInvoker<Function, Args...>;
-    methods.const_reference =
-        ConstReferenceMethodFromConstInvoker<Function, Args...>;
-    return methods;
-  }
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromConstInvoker =
-      MakeMethodsFromConstInvoker<Function, Args...>();
 #endif
 
   explicit InitializerValueBase(const Methods* methods)
@@ -404,12 +329,6 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   template <typename... Args>
   static void ResetMethodFromConstMaker(TypeErasedRef context, T& dest);
 
-  template <typename Function, typename... Args>
-  static void ResetMethodFromInvoker(TypeErasedRef context, T& dest);
-
-  template <typename Function, typename... Args>
-  static void ResetMethodFromConstInvoker(TypeErasedRef context, T& dest);
-
  protected:
   struct Methods
       : InitializerAssignableValueBase::InitializerValueBase::Methods {
@@ -440,18 +359,6 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
       InitializerAssignableValueBase::InitializerValueBase::
           template kMethodsFromConstMaker<Args...>,
       ResetMethodFromConstMaker<Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromInvoker = {
-      InitializerAssignableValueBase::InitializerValueBase::
-          template kMethodsFromInvoker<Function, Args...>,
-      ResetMethodFromInvoker<Function, Args...>};
-
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromConstInvoker = {
-      InitializerAssignableValueBase::InitializerValueBase::
-          template kMethodsFromConstInvoker<Function, Args...>,
-      ResetMethodFromConstInvoker<Function, Args...>};
 #else
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -500,33 +407,6 @@ class InitializerAssignableValueBase : public InitializerValueBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
-
-  template <typename Function, typename... Args>
-  static constexpr Methods MakeMethodsFromInvoker() {
-    Methods methods;
-    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
-                    Methods&>(methods) = InitializerAssignableValueBase::
-        InitializerValueBase::template kMethodsFromInvoker<Function, Args...>;
-    methods.reset = ResetMethodFromInvoker<Function, Args...>;
-    return methods;
-  }
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromInvoker =
-      MakeMethodsFromInvoker<Function, Args...>();
-
-  template <typename Function, typename... Args>
-  static constexpr Methods MakeMethodsFromConstInvoker() {
-    Methods methods;
-    static_cast<typename InitializerAssignableValueBase::InitializerValueBase::
-                    Methods&>(methods) =
-        InitializerAssignableValueBase::InitializerValueBase::
-            template kMethodsFromConstInvoker<Function, Args...>;
-    methods.reset = ResetMethodFromConstInvoker<Function, Args...>;
-    return methods;
-  }
-  template <typename Function, typename... Args>
-  static constexpr Methods kMethodsFromConstInvoker =
-      MakeMethodsFromConstInvoker<Function, Args...>();
 #endif
 
   explicit InitializerAssignableValueBase(const Methods* methods)
@@ -657,7 +537,7 @@ class Initializer
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
             &Initializer::InitializerAssignableValueBase::
-                template kMethodsFromInvoker<Function, Args...>,
+                template kMethodsFromObject<InvokerType<Function, Args...>>,
             std::move(invoker)) {}
   template <
       typename Function, typename... Args,
@@ -670,7 +550,8 @@ class Initializer
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerAssignableValueBase(
             &Initializer::InitializerAssignableValueBase::
-                template kMethodsFromConstInvoker<Function, Args...>,
+                template kMethodsFromObject<
+                    const InvokerType<Function, Args...>&>,
             invoker) {}
 
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
@@ -772,8 +653,8 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
-            &Initializer::InitializerValueBase::template kMethodsFromInvoker<
-                Function, Args...>,
+            &Initializer::InitializerValueBase::template kMethodsFromObject<
+                InvokerType<Function, Args...>>,
             std::move(invoker)) {}
   template <
       typename Function, typename... Args,
@@ -785,8 +666,8 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerValueBase(
-            &Initializer::InitializerValueBase::
-                template kMethodsFromConstInvoker<Function, Args...>,
+            &Initializer::InitializerValueBase::template kMethodsFromObject<
+                const InvokerType<Function, Args...>>,
             invoker) {}
 
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
@@ -875,8 +756,8 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
-            &Initializer::InitializerBase::template kMethodsFromInvoker<
-                Function, Args...>,
+            &Initializer::InitializerBase::template kMethodsFromObject<
+                InvokerType<Function, Args...>>,
             std::move(invoker)) {}
   template <
       typename Function, typename... Args,
@@ -888,8 +769,8 @@ class Initializer<T, allow_explicit,
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer::InitializerBase(
-            &Initializer::InitializerBase::template kMethodsFromConstInvoker<
-                Function, Args...>,
+            &Initializer::InitializerBase::template kMethodsFromObject<
+                const InvokerType<Function, Args...>>,
             invoker) {}
 
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
@@ -1025,18 +906,6 @@ T InitializerBase<T>::ConstructMethodFromConstMaker(TypeErasedRef context) {
 }
 
 template <typename T>
-template <typename Function, typename... Args>
-T InitializerBase<T>::ConstructMethodFromInvoker(TypeErasedRef context) {
-  return T(context.Cast<InvokerType<Function, Args...>>());
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-T InitializerBase<T>::ConstructMethodFromConstInvoker(TypeErasedRef context) {
-  return T(context.Cast<const InvokerType<Function, Args...>&>());
-}
-
-template <typename T>
 T&& InitializerValueBase<T>::ReferenceMethodDefault(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
     TemporaryStorage<T>&& storage) {
@@ -1072,22 +941,6 @@ T&& InitializerValueBase<T>::ReferenceMethodFromConstMaker(
     TypeErasedRef context, TemporaryStorage<T>&& storage) {
   return context.Cast<const MakerType<Args...>&>().template Reference<T>(
       std::move(storage));
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-T&& InitializerValueBase<T>::ReferenceMethodFromInvoker(
-    TypeErasedRef context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).emplace(
-      context.Cast<InvokerType<Function, Args...>>());
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-T&& InitializerValueBase<T>::ReferenceMethodFromConstInvoker(
-    TypeErasedRef context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).emplace(
-      context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 template <typename T>
@@ -1131,20 +984,6 @@ const T& InitializerValueBase<T>::ConstReferenceMethodFromConstMaker(
 }
 
 template <typename T>
-template <typename Function, typename... Args>
-const T& InitializerValueBase<T>::ConstReferenceMethodFromInvoker(
-    TypeErasedRef context, TemporaryStorage<T>&& storage) {
-  return storage.emplace(context.Cast<InvokerType<Function, Args...>>());
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-const T& InitializerValueBase<T>::ConstReferenceMethodFromConstInvoker(
-    TypeErasedRef context, TemporaryStorage<T>&& storage) {
-  return storage.emplace(context.Cast<const InvokerType<Function, Args...>&>());
-}
-
-template <typename T>
 void InitializerAssignableValueBase<T>::ResetMethodDefault(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context, T& dest) {
   riegeli::Reset(dest);
@@ -1169,20 +1008,6 @@ template <typename... Args>
 void InitializerAssignableValueBase<T>::ResetMethodFromConstMaker(
     TypeErasedRef context, T& dest) {
   riegeli::Reset(dest, context.Cast<const MakerType<Args...>&>());
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-void InitializerAssignableValueBase<T>::ResetMethodFromInvoker(
-    TypeErasedRef context, T& dest) {
-  riegeli::Reset(dest, context.Cast<InvokerType<Function, Args...>>());
-}
-
-template <typename T>
-template <typename Function, typename... Args>
-void InitializerAssignableValueBase<T>::ResetMethodFromConstInvoker(
-    TypeErasedRef context, T& dest) {
-  riegeli::Reset(dest, context.Cast<const InvokerType<Function, Args...>&>());
 }
 
 }  // namespace initializer_internal
