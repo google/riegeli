@@ -34,7 +34,7 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 }
 
 // Type-erased external object with its deleter and a substring of a byte array
-// it ows.
+// it owns.
 struct ExternalData {
   // Indicate support for:
   //  * `ExternalRef(ExternalData&&)`
