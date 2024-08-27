@@ -213,6 +213,18 @@ constexpr size_t AnyBase<Handle, inline_size, inline_align>::kAvailableAlign;
 // erasing the `Manager` parameter from the type of the `Any`, or is empty.
 template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
 class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
+ private:
+  // Indirection through `InliningImpl` is needed for MSVC for some reason.
+  template <typename... InlineManagers>
+  struct InliningImpl {
+    using type =
+        Any<Handle,
+            UnsignedMax(inline_size,
+                        sizeof(Dependency<Handle, InlineManagers>)...),
+            UnsignedMax(inline_align,
+                        alignof(Dependency<Handle, InlineManagers>)...)>;
+  };
+
  public:
   // `Any<Handle>::Inlining<InlineManagers...>` enlarges inline storage of
   // `Any<Handle>`.
@@ -222,12 +234,7 @@ class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
   // `Dependency<Handle, Manager>` fits there regarding size and alignment.
   // By default inline storage is enough for a pointer.
   template <typename... InlineManagers>
-  using Inlining =
-      Any<Handle,
-          UnsignedMax(inline_size,
-                      sizeof(Dependency<Handle, InlineManagers>)...),
-          UnsignedMax(inline_align,
-                      alignof(Dependency<Handle, InlineManagers>)...)>;
+  using Inlining = typename InliningImpl<InlineManagers...>::type;
 
   // Creates an empty `Any`.
   Any() noexcept { this->Initialize(); }
