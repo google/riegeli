@@ -25,7 +25,6 @@
 #include <iosfwd>
 #include <iterator>
 #include <memory>
-#include <new>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -533,7 +532,7 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
 template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>()) T(std::move(object));
+  std::move(object).ConstructAt(&unchecked_external_object<T>());
   const absl::string_view data =
       riegeli::ToStringView(unchecked_external_object<T>());
   data_ = data.data();
@@ -547,7 +546,7 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object,
                                  absl::string_view substr)
     : data_(substr.data()), size_(substr.size()) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  new (&unchecked_external_object<T>()) T(std::move(object));
+  std::move(object).ConstructAt(&unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }

@@ -778,7 +778,7 @@ class ExternalRef {
   class ObjectForCordWhole {
    public:
     explicit ObjectForCordWhole(Initializer<T> object)
-        : ptr_(std::make_unique<T>(std::move(object))) {}
+        : ptr_(std::move(object).MakeUnique()) {}
 
     ObjectForCordWhole(ObjectForCordWhole&& that) = default;
     ObjectForCordWhole& operator=(ObjectForCordWhole&& that) = default;

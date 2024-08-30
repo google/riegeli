@@ -15,6 +15,9 @@
 #ifndef RIEGELI_BASE_MAKER_H_
 #define RIEGELI_BASE_MAKER_H_
 
+#include <stddef.h>
+
+#include <new>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -74,6 +77,21 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                              int> = 0>
   T Construct() const& {
     return absl::make_from_tuple<T>(args_);
+  }
+
+  // Constructs the `T` at `ptr` using placement `new`.
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  void ConstructAt(void* ptr) && {
+    std::move(*this).template ConstructAtImpl<T>(
+        ptr, std::index_sequence_for<Args...>());
+  }
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  void ConstructAt(void* ptr) const& {
+    ConstructAtImpl<T>(ptr, std::index_sequence_for<Args...>());
   }
 
   // Constructs the `T`, or returns a reference to an already constructed object
@@ -168,6 +186,15 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   }
 
  private:
+  template <typename T, size_t... indices>
+  void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) && {
+    new (ptr) T(std::forward<Args>(std::get<indices>(args_))...);
+  }
+  template <typename T, size_t... indices>
+  void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) const& {
+    new (ptr) T(std::get<indices>(args_)...);
+  }
+
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
@@ -191,6 +218,12 @@ class MakerType<> {
             std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
   T Construct() const {
     return T();
+  }
+
+  template <typename T,
+            std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
+  void ConstructAt(void* ptr) const {
+    new (ptr) T();
   }
 
   template <typename T,
@@ -247,6 +280,18 @@ class MakerType<Arg0> {
       std::enable_if_t<std::is_constructible<T, const Arg0&>::value, int> = 0>
   T Construct() const& {
     return T(arg0_);
+  }
+
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, Arg0&&>::value, int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) T(std::forward<Arg0>(arg0_));
+  }
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<T, const Arg0&>::value, int> = 0>
+  void ConstructAt(void* ptr) const& {
+    new (ptr) T(arg0_);
   }
 
   template <typename T,
@@ -409,6 +454,20 @@ class MakerType<Arg0, Arg1> {
   template <typename T,
             std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
                              int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_));
+  }
+  template <
+      typename T,
+      std::enable_if_t<
+          std::is_constructible<T, const Arg0&, const Arg1&>::value, int> = 0>
+  void ConstructAt(void* ptr) const& {
+    new (ptr) T(arg0_, arg1_);
+  }
+
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
+                             int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) && {
     return std::move(storage).emplace(std::forward<Arg0>(arg0_),
@@ -502,6 +561,22 @@ class MakerType<Arg0, Arg1, Arg2> {
                              int> = 0>
   T Construct() const& {
     return T(arg0_, arg1_, arg2_);
+  }
+
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>::value,
+                       int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
+                std::forward<Arg2>(arg2_));
+  }
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
+                                                   const Arg2&>::value,
+                             int> = 0>
+  void ConstructAt(void* ptr) const& {
+    new (ptr) T(arg0_, arg1_, arg2_);
   }
 
   template <
@@ -612,6 +687,23 @@ class MakerType<Arg0, Arg1, Arg2, Arg3> {
                        int> = 0>
   T Construct() const& {
     return T(arg0_, arg1_, arg2_, arg3_);
+  }
+
+  template <typename T,
+            std::enable_if_t<
+                std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>::value,
+                int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
+                std::forward<Arg2>(arg2_), std::forward<Arg3>(arg3_));
+  }
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
+                                             const Arg2&, const Arg3&>::value,
+                       int> = 0>
+  void ConstructAt(void* ptr) const& {
+    new (ptr) T(arg0_, arg1_, arg2_, arg3_);
   }
 
   template <typename T,
@@ -734,6 +826,18 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
     return std::move(maker_).template Construct<T>();
   }
   /*implicit*/ operator T() const& { return maker_.template Construct<T>(); }
+
+  // Constructs the `T` at `ptr` using placement `new`.
+  void ConstructAt(void* ptr) && {
+    std::move(maker_).template ConstructAt<T>(ptr);
+  }
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
+                       int> = 0>
+  void ConstructAt(void* ptr) const& {
+    maker_.template ConstructAt<T>(ptr);
+  }
 
   // Constructs the `T`, or returns a reference to an already constructed object
   // if that was passed to the `MakerTypeFor`.

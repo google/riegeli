@@ -162,6 +162,9 @@ class ZstdDictionary::Repr {
                 std::integral_constant<Ownership, Ownership::kUnowned>)
       : type_(type), data_(data) {}
 
+  Repr(const Repr&) = delete;
+  Repr& operator=(const Repr&) = delete;
+
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
   ZSTD_CDictHandle PrepareCompressionDictionary(int compression_level) const;

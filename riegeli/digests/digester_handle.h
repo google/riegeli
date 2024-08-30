@@ -540,7 +540,7 @@ class DigesterHandle : public DigesterBaseHandle {
   template <typename T>
   static constexpr Methods kMethods = {DigesterBaseHandle::kMethods<T>,
                                        DigestMethod<T>};
-#else
+#else   // !__cpp_aggregate_bases
   template <typename T>
   static constexpr Methods MakeMethods() {
     Methods methods;
@@ -551,7 +551,7 @@ class DigesterHandle : public DigesterBaseHandle {
   }
   template <typename T>
   static constexpr Methods kMethods = MakeMethods<T>();
-#endif
+#endif  // !__cpp_aggregate_bases
 
   const Methods* methods() const {
     return static_cast<const Methods*>(DigesterBaseHandle::methods());

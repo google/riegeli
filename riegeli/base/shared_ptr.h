@@ -306,7 +306,7 @@ class
             kOffset + sizeof(SubT));
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<RefCount*>(ptr) - 1) RefCount();
-    new (ptr) SubT(std::move(value));
+    std::move(value).ConstructAt(ptr);
     return
 #if __cpp_lib_launder >= 201606
         std::launder
@@ -322,7 +322,7 @@ class
             kOffset + sizeof(SubT));
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
-    new (ptr) SubT(std::move(value));
+    std::move(value).ConstructAt(ptr);
     return
 #if __cpp_lib_launder >= 201606
         std::launder

@@ -131,6 +131,9 @@ class Lz4Dictionary::Repr {
                 uint32_t dict_id)
       : data_(data), dict_id_(dict_id) {}
 
+  Repr(const Repr&) = delete;
+  Repr& operator=(const Repr&) = delete;
+
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `LZ4F_createCDict()` failed.
   //

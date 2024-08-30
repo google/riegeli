@@ -123,7 +123,7 @@ class
   // The object is constructed with `new`, which means that `T::Unref()` should
   // delete the object with `delete this`.
   explicit IntrusiveSharedPtr(Initializer<T> value)
-      : ptr_(new T(std::move(value))) {}
+      : ptr_(std::move(value).MakeUnique().release()) {}
 
   // Creates an `IntrusiveSharedPtr` holding a constructed value of a compatible
   // type.
@@ -136,9 +136,10 @@ class
           std::is_convertible<InitializerTargetT<SubInitializer>*, T*>::value,
           int> = 0>
   explicit IntrusiveSharedPtr(SubInitializer&& value)
-      : ptr_(new InitializerTargetT<SubInitializer>(
-            Initializer<InitializerTargetT<SubInitializer>>(
-                std::forward<SubInitializer>(value)))) {}
+      : ptr_(Initializer<InitializerTargetT<SubInitializer>>(
+                 std::forward<SubInitializer>(value))
+                 .MakeUnique()
+                 .release()) {}
 
   // Converts from an `IntrusiveSharedPtr` with a compatible type.
   template <typename SubT,
@@ -221,10 +222,10 @@ class
           std::is_convertible<InitializerTargetT<SubInitializer>*, T*>::value,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
-    Unref(
-        std::exchange(ptr_, new InitializerTargetT<SubInitializer>(
-                                Initializer<InitializerTargetT<SubInitializer>>(
-                                    std::forward<SubInitializer>(value)))));
+    Unref(std::exchange(ptr_, Initializer<InitializerTargetT<SubInitializer>>(
+                                  std::forward<SubInitializer>(value))
+                                  .MakeUnique()
+                                  .release()));
   }
 
   // Returns `true` if `*this` is the only owner of the object.
@@ -349,7 +350,7 @@ class
       riegeli::Reset(*ptr_, std::move(value));
       return;
     }
-    Unref(std::exchange(ptr_, new T(std::move(value))));
+    Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
   }
   template <
       typename DependentT = T,
@@ -362,7 +363,7 @@ class
               absl::negation<std::is_move_assignable<DependentT>>>::value,
           int> = 0>
   void ResetImpl(Initializer<T> value) {
-    Unref(std::exchange(ptr_, new T(std::move(value))));
+    Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
   }
 
   T* ptr_ = nullptr;
