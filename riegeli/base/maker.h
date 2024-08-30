@@ -785,58 +785,47 @@ template <typename... Args>
 /*implicit*/ MakerType(Args&&...) -> MakerType<std::decay_t<Args>...>;
 #endif
 
-// `MakerTypeFor<T, Args...>, usually made with `riegeli::Maker<T>(args...)`,
-// packs constructor arguments for `T`. `MakerTypeFor<T, Args...>` is
-// convertible to `Initializer<T>`.
-//
-// This allows the function taking `Initializer<T>` to construct the object
-// in-place, avoiding constructing a temporary and moving from it.
-//
-// In contrast to `MakerType<Args...>`, `MakerTypeFor<T, Args...>` allows the
-// caller to deduce `T`, e.g. using `InitializerTargetT`.
 template <typename T, typename... Args>
-class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
-                         absl::negation<std::is_reference<Args>>...>::value> {
+class MakerTypeFor;
+
+namespace maker_internal {
+
+template <typename T, typename... Args>
+class MakerTypeForBase
+    : public ConditionallyAssignable<absl::conjunction<
+          absl::negation<std::is_reference<Args>>...>::value> {
  public:
   // Make `MakerTypeFor<T>` trivially default constructible (for
   // `TemporaryStorage` optimization).
-  MakerTypeFor() = default;
+  MakerTypeForBase() = default;
 
   // Constructs `MakerTypeFor` from `args...` convertible to `Args...`.
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<
-              std::is_constructible<T, Args&&...>,
-              absl::negation<std::is_same<std::tuple<std::decay_t<SrcArgs>...>,
-                                          std::tuple<MakerTypeFor>>>,
-              std::is_convertible<SrcArgs&&, Args>...>::value,
+          absl::conjunction<std::is_constructible<T, Args&&...>,
+                            absl::negation<std::is_same<
+                                std::tuple<std::decay_t<SrcArgs>...>,
+                                std::tuple<MakerTypeFor<T, Args...>>>>,
+                            std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
-  /*implicit*/ MakerTypeFor(SrcArgs&&... args)
+  /*implicit*/ MakerTypeForBase(SrcArgs&&... args)
       : maker_(std::forward<SrcArgs>(args)...) {}
 
-  MakerTypeFor(MakerTypeFor&& that) = default;
-  MakerTypeFor& operator=(MakerTypeFor&& that) = default;
+  MakerTypeForBase(MakerTypeForBase&& that) = default;
+  MakerTypeForBase& operator=(MakerTypeForBase&& that) = default;
 
-  MakerTypeFor(const MakerTypeFor& that) = default;
-  MakerTypeFor& operator=(const MakerTypeFor& that) = default;
+  MakerTypeForBase(const MakerTypeForBase& that) = default;
+  MakerTypeForBase& operator=(const MakerTypeForBase& that) = default;
 
   // Constructs the `T`.
   /*implicit*/ operator T() && {
-    return std::move(maker_).template Construct<T>();
+    return std::move(*this).maker().template Construct<T>();
   }
-  /*implicit*/ operator T() const& { return maker_.template Construct<T>(); }
 
   // Constructs the `T` at `ptr` using placement `new`.
   void ConstructAt(void* ptr) && {
-    std::move(maker_).template ConstructAt<T>(ptr);
-  }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
-  void ConstructAt(void* ptr) const& {
-    maker_.template ConstructAt<T>(ptr);
+    std::move(*this).maker().template ConstructAt<T>(ptr);
   }
 
   // Constructs the `T`, or returns a reference to an already constructed object
@@ -849,15 +838,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // `storage` must outlive usages of the returned reference.
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) && {
-    return std::move(maker_).template Reference<T>(std::move(storage));
-  }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
-    return maker_.template Reference<T>(std::move(storage));
+    return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
 
   // Constructs the `T`, or returns a const reference to an already constructed
@@ -870,16 +851,8 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   const T& ConstReference(TemporaryStorage<T>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND =
                                   TemporaryStorage<T>()) && {
-    return std::move(maker_).template ConstReference<T>(std::move(storage));
-  }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return maker_.template ConstReference<T>(std::move(storage));
+    return std::move(*this).maker().template ConstReference<T>(
+        std::move(storage));
   }
 
   // `riegeli::Reset(dest, MakerTypeFor)` makes `dest` equivalent to the
@@ -890,18 +863,8 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
                 absl::conjunction<absl::negation<std::is_reference<DependentT>>,
                                   std::is_move_assignable<DependentT>>::value,
                 int> = 0>
-  friend void RiegeliReset(T& dest, MakerTypeFor&& src) {
-    riegeli::Reset(dest, std::move(src.maker_));
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_reference<DependentT>>,
-                    std::is_move_assignable<DependentT>,
-                    std::is_constructible<DependentT, const Args&...>>::value,
-                int> = 0>
-  friend void RiegeliReset(T& dest, const MakerTypeFor& src) {
-    riegeli::Reset(dest, src.maker_);
+  friend void RiegeliReset(T& dest, MakerTypeForBase&& src) {
+    riegeli::Reset(dest, std::move(src.maker()));
   }
 
   // Returns the corresponding `MakerType` which does not specify `T`.
@@ -912,6 +875,94 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS MakerType<Args...> maker_;
+};
+
+template <bool is_const_makable, typename T, typename... Args>
+class MakerTypeForByConstBase;
+
+template <typename T, typename... Args>
+class MakerTypeForByConstBase</*is_const_makable=*/false, T, Args...>
+    : public MakerTypeForBase<T, Args...> {
+ public:
+  using MakerTypeForByConstBase::MakerTypeForBase::MakerTypeForBase;
+
+  MakerTypeForByConstBase(MakerTypeForByConstBase&& that) = default;
+  MakerTypeForByConstBase& operator=(MakerTypeForByConstBase&& that) = default;
+
+  MakerTypeForByConstBase(const MakerTypeForByConstBase& that) = default;
+  MakerTypeForByConstBase& operator=(const MakerTypeForByConstBase& that) =
+      default;
+};
+
+template <typename T, typename... Args>
+class MakerTypeForByConstBase</*is_const_makable=*/true, T, Args...>
+    : public MakerTypeForBase<T, Args...> {
+ public:
+  using MakerTypeForByConstBase::MakerTypeForBase::MakerTypeForBase;
+
+  MakerTypeForByConstBase(MakerTypeForByConstBase&& that) = default;
+  MakerTypeForByConstBase& operator=(MakerTypeForByConstBase&& that) = default;
+
+  MakerTypeForByConstBase(const MakerTypeForByConstBase& that) = default;
+  MakerTypeForByConstBase& operator=(const MakerTypeForByConstBase& that) =
+      default;
+
+  using MakerTypeForByConstBase::MakerTypeForBase::operator T;
+  /*implicit*/ operator T() const& {
+    return this->maker().template Construct<T>();
+  }
+
+  using MakerTypeForByConstBase::MakerTypeForBase::ConstructAt;
+  void ConstructAt(void* ptr) const& {
+    this->maker().template ConstructAt<T>(ptr);
+  }
+
+  using MakerTypeForByConstBase::MakerTypeForBase::Reference;
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                    TemporaryStorage<T>()) const& {
+    return this->maker().template Reference<T>(std::move(storage));
+  }
+
+  using MakerTypeForByConstBase::MakerTypeForBase::ConstReference;
+  const T& ConstReference(TemporaryStorage<T>&& storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                  TemporaryStorage<T>()) const& {
+    return this->maker().template ConstReference<T>(std::move(storage));
+  }
+
+  template <typename DependentT = T,
+            std::enable_if_t<
+                absl::conjunction<absl::negation<std::is_reference<DependentT>>,
+                                  std::is_move_assignable<DependentT>>::value,
+                int> = 0>
+  friend void RiegeliReset(T& dest, const MakerTypeForByConstBase& src) {
+    riegeli::Reset(dest, src.maker());
+  }
+};
+
+}  // namespace maker_internal
+
+// `MakerTypeFor<T, Args...>, usually made with `riegeli::Maker<T>(args...)`,
+// packs constructor arguments for `T`. `MakerTypeFor<T, Args...>` is
+// convertible to `Initializer<T>`.
+//
+// This allows the function taking `Initializer<T>` to construct the object
+// in-place, avoiding constructing a temporary and moving from it.
+//
+// In contrast to `MakerType<Args...>`, `MakerTypeFor<T, Args...>` allows the
+// caller to deduce `T`, e.g. using `InitializerTargetT`.
+template <typename T, typename... Args>
+class MakerTypeFor
+    : public maker_internal::MakerTypeForByConstBase<
+          std::is_constructible<T, const Args&...>::value, T, Args...> {
+ public:
+  using MakerTypeFor::MakerTypeForByConstBase::MakerTypeForByConstBase;
+
+  MakerTypeFor(const MakerTypeFor& that) = default;
+  MakerTypeFor& operator=(const MakerTypeFor& that) = default;
+
+  MakerTypeFor(MakerTypeFor&& that) = default;
+  MakerTypeFor& operator=(MakerTypeFor&& that) = default;
 };
 
 // `riegeli::Maker(args...)` returns `MakerType<Args&&...>` which packs
