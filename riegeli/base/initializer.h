@@ -101,9 +101,18 @@ void* Allocate() {
 }
 
 // Part of `Initializer<T>` for `T` being a non-reference type.
+//
+// Since C++17 which guarantees copy elision, this includes conversion to `T`.
+// Otherwise that conversion requires `T` to be move-constructible and is
+// included in a separate class `InitializerMovableBase`.
 template <typename T>
 class InitializerBase {
  public:
+#if __cpp_guaranteed_copy_elision
+  // Constructs the `T`.
+  /*implicit*/ operator T() && { return methods()->construct(context()); }
+#endif
+
   // Constructs the `T` on the heap.
   std::unique_ptr<T> MakeUnique() && {
     void* const ptr = Allocate<T>();
@@ -116,7 +125,13 @@ class InitializerBase {
   }
 
   // Constructs the `T` at `ptr` using placement `new`.
-  void ConstructAt(void* ptr) && { methods()->construct_at(context(), ptr); }
+  void ConstructAt(void* ptr) && {
+#if __cpp_guaranteed_copy_elision
+    new (ptr) T(methods()->construct(context()));
+#else
+    methods()->construct_at(context(), ptr);
+#endif
+  }
 
   // Constructs the `T`, or returns a reference to an already constructed object
   // if that was passed to the `Initializer`.
@@ -145,6 +160,18 @@ class InitializerBase {
   }
 
  private:
+#if __cpp_guaranteed_copy_elision
+  static T ConstructMethodDefault(TypeErasedRef context);
+
+  template <typename Arg>
+  static T ConstructMethodFromObject(TypeErasedRef context);
+
+  template <typename... Args>
+  static T ConstructMethodFromMaker(TypeErasedRef context);
+
+  template <typename... Args>
+  static T ConstructMethodFromConstMaker(TypeErasedRef context);
+#else   // !__cpp_guaranteed_copy_elision
   static void ConstructAtMethodDefault(TypeErasedRef context, void* ptr);
 
   template <typename Arg>
@@ -155,6 +182,7 @@ class InitializerBase {
 
   template <typename... Args>
   static void ConstructAtMethodFromConstMaker(TypeErasedRef context, void* ptr);
+#endif  // !__cpp_guaranteed_copy_elision
 
   static T&& ReferenceMethodDefault(TypeErasedRef context,
                                     TemporaryStorage<T>&& storage);
@@ -198,7 +226,11 @@ class InitializerBase {
 
  protected:
   struct Methods {
+#if __cpp_guaranteed_copy_elision
+    T (*construct)(TypeErasedRef context);
+#else
     void (*construct_at)(TypeErasedRef context, void* ptr);
+#endif
     T && (*reference)(TypeErasedRef context, TemporaryStorage<T>&& storage);
     const T& (*const_reference)(TypeErasedRef context,
                                 TemporaryStorage<T>&& storage);
@@ -213,23 +245,40 @@ class InitializerBase {
   InitializerBase& operator=(InitializerBase&&) = delete;
 
   template <typename Dummy = void>
-  static constexpr Methods kMethodsDefault = {ConstructAtMethodDefault,
-                                              ReferenceMethodDefault,
-                                              ConstReferenceMethodDefault};
+  static constexpr Methods kMethodsDefault = {
+#if __cpp_guaranteed_copy_elision
+      ConstructMethodDefault,
+#else
+      ConstructAtMethodDefault,
+#endif
+      ReferenceMethodDefault, ConstReferenceMethodDefault};
 
   template <typename Arg>
   static constexpr Methods kMethodsFromObject = {
-      ConstructAtMethodFromObject<Arg>, ReferenceMethodFromObject<Arg>,
-      ConstReferenceMethodFromObject<Arg>};
+#if __cpp_guaranteed_copy_elision
+      ConstructMethodFromObject<Arg>,
+#else
+      ConstructAtMethodFromObject<Arg>,
+#endif
+      ReferenceMethodFromObject<Arg>, ConstReferenceMethodFromObject<Arg>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromMaker = {
-      ConstructAtMethodFromMaker<Args...>, ReferenceMethodFromMaker<Args...>,
+#if __cpp_guaranteed_copy_elision
+      ConstructMethodFromMaker<Args...>,
+#else
+      ConstructAtMethodFromMaker<Args...>,
+#endif
+      ReferenceMethodFromMaker<Args...>,
       ConstReferenceMethodFromMaker<Args...>};
 
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker = {
+#if __cpp_guaranteed_copy_elision
+      ConstructMethodFromConstMaker<Args...>,
+#else
       ConstructAtMethodFromConstMaker<Args...>,
+#endif
       ReferenceMethodFromConstMaker<Args...>,
       ConstReferenceMethodFromConstMaker<Args...>};
 
@@ -244,8 +293,12 @@ class InitializerBase {
 // Part of `Initializer<T>` for `T` being a move-constructible non-reference
 // type.
 //
-// Since C++17 which guarantees copy elision, `T` does not need to be
-// move-constructible here.
+// Since C++17 which guarantees copy elision, this functionality does not
+// require `T` to be move-constructible and is included in `InitializerBase`.
+#if __cpp_guaranteed_copy_elision
+template <typename T>
+using InitializerMovableBase = InitializerBase<T>;
+#else  // !__cpp_guaranteed_copy_elision
 template <typename T>
 class InitializerMovableBase : public InitializerBase<T> {
  public:
@@ -359,10 +412,19 @@ class InitializerMovableBase : public InitializerBase<T> {
         InitializerMovableBase::InitializerBase::methods());
   }
 };
+#endif  // !__cpp_guaranteed_copy_elision
 
 // Part of `Initializer<T>` for `T` being a move-assignable non-reference type.
 template <typename T>
 class InitializerAssignableBase : public InitializerMovableBase<T> {
+ private:
+#if __cpp_guaranteed_copy_elision
+  // If `__cpp_guaranteed_copy_elision` then `InitializerMovableBase` is an
+  // alias for `InitializerBase` and its name was not injected.
+  using InitializerMovableBase = typename InitializerAssignableBase::
+      InitializerAssignableBase::InitializerBase;
+#endif
+
  public:
   // `riegeli::Reset(dest, Initializer)` makes `dest` equivalent to the
   // constructed `T`. This avoids constructing a temporary `T` and moving from
@@ -562,11 +624,7 @@ struct InitializerImpl<
     T, std::enable_if_t<absl::conjunction<
            absl::negation<std::is_reference<T>>,
            absl::negation<std::is_convertible<T&&, T>>>::value>> {
-#if __cpp_guaranteed_copy_elision
-  using type = InitializerMovableBase<T>;
-#else
   using type = InitializerBase<T>;
-#endif
 };
 
 template <typename T>
@@ -783,6 +841,34 @@ template <typename Arg>
 inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
     : methods_(methods), context_(std::forward<Arg>(arg)) {}
 
+#if __cpp_guaranteed_copy_elision
+
+template <typename T>
+T InitializerBase<T>::ConstructMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
+  return T();
+}
+
+template <typename T>
+template <typename Arg>
+T InitializerBase<T>::ConstructMethodFromObject(TypeErasedRef context) {
+  return T(context.Cast<Arg>());
+}
+
+template <typename T>
+template <typename... Args>
+T InitializerBase<T>::ConstructMethodFromMaker(TypeErasedRef context) {
+  return context.Cast<MakerType<Args...>>().template Construct<T>();
+}
+
+template <typename T>
+template <typename... Args>
+T InitializerBase<T>::ConstructMethodFromConstMaker(TypeErasedRef context) {
+  return context.Cast<const MakerType<Args...>&>().template Construct<T>();
+}
+
+#else  // !__cpp_guaranteed_copy_elision
+
 template <typename T>
 void InitializerBase<T>::ConstructAtMethodDefault(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context, void* ptr) {
@@ -809,6 +895,8 @@ void InitializerBase<T>::ConstructAtMethodFromConstMaker(TypeErasedRef context,
                                                          void* ptr) {
   context.Cast<const MakerType<Args...>&>().template ConstructAt<T>(ptr);
 }
+
+#endif  // !__cpp_guaranteed_copy_elision
 
 template <typename T>
 T&& InitializerBase<T>::ReferenceMethodDefault(
@@ -888,6 +976,8 @@ const T& InitializerBase<T>::ConstReferenceMethodFromConstMaker(
       std::move(storage));
 }
 
+#if !__cpp_guaranteed_copy_elision
+
 template <typename T>
 T InitializerMovableBase<T>::ConstructMethodDefault(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
@@ -912,6 +1002,8 @@ T InitializerMovableBase<T>::ConstructMethodFromConstMaker(
     TypeErasedRef context) {
   return context.Cast<const MakerType<Args...>&>().template Construct<T>();
 }
+
+#endif  // !__cpp_guaranteed_copy_elision
 
 template <typename T>
 void InitializerAssignableBase<T>::ResetMethodDefault(
