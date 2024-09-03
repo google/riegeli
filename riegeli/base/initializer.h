@@ -89,14 +89,75 @@ struct HasClassSpecificOperatorNew<
            decltype(T::operator new(std::declval<size_t>())), void*>::value>>
     : std::true_type {};
 
+#if __cpp_aligned_new
+
+template <typename T, typename Enable = void>
+struct HasClassSpecificAlignedOperatorNew : std::false_type {};
+
+template <typename T>
+struct HasClassSpecificAlignedOperatorNew<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(T::operator new(std::declval<size_t>(),
+                                    std::declval<std::align_val_t>())),
+           void*>::value>> : std::true_type {};
+
 template <typename T,
-          std::enable_if_t<HasClassSpecificOperatorNew<T>::value, int> = 0>
-void* Allocate() {
+          std::enable_if_t<
+              absl::conjunction<
+                  std::integral_constant<
+                      bool, (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
+                  HasClassSpecificAlignedOperatorNew<T>>::value,
+              int> = 0>
+inline void* Allocate() {
+  return T::operator new(sizeof(T), std::align_val_t{alignof(T)});
+}
+
+#endif  // __cpp_aligned_new
+
+template <
+    typename T,
+    std::enable_if_t<
+        absl::conjunction<
+#if __cpp_aligned_new
+            absl::disjunction<
+                std::integral_constant<
+                    bool, (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
+                absl::negation<HasClassSpecificAlignedOperatorNew<T>>>,
+#endif  // __cpp_aligned_new
+            HasClassSpecificOperatorNew<T>>::value,
+        int> = 0>
+inline void* Allocate() {
   return T::operator new(sizeof(T));
 }
+
+#if __cpp_aligned_new
 template <typename T,
-          std::enable_if_t<!HasClassSpecificOperatorNew<T>::value, int> = 0>
-void* Allocate() {
+          std::enable_if_t<
+              absl::conjunction<
+                  std::integral_constant<
+                      bool, (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
+                  absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
+                  absl::negation<HasClassSpecificOperatorNew<T>>>::value,
+              int> = 0>
+inline void* Allocate() {
+  return operator new(sizeof(T), std::align_val_t{alignof(T)});
+}
+#endif  // __cpp_aligned_new
+
+template <typename T,
+          std::enable_if_t<
+              absl::conjunction<
+#if __cpp_aligned_new
+                  std::integral_constant<
+                      bool, (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
+                  absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
+#else   // !__cpp_aligned_new
+                  std::integral_constant<bool,
+                                         (alignof(T) <= alignof(max_align_t))>,
+#endif  // !__cpp_aligned_new
+                  absl::negation<HasClassSpecificOperatorNew<T>>>::value,
+              int> = 0>
+inline void* Allocate() {
   return operator new(sizeof(T));
 }
 
