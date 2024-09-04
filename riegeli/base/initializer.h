@@ -422,12 +422,12 @@ class InitializerBase {
 //
 // Since C++17 which guarantees copy elision, this functionality does not
 // require `T` to be move-constructible and is included in `InitializerBase`.
-#if __cpp_guaranteed_copy_elision
-template <typename T>
-using InitializerMovableBase = InitializerBase<T>;
-#else  // !__cpp_guaranteed_copy_elision
 template <typename T>
 class InitializerMovableBase : public InitializerBase<T> {
+#if __cpp_guaranteed_copy_elision
+ protected:
+  using typename InitializerMovableBase::InitializerBase::Methods;
+#else  // !__cpp_guaranteed_copy_elision
  public:
   // Constructs the `T`.
   /*implicit*/ operator T() && { return methods()->construct(this->context()); }
@@ -522,6 +522,7 @@ class InitializerMovableBase : public InitializerBase<T> {
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
 #endif  // !__cpp_aggregate_bases
+#endif  // !__cpp_guaranteed_copy_elision
 
   explicit InitializerMovableBase(const Methods* methods)
       : InitializerMovableBase::InitializerBase(methods) {}
@@ -534,24 +535,17 @@ class InitializerMovableBase : public InitializerBase<T> {
   InitializerMovableBase(InitializerMovableBase&& that) = default;
   InitializerMovableBase& operator=(InitializerMovableBase&&) = delete;
 
+#if !__cpp_guaranteed_copy_elision
   const Methods* methods() const {
     return static_cast<const Methods*>(
         InitializerMovableBase::InitializerBase::methods());
   }
-};
 #endif  // !__cpp_guaranteed_copy_elision
+};
 
 // Part of `Initializer<T>` for `T` being a move-assignable non-reference type.
 template <typename T>
 class InitializerAssignableBase : public InitializerMovableBase<T> {
- private:
-#if __cpp_guaranteed_copy_elision
-  // If `__cpp_guaranteed_copy_elision` then `InitializerMovableBase` is an
-  // alias for `InitializerBase` and its name was not injected.
-  using InitializerMovableBase = typename InitializerAssignableBase::
-      InitializerAssignableBase::InitializerBase;
-#endif
-
  public:
   // `riegeli::Reset(dest, Initializer)` makes `dest` equivalent to the
   // constructed `T`. This avoids constructing a temporary `T` and moving from
