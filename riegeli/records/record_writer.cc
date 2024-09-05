@@ -91,7 +91,7 @@ class FileDescriptorCollector {
       : file_descriptors_(RIEGELI_ASSERT_NOTNULL(file_descriptors)) {}
 
   void AddFile(const google::protobuf::FileDescriptor* file_descriptor) {
-    if (!files_seen_.insert(file_descriptor->name()).second) return;
+    if (!files_seen_.emplace(file_descriptor->name()).second) return;
     for (int i = 0; i < file_descriptor->dependency_count(); ++i) {
       AddFile(file_descriptor->dependency(i));
     }
