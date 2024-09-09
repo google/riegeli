@@ -68,29 +68,6 @@ struct IsConstructibleFromResult
           std::is_constructible<T, Result>> {
 };
 
-// `ReferenceOrCheapValue<T>::type` and `ReferenceOrCheapValueT<T>` is `T` when
-// passing an argument of type `T` by value is cheap, or `T&&` otherwise.
-
-template <typename T, typename Enable = void>
-struct ReferenceOrCheapValue {
-  using type = T&&;
-};
-
-template <typename T>
-struct ReferenceOrCheapValue<
-    T, std::enable_if_t<absl::conjunction<
-           std::is_trivially_copyable<T>, std::is_trivially_destructible<T>,
-           std::integral_constant<bool,
-                                  (sizeof(T) <= 2 * sizeof(void*))>>::value>> {
-  using type = T;
-};
-
-template <typename T>
-struct ReferenceOrCheapValue<T&&> : ReferenceOrCheapValue<T> {};
-
-template <typename T>
-using ReferenceOrCheapValueT = typename ReferenceOrCheapValue<T>::type;
-
 namespace type_traits_internal {
 
 // Transforms a `std::tuple` type to another `std::tuple` type by selecting

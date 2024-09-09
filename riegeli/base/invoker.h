@@ -94,9 +94,9 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-// Specializations of `InvokerBase` for 0 to 4 arguments to make it trivially
-// copy constructible when possible (for `ReferenceOrCheapValue` optimization),
-// and to apply `ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS`.
+// Specialization of `InvokerBase` for 0 arguments to exclude the constructor
+// hijacking copy and move constructor for the 0 argument case, and to make the
+// type trivially copy constructible more often.
 
 template <typename Function>
 class InvokerBase<Function> {
@@ -128,183 +128,6 @@ class InvokerBase<Function> {
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-};
-
-template <typename Function, typename Arg0>
-class InvokerBase<Function, Arg0> {
- public:
-  using Result = decltype(invoker_internal::Invoke(std::declval<Function&&>(),
-                                                   std::declval<Arg0&&>()));
-
-  template <typename SrcFunction, typename SrcArg0,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcFunction&&, Function>,
-                                  std::is_convertible<SrcArg0&&, Arg0>>::value,
-                int> = 0>
-  /*implicit*/ InvokerBase(SrcFunction&& function, SrcArg0&& arg0)
-      : function_(std::forward<SrcFunction>(function)),
-        arg0_(std::forward<SrcArg0>(arg0)) {}
-
-  InvokerBase(InvokerBase&& that) = default;
-  InvokerBase& operator=(InvokerBase&& that) = default;
-
-  InvokerBase(const InvokerBase& that) = default;
-  InvokerBase& operator=(const InvokerBase& that) = default;
-
-  /*implicit*/ operator Result() && {
-    return invoker_internal::Invoke(std::forward<Function>(function_),
-                                    std::forward<Arg0>(arg0_));
-  }
-
- protected:
-  const Function& function() const { return function_; }
-  const Arg0& arg0() const { return arg0_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-};
-
-template <typename Function, typename Arg0, typename Arg1>
-class InvokerBase<Function, Arg0, Arg1> {
- public:
-  using Result = decltype(invoker_internal::Invoke(std::declval<Function&&>(),
-                                                   std::declval<Arg0&&>(),
-                                                   std::declval<Arg1&&>()));
-
-  template <typename SrcFunction, typename SrcArg0, typename SrcArg1,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcFunction&&, Function>,
-                                  std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>>::value,
-                int> = 0>
-  /*implicit*/ InvokerBase(SrcFunction&& function, SrcArg0&& arg0,
-                           SrcArg1&& arg1)
-      : function_(std::forward<SrcFunction>(function)),
-        arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)) {}
-
-  InvokerBase(InvokerBase&& that) = default;
-  InvokerBase& operator=(InvokerBase&& that) = default;
-
-  InvokerBase(const InvokerBase& that) = default;
-  InvokerBase& operator=(const InvokerBase& that) = default;
-
-  /*implicit*/ operator Result() && {
-    return invoker_internal::Invoke(std::forward<Function>(function_),
-                                    std::forward<Arg0>(arg0_),
-                                    std::forward<Arg1>(arg1_));
-  }
-
- protected:
-  const Function& function() const { return function_; }
-  const Arg0& arg0() const { return arg0_; }
-  const Arg1& arg1() const { return arg1_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-};
-
-template <typename Function, typename Arg0, typename Arg1, typename Arg2>
-class InvokerBase<Function, Arg0, Arg1, Arg2> {
- public:
-  using Result = decltype(invoker_internal::Invoke(
-      std::declval<Function&&>(), std::declval<Arg0&&>(),
-      std::declval<Arg1&&>(), std::declval<Arg2&&>()));
-
-  template <typename SrcFunction, typename SrcArg0, typename SrcArg1,
-            typename SrcArg2,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcFunction&&, Function>,
-                                  std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>,
-                                  std::is_convertible<SrcArg2&&, Arg2>>::value,
-                int> = 0>
-  /*implicit*/ InvokerBase(SrcFunction&& function, SrcArg0&& arg0,
-                           SrcArg1&& arg1, SrcArg2&& arg2)
-      : function_(std::forward<SrcFunction>(function)),
-        arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)),
-        arg2_(std::forward<SrcArg2>(arg2)) {}
-
-  InvokerBase(InvokerBase&& that) = default;
-  InvokerBase& operator=(InvokerBase&& that) = default;
-
-  InvokerBase(const InvokerBase& that) = default;
-  InvokerBase& operator=(const InvokerBase& that) = default;
-
-  /*implicit*/ operator Result() && {
-    return invoker_internal::Invoke(
-        std::forward<Function>(function_), std::forward<Arg0>(arg0_),
-        std::forward<Arg1>(arg1_), std::forward<Arg2>(arg2_));
-  }
-
- protected:
-  const Function& function() const { return function_; }
-  const Arg0& arg0() const { return arg0_; }
-  const Arg1& arg1() const { return arg1_; }
-  const Arg2& arg2() const { return arg2_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg2 arg2_;
-};
-
-template <typename Function, typename Arg0, typename Arg1, typename Arg2,
-          typename Arg3>
-class InvokerBase<Function, Arg0, Arg1, Arg2, Arg3> {
- public:
-  using Result = decltype(invoker_internal::Invoke(
-      std::declval<Function&&>(), std::declval<Arg0&&>(),
-      std::declval<Arg1&&>(), std::declval<Arg2&&>(), std::declval<Arg3&&>()));
-
-  template <typename SrcFunction, typename SrcArg0, typename SrcArg1,
-            typename SrcArg2, typename SrcArg3,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcFunction&&, Function>,
-                                  std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>,
-                                  std::is_convertible<SrcArg2&&, Arg2>,
-                                  std::is_convertible<SrcArg3&&, Arg3>>::value,
-                int> = 0>
-  /*implicit*/ InvokerBase(SrcFunction&& function, SrcArg0&& arg0,
-                           SrcArg1&& arg1, SrcArg2&& arg2, SrcArg3&& arg3)
-      : function_(std::forward<SrcFunction>(function)),
-        arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)),
-        arg2_(std::forward<SrcArg2>(arg2)),
-        arg3_(std::forward<SrcArg3>(arg3)) {}
-
-  InvokerBase(InvokerBase&& that) = default;
-  InvokerBase& operator=(InvokerBase&& that) = default;
-
-  InvokerBase(const InvokerBase& that) = default;
-  InvokerBase& operator=(const InvokerBase& that) = default;
-
-  /*implicit*/ operator Result() && {
-    return invoker_internal::Invoke(
-        std::forward<Function>(function_), std::forward<Arg0>(arg0_),
-        std::forward<Arg1>(arg1_), std::forward<Arg2>(arg2_),
-        std::forward<Arg3>(arg3_));
-  }
-
- protected:
-  const Function& function() const { return function_; }
-  const Arg0& arg0() const { return arg0_; }
-  const Arg1& arg1() const { return arg1_; }
-  const Arg2& arg2() const { return arg2_; }
-  const Arg3& arg3() const { return arg3_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg2 arg2_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg3 arg3_;
 };
 
 template <typename Enable, typename Function, typename... Args>
@@ -359,8 +182,8 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Args...>
   }
 };
 
-// Specializations of `InvokerConstBase<true, ...>` for 0 to 4 arguments to make
-// it compatible with specializations of `InvokerBase`.
+// Specialization of `InvokerConstBase<true, ...>` for 0 arguments to make it
+// compatible with the specialization of `InvokerBase`.
 
 template <typename Function>
 class InvokerConstBase</*is_const_callable=*/true, Function>
@@ -379,103 +202,6 @@ class InvokerConstBase</*is_const_callable=*/true, Function>
   using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
       Result;
   /*implicit*/ operator ConstResult() const& { return this->function()(); }
-};
-
-template <typename Function, typename Arg0>
-class InvokerConstBase</*is_const_callable=*/true, Function, Arg0>
-    : public InvokerBase<Function, Arg0> {
- public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
-
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
-
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  using ConstResult = decltype(invoker_internal::Invoke(
-      std::declval<const Function&>(), std::declval<const Arg0&>()));
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& {
-    return invoker_internal::Invoke(this->function(), this->arg0());
-  }
-};
-
-template <typename Function, typename Arg0, typename Arg1>
-class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1>
-    : public InvokerBase<Function, Arg0, Arg1> {
- public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
-
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
-
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  using ConstResult = decltype(invoker_internal::Invoke(
-      std::declval<const Function&>(), std::declval<const Arg0&>(),
-      std::declval<const Arg1&>()));
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& {
-    return invoker_internal::Invoke(this->function(), this->arg0(),
-                                    this->arg1());
-  }
-};
-
-template <typename Function, typename Arg0, typename Arg1, typename Arg2>
-class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1, Arg2>
-    : public InvokerBase<Function, Arg0, Arg1, Arg2> {
- public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
-
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
-
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  using ConstResult = decltype(invoker_internal::Invoke(
-      std::declval<const Function&>(), std::declval<const Arg0&>(),
-      std::declval<const Arg1&>, std::declval<const Arg2&>()));
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& {
-    return invoker_internal::Invoke(this->function(), this->arg0(),
-                                    this->arg1(), this->arg2());
-  }
-};
-
-template <typename Function, typename Arg0, typename Arg1, typename Arg2,
-          typename Arg3>
-class InvokerConstBase</*is_const_callable=*/true, Function, Arg0, Arg1, Arg2,
-                       Arg3>
-    : public InvokerBase<Function, Arg0, Arg1, Arg2, Arg3> {
- public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
-
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
-
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  using ConstResult = decltype(invoker_internal::Invoke(
-      std::declval<const Function&>(), std::declval<const Arg0&>(),
-      std::declval<const Arg1&>, std::declval<const Arg2&>(),
-      std::declval<const Arg3&>()));
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& {
-    return invoker_internal::Invoke(this->function(), this->arg0(),
-                                    this->arg1(), this->arg2(), this->arg3());
-  }
 };
 
 }  // namespace invoker_internal
@@ -574,21 +300,16 @@ using InvokerResultT = typename InvokerResult<T>::type;
 // function can also be a member pointer, in which case the first argument is
 // the target reference, reference wrapper, or pointer.
 //
-// `riegeli::Invoker(function, args...)` does not generally own `function` or
-// `args`, even if they involve temporaries, hence it should be used only as a
-// parameter of a function or constructor, so that the temporaries outlive its
-// usage. For storing a `InvokerType` in a variable or returning it from a
-// function, use `riegeli::OwningInvoker(function, args...)` or construct
-// `InvokerType` directly.
-//
-// Some arguments can be stored by value instead of by reference as an
-// optimization: some of `Function&&` or `Args&&...` in the result type can be
-// `Function` or `Args...`.
+// `riegeli::Invoker(function, args...)` does not own `function` or `args`, even
+// if they involve temporaries, hence it should be used only as a parameter of a
+// function or constructor, so that the temporaries outlive its usage. For
+// storing a `InvokerType` in a variable or returning it from a function, use
+// `riegeli::OwningInvoker(function, args...)` or construct `InvokerType`
+// directly.
 template <typename Function, typename... Args>
-inline InvokerType<ReferenceOrCheapValueT<Function>,
-                   ReferenceOrCheapValueT<Args>...>
-Invoker(Function&& function ABSL_ATTRIBUTE_LIFETIME_BOUND,
-        Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+inline InvokerType<Function&&, Args&&...> Invoker(
+    Function&& function ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Function>(function), std::forward<Args>(args)...};
 }
 

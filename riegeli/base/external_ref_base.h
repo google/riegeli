@@ -39,7 +39,6 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/to_string_view.h"
-#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -1586,8 +1585,7 @@ class ExternalRef {
                                                 context, use_external_data);
     }
 
-    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS
-    TemporaryStorage<ReferenceOrCheapValueT<T>> object_;
+    TemporaryStorage<T&&> object_;
     ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
@@ -1707,8 +1705,7 @@ class ExternalRef {
 
     Initializer<T> initializer() { return std::forward<Arg>(*arg_); }
 
-    ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS
-    TemporaryStorage<ReferenceOrCheapValueT<Arg>> arg_;
+    TemporaryStorage<Arg&&> arg_;
   };
 
   template <typename T>

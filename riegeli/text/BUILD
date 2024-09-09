@@ -49,7 +49,6 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:iterable",
-        "//riegeli/base:type_traits",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:writer",

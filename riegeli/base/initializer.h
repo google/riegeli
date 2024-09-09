@@ -919,8 +919,9 @@ template <typename Function, typename... Args, typename Reference,
 struct InitializerTargetImpl<InvokerType<Function, Args...>, Reference, Default>
     : InvokerResult<Reference> {};
 
-template <typename T, typename Reference, typename Default>
-struct InitializerTargetImpl<Initializer<T>, Reference, Default> {
+template <typename T, bool allow_explicit, typename Reference, typename Default>
+struct InitializerTargetImpl<Initializer<T, allow_explicit>, Reference,
+                             Default> {
   using type = T;
 };
 

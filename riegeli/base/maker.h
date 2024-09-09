@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <new>
+#include <new>  // IWYU pragma: keep
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -198,10 +198,10 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-// Specializations of `MakerType` for 0 to 4 arguments to apply `CanBindTo`
-// optimization for the 1 argument case, to make it trivially copy
-// constructible when possible (for `ReferenceOrCheapValue` optimization),
-// and to apply `ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS`.
+// Specializations of `MakerType` for 0 to 1 arguments to apply `CanBindTo`
+// optimization for the 1 argument case, to exclude the constructor hijacking
+// copy and move constructor for the 1 argument case, and to make the type
+// trivially copy constructible more often.
 
 template <>
 class MakerType<> {
@@ -419,366 +419,6 @@ class MakerType<Arg0> {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
 };
 
-template <typename Arg0, typename Arg1>
-class MakerType<Arg0, Arg1> {
- public:
-  template <typename SrcArg0, typename SrcArg1,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>>::value,
-                int> = 0>
-  /*implicit*/ MakerType(SrcArg0&& arg0, SrcArg1&& arg1)
-      : arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)) {}
-
-  MakerType(MakerType&& that) = default;
-  MakerType& operator=(MakerType&& that) = default;
-
-  MakerType(const MakerType& that) = default;
-  MakerType& operator=(const MakerType& that) = default;
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
-                             int> = 0>
-  T Construct() && {
-    return T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::is_constructible<T, const Arg0&, const Arg1&>::value, int> = 0>
-  T Construct() const& {
-    return T(arg0_, arg1_);
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
-                             int> = 0>
-  void ConstructAt(void* ptr) && {
-    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::is_constructible<T, const Arg0&, const Arg1&>::value, int> = 0>
-  void ConstructAt(void* ptr) const& {
-    new (ptr) T(arg0_, arg1_);
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
-    return std::move(storage).emplace(std::forward<Arg0>(arg0_),
-                                      std::forward<Arg1>(arg1_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::is_constructible<T, const Arg0&, const Arg1&>::value, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
-    return std::move(storage).emplace(arg0_, arg1_);
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return storage.emplace(std::forward<Arg0>(arg0_),
-                           std::forward<Arg1>(arg1_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::is_constructible<T, const Arg0&, const Arg1&>::value, int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return storage.emplace(arg0_, arg1_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_reference<T>>,
-                            std::is_move_assignable<T>,
-                            std::is_constructible<T, Arg0&&, Arg1&&>>::value,
-          int> = 0>
-  friend void RiegeliReset(T& dest, MakerType&& src) {
-    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
-                   std::forward<Arg1>(src.arg1_));
-  }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::is_move_assignable<T>,
-                    std::is_constructible<T, const Arg0&, const Arg1&>>::value,
-                int> = 0>
-  friend void RiegeliReset(T& dest, const MakerType& src) {
-    riegeli::Reset(dest, src.arg0_, src.arg1_);
-  }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-};
-
-template <typename Arg0, typename Arg1, typename Arg2>
-class MakerType<Arg0, Arg1, Arg2> {
- public:
-  template <typename SrcArg0, typename SrcArg1, typename SrcArg2,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>,
-                                  std::is_convertible<SrcArg2&&, Arg2>>::value,
-                int> = 0>
-  /*implicit*/ MakerType(SrcArg0&& arg0, SrcArg1&& arg1, SrcArg2&& arg2)
-      : arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)),
-        arg2_(std::forward<SrcArg2>(arg2)) {}
-
-  MakerType(MakerType&& that) = default;
-  MakerType& operator=(MakerType&& that) = default;
-
-  MakerType(const MakerType& that) = default;
-  MakerType& operator=(const MakerType& that) = default;
-
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>::value,
-                       int> = 0>
-  T Construct() && {
-    return T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-             std::forward<Arg2>(arg2_));
-  }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                                   const Arg2&>::value,
-                             int> = 0>
-  T Construct() const& {
-    return T(arg0_, arg1_, arg2_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>::value,
-                       int> = 0>
-  void ConstructAt(void* ptr) && {
-    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                std::forward<Arg2>(arg2_));
-  }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                                   const Arg2&>::value,
-                             int> = 0>
-  void ConstructAt(void* ptr) const& {
-    new (ptr) T(arg0_, arg1_, arg2_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>::value,
-                       int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
-    return std::move(storage).emplace(std::forward<Arg0>(arg0_),
-                                      std::forward<Arg1>(arg1_),
-                                      std::forward<Arg2>(arg2_));
-  }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                                   const Arg2&>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
-    return std::move(storage).emplace(arg0_, arg1_, arg2_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>::value,
-                       int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return storage.emplace(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                           std::forward<Arg2>(arg2_));
-  }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                                   const Arg2&>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return storage.emplace(arg0_, arg1_, arg2_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
-              std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&>>::value,
-          int> = 0>
-  friend void RiegeliReset(T& dest, MakerType&& src) {
-    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
-                   std::forward<Arg1>(src.arg1_),
-                   std::forward<Arg2>(src.arg2_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_reference<T>>,
-                            std::is_move_assignable<T>,
-                            std::is_constructible<T, const Arg0&, const Arg1&,
-                                                  const Arg2&>>::value,
-          int> = 0>
-  friend void RiegeliReset(T& dest, const MakerType& src) {
-    riegeli::Reset(dest, src.arg0_, src.arg1_, src.arg2_);
-  }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg2 arg2_;
-};
-
-template <typename Arg0, typename Arg1, typename Arg2, typename Arg3>
-class MakerType<Arg0, Arg1, Arg2, Arg3> {
- public:
-  template <typename SrcArg0, typename SrcArg1, typename SrcArg2,
-            typename SrcArg3,
-            std::enable_if_t<
-                absl::conjunction<std::is_convertible<SrcArg0&&, Arg0>,
-                                  std::is_convertible<SrcArg1&&, Arg1>,
-                                  std::is_convertible<SrcArg2&&, Arg2>,
-                                  std::is_convertible<SrcArg3&&, Arg3>>::value,
-                int> = 0>
-  /*implicit*/ MakerType(SrcArg0&& arg0, SrcArg1&& arg1, SrcArg2&& arg2,
-                         SrcArg3&& arg3)
-      : arg0_(std::forward<SrcArg0>(arg0)),
-        arg1_(std::forward<SrcArg1>(arg1)),
-        arg2_(std::forward<SrcArg2>(arg2)),
-        arg3_(std::forward<SrcArg3>(arg3)) {}
-
-  MakerType(MakerType&& that) = default;
-  MakerType& operator=(MakerType&& that) = default;
-
-  MakerType(const MakerType& that) = default;
-  MakerType& operator=(const MakerType& that) = default;
-
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>::value,
-                int> = 0>
-  T Construct() && {
-    return T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-             std::forward<Arg2>(arg2_), std::forward<Arg3>(arg3_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                             const Arg2&, const Arg3&>::value,
-                       int> = 0>
-  T Construct() const& {
-    return T(arg0_, arg1_, arg2_, arg3_);
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>::value,
-                int> = 0>
-  void ConstructAt(void* ptr) && {
-    new (ptr) T(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                std::forward<Arg2>(arg2_), std::forward<Arg3>(arg3_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                             const Arg2&, const Arg3&>::value,
-                       int> = 0>
-  void ConstructAt(void* ptr) const& {
-    new (ptr) T(arg0_, arg1_, arg2_, arg3_);
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>::value,
-                int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
-    return std::move(storage).emplace(
-        std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-        std::forward<Arg2>(arg2_), std::forward<Arg3>(arg3_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                             const Arg2&, const Arg3&>::value,
-                       int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
-    return std::move(storage).emplace(arg0_, arg1_, arg2_, arg3_);
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>::value,
-                int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return storage.emplace(std::forward<Arg0>(arg0_), std::forward<Arg1>(arg1_),
-                           std::forward<Arg2>(arg2_),
-                           std::forward<Arg3>(arg3_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&, const Arg1&,
-                                             const Arg2&, const Arg3&>::value,
-                       int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return storage.emplace(arg0_, arg1_, arg2_, arg3_);
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
-              std::is_constructible<T, Arg0&&, Arg1&&, Arg2&&, Arg3&&>>::value,
-          int> = 0>
-  friend void RiegeliReset(T& dest, MakerType&& src) {
-    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_),
-                   std::forward<Arg1>(src.arg1_), std::forward<Arg2>(src.arg2_),
-                   std::forward<Arg3>(src.arg3_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_reference<T>>, std::is_move_assignable<T>,
-              std::is_constructible<T, const Arg0&, const Arg1&, const Arg2&,
-                                    const Arg3&>>::value,
-          int> = 0>
-  friend void RiegeliReset(T& dest, const MakerType& src) {
-    riegeli::Reset(dest, src.arg0_, src.arg1_, src.arg2_, src.arg3_);
-  }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg1 arg1_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg2 arg2_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg3 arg3_;
-};
-
 // Support CTAD.
 #if __cpp_deduction_guides
 template <typename... Args>
@@ -981,20 +621,16 @@ class MakerTypeFor
 // `riegeli::Invoker()` complements `riegeli::Maker()` by extending constructors
 // with factory functions.
 //
-// `riegeli::Maker(args...)` does not generally own `args`, even if they
-// involve temporaries, hence it should be used only as a parameter of a
-// function or constructor, so that the temporaries outlive its usage.
-// For storing a `MakerType` in a variable or returning it from a function,
-// use `riegeli::OwningMaker(args...)` or construct `MakerType` directly.
-//
-// Some arguments can be stored by value instead of by reference as an
-// optimization: some of `Args&&...` in the result type can be `Args...`.
+// `riegeli::Maker(args...)` does not own `args`, even if they involve
+// temporaries, hence it should be used only as a parameter of a function or
+// constructor, so that the temporaries outlive its usage. For storing a
+// `MakerType` in a variable or returning it from a function, use
+// `riegeli::OwningMaker(args...)` or construct `MakerType` directly.
 //
 // The `generic` template parameter lets `riegeli::Maker<T>()` with an explicit
 // template argument unambiguously call another overload of `riegeli::Maker()`.
 template <int generic = 0, typename... Args>
-MakerType<ReferenceOrCheapValueT<Args>...> Maker(
-    Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+MakerType<Args&&...> Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
 
@@ -1011,18 +647,14 @@ MakerType<ReferenceOrCheapValueT<Args>...> Maker(
 // In contrast to `riegeli::Maker(args...)`, `riegeli::Maker<T>(args...)` allows
 // the caller to deduce `T`, e.g. using `InitializerTargetT`.
 //
-// `riegeli::Maker<T>(args...)` does not generally own `args`, even if they
-// involve temporaries, hence it should be used only as a parameter of a
-// function or constructor, so that the temporaries outlive its usage.
-// For storing a `MakerTypeFor` in a variable or returning it from a function,
-// use `riegeli::OwningMaker<T>(args...)` or construct `MakerTypeFor` directly.
-//
-// Some arguments can be stored by value instead of by reference as an
-// optimization: some of `Args&&...` in the result type can be `Args...`.
+// `riegeli::Maker<T>(args...)` does not own `args`, even if they involve
+// temporaries, hence it should be used only as a parameter of a function or
+// constructor, so that the temporaries outlive its usage. For storing a
+// `MakerTypeFor` in a variable or returning it from a function, use
+// `riegeli::OwningMaker<T>(args...)` or construct `MakerTypeFor` directly.
 template <typename T, typename... Args,
           std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-MakerTypeFor<T, ReferenceOrCheapValueT<Args>...> Maker(
-    Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+MakerTypeFor<T, Args&&...> Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
 
@@ -1037,9 +669,8 @@ template <template <typename...> class Template, typename... Args,
                                DeduceClassTemplateArgumentsT<Template, Args...>,
                                Args&&...>::value,
                            int> = 0>
-MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>,
-             ReferenceOrCheapValueT<Args>...>
-Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>, Args&&...> Maker(
+    Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
 #endif

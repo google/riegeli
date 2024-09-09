@@ -29,7 +29,6 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -66,7 +65,7 @@ class InvokingFormatter {
   }
 
  private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
+  Function function_;
 };
 
 // Support CTAD.
@@ -112,7 +111,7 @@ class DecoratingFormatter {
 
  private:
   absl::string_view before_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS ValueFormatter value_formatter_;
+  ValueFormatter value_formatter_;
   absl::string_view after_;
 };
 
@@ -172,9 +171,9 @@ class PairFormatter {
   }
 
  private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS FirstFormatter first_formatter_;
+  FirstFormatter first_formatter_;
   absl::string_view separator_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS SecondFormatter second_formatter_;
+  SecondFormatter second_formatter_;
 };
 
 // Support CTAD.
@@ -261,7 +260,7 @@ class JoinType {
 
   Dependency<const void*, Src> src_;
   absl::string_view separator_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Formatter formatter_;
+  Formatter formatter_;
 };
 
 // Support CTAD.
@@ -276,54 +275,50 @@ explicit JoinType(Src&& src, absl::string_view separator,
 // joins elements with a separator. Each element is formatted with the given
 // formatter.
 //
-// `riegeli::Join()` does not generally own the collection nor the formatter,
-// even if they involve temporaries, hence it should be stringified by the same
-// expression which constructed it, so that the temporaries outlive its usage.
-// For storing a `JoinType` in a variable or returning it from a function,
-// construct `JoinType` directly.
+// `riegeli::Join()` does not own the collection nor the formatter, even if they
+// involve temporaries, hence it should be stringified by the same expression
+// which constructed it, so that the temporaries outlive its usage. For storing
+// a `JoinType` in a variable or returning it from a function, construct
+// `JoinType` directly.
 
 template <
     typename Src, typename Formatter = DefaultFormatter,
     std::enable_if_t<
         !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
-inline JoinType<ReferenceOrCheapValueT<Src>, ReferenceOrCheapValueT<Formatter>>
-Join(Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<ReferenceOrCheapValueT<Src>,
-                  ReferenceOrCheapValueT<Formatter>>(
-      std::forward<Src>(src), std::forward<Formatter>(formatter));
+inline JoinType<Src&&, Formatter&&> Join(
+    Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
+  return JoinType<Src&&, Formatter&&>(std::forward<Src>(src),
+                                      std::forward<Formatter>(formatter));
 }
 
 template <
     typename Value = absl::string_view, typename Formatter = DefaultFormatter,
     std::enable_if_t<
         !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
-inline JoinType<std::initializer_list<Value>, ReferenceOrCheapValueT<Formatter>>
-Join(std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<std::initializer_list<Value>,
-                  ReferenceOrCheapValueT<Formatter>>(
+inline JoinType<std::initializer_list<Value>, Formatter&&> Join(
+    std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
+  return JoinType<std::initializer_list<Value>, Formatter&&>(
       src, std::forward<Formatter>(formatter));
 }
 
 template <typename Src, typename Formatter = DefaultFormatter>
-inline JoinType<ReferenceOrCheapValueT<Src>, ReferenceOrCheapValueT<Formatter>>
-Join(Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<ReferenceOrCheapValueT<Src>,
-                  ReferenceOrCheapValueT<Formatter>>(
-      std::forward<Src>(src), separator, std::forward<Formatter>(formatter));
+inline JoinType<Src&&, Formatter&&> Join(
+    Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
+  return JoinType<Src&&, Formatter&&>(std::forward<Src>(src), separator,
+                                      std::forward<Formatter>(formatter));
 }
 
 template <typename Value = absl::string_view,
           typename Formatter = DefaultFormatter>
-inline JoinType<std::initializer_list<Value>, ReferenceOrCheapValueT<Formatter>>
-Join(std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
-     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<std::initializer_list<Value>,
-                  ReferenceOrCheapValueT<Formatter>>(
+inline JoinType<std::initializer_list<Value>, Formatter&&> Join(
+    std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
+  return JoinType<std::initializer_list<Value>, Formatter&&>(
       src, separator, std::forward<Formatter>(formatter));
 }
 
