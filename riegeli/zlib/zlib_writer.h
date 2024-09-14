@@ -59,11 +59,11 @@ class ZlibWriterBase : public BufferedWriter {
     //
     // Default: `Header::kZlib`.
     static constexpr Header kDefaultHeader = Header::kZlib;
-    Options& set_header(Header header) & {
+    Options& set_header(Header header) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       header_ = header;
       return *this;
     }
-    Options&& set_header(Header header) && {
+    Options&& set_header(Header header) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(header));
     }
     Header header() const { return header_; }
@@ -76,7 +76,8 @@ class ZlibWriterBase : public BufferedWriter {
     static constexpr int kMinCompressionLevel = 0;  // `Z_NO_COMPRESSION`
     static constexpr int kMaxCompressionLevel = 9;  // `Z_BEST_COMPRESSION`
     static constexpr int kDefaultCompressionLevel = 6;
-    Options& set_compression_level(int compression_level) & {
+    Options& set_compression_level(int compression_level) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_compression_level(): "
@@ -88,7 +89,8 @@ class ZlibWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int compression_level) && {
+    Options&& set_compression_level(int compression_level) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_compression_level(compression_level));
     }
     int compression_level() const { return compression_level_; }
@@ -102,7 +104,7 @@ class ZlibWriterBase : public BufferedWriter {
     static constexpr int kMinWindowLog = 9;
     static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
     static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
-    Options& set_window_log(int window_log) & {
+    Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_window_log(): "
@@ -114,7 +116,7 @@ class ZlibWriterBase : public BufferedWriter {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(int window_log) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     int window_log() const { return window_log_; }
@@ -122,15 +124,21 @@ class ZlibWriterBase : public BufferedWriter {
     // Zlib dictionary. The same dictionary must be used for decompression.
     //
     // Default: `ZlibDictionary()`.
-    Options& set_dictionary(ZlibDictionary dictionary) & {
+    Options& set_dictionary(ZlibDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(ZlibDictionary dictionary) && {
+    Options&& set_dictionary(ZlibDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    ZlibDictionary& dictionary() { return dictionary_; }
-    const ZlibDictionary& dictionary() const { return dictionary_; }
+    ZlibDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const ZlibDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // Options for a global `KeyedRecyclingPool` of compression contexts.
     //
@@ -139,15 +147,18 @@ class ZlibWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -160,7 +171,7 @@ class ZlibWriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -264,9 +275,13 @@ class ZlibWriter : public ZlibWriterBase {
 
   // Returns the object providing and possibly owning the compressed `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

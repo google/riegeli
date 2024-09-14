@@ -54,7 +54,7 @@ class
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(size_t min_capacity = 0);
 
   // Returns the data pointer.
-  char* data() const { return data_; }
+  char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return data_; }
 
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const { return capacity_; }

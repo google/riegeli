@@ -1140,9 +1140,12 @@ inline void Chain::UnrefBlocks(const BlockPtr* begin, const BlockPtr* end) {
   if (begin != end) UnrefBlocksSlow(begin, end);
 }
 
-inline Chain::Blocks Chain::blocks() const { return Blocks(this); }
+inline Chain::Blocks Chain::blocks() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  return Blocks(this);
+}
 
-inline absl::optional<absl::string_view> Chain::TryFlat() const {
+inline absl::optional<absl::string_view> Chain::TryFlat() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   switch (end_ - begin_) {
     case 0:
       return short_data();
@@ -1153,7 +1156,7 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
   }
 }
 
-inline absl::string_view Chain::Flatten() {
+inline absl::string_view Chain::Flatten() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   switch (end_ - begin_) {
     case 0:
       return short_data();
@@ -1164,13 +1167,13 @@ inline absl::string_view Chain::Flatten() {
   }
 }
 
-inline absl::Span<char> Chain::AppendFixedBuffer(size_t length,
-                                                 Options options) {
+inline absl::Span<char> Chain::AppendFixedBuffer(size_t length, Options options)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return AppendBuffer(length, length, length, options);
 }
 
-inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
-                                                  Options options) {
+inline absl::Span<char> Chain::PrependFixedBuffer(
+    size_t length, Options options) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return PrependBuffer(length, length, length, options);
 }
 

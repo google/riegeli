@@ -63,7 +63,8 @@ class Lz4WriterBase : public BufferedWriter {
     static constexpr int kMaxCompressionLevel =
         12;  // `LZ4F_compressionLevel_max()`
     static constexpr int kDefaultCompressionLevel = 0;
-    Options& set_compression_level(int compression_level) & {
+    Options& set_compression_level(int compression_level) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "Lz4WriterBase::Options::set_compression_level(): "
@@ -75,7 +76,8 @@ class Lz4WriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int compression_level) && {
+    Options&& set_compression_level(int compression_level) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_compression_level(compression_level));
     }
     int compression_level() const { return compression_level_; }
@@ -91,7 +93,7 @@ class Lz4WriterBase : public BufferedWriter {
     static constexpr int kMinWindowLog = 16;
     static constexpr int kMaxWindowLog = 22;
     static constexpr int kDefaultWindowLog = 16;
-    Options& set_window_log(int window_log) & {
+    Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of Lz4WriterBase::Options::set_window_log(): "
              "window log out of range";
@@ -101,7 +103,7 @@ class Lz4WriterBase : public BufferedWriter {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(int window_log) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     int window_log() const { return window_log_; }
@@ -109,26 +111,34 @@ class Lz4WriterBase : public BufferedWriter {
     // Lz4 dictionary. The same dictionary must be used for decompression.
     //
     // Default: `Lz4Dictionary()`.
-    Options& set_dictionary(Lz4Dictionary dictionary) & {
+    Options& set_dictionary(Lz4Dictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(Lz4Dictionary dictionary) && {
+    Options&& set_dictionary(Lz4Dictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    Lz4Dictionary& dictionary() { return dictionary_; }
-    const Lz4Dictionary& dictionary() const { return dictionary_; }
+    Lz4Dictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const Lz4Dictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream for each frame, i.e. at coarse granularity. This lets
     // decompression verify the checksum.
     //
     // Default: `false`.
-    Options& set_store_content_checksum(bool store_content_checksum) & {
+    Options& set_store_content_checksum(bool store_content_checksum) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       store_content_checksum_ = store_content_checksum;
       return *this;
     }
-    Options&& set_store_content_checksum(bool store_content_checksum) && {
+    Options&& set_store_content_checksum(bool store_content_checksum) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_store_content_checksum(store_content_checksum));
     }
     bool store_content_checksum() const { return store_content_checksum_; }
@@ -138,11 +148,13 @@ class Lz4WriterBase : public BufferedWriter {
     // decompression verify the checksum.
     //
     // Default: `false`.
-    Options& set_store_block_checksum(bool store_block_checksum) & {
+    Options& set_store_block_checksum(bool store_block_checksum) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       store_block_checksum_ = store_block_checksum;
       return *this;
     }
-    Options&& set_store_block_checksum(bool store_block_checksum) && {
+    Options&& set_store_block_checksum(bool store_block_checksum) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_store_block_checksum(store_block_checksum));
     }
     bool store_block_checksum() const { return store_block_checksum_; }
@@ -154,11 +166,13 @@ class Lz4WriterBase : public BufferedWriter {
     // If the pledged size turns out to not match reality, compression fails.
     //
     // Default: `absl::nullopt`.
-    Options& set_pledged_size(absl::optional<Position> pledged_size) & {
+    Options& set_pledged_size(absl::optional<Position> pledged_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pledged_size_ = pledged_size;
       return *this;
     }
-    Options&& set_pledged_size(absl::optional<Position> pledged_size) && {
+    Options&& set_pledged_size(absl::optional<Position> pledged_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pledged_size(pledged_size));
     }
     absl::optional<Position> pledged_size() const { return pledged_size_; }
@@ -176,11 +190,13 @@ class Lz4WriterBase : public BufferedWriter {
     // This makes compression slightly faster, but increases memory usage.
     //
     // Default: `false`.
-    Options& set_reserve_max_size(bool reserve_max_size) & {
+    Options& set_reserve_max_size(bool reserve_max_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       reserve_max_size_ = reserve_max_size;
       return *this;
     }
-    Options&& set_reserve_max_size(bool reserve_max_size) && {
+    Options&& set_reserve_max_size(bool reserve_max_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_reserve_max_size(reserve_max_size));
     }
     bool reserve_max_size() const { return reserve_max_size_; }
@@ -204,15 +220,18 @@ class Lz4WriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -228,7 +247,7 @@ class Lz4WriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -326,9 +345,13 @@ class Lz4Writer : public Lz4WriterBase {
 
   // Returns the object providing and possibly owning the compressed `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

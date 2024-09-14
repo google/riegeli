@@ -106,17 +106,17 @@ class
   bool empty() const { return size() == 0; }
 
   // Returns the data pointer. Never `nullptr`.
-  char* data();
-  const char* data() const;
+  char* data() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   size_t size() const;
 
   size_t capacity() const;
 
-  operator absl::string_view() const;
+  operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  char& operator[](size_t index);
-  const char& operator[](size_t index) const;
+  char& operator[](size_t index) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const char& operator[](size_t index) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   void clear() { set_size(0); }
 
@@ -159,7 +159,7 @@ class
   // Preconditions:
   //   `used_size <= size()`
   //   `used_size <= new_size`
-  char* resize(size_t new_size, size_t used_size);
+  char* resize(size_t new_size, size_t used_size) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Ensures that `capacity() >= min_capacity`, ensuring that repeated growth
   // has the cost proportional to the final size.
@@ -174,7 +174,7 @@ class
   //
   // `append(length)` is equivalent to `resize(size() + length, size())` with
   // a check against overflow of `size() + length`.
-  char* append(size_t length);
+  char* append(size_t length) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Appends `src`.
   void append(absl::string_view src);
@@ -184,7 +184,7 @@ class
   //
   // In contrast to `std::string::c_str()`, this is a non-const operation.
   // It may reallocate the string and it writes the NUL each time.
-  const char* c_str();
+  const char* c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   friend bool operator==(const CompactString& a, const CompactString& b) {
     return a.repr_ == b.repr_ || absl::string_view(a) == absl::string_view(b);
@@ -568,13 +568,13 @@ inline CompactString& CompactString::operator=(absl::string_view src) {
   return *this;
 }
 
-inline char* CompactString::data() {
+inline char* CompactString::data() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return inline_data();
   return allocated_data();
 }
 
-inline const char* CompactString::data() const {
+inline const char* CompactString::data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return inline_data();
   return allocated_data();
@@ -592,19 +592,22 @@ inline size_t CompactString::capacity() const {
   return allocated_capacity_for_tag(tag);
 }
 
-inline CompactString::operator absl::string_view() const {
+inline CompactString::operator absl::string_view() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const uintptr_t tag = repr_ & 7;
   if (tag == 1) return absl::string_view(inline_data(), inline_size());
   return absl::string_view(allocated_data(), allocated_size_for_tag(tag));
 }
 
-inline char& CompactString::operator[](size_t index) {
+inline char& CompactString::operator[](size_t index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT_LT(index, size())
       << "Failed precondition of CompactString::operator[]: index out of range";
   return data()[index];
 }
 
-inline const char& CompactString::operator[](size_t index) const {
+inline const char& CompactString::operator[](size_t index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT_LT(index, size())
       << "Failed precondition of CompactString::operator[]: index out of range";
   return data()[index];
@@ -650,7 +653,8 @@ inline void CompactString::resize(size_t new_size) {
   ResizeSlow(new_size, new_size, size());
 }
 
-inline char* CompactString::resize(size_t new_size, size_t used_size) {
+inline char* CompactString::resize(size_t new_size, size_t used_size)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT_LE(used_size, size())
       << "Failed precondition of CompactString::resize(): "
          "used size exceeds old size";
@@ -686,7 +690,8 @@ inline void CompactString::shrink_to_fit() {
   return ShrinkToFitSlow();
 }
 
-inline char* CompactString::append(size_t length) {
+inline char* CompactString::append(size_t length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const size_t old_size = size();
   const size_t old_capacity = capacity();
   if (ABSL_PREDICT_TRUE(length <= old_capacity - old_size)) {
@@ -710,7 +715,7 @@ inline void CompactString::append(absl::string_view src) {
   }
 }
 
-inline const char* CompactString::c_str() {
+inline const char* CompactString::c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const size_t used_size = size();
   // Allocate just enough for NUL, do not call `reserve(used_size + 1)` here
   // because that could overallocate by 50%. In `c_str()` it is likely that the

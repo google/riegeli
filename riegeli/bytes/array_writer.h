@@ -44,12 +44,14 @@ class StringReader;
 class ArrayWriterBase : public PushableWriter {
  public:
   // Returns the array being written to. Unchanged by `Close()`.
-  virtual absl::Span<char> DestSpan() const = 0;
+  virtual absl::Span<char> DestSpan() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns written data in a prefix of the original array. Valid only after
   // `Close()` or `Flush()`.
-  absl::Span<char> written() const { return written_; }
-  absl::Span<char> Digest() {
+  absl::Span<char> written() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return written_;
+  }
+  absl::Span<char> Digest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Flush();
     return written();
   }
@@ -142,9 +144,13 @@ class ArrayWriter : public ArrayWriterBase {
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  absl::Span<char> DestSpan() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  absl::Span<char> DestSpan() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  private:
   class Mover;

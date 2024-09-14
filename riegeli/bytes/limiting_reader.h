@@ -57,20 +57,23 @@ class LimitingReaderBase : public Reader {
     // `max_pos()` and `max_length()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_max_pos(absl::optional<Position> max_pos) & {
+    Options& set_max_pos(absl::optional<Position> max_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_pos_ = max_pos;
       return *this;
     }
-    Options&& set_max_pos(absl::optional<Position> max_pos) && {
+    Options&& set_max_pos(absl::optional<Position> max_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_pos(max_pos));
     }
     absl::optional<Position> max_pos() const { return max_pos_; }
 
     // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
-    Options& set_exact_pos(Position exact_pos) & {
+    Options& set_exact_pos(Position exact_pos) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_max_pos(exact_pos).set_exact(true);
     }
-    Options&& set_exact_pos(Position exact_pos) && {
+    Options&& set_exact_pos(Position exact_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_exact_pos(exact_pos));
     }
 
@@ -81,20 +84,24 @@ class LimitingReaderBase : public Reader {
     // `max_pos()` and `max_length()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_max_length(absl::optional<Position> max_length) & {
+    Options& set_max_length(absl::optional<Position> max_length) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
       return *this;
     }
-    Options&& set_max_length(absl::optional<Position> max_length) && {
+    Options&& set_max_length(absl::optional<Position> max_length) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_length(max_length));
     }
     absl::optional<Position> max_length() const { return max_length_; }
 
     // A shortcut for `set_max_length(length)` with `set_exact(true)`.
-    Options& set_exact_length(Position exact_length) & {
+    Options& set_exact_length(Position exact_length) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_max_length(exact_length).set_exact(true);
     }
-    Options&& set_exact_length(Position exact_length) && {
+    Options&& set_exact_length(Position exact_length) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_exact_length(exact_length));
     }
 
@@ -107,11 +114,13 @@ class LimitingReaderBase : public Reader {
     // source ends before the limit.
     //
     // Default: `false`.
-    Options& set_exact(bool exact) & {
+    Options& set_exact(bool exact) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       exact_ = exact;
       return *this;
     }
-    Options&& set_exact(bool exact) && { return std::move(set_exact(exact)); }
+    Options&& set_exact(bool exact) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_exact(exact));
+    }
     bool exact() const { return exact_; }
 
     // If `false`, `LimitingReader` will allow the original source to exceed the
@@ -123,11 +132,13 @@ class LimitingReaderBase : public Reader {
     // is closed while positioned at its end.
     //
     // Default: `false`.
-    Options& set_fail_if_longer(bool fail_if_longer) & {
+    Options& set_fail_if_longer(bool fail_if_longer) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       fail_if_longer_ = fail_if_longer;
       return *this;
     }
-    Options&& set_fail_if_longer(bool fail_if_longer) && {
+    Options&& set_fail_if_longer(bool fail_if_longer) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_fail_if_longer(fail_if_longer));
     }
     bool fail_if_longer() const { return fail_if_longer_; }
@@ -140,7 +151,7 @@ class LimitingReaderBase : public Reader {
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Accesses the limit expressed as an absolute position.
   //
@@ -319,9 +330,13 @@ class LimitingReader : public LimitingReaderBase {
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

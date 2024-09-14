@@ -75,24 +75,31 @@ class CsvReaderBase : public Object {
     //
     // Default: `absl::nullopt`.
     Options& set_required_header(
-        Initializer<absl::optional<CsvHeader>> header) & {
+        Initializer<absl::optional<CsvHeader>> header) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(required_header_, std::move(header));
       return *this;
     }
     Options&& set_required_header(
-        Initializer<absl::optional<CsvHeader>> header) && {
+        Initializer<absl::optional<CsvHeader>> header) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_required_header(std::move(header)));
     }
     Options& set_required_header(
-        std::initializer_list<absl::string_view> names) & {
+        std::initializer_list<absl::string_view> names) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_required_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_required_header(
-        std::initializer_list<absl::string_view> names) && {
+        std::initializer_list<absl::string_view> names) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_required_header(names));
     }
-    absl::optional<CsvHeader>& required_header() { return required_header_; }
-    const absl::optional<CsvHeader>& required_header() const {
+    absl::optional<CsvHeader>& required_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return required_header_;
+    }
+    const absl::optional<CsvHeader>& required_header() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return required_header_;
     }
 
@@ -103,25 +110,31 @@ class CsvReaderBase : public Object {
     // `required_header()` and `assumed_header()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) & {
+    Options& set_assumed_header(Initializer<absl::optional<CsvHeader>> header) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) && {
+        Initializer<absl::optional<CsvHeader>> header) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
-        std::initializer_list<absl::string_view> names) & {
+        std::initializer_list<absl::string_view> names) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
-        std::initializer_list<absl::string_view> names) && {
+        std::initializer_list<absl::string_view> names) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(names));
     }
-    absl::optional<CsvHeader>& assumed_header() { return assumed_header_; }
-    const absl::optional<CsvHeader>& assumed_header() const {
+    absl::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return assumed_header_;
+    }
+    const absl::optional<CsvHeader>& assumed_header() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
 
@@ -132,11 +145,13 @@ class CsvReaderBase : public Object {
     // this conforms to RFC4180.
     //
     // Default: `false`.
-    Options& set_preserve_utf8_bom(bool preserve_utf8_bom) & {
+    Options& set_preserve_utf8_bom(bool preserve_utf8_bom) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       preserve_utf8_bom_ = preserve_utf8_bom;
       return *this;
     }
-    Options&& set_preserve_utf8_bom(bool preserve_utf8_bom) && {
+    Options&& set_preserve_utf8_bom(bool preserve_utf8_bom) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_preserve_utf8_bom(preserve_utf8_bom));
     }
     bool preserve_utf8_bom() const { return preserve_utf8_bom_; }
@@ -147,11 +162,13 @@ class CsvReaderBase : public Object {
     // If `true`, empty lines are skipped.
     //
     // Default: `false`.
-    Options& set_skip_empty_lines(bool skip_empty_lines) & {
+    Options& set_skip_empty_lines(bool skip_empty_lines) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       skip_empty_lines_ = skip_empty_lines;
       return *this;
     }
-    Options&& set_skip_empty_lines(bool skip_empty_lines) && {
+    Options&& set_skip_empty_lines(bool skip_empty_lines) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_skip_empty_lines(skip_empty_lines));
     }
     bool skip_empty_lines() const { return skip_empty_lines_; }
@@ -164,11 +181,13 @@ class CsvReaderBase : public Object {
     // Often used: '#'.
     //
     // Default: `absl::nullopt`.
-    Options& set_comment(absl::optional<char> comment) & {
+    Options& set_comment(absl::optional<char> comment) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       comment_ = comment;
       return *this;
     }
-    Options&& set_comment(absl::optional<char> comment) && {
+    Options&& set_comment(absl::optional<char> comment) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_comment(comment));
     }
     absl::optional<char> comment() const { return comment_; }
@@ -176,11 +195,13 @@ class CsvReaderBase : public Object {
     // Field separator.
     //
     // Default: ','.
-    Options& set_field_separator(char field_separator) & {
+    Options& set_field_separator(char field_separator) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       field_separator_ = field_separator;
       return *this;
     }
-    Options&& set_field_separator(char field_separator) && {
+    Options&& set_field_separator(char field_separator) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_separator(field_separator));
     }
     char field_separator() const { return field_separator_; }
@@ -198,11 +219,13 @@ class CsvReaderBase : public Object {
     // inside fields are not expressible.
     //
     // Default: '"'.
-    Options& set_quote(absl::optional<char> quote) & {
+    Options& set_quote(absl::optional<char> quote) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       quote_ = quote;
       return *this;
     }
-    Options&& set_quote(absl::optional<char> quote) && {
+    Options&& set_quote(absl::optional<char> quote) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_quote(quote));
     }
     absl::optional<char> quote() const { return quote_; }
@@ -219,11 +242,13 @@ class CsvReaderBase : public Object {
     // inside fields are not expressible.
     //
     // Default: `absl::nullopt`.
-    Options& set_escape(absl::optional<char> escape) & {
+    Options& set_escape(absl::optional<char> escape) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       escape_ = escape;
       return *this;
     }
-    Options&& set_escape(absl::optional<char> escape) && {
+    Options&& set_escape(absl::optional<char> escape) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_escape(escape));
     }
     absl::optional<char> escape() const { return escape_; }
@@ -236,7 +261,8 @@ class CsvReaderBase : public Object {
     // `max_num_fields` must be at least 1.
     //
     // Default: `std::numeric_limits<size_t>::max()`.
-    Options& set_max_num_fields(size_t max_num_fields) & {
+    Options& set_max_num_fields(size_t max_num_fields) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(max_num_fields, 1u)
           << "Failed precondition of "
              "CsvReaderBase::Options::set_max_num_fields(): "
@@ -244,7 +270,8 @@ class CsvReaderBase : public Object {
       max_num_fields_ = max_num_fields;
       return *this;
     }
-    Options&& set_max_num_fields(size_t max_num_fields) && {
+    Options&& set_max_num_fields(size_t max_num_fields) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_num_fields(max_num_fields));
     }
     size_t max_num_fields() const { return max_num_fields_; }
@@ -255,11 +282,13 @@ class CsvReaderBase : public Object {
     // `absl::ResourceExhaustedError()`.
     //
     // Default: `std::numeric_limits<size_t>::max()`.
-    Options& set_max_field_length(size_t max_field_length) & {
+    Options& set_max_field_length(size_t max_field_length) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_field_length_ = max_field_length;
       return *this;
     }
-    Options&& set_max_field_length(size_t max_field_length) && {
+    Options&& set_max_field_length(size_t max_field_length) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_field_length(max_field_length));
     }
     size_t max_field_length() const { return max_field_length_; }
@@ -282,19 +311,23 @@ class CsvReaderBase : public Object {
     // Default: `nullptr`.
     Options& set_recovery(
         Initializer<std::function<bool(absl::Status, CsvReaderBase&)>>
-            recovery) & {
+            recovery) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(recovery_, std::move(recovery));
       return *this;
     }
     Options&& set_recovery(
         Initializer<std::function<bool(absl::Status, CsvReaderBase&)>>
-            recovery) && {
+            recovery) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recovery(std::move(recovery)));
     }
-    std::function<bool(absl::Status, CsvReaderBase&)>& recovery() {
+    std::function<bool(absl::Status, CsvReaderBase&)>& recovery()
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recovery_;
     }
-    const std::function<bool(absl::Status, CsvReaderBase&)>& recovery() const {
+    const std::function<bool(absl::Status, CsvReaderBase&)>& recovery() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recovery_;
     }
 
@@ -313,7 +346,7 @@ class CsvReaderBase : public Object {
   };
 
   // Returns the byte `Reader` being read from. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Changes the recovery function to be called after skipping over an invalid
   // line.
@@ -337,7 +370,9 @@ class CsvReaderBase : public Object {
   // an empty header if reading the header failed.
   //
   // If `!has_header()`, returns an empty header.
-  const CsvHeader& header() const { return header_; }
+  const CsvHeader& header() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return header_;
+  }
 
   // Reads the next record expressed as `CsvRecord`, with named fields.
   //
@@ -542,9 +577,13 @@ class CsvReader : public CsvReaderBase {
 
   // Returns the object providing and possibly owning the byte `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

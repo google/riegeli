@@ -56,7 +56,8 @@ class BrotliWriterBase : public BufferedWriter {
     static constexpr int kMinCompressionLevel = BROTLI_MIN_QUALITY;
     static constexpr int kMaxCompressionLevel = BROTLI_MAX_QUALITY;
     static constexpr int kDefaultCompressionLevel = 6;
-    Options& set_compression_level(int compression_level) & {
+    Options& set_compression_level(int compression_level) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_compression_level(): "
@@ -68,7 +69,8 @@ class BrotliWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int compression_level) && {
+    Options&& set_compression_level(int compression_level) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_compression_level(compression_level));
     }
     int compression_level() const { return compression_level_; }
@@ -82,7 +84,7 @@ class BrotliWriterBase : public BufferedWriter {
     static constexpr int kMinWindowLog = BROTLI_MIN_WINDOW_BITS;
     static constexpr int kMaxWindowLog = BROTLI_LARGE_MAX_WINDOW_BITS;
     static constexpr int kDefaultWindowLog = BROTLI_DEFAULT_WINDOW;
-    Options& set_window_log(int window_log) & {
+    Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_window_log(): "
@@ -94,7 +96,7 @@ class BrotliWriterBase : public BufferedWriter {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(int window_log) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     int window_log() const { return window_log_; }
@@ -103,28 +105,40 @@ class BrotliWriterBase : public BufferedWriter {
     // compression.
     //
     // Default: `BrotliDictionary()`.
-    Options& set_dictionary(BrotliDictionary dictionary) & {
+    Options& set_dictionary(BrotliDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(BrotliDictionary dictionary) && {
+    Options&& set_dictionary(BrotliDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    BrotliDictionary& dictionary() { return dictionary_; }
-    const BrotliDictionary& dictionary() const { return dictionary_; }
+    BrotliDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const BrotliDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // Memory allocator used by the Brotli engine.
     //
     // Default: `BrotliAllocator()`.
-    Options& set_allocator(BrotliAllocator allocator) & {
+    Options& set_allocator(BrotliAllocator allocator) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       allocator_ = std::move(allocator);
       return *this;
     }
-    Options&& set_allocator(BrotliAllocator allocator) && {
+    Options&& set_allocator(BrotliAllocator allocator) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_allocator(std::move(allocator)));
     }
-    BrotliAllocator& allocator() { return allocator_; }
-    const BrotliAllocator& allocator() const { return allocator_; }
+    BrotliAllocator& allocator() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return allocator_;
+    }
+    const BrotliAllocator& allocator() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return allocator_;
+    }
 
    private:
     int compression_level_ = kDefaultCompressionLevel;
@@ -134,7 +148,7 @@ class BrotliWriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -217,9 +231,13 @@ class BrotliWriter : public BrotliWriterBase {
 
   // Returns the object providing and possibly owning the compressed `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

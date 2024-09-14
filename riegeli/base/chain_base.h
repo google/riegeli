@@ -83,7 +83,8 @@ class Chain : public WithCompare<Chain> {
     // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(absl::optional<size_t> size_hint) & {
+    Options& set_size_hint(absl::optional<size_t> size_hint) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (size_hint == absl::nullopt) {
         size_hint_ = std::numeric_limits<size_t>::max();
       } else {
@@ -92,7 +93,8 @@ class Chain : public WithCompare<Chain> {
       }
       return *this;
     }
-    Options&& set_size_hint(absl::optional<size_t> size_hint) && {
+    Options&& set_size_hint(absl::optional<size_t> size_hint) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
     absl::optional<size_t> size_hint() const {
@@ -108,11 +110,13 @@ class Chain : public WithCompare<Chain> {
     // This is used initially, while the destination is small.
     //
     // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_block_size(size_t min_block_size) & {
+    Options& set_min_block_size(size_t min_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_min_block_size(size_t min_block_size) && {
+    Options&& set_min_block_size(size_t min_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_min_block_size(min_block_size));
     }
     size_t min_block_size() const { return min_block_size_; }
@@ -123,24 +127,27 @@ class Chain : public WithCompare<Chain> {
     // objects allocated separately and then appended to this `Chain`.
     //
     // Default: `kDefaultMaxBlockSize` (64K).
-    Options& set_max_block_size(size_t max_block_size) & {
+    Options& set_max_block_size(size_t max_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of Chain::Options::set_max_block_size(): "
              "zero block size";
       max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_max_block_size(size_t max_block_size) && {
+    Options&& set_max_block_size(size_t max_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_block_size(max_block_size));
     }
     size_t max_block_size() const { return max_block_size_; }
 
     // A shortcut for `set_min_block_size(block_size)` with
     // `set_max_block_size(block_size)`.
-    Options& set_block_size(size_t block_size) & {
+    Options& set_block_size(size_t block_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_min_block_size(block_size).set_max_block_size(block_size);
     }
-    Options&& set_block_size(size_t block_size) && {
+    Options&& set_block_size(size_t block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_block_size(block_size));
     }
 
@@ -233,7 +240,7 @@ class Chain : public WithCompare<Chain> {
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
   // A container of `absl::string_view` blocks comprising data of the `Chain`.
-  Blocks blocks() const;
+  Blocks blocks() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   bool empty() const { return size_ == 0; }
   size_t size() const { return size_; }
@@ -252,11 +259,12 @@ class Chain : public WithCompare<Chain> {
 
   // If the `Chain` contents are flat, returns them, otherwise returns
   // `absl::nullopt`.
-  absl::optional<absl::string_view> TryFlat() const;
+  absl::optional<absl::string_view> TryFlat() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // If the `Chain` contents are not flat, flattens them in place. Returns flat
   // contents.
-  absl::string_view Flatten();
+  absl::string_view Flatten() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Locates the block containing the given character position, and the
   // character index within the block.
@@ -290,21 +298,21 @@ class Chain : public WithCompare<Chain> {
   // If `max_length == kAnyLength`, there is no maximum.
   //
   // Precondition: `min_length <= max_length`
-  absl::Span<char> AppendBuffer(size_t min_length,
-                                size_t recommended_length = 0,
-                                size_t max_length = kAnyLength,
-                                Options options = Options());
-  absl::Span<char> PrependBuffer(size_t min_length,
-                                 size_t recommended_length = 0,
-                                 size_t max_length = kAnyLength,
-                                 Options options = Options());
+  absl::Span<char> AppendBuffer(
+      size_t min_length, size_t recommended_length = 0,
+      size_t max_length = kAnyLength,
+      Options options = Options()) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  absl::Span<char> PrependBuffer(
+      size_t min_length, size_t recommended_length = 0,
+      size_t max_length = kAnyLength,
+      Options options = Options()) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
   // `min_length == max_length`.
-  absl::Span<char> AppendFixedBuffer(size_t length,
-                                     Options options = Options());
-  absl::Span<char> PrependFixedBuffer(size_t length,
-                                      Options options = Options());
+  absl::Span<char> AppendFixedBuffer(size_t length, Options options = Options())
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  absl::Span<char> PrependFixedBuffer(
+      size_t length, Options options = Options()) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Appends/prepends a string-like type.
   void Append(absl::string_view src, Options options = Options());
@@ -827,7 +835,7 @@ class Chain::Block {
   Block(Block&& that) = default;
   Block& operator=(Block&& that) = default;
 
-  explicit operator absl::string_view() const {
+  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (block_ == nullptr) return absl::string_view();
     return absl::string_view(*block_);
   }
@@ -837,7 +845,7 @@ class Chain::Block {
     if (block_ == nullptr) return 0;
     return block_->size();
   }
-  const char* data() const {
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (block_ == nullptr) return nullptr;
     return block_->data_begin();
   }

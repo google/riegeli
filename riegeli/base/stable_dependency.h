@@ -79,10 +79,15 @@ class StableDependencyDefault
     }
   }
 
-  Manager& manager() { return EnsureAllocated().manager(); }
-  const Manager& manager() const { return EnsureAllocated().manager(); }
+  Manager& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return EnsureAllocated().manager();
+  }
+  const Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return EnsureAllocated().manager();
+  }
 
-  typename Dependency<Handle, Manager>::Subhandle get() const {
+  typename Dependency<Handle, Manager>::Subhandle get() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return EnsureAllocated().get();
   }
 
@@ -133,10 +138,13 @@ class StableDependencyNoDefault
     dep_->Reset(std::move(manager));
   }
 
-  Manager& manager() { return dep_->manager(); }
-  const Manager& manager() const { return dep_->manager(); }
+  Manager& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dep_->manager(); }
+  const Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dep_->manager();
+  }
 
-  typename Dependency<Handle, Manager>::Subhandle get() const {
+  typename Dependency<Handle, Manager>::Subhandle get() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return dep_->get();
   }
 

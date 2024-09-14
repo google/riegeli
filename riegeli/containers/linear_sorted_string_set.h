@@ -87,11 +87,12 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     // parsing untrusted data.
     //
     // Default: `false`.
-    DecodeOptions& set_validate(bool validate) & {
+    DecodeOptions& set_validate(bool validate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       validate_ = validate;
       return *this;
     }
-    DecodeOptions&& set_validate(bool validate) && {
+    DecodeOptions&& set_validate(bool validate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_validate(validate));
     }
     bool validate() const { return validate_; }
@@ -100,11 +101,13 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     // allocated. This can be used for parsing untrusted data.
     //
     // Default: `CompactString::max_size()`.
-    DecodeOptions& set_max_encoded_size(size_t max_encoded_size) & {
+    DecodeOptions& set_max_encoded_size(size_t max_encoded_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_encoded_size_ = max_encoded_size;
       return *this;
     }
-    DecodeOptions&& set_max_encoded_size(size_t max_encoded_size) && {
+    DecodeOptions&& set_max_encoded_size(size_t max_encoded_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_encoded_size(max_encoded_size));
     }
     size_t max_encoded_size() const { return max_encoded_size_; }
@@ -114,11 +117,13 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     // by `ChunkedSortedStringSet::Decode()`.
     //
     // Default: `nullptr`.
-    DecodeOptions& set_decode_state(DecodeState* decode_state) & {
+    DecodeOptions& set_decode_state(DecodeState* decode_state) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       decode_state_ = decode_state;
       return *this;
     }
-    DecodeOptions&& set_decode_state(DecodeState* decode_state) && {
+    DecodeOptions&& set_decode_state(DecodeState* decode_state) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_decode_state(decode_state));
     }
     DecodeState* decode_state() const { return decode_state_; }

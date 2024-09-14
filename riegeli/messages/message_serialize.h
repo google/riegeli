@@ -50,11 +50,12 @@ class SerializeOptions {
   // not having these fields.
   //
   // Default: `false`.
-  SerializeOptions& set_partial(bool partial) & {
+  SerializeOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  SerializeOptions&& set_partial(bool partial) && {
+  SerializeOptions&& set_partial(bool partial) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
   bool partial() const { return partial_; }
@@ -72,11 +73,13 @@ class SerializeOptions {
   // Default:
   // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`
   // (usually `false`).
-  SerializeOptions& set_deterministic(bool deterministic) & {
+  SerializeOptions& set_deterministic(bool deterministic) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     deterministic_ = deterministic;
     return *this;
   }
-  SerializeOptions&& set_deterministic(bool deterministic) && {
+  SerializeOptions&& set_deterministic(bool deterministic) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_deterministic(deterministic));
   }
   bool deterministic() const { return deterministic_; }
@@ -89,11 +92,13 @@ class SerializeOptions {
   // instead of `ByteSizeLong()`.
   //
   // Default: `false`.
-  SerializeOptions& set_has_cached_size(bool has_cached_size) & {
+  SerializeOptions& set_has_cached_size(bool has_cached_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     has_cached_size_ = has_cached_size;
     return *this;
   }
-  SerializeOptions&& set_has_cached_size(bool has_cached_size) && {
+  SerializeOptions&& set_has_cached_size(bool has_cached_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_has_cached_size(has_cached_size));
   }
   bool has_cached_size() const { return has_cached_size_; }

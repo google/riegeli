@@ -62,11 +62,13 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     //
     // Default: `O_RDONLY | O_CLOEXEC`
     // (on Windows: `_O_RDONLY | _O_BINARY | _O_NOINHERIT`).
-    Options& set_mode(int mode) & {
+    Options& set_mode(int mode) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = mode;
       return *this;
     }
-    Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
+    Options&& set_mode(int mode) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_mode(mode));
+    }
     int mode() const { return mode_; }
 
     // If `false`, `execve()` (`CreateProcess()` on Windows) will close the fd.
@@ -80,12 +82,13 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // `set_inheritable()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_inheritable(bool inheritable) & {
+    Options& set_inheritable(bool inheritable) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = (mode_ & ~fd_internal::kCloseOnExec) |
               (inheritable ? 0 : fd_internal::kCloseOnExec);
       return *this;
     }
-    Options&& set_inheritable(bool inheritable) && {
+    Options&& set_inheritable(bool inheritable) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_inheritable(inheritable));
     }
     bool inheritable() const {
@@ -101,11 +104,13 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // readers concurrently reading from the same fd.
     //
     // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) & {
+    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) && {
+    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
     absl::optional<Position> independent_pos() const {
@@ -120,26 +125,27 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // remaining part of the file if that is shorter. `pos()` starts from 0.
     //
     // Default: `absl::nullopt`.
-    Options& set_max_length(absl::optional<Position> max_length) & {
+    Options& set_max_length(absl::optional<Position> max_length) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
       return *this;
     }
-    Options&& set_max_length(absl::optional<Position> max_length) && {
+    Options&& set_max_length(absl::optional<Position> max_length) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_length(max_length));
     }
     absl::optional<Position> max_length() const { return max_length_; }
 
     // Sets `max_length()` to the remaining part of the file.
-    Options& set_remaining_length() & {
+    Options& set_remaining_length() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       set_max_length(std::numeric_limits<Position>::max());
       return *this;
     }
-    Options&& set_remaining_length() && {
+    Options&& set_remaining_length() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_remaining_length());
     }
 
    private:
-    absl::optional<std::string> assumed_filename_;
 #ifndef _WIN32
     int mode_ = O_RDONLY | fd_internal::kCloseOnExec;
 #else
@@ -150,15 +156,17 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   };
 
   // Returns the `FdHandle` being read from. Unchanged by `Close()`.
-  virtual FdHandle SrcFdHandle() const = 0;
+  virtual FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int SrcFd() const = 0;
+  virtual int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool SupportsNewReader() override { return true; }
 
@@ -287,10 +295,14 @@ class FdMMapReader : public FdMMapReaderBase {
 
   // Returns the object providing and possibly owning the fd being read from.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  FdHandle SrcFdHandle() const override { return src_.get(); }
-  int SrcFd() const override { return *src_; }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
+  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
 
  protected:
   void Done() override;

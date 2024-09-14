@@ -50,8 +50,8 @@ class SplittingWriterBase : public PushableWriter {
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
 
   // Returns the shard `Writer`.
-  virtual Writer* ShardWriter() = 0;
-  virtual const Writer* ShardWriter() const = 0;
+  virtual Writer* ShardWriter() ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  virtual const Writer* ShardWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Opens the next shard as `shard()`. Or opens a temporary destination for
   // shard data as `shard()`, to be moved to the final destination later.
@@ -190,10 +190,16 @@ class SplittingWriter : public SplittingWriterBase {
   void Done() override;
 
   // Returns the object providing and possibly owning the shard `Writer`.
-  Shard& shard() { return shard_.manager(); }
-  const Shard& shard() const { return shard_.manager(); }
-  Writer* ShardWriter() override { return shard_.get(); }
-  const Writer* ShardWriter() const override { return shard_.get(); }
+  Shard& shard() ABSL_ATTRIBUTE_LIFETIME_BOUND { return shard_.manager(); }
+  const Shard& shard() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return shard_.manager();
+  }
+  Writer* ShardWriter() ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return shard_.get();
+  }
+  const Writer* ShardWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return shard_.get();
+  }
 
  private:
   class Mover;

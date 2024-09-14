@@ -54,10 +54,11 @@ class Reader;
 class DigestingWriterBase : public Writer {
  public:
   // Returns the `DigesterBaseHandle`. Unchanged by `Close()`.
-  virtual DigesterBaseHandle GetDigester() const = 0;
+  virtual DigesterBaseHandle GetDigester() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -199,15 +200,26 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Returns the object providing and possibly owning the digester. Unchanged by
   // `Close()`.
-  Digester& digester() { return digester_.manager(); }
-  const Digester& digester() const { return digester_.manager(); }
-  DigesterBaseHandle GetDigester() const override { return digester_.get(); }
+  Digester& digester() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return digester_.manager();
+  }
+  const Digester& digester() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return digester_.manager();
+  }
+  DigesterBaseHandle GetDigester() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return digester_.get();
+  }
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

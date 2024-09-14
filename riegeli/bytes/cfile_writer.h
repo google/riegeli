@@ -62,14 +62,18 @@ class CFileWriterBase : public BufferedWriter {
     // `set_append()`, `set_exclusive()`, `set_inheritable()`, and `set_text()`.
     //
     // Default: "we" (on Windows: "wbN").
-    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) & {
+    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(mode_, std::move(mode));
       return *this;
     }
-    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) && {
+    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_mode(std::move(mode)));
     }
-    const std::string& mode() const { return mode_; }
+    const std::string& mode() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return mode_;
+    }
 
     // If `false`, the file will be created if it does not exist, or it will be
     // truncated to empty if it exists. This implies `set_read(false)` and
@@ -85,11 +89,11 @@ class CFileWriterBase : public BufferedWriter {
     // `set_existing()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_existing(bool existing) & {
+    Options& set_existing(bool existing) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetExisting(existing, mode_);
       return *this;
     }
-    Options&& set_existing(bool existing) && {
+    Options&& set_existing(bool existing) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_existing(existing));
     }
     bool existing() const { return file_internal::GetExisting(mode_); }
@@ -106,11 +110,13 @@ class CFileWriterBase : public BufferedWriter {
     // `set_read()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_read(bool read) & {
+    Options& set_read(bool read) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetRead(read, mode_);
       return *this;
     }
-    Options&& set_read(bool read) && { return std::move(set_read(read)); }
+    Options&& set_read(bool read) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_read(read));
+    }
     bool read() const { return file_internal::GetRead(mode_); }
 
     // If `false`, the file will be truncated to empty if it exists.
@@ -129,11 +135,11 @@ class CFileWriterBase : public BufferedWriter {
     // `set_append()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetAppend(append, mode_);
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return file_internal::GetAppend(mode_); }
@@ -153,11 +159,11 @@ class CFileWriterBase : public BufferedWriter {
     // `set_exclusive()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_exclusive(bool exclusive) & {
+    Options& set_exclusive(bool exclusive) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetExclusive(exclusive, mode_);
       return *this;
     }
-    Options&& set_exclusive(bool exclusive) && {
+    Options&& set_exclusive(bool exclusive) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_exclusive(exclusive));
     }
     bool exclusive() const { return file_internal::GetExclusive(mode_); }
@@ -177,11 +183,12 @@ class CFileWriterBase : public BufferedWriter {
     // `set_inheritable()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_inheritable(bool inheritable) & {
+    Options& set_inheritable(bool inheritable) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetInheritableWriting(inheritable, mode_);
       return *this;
     }
-    Options&& set_inheritable(bool inheritable) && {
+    Options&& set_inheritable(bool inheritable) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_inheritable(inheritable));
     }
     bool inheritable() const { return file_internal::GetInheritable(mode_); }
@@ -202,11 +209,13 @@ class CFileWriterBase : public BufferedWriter {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(bool text) & {
+    Options& set_text(bool text) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetTextWriting(text, mode_);
       return *this;
     }
-    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    Options&& set_text(bool text) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_text(text));
+    }
     // No `text()` getter is provided. On Windows `mode()` can have unspecified
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
@@ -221,11 +230,13 @@ class CFileWriterBase : public BufferedWriter {
     // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -240,15 +251,17 @@ class CFileWriterBase : public BufferedWriter {
   };
 
   // Returns the `CFileHandle` being written to. Unchanged by `Close()`.
-  virtual CFileHandle DestCFileHandle() const = 0;
+  virtual CFileHandle DestCFileHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the `FILE*` being written to. If the `FILE*` is owned then changed
   // to `nullptr` by `Close()`, otherwise unchanged.
-  virtual FILE* DestFile() const = 0;
+  virtual FILE* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool SupportsRandomAccess() override;
   bool SupportsTruncate() override;
@@ -385,10 +398,16 @@ class CFileWriter : public CFileWriterBase {
 
   // Returns the object providing and possibly owning the `FILE` being written
   // to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  CFileHandle DestCFileHandle() const override { return dest_.get(); }
-  FILE* DestFile() const override { return *dest_; }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  CFileHandle DestCFileHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
+  FILE* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return *dest_;
+  }
 
  protected:
   void Done() override;

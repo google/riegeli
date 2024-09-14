@@ -60,11 +60,11 @@ class ZlibReaderBase : public BufferedReader {
     //
     // Default: `Header::kZlibOrGzip`.
     static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
-    Options& set_header(Header header) & {
+    Options& set_header(Header header) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       header_ = header;
       return *this;
     }
-    Options&& set_header(Header header) && {
+    Options&& set_header(Header header) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(header));
     }
     Header header() const { return header_; }
@@ -76,7 +76,7 @@ class ZlibReaderBase : public BufferedReader {
     static constexpr int kMinWindowLog = 9;
     static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
     static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
-    Options& set_window_log(int window_log) & {
+    Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "ZlibReaderBase::Options::set_window_log(): "
@@ -88,7 +88,7 @@ class ZlibReaderBase : public BufferedReader {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(int window_log) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     int window_log() const { return window_log_; }
@@ -98,15 +98,21 @@ class ZlibReaderBase : public BufferedReader {
     // if no dictionary was used for compression.
     //
     // Default: `ZlibDictionary()`.
-    Options& set_dictionary(ZlibDictionary dictionary) & {
+    Options& set_dictionary(ZlibDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(ZlibDictionary dictionary) && {
+    Options&& set_dictionary(ZlibDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    ZlibDictionary& dictionary() { return dictionary_; }
-    const ZlibDictionary& dictionary() const { return dictionary_; }
+    ZlibDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const ZlibDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // If `true`, concatenated compressed streams are decoded to concatenation
     // of their decompressed contents. An empty compressed stream is decoded to
@@ -115,11 +121,12 @@ class ZlibReaderBase : public BufferedReader {
     // If `false`, exactly one compressed stream is consumed.
     //
     // Default: `false`.
-    Options& set_concatenate(bool concatenate) & {
+    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       concatenate_ = concatenate;
       return *this;
     }
-    Options&& set_concatenate(bool concatenate) && {
+    Options&& set_concatenate(bool concatenate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_concatenate(concatenate));
     }
     bool concatenate() const { return concatenate_; }
@@ -131,15 +138,18 @@ class ZlibReaderBase : public BufferedReader {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -152,7 +162,7 @@ class ZlibReaderBase : public BufferedReader {
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
@@ -263,9 +273,13 @@ class ZlibReader : public ZlibReaderBase {
 
   // Returns the object providing and possibly owning the compressed `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

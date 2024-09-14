@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
@@ -78,11 +79,13 @@ class TransposeEncoder : public ChunkEncoder {
     // but makes field projection more effective.
     //
     // Default: `std::numeric_limits<uint64_t>::max()`.
-    TuningOptions& set_bucket_size(uint64_t bucket_size) & {
+    TuningOptions& set_bucket_size(uint64_t bucket_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       bucket_size_ = bucket_size;
       return *this;
     }
-    TuningOptions&& set_bucket_size(uint64_t bucket_size) && {
+    TuningOptions&& set_bucket_size(uint64_t bucket_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_bucket_size(bucket_size));
     }
     uint64_t bucket_size() const { return bucket_size_; }
@@ -94,15 +97,18 @@ class TransposeEncoder : public ChunkEncoder {
     //
     // Default: `RecyclingPoolOptions()`.
     TuningOptions& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     TuningOptions&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 

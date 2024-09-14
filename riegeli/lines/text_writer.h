@@ -44,7 +44,7 @@ class TextWriterBase : public BufferedWriter {
   using Options = BufferOptions;
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
  protected:
   using BufferedWriter::BufferedWriter;
@@ -99,9 +99,13 @@ class TextWriter : public text_writer_internal::TextWriterImpl<newline> {
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;
@@ -167,11 +171,13 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
   // Line terminator representation to translate from LF.
   //
   // Default: `WriteNewline::kNative`.
-  AnyTextWriterOptions& set_newline(WriteNewline newline) & {
+  AnyTextWriterOptions& set_newline(WriteNewline newline) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
     return *this;
   }
-  AnyTextWriterOptions&& set_newline(WriteNewline newline) && {
+  AnyTextWriterOptions&& set_newline(WriteNewline newline) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_newline(newline));
   }
   WriteNewline newline() const { return newline_; }

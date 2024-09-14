@@ -158,7 +158,7 @@ class PythonWrapped {
 
   bool has_value() const { return has_value_; }
 
-  T* get() {
+  T* get() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
     return
 #if __cpp_lib_launder >= 201606
@@ -166,7 +166,7 @@ class PythonWrapped {
 #endif
         (reinterpret_cast<T*>(storage_));
   }
-  const T* get() const {
+  const T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
     return
 #if __cpp_lib_launder >= 201606
@@ -174,10 +174,10 @@ class PythonWrapped {
 #endif
         (reinterpret_cast<const T*>(storage_));
   }
-  T& operator*() { return *get(); }
-  const T& operator*() const { return *get(); }
-  T* operator->() { return get(); }
-  const T* operator->() const { return get(); }
+  T& operator*() ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
+  const T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
+  T* operator->() ABSL_ATTRIBUTE_LIFETIME_BOUND { return get(); }
+  const T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return get(); }
 
   bool Verify() const {
     PythonLock::AssertHeld();
@@ -305,7 +305,7 @@ class Identifier : public py_internal::StaticObject {
 
   // Returns the value, allocating it on the first call. Dies on failure
   // (use `Verify()` to prevent this).
-  PyObject* get() const {
+  PyObject* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
       RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
@@ -347,7 +347,7 @@ class ImportedConstant : public py_internal::StaticObject {
 
   // Returns the value, importing it on the first call. Dies on failure
   // (use `Verify()` to prevent this).
-  PyObject* get() const {
+  PyObject* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
       RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
@@ -390,7 +390,7 @@ class ImportedCapsule : public py_internal::ImportedCapsuleBase {
 
   // Returns the value, importing it on the first call. Dies on failure
   // (use `Verify()` to prevent this).
-  const T* get() const {
+  const T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
       RIEGELI_CHECK(ImportValue()) << Exception::Fetch().message();
@@ -398,8 +398,8 @@ class ImportedCapsule : public py_internal::ImportedCapsuleBase {
     return static_cast<const T*>(value_);
   }
 
-  const T& operator*() const { return *get(); }
-  const T* operator->() const { return get(); }
+  const T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
+  const T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return get(); }
 };
 
 // Converts C++ `long` to a Python `int` object.
@@ -487,7 +487,7 @@ class BytesLike {
   }
 
   // Returns the binary contents.
-  explicit operator absl::string_view() const {
+  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::string_view(static_cast<const char*>(buffer_.buf),
                              IntCast<size_t>(buffer_.len));
   }
@@ -519,7 +519,7 @@ class StrOrBytes {
   // Returns `false` on failure (with Python exception set).
   //
   // Must be called at most once for each `StrOrBytes` object.
-  bool FromPython(PyObject* object);
+  bool FromPython(PyObject* object ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   // Returns the text contents.
   explicit operator absl::string_view() const { return data_; }

@@ -17,6 +17,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -65,12 +66,12 @@ class CompressorOptions {
   absl::Status FromString(absl::string_view text);
 
   // Changes compression algorithm to Uncompressed (turns compression off).
-  CompressorOptions& set_uncompressed() & {
+  CompressorOptions& set_uncompressed() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     compression_type_ = CompressionType::kNone;
     compression_level_ = 0;
     return *this;
   }
-  CompressorOptions&& set_uncompressed() && {
+  CompressorOptions&& set_uncompressed() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_uncompressed());
   }
 
@@ -88,7 +89,8 @@ class CompressorOptions {
       BrotliWriterBase::Options::kMaxCompressionLevel;
   static constexpr int kDefaultBrotli =
       BrotliWriterBase::Options::kDefaultCompressionLevel;
-  CompressorOptions& set_brotli(int compression_level = kDefaultBrotli) & {
+  CompressorOptions& set_brotli(int compression_level = kDefaultBrotli) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GE(compression_level, kMinBrotli)
         << "Failed precondition of CompressorOptions::set_brotli(): "
            "compression level out of range";
@@ -99,7 +101,8 @@ class CompressorOptions {
     compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_brotli(int compression_level = kDefaultBrotli) && {
+  CompressorOptions&& set_brotli(int compression_level = kDefaultBrotli) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_brotli(compression_level));
   }
 
@@ -114,7 +117,8 @@ class CompressorOptions {
   static constexpr int kMaxZstd = ZstdWriterBase::Options::kMaxCompressionLevel;
   static constexpr int kDefaultZstd =
       ZstdWriterBase::Options::kDefaultCompressionLevel;
-  CompressorOptions& set_zstd(int compression_level = kDefaultZstd) & {
+  CompressorOptions& set_zstd(int compression_level = kDefaultZstd) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GE(compression_level, kMinZstd)
         << "Failed precondition of CompressorOptions::set_zstd(): "
            "compression level out of range";
@@ -125,7 +129,8 @@ class CompressorOptions {
     compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_zstd(int compression_level = kDefaultZstd) && {
+  CompressorOptions&& set_zstd(int compression_level = kDefaultZstd) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_zstd(compression_level));
   }
 
@@ -138,12 +143,14 @@ class CompressorOptions {
       SnappyWriterBase::Options::kMaxCompressionLevel;
   static constexpr int kDefaultSnappy =
       SnappyWriterBase::Options::kDefaultCompressionLevel;
-  CompressorOptions& set_snappy(int compression_level = kDefaultSnappy) & {
+  CompressorOptions& set_snappy(int compression_level = kDefaultSnappy) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     compression_type_ = CompressionType::kSnappy;
     compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_snappy(int compression_level = kDefaultSnappy) && {
+  CompressorOptions&& set_snappy(int compression_level = kDefaultSnappy) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_snappy(compression_level));
   }
 
@@ -176,7 +183,8 @@ class CompressorOptions {
   static constexpr int kMaxWindowLog =
       SignedMax(BrotliWriterBase::Options::kMaxWindowLog,
                 ZstdWriterBase::Options::kMaxWindowLog);
-  CompressorOptions& set_window_log(absl::optional<int> window_log) & {
+  CompressorOptions& set_window_log(absl::optional<int> window_log) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (window_log != absl::nullopt) {
       RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
@@ -188,7 +196,8 @@ class CompressorOptions {
     window_log_ = window_log;
     return *this;
   }
-  CompressorOptions&& set_window_log(absl::optional<int> window_log) && {
+  CompressorOptions&& set_window_log(absl::optional<int> window_log) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_window_log(window_log));
   }
   absl::optional<int> window_log() const { return window_log_; }
@@ -214,11 +223,13 @@ class CompressorOptions {
   // and `window_log()` is ignored.
   //
   // Default: `BrotliEncoder::kRBrotliOrCBrotli`.
-  CompressorOptions& set_brotli_encoder(BrotliEncoder brotli_encoder) & {
+  CompressorOptions& set_brotli_encoder(BrotliEncoder brotli_encoder) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     brotli_encoder_ = brotli_encoder;
     return *this;
   }
-  CompressorOptions&& set_brotli_encoder(BrotliEncoder brotli_encoder) && {
+  CompressorOptions&& set_brotli_encoder(BrotliEncoder brotli_encoder) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_brotli_encoder(brotli_encoder));
   }
   BrotliEncoder brotli_encoder() const { return brotli_encoder_; }

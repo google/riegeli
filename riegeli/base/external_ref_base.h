@@ -1892,7 +1892,9 @@ class ExternalRef {
   bool empty() const { return storage_->empty(); }
 
   // Returns the data pointer.
-  const char* data() const { return storage_->data(); }
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return storage_->data();
+  }
 
   // Returns the data size.
   size_t size() const { return storage_->size(); }
@@ -1900,7 +1902,7 @@ class ExternalRef {
   // Returns the data as `absl::string_view`.
   //
   // This `ExternalRef` must outlive usages of the returned `absl::string_view`.
-  explicit operator absl::string_view() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return storage_->substr();
   }
 

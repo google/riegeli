@@ -55,7 +55,7 @@ class
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
-  explicit operator absl::string_view() const {
+  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::string_view(data_, size_);
   }
 
@@ -63,7 +63,7 @@ class
   bool empty() const { return size_ == 0; }
 
   // Returns the data pointer.
-  const char* data() const { return data_; }
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return data_; }
 
   // Returns the data size.
   size_t size() const { return size_; }
@@ -95,17 +95,19 @@ class
   // If `max_length == kAnyLength`, there is no maximum.
   //
   // Precondition: `min_length <= max_length`
-  absl::Span<char> AppendBuffer(size_t min_length,
-                                size_t recommended_length = 0,
-                                size_t max_length = kAnyLength);
-  absl::Span<char> PrependBuffer(size_t min_length,
-                                 size_t recommended_length = 0,
-                                 size_t max_length = kAnyLength);
+  absl::Span<char> AppendBuffer(
+      size_t min_length, size_t recommended_length = 0,
+      size_t max_length = kAnyLength) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  absl::Span<char> PrependBuffer(
+      size_t min_length, size_t recommended_length = 0,
+      size_t max_length = kAnyLength) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
   // `min_length == max_length`.
-  absl::Span<char> AppendFixedBuffer(size_t length);
-  absl::Span<char> PrependFixedBuffer(size_t length);
+  absl::Span<char> AppendFixedBuffer(size_t length)
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  absl::Span<char> PrependFixedBuffer(size_t length)
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Appends/prepends some uninitialized space with the given `length` if this
   // is possible without invalidating existing pointers, otherwise returns an
@@ -114,8 +116,10 @@ class
   //
   // In contrast to `AppendBuffer(0, length, length)`, the returned buffer has
   // size either 0 or `length`, nothing between.
-  absl::Span<char> AppendBufferIfExisting(size_t length);
-  absl::Span<char> PrependBufferIfExisting(size_t length);
+  absl::Span<char> AppendBufferIfExisting(size_t length)
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  absl::Span<char> PrependBufferIfExisting(size_t length)
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Removes suffix/prefix of the given length.
   //
@@ -212,11 +216,13 @@ inline void SizedSharedBuffer::ClearAndShrink(size_t max_size) {
   }
 }
 
-inline absl::Span<char> SizedSharedBuffer::AppendFixedBuffer(size_t length) {
+inline absl::Span<char> SizedSharedBuffer::AppendFixedBuffer(size_t length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return AppendBuffer(length, length, length);
 }
 
-inline absl::Span<char> SizedSharedBuffer::PrependFixedBuffer(size_t length) {
+inline absl::Span<char> SizedSharedBuffer::PrependFixedBuffer(size_t length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return PrependBuffer(length, length, length);
 }
 

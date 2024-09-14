@@ -621,8 +621,8 @@ absl::Status ReaderFactoryBase::AnnotateStatusImpl(absl::Status status) {
   return status;
 }
 
-std::unique_ptr<Reader> ReaderFactoryBase::NewReader(
-    Position initial_pos) const {
+std::unique_ptr<Reader> ReaderFactoryBase::NewReader(Position initial_pos) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (shared_ == nullptr) {
     Reader& src = const_cast<Reader&>(*SrcReader());

@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -82,38 +83,51 @@ class BrotliDictionary {
   BrotliDictionary& operator=(BrotliDictionary&& that) = default;
 
   // Resets the `BrotliDictionary` to the empty state.
-  BrotliDictionary& Reset() &;
-  BrotliDictionary&& Reset() && { return std::move(Reset()); }
+  BrotliDictionary& Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  BrotliDictionary&& Reset() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(Reset());
+  }
 
   // Adds a raw chunk (data which should contain sequences that are commonly
   // seen in the data being compressed). Up to `kMaxRawChunks` can be added.
-  BrotliDictionary& add_raw(Initializer<std::string>::AllowingExplicit data) &;
-  BrotliDictionary&& add_raw(
-      Initializer<std::string>::AllowingExplicit data) && {
+  BrotliDictionary& add_raw(Initializer<std::string>::AllowingExplicit data) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  BrotliDictionary&& add_raw(Initializer<std::string>::AllowingExplicit data) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(add_raw(std::move(data)));
   }
 
   // Like `add_raw()`, but does not take ownership of `data`, which must not
   // be changed until the last `BrotliReader` or `BrotliWriter` using this
   // dictionary is closed or no longer used.
-  BrotliDictionary& add_raw_unowned(absl::string_view data) &;
-  BrotliDictionary&& add_raw_unowned(absl::string_view data) && {
+  BrotliDictionary& add_raw_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  BrotliDictionary&& add_raw_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(add_raw_unowned(data));
   }
 
   // Sets a serialized chunk (prepared by shared_brotli_encode_dictionary tool).
   BrotliDictionary& set_serialized(
-      Initializer<std::string>::AllowingExplicit data) &;
+      Initializer<std::string>::AllowingExplicit data) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
   BrotliDictionary&& set_serialized(
-      Initializer<std::string>::AllowingExplicit data) && {
+      Initializer<std::string>::AllowingExplicit data) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_serialized(std::move(data)));
   }
 
   // Like `set_serialized()`, but does not take ownership of `data`, which
   // must not be changed until the last `BrotliWriter` or `BrotliReader` using
   // this dictionary is closed or no longer used.
-  BrotliDictionary& set_serialized_unowned(absl::string_view data) &;
-  BrotliDictionary&& set_serialized_unowned(absl::string_view data) && {
+  BrotliDictionary& set_serialized_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  BrotliDictionary&& set_serialized_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_serialized_unowned(data));
   }
 
@@ -125,9 +139,13 @@ class BrotliDictionary {
   // `BrotliReader` or `BrotliWriter` using this dictionary is closed or no
   // longer used.
   BrotliDictionary& add_native_unowned(
-      const BrotliEncoderPreparedDictionary* prepared) &;
+      const BrotliEncoderPreparedDictionary* prepared
+          ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
   BrotliDictionary&& add_native_unowned(
-      const BrotliEncoderPreparedDictionary* prepared) && {
+      const BrotliEncoderPreparedDictionary* prepared
+          ABSL_ATTRIBUTE_LIFETIME_BOUND) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(add_native_unowned(prepared));
   }
 
@@ -135,7 +153,10 @@ class BrotliDictionary {
   bool empty() const { return chunks_.empty(); }
 
   // Returns the sequence of chunks the dictionary consists of.
-  absl::Span<const SharedPtr<const Chunk>> chunks() const { return chunks_; }
+  absl::Span<const SharedPtr<const Chunk>> chunks() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return chunks_;
+  }
 
  private:
   enum class Ownership { kCopied, kUnowned };
@@ -153,20 +174,22 @@ class BrotliDictionary::Chunk {
   // Does not take ownership of `data`, which must not be changed until the
   // last `BrotliWriter` or `BrotliReader` using this dictionary is closed or
   // no longer used.
-  explicit Chunk(Type type, absl::string_view data,
+  explicit Chunk(Type type,
+                 absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND,
                  std::integral_constant<Ownership, Ownership::kUnowned>)
       : type_(type), data_(data) {}
 
   // Does not know the data. The chunk is represented by
   // `BrotliEncoderPreparedDictionary` pointer.
-  explicit Chunk(const BrotliEncoderPreparedDictionary* prepared)
+  explicit Chunk(const BrotliEncoderPreparedDictionary* prepared
+                     ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : type_(Type::kNative), compression_dictionary_(prepared) {}
 
   Chunk(const Chunk&) = delete;
   Chunk& operator=(const Chunk&) = delete;
 
   Type type() const { return type_; }
-  absl::string_view data() const {
+  absl::string_view data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_NE(static_cast<int>(type_), static_cast<int>(Type::kNative))
         << "Original data are not available "
            "for a native Brotli dictionary chunk";
@@ -177,7 +200,8 @@ class BrotliDictionary::Chunk {
   // `BrotliEncoderPrepareDictionary()` failed.
   //
   // The dictionary is owned by `*this`.
-  const BrotliEncoderPreparedDictionary* PrepareCompressionDictionary() const;
+  const BrotliEncoderPreparedDictionary* PrepareCompressionDictionary() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
  private:
   struct BrotliEncoderDictionaryDeleter {
@@ -200,13 +224,15 @@ class BrotliDictionary::Chunk {
 
 // Implementation details follow.
 
-inline BrotliDictionary& BrotliDictionary::Reset() & {
+inline BrotliDictionary& BrotliDictionary::Reset() &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   chunks_.clear();
   return *this;
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw(
-    Initializer<std::string>::AllowingExplicit data) & {
+    Initializer<std::string>::AllowingExplicit data) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   chunks_.emplace_back(
       riegeli::Maker(Type::kRaw, std::move(data),
                      std::integral_constant<Ownership, Ownership::kCopied>()));
@@ -214,7 +240,8 @@ inline BrotliDictionary& BrotliDictionary::add_raw(
 }
 
 inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
-    absl::string_view data) & {
+    absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   chunks_.emplace_back(
       riegeli::Maker(Type::kRaw, data,
                      std::integral_constant<Ownership, Ownership::kUnowned>()));
@@ -222,7 +249,8 @@ inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized(
-    Initializer<std::string>::AllowingExplicit data) & {
+    Initializer<std::string>::AllowingExplicit data) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   Reset();
   chunks_.emplace_back(
       riegeli::Maker(Type::kSerialized, std::move(data),
@@ -231,7 +259,8 @@ inline BrotliDictionary& BrotliDictionary::set_serialized(
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
-    absl::string_view data) & {
+    absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   Reset();
   chunks_.emplace_back(
       riegeli::Maker(Type::kSerialized, data,
@@ -240,7 +269,9 @@ inline BrotliDictionary& BrotliDictionary::set_serialized_unowned(
 }
 
 inline BrotliDictionary& BrotliDictionary::add_native_unowned(
-    const BrotliEncoderPreparedDictionary* prepared) & {
+    const BrotliEncoderPreparedDictionary* prepared
+        ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   chunks_.emplace_back(riegeli::Maker(prepared));
   return *this;
 }

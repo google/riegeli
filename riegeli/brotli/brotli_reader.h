@@ -47,28 +47,40 @@ class BrotliReaderBase : public PullableReader {
     // dictionary must be supplied for decompression.
     //
     // Default: `BrotliDictionary()`.
-    Options& set_dictionary(BrotliDictionary dictionary) & {
+    Options& set_dictionary(BrotliDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(BrotliDictionary dictionary) && {
+    Options&& set_dictionary(BrotliDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    BrotliDictionary& dictionary() { return dictionary_; }
-    const BrotliDictionary& dictionary() const { return dictionary_; }
+    BrotliDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const BrotliDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // Memory allocator used by the Brotli engine.
     //
     // Default: `BrotliAllocator()`.
-    Options& set_allocator(BrotliAllocator allocator) & {
+    Options& set_allocator(BrotliAllocator allocator) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       allocator_ = std::move(allocator);
       return *this;
     }
-    Options&& set_allocator(BrotliAllocator allocator) && {
+    Options&& set_allocator(BrotliAllocator allocator) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_allocator(std::move(allocator)));
     }
-    BrotliAllocator& allocator() { return allocator_; }
-    const BrotliAllocator& allocator() const { return allocator_; }
+    BrotliAllocator& allocator() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return allocator_;
+    }
+    const BrotliAllocator& allocator() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return allocator_;
+    }
 
    private:
     BrotliDictionary dictionary_;
@@ -76,7 +88,7 @@ class BrotliReaderBase : public PullableReader {
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
@@ -168,9 +180,13 @@ class BrotliReader : public BrotliReaderBase {
 
   // Returns the object providing and possibly owning the compressed `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

@@ -77,7 +77,7 @@ class
   bool is_open() const { return fd_ >= 0; }
 
   // Returns the fd.
-  int get() const { return fd_; }
+  int get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return fd_; }
 
   // Releases and returns the fd without closing it.
   int Release() { return std::exchange(fd_, -1); }

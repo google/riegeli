@@ -70,11 +70,13 @@ class XzWriterBase : public BufferedWriter {
     //
     // Default: `Container::kXz`.
     static constexpr Container kDefaultContainer = Container::kXz;
-    Options& set_container(Container container) & {
+    Options& set_container(Container container) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       container_ = container;
       return *this;
     }
-    Options&& set_container(Container container) && {
+    Options&& set_container(Container container) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_container(container));
     }
     Container container() const { return container_; }
@@ -88,7 +90,8 @@ class XzWriterBase : public BufferedWriter {
     static constexpr int kMinCompressionLevel = 0;
     static constexpr int kMaxCompressionLevel = 9;
     static constexpr int kDefaultCompressionLevel = 6;
-    Options& set_compression_level(int compression_level) & {
+    Options& set_compression_level(int compression_level) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "XzWriterBase::Options::set_compression_level(): "
@@ -101,7 +104,8 @@ class XzWriterBase : public BufferedWriter {
                 IntCast<uint32_t>(compression_level);
       return *this;
     }
-    Options&& set_compression_level(int compression_level) && {
+    Options&& set_compression_level(int compression_level) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_compression_level(compression_level));
     }
     int compression_level() const {
@@ -112,12 +116,12 @@ class XzWriterBase : public BufferedWriter {
     // compression density and compression speed (`true` = better density but
     // slower), without affecting memory requirements (only compression requires
     // slightly more memory with compression levels <= 3).
-    Options& set_extreme(bool extreme) & {
+    Options& set_extreme(bool extreme) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       preset_ = (preset_ & LZMA_PRESET_LEVEL_MASK) |
                 (extreme ? LZMA_PRESET_EXTREME : 0);
       return *this;
     }
-    Options&& set_extreme(bool extreme) && {
+    Options&& set_extreme(bool extreme) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_extreme(extreme));
     }
     bool extreme() const { return (preset_ & LZMA_PRESET_EXTREME) != 0; }
@@ -128,11 +132,13 @@ class XzWriterBase : public BufferedWriter {
     //
     // Default: `Check::kCrc64`.
     static constexpr Check kDefaultCheck = Check::kCrc64;
-    Options& set_check(Check check) & {
+    Options& set_check(Check check) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       check_ = check;
       return *this;
     }
-    Options&& set_check(Check check) && { return std::move(set_check(check)); }
+    Options&& set_check(Check check) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_check(check));
+    }
     Check check() const { return check_; }
 
     // Number of background threads to use. Larger parallelism can increase
@@ -145,14 +151,15 @@ class XzWriterBase : public BufferedWriter {
     // current block, which degrades compression density.
     //
     // Default: 0.
-    Options& set_parallelism(int parallelism) & {
+    Options& set_parallelism(int parallelism) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(parallelism, 0)
           << "Failed precondition of XzWriterBase::Options::set_parallelism(): "
              "negative parallelism";
       parallelism_ = parallelism;
       return *this;
     }
-    Options&& set_parallelism(int parallelism) && {
+    Options&& set_parallelism(int parallelism) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_parallelism(parallelism));
     }
     int parallelism() const { return parallelism_; }
@@ -164,15 +171,18 @@ class XzWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -188,7 +198,7 @@ class XzWriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -297,9 +307,13 @@ class XzWriter : public XzWriterBase {
 
   // Returns the object providing and possibly owning the compressed `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

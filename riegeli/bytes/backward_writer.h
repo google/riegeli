@@ -108,9 +108,9 @@ class BackwardWriter : public Object {
   // Invariants:
   //   `start() >= cursor() >= limit()` (possibly all `nullptr`)
   //   if `!ok()` then `start() == cursor() == limit() == nullptr`
-  char* start() const { return start_; }
-  char* cursor() const { return cursor_; }
-  char* limit() const { return limit_; }
+  char* start() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return start_; }
+  char* cursor() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return cursor_; }
+  char* limit() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return limit_; }
 
   // Decrements the value of `cursor()`. Does not change `start()` nor
   // `limit()`. Call this during writing data under `cursor()` to indicate how

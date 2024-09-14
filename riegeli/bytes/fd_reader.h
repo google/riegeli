@@ -63,11 +63,13 @@ class FdReaderBase : public BufferedReader {
     //
     // Default: `O_RDONLY | O_CLOEXEC`
     // (on Windows: `_O_RDONLY | _O_BINARY | _O_NOINHERIT`).
-    Options& set_mode(int mode) & {
+    Options& set_mode(int mode) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = mode;
       return *this;
     }
-    Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
+    Options&& set_mode(int mode) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_mode(mode));
+    }
     int mode() const { return mode_; }
 
     // If `false`, `execve()` (`CreateProcess()` on Windows) will close the fd.
@@ -81,12 +83,13 @@ class FdReaderBase : public BufferedReader {
     // `set_inheritable()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_inheritable(bool inheritable) & {
+    Options& set_inheritable(bool inheritable) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = (mode_ & ~fd_internal::kCloseOnExec) |
               (inheritable ? 0 : fd_internal::kCloseOnExec);
       return *this;
     }
-    Options&& set_inheritable(bool inheritable) && {
+    Options&& set_inheritable(bool inheritable) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_inheritable(inheritable));
     }
     bool inheritable() const {
@@ -109,7 +112,8 @@ class FdReaderBase : public BufferedReader {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) & {
+    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifdef _WIN32
       mode_ =
           (mode_ & ~(_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT)) |
@@ -117,7 +121,9 @@ class FdReaderBase : public BufferedReader {
 #endif
       return *this;
     }
-    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    Options&& set_text(bool text) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_text(text));
+    }
     // No `text()` getter is provided. On Windows `mode()` can have unspecified
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
@@ -134,11 +140,13 @@ class FdReaderBase : public BufferedReader {
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -155,11 +163,13 @@ class FdReaderBase : public BufferedReader {
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) & {
+    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) && {
+    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
     absl::optional<Position> independent_pos() const {
@@ -170,11 +180,13 @@ class FdReaderBase : public BufferedReader {
     // the file has grown. This disables caching the file size.
     //
     // Default: `false`.
-    Options& set_growing_source(bool growing_source) & {
+    Options& set_growing_source(bool growing_source) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       growing_source_ = growing_source;
       return *this;
     }
-    Options&& set_growing_source(bool growing_source) && {
+    Options&& set_growing_source(bool growing_source) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
@@ -191,15 +203,17 @@ class FdReaderBase : public BufferedReader {
   };
 
   // Returns the `FdHandle` being read from. Unchanged by `Close()`.
-  virtual FdHandle SrcFdHandle() const = 0;
+  virtual FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int SrcFd() const = 0;
+  virtual int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool ToleratesReadingAhead() override {
     return BufferedReader::ToleratesReadingAhead() ||
@@ -376,10 +390,14 @@ class FdReader : public FdReaderBase {
 
   // Returns the object providing and possibly owning the fd being read from.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  FdHandle SrcFdHandle() const override { return src_.get(); }
-  int SrcFd() const override { return *src_; }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
+  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
 
  protected:
   void Done() override;

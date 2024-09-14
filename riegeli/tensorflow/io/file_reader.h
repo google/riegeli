@@ -67,11 +67,11 @@ class FileReaderBase : public Reader {
     // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
     //
     // Default: `nullptr`.
-    Options& set_env(::tensorflow::Env* env) & {
+    Options& set_env(::tensorflow::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       env_ = env;
       return *this;
     }
-    Options&& set_env(::tensorflow::Env* env) && {
+    Options&& set_env(::tensorflow::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_env(env));
     }
     ::tensorflow::Env* env() const { return env_; }
@@ -79,11 +79,13 @@ class FileReaderBase : public Reader {
     // Reading will start from this position.
     //
     // Default: 0.
-    Options& set_initial_pos(Position initial_pos) & {
+    Options& set_initial_pos(Position initial_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       initial_pos_ = initial_pos;
       return *this;
     }
-    Options&& set_initial_pos(Position initial_pos) && {
+    Options&& set_initial_pos(Position initial_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_initial_pos(initial_pos));
     }
     Position initial_pos() const { return initial_pos_; }
@@ -92,11 +94,13 @@ class FileReaderBase : public Reader {
     // the file has grown. This disables caching the file size.
     //
     // Default: `false`.
-    Options& set_growing_source(bool growing_source) & {
+    Options& set_growing_source(bool growing_source) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       growing_source_ = growing_source;
       return *this;
     }
-    Options&& set_growing_source(bool growing_source) && {
+    Options&& set_growing_source(bool growing_source) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
@@ -110,11 +114,14 @@ class FileReaderBase : public Reader {
   // Returns the `::tensorflow::RandomAccessFile` being read from. If the
   // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
   // `Close()`, otherwise unchanged.
-  virtual ::tensorflow::RandomAccessFile* SrcFile() const = 0;
+  virtual ::tensorflow::RandomAccessFile* SrcFile() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the name of the `::tensorflow::RandomAccessFile` being read from.
   // Unchanged by `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool ToleratesReadingAhead() override {
     return buffer_sizer_.read_all_hint() ||
@@ -274,9 +281,12 @@ class FileReader : public FileReaderBase {
   // `::tensorflow::RandomAccessFile` being read from. If the
   // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
   // `Close()`, otherwise unchanged.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  ::tensorflow::RandomAccessFile* SrcFile() const override {
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  ::tensorflow::RandomAccessFile* SrcFile() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return src_.get();
   }
 

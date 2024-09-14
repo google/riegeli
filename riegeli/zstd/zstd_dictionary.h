@@ -84,24 +84,32 @@ class ZstdDictionary {
   ZstdDictionary& operator=(ZstdDictionary&& that) = default;
 
   // Resets the `ZstdDictionary` to the empty state.
-  ZstdDictionary& Reset() &;
-  ZstdDictionary&& Reset() && { return std::move(Reset()); }
+  ZstdDictionary& Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  ZstdDictionary&& Reset() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(Reset());
+  }
 
   // Sets a dictionary.
   ZstdDictionary& set_data(Initializer<std::string>::AllowingExplicit data,
-                           Type type = Type::kAuto) &;
+                           Type type = Type::kAuto) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
   ZstdDictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
-                            Type type = Type::kAuto) && {
+                            Type type = Type::kAuto) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data), type));
   }
 
   // Like `set_data()`, but does not take ownership of `data`, which must not
   // be changed until the last `ZstdReader` or `ZstdWriter` using this
   // dictionary is closed or no longer used.
-  ZstdDictionary& set_data_unowned(absl::string_view data,
-                                   Type type = Type::kAuto) &;
-  ZstdDictionary&& set_data_unowned(absl::string_view data,
-                                    Type type = Type::kAuto) && {
+  ZstdDictionary& set_data_unowned(absl::string_view data
+                                       ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                   Type type = Type::kAuto) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  ZstdDictionary&& set_data_unowned(absl::string_view data
+                                        ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                    Type type = Type::kAuto) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data_unowned(data, type));
   }
 
@@ -109,7 +117,7 @@ class ZstdDictionary {
   bool empty() const;
 
   // Returns the dictionary data.
-  absl::string_view data() const;
+  absl::string_view data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the compression dictionary in the prepared form, or `nullptr` if
   // no dictionary is present or `ZSTD_createCDict_advanced()` failed.
@@ -119,7 +127,8 @@ class ZstdDictionary {
   // no dictionary is present or `ZSTD_createDDict_advanced()` failed.
   //
   // The dictionary is owned by `*this`.
-  const ZSTD_DDict* PrepareDecompressionDictionary() const;
+  const ZSTD_DDict* PrepareDecompressionDictionary() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the dictionary ID, or 0 is no dictionary is present.
   uint32_t DictId() const;
@@ -173,7 +182,8 @@ class ZstdDictionary::Repr {
   // if no dictionary is present or `ZSTD_createDDict_advanced()` failed.
   //
   // The dictionary is owned by `*this`.
-  const ZSTD_DDict* PrepareDecompressionDictionary() const;
+  const ZSTD_DDict* PrepareDecompressionDictionary() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   absl::string_view data() const { return data_; }
 
@@ -213,21 +223,23 @@ struct ZstdDictionary::ZSTD_CDictCache {
   mutable std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> compression_dictionary;
 };
 
-inline ZstdDictionary& ZstdDictionary::Reset() & {
+inline ZstdDictionary& ZstdDictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset();
   return *this;
 }
 
 inline ZstdDictionary& ZstdDictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data, Type type) & {
+    Initializer<std::string>::AllowingExplicit data, Type type) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(
       riegeli::Maker(type, std::move(data),
                      std::integral_constant<Ownership, Ownership::kCopied>()));
   return *this;
 }
 
-inline ZstdDictionary& ZstdDictionary::set_data_unowned(absl::string_view data,
-                                                        Type type) & {
+inline ZstdDictionary& ZstdDictionary::set_data_unowned(
+    absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND, Type type) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(riegeli::Maker(
       type, data, std::integral_constant<Ownership, Ownership::kUnowned>()));
   return *this;
@@ -237,7 +249,8 @@ inline bool ZstdDictionary::empty() const {
   return repr_ == nullptr || repr_->data().empty();
 }
 
-inline absl::string_view ZstdDictionary::data() const {
+inline absl::string_view ZstdDictionary::data() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (repr_ == nullptr) return absl::string_view();
   return repr_->data();
 }

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -60,11 +61,13 @@ class SimpleEncoder : public ChunkEncoder {
     // If the size hint turns out to not match reality, nothing breaks.
     //
     // Default: `absl::nullopt`.
-    TuningOptions& set_size_hint(absl::optional<Position> size_hint) & {
+    TuningOptions& set_size_hint(absl::optional<Position> size_hint) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       size_hint_ = size_hint;
       return *this;
     }
-    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) && {
+    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
     absl::optional<Position> size_hint() const { return size_hint_; }
@@ -76,15 +79,18 @@ class SimpleEncoder : public ChunkEncoder {
     //
     // Default: `RecyclingPoolOptions()`.
     TuningOptions& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     TuningOptions&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 

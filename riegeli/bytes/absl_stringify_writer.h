@@ -59,8 +59,8 @@ class AbslStringifyWriter : public BufferedWriter {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest dest);
 
   // Returns a pointer to the sink being written to. Unchanged by `Close()`.
-  Dest& dest() { return dest_; }
-  const Dest& dest() const { return dest_; }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_; }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_; }
 
  protected:
   bool WriteInternal(absl::string_view src) override;
@@ -94,8 +94,12 @@ class AbslStringifyWriter<WriterAbslStringifySink*>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(WriterAbslStringifySink* dest);
 
   // Returns a pointer to the sink being written to. Unchanged by `Close()`.
-  WriterAbslStringifySink*& dest() { return dest_; }
-  WriterAbslStringifySink* const& dest() const { return dest_; }
+  WriterAbslStringifySink*& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_;
+  }
+  WriterAbslStringifySink* const& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_;
+  }
 
  private:
   WriterAbslStringifySink* dest_{};

@@ -56,11 +56,13 @@ class IStreamReaderBase : public BufferedReader {
     // `std::ifstream` or `std::fstream` opened in text mode.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -69,11 +71,13 @@ class IStreamReaderBase : public BufferedReader {
     // when the stream has grown. This disables caching the stream size.
     //
     // Default: `false`.
-    Options& set_growing_source(bool growing_source) & {
+    Options& set_growing_source(bool growing_source) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       growing_source_ = growing_source;
       return *this;
     }
-    Options&& set_growing_source(bool growing_source) && {
+    Options&& set_growing_source(bool growing_source) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
@@ -84,7 +88,7 @@ class IStreamReaderBase : public BufferedReader {
   };
 
   // Returns the stream being read from. Unchanged by `Close()`.
-  virtual std::istream* SrcStream() const = 0;
+  virtual std::istream* SrcStream() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool ToleratesReadingAhead() override {
     return BufferedReader::ToleratesReadingAhead() ||
@@ -163,9 +167,13 @@ class IStreamReader : public IStreamReaderBase {
 
   // Returns the object providing and possibly owning the stream being read
   // from. Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  std::istream* SrcStream() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  std::istream* SrcStream() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

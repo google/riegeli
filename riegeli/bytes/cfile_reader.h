@@ -55,14 +55,18 @@ class CFileReaderBase : public BufferedReader {
     // `mode()` can also be changed with `set_inheritable()` and `set_text()`.
     //
     // Default: "re" (on Windows: "rbN").
-    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) & {
+    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(mode_, std::move(mode));
       return *this;
     }
-    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) && {
+    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_mode(std::move(mode)));
     }
-    const std::string& mode() const { return mode_; }
+    const std::string& mode() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return mode_;
+    }
 
     // If `false`, `execve()` (`CreateProcess()` on Windows) will close the
     // file. This is not supported by all systems, but it is supported at least
@@ -79,11 +83,12 @@ class CFileReaderBase : public BufferedReader {
     // `set_inheritable()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_inheritable(bool inheritable) & {
+    Options& set_inheritable(bool inheritable) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetInheritableReading(inheritable, mode_);
       return *this;
     }
-    Options&& set_inheritable(bool inheritable) && {
+    Options&& set_inheritable(bool inheritable) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_inheritable(inheritable));
     }
     bool inheritable() const { return file_internal::GetInheritable(mode_); }
@@ -105,11 +110,13 @@ class CFileReaderBase : public BufferedReader {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(bool text) & {
+    Options& set_text(bool text) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       file_internal::SetTextReading(text, mode_);
       return *this;
     }
-    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    Options&& set_text(bool text) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_text(text));
+    }
     // No `text()` getter is provided. On Windows `mode()` can have unspecified
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
@@ -124,11 +131,13 @@ class CFileReaderBase : public BufferedReader {
     // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -137,11 +146,13 @@ class CFileReaderBase : public BufferedReader {
     // the file has grown. This disables caching the file size.
     //
     // Default: `false`.
-    Options& set_growing_source(bool growing_source) & {
+    Options& set_growing_source(bool growing_source) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       growing_source_ = growing_source;
       return *this;
     }
-    Options&& set_growing_source(bool growing_source) && {
+    Options&& set_growing_source(bool growing_source) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
@@ -157,15 +168,17 @@ class CFileReaderBase : public BufferedReader {
   };
 
   // Returns the `CFileHandle` being read from. Unchanged by `Close()`.
-  virtual CFileHandle SrcCFileHandle() const = 0;
+  virtual CFileHandle SrcCFileHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the `FILE*` being read from. If the `FILE*` is owned then changed
   // to `nullptr` by `Close()`, otherwise unchanged.
-  virtual FILE* SrcFile() const = 0;
+  virtual FILE* SrcFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original name of the file being read from. Unchanged by
   // `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool ToleratesReadingAhead() override {
     return BufferedReader::ToleratesReadingAhead() ||
@@ -283,10 +296,14 @@ class CFileReader : public CFileReaderBase {
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  CFileHandle SrcCFileHandle() const override { return src_.get(); }
-  FILE* SrcFile() const override { return *src_; }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  CFileHandle SrcCFileHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
+  FILE* SrcFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
 
  protected:
   void Done() override;

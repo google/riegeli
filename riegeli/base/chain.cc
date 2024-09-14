@@ -306,7 +306,8 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
   return false;
 }
 
-inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length) {
+inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(is_mutable())
       << "Failed precondition of Chain::RawBlock::AppendBuffer(): "
          "block is immutable";
@@ -317,7 +318,8 @@ inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length) {
   return buffer;
 }
 
-inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length) {
+inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(is_mutable())
       << "Failed precondition of Chain::RawBlock::PrependBuffer(): "
          "block is immutable";

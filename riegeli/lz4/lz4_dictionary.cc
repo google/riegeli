@@ -21,6 +21,7 @@
 
 #include <memory>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
@@ -40,7 +41,8 @@ inline const LZ4F_CDict* Lz4Dictionary::Repr::PrepareCompressionDictionary()
   return compression_dictionary_.get();
 }
 
-const LZ4F_CDict* Lz4Dictionary::PrepareCompressionDictionary() const {
+const LZ4F_CDict* Lz4Dictionary::PrepareCompressionDictionary() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareCompressionDictionary();
 }

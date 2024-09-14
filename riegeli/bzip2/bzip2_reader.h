@@ -50,11 +50,12 @@ class Bzip2ReaderBase : public BufferedReader {
     // If `false`, exactly one compressed stream is consumed.
     //
     // Default: `false`.
-    Options& set_concatenate(bool concatenate) & {
+    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       concatenate_ = concatenate;
       return *this;
     }
-    Options&& set_concatenate(bool concatenate) && {
+    Options&& set_concatenate(bool concatenate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_concatenate(concatenate));
     }
     bool concatenate() const { return concatenate_; }
@@ -64,7 +65,7 @@ class Bzip2ReaderBase : public BufferedReader {
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
@@ -168,9 +169,13 @@ class Bzip2Reader : public Bzip2ReaderBase {
 
   // Returns the object providing and possibly owning the compressed `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

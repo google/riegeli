@@ -130,11 +130,13 @@ class DefaultChunkWriterBase : public ChunkWriter {
     // `absl::nullopt` means `DestWriter()->pos()`.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -144,7 +146,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
   };
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool WriteChunk(const Chunk& chunk) override;
   bool PadToBlockBoundary() override;
@@ -204,9 +206,13 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
   // Returns the object providing and possibly owning the byte `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;
@@ -247,10 +253,16 @@ class DependencyImpl<
     chunk_writer_.Reset(std::move(manager));
   }
 
-  Manager& manager() { return chunk_writer_.dest(); }
-  const Manager& manager() const { return chunk_writer_.dest(); }
+  Manager& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return chunk_writer_.dest();
+  }
+  const Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return chunk_writer_.dest();
+  }
 
-  DefaultChunkWriter<Manager>* get() const { return &chunk_writer_; }
+  DefaultChunkWriter<Manager>* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &chunk_writer_;
+  }
 
   static constexpr bool kIsOwning = true;
 

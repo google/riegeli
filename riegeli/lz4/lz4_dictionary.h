@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
@@ -63,27 +64,35 @@ class Lz4Dictionary {
   Lz4Dictionary& operator=(Lz4Dictionary&& that) = default;
 
   // Resets the `Lz4Dictionary` to the empty state.
-  Lz4Dictionary& Reset() &;
-  Lz4Dictionary&& Reset() && { return std::move(Reset()); }
+  Lz4Dictionary& Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Lz4Dictionary&& Reset() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(Reset());
+  }
 
   // Sets a dictionary.
   //
   // Dictionary id can help to detect whether the correct dictionary is used.
   // 0 means unspecified.
   Lz4Dictionary& set_data(Initializer<std::string>::AllowingExplicit data,
-                          uint32_t dict_id = 0) &;
+                          uint32_t dict_id = 0) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
   Lz4Dictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
-                           uint32_t dict_id = 0) && {
+                           uint32_t dict_id = 0) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data), dict_id));
   }
 
   // Like `set_data()`, but does not take ownership of `data`, which must not
   // be changed until the last `Lz4Reader` or `Lz4Writer` using this dictionary
   // is closed or no longer used.
-  Lz4Dictionary& set_data_unowned(absl::string_view data,
-                                  uint32_t dict_id = 0) &;
-  Lz4Dictionary&& set_data_unowned(absl::string_view data,
-                                   uint32_t dict_id = 0) && {
+  Lz4Dictionary& set_data_unowned(absl::string_view data
+                                      ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                  uint32_t dict_id = 0) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Lz4Dictionary&& set_data_unowned(absl::string_view data
+                                       ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                   uint32_t dict_id = 0) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data_unowned(data, dict_id));
   }
 
@@ -91,7 +100,7 @@ class Lz4Dictionary {
   bool empty() const;
 
   // Returns the dictionary data.
-  absl::string_view data() const;
+  absl::string_view data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the dictionary id.
   //
@@ -103,7 +112,8 @@ class Lz4Dictionary {
   // no dictionary is present or `LZ4F_createCDict()` failed.
   //
   // The dictionary is owned by `*this`.
-  const LZ4F_CDict* PrepareCompressionDictionary() const;
+  const LZ4F_CDict* PrepareCompressionDictionary() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
  private:
   enum class Ownership { kCopied, kUnowned };
@@ -157,21 +167,23 @@ class Lz4Dictionary::Repr {
       compression_dictionary_;
 };
 
-inline Lz4Dictionary& Lz4Dictionary::Reset() & {
+inline Lz4Dictionary& Lz4Dictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset();
   return *this;
 }
 
 inline Lz4Dictionary& Lz4Dictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data, uint32_t dict_id) & {
+    Initializer<std::string>::AllowingExplicit data, uint32_t dict_id) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(riegeli::Maker(
       std::move(data), std::integral_constant<Ownership, Ownership::kCopied>(),
       dict_id));
   return *this;
 }
 
-inline Lz4Dictionary& Lz4Dictionary::set_data_unowned(absl::string_view data,
-                                                      uint32_t dict_id) & {
+inline Lz4Dictionary& Lz4Dictionary::set_data_unowned(
+    absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND, uint32_t dict_id) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(riegeli::Maker(
       data, std::integral_constant<Ownership, Ownership::kUnowned>(), dict_id));
   return *this;
@@ -181,7 +193,8 @@ inline bool Lz4Dictionary::empty() const {
   return repr_ == nullptr || repr_->data().empty();
 }
 
-inline absl::string_view Lz4Dictionary::data() const {
+inline absl::string_view Lz4Dictionary::data() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (repr_ == nullptr) return absl::string_view();
   return repr_->data();
 }

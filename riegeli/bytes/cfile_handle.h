@@ -60,7 +60,7 @@ class
   bool is_open() const { return file_ != nullptr; }
 
   // Returns the `FILE*`.
-  FILE* get() const { return file_.get(); }
+  FILE* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return file_.get(); }
 
   // Releases and returns the `FILE*` without closing it.
   FILE* Release() { return file_.release(); }

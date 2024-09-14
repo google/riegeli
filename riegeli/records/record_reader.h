@@ -95,25 +95,32 @@ class RecordReaderBase : public Object {
     //
     // Default: `FieldProjection::All()`.
     Options& set_field_projection(
-        Initializer<FieldProjection> field_projection) & {
+        Initializer<FieldProjection> field_projection) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(field_projection_, std::move(field_projection));
       return *this;
     }
     Options&& set_field_projection(
-        Initializer<FieldProjection> field_projection) && {
+        Initializer<FieldProjection> field_projection) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_projection(std::move(field_projection)));
     }
     Options& set_field_projection(
-        std::initializer_list<Field> field_projection) & {
+        std::initializer_list<Field> field_projection) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       set_field_projection(Initializer<FieldProjection>(field_projection));
       return *this;
     }
     Options&& set_field_projection(
-        std::initializer_list<Field> field_projection) && {
+        std::initializer_list<Field> field_projection) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_projection(std::move(field_projection)));
     }
-    FieldProjection& field_projection() { return field_projection_; }
-    const FieldProjection& field_projection() const {
+    FieldProjection& field_projection() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return field_projection_;
+    }
+    const FieldProjection& field_projection() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return field_projection_;
     }
 
@@ -149,21 +156,24 @@ class RecordReaderBase : public Object {
     Options& set_recovery(
         Initializer<
             std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
-            recovery) & {
+            recovery) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(recovery_, std::move(recovery));
       return *this;
     }
     Options&& set_recovery(
         Initializer<
             std::function<bool(const SkippedRegion&, RecordReaderBase&)>>
-            recovery) && {
+            recovery) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recovery(std::move(recovery)));
     }
-    std::function<bool(const SkippedRegion&, RecordReaderBase&)>& recovery() {
+    std::function<bool(const SkippedRegion&, RecordReaderBase&)>& recovery()
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recovery_;
     }
     const std::function<bool(const SkippedRegion&, RecordReaderBase&)>&
-    recovery() const {
+    recovery() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recovery_;
     }
 
@@ -174,15 +184,18 @@ class RecordReaderBase : public Object {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -193,7 +206,7 @@ class RecordReaderBase : public Object {
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual ChunkReader* SrcChunkReader() const = 0;
+  virtual ChunkReader* SrcChunkReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -266,7 +279,7 @@ class RecordReaderBase : public Object {
 
   // Returns the function set by `Options::set_recovery` or `set_recovery()`.
   const std::function<bool(const SkippedRegion&, RecordReaderBase&)>& recovery()
-      const {
+      const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return recovery_;
   }
 
@@ -607,9 +620,13 @@ class RecordReader : public RecordReaderBase {
 
   // Returns the object providing and possibly owning the byte `Reader` or
   // `ChunkReader`. Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  ChunkReader* SrcChunkReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  ChunkReader* SrcChunkReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
   // An optimized implementation in a derived class, avoiding a virtual call.
   RecordPosition pos() const;

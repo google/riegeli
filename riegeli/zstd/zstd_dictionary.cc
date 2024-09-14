@@ -1,3 +1,4 @@
+#include "absl/base/attributes.h"
 // Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +20,6 @@
 //  * `ZSTD_dictContentType_e`
 #define ZSTD_STATIC_LINKING_ONLY
 
-#include "riegeli/zstd/zstd_dictionary.h"
-
 #include <stdint.h>
 
 #include <memory>
@@ -32,6 +31,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
+#include "riegeli/zstd/zstd_dictionary.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -87,7 +87,8 @@ ZstdDictionary::ZSTD_CDictHandle ZstdDictionary::PrepareCompressionDictionary(
   return repr_->PrepareCompressionDictionary(compression_level);
 }
 
-const ZSTD_DDict* ZstdDictionary::PrepareDecompressionDictionary() const {
+const ZSTD_DDict* ZstdDictionary::PrepareDecompressionDictionary() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (repr_ == nullptr) return nullptr;
   return repr_->PrepareDecompressionDictionary();
 }

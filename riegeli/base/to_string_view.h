@@ -17,6 +17,7 @@
 
 #include <type_traits>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -48,7 +49,8 @@ template <
     typename T,
     std::enable_if_t<to_string_view_internal::HasRiegeliToStringView<T>::value,
                      int> = 0>
-inline absl::string_view ToStringView(const T& value) {
+inline absl::string_view ToStringView(
+    const T& value ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return RiegeliToStringView(&value);
 }
 
@@ -59,7 +61,8 @@ template <
             absl::negation<to_string_view_internal::HasRiegeliToStringView<T>>,
             std::is_constructible<absl::string_view, const T&>>::value,
         int> = 0>
-inline absl::string_view ToStringView(const T& value) {
+inline absl::string_view ToStringView(
+    const T& value ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return absl::string_view(value);
 }
 
@@ -71,7 +74,8 @@ template <
             absl::negation<std::is_constructible<absl::string_view, const T&>>,
             std::is_constructible<absl::Span<const char>, const T&>>::value,
         int> = 0>
-inline absl::string_view ToStringView(const T& value) {
+inline absl::string_view ToStringView(
+    const T& value ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   const absl::Span<const char> span(value);
   return absl::string_view(span.data(), span.size());
 }

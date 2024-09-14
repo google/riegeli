@@ -108,7 +108,7 @@ class WriterOStreamBase : public std::iostream {
   };
 
   // Returns the `Writer`. Unchanged by `close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // If `!is_open()`, does nothing. Otherwise:
   //  * Synchronizes the current `WriterOStream` position to the `Writer`.
@@ -221,9 +221,13 @@ class WriterOStream : public WriterOStreamBase {
 
   // Returns the object providing and possibly owning the `Writer`. Unchanged by
   // `close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

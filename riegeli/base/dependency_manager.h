@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency_base.h"
@@ -79,7 +80,7 @@ class DependencyManagerImpl<T*, ManagerStorage> : public DependencyBase<T*> {
 
   ~DependencyManagerImpl() = default;
 
-  T* ptr() const { return this->manager(); }
+  T* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return this->manager(); }
 };
 
 // Specialization of `DependencyManagerImpl<std::nullptr_t, ManagerStorage>`:
@@ -130,7 +131,7 @@ class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
 
   ~DependencyManagerImpl() = default;
 
-  T* ptr() const { return this->manager().get(); }
+  T* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return this->manager().get(); }
 };
 
 // Specialization of
@@ -155,7 +156,7 @@ class DependencyManagerImpl<absl::optional<T>, ManagerStorage>
 
   ~DependencyManagerImpl() = default;
 
-  T* ptr() const {
+  T* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (this->mutable_manager() == absl::nullopt) return nullptr;
     return &*this->mutable_manager();
   }
@@ -242,7 +243,9 @@ class DependencyManager<
 
   ~DependencyManager() = default;
 
-  Manager* ptr() const { return &this->mutable_manager(); }
+  Manager* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &this->mutable_manager();
+  }
 };
 
 // Specialization of `DependencyManager<Manager&>` when
@@ -302,7 +305,9 @@ class DependencyManager<
 
   ~DependencyManager() = default;
 
-  Manager* ptr() const { return &this->manager(); }
+  Manager* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &this->manager();
+  }
 };
 
 // Specialization of `DependencyManager<Manager&&>` when
@@ -362,7 +367,9 @@ class DependencyManager<
 
   ~DependencyManager() = default;
 
-  Manager* ptr() const { return &this->manager(); }
+  Manager* ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &this->manager();
+  }
 };
 
 namespace dependency_manager_internal {

@@ -349,23 +349,32 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   // Returns the sequence of field names, in the order in which they have been
   // added.
-  absl::Span<const std::string> names() const;
+  absl::Span<const std::string> names() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the normalizer used to match field names, or `nullptr` which is the
   // same as the identity function.
-  const std::function<std::string(absl::string_view)>& normalizer() const;
+  const std::function<std::string(absl::string_view)>& normalizer() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Iterates over field names, in the order in which they have been added.
-  iterator begin() const;
-  iterator cbegin() const { return begin(); }
-  iterator end() const;
-  iterator cend() const { return end(); }
+  iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return begin(); }
+  iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return end(); }
 
   // Iterates over field names, backwards.
-  reverse_iterator rbegin() const { return reverse_iterator(end()); }
-  reverse_iterator crbegin() const { return rbegin(); }
-  reverse_iterator rend() const { return reverse_iterator(begin()); }
-  reverse_iterator crend() const { return rend(); }
+  reverse_iterator rbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return reverse_iterator(end());
+  }
+  reverse_iterator crbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return rbegin();
+  }
+  reverse_iterator rend() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return reverse_iterator(begin());
+  }
+  reverse_iterator crend() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return rend();
+  }
 
   // Returns `true` if there are no field names.
   bool empty() const;
@@ -375,7 +384,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   // Returns an iterator positioned at `name`, or `end()` if `name` is not
   // present.
-  iterator find(absl::string_view name) const;
+  iterator find(absl::string_view name) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns `true` if `name` is present.
   bool contains(absl::string_view name) const;
@@ -559,9 +568,13 @@ class CsvHeaderConstant {
   CsvHeaderConstant(const CsvHeaderConstant&) = delete;
   CsvHeaderConstant& operator=(const CsvHeaderConstant&) = delete;
 
-  const CsvHeader* get() const;
-  const CsvHeader& operator*() const { return *get(); }
-  const CsvHeader* operator->() const { return get(); }
+  const CsvHeader* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const CsvHeader& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return *get();
+  }
+  const CsvHeader* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return get();
+  }
 
  private:
   // For `normalizer_` and `fields_`.
@@ -733,7 +746,9 @@ class CsvRecord : public WithEqual<CsvRecord> {
   CsvRecord& operator=(CsvRecord&& that) = default;
 
   // Returns the set of field names.
-  const CsvHeader& header() const { return header_; }
+  const CsvHeader& header() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return header_;
+  }
 
   // Makes `*this` equivalent to a newly constructed `CsvRecord`.
   //
@@ -767,29 +782,43 @@ class CsvRecord : public WithEqual<CsvRecord> {
 
   // Returns the sequence of field values, in the order corresponding to the
   // order of field names in the header.
-  absl::Span<std::string> fields() { return absl::MakeSpan(fields_); }
-  absl::Span<const std::string> fields() const { return fields_; }
+  absl::Span<std::string> fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return absl::MakeSpan(fields_);
+  }
+  absl::Span<const std::string> fields() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return fields_;
+  }
 
   // Iterates over pairs of field names and field values, in the order
   // corresponding to the order of field names in the header.
-  iterator begin();
-  const_iterator begin() const;
-  const_iterator cbegin() const { return begin(); }
-  iterator end();
-  const_iterator end() const;
-  const_iterator cend() const { return end(); }
+  iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return begin();
+  }
+  iterator end() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return end(); }
 
   // Iterates over pairs of field names and field values, backwards.
-  reverse_iterator rbegin() { return reverse_iterator(end()); }
-  const_reverse_iterator rbegin() const {
+  reverse_iterator rbegin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return reverse_iterator(end());
+  }
+  const_reverse_iterator rbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return const_reverse_iterator(end());
   }
-  const_reverse_iterator crbegin() const { return rbegin(); }
-  reverse_iterator rend() { return reverse_iterator(begin()); }
-  const_reverse_iterator rend() const {
+  const_reverse_iterator crbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return rbegin();
+  }
+  reverse_iterator rend() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return reverse_iterator(begin());
+  }
+  const_reverse_iterator rend() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return const_reverse_iterator(begin());
   }
-  const_reverse_iterator crend() const { return rend(); }
+  const_reverse_iterator crend() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return rend();
+  }
 
   // Returns `true` if there are no fields.
   bool empty() const { return fields_.empty(); }
@@ -802,13 +831,15 @@ class CsvRecord : public WithEqual<CsvRecord> {
   // `name`.
   //
   // Precondition: `name` is present
-  std::string& operator[](absl::string_view name);
-  const std::string& operator[](absl::string_view name) const;
+  std::string& operator[](absl::string_view name) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const std::string& operator[](absl::string_view name) const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns an iterator positioned at the pair of the given field `name` and
   // the corresponding field value, or `end()` if `name` is not present.
-  iterator find(absl::string_view name);
-  const_iterator find(absl::string_view name) const;
+  iterator find(absl::string_view name) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator find(absl::string_view name) const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns `true` if `name` is present.
   bool contains(absl::string_view name) const;
@@ -1145,25 +1176,28 @@ inline absl::Status CsvHeader::TryAdd(
   return TryAdd(std::forward<Names>(names)...);
 }
 
-inline absl::Span<const std::string> CsvHeader::names() const {
+inline absl::Span<const std::string> CsvHeader::names() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return {};
   return payload_->index_to_name;
 }
 
 inline const std::function<std::string(absl::string_view)>&
-CsvHeader::normalizer() const {
+CsvHeader::normalizer() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) {
     return Global<const std::function<std::string(absl::string_view)>>();
   }
   return payload_->normalizer;
 }
 
-inline CsvHeader::iterator CsvHeader::begin() const {
+inline CsvHeader::iterator CsvHeader::begin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
   return iterator(payload_->index_to_name.cbegin());
 }
 
-inline CsvHeader::iterator CsvHeader::end() const {
+inline CsvHeader::iterator CsvHeader::end() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
   return iterator(payload_->index_to_name.cend());
 }
@@ -1178,7 +1212,8 @@ inline size_t CsvHeader::size() const {
 }
 
 template <size_t num_fields>
-inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const {
+inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   absl::call_once(once_,
                   [&] { new (header_) CsvHeader(normalizer_, fields_); });
   return
@@ -1317,19 +1352,21 @@ inline absl::Status CsvRecord::TryResetInternal(CsvHeader&& header,
                                                  std::forward<Fields>(fields)));
 }
 
-inline CsvRecord::iterator CsvRecord::begin() {
+inline CsvRecord::iterator CsvRecord::begin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return iterator(header_.begin(), fields_.begin());
 }
 
-inline CsvRecord::const_iterator CsvRecord::begin() const {
+inline CsvRecord::const_iterator CsvRecord::begin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return const_iterator(header_.begin(), fields_.begin());
 }
 
-inline CsvRecord::iterator CsvRecord::end() {
+inline CsvRecord::iterator CsvRecord::end() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return iterator(header_.end(), fields_.end());
 }
 
-inline CsvRecord::const_iterator CsvRecord::end() const {
+inline CsvRecord::const_iterator CsvRecord::end() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return const_iterator(header_.end(), fields_.end());
 }
 

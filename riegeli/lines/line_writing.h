@@ -42,11 +42,13 @@ class WriteLineOptions {
   // Line terminator representation to write.
   //
   // Default: `WriteNewline::kNative`.
-  WriteLineOptions& set_newline(WriteNewline newline) & {
+  WriteLineOptions& set_newline(WriteNewline newline) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
     return *this;
   }
-  WriteLineOptions&& set_newline(WriteNewline newline) && {
+  WriteLineOptions&& set_newline(WriteNewline newline) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_newline(newline));
   }
   WriteNewline newline() const { return newline_; }

@@ -20,6 +20,7 @@
 #include <limits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -140,9 +141,9 @@ inline size_t SizedSharedBuffer::NewCapacity(size_t extra_space,
                        std::numeric_limits<size_t>::max() - existing_space);
 }
 
-absl::Span<char> SizedSharedBuffer::AppendBuffer(size_t min_length,
-                                                 size_t recommended_length,
-                                                 size_t max_length) {
+absl::Span<char> SizedSharedBuffer::AppendBuffer(
+    size_t min_length, size_t recommended_length,
+    size_t max_length) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT_LE(min_length, max_length)
       << "Failed precondition of SizedSharedBuffer::AppendBuffer(): "
          "min_length > max_length";
@@ -172,9 +173,9 @@ absl::Span<char> SizedSharedBuffer::AppendBuffer(size_t min_length,
   return buffer;
 }
 
-absl::Span<char> SizedSharedBuffer::PrependBuffer(size_t min_length,
-                                                  size_t recommended_length,
-                                                  size_t max_length) {
+absl::Span<char> SizedSharedBuffer::PrependBuffer(
+    size_t min_length, size_t recommended_length,
+    size_t max_length) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT_LE(min_length, max_length)
       << "Failed precondition of SizedSharedBuffer::PrependBuffer(): "
          "min_length > max_length";
@@ -207,7 +208,8 @@ absl::Span<char> SizedSharedBuffer::PrependBuffer(size_t min_length,
   return absl::Span<char>(data_, length);
 }
 
-absl::Span<char> SizedSharedBuffer::AppendBufferIfExisting(size_t length) {
+absl::Span<char> SizedSharedBuffer::AppendBufferIfExisting(size_t length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   size_t new_min_length;
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<size_t>::max() - size()) ||
@@ -219,7 +221,8 @@ absl::Span<char> SizedSharedBuffer::AppendBufferIfExisting(size_t length) {
   return buffer;
 }
 
-absl::Span<char> SizedSharedBuffer::PrependBufferIfExisting(size_t length) {
+absl::Span<char> SizedSharedBuffer::PrependBufferIfExisting(size_t length)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   size_t space_after, new_min_length;
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<size_t>::max() - size()) ||

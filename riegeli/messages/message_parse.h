@@ -46,11 +46,11 @@ class ParseOptions {
   // If `true`, merges to existing contents of the destination.
   //
   // Default: `false`.
-  ParseOptions& set_merge(bool merge) & {
+  ParseOptions& set_merge(bool merge) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     merge_ = merge;
     return *this;
   }
-  ParseOptions&& set_merge(bool merge) && {
+  ParseOptions&& set_merge(bool merge) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_merge(merge));
   }
   bool merge() const { return merge_; }
@@ -61,11 +61,11 @@ class ParseOptions {
   // not having these fields.
   //
   // Default: `false`.
-  ParseOptions& set_partial(bool partial) & {
+  ParseOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  ParseOptions&& set_partial(bool partial) && {
+  ParseOptions&& set_partial(bool partial) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
   bool partial() const { return partial_; }
@@ -76,14 +76,16 @@ class ParseOptions {
   // Default:
   // `google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()`
   // (usually 100).
-  ParseOptions& set_recursion_limit(int recursion_limit) & {
+  ParseOptions& set_recursion_limit(int recursion_limit) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GE(recursion_limit, 0)
         << "Failed precondition of ParseOptions::set_recursion_limit(): "
            "recursion limit out of range";
     recursion_limit_ = recursion_limit;
     return *this;
   }
-  ParseOptions&& set_recursion_limit(int recursion_limit) && {
+  ParseOptions&& set_recursion_limit(int recursion_limit) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_recursion_limit(recursion_limit));
   }
   int recursion_limit() const { return recursion_limit_; }

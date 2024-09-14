@@ -188,15 +188,15 @@ class
   }
 
   // Returns the pointer.
-  T* get() const { return ptr_; }
+  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_; }
 
   // Dereferences the pointer.
-  T& operator*() const {
+  T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator*: null pointer";
     return *ptr_;
   }
-  T* operator->() const {
+  T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator->: null pointer";
     return ptr_;

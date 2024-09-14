@@ -122,21 +122,23 @@ class RecordWriterBase : public Object {
     // a repeated field.
     //
     // Default: `false`.
-    Options& set_transpose(bool transpose) & {
+    Options& set_transpose(bool transpose) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       transpose_ = transpose;
       return *this;
     }
-    Options&& set_transpose(bool transpose) && {
+    Options&& set_transpose(bool transpose) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_transpose(transpose));
     }
     bool transpose() const { return transpose_; }
 
     // Changes compression algorithm to Uncompressed (turns compression off).
-    Options& set_uncompressed() & {
+    Options& set_uncompressed() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_uncompressed();
       return *this;
     }
-    Options&& set_uncompressed() && { return std::move(set_uncompressed()); }
+    Options&& set_uncompressed() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_uncompressed());
+    }
 
     // Changes compression algorithm to Brotli. Sets compression level which
     // tunes the tradeoff between compression density and compression speed
@@ -149,11 +151,13 @@ class RecordWriterBase : public Object {
     static constexpr int kMinBrotli = CompressorOptions::kMinBrotli;
     static constexpr int kMaxBrotli = CompressorOptions::kMaxBrotli;
     static constexpr int kDefaultBrotli = CompressorOptions::kDefaultBrotli;
-    Options& set_brotli(int compression_level = kDefaultBrotli) & {
+    Options& set_brotli(int compression_level = kDefaultBrotli) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_brotli(compression_level);
       return *this;
     }
-    Options&& set_brotli(int compression_level = kDefaultBrotli) && {
+    Options&& set_brotli(int compression_level = kDefaultBrotli) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_brotli(compression_level));
     }
 
@@ -167,11 +171,13 @@ class RecordWriterBase : public Object {
     static constexpr int kMinZstd = CompressorOptions::kMinZstd;
     static constexpr int kMaxZstd = CompressorOptions::kMaxZstd;
     static constexpr int kDefaultZstd = CompressorOptions::kDefaultZstd;
-    Options& set_zstd(int compression_level = kDefaultZstd) & {
+    Options& set_zstd(int compression_level = kDefaultZstd) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_zstd(compression_level);
       return *this;
     }
-    Options&& set_zstd(int compression_level = kDefaultZstd) && {
+    Options&& set_zstd(int compression_level = kDefaultZstd) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_zstd(compression_level));
     }
 
@@ -181,11 +187,13 @@ class RecordWriterBase : public Object {
     static constexpr int kMinSnappy = CompressorOptions::kMinSnappy;
     static constexpr int kMaxSnappy = CompressorOptions::kMaxSnappy;
     static constexpr int kDefaultSnappy = CompressorOptions::kDefaultSnappy;
-    Options& set_snappy(int compression_level = kDefaultSnappy) & {
+    Options& set_snappy(int compression_level = kDefaultSnappy) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_snappy(compression_level);
       return *this;
     }
-    Options&& set_snappy(int compression_level = kDefaultSnappy) && {
+    Options&& set_snappy(int compression_level = kDefaultSnappy) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_snappy(compression_level));
     }
 
@@ -218,11 +226,13 @@ class RecordWriterBase : public Object {
     // Default: `absl::nullopt`.
     static constexpr int kMinWindowLog = CompressorOptions::kMinWindowLog;
     static constexpr int kMaxWindowLog = CompressorOptions::kMaxWindowLog;
-    Options& set_window_log(absl::optional<int> window_log) & {
+    Options& set_window_log(absl::optional<int> window_log) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_window_log(window_log);
       return *this;
     }
-    Options&& set_window_log(absl::optional<int> window_log) && {
+    Options&& set_window_log(absl::optional<int> window_log) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     absl::optional<int> window_log() const {
@@ -230,8 +240,11 @@ class RecordWriterBase : public Object {
     }
 
     // Returns grouped compression options.
-    CompressorOptions& compressor_options() { return compressor_options_; }
-    const CompressorOptions& compressor_options() const {
+    CompressorOptions& compressor_options() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return compressor_options_;
+    }
+    const CompressorOptions& compressor_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return compressor_options_;
     }
 
@@ -246,7 +259,8 @@ class RecordWriterBase : public Object {
     // (compressed: 1M, uncompressed: 4k).
     //
     // Default: `absl::nullopt`.
-    Options& set_chunk_size(absl::optional<uint64_t> chunk_size) & {
+    Options& set_chunk_size(absl::optional<uint64_t> chunk_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (chunk_size != absl::nullopt) {
         RIEGELI_ASSERT_GT(*chunk_size, 0u)
             << "Failed precondition of "
@@ -256,7 +270,8 @@ class RecordWriterBase : public Object {
       chunk_size_ = chunk_size;
       return *this;
     }
-    Options&& set_chunk_size(absl::optional<uint64_t> chunk_size) && {
+    Options&& set_chunk_size(absl::optional<uint64_t> chunk_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_chunk_size(chunk_size));
     }
     absl::optional<uint64_t> chunk_size() const { return chunk_size_; }
@@ -280,7 +295,8 @@ class RecordWriterBase : public Object {
     // of fields which are not included.
     //
     // Default: 1.0.
-    Options& set_bucket_fraction(double bucket_fraction) & {
+    Options& set_bucket_fraction(double bucket_fraction) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(bucket_fraction, 0.0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_bucket_fraction(): "
@@ -292,7 +308,8 @@ class RecordWriterBase : public Object {
       bucket_fraction_ = bucket_fraction;
       return *this;
     }
-    Options&& set_bucket_fraction(double bucket_fraction) && {
+    Options&& set_bucket_fraction(double bucket_fraction) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_bucket_fraction(bucket_fraction));
     }
     double bucket_fraction() const { return bucket_fraction_; }
@@ -307,17 +324,22 @@ class RecordWriterBase : public Object {
     //
     // Default: `absl::nullopt`.
     Options& set_metadata(
-        Initializer<absl::optional<RecordsMetadata>> metadata) & {
+        Initializer<absl::optional<RecordsMetadata>> metadata) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(metadata_, std::move(metadata));
       serialized_metadata_ = absl::nullopt;
       return *this;
     }
     Options&& set_metadata(
-        Initializer<absl::optional<RecordsMetadata>> metadata) && {
+        Initializer<absl::optional<RecordsMetadata>> metadata) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_metadata(std::move(metadata)));
     }
-    absl::optional<RecordsMetadata>& metadata() { return metadata_; }
-    const absl::optional<RecordsMetadata>& metadata() const {
+    absl::optional<RecordsMetadata>& metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return metadata_;
+    }
+    const absl::optional<RecordsMetadata>& metadata() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return metadata_;
     }
 
@@ -325,19 +347,22 @@ class RecordWriterBase : public Object {
     //
     // This is faster if the caller has metadata already serialized.
     Options& set_serialized_metadata(
-        Initializer<absl::optional<Chain>> serialized_metadata) & {
+        Initializer<absl::optional<Chain>> serialized_metadata) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       metadata_ = absl::nullopt;
       riegeli::Reset(serialized_metadata_, std::move(serialized_metadata));
       return *this;
     }
     Options&& set_serialized_metadata(
-        Initializer<absl::optional<Chain>> serialized_metadata) && {
+        Initializer<absl::optional<Chain>> serialized_metadata) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
-    absl::optional<Chain>& serialized_metadata() {
+    absl::optional<Chain>& serialized_metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return serialized_metadata_;
     }
-    const absl::optional<Chain>& serialized_metadata() const {
+    const absl::optional<Chain>& serialized_metadata() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return serialized_metadata_;
     }
 
@@ -361,11 +386,13 @@ class RecordWriterBase : public Object {
     // If `Padding::kFalse`, padding is never written.
     //
     // Default: `Padding::kFalse`.
-    Options& set_pad_to_block_boundary(Padding pad_to_block_boundary) & {
+    Options& set_pad_to_block_boundary(Padding pad_to_block_boundary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pad_to_block_boundary_ = pad_to_block_boundary;
       return *this;
     }
-    Options&& set_pad_to_block_boundary(Padding pad_to_block_boundary) && {
+    Options&& set_pad_to_block_boundary(Padding pad_to_block_boundary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
     }
     Padding pad_to_block_boundary() const { return pad_to_block_boundary_; }
@@ -378,7 +405,7 @@ class RecordWriterBase : public Object {
     // background and reporting writing errors is delayed.
     //
     // Default: 0.
-    Options& set_parallelism(int parallelism) & {
+    Options& set_parallelism(int parallelism) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(parallelism, 0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_parallelism(): "
@@ -386,7 +413,8 @@ class RecordWriterBase : public Object {
       parallelism_ = parallelism;
       return *this;
     }
-    Options&& set_parallelism(int parallelism) && {
+    Options&& set_parallelism(int parallelism) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_parallelism(parallelism));
     }
     int parallelism() const { return parallelism_; }
@@ -398,15 +426,18 @@ class RecordWriterBase : public Object {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -428,7 +459,8 @@ class RecordWriterBase : public Object {
   ~RecordWriterBase();
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
-  virtual ChunkWriter* DestChunkWriter() const = 0;
+  virtual ChunkWriter* DestChunkWriter() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Writes the next record.
   //
@@ -644,9 +676,13 @@ class RecordWriter : public RecordWriterBase {
 
   // Returns the object providing and possibly owning the byte `Writer` or
   // `ChunkWriter`. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  ChunkWriter* DestChunkWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  ChunkWriter* DestChunkWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

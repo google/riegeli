@@ -55,8 +55,8 @@ class JoiningReaderBase : public PullableReader {
   void SetReadAllHintImpl(bool read_all_hint) override;
 
   // Returns the shard `Reader`.
-  virtual Reader* ShardReader() = 0;
-  virtual const Reader* ShardReader() const = 0;
+  virtual Reader* ShardReader() ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  virtual const Reader* ShardReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Opens the next shard as `shard()` if it exists.
   //
@@ -188,10 +188,16 @@ class JoiningReader : public JoiningReaderBase {
   void Done() override;
 
   // Returns the object providing and possibly owning the shard `Reader`.
-  Shard& shard() { return shard_.manager(); }
-  const Shard& shard() const { return shard_.manager(); }
-  Reader* ShardReader() override { return shard_.get(); }
-  const Reader* ShardReader() const override { return shard_.get(); }
+  Shard& shard() ABSL_ATTRIBUTE_LIFETIME_BOUND { return shard_.manager(); }
+  const Shard& shard() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return shard_.manager();
+  }
+  Reader* ShardReader() ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return shard_.get();
+  }
+  const Reader* ShardReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return shard_.get();
+  }
 
  private:
   class Mover;

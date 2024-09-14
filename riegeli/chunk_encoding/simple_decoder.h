@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
@@ -43,15 +44,18 @@ class SimpleDecoder : public Object {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -85,7 +89,7 @@ class SimpleDecoder : public Object {
   // Returns the `Reader` from which concatenated record values should be read.
   //
   // Precondition: `ok()`
-  Reader& reader();
+  Reader& reader() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Verifies that the concatenated record values end at the current position,
   // failing the `SimpleDecoder` if not. Closes the `SimpleDecoder`.
@@ -108,7 +112,7 @@ class SimpleDecoder : public Object {
 
 // Implementation details follow.
 
-inline Reader& SimpleDecoder::reader() {
+inline Reader& SimpleDecoder::reader() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(ok()) << "Failed precondition of SimpleDecoder::reader(): "
                        << status();
   return values_decompressor_.reader();

@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
@@ -40,11 +41,13 @@ class ReadLineOptions {
   // Line terminator representations to recognize.
   //
   // Default: `ReadNewline::kNative`.
-  ReadLineOptions& set_newline(ReadNewline newline) & {
+  ReadLineOptions& set_newline(ReadNewline newline) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
     return *this;
   }
-  ReadLineOptions&& set_newline(ReadNewline newline) && {
+  ReadLineOptions&& set_newline(ReadNewline newline) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_newline(newline));
   }
   ReadNewline newline() const { return newline_; }
@@ -55,11 +58,13 @@ class ReadLineOptions {
   // (it can be absent in the last line).
   //
   // Default: `false`.
-  ReadLineOptions& set_keep_newline(bool keep_newline) & {
+  ReadLineOptions& set_keep_newline(bool keep_newline) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     keep_newline_ = keep_newline;
     return *this;
   }
-  ReadLineOptions&& set_keep_newline(bool keep_newline) && {
+  ReadLineOptions&& set_keep_newline(bool keep_newline) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_keep_newline(keep_newline));
   }
   bool keep_newline() const { return keep_newline_; }
@@ -70,11 +75,13 @@ class ReadLineOptions {
   // `absl::ResourceExhaustedError()`.
   //
   // Default: `std::numeric_limits<size_t>::max()`.
-  ReadLineOptions& set_max_length(size_t max_length) & {
+  ReadLineOptions& set_max_length(size_t max_length) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     max_length_ = max_length;
     return *this;
   }
-  ReadLineOptions&& set_max_length(size_t max_length) && {
+  ReadLineOptions&& set_max_length(size_t max_length) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_max_length(max_length));
   }
   size_t max_length() const { return max_length_; }

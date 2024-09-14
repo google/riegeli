@@ -224,9 +224,9 @@ class Writer : public Object {
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
   //   if `!ok()` then `start() == cursor() == limit() == nullptr`
-  char* start() const { return start_; }
-  char* cursor() const { return cursor_; }
-  char* limit() const { return limit_; }
+  char* start() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return start_; }
+  char* cursor() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return cursor_; }
+  char* limit() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return limit_; }
 
   // Increments the value of `cursor()`. Does not change `start()` nor
   // `limit()`. Call this during writing data under `cursor()` to indicate how
@@ -469,7 +469,7 @@ class Writer : public Object {
   // Returns `nullptr` on failure (`!ok()`).
   //
   // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
-  Reader* ReadMode(Position initial_pos);
+  Reader* ReadMode(Position initial_pos) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Support `absl::Format(&writer, format, args...)`.
   friend void AbslFormatFlush(Writer* dest, absl::string_view src) {
@@ -1062,7 +1062,8 @@ inline bool Writer::Truncate(Position new_size) {
   return TruncateImpl(new_size);
 }
 
-inline Reader* Writer::ReadMode(Position initial_pos) {
+inline Reader* Writer::ReadMode(Position initial_pos)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   AssertInitialized(start(), start_to_cursor());
   return ReadModeImpl(initial_pos);
 }

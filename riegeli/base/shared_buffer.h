@@ -71,10 +71,10 @@ class SharedBuffer {
   // Returns the mutable data pointer.
   //
   // Precondition: `IsUnique()`.
-  char* mutable_data() const;
+  char* mutable_data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the const data pointer.
-  const char* data() const;
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const;
@@ -129,14 +129,14 @@ inline void SharedBuffer::Reset(size_t min_capacity) {
   }
 }
 
-inline char* SharedBuffer::mutable_data() const {
+inline char* SharedBuffer::mutable_data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(IsUnique())
       << "Failed precondition of SharedBuffer::mutable_data(): "
          "ownership is shared";
   return buffer_->data();
 }
 
-inline const char* SharedBuffer::data() const {
+inline const char* SharedBuffer::data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (buffer_ == nullptr) return nullptr;
   return buffer_->data();
 }

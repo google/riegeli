@@ -53,7 +53,7 @@ class TemporaryStorage {
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T& emplace(Args&&... args) & {
+      T& emplace(Args&&... args) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(!initialized_)
         << "Failed precondition of TemporaryStorage::emplace(): "
            "already initialized";
@@ -64,29 +64,29 @@ class TemporaryStorage {
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T&& emplace(Args&&... args) && {
+      T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(emplace(std::forward<Args>(args)...));
   }
 
-  T& operator*() & {
+  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(initialized_)
         << "Failed precondition of TemporaryStorage::operator*: "
            "not initialized";
     return value_;
   }
-  const T& operator*() const& {
+  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(initialized_)
         << "Failed precondition of TemporaryStorage::operator*: "
            "not initialized";
     return value_;
   }
-  T&& operator*() && {
+  T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(initialized_)
         << "Failed precondition of TemporaryStorage::operator*: "
            "not initialized";
     return std::move(value_);
   }
-  const T&& operator*() const&& {
+  const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(initialized_)
         << "Failed precondition of TemporaryStorage::operator*: "
            "not initialized";
@@ -118,21 +118,23 @@ class TemporaryStorage<
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T& emplace(Args&&... args) & {
+      T& emplace(Args&&... args) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     new (&value_) T(std::forward<Args>(args)...);
     return value_;
   }
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T&& emplace(Args&&... args) && {
+      T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(emplace(std::forward<Args>(args)...));
   }
 
-  T& operator*() & { return value_; }
-  const T& operator*() const& { return value_; }
-  T&& operator*() && { return std::move(value_); }
-  const T&& operator*() const&& { return std::move(value_); }
+  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
+  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
+  T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND { return std::move(value_); }
+  const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(value_);
+  }
 
  private:
   union {
@@ -159,21 +161,23 @@ class TemporaryStorage<
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T& emplace(Args&&... args) & {
+      T& emplace(Args&&... args) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     new (&value_) T(std::forward<Args>(args)...);
     return value_;
   }
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  T&& emplace(Args&&... args) && {
+      T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(emplace(std::forward<Args>(args)...));
   }
 
-  T& operator*() & { return value_; }
-  const T& operator*() const& { return value_; }
-  T&& operator*() && { return std::move(value_); }
-  const T&& operator*() const&& { return std::move(value_); }
+  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
+  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
+  T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND { return std::move(value_); }
+  const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(value_);
+  }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::remove_cv_t<T> value_;
@@ -190,20 +194,24 @@ class TemporaryStorage<T, std::enable_if_t<std::is_reference<T>::value>> {
 
   template <typename Arg,
             std::enable_if_t<std::is_convertible<Arg&&, T>::value, int> = 0>
-  T& emplace(Arg&& arg) & {
+      T& emplace(Arg&& arg) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     value_ = &arg;
     return *value_;
   }
   template <typename Arg,
             std::enable_if_t<std::is_convertible<Arg&&, T>::value, int> = 0>
-  T&& emplace(Arg&& arg) && {
+      T&& emplace(Arg&& arg) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::forward<T>(emplace(std::forward<Arg>(arg)));
   }
 
-  T& operator*() & { return *value_; }
-  const T& operator*() const& { return *value_; }
-  T&& operator*() && { return std::forward<T>(*value_); }
-  const T&& operator*() const&& { return std::forward<T>(*value_); }
+  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return *value_; }
+  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND { return *value_; }
+  T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::forward<T>(*value_);
+  }
+  const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::forward<T>(*value_);
+  }
 
  private:
   std::remove_reference_t<T>* value_;

@@ -42,7 +42,7 @@ namespace riegeli {
 class WrappingBackwardWriterBase : public BackwardWriter {
  public:
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
-  virtual BackwardWriter* DestWriter() const = 0;
+  virtual BackwardWriter* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsTruncate() override;
 
@@ -125,9 +125,13 @@ class WrappingBackwardWriter : public WrappingBackwardWriterBase {
 
   // Returns the object providing and possibly owning the original
   // `BackwardWriter`. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  BackwardWriter* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  BackwardWriter* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

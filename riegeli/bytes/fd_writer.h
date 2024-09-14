@@ -75,11 +75,13 @@ class FdWriterBase : public BufferedWriter {
     // Default: `O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC`
     // (on Windows: `_O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY |
     //               _O_NOINHERIT`).
-    Options& set_mode(int mode) & {
+    Options& set_mode(int mode) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = mode;
       return *this;
     }
-    Options&& set_mode(int mode) && { return std::move(set_mode(mode)); }
+    Options&& set_mode(int mode) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_mode(mode));
+    }
     int mode() const { return mode_; }
 
     // If `false`, the file will be created if it does not exist, or it will be
@@ -95,7 +97,7 @@ class FdWriterBase : public BufferedWriter {
     // `set_existing()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_existing(bool existing) & {
+    Options& set_existing(bool existing) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifndef _WIN32
       mode_ = (mode_ & ~(O_ACCMODE | O_CREAT | O_TRUNC | O_APPEND)) |
               (existing ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC);
@@ -106,7 +108,7 @@ class FdWriterBase : public BufferedWriter {
 #endif
       return *this;
     }
-    Options&& set_existing(bool existing) && {
+    Options&& set_existing(bool existing) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_existing(existing));
     }
     bool existing() const {
@@ -127,7 +129,7 @@ class FdWriterBase : public BufferedWriter {
     // `set_read()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_read(bool read) & {
+    Options& set_read(bool read) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifndef _WIN32
       mode_ = (mode_ & ~O_ACCMODE) | (read ? O_RDWR : O_WRONLY);
 #else
@@ -136,7 +138,9 @@ class FdWriterBase : public BufferedWriter {
 #endif
       return *this;
     }
-    Options&& set_read(bool read) && { return std::move(set_read(read)); }
+    Options&& set_read(bool read) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_read(read));
+    }
     bool read() const {
 #ifndef _WIN32
       return (mode_ & O_ACCMODE) == O_RDWR;
@@ -159,7 +163,7 @@ class FdWriterBase : public BufferedWriter {
     // `set_append()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifndef _WIN32
       mode_ = (mode_ & ~(O_TRUNC | O_APPEND)) | (append ? O_APPEND : O_TRUNC);
 #else
@@ -168,7 +172,7 @@ class FdWriterBase : public BufferedWriter {
 #endif
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const {
@@ -191,7 +195,7 @@ class FdWriterBase : public BufferedWriter {
     // `set_exclusive()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_exclusive(bool exclusive) & {
+    Options& set_exclusive(bool exclusive) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifndef _WIN32
       mode_ = (mode_ & ~O_EXCL) | (exclusive ? O_EXCL : 0);
 #else
@@ -199,7 +203,7 @@ class FdWriterBase : public BufferedWriter {
 #endif
       return *this;
     }
-    Options&& set_exclusive(bool exclusive) && {
+    Options&& set_exclusive(bool exclusive) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_exclusive(exclusive));
     }
     bool exclusive() const {
@@ -221,12 +225,13 @@ class FdWriterBase : public BufferedWriter {
     // `set_inheritable()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_inheritable(bool inheritable) & {
+    Options& set_inheritable(bool inheritable) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       mode_ = (mode_ & ~fd_internal::kCloseOnExec) |
               (inheritable ? 0 : fd_internal::kCloseOnExec);
       return *this;
     }
-    Options&& set_inheritable(bool inheritable) && {
+    Options&& set_inheritable(bool inheritable) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_inheritable(inheritable));
     }
     bool inheritable() const {
@@ -248,7 +253,8 @@ class FdWriterBase : public BufferedWriter {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) & {
+    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifdef _WIN32
       mode_ =
           (mode_ & ~(_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT)) |
@@ -256,7 +262,9 @@ class FdWriterBase : public BufferedWriter {
 #endif
       return *this;
     }
-    Options&& set_text(bool text) && { return std::move(set_text(text)); }
+    Options&& set_text(bool text) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_text(text));
+    }
     // No `text()` getter is provided. On Windows `mode()` can have unspecified
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
@@ -266,11 +274,13 @@ class FdWriterBase : public BufferedWriter {
     // effective permissions are modified by the process' umask.
     //
     // Default: `0666` (on Windows: `_S_IREAD | _S_IWRITE`).
-    Options& set_permissions(OwnedFd::Permissions permissions) & {
+    Options& set_permissions(OwnedFd::Permissions permissions) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       permissions_ = permissions;
       return *this;
     }
-    Options&& set_permissions(OwnedFd::Permissions permissions) && {
+    Options&& set_permissions(OwnedFd::Permissions permissions) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_permissions(permissions));
     }
     OwnedFd::Permissions permissions() const { return permissions_; }
@@ -287,11 +297,13 @@ class FdWriterBase : public BufferedWriter {
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -311,11 +323,13 @@ class FdWriterBase : public BufferedWriter {
     // `independent_pos()` must not be set.
     //
     // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) & {
+    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) && {
+    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
     absl::optional<Position> independent_pos() const {
@@ -335,17 +349,19 @@ class FdWriterBase : public BufferedWriter {
   };
 
   // Returns the `FdHandle` being written to. Unchanged by `Close()`.
-  virtual FdHandle DestFdHandle() const = 0;
+  virtual FdHandle DestFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the fd being written to. If the fd is owned then changed to -1 by
   // `Close()`, otherwise unchanged.
-  virtual int DestFd() const = 0;
+  virtual int DestFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   TypeId GetTypeId() const override;
 
   // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool SupportsRandomAccess() override;
   bool SupportsReadMode() override;
@@ -550,10 +566,14 @@ class FdWriter : public FdWriterBase {
 
   // Returns the object providing and possibly owning the fd being written to.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  FdHandle DestFdHandle() const override { return dest_.get(); }
-  int DestFd() const override { return *dest_; }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  FdHandle DestFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
+  int DestFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *dest_; }
 
  protected:
   void Done() override;

@@ -44,7 +44,7 @@ class Writer;
 class WrappingReaderBase : public Reader {
  public:
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool ToleratesReadingAhead() override;
   bool SupportsRandomAccess() override;
@@ -130,9 +130,13 @@ class WrappingReader : public WrappingReaderBase {
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

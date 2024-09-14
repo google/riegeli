@@ -64,15 +64,18 @@ class DecompressorOptions {
   //
   // Default: `RecyclingPoolOptions()`.
   DecompressorOptions& set_recycling_pool_options(
-      const RecyclingPoolOptions& recycling_pool_options) & {
+      const RecyclingPoolOptions& recycling_pool_options) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     recycling_pool_options_ = recycling_pool_options;
     return *this;
   }
   DecompressorOptions&& set_recycling_pool_options(
-      const RecyclingPoolOptions& recycling_pool_options) && {
+      const RecyclingPoolOptions& recycling_pool_options) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_recycling_pool_options(recycling_pool_options));
   }
-  const RecyclingPoolOptions& recycling_pool_options() const {
+  const RecyclingPoolOptions& recycling_pool_options() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return recycling_pool_options_;
   }
 
@@ -109,7 +112,7 @@ class Decompressor : public Object {
   // Returns the `Reader` from which uncompressed data should be read.
   //
   // Precondition: `ok()`
-  Reader& reader();
+  Reader& reader() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Verifies that the source ends at the current position (i.e. has no more
   // compressed data and has no data after the compressed stream), failing the
@@ -203,7 +206,7 @@ inline void Decompressor<Src>::Initialize(
 }
 
 template <typename Src>
-inline Reader& Decompressor<Src>::reader() {
+inline Reader& Decompressor<Src>::reader() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(ok()) << "Failed precondition of Decompressor::reader(): "
                        << status();
   return *decompressed_;

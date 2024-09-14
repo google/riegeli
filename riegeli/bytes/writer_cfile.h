@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
@@ -52,11 +53,13 @@ class WriterCFileOptions {
   // `FILE` buffer being full, hence this option.
   //
   // Default: `absl::nullopt`.
-  WriterCFileOptions& set_flush_type(absl::optional<FlushType> flush_type) & {
+  WriterCFileOptions& set_flush_type(absl::optional<FlushType> flush_type) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     flush_type_ = flush_type;
     return *this;
   }
-  WriterCFileOptions&& set_flush_type(absl::optional<FlushType> flush_type) && {
+  WriterCFileOptions&& set_flush_type(absl::optional<FlushType> flush_type) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_flush_type(flush_type));
   }
   absl::optional<FlushType> flush_type() const { return flush_type_; }

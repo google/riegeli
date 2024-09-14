@@ -203,7 +203,8 @@ class InitializerBase {
   //
   // `storage` must outlive usages of the returned reference.
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
+                    TemporaryStorage<T>()) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return methods()->reference(context(), std::move(storage));
   }
 
@@ -216,7 +217,8 @@ class InitializerBase {
   // `storage` must outlive usages of the returned reference.
   const T& ConstReference(TemporaryStorage<T>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
+                                  TemporaryStorage<T>()) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     T&& reference = methods()->const_reference(context(), std::move(storage));
     return reference;
   }
@@ -681,17 +683,24 @@ class InitializerReference {
   //
   // Unused `storage` parameter makes the signature compatible with
   // the non-reference specialization.
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
-                    TemporaryStorage<T>()) && {
+  T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     // `T` is a reference type here, so `T&&` is the same as `T`.
     return std::move(*this);
   }
-  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage =
-                              TemporaryStorage<T>()) && {
+  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(*this).Reference();
+  }
+  const T& ConstReference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     // `T` is a reference type here, but it can be an rvalue reference, in which
     // case `const T&` collapses to an lvalue reference.
     T reference = std::move(*this);
     return reference;
+  }
+  const T& ConstReference(
+      ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(*this).ConstReference();
   }
 
  private:

@@ -65,7 +65,8 @@ class RecyclingPoolOptions {
   //
   // Default: `kDefaultThreadShards` (16).
   static constexpr size_t kDefaultThreadShards = 16;
-  RecyclingPoolOptions& set_thread_shards(size_t thread_shards) & {
+  RecyclingPoolOptions& set_thread_shards(size_t thread_shards) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GT(thread_shards, 0u)
         << "Failed precondition of RecyclingPoolOptions::set_thread_shards(): "
            "zero thread shards";
@@ -73,7 +74,8 @@ class RecyclingPoolOptions {
         absl::bit_floor(SaturatingIntCast<uint32_t>(thread_shards));
     return *this;
   }
-  RecyclingPoolOptions&& set_thread_shards(size_t thread_shards) && {
+  RecyclingPoolOptions&& set_thread_shards(size_t thread_shards) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_thread_shards(thread_shards));
   }
   size_t thread_shards() const { return thread_shards_; }
@@ -84,11 +86,13 @@ class RecyclingPoolOptions {
   //
   // Default: `kDefaultMaxSize` (16).
   static constexpr size_t kDefaultMaxSize = 16;
-  RecyclingPoolOptions& set_max_size(size_t max_size) & {
+  RecyclingPoolOptions& set_max_size(size_t max_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     max_size_ = SaturatingIntCast<uint32_t>(max_size);
     return *this;
   }
-  RecyclingPoolOptions&& set_max_size(size_t max_size) && {
+  RecyclingPoolOptions&& set_max_size(size_t max_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_max_size(max_size));
   }
   size_t max_size() const { return max_size_; }
@@ -104,11 +108,13 @@ class RecyclingPoolOptions {
   //
   // Default: `kDefaultMaxAge` (`absl::Minutes(1)`).
   static constexpr absl::Duration kDefaultMaxAge = absl::Minutes(1);
-  RecyclingPoolOptions& set_max_age(absl::Duration max_age) & {
+  RecyclingPoolOptions& set_max_age(absl::Duration max_age) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     max_age_seconds_ = AgeToSeconds(max_age);
     return *this;
   }
-  RecyclingPoolOptions&& set_max_age(absl::Duration max_age) && {
+  RecyclingPoolOptions&& set_max_age(absl::Duration max_age) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_max_age(max_age));
   }
   absl::Duration max_age() const {
@@ -198,7 +204,8 @@ class RecyclingPool : public BackgroundCleanee {
   // ignored. It is called before returning an existing object.
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
   Handle Get(Factory&& factory,
-             Refurbisher&& refurbisher = DefaultRefurbisher());
+             Refurbisher&& refurbisher = DefaultRefurbisher())
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Deletes the object immediately, does not return it into the pool.
   //
@@ -306,7 +313,8 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   // ignored. It is called before returning an existing object.
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
   Handle Get(Key key, Factory&& factory,
-             Refurbisher&& refurbisher = DefaultRefurbisher());
+             Refurbisher&& refurbisher = DefaultRefurbisher())
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Deletes the object immediately, does not return it into the pool.
   //
@@ -547,7 +555,8 @@ void RecyclingPool<T, Deleter>::Clear() {
 template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
-    Factory&& factory, Refurbisher&& refurbisher) {
+    Factory&& factory,
+    Refurbisher&& refurbisher) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RawHandle returned = RawGet(std::forward<Factory>(factory),
                               std::forward<Refurbisher>(refurbisher));
   return Handle(returned.release(),
@@ -755,7 +764,8 @@ template <typename T, typename Key, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename KeyedRecyclingPool<T, Key, Deleter>::Handle
 KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
-                                         Refurbisher&& refurbisher) {
+                                         Refurbisher&& refurbisher)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RawHandle returned = RawGet(key, std::forward<Factory>(factory),
                               std::forward<Refurbisher>(refurbisher));
   return Handle(

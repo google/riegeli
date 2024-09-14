@@ -55,11 +55,11 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // If `true`, prepends to existing contents of the destination.
     //
     // Default: `false`.
-    Options& set_prepend(bool prepend) & {
+    Options& set_prepend(bool prepend) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       prepend_ = prepend;
       return *this;
     }
-    Options&& set_prepend(bool prepend) && {
+    Options&& set_prepend(bool prepend) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_prepend(prepend));
     }
     bool prepend() const { return prepend_; }
@@ -69,11 +69,13 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // This is used initially, while the destination is small.
     //
     // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_block_size(size_t min_block_size) & {
+    Options& set_min_block_size(size_t min_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_min_block_size(size_t min_block_size) && {
+    Options&& set_min_block_size(size_t min_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_min_block_size(min_block_size));
     }
     size_t min_block_size() const { return min_block_size_; }
@@ -85,7 +87,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // `ChainBackwardWriter`.
     //
     // Default: `kDefaultMaxBlockSize` (64K).
-    Options& set_max_block_size(size_t max_block_size) & {
+    Options& set_max_block_size(size_t max_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
              "ChainBackwardWriterBase::Options::set_max_block_size(): "
@@ -93,17 +96,19 @@ class ChainBackwardWriterBase : public BackwardWriter {
       max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_max_block_size(size_t max_block_size) && {
+    Options&& set_max_block_size(size_t max_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_block_size(max_block_size));
     }
     size_t max_block_size() const { return max_block_size_; }
 
     // A shortcut for `set_min_block_size(block_size)` with
     // `set_max_block_size(block_size)`.
-    Options& set_block_size(size_t block_size) & {
+    Options& set_block_size(size_t block_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_min_block_size(block_size).set_max_block_size(block_size);
     }
-    Options&& set_block_size(size_t block_size) && {
+    Options&& set_block_size(size_t block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_block_size(block_size));
     }
 
@@ -115,7 +120,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   };
 
   // Returns the `Chain` being written to. Unchanged by `Close()`.
-  virtual Chain* DestChain() const = 0;
+  virtual Chain* DestChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsTruncate() override { return true; }
 
@@ -209,9 +214,13 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
   // Returns the object providing and possibly owning the `Chain` being written
   // to.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Chain* DestChain() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Chain* DestChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  private:
   class Mover;

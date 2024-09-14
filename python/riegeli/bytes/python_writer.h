@@ -62,11 +62,11 @@ class PythonWriter : public BufferedWriter {
     // is `FlushType::kFromObject`.
     //
     // Default: `false`.
-    Options& set_owns_dest(bool owns_dest) & {
+    Options& set_owns_dest(bool owns_dest) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       owns_dest_ = owns_dest;
       return *this;
     }
-    Options&& set_owns_dest(bool owns_dest) && {
+    Options&& set_owns_dest(bool owns_dest) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_owns_dest(owns_dest));
     }
     bool owns_dest() const { return owns_dest_; }
@@ -81,11 +81,13 @@ class PythonWriter : public BufferedWriter {
     // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -105,9 +107,11 @@ class PythonWriter : public BufferedWriter {
   PythonWriter& operator=(PythonWriter&& that) noexcept;
 
   // Returns a borrowed reference to the stream being written to.
-  PyObject* dest() const { return dest_.get(); }
+  PyObject* dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.get(); }
 
-  const Exception& exception() const { return exception_; }
+  const Exception& exception() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return exception_;
+  }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
 

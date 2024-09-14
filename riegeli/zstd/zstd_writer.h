@@ -60,7 +60,8 @@ class ZstdWriterBase : public BufferedWriter {
         -(1 << 17);                                  // `ZSTD_minCLevel()`
     static constexpr int kMaxCompressionLevel = 22;  // `ZSTD_maxCLevel()`
     static constexpr int kDefaultCompressionLevel = 3;
-    Options& set_compression_level(int compression_level) & {
+    Options& set_compression_level(int compression_level) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZstdWriterBase::Options::set_compression_level(): "
@@ -72,7 +73,8 @@ class ZstdWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int compression_level) && {
+    Options&& set_compression_level(int compression_level) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_compression_level(compression_level));
     }
     int compression_level() const { return compression_level_; }
@@ -90,7 +92,8 @@ class ZstdWriterBase : public BufferedWriter {
     static constexpr int kMinWindowLog = 10;  // `ZSTD_WINDOWLOG_MIN`
     static constexpr int kMaxWindowLog =
         sizeof(size_t) == 4 ? 30 : 31;  // `ZSTD_WINDOWLOG_MAX`
-    Options& set_window_log(absl::optional<int> window_log) & {
+    Options& set_window_log(absl::optional<int> window_log) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (window_log != absl::nullopt) {
         RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
             << "Failed precondition of "
@@ -104,7 +107,8 @@ class ZstdWriterBase : public BufferedWriter {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(absl::optional<int> window_log) && {
+    Options&& set_window_log(absl::optional<int> window_log) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
     absl::optional<int> window_log() const { return window_log_; }
@@ -112,25 +116,33 @@ class ZstdWriterBase : public BufferedWriter {
     // Zstd dictionary. The same dictionary must be used for decompression.
     //
     // Default: `ZstdDictionary()`.
-    Options& set_dictionary(ZstdDictionary dictionary) & {
+    Options& set_dictionary(ZstdDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(ZstdDictionary dictionary) && {
+    Options&& set_dictionary(ZstdDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    ZstdDictionary& dictionary() { return dictionary_; }
-    const ZstdDictionary& dictionary() const { return dictionary_; }
+    ZstdDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const ZstdDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
     //
     // Default: `false`.
-    Options& set_store_checksum(bool store_checksum) & {
+    Options& set_store_checksum(bool store_checksum) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       store_checksum_ = store_checksum;
       return *this;
     }
-    Options&& set_store_checksum(bool store_checksum) && {
+    Options&& set_store_checksum(bool store_checksum) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_store_checksum(store_checksum));
     }
     bool store_checksum() const { return store_checksum_; }
@@ -142,11 +154,13 @@ class ZstdWriterBase : public BufferedWriter {
     // If the pledged size turns out to not match reality, compression fails.
     //
     // Default: `absl::nullopt`.
-    Options& set_pledged_size(absl::optional<Position> pledged_size) & {
+    Options& set_pledged_size(absl::optional<Position> pledged_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pledged_size_ = pledged_size;
       return *this;
     }
-    Options&& set_pledged_size(absl::optional<Position> pledged_size) && {
+    Options&& set_pledged_size(absl::optional<Position> pledged_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pledged_size(pledged_size));
     }
     absl::optional<Position> pledged_size() const { return pledged_size_; }
@@ -164,11 +178,13 @@ class ZstdWriterBase : public BufferedWriter {
     // This makes compression slightly faster, but increases memory usage.
     //
     // Default: `false`.
-    Options& set_reserve_max_size(bool reserve_max_size) & {
+    Options& set_reserve_max_size(bool reserve_max_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       reserve_max_size_ = reserve_max_size;
       return *this;
     }
-    Options&& set_reserve_max_size(bool reserve_max_size) && {
+    Options&& set_reserve_max_size(bool reserve_max_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_reserve_max_size(reserve_max_size));
     }
     bool reserve_max_size() const { return reserve_max_size_; }
@@ -192,15 +208,18 @@ class ZstdWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -215,7 +234,7 @@ class ZstdWriterBase : public BufferedWriter {
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsReadMode() override;
 
@@ -305,9 +324,13 @@ class ZstdWriter : public ZstdWriterBase {
 
   // Returns the object providing and possibly owning the compressed `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

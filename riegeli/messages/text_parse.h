@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -64,11 +65,11 @@ class TextParseOptions {
   // If `true`, merges to existing contents of the destination.
   //
   // Default: `false`.
-  TextParseOptions& set_merge(bool merge) & {
+  TextParseOptions& set_merge(bool merge) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     merge_ = merge;
     return *this;
   }
-  TextParseOptions&& set_merge(bool merge) && {
+  TextParseOptions&& set_merge(bool merge) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_merge(merge));
   }
   bool merge() const { return merge_; }
@@ -77,8 +78,13 @@ class TextParseOptions {
   //
   // The default `ErrorCollector` is set up such that errors are returned as
   // `absl::InvalidArgumengError()` instead of being logged.
-  google::protobuf::TextFormat::Parser& parser() { return parser_; }
-  const google::protobuf::TextFormat::Parser& parser() const { return parser_; }
+  google::protobuf::TextFormat::Parser& parser() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return parser_;
+  }
+  const google::protobuf::TextFormat::Parser& parser() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return parser_;
+  }
 
  private:
   // For `error_collector_`.

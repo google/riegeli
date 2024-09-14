@@ -51,11 +51,11 @@ class PositionShiftingReaderBase : public Reader {
     // The base position of the new `Reader`.
     //
     // Default: 0.
-    Options& set_base_pos(Position base_pos) & {
+    Options& set_base_pos(Position base_pos) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(Position base_pos) && {
+    Options&& set_base_pos(Position base_pos) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
     Position base_pos() const { return base_pos_; }
@@ -65,7 +65,7 @@ class PositionShiftingReaderBase : public Reader {
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the base position of the new `Reader`.
   Position base_pos() const { return base_pos_; }
@@ -173,9 +173,13 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

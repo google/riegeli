@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -41,11 +42,12 @@ class TextPrintOptions {
   // not having these fields.
   //
   // Default: `false`.
-  TextPrintOptions& set_partial(bool partial) & {
+  TextPrintOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  TextPrintOptions&& set_partial(bool partial) && {
+  TextPrintOptions&& set_partial(bool partial) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
   bool partial() const { return partial_; }
@@ -65,18 +67,22 @@ class TextPrintOptions {
   // for details.
   //
   // Default: `false`.
-  TextPrintOptions& set_header(bool header) & {
+  TextPrintOptions& set_header(bool header) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     header_ = header;
     return *this;
   }
-  TextPrintOptions&& set_header(bool header) && {
+  TextPrintOptions&& set_header(bool header) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_header(header));
   }
   bool header() const { return header_; }
 
   // Other text printing options.
-  google::protobuf::TextFormat::Printer& printer() { return printer_; }
-  const google::protobuf::TextFormat::Printer& printer() const {
+  google::protobuf::TextFormat::Printer& printer()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return printer_;
+  }
+  const google::protobuf::TextFormat::Printer& printer() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return printer_;
   }
 

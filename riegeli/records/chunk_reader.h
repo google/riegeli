@@ -37,7 +37,7 @@ namespace riegeli {
 class DefaultChunkReaderBase : public Object {
  public:
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -275,9 +275,13 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 
   // Returns the object providing and possibly owning the byte `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;
@@ -315,10 +319,16 @@ class DependencyImpl<
     chunk_reader_.Reset(std::move(manager));
   }
 
-  Manager& manager() { return chunk_reader_.src(); }
-  const Manager& manager() const { return chunk_reader_.src(); }
+  Manager& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return chunk_reader_.src();
+  }
+  const Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return chunk_reader_.src();
+  }
 
-  DefaultChunkReader<Manager>* get() const { return &chunk_reader_; }
+  DefaultChunkReader<Manager>* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &chunk_reader_;
+  }
 
   static constexpr bool kIsOwning = true;
 

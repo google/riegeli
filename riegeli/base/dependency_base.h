@@ -83,8 +83,10 @@ class DependencyBase {
     riegeli::Reset(manager_, std::move(manager));
   }
 
-  Manager& manager() { return manager_; }
-  const Manager& manager() const { return manager_; }
+  Manager& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND { return manager_; }
+  const Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return manager_;
+  }
 
   static constexpr bool kIsStable = false;
 
@@ -104,7 +106,9 @@ class DependencyBase {
 
   ~DependencyBase() = default;
 
-  Manager& mutable_manager() const { return manager_; }
+  Manager& mutable_manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return manager_;
+  }
 
  private:
   mutable Manager manager_;
@@ -120,7 +124,7 @@ class DependencyBase<Manager&> {
   explicit DependencyBase(Initializer<Manager&> manager) noexcept
       : manager_(std::move(manager)) {}
 
-  Manager& manager() const { return manager_; }
+  Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return manager_; }
 
   static constexpr bool kIsStable = true;
 
@@ -130,7 +134,9 @@ class DependencyBase<Manager&> {
 
   ~DependencyBase() = default;
 
-  Manager& mutable_manager() const { return manager_; }
+  Manager& mutable_manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return manager_;
+  }
 
  private:
   Manager& manager_;
@@ -146,7 +152,7 @@ class DependencyBase<Manager&&> {
   explicit DependencyBase(Initializer<Manager&&> manager) noexcept
       : manager_(std::move(manager)) {}
 
-  Manager& manager() const { return manager_; }
+  Manager& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return manager_; }
 
   static constexpr bool kIsStable = true;
 
@@ -156,7 +162,9 @@ class DependencyBase<Manager&&> {
 
   ~DependencyBase() = default;
 
-  Manager& mutable_manager() const { return manager_; }
+  Manager& mutable_manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return manager_;
+  }
 
  private:
   Manager&& manager_;

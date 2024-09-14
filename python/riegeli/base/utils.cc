@@ -30,6 +30,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -288,7 +289,7 @@ inline bool MemoryView::ReleaseInternal() {
   return release_result != nullptr;
 }
 
-bool StrOrBytes::FromPython(PyObject* object) {
+bool StrOrBytes::FromPython(PyObject* object ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   RIEGELI_ASSERT(data_.data() == nullptr)
       << "Failed precondition of StrOrBytes::FromPython(): "
          "called more than once";

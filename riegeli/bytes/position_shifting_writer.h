@@ -54,11 +54,11 @@ class PositionShiftingWriterBase : public Writer {
     // The base position of the new `Writer`.
     //
     // Default: 0.
-    Options& set_base_pos(Position base_pos) & {
+    Options& set_base_pos(Position base_pos) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(Position base_pos) && {
+    Options&& set_base_pos(Position base_pos) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
     Position base_pos() const { return base_pos_; }
@@ -175,9 +175,13 @@ class PositionShiftingWriter : public PositionShiftingWriterBase {
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

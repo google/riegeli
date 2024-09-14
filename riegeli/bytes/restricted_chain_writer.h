@@ -59,8 +59,8 @@ class RestrictedChainWriter : public Writer {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
   // Returns the `Chain` being written to. Unchanged by `Close()`.
-  Chain& dest() { return dest_; }
-  const Chain& dest() const { return dest_; }
+  Chain& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_; }
+  const Chain& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_; }
 
  protected:
   void Done() override;

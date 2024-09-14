@@ -42,11 +42,13 @@ class BufferOptions {
   //
   // Default: `kDefaultMinBufferSize` (4K).
   static constexpr size_t kDefaultMinBufferSize = size_t{4} << 10;
-  BufferOptions& set_min_buffer_size(size_t min_buffer_size) & {
+  BufferOptions& set_min_buffer_size(size_t min_buffer_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     min_buffer_size_ = UnsignedMin(min_buffer_size, uint32_t{1} << 31);
     return *this;
   }
-  BufferOptions&& set_min_buffer_size(size_t min_buffer_size) && {
+  BufferOptions&& set_min_buffer_size(size_t min_buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_min_buffer_size(min_buffer_size));
   }
   size_t min_buffer_size() const { return min_buffer_size_; }
@@ -59,24 +61,28 @@ class BufferOptions {
   //
   // Default: `kDefaultMaxBufferSize` (64K).
   static constexpr size_t kDefaultMaxBufferSize = size_t{64} << 10;
-  BufferOptions& set_max_buffer_size(size_t max_buffer_size) & {
+  BufferOptions& set_max_buffer_size(size_t max_buffer_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GT(max_buffer_size, 0u)
         << "Failed precondition of BufferOptions::set_max_buffer_size(): "
            "zero buffer size";
     max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
     return *this;
   }
-  BufferOptions&& set_max_buffer_size(size_t max_buffer_size) && {
+  BufferOptions&& set_max_buffer_size(size_t max_buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_max_buffer_size(max_buffer_size));
   }
   size_t max_buffer_size() const { return max_buffer_size_; }
 
   // A shortcut for `set_min_buffer_size(buffer_size)` with
   // `set_max_buffer_size(buffer_size)`.
-  BufferOptions& set_buffer_size(size_t buffer_size) & {
+  BufferOptions& set_buffer_size(size_t buffer_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return set_min_buffer_size(buffer_size).set_max_buffer_size(buffer_size);
   }
-  BufferOptions&& set_buffer_size(size_t buffer_size) && {
+  BufferOptions&& set_buffer_size(size_t buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_buffer_size(buffer_size));
   }
 
@@ -106,11 +112,13 @@ class BufferOptionsBase {
   // See `BufferOptions::set_min_buffer_size()`.
   static constexpr size_t kDefaultMinBufferSize =
       BufferOptions::kDefaultMinBufferSize;
-  Options& set_min_buffer_size(size_t min_buffer_size) & {
+  Options& set_min_buffer_size(size_t min_buffer_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     buffer_options_.set_min_buffer_size(min_buffer_size);
     return static_cast<Options&>(*this);
   }
-  Options&& set_min_buffer_size(size_t min_buffer_size) && {
+  Options&& set_min_buffer_size(size_t min_buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_min_buffer_size(min_buffer_size));
   }
   size_t min_buffer_size() const { return buffer_options_.min_buffer_size(); }
@@ -118,34 +126,43 @@ class BufferOptionsBase {
   // See `BufferOptions::set_max_buffer_size()`.
   static constexpr size_t kDefaultMaxBufferSize =
       BufferOptions::kDefaultMaxBufferSize;
-  Options& set_max_buffer_size(size_t max_buffer_size) & {
+  Options& set_max_buffer_size(size_t max_buffer_size) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     buffer_options_.set_max_buffer_size(max_buffer_size);
     return static_cast<Options&>(*this);
   }
-  Options&& set_max_buffer_size(size_t max_buffer_size) && {
+  Options&& set_max_buffer_size(size_t max_buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_max_buffer_size(max_buffer_size));
   }
   size_t max_buffer_size() const { return buffer_options_.max_buffer_size(); }
 
   // See `BufferOptions::set_buffer_size()`.
-  Options& set_buffer_size(size_t buffer_size) & {
+  Options& set_buffer_size(size_t buffer_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     buffer_options_.set_buffer_size(buffer_size);
     return static_cast<Options&>(*this);
   }
-  Options&& set_buffer_size(size_t buffer_size) && {
+  Options&& set_buffer_size(size_t buffer_size) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_buffer_size(buffer_size));
   }
 
   // Grouped options related to buffering.
-  Options& set_buffer_options(BufferOptions buffer_options) & {
+  Options& set_buffer_options(BufferOptions buffer_options) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     buffer_options_ = buffer_options;
     return static_cast<Options&>(*this);
   }
-  Options&& set_buffer_options(BufferOptions buffer_options) && {
+  Options&& set_buffer_options(BufferOptions buffer_options) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_buffer_options(buffer_options));
   }
-  BufferOptions& buffer_options() { return buffer_options_; }
-  const BufferOptions& buffer_options() const { return buffer_options_; }
+  BufferOptions& buffer_options() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return buffer_options_;
+  }
+  const BufferOptions& buffer_options() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return buffer_options_;
+  }
 
  protected:
   BufferOptionsBase(const BufferOptionsBase& that) = default;

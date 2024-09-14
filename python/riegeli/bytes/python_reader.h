@@ -67,11 +67,11 @@ class PythonReader : public BufferedReader {
     // If `true`, `PythonReader::Close()` closes the stream.
     //
     // Default: `false`.
-    Options& set_owns_src(bool owns_src) & {
+    Options& set_owns_src(bool owns_src) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       owns_src_ = owns_src;
       return *this;
     }
-    Options&& set_owns_src(bool owns_src) && {
+    Options&& set_owns_src(bool owns_src) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_owns_src(owns_src));
     }
     bool owns_src() const { return owns_src_; }
@@ -86,11 +86,13 @@ class PythonReader : public BufferedReader {
     // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -110,9 +112,11 @@ class PythonReader : public BufferedReader {
   PythonReader& operator=(PythonReader&& that) noexcept;
 
   // Returns a borrowed reference to the stream being read from.
-  PyObject* src() const { return src_.get(); }
+  PyObject* src() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.get(); }
 
-  const Exception& exception() const { return exception_; }
+  const Exception& exception() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return exception_;
+  }
 
   bool ToleratesReadingAhead() override {
     return BufferedReader::ToleratesReadingAhead() ||

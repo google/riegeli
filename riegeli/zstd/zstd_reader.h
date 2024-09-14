@@ -50,11 +50,13 @@ class ZstdReaderBase : public BufferedReader {
     // performance penalty.
     //
     // Default: `false`.
-    Options& set_growing_source(bool growing_source) & {
+    Options& set_growing_source(bool growing_source) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       growing_source_ = growing_source;
       return *this;
     }
-    Options&& set_growing_source(bool growing_source) && {
+    Options&& set_growing_source(bool growing_source) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
@@ -64,15 +66,21 @@ class ZstdReaderBase : public BufferedReader {
     // if no dictionary was used for compression.
     //
     // Default: `ZstdDictionary()`.
-    Options& set_dictionary(ZstdDictionary dictionary) & {
+    Options& set_dictionary(ZstdDictionary dictionary) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(ZstdDictionary dictionary) && {
+    Options&& set_dictionary(ZstdDictionary dictionary) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    ZstdDictionary& dictionary() { return dictionary_; }
-    const ZstdDictionary& dictionary() const { return dictionary_; }
+    ZstdDictionary& dictionary() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
+    const ZstdDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return dictionary_;
+    }
 
     // Options for a global `RecyclingPool` of decompression contexts.
     //
@@ -81,15 +89,18 @@ class ZstdReaderBase : public BufferedReader {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -100,7 +111,7 @@ class ZstdReaderBase : public BufferedReader {
   };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
@@ -196,9 +207,13 @@ class ZstdReader : public ZstdReaderBase {
 
   // Returns the object providing and possibly owning the compressed `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

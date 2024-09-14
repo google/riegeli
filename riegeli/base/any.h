@@ -65,20 +65,23 @@ class
 
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.
-  Handle get() const { return methods_and_handle_.handle; }
+  Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return methods_and_handle_.handle;
+  }
 
   // If `Handle` is `Base*`, `AnyBase<Base*>` can be used as a smart pointer to
   // `Base`, for convenience.
   template <typename DependentHandle = Handle,
             std::enable_if_t<HasDereference<DependentHandle>::value, int> = 0>
-  decltype(*std::declval<DependentHandle>()) operator*() const {
+  decltype(*std::declval<DependentHandle>()) operator*() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     AssertNotNull("Failed precondition of AnyBase::operator*: null handle");
     return *get();
   }
 
   template <typename DependentHandle = Handle,
             std::enable_if_t<HasArrow<DependentHandle>::value, int> = 0>
-  Handle operator->() const {
+  Handle operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     AssertNotNull("Failed precondition of AnyBase::operator->: null handle");
     return get();
   }
@@ -107,15 +110,15 @@ class
   template <
       typename Manager,
       std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  Manager* GetIf();
+  Manager* GetIf() ABSL_ATTRIBUTE_LIFETIME_BOUND;
   template <
       typename Manager,
       std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
-  const Manager* GetIf() const;
+  const Manager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // A variant of `GetIf()` with the expected type passed as a `TypeId`.
-  void* GetIf(TypeId type_id);
-  const void* GetIf(TypeId type_id) const;
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Support `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const AnyBase* self,
@@ -292,8 +295,10 @@ class DependencyManagerImpl<Any<Handle, inline_size, inline_align>,
       DependencyManagerImpl::DependencyBase::kIsStable ||
       Any<Handle, inline_size, inline_align>::kIsStable;
 
-  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
-  const void* GetIf(TypeId type_id) const {
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager().GetIf(type_id);
+  }
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return this->manager().GetIf(type_id);
   }
 
@@ -303,7 +308,9 @@ class DependencyManagerImpl<Any<Handle, inline_size, inline_align>,
 
   ~DependencyManagerImpl() = default;
 
-  Handle ptr() const { return this->manager().get(); }
+  Handle ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager().get();
+  }
 };
 
 // Specialization of
@@ -329,11 +336,11 @@ class DependencyManagerImpl<
 
   static constexpr bool kIsStable = true;
 
-  void* GetIf(TypeId type_id) {
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
-  const void* GetIf(TypeId type_id) const {
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
@@ -344,7 +351,9 @@ class DependencyManagerImpl<
 
   ~DependencyManagerImpl() = default;
 
-  Handle ptr() const { return this->manager()->get(); }
+  Handle ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager()->get();
+  }
 };
 
 // `AnyRef<Handle>` refers to an optionally owned object which is accessed as
@@ -405,8 +414,10 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
       DependencyManagerImpl::DependencyBase::kIsStable ||
       AnyRef<Handle>::kIsStable;
 
-  void* GetIf(TypeId type_id) { return this->manager().GetIf(type_id); }
-  const void* GetIf(TypeId type_id) const {
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager().GetIf(type_id);
+  }
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return this->manager().GetIf(type_id);
   }
 
@@ -416,7 +427,9 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
 
   ~DependencyManagerImpl() = default;
 
-  Handle ptr() const { return this->manager().get(); }
+  Handle ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager().get();
+  }
 };
 
 // Specialization of
@@ -439,11 +452,11 @@ class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>,
 
   static constexpr bool kIsStable = true;
 
-  void* GetIf(TypeId type_id) {
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
-  const void* GetIf(TypeId type_id) const {
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (this->manager() == nullptr) return nullptr;
     return this->manager()->GetIf(type_id);
   }
@@ -454,7 +467,9 @@ class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>,
 
   ~DependencyManagerImpl() = default;
 
-  Handle ptr() const { return this->manager()->get(); }
+  Handle ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->manager()->get();
+  }
 };
 
 // Implementation details follow.
@@ -615,26 +630,28 @@ inline void AnyBase<Handle, inline_size, inline_align>::Reset() {
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
-inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() {
+inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return static_cast<Manager*>(GetIf(TypeId::For<Manager>()));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
           std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
-inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
-    const {
+inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return static_cast<const Manager*>(GetIf(TypeId::For<Manager>()));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-inline void* AnyBase<Handle, inline_size, inline_align>::GetIf(TypeId type_id) {
+inline void* AnyBase<Handle, inline_size, inline_align>::GetIf(TypeId type_id)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return methods_and_handle_.methods->mutable_get_if(repr_.storage, type_id);
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline const void* AnyBase<Handle, inline_size, inline_align>::GetIf(
-    TypeId type_id) const {
+    TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return methods_and_handle_.methods->const_get_if(repr_.storage, type_id);
 }
 

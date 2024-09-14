@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/shared_ptr.h"
@@ -50,22 +51,29 @@ class ZlibDictionary {
   ZlibDictionary& operator=(ZlibDictionary&& that) = default;
 
   // Resets the `ZlibDictionary` to the empty state.
-  ZlibDictionary& Reset() &;
-  ZlibDictionary&& Reset() && { return std::move(Reset()); }
+  ZlibDictionary& Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  ZlibDictionary&& Reset() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(Reset());
+  }
 
   // Sets a dictionary (data which should contain sequences that are commonly
   // seen in the data being compressed).
-  ZlibDictionary& set_data(Initializer<std::string>::AllowingExplicit data) &;
-  ZlibDictionary&& set_data(
-      Initializer<std::string>::AllowingExplicit data) && {
+  ZlibDictionary& set_data(Initializer<std::string>::AllowingExplicit data) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  ZlibDictionary&& set_data(Initializer<std::string>::AllowingExplicit data) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data)));
   }
 
   // Like `set_data()`, but does not take ownership of `data`, which must not be
   // changed until the last `ZlibReader` and `ZlibWriter` using this dictionary
   // is closed or no longer used.
-  ZlibDictionary& set_data_unowned(absl::string_view data) &;
-  ZlibDictionary&& set_data_unowned(absl::string_view data) && {
+  ZlibDictionary& set_data_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  ZlibDictionary&& set_data_unowned(
+      absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data_unowned(data));
   }
 
@@ -73,7 +81,7 @@ class ZlibDictionary {
   bool empty() const { return data_.empty(); }
 
   // Returns the dictionary data.
-  absl::string_view data() const { return data_; }
+  absl::string_view data() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return data_; }
 
  private:
   SharedPtr<const std::string> owned_data_;
@@ -82,21 +90,23 @@ class ZlibDictionary {
 
 // Implementation details follow.
 
-inline ZlibDictionary& ZlibDictionary::Reset() & {
+inline ZlibDictionary& ZlibDictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   owned_data_.Reset();
   data_ = absl::string_view();
   return *this;
 }
 
 inline ZlibDictionary& ZlibDictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data) & {
+    Initializer<std::string>::AllowingExplicit data) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   owned_data_.Reset(std::move(data));
   data_ = owned_data_->data();
   return *this;
 }
 
 inline ZlibDictionary& ZlibDictionary::set_data_unowned(
-    absl::string_view data) & {
+    absl::string_view data ABSL_ATTRIBUTE_LIFETIME_BOUND) &
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   owned_data_.Reset();
   data_ = data;
   return *this;

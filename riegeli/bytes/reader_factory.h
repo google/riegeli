@@ -39,7 +39,7 @@ class ReaderFactoryBase : public Object {
   class Options : public BufferOptionsBase<Options> {};
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original position of the original `Reader`.
   Position pos() const { return initial_pos_; }
@@ -60,8 +60,11 @@ class ReaderFactoryBase : public Object {
   // Returns `nullptr` only if `!ok()` before `NewReader()` was called.
   //
   // `NewReader()` is const and thus may be called concurrently.
-  std::unique_ptr<Reader> NewReader(Position initial_pos) const;
-  std::unique_ptr<Reader> NewReader() const { return NewReader(pos()); }
+  std::unique_ptr<Reader> NewReader(Position initial_pos) const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  std::unique_ptr<Reader> NewReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return NewReader(pos());
+  }
 
  protected:
   using Object::Object;
@@ -133,9 +136,13 @@ class ReaderFactory : public ReaderFactoryBase {
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

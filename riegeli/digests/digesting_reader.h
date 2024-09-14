@@ -48,10 +48,11 @@ namespace riegeli {
 class DigestingReaderBase : public Reader {
  public:
   // Returns the `DigesterBaseHandle`. Unchanged by `Close()`.
-  virtual DigesterBaseHandle GetDigester() const = 0;
+  virtual DigesterBaseHandle GetDigester() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsSize() override;
   bool SupportsNewReader() override;
@@ -164,15 +165,26 @@ class DigestingReader : public DigestingReaderBase {
 
   // Returns the object providing and possibly owning the digester. Unchanged by
   // `Close()`.
-  Digester& digester() { return digester_.manager(); }
-  const Digester& digester() const { return digester_.manager(); }
-  DigesterBaseHandle GetDigester() const override { return digester_.get(); }
+  Digester& digester() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return digester_.manager();
+  }
+  const Digester& digester() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return digester_.manager();
+  }
+  DigesterBaseHandle GetDigester() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return digester_.get();
+  }
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;

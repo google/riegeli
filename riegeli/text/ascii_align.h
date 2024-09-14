@@ -50,11 +50,11 @@ class AlignOptions {
   // Minimum width.
   //
   // Default: 0.
-  AlignOptions& set_width(Position width) & {
+  AlignOptions& set_width(Position width) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     width_ = width;
     return *this;
   }
-  AlignOptions&& set_width(Position width) && {
+  AlignOptions&& set_width(Position width) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_width(width));
   }
   Position width() const { return width_; }
@@ -62,11 +62,13 @@ class AlignOptions {
   // The character to fill space before and/or after the value with.
   //
   // Default: ' '.
-  AlignOptions& set_fill(char fill) & {
+  AlignOptions& set_fill(char fill) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     fill_ = fill;
     return *this;
   }
-  AlignOptions&& set_fill(char fill) && { return std::move(set_fill(fill)); }
+  AlignOptions&& set_fill(char fill) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(set_fill(fill));
+  }
   char fill() const { return fill_; }
 
  private:

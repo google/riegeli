@@ -60,11 +60,11 @@ class ChainWriterBase : public Writer {
     // If `true`, appends to existing contents of the destination.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       append_ = append;
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return append_; }
@@ -74,11 +74,13 @@ class ChainWriterBase : public Writer {
     // This is used initially, while the destination is small.
     //
     // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_block_size(size_t min_block_size) & {
+    Options& set_min_block_size(size_t min_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_min_block_size(size_t min_block_size) && {
+    Options&& set_min_block_size(size_t min_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_min_block_size(min_block_size));
     }
     size_t min_block_size() const { return min_block_size_; }
@@ -89,7 +91,8 @@ class ChainWriterBase : public Writer {
     // objects allocated separately and then written to this `ChainWriter`.
     //
     // Default: `kDefaultMaxBlockSize` (64K).
-    Options& set_max_block_size(size_t max_block_size) & {
+    Options& set_max_block_size(size_t max_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
              "ChainWriterBase::Options::set_max_block_size(): "
@@ -97,17 +100,19 @@ class ChainWriterBase : public Writer {
       max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_max_block_size(size_t max_block_size) && {
+    Options&& set_max_block_size(size_t max_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_block_size(max_block_size));
     }
     size_t max_block_size() const { return max_block_size_; }
 
     // A shortcut for `set_min_block_size(block_size)` with
     // `set_max_block_size(block_size)`.
-    Options& set_block_size(size_t block_size) & {
+    Options& set_block_size(size_t block_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_min_block_size(block_size).set_max_block_size(block_size);
     }
-    Options&& set_block_size(size_t block_size) && {
+    Options&& set_block_size(size_t block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_block_size(block_size));
     }
 
@@ -119,8 +124,8 @@ class ChainWriterBase : public Writer {
   };
 
   // Returns the `Chain` being written to. Unchanged by `Close()`.
-  virtual Chain* DestChain() const = 0;
-  Chain& Digest() {
+  virtual Chain* DestChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  Chain& Digest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Flush();
     return *DestChain();
   }
@@ -267,9 +272,13 @@ class ChainWriter : public ChainWriterBase {
 
   // Returns the object providing and possibly owning the `Chain` being written
   // to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Chain* DestChain() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Chain* DestChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  private:
   class Mover;

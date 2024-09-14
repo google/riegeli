@@ -69,11 +69,11 @@ class FileWriterBase : public Writer {
     // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
     //
     // Default: `nullptr`.
-    Options& set_env(::tensorflow::Env* env) & {
+    Options& set_env(::tensorflow::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       env_ = env;
       return *this;
     }
-    Options&& set_env(::tensorflow::Env* env) && {
+    Options&& set_env(::tensorflow::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_env(env));
     }
     ::tensorflow::Env* env() const { return env_; }
@@ -87,11 +87,11 @@ class FileWriterBase : public Writer {
     // If `FileWriter` writes to an already open file, `append()` has no effect.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       append_ = append;
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return append_; }
@@ -103,11 +103,14 @@ class FileWriterBase : public Writer {
 
   // Returns the `::tensorflow::WritableFile` being written to. Unchanged by
   // `Close()`.
-  virtual ::tensorflow::WritableFile* DestFile() const = 0;
+  virtual ::tensorflow::WritableFile* DestFile() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the name of the `::tensorflow::WritableFile` being written to.
   // Unchanged by `Close()`.
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   bool SupportsReadMode() override { return !filename_.empty(); }
 
@@ -223,9 +226,14 @@ class FileWriter : public FileWriterBase {
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  ::tensorflow::WritableFile* DestFile() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  ::tensorflow::WritableFile* DestFile() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

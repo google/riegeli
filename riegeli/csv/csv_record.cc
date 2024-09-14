@@ -252,7 +252,8 @@ absl::Status CsvHeader::TryAdd(
   return absl::OkStatus();
 }
 
-CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
+CsvHeader::iterator CsvHeader::find(absl::string_view name) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
   const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
       payload_->normalizer == nullptr
@@ -368,7 +369,8 @@ void CsvRecord::Clear() {
   for (std::string& value : fields_) value.clear();
 }
 
-std::string& CsvRecord::operator[](absl::string_view name) {
+std::string& CsvRecord::operator[](absl::string_view name)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[]: missing field name: "
@@ -376,7 +378,8 @@ std::string& CsvRecord::operator[](absl::string_view name) {
   return fields_[name_iter - header_.begin()];
 }
 
-const std::string& CsvRecord::operator[](absl::string_view name) const {
+const std::string& CsvRecord::operator[](absl::string_view name) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[]: missing field name: "
@@ -384,7 +387,8 @@ const std::string& CsvRecord::operator[](absl::string_view name) const {
   return fields_[name_iter - header_.begin()];
 }
 
-CsvRecord::iterator CsvRecord::find(absl::string_view name) {
+CsvRecord::iterator CsvRecord::find(absl::string_view name)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "
@@ -392,7 +396,8 @@ CsvRecord::iterator CsvRecord::find(absl::string_view name) {
   return iterator(name_iter, fields_.begin() + (name_iter - header_.begin()));
 }
 
-CsvRecord::const_iterator CsvRecord::find(absl::string_view name) const {
+CsvRecord::const_iterator CsvRecord::find(absl::string_view name) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "

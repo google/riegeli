@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
@@ -44,11 +45,13 @@ class Compressor : public Object {
     // If the pledged size turns out to not match reality, compression may fail.
     //
     // Default: `absl::nullopt`.
-    TuningOptions& set_pledged_size(absl::optional<Position> pledged_size) & {
+    TuningOptions& set_pledged_size(absl::optional<Position> pledged_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pledged_size_ = pledged_size;
       return *this;
     }
-    TuningOptions&& set_pledged_size(absl::optional<Position> pledged_size) && {
+    TuningOptions&& set_pledged_size(absl::optional<Position> pledged_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pledged_size(pledged_size));
     }
     absl::optional<Position> pledged_size() const { return pledged_size_; }
@@ -61,11 +64,13 @@ class Compressor : public Object {
     // `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
     //
     // Default: `absl::nullopt`.
-    TuningOptions& set_size_hint(absl::optional<Position> size_hint) & {
+    TuningOptions& set_size_hint(absl::optional<Position> size_hint) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       size_hint_ = size_hint;
       return *this;
     }
-    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) && {
+    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
     absl::optional<Position> size_hint() const { return size_hint_; }
@@ -77,15 +82,18 @@ class Compressor : public Object {
     //
     // Default: `RecyclingPoolOptions()`.
     TuningOptions& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     TuningOptions&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 
@@ -116,7 +124,7 @@ class Compressor : public Object {
   // Returns the `Writer` to which uncompressed data should be written.
   //
   // Precondition: `ok()`
-  Writer& writer();
+  Writer& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Writes compressed data to `dest`. Closes the `Compressor` on success.
   //
@@ -145,7 +153,7 @@ class Compressor : public Object {
 
 // Implementation details follow.
 
-inline Writer& Compressor::writer() {
+inline Writer& Compressor::writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(ok()) << "Failed precondition of Compressor::writer(): "
                        << status();
   return *writer_;

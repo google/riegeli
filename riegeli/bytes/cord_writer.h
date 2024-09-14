@@ -61,11 +61,11 @@ class CordWriterBase : public Writer {
     // If `true`, appends to existing contents of the destination.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       append_ = append;
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return append_; }
@@ -75,11 +75,13 @@ class CordWriterBase : public Writer {
     // This is used initially, while the destination is small.
     //
     // Default: `kDefaultMinBlockSize` (256).
-    Options& set_min_block_size(size_t min_block_size) & {
+    Options& set_min_block_size(size_t min_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_min_block_size(size_t min_block_size) && {
+    Options&& set_min_block_size(size_t min_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_min_block_size(min_block_size));
     }
     size_t min_block_size() const { return min_block_size_; }
@@ -90,7 +92,8 @@ class CordWriterBase : public Writer {
     // objects allocated separately and then written to this `CordWriter`.
     //
     // Default: `kDefaultMaxBlockSize - 13` (65523).
-    Options& set_max_block_size(size_t max_block_size) & {
+    Options& set_max_block_size(size_t max_block_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "
              "CordWriterBase::Options::set_max_block_size(): "
@@ -98,17 +101,19 @@ class CordWriterBase : public Writer {
       max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
       return *this;
     }
-    Options&& set_max_block_size(size_t max_block_size) && {
+    Options&& set_max_block_size(size_t max_block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_block_size(max_block_size));
     }
     size_t max_block_size() const { return max_block_size_; }
 
     // A shortcut for `set_min_block_size(block_size)` with
     // `set_max_block_size(block_size)`.
-    Options& set_block_size(size_t block_size) & {
+    Options& set_block_size(size_t block_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_min_block_size(block_size).set_max_block_size(block_size);
     }
-    Options&& set_block_size(size_t block_size) && {
+    Options&& set_block_size(size_t block_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_block_size(block_size));
     }
 
@@ -121,8 +126,8 @@ class CordWriterBase : public Writer {
   };
 
   // Returns the `absl::Cord` being written to. Unchanged by `Close()`.
-  virtual absl::Cord* DestCord() const = 0;
-  absl::Cord& Digest() {
+  virtual absl::Cord* DestCord() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  absl::Cord& Digest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Flush();
     return *DestCord();
   }
@@ -281,9 +286,13 @@ class CordWriter : public CordWriterBase {
 
   // Returns the object providing and possibly owning the `absl::Cord` being
   // written to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  absl::Cord* DestCord() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  absl::Cord* DestCord() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  private:
   // The object providing and possibly owning the `absl::Cord` being written to.

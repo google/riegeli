@@ -56,25 +56,32 @@ class ChunkDecoder : public Object {
     //
     // Default: `FieldProjection::All()`.
     Options& set_field_projection(
-        Initializer<FieldProjection> field_projection) & {
+        Initializer<FieldProjection> field_projection) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(field_projection_, std::move(field_projection));
       return *this;
     }
     Options&& set_field_projection(
-        Initializer<FieldProjection> field_projection) && {
+        Initializer<FieldProjection> field_projection) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_projection(std::move(field_projection)));
     }
     Options& set_field_projection(
-        std::initializer_list<Field> field_projection) & {
+        std::initializer_list<Field> field_projection) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       set_field_projection(Initializer<FieldProjection>(field_projection));
       return *this;
     }
     Options&& set_field_projection(
-        std::initializer_list<Field> field_projection) && {
+        std::initializer_list<Field> field_projection) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_projection(std::move(field_projection)));
     }
-    FieldProjection& field_projection() { return field_projection_; }
-    const FieldProjection& field_projection() const {
+    FieldProjection& field_projection() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return field_projection_;
+    }
+    const FieldProjection& field_projection() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return field_projection_;
     }
 
@@ -85,15 +92,18 @@ class ChunkDecoder : public Object {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) & {
+        const RecyclingPoolOptions& recycling_pool_options) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) && {
+        const RecyclingPoolOptions& recycling_pool_options) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
-    const RecyclingPoolOptions& recycling_pool_options() const {
+    const RecyclingPoolOptions& recycling_pool_options() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return recycling_pool_options_;
     }
 

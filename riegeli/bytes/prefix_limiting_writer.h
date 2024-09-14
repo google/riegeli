@@ -56,11 +56,13 @@ class PrefixLimitingWriterBase : public Writer {
     // `absl::nullopt` means the current position.
     //
     // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) & {
+    Options& set_base_pos(absl::optional<Position> base_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) && {
+    Options&& set_base_pos(absl::optional<Position> base_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
     absl::optional<Position> base_pos() const { return base_pos_; }
@@ -70,7 +72,7 @@ class PrefixLimitingWriterBase : public Writer {
   };
 
   // Returns the original `Writer`. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns the base position of the original `Writer`.
   Position base_pos() const { return base_pos_; }
@@ -172,9 +174,13 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

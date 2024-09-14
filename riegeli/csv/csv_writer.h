@@ -74,21 +74,30 @@ class CsvWriterBase : public Object {
     // `CsvReaderBase::Options::skip_empty_lines()`.
     //
     // Default: `absl::nullopt`.
-    Options& set_header(Initializer<absl::optional<CsvHeader>> header) & {
+    Options& set_header(Initializer<absl::optional<CsvHeader>> header) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(header_, std::move(header));
       return *this;
     }
-    Options&& set_header(Initializer<absl::optional<CsvHeader>> header) && {
+    Options&& set_header(Initializer<absl::optional<CsvHeader>> header) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(std::move(header)));
     }
-    Options& set_header(std::initializer_list<absl::string_view> names) & {
+    Options& set_header(std::initializer_list<absl::string_view> names) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_header(Initializer<absl::optional<CsvHeader>>(names));
     }
-    Options&& set_header(std::initializer_list<absl::string_view> names) && {
+    Options&& set_header(std::initializer_list<absl::string_view> names) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(names));
     }
-    absl::optional<CsvHeader>& header() { return header_; }
-    const absl::optional<CsvHeader>& header() const { return header_; }
+    absl::optional<CsvHeader>& header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return header_;
+    }
+    const absl::optional<CsvHeader>& header() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return header_;
+    }
 
     // If not `absl::nullopt`, a header is not written to the file, but
     // `WriteRecord(CsvRecord&)` is supported as if this header was written as
@@ -97,25 +106,31 @@ class CsvWriterBase : public Object {
     // `header()` and `assumed_header()` must not be both set.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) & {
+    Options& set_assumed_header(Initializer<absl::optional<CsvHeader>> header) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) && {
+        Initializer<absl::optional<CsvHeader>> header) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
-        std::initializer_list<absl::string_view> names) & {
+        std::initializer_list<absl::string_view> names) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
-        std::initializer_list<absl::string_view> names) && {
+        std::initializer_list<absl::string_view> names) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(names));
     }
-    absl::optional<CsvHeader>& assumed_header() { return assumed_header_; }
-    const absl::optional<CsvHeader>& assumed_header() const {
+    absl::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return assumed_header_;
+    }
+    const absl::optional<CsvHeader>& assumed_header() const
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
 
@@ -129,11 +144,13 @@ class CsvWriterBase : public Object {
     // By default `CsvReader` will understand files written with any option.
     //
     // Default: `false`.
-    Options& set_write_utf8_bom(bool write_utf8_bom) & {
+    Options& set_write_utf8_bom(bool write_utf8_bom) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       write_utf8_bom_ = write_utf8_bom;
       return *this;
     }
-    Options&& set_write_utf8_bom(bool write_utf8_bom) && {
+    Options&& set_write_utf8_bom(bool write_utf8_bom) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_write_utf8_bom(write_utf8_bom));
     }
     bool write_utf8_bom() const { return write_utf8_bom_; }
@@ -144,11 +161,12 @@ class CsvWriterBase : public Object {
     // `CsvReader` will understand files written with any option.
     //
     // Default: `WriteNewline::kNative`.
-    Options& set_newline(WriteNewline newline) & {
+    Options& set_newline(WriteNewline newline) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       newline_ = newline;
       return *this;
     }
-    Options&& set_newline(WriteNewline newline) && {
+    Options&& set_newline(WriteNewline newline) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_newline(newline));
     }
     WriteNewline newline() const { return newline_; }
@@ -161,11 +179,13 @@ class CsvWriterBase : public Object {
     // Often used: '#'.
     //
     // Default: `absl::nullopt`.
-    Options& set_comment(absl::optional<char> comment) & {
+    Options& set_comment(absl::optional<char> comment) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       comment_ = comment;
       return *this;
     }
-    Options&& set_comment(absl::optional<char> comment) && {
+    Options&& set_comment(absl::optional<char> comment) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_comment(comment));
     }
     absl::optional<char> comment() const { return comment_; }
@@ -173,11 +193,13 @@ class CsvWriterBase : public Object {
     // Field separator.
     //
     // Default: ','.
-    Options& set_field_separator(char field_separator) & {
+    Options& set_field_separator(char field_separator) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       field_separator_ = field_separator;
       return *this;
     }
-    Options&& set_field_separator(char field_separator) && {
+    Options&& set_field_separator(char field_separator) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_field_separator(field_separator));
     }
     char field_separator() const { return field_separator_; }
@@ -202,11 +224,13 @@ class CsvWriterBase : public Object {
     // `CsvReaderBase::Options::set_preserve_utf8_bom()`.
     //
     // Default: '"'.
-    Options& set_quote(absl::optional<char> quote) & {
+    Options& set_quote(absl::optional<char> quote) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       quote_ = quote;
       return *this;
     }
-    Options&& set_quote(absl::optional<char> quote) && {
+    Options&& set_quote(absl::optional<char> quote) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_quote(quote));
     }
     absl::optional<char> quote() const { return quote_; }
@@ -222,7 +246,7 @@ class CsvWriterBase : public Object {
   };
 
   // Returns the byte `Writer` being written to. Unchanged by `Close()`.
-  virtual Writer* DestWriter() const = 0;
+  virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if writing the header was requested, i.e. if
   // `Options::header() != absl::nullopt`.
@@ -236,7 +260,9 @@ class CsvWriterBase : public Object {
   // written to the first record.
   //
   // If `!has_header()`, returns an empty header.
-  const CsvHeader& header() const { return header_; }
+  const CsvHeader& header() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return header_;
+  }
 
   // Writes the next record expressed as `CsvRecord`, with named fields.
   //
@@ -405,9 +431,13 @@ class CsvWriter : public CsvWriterBase {
 
   // Returns the object providing and possibly owning the byte `Writer`.
   // Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  Writer* DestWriter() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   void Done() override;

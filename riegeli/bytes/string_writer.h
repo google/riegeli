@@ -58,11 +58,11 @@ class StringWriterBase : public Writer {
     // If `true`, appends to existing contents of the destination.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       append_ = append;
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return append_; }
@@ -72,8 +72,8 @@ class StringWriterBase : public Writer {
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
-  virtual std::string* DestString() const = 0;
-  std::string& Digest() {
+  virtual std::string* DestString() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  std::string& Digest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Flush();
     return *DestString();
   }
@@ -230,9 +230,13 @@ class StringWriter : public StringWriterBase {
 
   // Returns the object providing and possibly owning the `std::string` being
   // written to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  std::string* DestString() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  std::string* DestString() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  private:
   class Mover;

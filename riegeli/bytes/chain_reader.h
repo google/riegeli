@@ -42,7 +42,7 @@ class Writer;
 class ChainReaderBase : public PullableReader {
  public:
   // Returns the `Chain` being read from. Unchanged by `Close()`.
-  virtual const Chain* SrcChain() const = 0;
+  virtual const Chain* SrcChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -118,9 +118,13 @@ class ChainReader : public ChainReaderBase {
 
   // Returns the object providing and possibly owning the `Chain` being read
   // from. Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  const Chain* SrcChain() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  const Chain* SrcChain() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  private:
   class Mover;

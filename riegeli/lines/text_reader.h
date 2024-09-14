@@ -45,7 +45,7 @@ class TextReaderBase : public BufferedReader {
   using Options = BufferOptions;
 
   // Returns the original `Reader`. Unchanged by `Close()`.
-  virtual Reader* SrcReader() const = 0;
+  virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
@@ -153,9 +153,13 @@ class TextReader : public text_reader_internal::TextReaderImpl<newline> {
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  Reader* SrcReader() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  protected:
   void Done() override;
@@ -222,11 +226,13 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
   // Line terminator representation to translate from LF.
   //
   // Default: `ReadNewline::kNative`.
-  AnyTextReaderOptions& set_newline(ReadNewline newline) & {
+  AnyTextReaderOptions& set_newline(ReadNewline newline) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
     return *this;
   }
-  AnyTextReaderOptions&& set_newline(ReadNewline newline) && {
+  AnyTextReaderOptions&& set_newline(ReadNewline newline) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_newline(newline));
   }
   ReadNewline newline() const { return newline_; }

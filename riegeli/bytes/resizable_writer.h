@@ -61,11 +61,11 @@ class ResizableWriterBase : public Writer {
     // If `true`, appends to existing contents of the destination.
     //
     // Default: `false`.
-    Options& set_append(bool append) & {
+    Options& set_append(bool append) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       append_ = append;
       return *this;
     }
-    Options&& set_append(bool append) && {
+    Options&& set_append(bool append) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_append(append));
     }
     bool append() const { return append_; }
@@ -294,12 +294,16 @@ class ResizableWriter : public ResizableWriterBase {
 
   // Returns the object providing and possibly owning the `Resizable` being
   // written to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
 
   // Returns the `Resizable` being written to. Unchanged by `Close()`.
-  Resizable* DestResizable() const { return dest_.get(); }
-  Resizable& Digest() {
+  Resizable* DestResizable() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.get();
+  }
+  Resizable& Digest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Flush();
     return *DestResizable();
   }

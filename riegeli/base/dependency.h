@@ -238,7 +238,9 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
-  DependencyManagerPtr<Manager> get() const { return this->ptr(); }
+  DependencyManagerPtr<Manager> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->ptr();
+  }
 
  protected:
   DependencyImpl(const DependencyImpl& that) = default;
@@ -272,7 +274,7 @@ class DependencyImpl<
                                  absl::Span<std::remove_const_t<T>>,
                                  DependencyManagerRef<DependentManager>>::value,
                              int> = 0>
-  absl::Span<std::remove_const_t<T>> get() const {
+  absl::Span<std::remove_const_t<T>> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::Span<std::remove_const_t<T>>(*this->ptr());
   }
   template <typename DependentManager = Manager,
@@ -280,7 +282,7 @@ class DependencyImpl<
                                  absl::Span<std::remove_const_t<T>>,
                                  DependencyManagerRef<DependentManager>>::value,
                              int> = 0>
-  absl::Span<T> get() const {
+  absl::Span<T> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::Span<T>(*this->ptr());
   }
 
@@ -316,7 +318,9 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
-  DependencyManagerPtr<Manager> get() const { return this->ptr(); }
+  DependencyManagerPtr<Manager> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return this->ptr();
+  }
 
  protected:
   DependencyImpl(const DependencyImpl& that) = default;
@@ -340,7 +344,9 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
-  absl::string_view get() const { return riegeli::ToStringView(*this->ptr()); }
+  absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return riegeli::ToStringView(*this->ptr());
+  }
 
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
@@ -374,7 +380,7 @@ class DependencyImpl<
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
-  absl::string_view get() const {
+  absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     const absl::Span<const char> span = this->ptr();
     return absl::string_view(span.data(), span.size());
   }
@@ -462,7 +468,8 @@ class DependencyDefault<
                 std::is_convertible<DependencyManagerRef<DependentManager>*,
                                     Handle*>::value,
                 int> = 0>
-  DependencyManagerRef<DependentManager> get() const {
+  DependencyManagerRef<DependentManager> get() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return *this->ptr();
   }
   template <typename DependentManager = Manager,
@@ -470,7 +477,7 @@ class DependencyDefault<
                 !std::is_convertible<DependencyManagerRef<DependentManager>*,
                                      Handle*>::value,
                 int> = 0>
-  Handle get() const {
+  Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return Handle(*this->ptr());
   }
 
@@ -512,7 +519,8 @@ class DependencyDefault<
                 std::is_convertible<DependencyManagerPtr<DependentManager>*,
                                     Handle*>::value,
                 int> = 0>
-  DependencyManagerPtr<DependentManager> get() const {
+  DependencyManagerPtr<DependentManager> get() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return this->ptr();
   }
   template <typename DependentManager = Manager,
@@ -520,7 +528,7 @@ class DependencyDefault<
                 !std::is_convertible<DependencyManagerPtr<DependentManager>*,
                                      Handle*>::value,
                 int> = 0>
-  Handle get() const {
+  Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return Handle(this->ptr());
   }
 
@@ -731,7 +739,8 @@ class DependencyDerived
   template <
       typename DependentSubhandle = Subhandle,
       std::enable_if_t<HasDereference<DependentSubhandle>::value, int> = 0>
-  decltype(*std::declval<DependentSubhandle>()) operator*() const {
+  decltype(*std::declval<DependentSubhandle>()) operator*() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Subhandle handle = this->get();
     AssertNotNull(handle,
                   "Failed precondition of Dependency::operator*: null handle");
@@ -740,7 +749,7 @@ class DependencyDerived
 
   template <typename DependentSubhandle = Subhandle,
             std::enable_if_t<HasArrow<DependentSubhandle>::value, int> = 0>
-  Subhandle operator->() const {
+  Subhandle operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     Subhandle handle = this->get();
     AssertNotNull(handle,
                   "Failed precondition of Dependency::operator->: null handle");
@@ -772,18 +781,22 @@ class DependencyDerived
   template <typename OtherManager,
             std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
                              int> = 0>
-  OtherManager* GetIf() {
+  OtherManager* GetIf() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return GetIfImpl<OtherManager>();
   }
   template <typename OtherManager,
             std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
                              int> = 0>
-  const OtherManager* GetIf() const {
+  const OtherManager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return GetIfImpl<OtherManager>();
   }
 
-  void* GetIf(TypeId type_id) { return GetIfImpl(type_id); }
-  const void* GetIf(TypeId type_id) const { return GetIfImpl(type_id); }
+  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return GetIfImpl(type_id);
+  }
+  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return GetIfImpl(type_id);
+  }
 
  protected:
   DependencyDerived(const DependencyDerived& that) = default;

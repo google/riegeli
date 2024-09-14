@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
@@ -38,7 +39,8 @@ constexpr size_t BrotliDictionary::kMaxRawChunks;
 #endif
 
 const BrotliEncoderPreparedDictionary*
-BrotliDictionary::Chunk::PrepareCompressionDictionary() const {
+BrotliDictionary::Chunk::PrepareCompressionDictionary() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   absl::call_once(compression_once_, [&] {
     if (type_ == Type::kNative) {
       RIEGELI_ASSERT(compression_dictionary_ != nullptr)

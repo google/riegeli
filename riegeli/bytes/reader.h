@@ -125,9 +125,9 @@ class Reader : public Object {
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
   //   if `!is_open()` then `start() == cursor() == limit() == nullptr`
-  const char* start() const { return start_; }
-  const char* cursor() const { return cursor_; }
-  const char* limit() const { return limit_; }
+  const char* start() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return start_; }
+  const char* cursor() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return cursor_; }
+  const char* limit() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return limit_; }
 
   // Increments the value of `cursor()`. Does not change `start()` nor
   // `limit()`. Call this during reading data under `cursor()` to indicate how

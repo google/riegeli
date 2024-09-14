@@ -60,11 +60,12 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     //
     // Default: `kDefaultChunkSize` (16).
     static constexpr size_t kDefaultChunkSize = 16;
-    Options& set_chunk_size(size_t chunk_size) & {
+    Options& set_chunk_size(size_t chunk_size) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       chunk_size_ = chunk_size;
       return *this;
     }
-    Options&& set_chunk_size(size_t chunk_size) && {
+    Options&& set_chunk_size(size_t chunk_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_chunk_size(chunk_size));
     }
     size_t chunk_size() const { return chunk_size_; }
@@ -75,11 +76,11 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     // If the size hint turns out to not match reality, nothing breaks.
     //
     // Default: 0.
-    Options& set_size_hint(size_t size_hint) & {
+    Options& set_size_hint(size_t size_hint) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(size_t size_hint) && {
+    Options&& set_size_hint(size_t size_hint) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
     size_t size_hint() const { return size_hint_; }
@@ -110,11 +111,12 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     // parsing untrusted data.
     //
     // Default: `false`.
-    DecodeOptions& set_validate(bool validate) & {
+    DecodeOptions& set_validate(bool validate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       validate_ = validate;
       return *this;
     }
-    DecodeOptions&& set_validate(bool validate) && {
+    DecodeOptions&& set_validate(bool validate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_validate(validate));
     }
     bool validate() const { return validate_; }
@@ -123,11 +125,13 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     // be created. This can be used for parsing untrusted data.
     //
     // Default: `std::vector<LinearSortedStringSet>().max_size()`.
-    DecodeOptions& set_max_num_chunks(size_t max_num_chunks) & {
+    DecodeOptions& set_max_num_chunks(size_t max_num_chunks) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_num_chunks_ = max_num_chunks;
       return *this;
     }
-    DecodeOptions&& set_max_num_chunks(size_t max_num_chunks) && {
+    DecodeOptions&& set_max_num_chunks(size_t max_num_chunks) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_num_chunks(max_num_chunks));
     }
     size_t max_num_chunks() const { return max_num_chunks_; }
@@ -137,12 +141,13 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     // data.
     //
     // Default: `CompactString::max_size()`.
-    DecodeOptions& set_max_encoded_chunk_size(size_t max_encoded_chunk_size) & {
+    DecodeOptions& set_max_encoded_chunk_size(size_t max_encoded_chunk_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_encoded_chunk_size_ = max_encoded_chunk_size;
       return *this;
     }
-    DecodeOptions&& set_max_encoded_chunk_size(
-        size_t max_encoded_chunk_size) && {
+    DecodeOptions&& set_max_encoded_chunk_size(size_t max_encoded_chunk_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_encoded_chunk_size(max_encoded_chunk_size));
     }
     size_t max_encoded_chunk_size() const { return max_encoded_chunk_size_; }

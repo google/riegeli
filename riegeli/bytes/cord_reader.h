@@ -45,7 +45,7 @@ class Writer;
 class CordReaderBase : public PullableReader {
  public:
   // Returns the `absl::Cord` being read from. Unchanged by `Close()`.
-  virtual const absl::Cord* SrcCord() const = 0;
+  virtual const absl::Cord* SrcCord() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool ToleratesReadingAhead() override { return true; }
   bool SupportsRandomAccess() override { return true; }
@@ -144,9 +144,13 @@ class CordReader : public CordReaderBase {
 
   // Returns the object providing and possibly owning the `absl::Cord` being
   // read from. Unchanged by `Close()`.
-  Src& src() { return src_.manager(); }
-  const Src& src() const { return src_.manager(); }
-  const absl::Cord* SrcCord() const override { return src_.get(); }
+  Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
+  const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.manager();
+  }
+  const absl::Cord* SrcCord() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get();
+  }
 
  private:
   class Mover;

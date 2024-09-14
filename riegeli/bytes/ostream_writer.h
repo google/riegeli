@@ -63,11 +63,13 @@ class OStreamWriterBase : public BufferedWriter {
     // `std::ofstream` or `std::fstream` opened in text mode.
     //
     // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
@@ -78,11 +80,13 @@ class OStreamWriterBase : public BufferedWriter {
     // return `false`.
     //
     // Default: `false`.
-    Options& set_assumed_append(bool assumed_append) & {
+    Options& set_assumed_append(bool assumed_append) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_append_ = assumed_append;
       return *this;
     }
-    Options&& set_assumed_append(bool assumed_append) && {
+    Options&& set_assumed_append(bool assumed_append) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_append(assumed_append));
     }
     bool assumed_append() const { return assumed_append_; }
@@ -93,7 +97,7 @@ class OStreamWriterBase : public BufferedWriter {
   };
 
   // Returns the stream being written to. Unchanged by `Close()`.
-  virtual std::ostream* DestStream() const = 0;
+  virtual std::ostream* DestStream() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool SupportsRandomAccess() override;
   bool SupportsTruncate() override { return false; }
@@ -188,9 +192,13 @@ class OStreamWriter : public OStreamWriterBase {
 
   // Returns the object providing and possibly owning the stream being written
   // to. Unchanged by `Close()`.
-  Dest& dest() { return dest_.manager(); }
-  const Dest& dest() const { return dest_.manager(); }
-  std::ostream* DestStream() const override { return dest_.get(); }
+  Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
+  const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.manager();
+  }
+  std::ostream* DestStream() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get();
+  }
 
  protected:
   std::istream* SrcStream() const override;
