@@ -196,7 +196,7 @@ class WriterOStream : public WriterOStreamBase {
   // derives from `std::ios` which has these operations deleted.
   WriterOStream(WriterOStream&& that) noexcept
 #if __cpp_concepts
-    requires(std::is_move_constructible<Dependency<Writer*, Dest>>::value)
+    requires std::is_move_constructible<Dependency<Writer*, Dest>>::value
 #endif
       : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)),
         dest_(std::move(that.dest_), *this, that) {

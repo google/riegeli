@@ -171,7 +171,7 @@ class ReaderIStream : public ReaderIStreamBase {
   // derives from `std::ios` which has these operations deleted.
   ReaderIStream(ReaderIStream&& that) noexcept
 #if __cpp_concepts
-    requires(std::is_move_constructible<Dependency<Reader*, Src>>::value)
+    requires std::is_move_constructible<Dependency<Reader*, Src>>::value
 #endif
       : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)),
         src_(std::move(that.src_), *this, that) {
