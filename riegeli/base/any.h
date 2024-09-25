@@ -55,8 +55,6 @@ class
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
         AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
-                  public ConditionallyAbslNullabilityCompatible<
-                      IsComparableAgainstNullptr<Handle>::value>,
                   public ConditionallyTrivialAbi<inline_size == 0> {
  public:
   // Makes `*this` equivalent to a newly constructed `AnyBase`. This avoids
@@ -215,7 +213,11 @@ constexpr size_t AnyBase<Handle, inline_size, inline_align>::kAvailableAlign;
 // `Any<Handle>` holds a `Dependency<Handle, Manager>` for some `Manager` type,
 // erasing the `Manager` parameter from the type of the `Any`, or is empty.
 template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
-class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
  private:
   // Indirection through `InliningImpl` is needed for MSVC for some reason.
   template <typename... InlineManagers>
@@ -229,6 +231,8 @@ class Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
   };
 
  public:
+  using absl_nullability_compatible = void;
+
   // `Any<Handle>::Inlining<InlineManagers...>` enlarges inline storage of
   // `Any<Handle>`.
   //

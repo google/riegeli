@@ -167,10 +167,17 @@ class StableDependencyNoDefault
 // Specialization of `StableDependency<Handle, Manager>` when
 // `Dependency<Handle, Manager>` is already stable: delegate to it.
 template <typename Handle, typename Manager>
-class StableDependency<Handle, Manager,
-                       std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        StableDependency<
+            Handle, Manager,
+            std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
  public:
+  using absl_nullability_compatible = void;
+
   using StableDependency::Dependency::Dependency;
 
   StableDependency(StableDependency&& that) = default;

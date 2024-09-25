@@ -728,9 +728,7 @@ struct HasDynamicGetIf<
 template <typename Base, typename Handle, typename Manager>
 class DependencyDerived
     : public Base,
-      public WithEqual<DependencyDerived<Base, Handle, Manager>>,
-      public ConditionallyAbslNullabilityCompatible<
-          IsComparableAgainstNullptr<Handle>::value> {
+      public WithEqual<DependencyDerived<Base, Handle, Manager>> {
  public:
   using Base::Base;
 
@@ -928,10 +926,16 @@ class DependencyDerived
 }  // namespace dependency_internal
 
 template <typename Handle, typename Manager>
-class Dependency : public dependency_internal::DependencyDerived<
-                       dependency_internal::DependencyDeref<Handle, Manager>,
-                       Handle, Manager> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        Dependency : public dependency_internal::DependencyDerived<
+                         dependency_internal::DependencyDeref<Handle, Manager>,
+                         Handle, Manager> {
  public:
+  using absl_nullability_compatible = void;
+
   using Dependency::DependencyDerived::DependencyDerived;
 
   Dependency(const Dependency& that) = default;
