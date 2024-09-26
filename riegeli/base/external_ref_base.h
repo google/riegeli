@@ -1830,8 +1830,8 @@ class ExternalRef {
   // `storage` must outlive usages of the returned `ExternalRef`.
   template <
       typename Arg,
-      std::enable_if_t<SupportsExternalRefWhole<InitializerTargetT<Arg>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          SupportsExternalRefWhole<InitializerTargetRefT<Arg>>::value, int> = 0>
   explicit ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        StorageWhole<Arg&&>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1846,10 +1846,10 @@ class ExternalRef {
   // `substr` must be owned by the object if it gets created or moved.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
-  template <
-      typename Arg,
-      std::enable_if_t<
-          SupportsExternalRefSubstr<InitializerTargetT<Arg>>::value, int> = 0>
+  template <typename Arg,
+            std::enable_if_t<
+                SupportsExternalRefSubstr<InitializerTargetRefT<Arg>>::value,
+                int> = 0>
   explicit ExternalRef(
       Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
       StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1866,8 +1866,8 @@ class ExternalRef {
   // responsible for using an appropriate type of the external object.
   template <
       typename Arg,
-      std::enable_if_t<
-          SupportsToStringView<const InitializerTargetT<Arg>>::value, int> = 0>
+      std::enable_if_t<SupportsToStringView<InitializerTargetRefT<Arg>>::value,
+                       int> = 0>
   static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           StorageWhole<Arg&&>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND =

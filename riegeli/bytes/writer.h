@@ -910,7 +910,7 @@ inline bool Writer::Write(ExternalRef src) {
 template <typename Src,
           std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
 inline bool Writer::Write(Src&& src) {
-  return Write(ExternalRef(src));
+  return Write(ExternalRef(std::forward<Src>(src)));
 }
 
 inline bool Writer::Write(ByteFill src) {
