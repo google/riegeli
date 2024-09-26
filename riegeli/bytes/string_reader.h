@@ -109,7 +109,8 @@ class StringReader : public StringReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<
                 std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
-  explicit StringReader(const char* src, size_t size);
+  explicit StringReader(const char* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                        size_t size);
 
   StringReader(StringReader&& that) = default;
   StringReader& operator=(StringReader&& that) = default;
@@ -221,7 +222,8 @@ template <typename Src>
 template <
     typename DependentSrc,
     std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
-inline StringReader<Src>::StringReader(const char* src, size_t size)
+inline StringReader<Src>::StringReader(
+    const char* src ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t size)
     : StringReader(absl::string_view(src, size)) {}
 
 template <typename Src>

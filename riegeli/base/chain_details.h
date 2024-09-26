@@ -195,7 +195,8 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
 
   BlockIterator() = default;
 
-  explicit BlockIterator(const Chain* chain, size_t block_index);
+  explicit BlockIterator(const Chain* chain ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                         size_t block_index);
 
   BlockIterator(const BlockIterator& that) = default;
   BlockIterator& operator=(const BlockIterator& that) = default;
@@ -768,8 +769,8 @@ inline const T* Chain::BlockRef::external_object() const {
   }
 }
 
-inline Chain::BlockIterator::BlockIterator(const Chain* chain,
-                                           size_t block_index)
+inline Chain::BlockIterator::BlockIterator(
+    const Chain* chain ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t block_index)
     : chain_(chain),
       ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
             : chain_->begin_ == chain_->end_

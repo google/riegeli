@@ -384,7 +384,9 @@ class ScopedLimiter {
   // would require an unusual behavior of failing when the limit is exceeded.
   // That behavior would not be useful in practice because reading would never
   // end cleanly.
-  explicit ScopedLimiter(LimitingReaderBase* reader, Options options);
+  explicit ScopedLimiter(LimitingReaderBase* reader
+                             ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                         Options options);
 
   ScopedLimiter(const ScopedLimiter&) = delete;
   ScopedLimiter& operator=(const ScopedLimiter&) = delete;
@@ -584,7 +586,8 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-inline ScopedLimiter::ScopedLimiter(LimitingReaderBase* reader, Options options)
+inline ScopedLimiter::ScopedLimiter(
+    LimitingReaderBase* reader ABSL_ATTRIBUTE_LIFETIME_BOUND, Options options)
     : reader_(RIEGELI_ASSERT_NOTNULL(reader)),
       old_max_pos_(reader_->max_pos()),
       old_exact_(reader_->exact()),

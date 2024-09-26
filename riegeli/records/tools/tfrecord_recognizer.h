@@ -1,3 +1,4 @@
+#include "absl/base/attributes.h"
 // Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +25,8 @@ namespace riegeli {
 
 class TFRecordRecognizer : public Object {
  public:
-  explicit TFRecordRecognizer(Reader* byte_reader);
+  explicit TFRecordRecognizer(
+      Reader* byte_reader ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   // Ensures that the file looks like a valid TFRecord file.
   //
@@ -43,7 +45,8 @@ class TFRecordRecognizer : public Object {
 
 // Implementation details follow.
 
-inline TFRecordRecognizer::TFRecordRecognizer(Reader* byte_reader)
+inline TFRecordRecognizer::TFRecordRecognizer(
+    Reader* byte_reader ABSL_ATTRIBUTE_LIFETIME_BOUND)
     : byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)) {}
 
 }  // namespace riegeli

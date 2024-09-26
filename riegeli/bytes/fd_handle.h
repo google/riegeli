@@ -57,7 +57,7 @@ class
   OwnedFd() = default;
 
   // Creates an `OwnedFd` which owns `fd`.
-  explicit OwnedFd(int fd) noexcept : fd_(fd) {}
+  explicit OwnedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
 
   // The moved-from fd is left absent.
   OwnedFd(OwnedFd&& that) noexcept : fd_(that.Release()) {}
@@ -144,7 +144,7 @@ class UnownedFd : public WithEqual<UnownedFd> {
   UnownedFd() = default;
 
   // Creates an `UnownedFd` which stores `fd`.
-  explicit UnownedFd(int fd) noexcept : fd_(fd) {}
+  explicit UnownedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
 
   UnownedFd(const UnownedFd& that) = default;
   UnownedFd& operator=(const UnownedFd& that) = default;
@@ -249,7 +249,8 @@ class
 
   // Creates an `FdHandle` which points to `target`.
   template <typename T, std::enable_if_t<IsValidFdTarget<T>::value, int> = 0>
-  explicit FdHandle(T* target) : methods_(&kMethods<T>), target_(target) {}
+  explicit FdHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : methods_(&kMethods<T>), target_(target) {}
 
   FdHandle(const FdHandle& that) = default;
   FdHandle& operator=(const FdHandle& that) = default;

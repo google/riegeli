@@ -109,7 +109,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   template <typename DependentDest = Dest,
             std::enable_if_t<
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
-  explicit ArrayBackwardWriter(char* dest, size_t size);
+  explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               size_t size);
 
   ArrayBackwardWriter(ArrayBackwardWriter&& that) = default;
   ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) = default;
@@ -153,7 +154,8 @@ explicit ArrayBackwardWriter(Dest&& dest)
             absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::
             value,
         DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
-explicit ArrayBackwardWriter(char* dest, size_t size)
+explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                             size_t size)
     -> ArrayBackwardWriter<absl::Span<char>>;
 #endif
 

@@ -178,7 +178,8 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   ReaderInputStream() = default;
 
   // Will read from `*src`.
-  explicit ReaderInputStream(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {}
+  explicit ReaderInputStream(Reader* src ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : src_(RIEGELI_ASSERT_NOTNULL(src)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { src_ = nullptr; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Reader* src) {

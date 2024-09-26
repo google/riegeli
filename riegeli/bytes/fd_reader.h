@@ -341,7 +341,8 @@ class FdReader : public FdReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
-  explicit FdReader(int src, Options options = Options());
+  explicit FdReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                    Options options = Options());
 
   // Opens a file for reading.
   //
@@ -501,7 +502,8 @@ template <typename Src>
 template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
-inline FdReader<Src>::FdReader(int src, Options options)
+inline FdReader<Src>::FdReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               Options options)
     : FdReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>

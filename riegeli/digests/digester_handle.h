@@ -138,7 +138,7 @@ class
   // Creates a `DigesterBaseHandle` which points to `target`.
   template <typename T,
             std::enable_if_t<IsValidDigesterBaseTarget<T>::value, int> = 0>
-  explicit DigesterBaseHandle(T* target)
+  explicit DigesterBaseHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
 
   DigesterBaseHandle(const DigesterBaseHandle& that) = default;
@@ -493,7 +493,7 @@ class DigesterHandle : public DigesterBaseHandle {
   template <
       typename T,
       std::enable_if_t<IsValidDigesterTarget<T, DigestType>::value, int> = 0>
-  explicit DigesterHandle(T* target)
+  explicit DigesterHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : DigesterBaseHandle(&kMethods<T>, target) {}
 
   DigesterHandle(const DigesterHandle& that) = default;

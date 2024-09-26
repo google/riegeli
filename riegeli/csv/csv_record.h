@@ -522,7 +522,8 @@ class CsvHeaderConstant {
               std::integral_constant<bool, sizeof...(Fields) == num_fields>,
               std::is_convertible<Fields&&, absl::string_view>...>::value,
           int> = 0>
-  /*implicit*/ constexpr CsvHeaderConstant(Fields&&... fields)
+  /*implicit*/ constexpr CsvHeaderConstant(
+      Fields&&... fields ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : fields_{std::forward<Fields>(fields)...} {}
 
   // Will create a `CsvHeader` consisting of the given sequence of field names.
@@ -540,7 +541,8 @@ class CsvHeaderConstant {
               std::is_convertible<Fields&&, absl::string_view>...>::value,
           int> = 0>
   explicit constexpr CsvHeaderConstant(
-      std::string (*normalizer)(absl::string_view), Fields&&... fields)
+      std::string (*normalizer)(absl::string_view),
+      Fields&&... fields ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : normalizer_(normalizer), fields_{std::forward<Fields>(fields)...} {}
 
   // Will create a `CsvHeader` consisting of field names from `base_header`
@@ -560,7 +562,9 @@ class CsvHeaderConstant {
               std::is_convertible<Fields&&, absl::string_view>...>::value,
           int> = 0>
   explicit constexpr CsvHeaderConstant(
-      const CsvHeaderConstant<base_num_fields>& base_header, Fields&&... fields)
+      const CsvHeaderConstant<base_num_fields>& base_header
+          ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      Fields&&... fields ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : CsvHeaderConstant(base_header,
                           std::make_index_sequence<base_num_fields>(),
                           std::forward<Fields>(fields)...) {}

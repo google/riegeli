@@ -128,7 +128,7 @@ class ArrayWriter : public ArrayWriterBase {
   template <typename DependentDest = Dest,
             std::enable_if_t<
                 std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
-  explicit ArrayWriter(char* dest, size_t size);
+  explicit ArrayWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t size);
 
   ArrayWriter(ArrayWriter&& that) = default;
   ArrayWriter& operator=(ArrayWriter&& that) = default;
@@ -258,7 +258,8 @@ template <typename Dest>
 template <
     typename DependentDest,
     std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
-inline ArrayWriter<Dest>::ArrayWriter(char* dest, size_t size)
+inline ArrayWriter<Dest>::ArrayWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                      size_t size)
     : ArrayWriter(absl::MakeSpan(dest, size)) {}
 
 template <typename Dest>

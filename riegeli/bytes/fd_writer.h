@@ -516,7 +516,8 @@ class FdWriter : public FdWriterBase {
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_constructible<DependentDest, int>::value,
                              int> = 0>
-  explicit FdWriter(int dest, Options options = Options());
+  explicit FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                    Options options = Options());
 
   // Opens a file for writing.
   //
@@ -687,7 +688,8 @@ template <typename Dest>
 template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
-inline FdWriter<Dest>::FdWriter(int dest, Options options)
+inline FdWriter<Dest>::FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                Options options)
     : FdWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>

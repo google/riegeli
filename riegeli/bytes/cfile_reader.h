@@ -263,7 +263,8 @@ class CFileReader : public CFileReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value,
                              int> = 0>
-  explicit CFileReader(FILE* src, Options options = Options());
+  explicit CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                       Options options = Options());
 
   // Opens a file for reading.
   //
@@ -400,7 +401,8 @@ template <typename Src>
 template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value, int>>
-inline CFileReader<Src>::CFileReader(FILE* src, Options options)
+inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                     Options options)
     : CFileReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>

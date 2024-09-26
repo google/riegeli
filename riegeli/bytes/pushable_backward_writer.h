@@ -20,6 +20,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -177,7 +178,8 @@ class PushableBackwardWriter : public BackwardWriter {
 // destination and must not be changed.
 class PushableBackwardWriter::BehindScratch {
  public:
-  explicit BehindScratch(PushableBackwardWriter* context);
+  explicit BehindScratch(
+      PushableBackwardWriter* context ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   BehindScratch(BehindScratch&& that) = default;
   BehindScratch& operator=(BehindScratch&&) = delete;
@@ -222,7 +224,7 @@ inline bool PushableBackwardWriter::scratch_used() const {
 }
 
 inline PushableBackwardWriter::BehindScratch::BehindScratch(
-    PushableBackwardWriter* context)
+    PushableBackwardWriter* context ABSL_ATTRIBUTE_LIFETIME_BOUND)
     : context_(context) {
   if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
 }

@@ -246,7 +246,8 @@ class FdMMapReader : public FdMMapReaderBase {
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
                              int> = 0>
-  explicit FdMMapReader(int src, Options options = Options());
+  explicit FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                        Options options = Options());
 
   // Opens a file for reading.
   //
@@ -386,7 +387,8 @@ template <typename Src>
 template <
     typename DependentSrc,
     std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
-inline FdMMapReader<Src>::FdMMapReader(int src, Options options)
+inline FdMMapReader<Src>::FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                       Options options)
     : FdMMapReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>

@@ -365,7 +365,8 @@ class CFileWriter : public CFileWriterBase {
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
                              int> = 0>
-  explicit CFileWriter(FILE* dest, Options options = Options());
+  explicit CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                       Options options = Options());
 
   // Opens a file for writing.
   //
@@ -515,7 +516,8 @@ template <typename Dest>
 template <
     typename DependentDest,
     std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
-inline CFileWriter<Dest>::CFileWriter(FILE* dest, Options options)
+inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                      Options options)
     : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>

@@ -46,7 +46,8 @@ class
   OwnedCFile() = default;
 
   // Creates an `OwnedCFile` which owns `file`.
-  explicit OwnedCFile(FILE* file) noexcept : file_(file) {}
+  explicit OwnedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept
+      : file_(file) {}
 
   // The moved-from `FILE*` is left absent.
   OwnedCFile(OwnedCFile&& that) = default;
@@ -139,7 +140,8 @@ class
   UnownedCFile() = default;
 
   // Creates an `UnownedCFile` which stores `file`.
-  explicit UnownedCFile(FILE* file) noexcept : file_(file) {}
+  explicit UnownedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept
+      : file_(file) {}
 
   UnownedCFile(const UnownedCFile& that) = default;
   UnownedCFile& operator=(const UnownedCFile& that) = default;
@@ -233,7 +235,8 @@ class
 
   // Creates a `CFileHandle` which points to `target`.
   template <typename T, std::enable_if_t<IsValidCFileTarget<T>::value, int> = 0>
-  explicit CFileHandle(T* target) : methods_(&kMethods<T>), target_(target) {}
+  explicit CFileHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : methods_(&kMethods<T>), target_(target) {}
 
   CFileHandle(const CFileHandle& that) = default;
   CFileHandle& operator=(const CFileHandle& that) = default;

@@ -192,7 +192,7 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
   WriterOutputStream() = default;
 
   // Will write to `*dest`.
-  explicit WriterOutputStream(Writer* dest)
+  explicit WriterOutputStream(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { dest_ = nullptr; }

@@ -20,6 +20,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
@@ -167,7 +168,7 @@ class PullableReader : public Reader {
 // position reflects what has been read from the source and must not be changed.
 class PullableReader::BehindScratch {
  public:
-  explicit BehindScratch(PullableReader* context);
+  explicit BehindScratch(PullableReader* context ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   BehindScratch(BehindScratch&& that) = default;
   BehindScratch& operator=(BehindScratch&&) = delete;
@@ -209,7 +210,8 @@ inline bool PullableReader::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline PullableReader::BehindScratch::BehindScratch(PullableReader* context)
+inline PullableReader::BehindScratch::BehindScratch(
+    PullableReader* context ABSL_ATTRIBUTE_LIFETIME_BOUND)
     : context_(context) {
   if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
 }

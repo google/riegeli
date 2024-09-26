@@ -113,9 +113,11 @@ class
   // Creates an `IntrusiveSharedPtr` holding `ptr`.
   //
   // Takes ownership of `ptr` unless the second parameter is `kShareOwnership`.
-  explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership) noexcept
+  explicit IntrusiveSharedPtr(T* ptr ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                              PassOwnership = kPassOwnership) noexcept
       : ptr_(ptr) {}
-  explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) noexcept
+  explicit IntrusiveSharedPtr(T* ptr ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                              ShareOwnership) noexcept
       : ptr_(Ref(ptr)) {}
 
   // Creates an `IntrusiveSharedPtr` holding a constructed value.
