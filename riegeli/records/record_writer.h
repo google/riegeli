@@ -473,6 +473,9 @@ class RecordWriterBase : public Object {
   bool WriteRecord(const google::protobuf::MessageLite& record,
                    SerializeOptions serialize_options = SerializeOptions());
   bool WriteRecord(absl::string_view record);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteRecord(const char* record) {
+    return WriteRecord(absl::string_view(record));
+  }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<

@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -59,6 +60,9 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(const google::protobuf::MessageLite& record,
                          SerializeOptions serialize_options);
   virtual bool AddRecord(absl::string_view record) = 0;
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool AddRecord(const char* record) {
+    return AddRecord(absl::string_view(record));
+  }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<

@@ -93,6 +93,9 @@ inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char src) { return 1; }
 inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char8_t src) { return 1; }
 #endif
 inline Position StringifiedSize(absl::string_view src) { return src.size(); }
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
+  return absl::string_view(src).size();
+}
 template <typename Src,
           std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
 inline Position StringifiedSize(Src&& src) {
@@ -276,6 +279,8 @@ class Writer : public Object {
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
   bool Write(absl::string_view src);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  bool Write(const char* src) { return Write(absl::string_view(src)); }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<

@@ -190,6 +190,8 @@ class Chain : public WithCompare<Chain> {
 
   // Converts from a string-like type.
   explicit Chain(absl::string_view src);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<
@@ -221,6 +223,10 @@ class Chain : public WithCompare<Chain> {
   // constructing a temporary `Chain` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view src);
+  ABSL_ATTRIBUTE_REINITIALIZES ABSL_ATTRIBUTE_ALWAYS_INLINE void Reset(
+      const char* src) {
+    Reset(absl::string_view(src));
+  }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<
@@ -316,6 +322,10 @@ class Chain : public WithCompare<Chain> {
 
   // Appends/prepends a string-like type.
   void Append(absl::string_view src, Options options = Options());
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  void Append(const char* src, Options options = Options()) {
+    Append(absl::string_view(src), options);
+  }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<
@@ -338,6 +348,10 @@ class Chain : public WithCompare<Chain> {
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   void Append(Src&& src, Options options);
   void Prepend(absl::string_view src, Options options = Options());
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  void Prepend(const char* src, Options options = Options()) {
+    Prepend(absl::string_view(src), options);
+  }
   template <typename Src,
             std::enable_if_t<
                 absl::conjunction<
