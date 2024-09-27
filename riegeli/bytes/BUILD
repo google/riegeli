@@ -1,9 +1,21 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+
 package(
     default_visibility = ["//visibility:public"],
     features = ["header_modules"],
 )
 
 licenses(["notice"])
+
+bool_flag(
+    name = "use_copy_file_range",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "disable_copy_file_range",
+    flag_values = {":use_copy_file_range": "False"},
+)
 
 cc_library(
     name = "reader",
@@ -1074,6 +1086,10 @@ cc_library(
         "//conditions:default": ["fd_writer.h"],
     }),
     hdrs = ["fd_reader.h"],
+    defines = select({
+        "//riegeli/bytes:disable_copy_file_range": ["RIEGELI_DISABLE_COPY_FILE_RANGE"],
+        "//conditions:default": [],
+    }),
     # fd_reader.cc has #define before #include to influence what the included
     # files provide.
     features = ["-use_header_modules"],
