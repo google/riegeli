@@ -125,8 +125,13 @@ inline DecType<T> Dec(T value, size_t width = 0) {
   return DecType<T>(value, width);
 }
 
+enum class DigitCase {
+  kLower,  // ['0'..'9'], ['a'..'f']
+  kUpper,  // ['0'..'9'], ['A'..'F']
+};
+
 // The type returned by `Hex()`.
-template <typename T>
+template <typename T, DigitCase digit_case = DigitCase::kLower>
 class HexType {
  public:
   explicit HexType(T value, size_t width)
@@ -172,8 +177,8 @@ class HexType {
 };
 
 // Specialization of `HexType` for `char` which is written as unsigned.
-template <>
-class HexType<char> {
+template <DigitCase digit_case>
+class HexType<char, digit_case> {
  public:
   explicit HexType(char value, size_t width) : value_(value), width_(width) {}
 
@@ -182,13 +187,13 @@ class HexType<char> {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const HexType& self) {
-    AbslStringify(
-        sink, HexType<unsigned char>(static_cast<unsigned char>(self.value()),
-                                     self.width()));
+    AbslStringify(sink,
+                  HexType<unsigned char, digit_case>(
+                      static_cast<unsigned char>(self.value()), self.width()));
   }
 
   friend std::ostream& operator<<(std::ostream& out, const HexType& self) {
-    return out << HexType<unsigned char>(
+    return out << HexType<unsigned char, digit_case>(
                static_cast<unsigned char>(self.value()), self.width());
   }
 
@@ -198,7 +203,7 @@ class HexType<char> {
 };
 
 // Wraps an integer such that its stringified representation is hexadecimal,
-// padded with zeros to at least the given width.
+// with lower case digits, padded with zeros to at least the given width.
 //
 // For negative numbers the width includes the minus sign.
 //
@@ -208,87 +213,215 @@ inline HexType<T> Hex(T value, size_t width = 0) {
   return HexType<T>(value, width);
 }
 
+// Wraps an integer such that its stringified representation is hexadecimal,
+// with upper case digits, padded with zeros to at least the given width.
+//
+// For negative numbers the width includes the minus sign.
+//
+// `char` is written as unsigned.
+template <typename T>
+inline HexType<T, DigitCase::kUpper> HexUpperCase(T value, size_t width = 0) {
+  return HexType<T, DigitCase::kUpper>(value, width);
+}
+
 // Implementation details follow.
 
 namespace write_int_internal {
 
 // `WriteHex{2,4,8,16,32}()` writes a fixed number of digits.
+template <DigitCase digit_case>
 char* WriteHex2(uint8_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex4(uint16_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex8(uint32_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex16(uint64_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex32(absl::uint128 src, char* dest);
+
+template <>
+char* WriteHex2<DigitCase::kLower>(uint8_t src, char* dest);
+template <>
+char* WriteHex4<DigitCase::kLower>(uint16_t src, char* dest);
+template <>
+char* WriteHex8<DigitCase::kLower>(uint32_t src, char* dest);
+template <>
+char* WriteHex16<DigitCase::kLower>(uint64_t src, char* dest);
+template <>
+char* WriteHex32<DigitCase::kLower>(absl::uint128 src, char* dest);
+
+template <>
+char* WriteHex2<DigitCase::kUpper>(uint8_t src, char* dest);
+template <>
+char* WriteHex4<DigitCase::kUpper>(uint16_t src, char* dest);
+template <>
+char* WriteHex8<DigitCase::kUpper>(uint32_t src, char* dest);
+template <>
+char* WriteHex16<DigitCase::kUpper>(uint64_t src, char* dest);
+template <>
+char* WriteHex32<DigitCase::kUpper>(absl::uint128 src, char* dest);
 
 // `WriteHex()` with no width parameter writes no leading zeros, except for 0
 // itself.
+template <DigitCase digit_case>
 char* WriteHex(uint8_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex(uint16_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex(uint32_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex(uint64_t src, char* dest);
+template <DigitCase digit_case>
 char* WriteHex(absl::uint128 src, char* dest);
 
+template <>
+char* WriteHex<DigitCase::kLower>(uint8_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kLower>(uint16_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kLower>(uint32_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kLower>(uint64_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kLower>(absl::uint128 src, char* dest);
+
+template <>
+char* WriteHex<DigitCase::kUpper>(uint8_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint16_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint32_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint64_t src, char* dest);
+template <>
+char* WriteHex<DigitCase::kUpper>(absl::uint128 src, char* dest);
+
 // `WriteHex()` with a width parameter writes at least `width` digits.
+template <DigitCase digit_case>
 char* WriteHex(uint8_t src, char* dest, size_t width);
+template <DigitCase digit_case>
 char* WriteHex(uint16_t src, char* dest, size_t width);
+template <DigitCase digit_case>
 char* WriteHex(uint32_t src, char* dest, size_t width);
+template <DigitCase digit_case>
 char* WriteHex(uint64_t src, char* dest, size_t width);
+template <DigitCase digit_case>
 char* WriteHex(absl::uint128 src, char* dest, size_t width);
+
+template <>
+char* WriteHex<DigitCase::kLower>(uint8_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kLower>(uint16_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kLower>(uint32_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kLower>(uint64_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kLower>(absl::uint128 src, char* dest, size_t width);
+
+template <>
+char* WriteHex<DigitCase::kUpper>(uint8_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint16_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint32_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kUpper>(uint64_t src, char* dest, size_t width);
+template <>
+char* WriteHex<DigitCase::kUpper>(absl::uint128 src, char* dest, size_t width);
 
 // `WriteHexUnsigned()` writes at least `width` digits.
 
-template <typename T, std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
+template <DigitCase digit_case, typename T,
+          std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
-  return width == 2   ? WriteHex2(IntCast<uint8_t>(src), dest)
-         : width <= 1 ? WriteHex(IntCast<uint8_t>(src), dest)
-                      : WriteHex(IntCast<uint8_t>(src), dest, width);
+  return width == 2 ? WriteHex2<digit_case>(IntCast<uint8_t>(src), dest)
+         : width <= 1
+             ? WriteHex<digit_case>(IntCast<uint8_t>(src), dest)
+             : WriteHex<digit_case>(IntCast<uint8_t>(src), dest, width);
 }
 
-template <typename T,
+template <DigitCase digit_case, typename T,
           std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
                                              FitsIn<T, uint16_t>>::value,
                            int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
-  return width == 4   ? WriteHex4(IntCast<uint16_t>(src), dest)
-         : width <= 1 ? WriteHex(IntCast<uint16_t>(src), dest)
-                      : WriteHex(IntCast<uint16_t>(src), dest, width);
+  return width == 4 ? WriteHex4<digit_case>(IntCast<uint16_t>(src), dest)
+         : width <= 1
+             ? WriteHex<digit_case>(IntCast<uint16_t>(src), dest)
+             : WriteHex<digit_case>(IntCast<uint16_t>(src), dest, width);
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
-                                            FitsIn<T, uint32_t>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
+                                       FitsIn<T, uint32_t>>::value,
+                     int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
-  return width == 8   ? WriteHex8(IntCast<uint32_t>(src), dest)
-         : width <= 1 ? WriteHex(IntCast<uint32_t>(src), dest)
-                      : WriteHex(IntCast<uint32_t>(src), dest, width);
+  return width == 8 ? WriteHex8<digit_case>(IntCast<uint32_t>(src), dest)
+         : width <= 1
+             ? WriteHex<digit_case>(IntCast<uint32_t>(src), dest)
+             : WriteHex<digit_case>(IntCast<uint32_t>(src), dest, width);
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                            FitsIn<T, uint64_t>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
+                                       FitsIn<T, uint64_t>>::value,
+                     int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
-  return width == 16  ? WriteHex16(IntCast<uint64_t>(src), dest)
-         : width <= 1 ? WriteHex(IntCast<uint64_t>(src), dest)
-                      : WriteHex(IntCast<uint64_t>(src), dest, width);
+  return width == 16 ? WriteHex16<digit_case>(IntCast<uint64_t>(src), dest)
+         : width <= 1
+             ? WriteHex<digit_case>(IntCast<uint64_t>(src), dest)
+             : WriteHex<digit_case>(IntCast<uint64_t>(src), dest, width);
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                            FitsIn<T, absl::uint128>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
+                                       FitsIn<T, absl::uint128>>::value,
+                     int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
-  return width == 32  ? WriteHex32(IntCast<absl::uint128>(src), dest)
-         : width <= 1 ? WriteHex(IntCast<absl::uint128>(src), dest)
-                      : WriteHex(IntCast<absl::uint128>(src), dest, width);
+  return width == 32 ? WriteHex32<digit_case>(IntCast<absl::uint128>(src), dest)
+         : width <= 1
+             ? WriteHex<digit_case>(IntCast<absl::uint128>(src), dest)
+             : WriteHex<digit_case>(IntCast<absl::uint128>(src), dest, width);
 }
 
 // `WriteHexBackward{2,4,8,16,32}()` writes a fixed number of digits.
+template <DigitCase digit_case>
 void WriteHexBackward2(uint8_t src, char* dest);
+template <DigitCase digit_case>
 void WriteHexBackward4(uint16_t src, char* dest);
+template <DigitCase digit_case>
 void WriteHexBackward8(uint32_t src, char* dest);
+template <DigitCase digit_case>
 void WriteHexBackward16(uint64_t src, char* dest);
+template <DigitCase digit_case>
 void WriteHexBackward32(absl::uint128 src, char* dest);
+
+template <>
+void WriteHexBackward2<DigitCase::kLower>(uint8_t src, char* dest);
+template <>
+void WriteHexBackward4<DigitCase::kLower>(uint16_t src, char* dest);
+template <>
+void WriteHexBackward8<DigitCase::kLower>(uint32_t src, char* dest);
+template <>
+void WriteHexBackward16<DigitCase::kLower>(uint64_t src, char* dest);
+template <>
+void WriteHexBackward32<DigitCase::kLower>(absl::uint128 src, char* dest);
+
+template <>
+void WriteHexBackward2<DigitCase::kUpper>(uint8_t src, char* dest);
+template <>
+void WriteHexBackward4<DigitCase::kUpper>(uint16_t src, char* dest);
+template <>
+void WriteHexBackward8<DigitCase::kUpper>(uint32_t src, char* dest);
+template <>
+void WriteHexBackward16<DigitCase::kUpper>(uint64_t src, char* dest);
+template <>
+void WriteHexBackward32<DigitCase::kUpper>(absl::uint128 src, char* dest);
 
 template <typename T>
 constexpr size_t MaxLengthWriteHexUnsignedBackward() {
@@ -304,24 +437,25 @@ constexpr size_t MaxLengthWriteHexUnsignedBackward() {
 // `width` must be at most `MaxLengthWriteHexUnsignedBackward<T>()`, and that
 // much space must be available before `dest`.
 
-template <typename T, std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
+template <DigitCase digit_case, typename T,
+          std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 2u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
-  WriteHexBackward2(IntCast<uint8_t>(src), dest);
+  WriteHexBackward2<digit_case>(IntCast<uint8_t>(src), dest);
   width =
       UnsignedMax(width, IntCast<uint8_t>(src) < 0x10 ? size_t{1} : size_t{2});
   return dest - width;
 }
 
-template <typename T,
+template <DigitCase digit_case, typename T,
           std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
                                              FitsIn<T, uint16_t>>::value,
                            int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 4u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
-  WriteHexBackward4(IntCast<uint16_t>(src), dest);
+  WriteHexBackward4<digit_case>(IntCast<uint16_t>(src), dest);
   width = UnsignedMax(width, (IntCast<size_t>(absl::bit_width(IntCast<uint16_t>(
                                   IntCast<uint16_t>(src) | 1))) +
                               3) /
@@ -329,42 +463,45 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   return dest - width;
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
-                                            FitsIn<T, uint32_t>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
+                                       FitsIn<T, uint32_t>>::value,
+                     int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 8u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
-  WriteHexBackward8(IntCast<uint32_t>(src), dest);
+  WriteHexBackward8<digit_case>(IntCast<uint32_t>(src), dest);
   width = UnsignedMax(
       width,
       (IntCast<size_t>(absl::bit_width(IntCast<uint32_t>(src) | 1)) + 3) / 4);
   return dest - width;
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                            FitsIn<T, uint64_t>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
+                                       FitsIn<T, uint64_t>>::value,
+                     int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 16u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
-  WriteHexBackward16(IntCast<uint64_t>(src), dest);
+  WriteHexBackward16<digit_case>(IntCast<uint64_t>(src), dest);
   width = UnsignedMax(
       width,
       (IntCast<size_t>(absl::bit_width(IntCast<uint64_t>(src) | 1)) + 3) / 4);
   return dest - width;
 }
 
-template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                            FitsIn<T, absl::uint128>>::value,
-                          int> = 0>
+template <
+    DigitCase digit_case, typename T,
+    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
+                                       FitsIn<T, absl::uint128>>::value,
+                     int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 32u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
-  WriteHexBackward32(IntCast<absl::uint128>(src), dest);
+  WriteHexBackward32<digit_case>(IntCast<absl::uint128>(src), dest);
   width = UnsignedMax(
       width,
       (IntCast<size_t>(absl::Uint128High64(src) == 0
@@ -451,10 +588,10 @@ inline void DecType<T>::WriteTo(Writer& dest) const {
       write_int_internal::WriteDecSigned(value_, dest.cursor(), width_));
 }
 
-template <typename T>
+template <typename T, DigitCase digit_case>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void HexType<T>::Stringify(Sink& sink) const {
+inline void HexType<T, digit_case>::Stringify(Sink& sink) const {
   constexpr size_t kMaxNumDigits =
       write_int_internal::MaxLengthWriteHexUnsignedBackward<T>();
   size_t width = width_;
@@ -463,16 +600,16 @@ inline void HexType<T>::Stringify(Sink& sink) const {
     width = kMaxNumDigits;
   }
   char str[kMaxNumDigits];
-  char* const begin = write_int_internal::WriteHexUnsignedBackward(
+  char* const begin = write_int_internal::WriteHexUnsignedBackward<digit_case>(
       value_, str + kMaxNumDigits, width);
   sink.Append(
       absl::string_view(begin, PtrDistance(begin, str + kMaxNumDigits)));
 }
 
-template <typename T>
+template <typename T, DigitCase digit_case>
 template <typename Sink, typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void HexType<T>::Stringify(Sink& sink) const {
+inline void HexType<T, digit_case>::Stringify(Sink& sink) const {
   constexpr size_t kMaxNumDigits =
       write_int_internal::MaxLengthWriteHexUnsignedBackward<MakeUnsignedT<T>>();
   size_t width = width_;
@@ -484,15 +621,15 @@ inline void HexType<T>::Stringify(Sink& sink) const {
       sink.Append(width - kMaxNumDigits, '0');
       width = kMaxNumDigits;
     }
-    begin = write_int_internal::WriteHexUnsignedBackward(
+    begin = write_int_internal::WriteHexUnsignedBackward<digit_case>(
         UnsignedCast(value_), str + (kMaxNumDigits + 1), width);
   } else if (width > kMaxNumDigits + 1) {
     sink.Append("-");
     sink.Append(width - (kMaxNumDigits + 1), '0');
-    begin = write_int_internal::WriteHexUnsignedBackward(
+    begin = write_int_internal::WriteHexUnsignedBackward<digit_case>(
         NegatingUnsignedCast(value_), str + (kMaxNumDigits + 1), kMaxNumDigits);
   } else {
-    begin = write_int_internal::WriteHexUnsignedBackward(
+    begin = write_int_internal::WriteHexUnsignedBackward<digit_case>(
         NegatingUnsignedCast(value_), str + (kMaxNumDigits + 1),
         SaturatingSub(width, size_t{1}));
     --begin;
@@ -502,22 +639,22 @@ inline void HexType<T>::Stringify(Sink& sink) const {
       absl::string_view(begin, PtrDistance(begin, str + (kMaxNumDigits + 1))));
 }
 
-template <typename T>
+template <typename T, DigitCase digit_case>
 template <typename DependentT,
           std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
-inline void HexType<T>::WriteTo(Writer& dest) const {
+inline void HexType<T, digit_case>::WriteTo(Writer& dest) const {
   constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
   if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits)))) {
     return;
   }
-  dest.set_cursor(
-      write_int_internal::WriteHexUnsigned(value_, dest.cursor(), width_));
+  dest.set_cursor(write_int_internal::WriteHexUnsigned<digit_case>(
+      value_, dest.cursor(), width_));
 }
 
-template <typename T>
+template <typename T, DigitCase digit_case>
 template <typename DependentT,
           std::enable_if_t<IsSignedInt<DependentT>::value, int>>
-inline void HexType<T>::WriteTo(Writer& dest) const {
+inline void HexType<T, digit_case>::WriteTo(Writer& dest) const {
   constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
   // `+ 1` for the minus sign.
   if (ABSL_PREDICT_FALSE(!dest.Push(UnsignedMax(width_, kMaxNumDigits + 1)))) {
@@ -534,8 +671,8 @@ inline void HexType<T>::WriteTo(Writer& dest) const {
     abs_value = NegatingUnsignedCast(value_);
     width = SaturatingSub(width, size_t{1});
   }
-  dest.set_cursor(
-      write_int_internal::WriteHexUnsigned(abs_value, cursor, width));
+  dest.set_cursor(write_int_internal::WriteHexUnsigned<digit_case>(
+      abs_value, cursor, width));
 }
 
 }  // namespace riegeli
