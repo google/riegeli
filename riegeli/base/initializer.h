@@ -326,8 +326,8 @@ class InitializerBase {
       std::enable_if_t<absl::conjunction<absl::negation<CanBindTo<T&&, Arg&&>>,
                                          CanBindTo<const T&, Arg&&>>::value,
                        int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromObject()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromObject() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ConstReferenceMethodFromObject<Arg>;
   }
   template <
@@ -336,8 +336,8 @@ class InitializerBase {
           absl::disjunction<CanBindTo<T&&, Arg&&>,
                             absl::negation<CanBindTo<const T&, Arg&&>>>::value,
           int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromObject()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromObject() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ReferenceMethodFromObject<Arg>;
   }
 
@@ -356,8 +356,8 @@ class InitializerBase {
                 absl::conjunction<absl::negation<CanBindTo<T&&, Args&&...>>,
                                   CanBindTo<const T&, Args&&...>>::value,
                 int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromMaker()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromMaker() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ConstReferenceMethodFromMaker<Args...>;
   }
   template <typename... Args,
@@ -366,8 +366,8 @@ class InitializerBase {
                     CanBindTo<T&&, Args&&...>,
                     absl::negation<CanBindTo<const T&, Args&&...>>>::value,
                 int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromMaker()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromMaker() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ReferenceMethodFromMaker<Args...>;
   }
 
@@ -386,8 +386,8 @@ class InitializerBase {
                 absl::conjunction<absl::negation<CanBindTo<T&&, Args&&...>>,
                                   CanBindTo<const T&, Args&&...>>::value,
                 int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromConstMaker()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromConstMaker() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ConstReferenceMethodFromConstMaker<Args...>;
   }
   template <typename... Args,
@@ -396,8 +396,8 @@ class InitializerBase {
                     CanBindTo<T&&, Args&&...>,
                     absl::negation<CanBindTo<const T&, Args&&...>>>::value,
                 int> = 0>
-  static constexpr auto MakeConstReferenceMethodFromConstMaker()
-      -> T && (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
+      static constexpr auto MakeConstReferenceMethodFromConstMaker() -> T &&
+      (*)(TypeErasedRef context, TemporaryStorage<T>&& storage) {
     return ReferenceMethodFromConstMaker<Args...>;
   }
 

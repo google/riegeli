@@ -331,10 +331,10 @@ explicit FdMMapReader(
             std::is_convertible<
                 Src&&, Initializer<std::string>::AllowingExplicit>>::value,
         OwnedFd, InitializerTargetT<Src>>>;
-explicit FdMMapReader(int dir_fd,
-                      Initializer<std::string>::AllowingExplicit filename,
-                      FdMMapReaderBase::Options options =
-                          FdMMapReaderBase::Options()) -> FdMMapReader<OwnedFd>;
+explicit FdMMapReader(
+    int dir_fd, Initializer<std::string>::AllowingExplicit filename,
+    FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+    -> FdMMapReader<OwnedFd>;
 #endif
 
 // Implementation details follow.

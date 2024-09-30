@@ -151,13 +151,12 @@ class StringReader : public StringReaderBase {
 #if __cpp_deduction_guides
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit StringReader(Src&& src)
-    -> StringReader<std::conditional_t<
-        absl::disjunction<
-            absl::conjunction<std::is_lvalue_reference<Src>,
-                              std::is_convertible<Src, absl::string_view>>,
-            std::is_convertible<Src&&, const char*>>::value,
-        absl::string_view, InitializerTargetT<Src>>>;
+explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
+    absl::disjunction<
+        absl::conjunction<std::is_lvalue_reference<Src>,
+                          std::is_convertible<Src, absl::string_view>>,
+        std::is_convertible<Src&&, const char*>>::value,
+    absl::string_view, InitializerTargetT<Src>>>;
 StringReader() -> StringReader<>;
 explicit StringReader(const char* src, size_t size) -> StringReader<>;
 #endif

@@ -566,9 +566,8 @@ DigesterHandle() -> DigesterHandle<DeleteCtad<>>;
 DigesterHandle(std::nullptr_t) -> DigesterHandle<DeleteCtad<std::nullptr_t>>;
 template <typename T,
           std::enable_if_t<IsValidDigesterBaseTarget<T>::value, int> = 0>
-explicit DigesterHandle(T* target)
-    -> DigesterHandle<
-        typename digester_handle_internal::DigestOfDigesterTarget<T>::type>;
+explicit DigesterHandle(T* target) -> DigesterHandle<
+    typename digester_handle_internal::DigestOfDigesterTarget<T>::type>;
 #endif
 
 // Specialization of `DependencyImpl<DigesterBaseHandle, Manager>` when

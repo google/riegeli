@@ -114,9 +114,7 @@ struct DigestConverterImpl<
         std::array<char, sizeof(absl::uint128)>, To>::value>> {
   static To Convert(absl::uint128 digest) {
     std::array<char, sizeof(absl::uint128)> result;
-    riegeli::WriteBigEndian64(absl::Uint128High64(digest), result.data());
-    riegeli::WriteBigEndian64(absl::Uint128Low64(digest),
-                              result.data() + sizeof(uint64_t));
+    riegeli::WriteBigEndian128(digest, result.data());
     return DigestConverterImpl<std::array<char, sizeof(absl::uint128)>,
                                To>::Convert(result);
   }

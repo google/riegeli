@@ -243,7 +243,7 @@ class MovingDependencyImpl : public Dependency<Handle, Manager> {
   }
 
   template <typename Host>
-  Host& get_host(MovingDependency<Handle, Manager, Mover> Host::*member) {
+  Host& get_host(MovingDependency<Handle, Manager, Mover> Host::* member) {
     // This assertion detects virtual inheritance on Windows.
     static_assert(sizeof(member) == sizeof(&SimpleClass::member),
                   "For a host class using virtual inheritance, "
