@@ -146,6 +146,12 @@ class DigestingReader : public DigestingReaderBase {
   // Digests buffered data if needed, and returns the digest.
   //
   // The digest is converted to `DesiredDigestType` using `DigestConverter`.
+  //
+  // Depending on the digester, `Digest()` can be more efficient if `Close()` is
+  // called before.
+  //
+  // Many digesters support calling `Digest()` and then accepting more data or
+  // calling `Digest()` again, but this is not guaranteed.
   template <
       typename DesiredDigestType = DigestType,
       std::enable_if_t<HasDigestConverter<DigestType, DesiredDigestType>::value,

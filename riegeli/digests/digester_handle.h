@@ -475,6 +475,12 @@ struct IsValidDigesterTarget<
 //   //
 //   // `OriginalDigestType` can be any type convertible to `DigestType` using
 //   // `DigestConverter`.
+//   //
+//   // Depending on the digester, `Digest()` can be more efficient if `Close()`
+//   // is called before.
+//   //
+//   // Many digesters support calling `Digest()` and then accepting more data
+//   // or calling `Digest()` again, but this is not guaranteed.
 //   OriginalDigestType Digest();
 // ```
 //
