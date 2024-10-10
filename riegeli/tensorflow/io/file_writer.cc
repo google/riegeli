@@ -45,9 +45,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/tensorflow/io/file_reader.h"
 #include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/file_system.h"
-#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/public/version.h"
 
 namespace riegeli {
@@ -56,9 +54,9 @@ namespace tensorflow {
 bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
   {
-    const ::tensorflow::Status status = dest->Name(&filename);
+    const absl::Status status = dest->Name(&filename);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      if (!::tensorflow::errors::IsUnimplemented(status)) {
+      if (!absl::IsUnimplemented(status)) {
         return FailOperation(status, "WritableFile::Name()");
       }
       return true;
@@ -71,7 +69,7 @@ bool FileWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   {
-    const ::tensorflow::Status status =
+    const absl::Status status =
         env_->GetFileSystemForFile(filename_, &file_system_);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "Env::GetFileSystemForFile()");
@@ -84,7 +82,7 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
     bool append) {
   std::unique_ptr<::tensorflow::WritableFile> dest;
   {
-    const ::tensorflow::Status status =
+    const absl::Status status =
         append ? file_system_->NewAppendableFile(filename_, &dest)
                : file_system_->NewWritableFile(filename_, &dest);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -101,7 +99,7 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
 void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
   int64_t file_pos;
   {
-    const ::tensorflow::Status status = dest->Tell(&file_pos);
+    const absl::Status status = dest->Tell(&file_pos);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailOperation(status, "WritableFile::Tell()");
       return;
@@ -117,7 +115,7 @@ void FileWriterBase::Done() {
   buffer_ = SharedBuffer();
 }
 
-bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
+bool FileWriterBase::FailOperation(const absl::Status& status,
                                    absl::string_view operation) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileWriterBase::FailOperation(): "
@@ -190,7 +188,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
     return FailOverflow();
   }
   {
-    const ::tensorflow::Status status = dest->Append(src);
+    const absl::Status status = dest->Append(src);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "WritableFile::Append(string_view)");
     }
@@ -299,7 +297,7 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
     return FailOverflow();
   }
   {
-    ::tensorflow::Status status = dest->Append(src);
+    absl::Status status = dest->Append(src);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "WritableFile::Append(Cord)");
     }

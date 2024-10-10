@@ -47,9 +47,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/file_system.h"
-#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/public/version.h"
 
 namespace riegeli {
@@ -58,9 +56,9 @@ namespace tensorflow {
 bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
   absl::string_view filename;
   {
-    const ::tensorflow::Status status = src->Name(&filename);
+    const absl::Status status = src->Name(&filename);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      if (!::tensorflow::errors::IsUnimplemented(status)) {
+      if (!absl::IsUnimplemented(status)) {
         return FailOperation(status, "RandomAccessFile::Name()");
       }
       return true;
@@ -73,7 +71,7 @@ bool FileReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
   {
-    const ::tensorflow::Status status =
+    const absl::Status status =
         env_->GetFileSystemForFile(filename_, &file_system_);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return FailOperation(status, "Env::GetFileSystemForFile()");
@@ -85,7 +83,7 @@ bool FileReaderBase::InitializeFilename(
 std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
   std::unique_ptr<::tensorflow::RandomAccessFile> src;
   {
-    const ::tensorflow::Status status =
+    const absl::Status status =
         file_system_->NewRandomAccessFile(filename_, &src);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       Reader::Reset(kClosed);
@@ -110,7 +108,7 @@ void FileReaderBase::Done() {
   buffer_ = SizedSharedBuffer();
 }
 
-inline bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
+inline bool FileReaderBase::FailOperation(const absl::Status& status,
                                           absl::string_view operation) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileReaderBase::FailOperation(): "
@@ -196,14 +194,14 @@ inline bool FileReaderBase::ReadToDest(size_t length,
   const size_t length_to_read =
       UnsignedMin(length, std::numeric_limits<uint64_t>::max() - limit_pos());
   absl::string_view result;
-  const ::tensorflow::Status status =
+  const absl::Status status =
       src->Read(IntCast<uint64_t>(limit_pos()), length_to_read, &result, dest);
   RIEGELI_ASSERT_LE(result.size(), length_to_read)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
   move_limit_pos(result.size());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
+    if (ABSL_PREDICT_FALSE(!absl::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
     if (!growing_source_) set_exact_size(limit_pos());
@@ -236,7 +234,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
   const size_t length_to_read = UnsignedMin(
       flat_buffer.size(), std::numeric_limits<uint64_t>::max() - limit_pos());
   absl::string_view result;
-  const ::tensorflow::Status status =
+  const absl::Status status =
       src->Read(IntCast<uint64_t>(limit_pos()), length_to_read, &result,
                 flat_buffer.data());
   RIEGELI_ASSERT_LE(result.size(), length_to_read)
@@ -256,7 +254,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
   }
   move_limit_pos(result.size());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
+    if (ABSL_PREDICT_FALSE(!absl::IsOutOfRange(status))) {
       return FailOperation(status, "RandomAccessFile::Read()");
     }
     if (!growing_source_) set_exact_size(limit_pos());
@@ -640,7 +638,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
       file_size = IntCast<uint64_t>(*exact_size());
     } else {
       {
-        const ::tensorflow::Status status =
+        const absl::Status status =
             file_system_->GetFileSize(filename_, &file_size);
         if (ABSL_PREDICT_FALSE(!status.ok())) {
           return FailOperation(status, "FileSystem::GetFileSize()");
@@ -669,7 +667,7 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
   }
   uint64_t file_size;
   {
-    const ::tensorflow::Status status =
+    const absl::Status status =
         file_system_->GetFileSize(filename_, &file_size);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailOperation(status, "FileSystem::GetFileSize()");

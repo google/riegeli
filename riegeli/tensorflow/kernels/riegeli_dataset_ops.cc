@@ -42,10 +42,9 @@
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/graph/graph.h"
-#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/macros.h"
-#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/tstring.h"
+#include "util/task/status_macros.h"
 
 namespace riegeli {
 namespace tensorflow {
@@ -60,7 +59,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     const ::tensorflow::Tensor* filenames_tensor;
     OP_REQUIRES_OK(ctx, ctx->input("filenames", &filenames_tensor));
     OP_REQUIRES(ctx, filenames_tensor->dims() <= 1,
-                ::tensorflow::errors::InvalidArgument(
+                absl::InvalidArgumentError(
                     "`filenames` must be a scalar or a vector."));
 
     std::vector<std::string> filenames;
@@ -115,30 +114,30 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       return "RiegeliDatasetOp::Dataset";
     }
 
-    ::tensorflow::Status CheckExternalState() const override {
-      return ::tensorflow::Status();
+    absl::Status CheckExternalState() const override {
+      return absl::OkStatus();
     }
 
-    ::tensorflow::Status InputDatasets(
+    absl::Status InputDatasets(
         std::vector<const ::tensorflow::data::DatasetBase*>* inputs)
         const override {
       inputs->clear();
-      return ::tensorflow::Status();
+      return absl::OkStatus();
     }
 
    protected:
-    ::tensorflow::Status AsGraphDefInternal(
+    absl::Status AsGraphDefInternal(
         ::tensorflow::data::SerializationContext* ctx,
         DatasetGraphDefBuilder* b, ::tensorflow::Node** output) const override {
       ::tensorflow::Node* filenames = nullptr;
-      TF_RETURN_IF_ERROR(b->AddVector(filenames_, &filenames));
+      RETURN_IF_ERROR(b->AddVector(filenames_, &filenames));
       ::tensorflow::Node* min_buffer_size = nullptr;
-      TF_RETURN_IF_ERROR(b->AddScalar(min_buffer_size_, &min_buffer_size));
+      RETURN_IF_ERROR(b->AddScalar(min_buffer_size_, &min_buffer_size));
       ::tensorflow::Node* max_buffer_size = nullptr;
-      TF_RETURN_IF_ERROR(b->AddScalar(max_buffer_size_, &max_buffer_size));
-      TF_RETURN_IF_ERROR(b->AddDataset(
+      RETURN_IF_ERROR(b->AddScalar(max_buffer_size_, &max_buffer_size));
+      RETURN_IF_ERROR(b->AddDataset(
           this, {filenames, min_buffer_size, max_buffer_size}, output));
-      return ::tensorflow::Status();
+      return absl::OkStatus();
     }
 
    private:
@@ -146,7 +145,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
      public:
       explicit Iterator(const Params& params) : DatasetIterator(params) {}
 
-      ::tensorflow::Status GetNextInternal(
+      absl::Status GetNextInternal(
           ::tensorflow::data::IteratorContext* ctx,
           std::vector<::tensorflow::Tensor>* out_tensors,
           bool* end_of_sequence) override ABSL_LOCKS_EXCLUDED(mu_) {
@@ -163,7 +162,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
                   value.data(), value.size());
               out_tensors->push_back(std::move(result_tensor));
               *end_of_sequence = false;
-              return ::tensorflow::Status();
+              return absl::OkStatus();
             }
             SkippedRegion skipped_region;
             if (reader_->Recover(&skipped_region)) {
@@ -171,21 +170,19 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
               // will resume reading the file after the invalid region has been
               // skipped.
               *end_of_sequence = false;
-              return ::tensorflow::errors::InvalidArgument(
+              return absl::InvalidArgumentError(absl::StrCat(
                   "Skipping invalid region of a Riegeli/records file: ",
-                  skipped_region.ToString());
+                  skipped_region));
             }
             if (TF_PREDICT_FALSE(!reader_->Close())) {
               // Failed to read the file: return an error.
-              const absl::Status status = reader_->status();
+              absl::Status status = reader_->status();
               // Further iteration will move on to the next file, if any.
               reader_.reset();
               ++current_file_index_;
               *end_of_sequence =
                   current_file_index_ == dataset()->filenames_.size();
-              return ::tensorflow::Status(
-                  static_cast<::tensorflow::errors::Code>(status.code()),
-                  status.message());
+              return status;
             }
             // We have reached the end of the current file, so move on to the
             // next file, if any.
@@ -196,7 +193,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           // Iteration ends when there are no more files to process.
           if (current_file_index_ == dataset()->filenames_.size()) {
             *end_of_sequence = true;
-            return ::tensorflow::Status();
+            return absl::OkStatus();
           }
 
           // Actually move on to next file.
@@ -205,22 +202,21 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       }
 
      protected:
-      ::tensorflow::Status SaveInternal(
-          ::tensorflow::data::SerializationContext* ctx,
-          ::tensorflow::data::IteratorStateWriter* writer) override
-          ABSL_LOCKS_EXCLUDED(mu_) {
+      absl::Status SaveInternal(::tensorflow::data::SerializationContext* ctx,
+                                ::tensorflow::data::IteratorStateWriter* writer)
+          override ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock lock(&mu_);
-        TF_RETURN_IF_ERROR(
+        RETURN_IF_ERROR(
             writer->WriteScalar(full_name("current_file_index"),
                                 IntCast<int64_t>(current_file_index_)));
         if (reader_ != absl::nullopt) {
-          TF_RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
-                                                 reader_->pos().ToBytes()));
+          RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
+                                              reader_->pos().ToBytes()));
         }
-        return ::tensorflow::Status();
+        return absl::OkStatus();
       }
 
-      ::tensorflow::Status RestoreInternal(
+      absl::Status RestoreInternal(
           ::tensorflow::data::IteratorContext* ctx,
           ::tensorflow::data::IteratorStateReader* reader) override
           ABSL_LOCKS_EXCLUDED(mu_) {
@@ -229,35 +225,33 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         reader_.reset();
 
         int64_t current_file_index;
-        TF_RETURN_IF_ERROR(reader->ReadScalar(full_name("current_file_index"),
-                                              &current_file_index));
+        RETURN_IF_ERROR(reader->ReadScalar(full_name("current_file_index"),
+                                           &current_file_index));
         if (TF_PREDICT_FALSE(current_file_index < 0 ||
                              IntCast<uint64_t>(current_file_index) >
                                  dataset()->filenames_.size())) {
-          return ::tensorflow::errors::Internal(
-              "current_file_index out of range");
+          return absl::InternalError("current_file_index out of range");
         }
         current_file_index_ = IntCast<size_t>(current_file_index);
 
         if (reader->Contains(full_name("current_pos"))) {
           if (TF_PREDICT_FALSE(current_file_index_ ==
                                dataset()->filenames_.size())) {
-            return ::tensorflow::errors::Internal(
-                "current_file_index out of range");
+            return absl::InternalError("current_file_index out of range");
           }
           ::tensorflow::tstring current_pos;
-          TF_RETURN_IF_ERROR(
+          RETURN_IF_ERROR(
               reader->ReadScalar(full_name("current_pos"), &current_pos));
           RecordPosition pos;
           if (TF_PREDICT_FALSE(!pos.FromBytes(current_pos))) {
-            return ::tensorflow::errors::Internal(
+            return absl::InternalError(
                 "current_pos is not a valid RecordPosition");
           }
           OpenFile(ctx);
           reader_->Seek(pos);
           // Any errors from seeking will be reported during reading.
         }
-        return ::tensorflow::Status();
+        return absl::OkStatus();
       }
 
      private:

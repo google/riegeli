@@ -42,7 +42,6 @@
 #include "riegeli/bytes/reader.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
-#include "tensorflow/core/platform/status.h"
 
 namespace riegeli {
 
@@ -170,7 +169,7 @@ class FileReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
+  ABSL_ATTRIBUTE_COLD bool FailOperation(const absl::Status& status,
                                          absl::string_view operation);
   ABSL_ATTRIBUTE_COLD static absl::Status NoRandomAccessStatus();
 

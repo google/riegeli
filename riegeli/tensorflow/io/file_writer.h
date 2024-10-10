@@ -42,7 +42,6 @@
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
-#include "tensorflow/core/platform/status.h"
 
 namespace riegeli {
 
@@ -129,7 +128,7 @@ class FileWriterBase : public Writer {
   bool InitializeFilename(Initializer<std::string>::AllowingExplicit filename);
   std::unique_ptr<::tensorflow::WritableFile> OpenFile(bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
+  ABSL_ATTRIBUTE_COLD bool FailOperation(const absl::Status& status,
                                          absl::string_view operation);
 
   void Done() override;
@@ -364,7 +363,7 @@ void FileWriter<Dest>::Done() {
   FileWriterBase::Done();
   if (dest_.IsOwning()) {
     {
-      const ::tensorflow::Status status = dest_->Close();
+      const absl::Status status = dest_->Close();
       if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(ok())) {
         FailOperation(status, "WritableFile::Close()");
       }
@@ -380,14 +379,14 @@ bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
       if (!dest_.IsOwning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess: {
-      const ::tensorflow::Status status = dest_->Flush();
+      const absl::Status status = dest_->Flush();
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         return FailOperation(status, "WritableFile::Flush()");
       }
     }
       return true;
     case FlushType::kFromMachine: {
-      const ::tensorflow::Status status = dest_->Sync();
+      const absl::Status status = dest_->Sync();
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         return FailOperation(status, "WritableFile::Sync()");
       }

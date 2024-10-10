@@ -64,9 +64,7 @@
 #include "tensorflow/core/lib/io/record_reader.h"
 #include "tensorflow/core/lib/io/record_writer.h"
 #include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/file_system.h"
-#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/tstring.h"
 
 ABSL_FLAG(std::string, tfrecord_benchmarks, "uncompressed gzip",
@@ -264,17 +262,17 @@ void Benchmarks::WriteTFRecord(
   tensorflow::Env* const env = tensorflow::Env::Default();
   std::unique_ptr<tensorflow::WritableFile> file_writer;
   {
-    const tensorflow::Status status =
+    const absl::Status status =
         env->NewWritableFile(std::string(filename), &file_writer);
     RIEGELI_CHECK(status.ok()) << status;
   }
   tensorflow::io::RecordWriter record_writer(file_writer.get(),
                                              record_writer_options);
   for (const absl::string_view record : records) {
-    const tensorflow::Status status = record_writer.WriteRecord(record);
+    const absl::Status status = record_writer.WriteRecord(record);
     RIEGELI_CHECK(status.ok()) << status;
   }
-  const tensorflow::Status status = record_writer.Close();
+  const absl::Status status = record_writer.Close();
   RIEGELI_CHECK(status.ok()) << status;
 }
 
@@ -285,7 +283,7 @@ bool Benchmarks::ReadTFRecord(
   tensorflow::Env* const env = tensorflow::Env::Default();
   std::unique_ptr<tensorflow::RandomAccessFile> file_reader;
   {
-    const tensorflow::Status status =
+    const absl::Status status =
         env->NewRandomAccessFile(std::string(filename), &file_reader);
     RIEGELI_CHECK(status.ok()) << status;
   }
@@ -293,9 +291,9 @@ bool Benchmarks::ReadTFRecord(
                                                        record_reader_options);
   tensorflow::tstring record;
   for (;;) {
-    const tensorflow::Status status = record_reader.ReadRecord(&record);
+    const absl::Status status = record_reader.ReadRecord(&record);
     if (!status.ok()) {
-      RIEGELI_CHECK(tensorflow::errors::IsOutOfRange(status)) << status;
+      RIEGELI_CHECK(absl::IsOutOfRange(status)) << status;
       break;
     }
     if (size_limiter != nullptr &&
