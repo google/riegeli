@@ -562,14 +562,16 @@ class MakerTypeForBase
                                   std::is_move_assignable<DependentT>>::value,
                 int> = 0>
   friend void RiegeliReset(T& dest, MakerTypeForBase&& src) {
-    riegeli::Reset(dest, std::move(src.maker()));
+    riegeli::Reset(dest, std::move(src).maker());
   }
 
   // Returns the corresponding `MakerType` which does not specify `T`.
   //
   // This is useful for handling `MakerType` and `MakerTypeFor` generically.
-  MakerType<Args...>&& maker() && { return std::move(maker_); }
+  MakerType<Args...>& maker() & { return maker_; }
   const MakerType<Args...>& maker() const& { return maker_; }
+  MakerType<Args...>&& maker() && { return std::move(maker_); }
+  const MakerType<Args...>&& maker() const&& { return std::move(maker_); }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS MakerType<Args...> maker_;
