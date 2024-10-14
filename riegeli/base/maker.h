@@ -125,38 +125,6 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         args_);
   }
 
-  // Constructs the `T`, or returns a const reference to an already constructed
-  // object if that was passed to the `MakerType`.
-  //
-  // `ConstReference()` can avoid moving the object in more cases than
-  // `Reference()` if the caller does not need to store the object.
-  //
-  // `storage` must outlive usages of the returned reference.
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return absl::apply(
-        [&](Args&&... args) -> const T& {
-          return storage.emplace(std::forward<Args>(args)...);
-        },
-        std::move(args_));
-  }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return absl::apply(
-        [&](const Args&... args) -> const T& {
-          return storage.emplace(args...);
-        },
-        args_);
-  }
-
   // `riegeli::Reset(dest, MakerType)` makes `dest` equivalent to the
   // constructed `T`. This avoids constructing a temporary `T` and moving from
   // it.
@@ -231,14 +199,6 @@ class MakerType<> {
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) const {
     return std::move(storage).emplace();
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const {
-    return storage.emplace();
   }
 
   template <typename T,
@@ -355,67 +315,6 @@ class MakerType<Arg0> {
   }
 
   template <typename T,
-            std::enable_if_t<absl::conjunction<std::is_constructible<T, Arg0&&>,
-                                               initializer_internal::CanBindTo<
-                                                   T&&, Arg0&&>>::value,
-                             int> = 0>
-      const T& ConstReference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    auto&& reference = std::forward<Arg0>(arg0_);
-    return *absl::implicit_cast<std::remove_reference_t<const T>*>(&reference);
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<std::is_constructible<T, Arg0&&>,
-                                               initializer_internal::CanBindTo<
-                                                   T&&, Arg0&&>>::value,
-                             int> = 0>
-      const T& ConstReference(
-          ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).template ConstReference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, Arg0&&>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, Arg0&&>>>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return storage.emplace(std::forward<Arg0>(arg0_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, const Arg0&>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, const Arg0&>>::value,
-                       int> = 0>
-  const T& ConstReference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return *absl::implicit_cast<std::remove_reference_t<const T>*>(&arg0_);
-  }
-  template <
-      typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, const Arg0&>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, const Arg0&>>::value,
-                       int> = 0>
-  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
-      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return ConstReference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, const Arg0&>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, const Arg0&>>>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return storage.emplace(arg0_);
-  }
-
-  template <typename T,
             std::enable_if_t<
                 absl::conjunction<absl::negation<std::is_reference<T>>,
                                   std::is_move_assignable<T>,
@@ -519,40 +418,6 @@ class MakerTypeForBase
     return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
 
-  // Constructs the `T`, or returns a const reference to an already constructed
-  // object if that was passed to the `MakerTypeFor`.
-  //
-  // `ConstReference()` can avoid moving the object in more cases than
-  // `Reference()` if the caller does not need to store the object.
-  //
-  // `storage` must outlive usages of the returned reference.
-  template <typename DependentT = T,
-            std::enable_if_t<
-                initializer_internal::CanBindTo<DependentT&&, Args&&...>::value,
-                int> = 0>
-      const T& ConstReference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).maker().template ConstReference<T>();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                initializer_internal::CanBindTo<DependentT&&, Args&&...>::value,
-                int> = 0>
-      const T& ConstReference(
-          ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).ConstReference();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<!initializer_internal::CanBindTo<DependentT&&,
-                                                              Args&&...>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) && {
-    return std::move(*this).maker().template ConstReference<T>(
-        std::move(storage));
-  }
-
   // `riegeli::Reset(dest, MakerTypeFor)` makes `dest` equivalent to the
   // constructed `T`. This avoids constructing a temporary `T` and moving from
   // it.
@@ -640,32 +505,6 @@ class MakerTypeForByConstBase</*is_const_makable=*/true, T, Args...>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) const& {
     return this->maker().template Reference<T>(std::move(storage));
-  }
-
-  using MakerTypeForByConstBase::MakerTypeForBase::ConstReference;
-  template <typename DependentT = T,
-            std::enable_if_t<initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  const T& ConstReference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->maker().template ConstReference<T>();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  const T& ConstReference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
-      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return ConstReference();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<!initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  const T& ConstReference(TemporaryStorage<T>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  TemporaryStorage<T>()) const& {
-    return this->maker().template ConstReference<T>(std::move(storage));
   }
 
   template <typename DependentT = T,
