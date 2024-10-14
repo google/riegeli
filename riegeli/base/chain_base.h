@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include <cstring>
+#include <functional>
 #include <iosfwd>
 #include <limits>
 #include <string>
@@ -758,6 +759,30 @@ class Chain::RawBlock {
 
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
+
+#if RIEGELI_DEBUG
+  template <typename T,
+            std::enable_if_t<SupportsToStringView<T>::value, int> = 0>
+  static void AssertSubstr(const T& object, absl::string_view substr) {
+    if (!substr.empty()) {
+      const absl::string_view whole = riegeli::ToStringView(object);
+      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
+          << "Failed precondition of Chain::Block::Block(): "
+             "substring not contained in whole data";
+      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
+                                         whole.data() + whole.size()))
+          << "Failed precondition of Chain::Block::Block(): "
+             "substring not contained in whole data";
+    }
+  }
+  template <typename T,
+            std::enable_if_t<!SupportsToStringView<T>::value, int> = 0>
+#else
+  template <typename T>
+#endif
+  static void AssertSubstr(ABSL_ATTRIBUTE_UNUSED const T& object,
+                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
+  }
 
   bool is_mutable() const { return is_internal() && has_unique_owner(); }
 

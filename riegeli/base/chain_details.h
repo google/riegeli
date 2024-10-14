@@ -550,6 +550,7 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object,
   std::move(object).ConstructAt(&unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
+  AssertSubstr(unchecked_external_object<T>(), substr);
 }
 
 constexpr size_t Chain::RawBlock::kInternalAllocatedOffset() {

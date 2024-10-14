@@ -799,8 +799,11 @@ class ExternalRef {
   template <typename T>
   class ObjectForCordSubstr {
    public:
-    explicit ObjectForCordSubstr(Initializer<T> object)
-        : object_(std::move(object)) {}
+    explicit ObjectForCordSubstr(Initializer<T> object,
+                                 absl::string_view substr)
+        : object_(std::move(object)) {
+      AssertSubstr(**this, substr);
+    }
 
     ObjectForCordSubstr(ObjectForCordSubstr&& that) = default;
     ObjectForCordSubstr& operator=(ObjectForCordSubstr&& that) = default;
@@ -986,7 +989,7 @@ class ExternalRef {
       // `ObjectForCordSubstr` can be used instead of `ObjectForCordWhole`.
       use_cord_(context_, absl::MakeCordFromExternal(
                               data, ObjectForCordSubstr<std::decay_t<T>>(
-                                        std::forward<T>(object))));
+                                        std::forward<T>(object), data)));
     }
     template <
         typename DependentT = T,
@@ -1110,7 +1113,7 @@ class ExternalRef {
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_cord_(context_, absl::MakeCordFromExternal(
                               substr_, ObjectForCordSubstr<std::decay_t<T>>(
-                                           std::forward<T>(object))));
+                                           std::forward<T>(object), substr_)));
     }
 
     absl::string_view substr_;
@@ -1145,7 +1148,9 @@ class ExternalRef {
    public:
     explicit ExternalObjectSubstr(Initializer<T> object,
                                   absl::string_view substr)
-        : object_(std::move(object)), substr_(substr) {}
+        : object_(std::move(object)), substr_(substr) {
+      AssertSubstr(**this, substr);
+    }
 
     ~ExternalObjectSubstr() { std::move(object_)(substr_); }
 
@@ -1162,9 +1167,11 @@ class ExternalRef {
                              std::enable_if_t<!HasCallOperatorSubstr<T>::value>>
       : public ExternalObjectWhole<T> {
    public:
-    explicit ExternalObjectSubstr(
-        Initializer<T> object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr)
-        : ExternalObjectSubstr::ExternalObjectWhole(std::move(object)) {}
+    explicit ExternalObjectSubstr(Initializer<T> object,
+                                  absl::string_view substr)
+        : ExternalObjectSubstr::ExternalObjectWhole(std::move(object)) {
+      AssertSubstr(**this, substr);
+    }
   };
 
   template <typename T, typename Enable = void>
