@@ -54,7 +54,10 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<std::is_convertible<SrcArgs&&, Args>...>::value,
+          absl::conjunction<
+              absl::negation<std::is_same<std::tuple<std::decay_t<SrcArgs>...>,
+                                          std::tuple<MakerType>>>,
+              std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
   /*implicit*/ MakerType(SrcArgs&&... args)
       : args_(std::forward<SrcArgs>(args)...) {}
@@ -104,7 +107,31 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   // `storage` must outlive usages of the returned reference.
   template <
       typename T,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+      std::enable_if_t<absl::conjunction<std::is_constructible<T, Args&&...>,
+                                         initializer_internal::CanBindTo<
+                                             T&&, Args&&...>>::value,
+                       int> = 0>
+      T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    auto&& reference = std::get<0>(std::move(args_));
+    return std::forward<T>(
+        *absl::implicit_cast<std::remove_reference_t<T>*>(&reference));
+  }
+  template <
+      typename T,
+      std::enable_if_t<absl::conjunction<std::is_constructible<T, Args&&...>,
+                                         initializer_internal::CanBindTo<
+                                             T&&, Args&&...>>::value,
+                       int> = 0>
+      T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(*this).template Reference<T>();
+  }
+  template <typename T,
+            std::enable_if_t<absl::conjunction<
+                                 std::is_constructible<T, Args&&...>,
+                                 absl::negation<initializer_internal::CanBindTo<
+                                     T&&, Args&&...>>>::value,
+                             int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) && {
     return absl::apply(
@@ -114,7 +141,30 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         std::move(args_));
   }
   template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+            std::enable_if_t<
+                absl::conjunction<std::is_constructible<T, const Args&...>,
+                                  initializer_internal::CanBindTo<
+                                      T&&, const Args&...>>::value,
+                int> = 0>
+  T&& Reference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::forward<T>(
+        *absl::implicit_cast<std::remove_reference_t<T>*>(&std::get<0>(args_)));
+  }
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<std::is_constructible<T, const Args&...>,
+                                  initializer_internal::CanBindTo<
+                                      T&&, const Args&...>>::value,
+                int> = 0>
+  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
+      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return Reference<T>();
+  }
+  template <typename T,
+            std::enable_if_t<absl::conjunction<
+                                 std::is_constructible<T, const Args&...>,
+                                 absl::negation<initializer_internal::CanBindTo<
+                                     T&&, const Args&...>>>::value,
                              int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
                     TemporaryStorage<T>()) const& {
@@ -166,177 +216,6 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-// Specializations of `MakerType` for 0 to 1 arguments to apply `CanBindTo`
-// optimization for the 1 argument case, to exclude the constructor hijacking
-// copy and move constructor for the 1 argument case, and to make the type
-// trivially copy constructible more often.
-
-template <>
-class MakerType<> {
- public:
-  MakerType() = default;
-
-  MakerType(MakerType&& that) = default;
-  MakerType& operator=(MakerType&& that) = default;
-
-  MakerType(const MakerType& that) = default;
-  MakerType& operator=(const MakerType& that) = default;
-
-  template <typename T,
-            std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
-  T Construct() const {
-    return T();
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
-  void ConstructAt(void* ptr) const {
-    new (ptr) T();
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const {
-    return std::move(storage).emplace();
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  std::is_move_assignable<T>,
-                                  std::is_default_constructible<T>>::value,
-                int> = 0>
-  friend void RiegeliReset(T& dest, ABSL_ATTRIBUTE_UNUSED MakerType src) {
-    riegeli::Reset(dest);
-  }
-};
-
-template <typename Arg0>
-class MakerType<Arg0> {
- public:
-  template <
-      typename SrcArg0,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<SrcArg0>, MakerType>>,
-              std::is_convertible<SrcArg0&&, Arg0>>::value,
-          int> = 0>
-  /*implicit*/ MakerType(SrcArg0&& arg0) : arg0_(std::forward<SrcArg0>(arg0)) {}
-
-  MakerType(MakerType&& that) = default;
-  MakerType& operator=(MakerType&& that) = default;
-
-  MakerType(const MakerType& that) = default;
-  MakerType& operator=(const MakerType& that) = default;
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&>::value, int> = 0>
-  T Construct() && {
-    return T(std::forward<Arg0>(arg0_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&>::value, int> = 0>
-  T Construct() const& {
-    return T(arg0_);
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, Arg0&&>::value, int> = 0>
-  void ConstructAt(void* ptr) && {
-    new (ptr) T(std::forward<Arg0>(arg0_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, const Arg0&>::value, int> = 0>
-  void ConstructAt(void* ptr) const& {
-    new (ptr) T(arg0_);
-  }
-
-  template <typename T,
-            std::enable_if_t<absl::conjunction<std::is_constructible<T, Arg0&&>,
-                                               initializer_internal::CanBindTo<
-                                                   T&&, Arg0&&>>::value,
-                             int> = 0>
-      T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    auto&& reference = std::forward<Arg0>(arg0_);
-    return std::forward<T>(
-        *absl::implicit_cast<std::remove_reference_t<T>*>(&reference));
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<std::is_constructible<T, Arg0&&>,
-                                               initializer_internal::CanBindTo<
-                                                   T&&, Arg0&&>>::value,
-                             int> = 0>
-      T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).template Reference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, Arg0&&>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, Arg0&&>>>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
-    return std::move(storage).emplace(std::forward<Arg0>(arg0_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, const Arg0&>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, const Arg0&>>::value,
-                       int> = 0>
-  T&& Reference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::forward<T>(
-        *absl::implicit_cast<std::remove_reference_t<T>*>(&arg0_));
-  }
-  template <
-      typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, const Arg0&>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, const Arg0&>>::value,
-                       int> = 0>
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
-      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return Reference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, const Arg0&>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, const Arg0&>>>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
-    return std::move(storage).emplace(arg0_);
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  std::is_move_assignable<T>,
-                                  std::is_constructible<T, Arg0&&>>::value,
-                int> = 0>
-  friend void RiegeliReset(T& dest, MakerType&& src) {
-    riegeli::Reset(dest, std::forward<Arg0>(src.arg0_));
-  }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  std::is_move_assignable<T>,
-                                  std::is_constructible<T, const Arg0&>>::value,
-                int> = 0>
-  friend void RiegeliReset(T& dest, const MakerType& src) {
-    riegeli::Reset(dest, src.arg0_);
-  }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Arg0 arg0_;
-};
-
 // Support CTAD.
 #if __cpp_deduction_guides
 template <typename... Args>
@@ -353,10 +232,6 @@ class MakerTypeForBase
     : public ConditionallyAssignable<absl::conjunction<
           absl::negation<std::is_reference<Args>>...>::value> {
  public:
-  // Make `MakerTypeFor<T>` trivially default constructible (for
-  // `TemporaryStorage` optimization).
-  MakerTypeForBase() = default;
-
   // Constructs `MakerTypeFor` from `args...` convertible to `Args...`.
   template <
       typename... SrcArgs,

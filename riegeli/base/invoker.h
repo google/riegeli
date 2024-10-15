@@ -67,7 +67,11 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   template <
       typename SrcFunction, typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<std::is_convertible<SrcFunction&&, Function>,
+          absl::conjunction<absl::negation<std::is_same<
+                                std::tuple<std::decay_t<SrcFunction>,
+                                           std::decay_t<SrcArgs>...>,
+                                std::tuple<InvokerType<Function, Args...>>>>,
+                            std::is_convertible<SrcFunction&&, Function>,
                             std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
   /*implicit*/ InvokerBase(SrcFunction&& function, SrcArgs&&... args)
@@ -92,42 +96,6 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
-};
-
-// Specialization of `InvokerBase` for 0 arguments to exclude the constructor
-// hijacking copy and move constructor for the 0 argument case, and to make the
-// type trivially copy constructible more often.
-
-template <typename Function>
-class InvokerBase<Function> {
- public:
-  using Result = decltype(std::declval<Function&&>()());
-
-  template <typename SrcFunction,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_same<std::decay_t<SrcFunction>,
-                                                InvokerType<Function>>>,
-                    std::is_convertible<SrcFunction&&, Function>>::value,
-                int> = 0>
-  /*implicit*/ InvokerBase(SrcFunction&& function)
-      : function_(std::forward<SrcFunction>(function)) {}
-
-  InvokerBase(InvokerBase&& that) = default;
-  InvokerBase& operator=(InvokerBase&& that) = default;
-
-  InvokerBase(const InvokerBase& that) = default;
-  InvokerBase& operator=(const InvokerBase& that) = default;
-
-  /*implicit*/ operator Result() && {
-    return std::forward<Function>(function_)();
-  }
-
- protected:
-  const Function& function() const { return function_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
 };
 
 template <typename Enable, typename Function, typename... Args>
@@ -180,28 +148,6 @@ class InvokerConstBase</*is_const_callable=*/true, Function, Args...>
   /*implicit*/ operator ConstResult() const& {
     return absl::apply(this->function(), this->args());
   }
-};
-
-// Specialization of `InvokerConstBase<true, ...>` for 0 arguments to make it
-// compatible with the specialization of `InvokerBase`.
-
-template <typename Function>
-class InvokerConstBase</*is_const_callable=*/true, Function>
-    : public InvokerBase<Function> {
- public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
-
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
-
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  using ConstResult = decltype(std::declval<const Function&>()());
-
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
-  /*implicit*/ operator ConstResult() const& { return this->function()(); }
 };
 
 }  // namespace invoker_internal
