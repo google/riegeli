@@ -23,10 +23,8 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/casts.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
-#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
@@ -97,77 +95,53 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
     ConstructAtImpl<T>(ptr, std::index_sequence_for<Args...>());
   }
 
-  // Constructs the `T`, or returns a reference to an already constructed object
-  // if that was passed to the `MakerType`.
+  // Constructs the `T` in `storage` which must outlive the returned reference.
   //
-  // `Reference()` instead of `Construct()` can avoid moving the object if the
-  // caller does not need to store the object, or if it will be moved later
-  // because the target location for the object is not ready yet.
+  // `Reference()` instead of `Construct()` supports `Initializer::Reference()`,
+  // and is compatible with immovable types before C++17 which guarantees copy
+  // elision.
   //
-  // `storage` must outlive usages of the returned reference.
+  // If copy elision is guaranteed and the `storage` argument is omitted, the
+  // result is returned by value instead of by reference, which is a more
+  // efficient way to construct the temporary.
+#if __cpp_guaranteed_copy_elision
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, Args&&...>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, Args&&...>>::value,
-                       int> = 0>
-      T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    auto&& reference = std::get<0>(std::move(args_));
-    return std::forward<T>(
-        *absl::implicit_cast<std::remove_reference_t<T>*>(&reference));
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  T Reference() && {
+    return std::move(*this).template Construct<T>();
   }
+#endif
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<std::is_constructible<T, Args&&...>,
-                                         initializer_internal::CanBindTo<
-                                             T&&, Args&&...>>::value,
-                       int> = 0>
-      T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).template Reference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, Args&&...>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, Args&&...>>>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
+      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
+#if !__cpp_guaranteed_copy_elision
+                = TemporaryStorage<T>()
+#endif
+                    ) && {
     return absl::apply(
         [&](Args&&... args) -> T&& {
           return std::move(storage).emplace(std::forward<Args>(args)...);
         },
         std::move(args_));
   }
+#if __cpp_guaranteed_copy_elision
   template <typename T,
-            std::enable_if_t<
-                absl::conjunction<std::is_constructible<T, const Args&...>,
-                                  initializer_internal::CanBindTo<
-                                      T&&, const Args&...>>::value,
-                int> = 0>
-  T&& Reference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::forward<T>(
-        *absl::implicit_cast<std::remove_reference_t<T>*>(&std::get<0>(args_)));
-  }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<std::is_constructible<T, const Args&...>,
-                                  initializer_internal::CanBindTo<
-                                      T&&, const Args&...>>::value,
-                int> = 0>
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
-      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return Reference<T>();
-  }
-  template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 std::is_constructible<T, const Args&...>,
-                                 absl::negation<initializer_internal::CanBindTo<
-                                     T&&, const Args&...>>>::value,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
                              int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
+  T Reference() const& {
+    return Construct<T>();
+  }
+#endif
+  template <typename T,
+            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
+                             int> = 0>
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
+#if !__cpp_guaranteed_copy_elision
+                = TemporaryStorage<T>()
+#endif
+  ) const& {
     return absl::apply(
         [&](const Args&... args) -> T&& {
           return std::move(storage).emplace(args...);
@@ -261,35 +235,23 @@ class MakerTypeForBase
     std::move(*this).maker().template ConstructAt<T>(ptr);
   }
 
-  // Constructs the `T`, or returns a reference to an already constructed object
-  // if that was passed to the `MakerTypeFor`.
+  // Constructs the `T` in `storage` which must outlive the returned reference.
   //
-  // `Reference()` instead of conversion to `T` can avoid moving the object if
-  // the caller does not need to store the object, or if it will be moved later
-  // because the target location for the object is not ready yet.
+  // `Reference()` instead of conversion to `T` supports
+  // `Initializer::Reference()`, and is compatible with immovable types before
+  // C++17 which guarantees copy elision.
   //
-  // `storage` must outlive usages of the returned reference.
-  template <typename DependentT = T,
-            std::enable_if_t<
-                initializer_internal::CanBindTo<DependentT&&, Args&&...>::value,
-                int> = 0>
-      T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).maker().template Reference<T>();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                initializer_internal::CanBindTo<DependentT&&, Args&&...>::value,
-                int> = 0>
-      T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(*this).Reference();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<!initializer_internal::CanBindTo<DependentT&&,
-                                                              Args&&...>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) && {
+  // If copy elision is guaranteed and the `storage` argument is omitted, the
+  // result is returned by value instead of by reference, which is a more
+  // efficient way to construct the temporary.
+#if __cpp_guaranteed_copy_elision
+  T Reference() && { return std::move(*this).maker().template Reference<T>(); }
+#endif
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
+#if !__cpp_guaranteed_copy_elision
+                = TemporaryStorage<T>()
+#endif
+                    ) && {
     return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
 
@@ -357,28 +319,24 @@ class MakerTypeForByConstBase</*is_const_makable=*/true, T, Args...>
     this->maker().template ConstructAt<T>(ptr);
   }
 
+  // Constructs the `T` in `storage` which must outlive the returned reference.
+  //
+  // `Reference()` instead of conversion to `T` supports
+  // `Initializer::Reference()`, and is compatible with immovable types before
+  // C++17 which guarantees copy elision.
+  //
+  // If copy elision is guaranteed and the `storage` argument is omitted, the
+  // result is returned by value instead of by reference, which is a more
+  // efficient way to construct the temporary.
   using MakerTypeForByConstBase::MakerTypeForBase::Reference;
-  template <typename DependentT = T,
-            std::enable_if_t<initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  T&& Reference() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->maker().template Reference<T>();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage)
-      const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return Reference();
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<!initializer_internal::CanBindTo<
-                                 DependentT&&, const Args&...>::value,
-                             int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) const& {
+#if __cpp_guaranteed_copy_elision
+  T Reference() const& { return this->maker().template Reference<T>(); }
+#endif
+  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
+#if !__cpp_guaranteed_copy_elision
+                = TemporaryStorage<T>()
+#endif
+  ) const& {
     return this->maker().template Reference<T>(std::move(storage));
   }
 

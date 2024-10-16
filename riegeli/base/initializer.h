@@ -194,8 +194,9 @@ class InitializerBase {
 #endif
   }
 
-  // Constructs the `T`, or returns a reference to an already constructed object
-  // if that was passed to the `Initializer`.
+  // Constructs the `T` in `storage` which must outlive the returned reference,
+  // or returns a reference to an already constructed object if a compatible
+  // object was passed to `Initializer` constructor.
   //
   // `Reference()` instead of conversion to `T` can avoid moving the object if
   // the caller does not need to store the object, or if it will be moved later
@@ -237,11 +238,11 @@ class InitializerBase {
                                     TemporaryStorage<T>&& storage);
 
   template <typename Arg,
-            std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int> = 0>
+            std::enable_if_t<CanBindReference<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(TypeErasedRef context,
                                        TemporaryStorage<T>&& storage);
   template <typename Arg,
-            std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int> = 0>
+            std::enable_if_t<!CanBindReference<T&&, Arg&&>::value, int> = 0>
   static T&& ReferenceMethodFromObject(TypeErasedRef context,
                                        TemporaryStorage<T>&& storage);
 
@@ -921,15 +922,17 @@ T&& InitializerBase<T>::ReferenceMethodDefault(
 }
 
 template <typename T>
-template <typename Arg, std::enable_if_t<CanBindTo<T&&, Arg&&>::value, int>>
+template <typename Arg,
+          std::enable_if_t<CanBindReference<T&&, Arg&&>::value, int>>
 T&& InitializerBase<T>::ReferenceMethodFromObject(
     TypeErasedRef context,
     ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
-  return context.Cast<Arg>();
+  return BindReference<T&&>(context.Cast<Arg>());
 }
 
 template <typename T>
-template <typename Arg, std::enable_if_t<!CanBindTo<T&&, Arg&&>::value, int>>
+template <typename Arg,
+          std::enable_if_t<!CanBindReference<T&&, Arg&&>::value, int>>
 T&& InitializerBase<T>::ReferenceMethodFromObject(
     TypeErasedRef context, TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace(context.Cast<Arg>());

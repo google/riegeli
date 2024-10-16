@@ -17,35 +17,51 @@
 
 #include <type_traits>
 
+#include "absl/base/casts.h"
+
 namespace riegeli {
 namespace initializer_internal {
 
-// `CanBindTo<T&&, Args&&...>::value` is `true` if constructing `T(args...)`
-// with `args...` of type `Args&&...` can be elided, with `T&&` binding directly
-// to the only element of `args...` instead.
+// `CanBindReference<T&&, Arg&&>::value` is `true` if `Arg&&` can be implicitly
+// converted to `T&&` without creating a temporary.
 //
 // Due to not all compilers implementing http://wg21.link/cwg2352 (converting
 // `T*&` to `const T* const&` could have bound the result to a temporary),
-// binding a const reference should be done by converting between the
-// corresponding pointer types and then dereferencing.
-
-template <typename T, typename... Args>
-struct CanBindTo : std::false_type {};
+// this covers also the case when the corresponding pointers can be converted.
+// `BindReference()` should be used for the actual conversion.
 
 template <typename T, typename Arg>
-struct CanBindTo<T&, Arg&> : std::is_convertible<Arg*, T*> {};
+struct CanBindReference : std::false_type {};
 
 template <typename T, typename Arg>
-struct CanBindTo<T&, Arg&&> : std::false_type {};
+struct CanBindReference<T&, Arg&> : std::is_convertible<Arg*, T*> {};
 
 template <typename T, typename Arg>
-struct CanBindTo<const T&, Arg&&> : std::is_convertible<Arg*, const T*> {};
+struct CanBindReference<T&, Arg&&> : std::false_type {};
 
 template <typename T, typename Arg>
-struct CanBindTo<T&&, Arg&> : std::false_type {};
+struct CanBindReference<const T&, Arg&&> : std::is_convertible<Arg*, const T*> {
+};
 
 template <typename T, typename Arg>
-struct CanBindTo<T&&, Arg&&> : std::is_convertible<Arg*, T*> {};
+struct CanBindReference<T&&, Arg&> : std::false_type {};
+
+template <typename T, typename Arg>
+struct CanBindReference<T&&, Arg&&> : std::is_convertible<Arg*, T*> {};
+
+// `BindReference<T&&>(arg)` returns `arg` implicitly converted to `T&&`.
+//
+// Due to not all compilers implementing http://wg21.link/cwg2352 (converting
+// `T*&` to `const T* const&` could have bound the result to a temporary),
+// this is not implemented as a simple implicit conversion, but by converting
+// the reference to a pointer, implicitly converting the pointer, and
+// dereferencing back.
+template <typename T, typename Arg,
+          std::enable_if_t<CanBindReference<T&&, Arg&&>::value, int> = 0>
+inline T&& BindReference(Arg&& arg) {
+  return std::forward<T>(
+      *absl::implicit_cast<std::remove_reference_t<T>*>(&arg));
+}
 
 }  // namespace initializer_internal
 }  // namespace riegeli
