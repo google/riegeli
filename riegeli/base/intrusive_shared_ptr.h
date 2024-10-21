@@ -293,9 +293,6 @@ class
     return a.get() == nullptr;
   }
 
-  // Allow Nullability annotations on `IntrusiveSharedPtr`.
-  using absl_nullability_compatible = void;
-
   // Indicate support for:
   //  * `ExternalRef(const IntrusiveSharedPtr&, substr)`
   //  * `ExternalRef(IntrusiveSharedPtr&&, substr)`

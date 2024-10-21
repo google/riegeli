@@ -68,9 +68,6 @@ class
 
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
 
-  // Allow Nullability annotations on `OwnedCFile`.
-  using absl_nullability_compatible = void;
-
   // Opens a new `FILE*`, like with `fopen()` but taking
   // `absl::string_view filename`, `absl::string_view mode`, and returning
   // `absl::Status`.
@@ -161,9 +158,6 @@ class
   }
   friend bool operator==(UnownedCFile a, FILE* b) { return a.get() == b; }
 
-  // Allow Nullability annotations on `UnownedCFile`.
-  using absl_nullability_compatible = void;
-
  private:
   FILE* file_ = nullptr;
 };
@@ -250,9 +244,6 @@ class
   friend bool operator==(CFileHandle a, CFileHandle b) {
     return a.target_ == b.target_;
   }
-
-  // Allow Nullability annotations on `CFileHandle`.
-  using absl_nullability_compatible = void;
 
   // Returns `true` if the `CFileHandle` owns the `FILE*`, i.e. is responsible
   // for closing it and the `FILE*` is present.

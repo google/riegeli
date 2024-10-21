@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
@@ -176,8 +177,6 @@ class
             std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
  public:
-  using absl_nullability_compatible = void;
-
   using StableDependency::Dependency::Dependency;
 
   StableDependency(StableDependency&& that) = default;

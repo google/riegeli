@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -934,8 +935,6 @@ class
                          dependency_internal::DependencyDeref<Handle, Manager>,
                          Handle, Manager> {
  public:
-  using absl_nullability_compatible = void;
-
   using Dependency::DependencyDerived::DependencyDerived;
 
   Dependency(const Dependency& that) = default;

@@ -265,9 +265,6 @@ class
     return a.target_ == b.target_;
   }
 
-  // Allow Nullability annotations on `FdHandle`.
-  using absl_nullability_compatible = void;
-
   // Returns `true` if the `FdHandle` owns the fd, i.e. is responsible for
   // closing it and the fd is present.
   bool IsOwning() const { return methods_->is_owning(target_); }

@@ -148,9 +148,6 @@ class
     return a.target() == b.target();
   }
 
-  // Allow Nullability annotations on `DigesterBaseHandle`.
-  using absl_nullability_compatible = void;
-
   // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
   // will be written from the current position. This may improve performance and
   // memory usage.

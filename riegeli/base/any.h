@@ -26,6 +26,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
@@ -231,8 +232,6 @@ class
   };
 
  public:
-  using absl_nullability_compatible = void;
-
   // `Any<Handle>::Inlining<InlineManagers...>` enlarges inline storage of
   // `Any<Handle>`.
   //
@@ -386,7 +385,11 @@ class DependencyManagerImpl<
 // an owned dependency by rvalue reference instead of by value, which avoids
 // moving it.
 template <typename Handle>
-class AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
  public:
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
