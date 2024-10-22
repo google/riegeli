@@ -177,6 +177,24 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                 src.args_);
   }
 
+  // Extracts the given argument.
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() & {
+    return std::get<index>(args_);
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const& {
+    return std::get<index>(args_);
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
+    return std::get<index>(std::move(args_));
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
+    return std::get<index>(std::move(args_));
+  }
+
  private:
   template <typename T, size_t... indices>
   void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) && {
@@ -267,7 +285,25 @@ class MakerTypeForBase
     riegeli::Reset(dest, std::move(src).maker());
   }
 
-  // Returns the corresponding `MakerType` which does not specify `T`.
+  // Extracts the given argument.
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() & {
+    return maker().template arg<index>();
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const& {
+    return maker().template arg<index>();
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
+    return std::move(*this).maker().template arg<index>();
+  }
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
+    return std::move(*this).maker().template arg<index>();
+  }
+
+  // Extracts the corresponding `MakerType` which does not specify `T`.
   //
   // This is useful for handling `MakerType` and `MakerTypeFor` generically.
   MakerType<Args...>& maker() & { return maker_; }

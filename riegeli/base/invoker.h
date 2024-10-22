@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BASE_INVOKER_H_
 #define RIEGELI_BASE_INVOKER_H_
 
+#include <stddef.h>
+
 #include <functional>
 #include <tuple>
 #include <type_traits>
@@ -89,8 +91,31 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
     return absl::apply(std::forward<Function>(function_), std::move(args_));
   }
 
+  // Extracts the function.
+  Function& function() & { return function_; }
+  const Function& function() const& { return function_; }
+  Function&& function() && { return std::move(function_); }
+  const Function&& function() const&& { return std::move(function_); }
+
+  // Extracts the given argument.
+  template <size_t index>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() & {
+    return std::get<index>(args_);
+  }
+  template <size_t index>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const& {
+    return std::get<index>(args_);
+  }
+  template <size_t index>
+  std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
+    return std::get<index>(std::move(args_));
+  }
+  template <size_t index>
+  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
+    return std::get<index>(std::move(args_));
+  }
+
  protected:
-  const Function& function() const { return function_; }
   const std::tuple<Args...>& args() const { return args_; }
 
  private:
