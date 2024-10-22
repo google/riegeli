@@ -131,7 +131,7 @@ class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
 // or no longer used.
 //
 // This primary class template is used when `newline != ReadNewline::kLf`.
-template <ReadNewline newline = ReadNewline::kNative, typename Src = Reader*>
+template <ReadNewline newline = ReadNewline::kCrLfOrLf, typename Src = Reader*>
 class TextReader : public text_reader_internal::TextReaderImpl<newline> {
  public:
   using Options = TextReaderBase::Options;
@@ -204,11 +204,11 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit TextReader(Closed)
-    -> TextReader<ReadNewline::kNative, DeleteCtad<Closed>>;
+    -> TextReader<ReadNewline::kCrLfOrLf, DeleteCtad<Closed>>;
 template <typename Src>
 explicit TextReader(Src&& src,
                     TextReaderBase::Options options = TextReaderBase::Options())
-    -> TextReader<ReadNewline::kNative, InitializerTargetT<Src>>;
+    -> TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>;
 #endif
 
 // Wraps a `TextReader` for a line terminator specified at runtime.
@@ -225,7 +225,7 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
 
   // Line terminator representation to translate from LF.
   //
-  // Default: `ReadNewline::kNative`.
+  // Default: `ReadNewline::kCrLfOrLf`.
   AnyTextReaderOptions& set_newline(ReadNewline newline) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
@@ -238,7 +238,7 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
   ReadNewline newline() const { return newline_; }
 
  private:
-  ReadNewline newline_ = ReadNewline::kNative;
+  ReadNewline newline_ = ReadNewline::kCrLfOrLf;
 };
 
 // Factory function for `AnyTextReader`.

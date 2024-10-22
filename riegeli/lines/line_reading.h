@@ -40,7 +40,7 @@ class ReadLineOptions {
 
   // Line terminator representations to recognize.
   //
-  // Default: `ReadNewline::kNative`.
+  // Default: `ReadNewline::kCrLfOrLf`.
   ReadLineOptions& set_newline(ReadNewline newline) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     newline_ = newline;
@@ -87,7 +87,7 @@ class ReadLineOptions {
   size_t max_length() const { return max_length_; }
 
  private:
-  ReadNewline newline_ = ReadNewline::kNative;
+  ReadNewline newline_ = ReadNewline::kCrLfOrLf;
   bool keep_newline_ = false;
   size_t max_length_ = std::numeric_limits<size_t>::max();
 };

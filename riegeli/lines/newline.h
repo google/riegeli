@@ -25,15 +25,6 @@ enum class ReadNewline {
   kLf,        // LF              ("\n")
   kCrLfOrLf,  // LF |      CR-LF ("\n" |        "\r\n")
   kAny,       // LF | CR | CR-LF ("\n" | "\r" | "\r\n")
-
-  // Deprecated alias.
-  kLfOrCrLf = kCrLfOrLf,
-
-#ifndef _WIN32
-  kNative = kLf,
-#else
-  kNative = kCrLfOrLf,
-#endif
 };
 
 // Line terminator representation to write.
