@@ -652,8 +652,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
       const reference* operator->() const { return &ref_; }
 
      private:
-      template <typename>
-      friend class IteratorImpl;
+      friend class IteratorImpl<FieldIterator>;
       explicit pointer(reference ref) : ref_(ref) {}
       reference ref_;
     };
