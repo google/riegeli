@@ -192,11 +192,18 @@ bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* shard = ShardWriter();
-  if (!shard_is_open(shard)) return ForcePushUsingScratch();
-  SyncBuffer(*shard);
-  if (start_pos() == shard_pos_limit_) {
-    if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
-    return ForcePushUsingScratch();
+  if (!shard_is_open(shard)) {
+    if (!AllowEmptyShards()) return ForcePushUsingScratch();
+    if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
+    shard = ShardWriter();
+  } else {
+    SyncBuffer(*shard);
+    while (start_pos() == shard_pos_limit_) {
+      if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
+      if (!AllowEmptyShards()) return ForcePushUsingScratch();
+      if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
+      shard = ShardWriter();
+    }
   }
   const bool push_ok = shard->Push(1, recommended_length);
   MakeBuffer(*shard);

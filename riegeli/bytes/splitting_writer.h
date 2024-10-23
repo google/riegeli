@@ -122,6 +122,20 @@ class SplittingWriterBase : public PushableWriter {
   bool shard_is_open() const;
   bool shard_is_open(const Writer* shard) const;
 
+  // Should return `true` if `OpenShardImpl()` and then `CloseShardImpl()` may
+  // be called with no data written to `shard()`. This makes `Push()` at a shard
+  // boundary more efficient, because the buffer will be created directly in the
+  // shard, but `OpenShardImpl()` and `CloseShardImpl()` must be able to deal
+  // with empty shards.
+  //
+  // Should return `false` if `OpenShardImpl()` may be called only if the shard
+  // will definitely have some data written before calling `CloseShardImpl()`.
+  // This makes `Push()` at a shard boundary less efficient, because the
+  // beginning of the data will be written to a scratch buffer and then copied
+  // to the shard, but `OpenShardImpl()` and `CloseShardImpl()` can assume that
+  // all shards are non-empty.
+  virtual bool AllowEmptyShards() { return false; }
+
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverShard(absl::Status status);
