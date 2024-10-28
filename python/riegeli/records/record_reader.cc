@@ -107,16 +107,13 @@ static PyObject* GetRecordType(PyObject* self, PyObject* args,
       PyObject_CallMethodObjArgs(pool.get(), id_FindMessageTypeByName.get(),
                                  record_type_name.get(), nullptr));
   if (ABSL_PREDICT_FALSE(message_descriptor == nullptr)) return nullptr;
-  // factory = MessageFactory(pool)
-  static constexpr ImportedConstant kMessageFactory(
-      "google.protobuf.message_factory", "MessageFactory");
-  if (ABSL_PREDICT_FALSE(!kMessageFactory.Verify())) return nullptr;
-  const PythonPtr factory(
-      PyObject_CallFunctionObjArgs(kMessageFactory.get(), pool.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(factory == nullptr)) return nullptr;
-  // return factory.GetPrototype(message_descriptor)
-  static constexpr Identifier id_GetPrototype("GetPrototype");
-  return PyObject_CallMethodObjArgs(factory.get(), id_GetPrototype.get(),
+  // return GetMessageClass(message_descriptor)
+  const PythonPtr message_factory(
+      PyImport_ImportModule("google.protobuf.message_factory"));
+  if (ABSL_PREDICT_FALSE(message_factory == nullptr)) return nullptr;
+  static constexpr Identifier id_GetMessageClass("GetMessageClass");
+  return PyObject_CallMethodObjArgs(message_factory.get(),
+                                    id_GetMessageClass.get(),
                                     message_descriptor.get(), nullptr);
 }
 
