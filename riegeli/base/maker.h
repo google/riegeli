@@ -386,6 +386,49 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS MakerType<Args...> maker_;
 };
 
+// `MakerTarget<T>::type` and `MakerTargetT<T>` deduce the appropriate target
+// type of a possibly const-qualified `MakerTypeFor<Target, Args...>` or its
+// reference, such that `T` is convertible to `MakerTargetT<T>`.
+//
+// They are undefined when the maker is not usable in the given const and
+// reference context.
+
+namespace maker_internal {
+
+template <typename T, typename Enable = void>
+struct MakerTargetImpl {
+  // No `type` member when the maker is not usable in the given const and
+  // reference context.
+};
+
+template <typename Target, typename... Args>
+struct MakerTargetImpl<
+    MakerTypeFor<Target, Args...>,
+    std::enable_if_t<std::is_constructible<Target, Args&&...>::value>> {
+  using type = Target;
+};
+
+template <typename Target, typename... Args>
+struct MakerTargetImpl<
+    const MakerTypeFor<Target, Args...>,
+    std::enable_if_t<std::is_constructible<Target, const Args&...>::value>> {
+  using type = Target;
+};
+
+}  // namespace maker_internal
+
+template <typename T>
+struct MakerTarget : maker_internal::MakerTargetImpl<T> {};
+
+template <typename T>
+struct MakerTarget<T&> : maker_internal::MakerTargetImpl<const T> {};
+
+template <typename T>
+struct MakerTarget<T&&> : maker_internal::MakerTargetImpl<T> {};
+
+template <typename T>
+using MakerTargetT = typename MakerTarget<T>::type;
+
 // `riegeli::Maker(args...)` returns `MakerType<Args&&...>` which packs
 // constructor arguments for a yet unspecified type, which will be specified by
 // the caller. `riegeli::Maker(args...)` is convertible to `Initializer<T>` for

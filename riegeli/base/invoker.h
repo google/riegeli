@@ -214,48 +214,80 @@ explicit InvokerType(Function&&, Args&&...)
     -> InvokerType<std::decay_t<Function>, std::decay_t<Args>...>;
 #endif
 
-// `InvokerResult<T>::type` and `InvokerResultT<T>` deduce the appropriate
-// result type of a possibly const-qualified invoker or invoker reference,
-// such that `T` is convertible to `InvokerResultT<T>`.
+// `InvokerTargetRef<T>::type` and `InvokerTargetRefT<T>` deduce the appropriate
+// target type of a possibly const-qualified `InvokerType<Function, Args...>`
+// or its reference, such that `T` is convertible to `InvokerTargetRefT<T>`.
 //
-// This is undefined when the invoker is not callable in the given const and
+// They are undefined when the invoker is not usable in the given const and
 // reference context.
 
 namespace invoker_internal {
 
 template <typename T, typename Enable = void>
-struct InvokerResultImpl {
-  // No `type` member when the invoker is not callable in the given const and
+struct InvokerTargetRefImpl {
+  // No `type` member when the invoker is not usable in the given const and
   // reference context.
 };
 
-template <typename T>
-struct InvokerResultImpl<T&, absl::void_t<typename T::ConstResult>> {
-  using type = typename T::ConstResult;
+template <typename Function, typename... Args>
+struct InvokerTargetRefImpl<
+    InvokerType<Function, Args...>,
+    std::enable_if_t<IsCallable<Function&&, Args&&...>::value>> {
+  using type = typename InvokerType<Function, Args...>::Result;
 };
 
-template <typename T>
-struct InvokerResultImpl<const T&, absl::void_t<typename T::ConstResult>> {
-  using type = typename T::ConstResult;
-};
-
-template <typename T>
-struct InvokerResultImpl<T&&, absl::void_t<typename T::Result>> {
-  using type = typename T::Result;
-};
-
-template <typename T>
-struct InvokerResultImpl<const T&&, absl::void_t<typename T::ConstResult>> {
-  using type = typename T::ConstResult;
+template <typename Function, typename... Args>
+struct InvokerTargetRefImpl<
+    const InvokerType<Function, Args...>,
+    std::enable_if_t<IsCallable<const Function&, const Args&...>::value>> {
+  using type = typename InvokerType<Function, Args...>::ConstResult;
 };
 
 }  // namespace invoker_internal
 
 template <typename T>
-struct InvokerResult : invoker_internal::InvokerResultImpl<T&&> {};
+struct InvokerTargetRef : invoker_internal::InvokerTargetRefImpl<T> {};
 
 template <typename T>
-using InvokerResultT = typename InvokerResult<T>::type;
+struct InvokerTargetRef<T&> : invoker_internal::InvokerTargetRefImpl<const T> {
+};
+
+template <typename T>
+struct InvokerTargetRef<T&&> : invoker_internal::InvokerTargetRefImpl<T> {};
+
+template <typename T>
+using InvokerTargetRefT = typename InvokerTargetRef<T>::type;
+
+// `InvokerTarget<T>::type` and `InvokerTargetT<T>` deduce the appropriate
+// target type of a possibly const-qualified `InvokerType<Function, Args...>`
+// or its reference, decayed to its value type, such that `T` is convertible to
+// `InvokerTargetT<T>`.
+//
+// This makes the result independent from whether the function returns a value
+// or a reference, if the result needs to be stored for later.
+//
+// They are undefined when the invoker is not usable in the given const and
+// reference context.
+
+namespace invoker_internal {
+
+template <typename T, typename Enable = void>
+struct InvokerTargetImpl {
+  // No `type` member when the invoker is not usable in the given const and
+  // reference context.
+};
+
+template <typename T>
+struct InvokerTargetImpl<T, absl::void_t<InvokerTargetRefT<T>>>
+    : std::decay<InvokerTargetRefT<T>> {};
+
+}  // namespace invoker_internal
+
+template <typename T>
+struct InvokerTarget : invoker_internal::InvokerTargetImpl<T> {};
+
+template <typename T>
+using InvokerTargetT = typename InvokerTarget<T>::type;
 
 // `riegeli::Invoker(function, args...)` returns
 // `InvokerType<Function, Args...>` which packs a function together with its
