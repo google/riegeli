@@ -221,6 +221,9 @@ class InitializerBase {
 
   template <typename... Args>
   static T ConstructMethodFromConstMaker(TypeErasedRef context);
+
+  template <typename Arg>
+  static T ConstructMethodFromConvertedReference(TypeErasedRef context);
 #else   // !__cpp_guaranteed_copy_elision
   static void ConstructAtMethodDefault(TypeErasedRef context, void* ptr);
 
@@ -232,6 +235,10 @@ class InitializerBase {
 
   template <typename... Args>
   static void ConstructAtMethodFromConstMaker(TypeErasedRef context, void* ptr);
+
+  template <typename Arg>
+  static void ConstructAtMethodFromConvertedReference(TypeErasedRef context,
+                                                      void* ptr);
 #endif  // !__cpp_guaranteed_copy_elision
 
   static T&& ReferenceMethodDefault(TypeErasedRef context,
@@ -253,6 +260,10 @@ class InitializerBase {
   template <typename... Args>
   static T&& ReferenceMethodFromConstMaker(TypeErasedRef context,
                                            TemporaryStorage<T>&& storage);
+
+  template <typename Arg>
+  static T&& ReferenceMethodFromConvertedReference(
+      TypeErasedRef context, TemporaryStorage<T>&& storage);
 
  protected:
   struct Methods {
@@ -308,6 +319,15 @@ class InitializerBase {
 #endif
       ReferenceMethodFromConstMaker<Args...>};
 
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference = {
+#if __cpp_guaranteed_copy_elision
+      ConstructMethodFromConvertedReference<Arg>,
+#else
+      ConstructAtMethodFromConvertedReference<Arg>,
+#endif
+      ReferenceMethodFromConvertedReference<Arg>};
+
   const Methods* methods() const { return methods_; }
   TypeErasedRef context() const { return context_; }
 
@@ -343,6 +363,9 @@ class InitializerMovableBase : public InitializerBase<T> {
   template <typename... Args>
   static T ConstructMethodFromConstMaker(TypeErasedRef context);
 
+  template <typename Arg>
+  static T ConstructMethodFromConvertedReference(TypeErasedRef context);
+
  protected:
   struct Methods : InitializerMovableBase::InitializerBase::Methods {
     T (*construct)(TypeErasedRef context);
@@ -370,6 +393,12 @@ class InitializerMovableBase : public InitializerBase<T> {
       InitializerMovableBase::InitializerBase::template kMethodsFromConstMaker<
           Args...>,
       ConstructMethodFromConstMaker<Args...>};
+
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference = {
+      InitializerMovableBase::InitializerBase::
+          template kMethodsFromConvertedReference<Arg>,
+      ConstructMethodFromConvertedReference<Arg>};
 #else   // !__cpp_aggregate_bases
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -420,6 +449,19 @@ class InitializerMovableBase : public InitializerBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
+
+  template <typename Arg>
+  static constexpr Methods MakeMethodsFromConvertedReference() {
+    Methods methods;
+    static_cast<typename InitializerMovableBase::InitializerBase::Methods&>(
+        methods) = InitializerMovableBase::InitializerBase::
+        template kMethodsFromConvertedReference<Arg>;
+    methods.construct = ConstructMethodFromConvertedReference<Arg>;
+    return methods;
+  }
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference =
+      MakeMethodsFromConvertedReference<Arg>();
 #endif  // !__cpp_aggregate_bases
 #endif  // !__cpp_guaranteed_copy_elision
 
@@ -465,6 +507,9 @@ class InitializerAssignableBase : public InitializerMovableBase<T> {
   template <typename... Args>
   static void ResetMethodFromConstMaker(TypeErasedRef context, T& dest);
 
+  template <typename Arg>
+  static void ResetMethodFromConvertedReference(TypeErasedRef context, T& dest);
+
  protected:
   struct Methods : InitializerAssignableBase::InitializerMovableBase::Methods {
     void (*reset)(TypeErasedRef context, T& dest);
@@ -494,6 +539,12 @@ class InitializerAssignableBase : public InitializerMovableBase<T> {
       InitializerAssignableBase::InitializerMovableBase::
           template kMethodsFromConstMaker<Args...>,
       ResetMethodFromConstMaker<Args...>};
+
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference = {
+      InitializerAssignableBase::InitializerMovableBase::
+          template kMethodsFromConvertedReference<Arg>,
+      ResetMethodFromConvertedReference<Arg>};
 #else   // !__cpp_aggregate_bases
   static constexpr Methods MakeMethodsDefault() {
     Methods methods;
@@ -546,6 +597,20 @@ class InitializerAssignableBase : public InitializerMovableBase<T> {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker =
       MakeMethodsFromConstMaker<Args...>();
+
+  template <typename Arg>
+  static constexpr Methods MakeMethodsFromConvertedReference() {
+    Methods methods;
+    static_cast<
+        typename InitializerAssignableBase::InitializerMovableBase::Methods&>(
+        methods) = InitializerAssignableBase::InitializerMovableBase::
+        template kMethodsFromConvertedReference<Arg>;
+    methods.reset = ResetMethodFromConvertedReference<Arg>;
+    return methods;
+  }
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference =
+      MakeMethodsFromConvertedReference<Arg>();
 #endif  // !__cpp_aggregate_bases
 
   explicit InitializerAssignableBase(const Methods* methods)
@@ -598,6 +663,9 @@ class InitializerReference {
   template <typename... Args>
   static T ConstructMethodFromConstMaker(TypeErasedRef context);
 
+  template <typename Arg>
+  static T ConstructMethodFromConvertedReference(TypeErasedRef context);
+
  protected:
   struct Methods {
     T (*construct)(TypeErasedRef context);
@@ -622,6 +690,10 @@ class InitializerReference {
   template <typename... Args>
   static constexpr Methods kMethodsFromConstMaker = {
       ConstructMethodFromConstMaker<Args...>};
+
+  template <typename Arg>
+  static constexpr Methods kMethodsFromConvertedReference = {
+      ConstructMethodFromConvertedReference<Arg>};
 
   const Methods* methods() const { return methods_; }
   TypeErasedRef context() const { return context_; }
@@ -678,7 +750,6 @@ struct InitializerImpl<T, std::enable_if_t<std::is_reference<T>::value>> {
 // so that the temporaries outlive its usage. Instead of storing an
 // `Initializer<T>` in a variable or returning it from a function, consider
 // `riegeli::OwningMaker<T>(args...)`, `MakerTypeFor<T, Args...>`, or `T`.
-
 template <typename T, bool allow_explicit = false>
 class Initializer : public initializer_internal::InitializerImpl<T>::type {
  private:
@@ -735,17 +806,47 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
   /*implicit*/ Initializer(
       MakerTypeFor<T, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : Base(&Base::template kMethodsFromMaker<Args...>,
-             std::move(args).maker()) {}
-  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
-  // `riegeli::Maker<T>(args...)`.
+      : Base(&Base::template kMethodsFromObject<MakerTypeFor<T, Args...>>,
+             std::move(args)) {}
   template <typename... Args,
             std::enable_if_t<std::is_constructible<T, const Args&...>::value,
                              int> = 0>
   /*implicit*/ Initializer(
       const MakerTypeFor<T, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : Base(&Base::template kMethodsFromConstMaker<Args...>, args.maker()) {}
+      : Base(
+            &Base::template kMethodsFromObject<const MakerTypeFor<T, Args...>&>,
+            args) {}
 
+  // Constructs `Initializer<T>` from constructor arguments for `T` packed in
+  // `riegeli::Maker<Target>(args...)` with a different but compatible `Target`.
+  template <typename Target, typename... Args,
+            std::enable_if_t<
+                absl::conjunction<std::is_constructible<Target, Args&&...>,
+                                  absl::negation<std::is_same<Target, T>>,
+                                  initializer_internal::IsCompatibleResult<
+                                      allow_explicit, T, Target>>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      MakerTypeFor<Target, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Base(&Base::template kMethodsFromConvertedReference<
+                 MakerTypeFor<Target, Args...>>,
+             std::move(args)) {}
+  template <typename Target, typename... Args,
+            std::enable_if_t<
+                absl::conjunction<std::is_constructible<Target, const Args&...>,
+                                  absl::negation<std::is_same<Target, T>>,
+                                  initializer_internal::IsCompatibleResult<
+                                      allow_explicit, T, Target>>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      const MakerTypeFor<Target, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Base(&Base::template kMethodsFromConvertedReference<
+                 const MakerTypeFor<Target, Args...>&>,
+             args) {}
+
+  // Constructs `Initializer<T>` from a factory function for `T` packed in
+  // `riegeli::Invoker(function args...)` with a compatible `Target` or
+  // `ConstTarget`.
   template <typename Function, typename... Args,
             std::enable_if_t<
                 initializer_internal::IsCompatibleResult<
@@ -769,9 +870,24 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
                  const InvokerType<Function, Args...>&>,
              invoker) {}
 
+  // Constructs `Initializer<T>` from `Initializer<Target>` with a different but
+  // compatible `Target`.
+  template <typename Target, bool other_allow_explicit,
+            std::enable_if_t<
+                absl::conjunction<absl::negation<std::is_same<Target, T>>,
+                                  initializer_internal::IsCompatibleResult<
+                                      allow_explicit, T, Target>>::value,
+                int> = 0>
+  /*implicit*/ Initializer(
+      Initializer<Target, other_allow_explicit>&& initializer)
+      : Base(&Base::template kMethodsFromConvertedReference<
+                 Initializer<Target, other_allow_explicit>>,
+             std::move(initializer)) {}
+
   // Constructs `Initializer<T>` from `Initializer<T>` with a different
-  // `allow_explicit` by adopting its state instead of wrapping.
-  template <bool other_allow_explicit>
+  // `allow_explicit`, by adopting its state instead of wrapping.
+  template <bool other_allow_explicit,
+            std::enable_if_t<other_allow_explicit != allow_explicit, int> = 0>
   /*implicit*/ Initializer(Initializer<T, other_allow_explicit> initializer)
       : Base(std::move(initializer)) {}
 
@@ -906,6 +1022,13 @@ T InitializerBase<T>::ConstructMethodFromConstMaker(TypeErasedRef context) {
   return context.Cast<const MakerType<Args...>&>().template Construct<T>();
 }
 
+template <typename T>
+template <typename Arg>
+T InitializerBase<T>::ConstructMethodFromConvertedReference(
+    TypeErasedRef context) {
+  return T(context.Cast<Arg>().Reference());
+}
+
 #else  // !__cpp_guaranteed_copy_elision
 
 template <typename T>
@@ -933,6 +1056,13 @@ template <typename... Args>
 void InitializerBase<T>::ConstructAtMethodFromConstMaker(TypeErasedRef context,
                                                          void* ptr) {
   context.Cast<const MakerType<Args...>&>().template ConstructAt<T>(ptr);
+}
+
+template <typename T>
+template <typename Arg>
+void InitializerBase<T>::ConstructAtMethodFromConvertedReference(
+    TypeErasedRef context, void* ptr) {
+  new (ptr) T(context.Cast<Arg>().Reference());
 }
 
 #endif  // !__cpp_guaranteed_copy_elision
@@ -977,6 +1107,13 @@ T&& InitializerBase<T>::ReferenceMethodFromConstMaker(
       std::move(storage));
 }
 
+template <typename T>
+template <typename Arg>
+T&& InitializerBase<T>::ReferenceMethodFromConvertedReference(
+    TypeErasedRef context, TemporaryStorage<T>&& storage) {
+  return std::move(storage).emplace(context.Cast<Arg>().Reference());
+}
+
 #if !__cpp_guaranteed_copy_elision
 
 template <typename T>
@@ -1002,6 +1139,13 @@ template <typename... Args>
 T InitializerMovableBase<T>::ConstructMethodFromConstMaker(
     TypeErasedRef context) {
   return context.Cast<const MakerType<Args...>&>().template Construct<T>();
+}
+
+template <typename T>
+template <typename Arg>
+T InitializerMovableBase<T>::ConstructMethodFromConvertedReference(
+    TypeErasedRef context) {
+  return T(context.Cast<Arg>().Reference());
 }
 
 #endif  // !__cpp_guaranteed_copy_elision
@@ -1034,6 +1178,13 @@ void InitializerAssignableBase<T>::ResetMethodFromConstMaker(
 }
 
 template <typename T>
+template <typename Arg>
+void InitializerAssignableBase<T>::ResetMethodFromConvertedReference(
+    TypeErasedRef context, T& dest) {
+  riegeli::Reset(dest, context.Cast<Arg>().Reference());
+}
+
+template <typename T>
 inline InitializerReference<T>::InitializerReference(const Methods* methods)
     : methods_(methods) {}
 
@@ -1060,6 +1211,13 @@ template <typename... Args>
 T InitializerReference<T>::ConstructMethodFromConstMaker(
     TypeErasedRef context) {
   return context.Cast<const MakerType<Args...>&>().template Construct<T>();
+}
+
+template <typename T>
+template <typename Arg>
+T InitializerReference<T>::ConstructMethodFromConvertedReference(
+    TypeErasedRef context) {
+  return T(context.Cast<Arg>().Reference());
 }
 
 }  // namespace initializer_internal
