@@ -16,12 +16,10 @@
 #define RIEGELI_CONTAINERS_CHUNKED_SORTED_STRING_SET_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>
-#include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -29,10 +27,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
@@ -124,7 +122,8 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     // `Decode()` fails if more than `set_max_num_chunks()` chunks would need to
     // be created. This can be used for parsing untrusted data.
     //
-    // Default: `std::vector<LinearSortedStringSet>().max_size()`.
+    // Default: `Chunks().max_size()` with `Chunks` being the internal type
+    // for representing chunks.
     DecodeOptions& set_max_num_chunks(size_t max_num_chunks) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_num_chunks_ = max_num_chunks;
@@ -154,7 +153,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
    private:
     bool validate_ = false;
-    size_t max_num_chunks_ = std::vector<LinearSortedStringSet>().max_size();
+    size_t max_num_chunks_ = Chunks().max_size();
     size_t max_encoded_chunk_size_ = CompactString::max_size();
   };
 
@@ -210,13 +209,13 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   // An empty set.
   ChunkedSortedStringSet() = default;
 
-  ChunkedSortedStringSet(const ChunkedSortedStringSet& that);
-  ChunkedSortedStringSet& operator=(const ChunkedSortedStringSet& that);
+  ChunkedSortedStringSet(const ChunkedSortedStringSet& that) = default;
+  ChunkedSortedStringSet& operator=(const ChunkedSortedStringSet& that) =
+      default;
 
-  ChunkedSortedStringSet(ChunkedSortedStringSet&& that) noexcept;
-  ChunkedSortedStringSet& operator=(ChunkedSortedStringSet&& that) noexcept;
-
-  ~ChunkedSortedStringSet();
+  ChunkedSortedStringSet(ChunkedSortedStringSet&& that) noexcept = default;
+  ChunkedSortedStringSet& operator=(ChunkedSortedStringSet&& that) noexcept =
+      default;
 
   // Iteration over the set.
   Iterator begin() const;
@@ -225,17 +224,20 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   Iterator cend() const;
 
   // Returns `true` if the set is empty.
-  bool empty() const { return repr_ == kEmptyRepr; }
+  bool empty() const { return chunks_.empty(); }
 
   // Returns the number of elements.
   size_t size() const {
-    return repr_is_inline() ? inline_repr() : allocated_repr()->size;
+    return chunks_.empty() ? 0 : chunks_.back().cumulative_end_index;
   }
 
   // Returns `true` if `element` is present in the set.
   //
+  // If `index != nullptr`, sets `*index` to the index of `element` in the set,
+  // or to the index where it would be inserted.
+  //
   // Time complexity: `O(log(size / chunk_size) + chunk_size)`.
-  bool contains(absl::string_view element) const;
+  bool contains(absl::string_view element, size_t* index = nullptr) const;
 
   friend bool operator==(const ChunkedSortedStringSet& a,
                          const ChunkedSortedStringSet& b) {
@@ -260,10 +262,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const ChunkedSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->first_chunk_);
-    if (self->repr_is_allocated()) {
-      memory_estimator.RegisterDynamicObject(self->allocated_repr());
-    }
+    memory_estimator.RegisterSubobjects(&self->chunks_);
   }
 
   // Returns the size of data that would be written by `Encode()`.
@@ -284,71 +283,24 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   absl::Status Decode(Src&& src, DecodeOptions options = DecodeOptions());
 
  private:
-  using ChunkIterator = std::vector<LinearSortedStringSet>::const_iterator;
-
-  struct Repr {
-    // Support `EstimateMemory()`.
-    template <typename MemoryEstimator>
-    friend void RiegeliRegisterSubobjects(const Repr* self,
-                                          MemoryEstimator& memory_estimator) {
-      memory_estimator.RegisterSubobjects(&self->chunks);
-    }
-
-    // Invariants:
-    //   `!chunks.empty()`
-    //   none of `chunks` is `empty()`
-    std::vector<LinearSortedStringSet> chunks;
-    size_t size = 0;
+  struct Chunk {
+    LinearSortedStringSet set;
+    size_t cumulative_end_index;
   };
 
-  explicit ChunkedSortedStringSet(LinearSortedStringSet&& first_chunk,
-                                  std::vector<LinearSortedStringSet>&& chunks,
-                                  size_t size);
+  using Chunks = absl::InlinedVector<Chunk, 1>;
 
-  static constexpr uintptr_t kEmptyRepr = 1;
-  static bool repr_is_inline(uintptr_t repr) { return (repr & 1) == 1; }
-  bool repr_is_inline() const { return repr_is_inline(repr_); }
-  static bool repr_is_allocated(uintptr_t repr) { return (repr & 1) == 0; }
-  bool repr_is_allocated() const { return repr_is_allocated(repr_); }
-  size_t inline_repr() const {
-    RIEGELI_ASSERT(repr_is_inline())
-        << "Failed precondition of ChunkedSortedStringSet::inline_repr(): "
-           "representation is not inline";
-    return static_cast<size_t>(repr_ >> 1);
-  }
-  static const Repr* allocated_repr(uintptr_t repr) {
-    RIEGELI_ASSERT(repr_is_allocated(repr))
-        << "Failed precondition of ChunkedSortedStringSet::allocated_repr(): "
-           "representation is not allocated";
-    return reinterpret_cast<const Repr*>(repr);
-  }
-  const Repr* allocated_repr() const { return allocated_repr(repr_); }
-  static uintptr_t make_inline_repr(size_t size) {
-    RIEGELI_ASSERT_LE(size, std::numeric_limits<uintptr_t>::max() / 1)
-        << "Failed precondition of ChunkedSortedStringSet::make_inline_repr(): "
-           "size overflow";
-    return (static_cast<uintptr_t>(size) << 1) + 1;
-  }
-  static uintptr_t make_allocated_repr(const Repr* repr) {
-    RIEGELI_ASSERT_EQ(reinterpret_cast<uintptr_t>(repr) & 1, 0u)
-        << "Failed precondition of "
-           "ChunkedSortedStringSet::make_allocated_repr(): "
-           "pointer not aligned";
-    return reinterpret_cast<uintptr_t>(repr);
-  }
+  struct CompareFirst {
+    int operator()(Chunks::const_iterator current) const {
+      return current->set.first().compare(element);
+    }
+    absl::string_view element;
+  };
 
-  static void DeleteRepr(uintptr_t repr) {
-    if (repr_is_allocated(repr)) DeleteAllocatedRepr(repr);
-  }
+  explicit ChunkedSortedStringSet(Chunks&& chunks);
 
-  static void DeleteAllocatedRepr(uintptr_t repr);
-
-  uintptr_t CopyRepr() const {
-    return repr_is_inline() ? repr_ : CopyAllocatedRepr();
-  }
-
-  uintptr_t CopyAllocatedRepr() const;
-
+  bool ContainsImpl(absl::string_view element) const;
+  bool ContainsWithIndexImpl(absl::string_view element, size_t& index) const;
   static bool Equal(const ChunkedSortedStringSet& a,
                     const ChunkedSortedStringSet& b);
   static StrongOrdering Compare(const ChunkedSortedStringSet& a,
@@ -359,14 +311,8 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
 
-  // The first `LinearSortedStringSet` is stored inline to reduce object size
-  // when the set is small.
-  LinearSortedStringSet first_chunk_;
-  // If `repr_is_inline()`: `chunks` are empty, `size` is `inline_repr()`.
-  // If `repr_is_allocated()`: `*allocated_repr()` stores `chunks` and `size`.
-  //
-  // Invariant: if `first_chunk_.empty()` then `repr_is_inline()`.
-  uintptr_t repr_ = kEmptyRepr;
+  // Invariant: no `chunks_` are empty.
+  Chunks chunks_;
 };
 
 // Iterates over a `LinearSortedStringSet` in the sorted order.
@@ -441,18 +387,20 @@ class ChunkedSortedStringSet::Iterator : public WithEqual<Iterator> {
  private:
   friend class ChunkedSortedStringSet;  // For `Iterator()`.
 
-  using ChunkIterator = ChunkedSortedStringSet::ChunkIterator;
-  using Repr = ChunkedSortedStringSet::Repr;
+  using Chunks = ChunkedSortedStringSet::Chunks;
 
   explicit Iterator(const ChunkedSortedStringSet* set)
-      : current_iterator_(set->first_chunk_.cbegin()),
-        next_chunk_iterator_(set->repr_is_inline()
-                                 ? ChunkIterator()
-                                 : set->allocated_repr()->chunks.cbegin()),
+      : current_iterator_(set->chunks_.empty()
+                              ? LinearSortedStringSet::Iterator()
+                              : set->chunks_.front().set.cbegin()),
+        current_chunk_iterator_(set->chunks_.cbegin()),
         set_(set) {}
 
+  // Invariant:
+  //    if `current_chunk_iterator_ == set_->chunks_.cend()` then
+  //        `current_iterator_ == LinearSortedStringSet::Iterator()`
   LinearSortedStringSet::Iterator current_iterator_;
-  ChunkIterator next_chunk_iterator_ = ChunkIterator();
+  Chunks::const_iterator current_chunk_iterator_ = Chunks::const_iterator();
   const ChunkedSortedStringSet* set_ = nullptr;
 };
 
@@ -519,8 +467,12 @@ class ChunkedSortedStringSet::Builder {
   absl::StatusOr<bool> TryInsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
-  bool empty() const {
-    return first_chunk_ == absl::nullopt && current_builder_.empty();
+  bool empty() const { return chunks_.empty() && current_builder_.empty(); }
+
+  // Returns the number of elements.
+  size_t size() const {
+    return (chunks_.empty() ? 0 : chunks_.back().cumulative_end_index) +
+           current_builder_.size();
   }
 
   // Returns the last inserted element. The set must not be empty.
@@ -531,21 +483,20 @@ class ChunkedSortedStringSet::Builder {
     return current_builder_.last();
   }
 
-  // Builds the `ChunkedSortedStringSet`. No more elements can be inserted.
-  ChunkedSortedStringSet Build() &&;
+  // Builds the `ChunkedSortedStringSet` and resets the `Builder` to empty
+  // state.
+  ChunkedSortedStringSet Build();
 
  private:
+  void ApplySizeHint(size_t size_hint);
+  void AddChunk();
+
   // This template is defined and used only in chunked_sorted_string_set.cc.
   template <typename Element>
   absl::StatusOr<bool> InsertNextImpl(Element&& element);
 
-  size_t size_;
   size_t chunk_size_;
-  size_t remaining_current_chunk_size_;
-
-  // Invariant: if `first_chunk_ == absl::nullopt` then `chunks_.empty()`
-  absl::optional<LinearSortedStringSet> first_chunk_;
-  std::vector<LinearSortedStringSet> chunks_;
+  Chunks chunks_;
   LinearSortedStringSet::Builder current_builder_;
 };
 
@@ -636,7 +587,7 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   for (; iter != end_iter; ++iter) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
-  return std::move(builder).Build();
+  return builder.Build();
 }
 
 template <typename Src,
@@ -666,33 +617,8 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   for (const SrcIterator& iter : iterators) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
-  return std::move(builder).Build();
+  return builder.Build();
 }
-
-inline ChunkedSortedStringSet::ChunkedSortedStringSet(
-    const ChunkedSortedStringSet& that)
-    : first_chunk_(that.first_chunk_), repr_(that.CopyRepr()) {}
-
-inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
-    const ChunkedSortedStringSet& that) {
-  first_chunk_ = that.first_chunk_;
-  DeleteRepr(std::exchange(repr_, that.CopyRepr()));
-  return *this;
-}
-
-inline ChunkedSortedStringSet::ChunkedSortedStringSet(
-    ChunkedSortedStringSet&& that) noexcept
-    : first_chunk_(std::move(that.first_chunk_)),
-      repr_(std::exchange(that.repr_, kEmptyRepr)) {}
-
-inline ChunkedSortedStringSet& ChunkedSortedStringSet::operator=(
-    ChunkedSortedStringSet&& that) noexcept {
-  first_chunk_ = std::move(that.first_chunk_);
-  DeleteRepr(std::exchange(repr_, std::exchange(that.repr_, kEmptyRepr)));
-  return *this;
-}
-
-inline ChunkedSortedStringSet::~ChunkedSortedStringSet() { DeleteRepr(repr_); }
 
 inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::begin() const {
   return Iterator(this);
@@ -708,6 +634,15 @@ inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const {
 
 inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
   return end();
+}
+
+inline bool ChunkedSortedStringSet::contains(absl::string_view element,
+                                             size_t* index) const {
+  if (index == nullptr) {
+    return ContainsImpl(element);
+  } else {
+    return ContainsWithIndexImpl(element, *index);
+  }
 }
 
 template <typename HashState>

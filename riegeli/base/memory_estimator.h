@@ -31,6 +31,7 @@
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/meta/type_traits.h"
@@ -195,6 +196,7 @@ class MemoryEstimator {
   //  * `std::tuple<T...>`
   //  * `std::array<T, size>`
   //  * `std::vector<T, Alloc>` (`Alloc` is ignored)
+  //  * `absl::InlinedVector<T, N, Alloc>` (`Alloc` is ignored)
   //  * `absl::flat_hash_set<T, Eq, Hash, Alloc>` (`Alloc` is ignored)
   //  * `absl::flat_hash_map<K, V, Eq, Hash, Alloc>` (`Alloc` is ignored)
   //  * `absl::node_hash_set<T, Eq, Hash, Alloc>` (`Alloc` is ignored)
@@ -485,6 +487,16 @@ inline void RiegeliRegisterSubobjects(const std::vector<bool, Alloc>* self,
   if (self->capacity() > 0) {
     memory_estimator.RegisterDynamicMemory(self->capacity() / 8);
   }
+}
+
+template <typename T, size_t N, typename Alloc>
+inline void RiegeliRegisterSubobjects(
+    const absl::InlinedVector<T, N, Alloc>* self,
+    MemoryEstimator& memory_estimator) {
+  if (self->capacity() > N) {
+    memory_estimator.RegisterDynamicMemory(self->capacity() * sizeof(T));
+  }
+  memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
 template <typename T, typename Eq, typename Hash, typename Alloc>

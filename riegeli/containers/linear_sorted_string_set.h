@@ -64,7 +64,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   struct DecodeState {
     // Total number of elements decoded so far. The size is calculated as a side
     // effect of structural validation; calling `size()` later would be slower.
-    size_t size = 0;
+    size_t cumulative_size = 0;
     // If not `absl::nullopt`, the last element in the last decoded set.
     // Meaningful only if `DecodeOptions::validate()`.
     absl::optional<CompactString> last;
@@ -205,8 +205,15 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
 
   // Returns `true` if `element` is present in the set.
   //
+  // If `index != nullptr`, sets `*index` to the index of `element` in the set,
+  // or to the index where it would be inserted.
+  //
   // Time complexity: `O(size)`.
-  bool contains(absl::string_view element) const;
+  bool contains(absl::string_view element, size_t* index = nullptr) const;
+
+  // Like `contains()`, but skips comparing `element` against `first()`.
+  bool contains_skip_first(absl::string_view element,
+                           size_t* index = nullptr) const;
 
   friend bool operator==(const LinearSortedStringSet& a,
                          const LinearSortedStringSet& b) {
@@ -254,6 +261,10 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
  private:
   explicit LinearSortedStringSet(CompactString&& encoded);
 
+  // Increments `cumulative_index` by the number of elements skipped.
+  static bool ContainsImpl(absl::string_view element,
+                           SplitElementIterator iterator,
+                           size_t& cumulative_index);
   static bool Equal(const LinearSortedStringSet& a,
                     const LinearSortedStringSet& b);
   static StrongOrdering Compare(const LinearSortedStringSet& a,
@@ -594,7 +605,10 @@ class LinearSortedStringSet::Builder {
   absl::StatusOr<bool> TryInsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
-  bool empty() const { return writer_.pos() == 0; }
+  bool empty() const { return size_ == 0; }
+
+  // Returns the number of elements.
+  size_t size() const { return size_; }
 
   // Returns the last inserted element. The set must not be empty.
   absl::string_view last() const {
@@ -604,8 +618,8 @@ class LinearSortedStringSet::Builder {
     return last_;
   }
 
-  // Builds the `LinearSortedStringSet`. No more elements can be inserted.
-  LinearSortedStringSet Build() &&;
+  // Builds the `LinearSortedStringSet` and resets the `Builder` to empty state.
+  LinearSortedStringSet Build();
 
  private:
   // This template is defined and used only in linear_sorted_string_set.cc.
@@ -614,6 +628,7 @@ class LinearSortedStringSet::Builder {
                                       UpdateLast update_last);
 
   CompactStringWriter<CompactString> writer_;
+  size_t size_ = 0;
   std::string last_;
 };
 
@@ -697,7 +712,7 @@ LinearSortedStringSet LinearSortedStringSet::FromSorted(Src&& src) {
   for (; iter != end_iter; ++iter) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
-  return std::move(builder).Build();
+  return builder.Build();
 }
 
 template <typename Src,
@@ -724,7 +739,7 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
   for (const SrcIterator& iter : iterators) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
-  return std::move(builder).Build();
+  return builder.Build();
 }
 
 inline LinearSortedStringSet::Iterator LinearSortedStringSet::begin() const {
@@ -741,6 +756,31 @@ inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
 
 inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
   return end();
+}
+
+inline bool LinearSortedStringSet::contains(absl::string_view element,
+                                            size_t* index) const {
+  if (index == nullptr) {
+    size_t counter = 0;
+    return ContainsImpl(element, split_elements().cbegin(), counter);
+  } else {
+    *index = 0;
+    return ContainsImpl(element, split_elements().cbegin(), *index);
+  }
+}
+
+inline bool LinearSortedStringSet::contains_skip_first(
+    absl::string_view element, size_t* index) const {
+  SplitElementIterator iterator = split_elements().cbegin();
+  if (iterator == SplitElementIterator()) return false;
+  ++iterator;
+  if (index == nullptr) {
+    size_t counter = 1;
+    return ContainsImpl(element, std::move(iterator), counter);
+  } else {
+    *index = 1;
+    return ContainsImpl(element, std::move(iterator), *index);
+  }
 }
 
 inline LinearSortedStringSet::SplitElements

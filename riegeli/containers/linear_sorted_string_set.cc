@@ -166,11 +166,12 @@ absl::string_view LinearSortedStringSet::first() const {
   return absl::string_view(*ptr, IntCast<size_t>(length));
 }
 
-bool LinearSortedStringSet::contains(absl::string_view element) const {
+bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
+                                         SplitElementIterator iterator,
+                                         size_t& cumulative_index) {
   // Length of the prefix shared between `element` and `*iterator`.
   size_t common_length = 0;
-  for (SplitElementIterator iterator = split_elements().cbegin();
-       iterator != SplitElementIterator(); ++iterator) {
+  for (; iterator != SplitElementIterator(); ++iterator, ++cumulative_index) {
     // It would be incorrect to assume that if
     // `found.prefix().size() < common_length` then `*iterator > element`
     // because `found.prefix().size()` is not guaranteed to be maximal.
@@ -310,10 +311,10 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
   size_t size = 0;
   size_t current_length = 0;
   CompactString current_if_validated_and_shared;
-  absl::optional<absl::string_view> current_if_validated =
-      options.decode_state() == nullptr
-          ? absl::nullopt
-          : absl::optional<absl::string_view>(options.decode_state()->last);
+  absl::optional<absl::string_view> current_if_validated;
+  if (options.decode_state() != nullptr) {
+    current_if_validated = options.decode_state()->last;
+  }
   const absl::string_view encoded_view = encoded;
   const char* ptr = encoded_view.data();
   const char* const limit = ptr + encoded_view.size();
@@ -411,7 +412,7 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
     ++size;
   }
   if (options.decode_state() != nullptr && size > 0) {
-    options.decode_state()->size += size;
+    options.decode_state()->cumulative_size += size;
     if (options.validate()) {
       if (current_if_validated_and_shared.empty()) {
         options.decode_state()->last = *current_if_validated;
@@ -601,11 +602,13 @@ LinearSortedStringSet::Builder::Builder() = default;
 LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept
     : writer_(
           std::exchange(that.writer_, CompactStringWriter<CompactString>())),
+      size_(std::exchange(that.size_, 0)),
       last_(std::exchange(that.last_, std::string())) {}
 
 LinearSortedStringSet::Builder& LinearSortedStringSet::Builder::operator=(
     Builder&& that) noexcept {
   writer_ = std::exchange(that.writer_, CompactStringWriter<CompactString>());
+  size_ = std::exchange(that.size_, 0);
   last_ = std::exchange(that.last_, std::string());
   return *this;
 }
@@ -614,6 +617,7 @@ LinearSortedStringSet::Builder::~Builder() = default;
 
 void LinearSortedStringSet::Builder::Reset() {
   writer_.Reset();
+  size_ = 0;
   last_.clear();
 }
 
@@ -705,10 +709,11 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
   WriteVarint64(tagged_length, writer_);
   if (shared_length > 0) WriteVarint64(uint64_t{shared_length - 1}, writer_);
   writer_.Write(unshared);
+  ++size_;
   return true;
 }
 
-LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
+LinearSortedStringSet LinearSortedStringSet::Builder::Build() {
   RIEGELI_ASSERT(writer_.is_open())
       << "Failed precondition of LinearSortedStringSet::Builder::Build(): "
          "set already built or moved from";
@@ -717,7 +722,14 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() && {
         << "A CompactStringWriter has no reason to fail: " << writer_.status();
   }
   writer_.dest().shrink_to_fit();
-  return LinearSortedStringSet(std::move(writer_.dest()));
+  LinearSortedStringSet set(std::move(writer_.dest()));
+  writer_.Reset();
+  size_ = 0;
+  last_.clear();
+  RIEGELI_ASSERT(empty())
+      << "Failed postcondition of LinearSortedStringSet::Builder::Build(): "
+         "builder should be empty";
+  return set;
 }
 
 }  // namespace riegeli
