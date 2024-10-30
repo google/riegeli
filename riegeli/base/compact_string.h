@@ -192,7 +192,7 @@ class
   friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
                                         const CompactString& b) {
     if (a.repr_ == b.repr_) return StrongOrdering::equal;
-    return AsStrongOrdering(absl::string_view(a).compare(b));
+    return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
   friend bool operator==(const CompactString& a, absl::string_view b) {
@@ -200,7 +200,7 @@ class
   }
   friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
                                         absl::string_view b) {
-    return AsStrongOrdering(absl::string_view(a).compare(b));
+    return riegeli::Compare(absl::string_view(a), b);
   }
 
   template <typename HashState>

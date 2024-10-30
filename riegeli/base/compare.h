@@ -18,6 +18,7 @@
 #include <type_traits>
 
 #include "absl/meta/type_traits.h"
+#include "absl/strings/string_view.h"
 #if !__cpp_impl_three_way_comparison
 #include "absl/types/compare.h"
 #endif
@@ -202,6 +203,16 @@ inline StrongOrdering RIEGELI_COMPARE(T* a, T* b) {
   return a < b   ? StrongOrdering::less
          : a > b ? StrongOrdering::greater
                  : StrongOrdering::equal;
+}
+
+#endif
+
+#if !defined(__cpp_impl_three_way_comparison) || \
+    !defined(ABSL_USES_STD_STRING_VIEW)
+
+inline StrongOrdering RIEGELI_COMPARE(absl::string_view a,
+                                      absl::string_view b) {
+  return AsStrongOrdering(a.compare(b));
 }
 
 #endif

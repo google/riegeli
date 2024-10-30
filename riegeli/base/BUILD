@@ -37,6 +37,7 @@ cc_library(
     hdrs = ["compare.h"],
     deps = [
         "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:compare",
     ],
 )

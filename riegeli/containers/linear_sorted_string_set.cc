@@ -260,9 +260,9 @@ StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
   while (a_iter != a.cend()) {
     if (b_iter == b.cend()) return StrongOrdering::greater;
     {
-      const int ordering = a_iter->compare(*b_iter);
+      const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
       if (ordering != 0) {
-        return AsStrongOrdering(ordering);
+        return ordering;
       }
     }
     ++a_iter;

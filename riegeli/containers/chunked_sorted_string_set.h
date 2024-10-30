@@ -291,8 +291,8 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   using Chunks = absl::InlinedVector<Chunk, 1>;
 
   struct CompareFirst {
-    int operator()(Chunks::const_iterator current) const {
-      return current->set.first().compare(element);
+    StrongOrdering operator()(Chunks::const_iterator current) const {
+      return riegeli::Compare(current->set.first(), element);
     }
     absl::string_view element;
   };
