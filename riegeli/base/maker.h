@@ -160,8 +160,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <
       typename T,
       std::enable_if_t<absl::conjunction<absl::negation<std::is_reference<T>>,
-                                         std::is_constructible<T, Args&&...>,
-                                         std::is_move_assignable<T>>::value,
+                                         SupportsReset<T, Args&&...>>::value,
                        int> = 0>
   friend void RiegeliReset(T& dest, MakerType&& src) {
     absl::apply(
@@ -173,8 +172,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <typename T,
             std::enable_if_t<
                 absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  std::is_constructible<T, const Args&...>,
-                                  std::is_move_assignable<T>>::value,
+                                  SupportsReset<T, const Args&...>>::value,
                 int> = 0>
   friend void RiegeliReset(T& dest, const MakerType& src) {
     absl::apply([&](const Args&... args) { riegeli::Reset(dest, args...); },
@@ -339,8 +337,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   template <typename DependentT = T,
             std::enable_if_t<
                 absl::conjunction<absl::negation<std::is_reference<DependentT>>,
-                                  std::is_constructible<DependentT, Args&&...>,
-                                  std::is_move_assignable<DependentT>>::value,
+                                  SupportsReset<DependentT, Args&&...>>::value,
                 int> = 0>
   friend void RiegeliReset(T& dest, MakerTypeFor&& src) {
     riegeli::Reset(dest, std::move(src).maker());
@@ -349,8 +346,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
       typename DependentT = T,
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_reference<DependentT>>,
-                            std::is_constructible<DependentT, const Args&...>,
-                            std::is_move_assignable<DependentT>>::value,
+                            SupportsReset<DependentT, const Args&...>>::value,
           int> = 0>
   friend void RiegeliReset(T& dest, const MakerTypeFor& src) {
     riegeli::Reset(dest, src.maker());

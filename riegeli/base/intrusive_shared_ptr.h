@@ -30,7 +30,6 @@
 #include "riegeli/base/external_ref_support.h"  // IWYU pragma: keep
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/ownership.h"
-#include "riegeli/base/reset.h"
 
 namespace riegeli {
 
@@ -334,33 +333,26 @@ class
     if (ptr != nullptr) ptr->Unref();
   }
 
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          absl::conjunction<
-              intrusive_shared_ptr_internal::HasHasUniqueOwner<DependentT>,
-              absl::disjunction<
-                  absl::negation<std::has_virtual_destructor<DependentT>>,
-                  std::is_final<DependentT>>,
-              std::is_move_assignable<DependentT>>::value,
-          int> = 0>
+  template <typename DependentT>
+  struct IsAssignable
+      : absl::conjunction<
+            intrusive_shared_ptr_internal::HasHasUniqueOwner<DependentT>,
+            absl::disjunction<
+                absl::negation<std::has_virtual_destructor<DependentT>>,
+                std::is_final<DependentT>>,
+            std::is_move_assignable<DependentT>> {};
+
+  template <typename DependentT = T,
+            std::enable_if_t<IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
     if (IsUnique()) {
-      riegeli::Reset(*ptr_, std::move(value));
+      *ptr_ = std::move(value);
       return;
     }
     Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          absl::disjunction<
-              absl::negation<
-                  intrusive_shared_ptr_internal::HasHasUniqueOwner<DependentT>>,
-              absl::conjunction<std::has_virtual_destructor<DependentT>,
-                                absl::negation<std::is_final<DependentT>>>,
-              absl::negation<std::is_move_assignable<DependentT>>>::value,
-          int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
     Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
   }

@@ -111,6 +111,16 @@ struct HasAssignment : HasAssignmentImpl<void, T, Args...> {};
 
 }  // namespace reset_internal
 
+// `SupportsReset<T, Args...>::value` is true if `riegeli::Reset(T&, Args...)`
+// is supported.
+template <typename T, typename... Args>
+struct SupportsReset
+    : absl::disjunction<reset_internal::HasRiegeliReset<T, Args...>,
+                        reset_internal::HasReset<T, Args...>,
+                        reset_internal::HasAssignment<T, Args...>,
+                        absl::conjunction<std::is_constructible<T, Args...>,
+                                          std::is_move_assignable<T>>> {};
+
 template <typename T, typename... Args,
           std::enable_if_t<reset_internal::HasRiegeliReset<T, Args...>::value,
                            int> = 0>

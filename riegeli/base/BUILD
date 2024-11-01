@@ -394,7 +394,6 @@ cc_library(
         ":external_ref_support",
         ":initializer",
         ":new_aligned",
-        ":reset",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
