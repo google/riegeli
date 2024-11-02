@@ -69,9 +69,7 @@ std::streamsize ReaderStreambuf::showmanyc() {
     if (ABSL_PREDICT_FALSE(!reader_->ok())) Fail();
     return -1;
   }
-  return IntCast<std::streamsize>(
-      UnsignedMin(reader_->available(),
-                  UnsignedCast(std::numeric_limits<std::streamsize>::max())));
+  return IntCast<std::streamsize>(reader_->available());
 }
 
 int ReaderStreambuf::underflow() {

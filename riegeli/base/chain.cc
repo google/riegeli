@@ -2114,12 +2114,6 @@ StrongOrdering Chain::Compare(const Chain& a, absl::string_view b) {
 void Chain::Output(std::ostream& out) const {
   std::ostream::sentry sentry(out);
   if (sentry) {
-    if (ABSL_PREDICT_FALSE(
-            size() >
-            UnsignedCast(std::numeric_limits<std::streamsize>::max()))) {
-      out.setstate(std::ios::badbit);
-      return;
-    }
     size_t lpad = 0;
     size_t rpad = 0;
     if (IntCast<size_t>(out.width()) > size()) {
