@@ -9,6 +9,7 @@ cc_library(
     name = "digest_converter",
     hdrs = ["digest_converter.h"],
     deps = [
+        "//riegeli/endian:endian_reading",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/numeric:int128",
