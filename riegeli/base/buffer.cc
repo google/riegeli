@@ -21,16 +21,16 @@
 
 namespace riegeli {
 
-void Buffer::DumpStructure(absl::string_view substr, std::ostream& out) const {
-  out << "[buffer] {";
+void Buffer::DumpStructure(absl::string_view substr, std::ostream& dest) const {
+  dest << "[buffer] {";
   if (!substr.empty()) {
     if (substr.data() != data()) {
-      out << " space_before: " << PtrDistance(data(), substr.data());
+      dest << " space_before: " << PtrDistance(data(), substr.data());
     }
-    out << " space_after: "
-        << PtrDistance(substr.data() + substr.size(), data() + capacity());
+    dest << " space_after: "
+         << PtrDistance(substr.data() + substr.size(), data() + capacity());
   }
-  out << " }";
+  dest << " }";
 }
 
 }  // namespace riegeli

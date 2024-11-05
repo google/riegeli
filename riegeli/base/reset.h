@@ -50,8 +50,8 @@ namespace riegeli {
 
 inline void RiegeliReset(std::string& dest) { dest.clear(); }
 
-inline void RiegeliReset(std::string& dest, size_t length, char ch) {
-  dest.assign(length, ch);
+inline void RiegeliReset(std::string& dest, size_t size, char fill) {
+  dest.assign(size, fill);
 }
 
 inline void RiegeliReset(std::string& dest, absl::string_view src) {

@@ -58,21 +58,21 @@ class SkippedRegion {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `self.ToString()` to `sink`.
+  // Writes `src.ToString()` to `dest`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const SkippedRegion& self) {
-    sink.Append(self.ToString());
+  friend void AbslStringify(Sink& dest, const SkippedRegion& src) {
+    dest.Append(src.ToString());
   }
 
-  // Writes `self.ToString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const SkippedRegion& self) {
-    self.Output(out);
-    return out;
+  // Writes `src.ToString()` to `out`.
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const SkippedRegion& src) {
+    src.Output(dest);
+    return dest;
   }
 
  private:
-  void Output(std::ostream& out) const;
+  void Output(std::ostream& dest) const;
 
   Position begin_ = 0;
   Position end_ = 0;

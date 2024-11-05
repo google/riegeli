@@ -103,19 +103,19 @@ class ByteFill {
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const ByteFill& self) {
-    Position length = self.size_;
+  friend void AbslStringify(Sink& dest, const ByteFill& src) {
+    Position length = src.size_;
     while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
-      sink.Append(std::numeric_limits<size_t>::max(), self.fill_);
+      dest.Append(std::numeric_limits<size_t>::max(), src.fill_);
       length -= std::numeric_limits<size_t>::max();
     }
-    if (length > 0) sink.Append(IntCast<size_t>(length), self.fill_);
+    if (length > 0) dest.Append(IntCast<size_t>(length), src.fill_);
   }
 
   // Writes the occurrences to `out` as unformatted bytes.
-  friend std::ostream& operator<<(std::ostream& out, const ByteFill& self) {
-    self.Output(out);
-    return out;
+  friend std::ostream& operator<<(std::ostream& dest, const ByteFill& src) {
+    src.Output(dest);
+    return dest;
   }
 
  private:
@@ -125,7 +125,7 @@ class ByteFill {
 
   void AssignTo(Chain& dest) const;
   void AssignTo(absl::Cord& dest) const;
-  void Output(std::ostream& out) const;
+  void Output(std::ostream& dest) const;
 
   Position size_;
   char fill_;
@@ -163,14 +163,14 @@ class ByteFill::ZeroBlock {
 
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
-                                   std::ostream& out) {
-    DumpStructure(out);
+                                   std::ostream& dest) {
+    DumpStructure(dest);
   }
 
  private:
   static Chain::Block ToChainBlock(absl::string_view substr);
   static absl::Cord ToCord(absl::string_view substr);
-  static void DumpStructure(std::ostream& out);
+  static void DumpStructure(std::ostream& dest);
 };
 
 class ByteFill::SmallBlock {
@@ -225,8 +225,8 @@ class ByteFill::LargeBlock {
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const LargeBlock* self,
                                    absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
+                                   std::ostream& dest) {
+    self->DumpStructure(substr, dest);
   }
 
   // Support `MemoryEstimator`.
@@ -237,7 +237,7 @@ class ByteFill::LargeBlock {
   }
 
  private:
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+  void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   SharedBuffer buffer_;
 };

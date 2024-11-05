@@ -644,8 +644,8 @@ class DigesterBaseHandle::DigesterAbslStringifySink {
   explicit DigesterAbslStringifySink(DigesterBaseHandle digester)
       : digester_(digester) {}
 
-  void Append(size_t length, char src) {
-    if (ABSL_PREDICT_FALSE(!digester_.Write(ByteFill(length, src)))) {
+  void Append(size_t length, char fill) {
+    if (ABSL_PREDICT_FALSE(!digester_.Write(ByteFill(length, fill)))) {
       ok_ = false;
     }
   }

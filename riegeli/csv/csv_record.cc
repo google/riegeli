@@ -48,9 +48,9 @@ namespace riegeli {
 
 namespace {
 
-inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
+inline void WriteDebugQuoted(absl::string_view src, Writer& dest,
                              size_t already_scanned) {
-  writer.Write('"');
+  dest.Write('"');
   const char* start = src.data();
   const char* next_to_check = src.data() + already_scanned;
   const char* const limit = src.data() + src.size();
@@ -58,11 +58,11 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
   // found in the range [`next_to_check`..`limit`), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
              next_to_check, '"', PtrDistance(next_to_check, limit)))) {
-    writer.Write(absl::string_view(start, PtrDistance(start, next_quote + 1)));
+    dest.Write(absl::string_view(start, PtrDistance(start, next_quote + 1)));
     start = next_quote;
     next_to_check = next_quote + 1;
   }
-  writer.Write(absl::string_view(start, PtrDistance(start, limit)), '"');
+  dest.Write(absl::string_view(start, PtrDistance(start, limit)), '"');
 }
 
 inline std::string DebugQuotedIfNeeded(absl::string_view src) {
@@ -77,7 +77,7 @@ inline std::string DebugQuotedIfNeeded(absl::string_view src) {
 
 namespace csv_internal {
 
-void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
+void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& dest) {
   for (size_t i = 0; i < src.size(); ++i) {
     switch (src[i]) {
       // For correct CSV syntax.
@@ -89,11 +89,11 @@ void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
       case ':':
       // For unambiguous appending of the rest of an error message.
       case ';':
-        WriteDebugQuoted(src, writer, i);
+        WriteDebugQuoted(src, dest, i);
         return;
     }
   }
-  writer.Write(src);
+  dest.Write(src);
 }
 
 }  // namespace csv_internal
@@ -300,10 +300,10 @@ inline void CsvHeader::EnsureUnique() {
   }
 }
 
-void CsvHeader::WriteDebugStringTo(Writer& writer) const {
+void CsvHeader::WriteDebugStringTo(Writer& dest) const {
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.Write(',');
-    csv_internal::WriteDebugQuotedIfNeeded(*iter, writer);
+    if (iter != cbegin()) dest.Write(',');
+    csv_internal::WriteDebugQuotedIfNeeded(*iter, dest);
   }
 }
 
@@ -315,8 +315,8 @@ std::string CsvHeader::DebugString() const {
   return result;
 }
 
-void CsvHeader::Output(std::ostream& out) const {
-  OStreamWriter<> writer(&out);
+void CsvHeader::Output(std::ostream& dest) const {
+  OStreamWriter<> writer(&dest);
   WriteDebugStringTo(writer);
   writer.Close();
 }
@@ -449,15 +449,15 @@ bool CsvRecord::Equal(const CsvRecord& a, const CsvRecord& b) {
   return a.header() == b.header() && a.fields() == b.fields();
 }
 
-void CsvRecord::WriteDebugStringTo(Writer& writer) const {
+void CsvRecord::WriteDebugStringTo(Writer& dest) const {
   RIEGELI_ASSERT_EQ(header_.size(), fields_.size())
       << "Failed invariant of CsvRecord: "
          "mismatched length of CSV header and fields";
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.Write(',');
-    csv_internal::WriteDebugQuotedIfNeeded(iter->first, writer);
-    writer.Write(':');
-    csv_internal::WriteDebugQuotedIfNeeded(iter->second, writer);
+    if (iter != cbegin()) dest.Write(',');
+    csv_internal::WriteDebugQuotedIfNeeded(iter->first, dest);
+    dest.Write(':');
+    csv_internal::WriteDebugQuotedIfNeeded(iter->second, dest);
   }
 }
 
@@ -469,8 +469,8 @@ std::string CsvRecord::DebugString() const {
   return result;
 }
 
-void CsvRecord::Output(std::ostream& out) const {
-  OStreamWriter<> writer(&out);
+void CsvRecord::Output(std::ostream& dest) const {
+  OStreamWriter<> writer(&dest);
   WriteDebugStringTo(writer);
   writer.Close();
 }

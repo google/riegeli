@@ -25,6 +25,6 @@ std::string SkippedRegion::ToString() const {
   return absl::StrCat("[", begin_, "..", end_, "): ", message_);
 }
 
-void SkippedRegion::Output(std::ostream& out) const { out << ToString(); }
+void SkippedRegion::Output(std::ostream& dest) const { dest << ToString(); }
 
 }  // namespace riegeli

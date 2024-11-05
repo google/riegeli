@@ -84,26 +84,26 @@ class AsciiLeftType {
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const AsciiLeftType& self) {
-    self.Stringify(sink);
+  friend void AbslStringify(Sink& dest, const AsciiLeftType& src) {
+    src.Stringify(dest);
   }
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, AsciiLeftType&& self) {
-    std::move(self).Stringify(sink);
+  friend void AbslStringify(Sink& dest, AsciiLeftType&& src) {
+    std::move(src).Stringify(dest);
   }
 
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const AsciiLeftType& self) {
-    OStreamWriter<> writer(&out);
-    self.WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const AsciiLeftType& src) {
+    OStreamWriter<> writer(&dest);
+    src.WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
-  friend std::ostream& operator<<(std::ostream& out, AsciiLeftType&& self) {
-    OStreamWriter<> writer(&out);
-    std::move(self).WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest, AsciiLeftType&& src) {
+    OStreamWriter<> writer(&dest);
+    std::move(src).WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
 
  private:
@@ -111,28 +111,28 @@ class AsciiLeftType {
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& sink) const& {
-    WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) const& {
+    WriteTo(*dest.dest());
   }
-  void Stringify(WriterAbslStringifySink& sink) && {
-    std::move(*this).WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) && {
+    std::move(*this).WriteTo(*dest.dest());
   }
 
   template <typename DependentTuple = std::tuple<T...>,
@@ -206,26 +206,26 @@ class AsciiCenterType {
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const AsciiCenterType& self) {
-    self.Stringify(sink);
+  friend void AbslStringify(Sink& dest, const AsciiCenterType& src) {
+    src.Stringify(dest);
   }
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, AsciiCenterType&& self) {
-    std::move(self).Stringify(sink);
+  friend void AbslStringify(Sink& dest, AsciiCenterType&& src) {
+    std::move(src).Stringify(dest);
   }
 
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const AsciiCenterType& self) {
-    OStreamWriter<> writer(&out);
-    self.WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const AsciiCenterType& src) {
+    OStreamWriter<> writer(&dest);
+    src.WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
-  friend std::ostream& operator<<(std::ostream& out, AsciiCenterType&& self) {
-    OStreamWriter<> writer(&out);
-    std::move(self).WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest, AsciiCenterType&& src) {
+    OStreamWriter<> writer(&dest);
+    std::move(src).WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
 
  private:
@@ -233,28 +233,28 @@ class AsciiCenterType {
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& sink) const& {
-    WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) const& {
+    WriteTo(*dest.dest());
   }
-  void Stringify(WriterAbslStringifySink& sink) && {
-    std::move(*this).WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) && {
+    std::move(*this).WriteTo(*dest.dest());
   }
 
   template <typename DependentTuple = std::tuple<T...>,
@@ -329,26 +329,26 @@ class AsciiRightType {
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const AsciiRightType& self) {
-    self.Stringify(sink);
+  friend void AbslStringify(Sink& dest, const AsciiRightType& src) {
+    src.Stringify(dest);
   }
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, AsciiRightType&& self) {
-    std::move(self).Stringify(sink);
+  friend void AbslStringify(Sink& dest, AsciiRightType&& src) {
+    std::move(src).Stringify(dest);
   }
 
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const AsciiRightType& self) {
-    OStreamWriter<> writer(&out);
-    self.WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const AsciiRightType& src) {
+    OStreamWriter<> writer(&dest);
+    src.WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
-  friend std::ostream& operator<<(std::ostream& out, AsciiRightType&& self) {
-    OStreamWriter<> writer(&out);
-    std::move(self).WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest, AsciiRightType&& src) {
+    OStreamWriter<> writer(&dest);
+    std::move(src).WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
 
  private:
@@ -356,28 +356,28 @@ class AsciiRightType {
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<
                 TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value,
                 int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) const&;
+  void Stringify(Sink& dest) const&;
   template <typename Sink, typename DependentTuple = std::tuple<T...>,
             std::enable_if_t<!TupleElementsSatisfy<DependentTuple,
                                                    HasStringifiedSize>::value,
                              int> = 0>
-  void Stringify(Sink& sink) &&;
+  void Stringify(Sink& dest) &&;
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& sink) const& {
-    WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) const& {
+    WriteTo(*dest.dest());
   }
-  void Stringify(WriterAbslStringifySink& sink) && {
-    std::move(*this).WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) && {
+    std::move(*this).WriteTo(*dest.dest());
   }
 
   template <typename DependentTuple = std::tuple<T...>,
@@ -460,12 +460,12 @@ Position StringifiedSizeOfTuple(const std::tuple<T...>& values) {
 }
 
 template <typename Sink>
-inline void WritePadding(Sink& sink, Position length, char fill) {
+inline void WritePadding(Sink& dest, Position length, char fill) {
   while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
-    sink.Append(std::numeric_limits<size_t>::max(), fill);
+    dest.Append(std::numeric_limits<size_t>::max(), fill);
     length -= std::numeric_limits<size_t>::max();
   }
-  if (length > 0) sink.Append(IntCast<size_t>(length), fill);
+  if (length > 0) dest.Append(IntCast<size_t>(length), fill);
 }
 
 }  // namespace align_internal
@@ -475,12 +475,12 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiLeftType<T...>::Stringify(Sink& sink) const& {
-  AbslStringifyWriter writer(&sink);
+inline void AsciiLeftType<T...>::Stringify(Sink& dest) const& {
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
   align_internal::WritePadding(
-      sink,
+      dest,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
       options_.fill());
@@ -491,13 +491,13 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiLeftType<T...>::Stringify(Sink& sink) && {
+inline void AsciiLeftType<T...>::Stringify(Sink& dest) && {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  AbslStringifyWriter writer(&sink);
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WritePadding(sink, padding, options_.fill());
+  align_internal::WritePadding(dest, padding, options_.fill());
 }
 
 template <typename... T>
@@ -505,12 +505,12 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiLeftType<T...>::Stringify(Sink& sink) const& {
-  AbslStringifyWriter writer(&sink);
+inline void AsciiLeftType<T...>::Stringify(Sink& dest) const& {
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
   align_internal::WritePadding(
-      sink, SaturatingSub(options_.width(), writer.pos()), options_.fill());
+      dest, SaturatingSub(options_.width(), writer.pos()), options_.fill());
 }
 
 template <typename... T>
@@ -518,12 +518,12 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiLeftType<T...>::Stringify(Sink& sink) && {
-  AbslStringifyWriter writer(&sink);
+inline void AsciiLeftType<T...>::Stringify(Sink& dest) && {
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
   align_internal::WritePadding(
-      sink, SaturatingSub(options_.width(), writer.pos()), options_.fill());
+      dest, SaturatingSub(options_.width(), writer.pos()), options_.fill());
 }
 
 template <typename... T>
@@ -582,14 +582,14 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiCenterType<T...>::Stringify(Sink& sink) const& {
+inline void AsciiCenterType<T...>::Stringify(Sink& dest) const& {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  align_internal::WritePadding(sink, padding / 2, options_.fill());
-  AbslStringifyWriter writer(&sink);
+  align_internal::WritePadding(dest, padding / 2, options_.fill());
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -597,14 +597,14 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiCenterType<T...>::Stringify(Sink& sink) && {
+inline void AsciiCenterType<T...>::Stringify(Sink& dest) && {
   const Position padding = SaturatingSub(
       options_.width(), align_internal::StringifiedSizeOfTuple(values_));
-  align_internal::WritePadding(sink, padding / 2, options_.fill());
-  AbslStringifyWriter writer(&sink);
+  align_internal::WritePadding(dest, padding / 2, options_.fill());
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
-  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -612,15 +612,15 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiCenterType<T...>::Stringify(Sink& sink) const& {
+inline void AsciiCenterType<T...>::Stringify(Sink& dest) const& {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  align_internal::WritePadding(sink, padding / 2, options_.fill());
-  AbslStringify(sink, chain_writer.dest());
-  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(dest, padding / 2, options_.fill());
+  AbslStringify(dest, chain_writer.dest());
+  align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -628,15 +628,15 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiCenterType<T...>::Stringify(Sink& sink) && {
+inline void AsciiCenterType<T...>::Stringify(Sink& dest) && {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   const Position padding =
       SaturatingSub(options_.width(), chain_writer.dest().size());
-  align_internal::WritePadding(sink, padding / 2, options_.fill());
-  AbslStringify(sink, chain_writer.dest());
-  align_internal::WritePadding(sink, padding - padding / 2, options_.fill());
+  align_internal::WritePadding(dest, padding / 2, options_.fill());
+  AbslStringify(dest, chain_writer.dest());
+  align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
 }
 
 template <typename... T>
@@ -708,13 +708,13 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiRightType<T...>::Stringify(Sink& sink) const& {
+inline void AsciiRightType<T...>::Stringify(Sink& dest) const& {
   align_internal::WritePadding(
-      sink,
+      dest,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
       options_.fill());
-  AbslStringifyWriter writer(&sink);
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(values_);
   writer.Close();
 }
@@ -724,13 +724,13 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiRightType<T...>::Stringify(Sink& sink) && {
+inline void AsciiRightType<T...>::Stringify(Sink& dest) && {
   align_internal::WritePadding(
-      sink,
+      dest,
       SaturatingSub(options_.width(),
                     align_internal::StringifiedSizeOfTuple(values_)),
       options_.fill());
-  AbslStringifyWriter writer(&sink);
+  AbslStringifyWriter writer(&dest);
   writer.WriteTuple(std::move(values_));
   writer.Close();
 }
@@ -740,14 +740,14 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiRightType<T...>::Stringify(Sink& sink) const& {
+inline void AsciiRightType<T...>::Stringify(Sink& dest) const& {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(values_);
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   align_internal::WritePadding(
-      sink, SaturatingSub(options_.width(), chain_writer.dest().size()),
+      dest, SaturatingSub(options_.width(), chain_writer.dest().size()),
       options_.fill());
-  AbslStringify(sink, chain_writer.dest());
+  AbslStringify(dest, chain_writer.dest());
 }
 
 template <typename... T>
@@ -755,14 +755,14 @@ template <
     typename Sink, typename DependentTuple,
     std::enable_if_t<
         !TupleElementsSatisfy<DependentTuple, HasStringifiedSize>::value, int>>
-inline void AsciiRightType<T...>::Stringify(Sink& sink) && {
+inline void AsciiRightType<T...>::Stringify(Sink& dest) && {
   RestrictedChainWriter chain_writer;
   chain_writer.WriteTuple(std::move(values_));
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return;
   align_internal::WritePadding(
-      sink, SaturatingSub(options_.width(), chain_writer.dest().size()),
+      dest, SaturatingSub(options_.width(), chain_writer.dest().size()),
       options_.fill());
-  AbslStringify(sink, chain_writer.dest());
+  AbslStringify(dest, chain_writer.dest());
 }
 
 template <typename... T>

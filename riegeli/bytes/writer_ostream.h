@@ -67,7 +67,7 @@ class WriterStreambuf : public std::streambuf {
   std::streamsize showmanyc() override;
   int underflow() override;
   std::streamsize xsgetn(char* dest, std::streamsize length) override;
-  int overflow(int ch) override;
+  int overflow(int src) override;
   std::streamsize xsputn(const char* src, std::streamsize length) override;
   std::streampos seekoff(std::streamoff off, std::ios_base::seekdir dir,
                          std::ios_base::openmode which) override;

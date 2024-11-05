@@ -223,8 +223,8 @@ namespace riegeli {
 //   //
 //   // Used for conversion to `Chain`.
 //   friend void RiegeliDumpStructure(const T* self, absl::string_view substr,
-//                                    std::ostream& out) {
-//     out << "[external] { }";
+//                                    std::ostream& dest) {
+//     dest << "[external] { }";
 //   }
 //
 //   // Registers this object with `MemoryEstimator`.

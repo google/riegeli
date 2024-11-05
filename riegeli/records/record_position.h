@@ -104,20 +104,20 @@ class RecordPosition : public WithCompare<RecordPosition> {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `self.ToString()` to `sink`.
+  // Writes `src.ToString()` to `dest`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, RecordPosition self) {
-    sink.Append(self.ToString());
+  friend void AbslStringify(Sink& dest, RecordPosition src) {
+    dest.Append(src.ToString());
   }
 
-  // Writes `self.ToString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, RecordPosition self) {
-    self.Output(out);
-    return out;
+  // Writes `src.ToString()` to `dest`.
+  friend std::ostream& operator<<(std::ostream& dest, RecordPosition src) {
+    src.Output(dest);
+    return dest;
   }
 
  private:
-  void Output(std::ostream& out) const;
+  void Output(std::ostream& dest) const;
 
   // Invariant:
   //   `record_index_ <= std::numeric_limits<uint64_t>::max() - chunk_begin_`

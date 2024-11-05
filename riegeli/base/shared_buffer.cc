@@ -24,18 +24,18 @@
 namespace riegeli {
 
 void SharedBuffer::DumpStructure(absl::string_view substr,
-                                 std::ostream& out) const {
-  out << "[shared_buffer] {";
+                                 std::ostream& dest) const {
+  dest << "[shared_buffer] {";
   const size_t ref_count = GetRefCount();
-  if (ref_count != 1) out << " ref_count: " << ref_count;
+  if (ref_count != 1) dest << " ref_count: " << ref_count;
   if (!substr.empty()) {
     if (substr.data() != data()) {
-      out << " space_before: " << PtrDistance(data(), substr.data());
+      dest << " space_before: " << PtrDistance(data(), substr.data());
     }
-    out << " space_after: "
-        << PtrDistance(substr.data() + substr.size(), data() + capacity());
+    dest << " space_after: "
+         << PtrDistance(substr.data() + substr.size(), data() + capacity());
   }
-  out << " }";
+  dest << " }";
 }
 
 }  // namespace riegeli

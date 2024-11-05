@@ -191,16 +191,16 @@ void CompactString::ReserveOneMoreByteSlow() {
 }
 
 void CompactString::DumpStructure(absl::string_view substr,
-                                  std::ostream& out) const {
-  out << "[compact_string] {";
+                                  std::ostream& dest) const {
+  dest << "[compact_string] {";
   if (!substr.empty()) {
     if (substr.data() != data()) {
-      out << " space_before: " << PtrDistance(data(), substr.data());
+      dest << " space_before: " << PtrDistance(data(), substr.data());
     }
-    out << " space_after: "
-        << PtrDistance(substr.data() + substr.size(), data() + capacity());
+    dest << " space_after: "
+         << PtrDistance(substr.data() + substr.size(), data() + capacity());
   }
-  out << " }";
+  dest << " }";
 }
 
 }  // namespace riegeli

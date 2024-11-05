@@ -97,8 +97,8 @@ class SharedBuffer {
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const SharedBuffer* self,
                                    absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
+                                   std::ostream& dest) {
+    self->DumpStructure(substr, dest);
   }
 
   // Support `MemoryEstimator`.
@@ -109,7 +109,7 @@ class SharedBuffer {
   }
 
  private:
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+  void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   SharedPtr<Buffer> buffer_;  // `nullptr` means `capacity() == 0`.
 };

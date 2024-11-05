@@ -409,18 +409,18 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `self.DebugString()` to `sink`.
+  // Writes `src.DebugString()` to `dest`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const CsvHeader& self) {
-    AbslStringifyWriter<Sink*> writer(&sink);
-    self.WriteDebugStringTo(writer);
+  friend void AbslStringify(Sink& dest, const CsvHeader& src) {
+    AbslStringifyWriter<Sink*> writer(&dest);
+    src.WriteDebugStringTo(writer);
     writer.Close();
   }
 
-  // Writes `self.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvHeader& self) {
-    self.Output(out);
-    return out;
+  // Writes `src.DebugString()` to `dest`.
+  friend std::ostream& operator<<(std::ostream& dest, const CsvHeader& src) {
+    src.Output(dest);
+    return dest;
   }
 
   // Support `MemoryEstimator`.
@@ -488,8 +488,8 @@ class CsvHeader : public WithEqual<CsvHeader> {
 
   static bool Equal(const CsvHeader& a, const CsvHeader& b);
 
-  void WriteDebugStringTo(Writer& writer) const;
-  void Output(std::ostream& out) const;
+  void WriteDebugStringTo(Writer& dest) const;
+  void Output(std::ostream& dest) const;
 
   // A one-element cache of a recently constructed `Payload`, to reuse the
   // `Payload` when multiple `CsvHeader` objects are created from the same
@@ -934,18 +934,18 @@ class CsvRecord : public WithEqual<CsvRecord> {
 
   // Default stringification by `absl::StrCat()` etc.
   //
-  // Writes `self.DebugString()` to `sink`.
+  // Writes `src.DebugString()` to `dest`.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const CsvRecord& self) {
-    AbslStringifyWriter<Sink*> writer(&sink);
-    self.WriteDebugStringTo(writer);
+  friend void AbslStringify(Sink& dest, const CsvRecord& src) {
+    AbslStringifyWriter<Sink*> writer(&dest);
+    src.WriteDebugStringTo(writer);
     writer.Close();
   }
 
-  // Writes `self.DebugString()` to `out`.
-  friend std::ostream& operator<<(std::ostream& out, const CsvRecord& self) {
-    self.Output(out);
-    return out;
+  // Writes `src.DebugString()` to `dest`.
+  friend std::ostream& operator<<(std::ostream& dest, const CsvRecord& src) {
+    src.Output(dest);
+    return dest;
   }
 
   // Support `MemoryEstimator`.
@@ -969,8 +969,8 @@ class CsvRecord : public WithEqual<CsvRecord> {
 
   static bool Equal(const CsvRecord& a, const CsvRecord& b);
 
-  void WriteDebugStringTo(Writer& writer) const;
-  void Output(std::ostream& out) const;
+  void WriteDebugStringTo(Writer& dest) const;
+  void Output(std::ostream& dest) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;
@@ -978,7 +978,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
 };
 
 namespace csv_internal {
-void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer);
+void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& dest);
 }  // namespace csv_internal
 
 // Implementation details follow.

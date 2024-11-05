@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 
@@ -357,7 +356,7 @@ namespace type_traits_internal {
 
 class UnimplementedSink {
  public:
-  void Append(size_t length, char src);
+  void Append(size_t length, char fill);
   void Append(absl::string_view src);
   friend void AbslFormatFlush(UnimplementedSink* dest, absl::string_view src);
 };

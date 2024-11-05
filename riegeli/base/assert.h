@@ -174,7 +174,7 @@ class UnreachableStream {
   }
 
   template <typename T>
-  UnreachableStream& operator<<(ABSL_ATTRIBUTE_UNUSED T&& value) {
+  UnreachableStream& operator<<(ABSL_ATTRIBUTE_UNUSED T&& src) {
     return *this;
   }
 };

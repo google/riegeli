@@ -62,14 +62,14 @@ constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
 
 namespace {
 
-void WritePadding(std::ostream& out, size_t length) {
+void WritePadding(std::ostream& dest, size_t length) {
   char buffer[64];
-  std::memset(buffer, out.fill(), sizeof(buffer));
+  std::memset(buffer, dest.fill(), sizeof(buffer));
   while (length > sizeof(buffer)) {
-    out.write(buffer, std::streamsize{sizeof(buffer)});
+    dest.write(buffer, std::streamsize{sizeof(buffer)});
     length -= sizeof(buffer);
   }
-  out.write(buffer, IntCast<std::streamsize>(length));
+  dest.write(buffer, IntCast<std::streamsize>(length));
 }
 
 // Stores an `absl::Cord` which must be flat, i.e.
@@ -90,8 +90,8 @@ class FlatCordBlock {
 
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(
-      ABSL_ATTRIBUTE_UNUSED const FlatCordBlock* self, std::ostream& out) {
-    out << "[cord] { }";
+      ABSL_ATTRIBUTE_UNUSED const FlatCordBlock* self, std::ostream& dest) {
+    dest << "[cord] { }";
   }
 
   // Support `MemoryEstimator`.
@@ -128,12 +128,12 @@ inline FlatCordBlock::operator absl::string_view() const {
 
 namespace chain_internal {
 
-void DumpStructureDefault(std::ostream& out) { out << "[external] { }"; }
+void DumpStructureDefault(std::ostream& dest) { dest << "[external] { }"; }
 
 }  // namespace chain_internal
 
-void RiegeliDumpStructure(const std::string* self, std::ostream& out) {
-  out << "[string] { capacity: " << self->capacity() << " }";
+void RiegeliDumpStructure(const std::string* self, std::ostream& dest) {
+  dest << "[string] { capacity: " << self->capacity() << " }";
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::NewInternal(
@@ -210,19 +210,19 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
   return Wasteful(kInternalAllocatedOffset() + capacity(), size() + extra_size);
 }
 
-inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
-  out << "block {";
+inline void Chain::RawBlock::DumpStructure(std::ostream& dest) const {
+  dest << "block {";
   const size_t ref_count = ref_count_.GetCount();
-  if (ref_count != 1) out << " ref_count: " << ref_count;
-  out << " size: " << size();
+  if (ref_count != 1) dest << " ref_count: " << ref_count;
+  dest << " size: " << size();
   if (is_internal()) {
-    if (space_before() > 0) out << " space_before: " << space_before();
-    out << " space_after: " << space_after();
+    if (space_before() > 0) dest << " space_before: " << space_before();
+    dest << " space_after: " << space_after();
   } else {
-    out << " ";
-    external_.methods->dump_structure(*this, out);
+    dest << " ";
+    external_.methods->dump_structure(*this, dest);
   }
-  out << " }";
+  dest << " }";
 }
 
 size_t Chain::RawBlock::DynamicSizeOf() const {
@@ -419,11 +419,11 @@ absl::Cord Chain::Block::ToCord(absl::string_view substr) const& {
 }
 
 void Chain::Block::DumpStructure(absl::string_view substr,
-                                 std::ostream& out) const {
-  out << "[block] { offset: "
-      << PtrDistance(block_->data_begin(), substr.data()) << " ";
-  block_->DumpStructure(out);
-  out << " }";
+                                 std::ostream& dest) const {
+  dest << "[block] { offset: "
+       << PtrDistance(block_->data_begin(), substr.data()) << " ";
+  block_->DumpStructure(dest);
+  dest << " }";
 }
 
 Chain::Chain(const absl::Cord& src) { Initialize(src); }
@@ -813,13 +813,13 @@ Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
   }
 }
 
-void Chain::DumpStructure(std::ostream& out) const {
-  out << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
+void Chain::DumpStructure(std::ostream& dest) const {
+  dest << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
   for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
-    out << "\n  ";
-    iter->block_ptr->DumpStructure(out);
+    dest << "\n  ";
+    iter->block_ptr->DumpStructure(dest);
   }
-  out << "\n}\n";
+  dest << "\n}\n";
 }
 
 size_t Chain::EstimateMemory() const {
@@ -2111,25 +2111,25 @@ StrongOrdering Chain::Compare(const Chain& a, absl::string_view b) {
   return that_pos == b.size() ? StrongOrdering::equal : StrongOrdering::less;
 }
 
-void Chain::Output(std::ostream& out) const {
-  std::ostream::sentry sentry(out);
+void Chain::Output(std::ostream& dest) const {
+  std::ostream::sentry sentry(dest);
   if (sentry) {
-    size_t lpad = 0;
-    size_t rpad = 0;
-    if (IntCast<size_t>(out.width()) > size()) {
-      const size_t pad = IntCast<size_t>(out.width()) - size();
-      if ((out.flags() & out.adjustfield) == out.left) {
-        rpad = pad;
+    size_t left_pad = 0;
+    size_t right_pad = 0;
+    if (IntCast<size_t>(dest.width()) > size()) {
+      const size_t pad = IntCast<size_t>(dest.width()) - size();
+      if ((dest.flags() & dest.adjustfield) == dest.left) {
+        right_pad = pad;
       } else {
-        lpad = pad;
+        left_pad = pad;
       }
     }
-    if (lpad > 0) WritePadding(out, lpad);
+    if (left_pad > 0) WritePadding(dest, left_pad);
     for (const absl::string_view fragment : blocks()) {
-      out.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
+      dest.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
     }
-    if (rpad > 0) WritePadding(out, rpad);
-    out.width(0);
+    if (right_pad > 0) WritePadding(dest, right_pad);
+    dest.width(0);
   }
 }
 

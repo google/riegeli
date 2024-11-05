@@ -242,7 +242,7 @@ std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
   return IntCast<std::streamsize>(length_read);
 }
 
-int WriterStreambuf::overflow(int ch) {
+int WriterStreambuf::overflow(int src) {
   if (ABSL_PREDICT_FALSE(!ok())) return traits_type::eof();
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!WriteMode())) return traits_type::eof();
@@ -250,11 +250,11 @@ int WriterStreambuf::overflow(int ch) {
     FailWriter();
     return traits_type::eof();
   }
-  if (ch != traits_type::eof()) {
-    *writer_->cursor() = traits_type::to_char_type(ch);
+  if (src != traits_type::eof()) {
+    *writer_->cursor() = traits_type::to_char_type(src);
     writer_->move_cursor(1);
   }
-  return traits_type::not_eof(ch);
+  return traits_type::not_eof(src);
 }
 
 std::streamsize WriterStreambuf::xsputn(const char* src,

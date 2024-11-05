@@ -39,8 +39,8 @@ namespace riegeli {
 // `Writer::Write()`.
 struct DefaultFormatter {
   template <typename Value>
-  void operator()(Value&& value, Writer& writer) const {
-    writer.Write(std::forward<Value>(value));
+  void operator()(Value&& src, Writer& dest) const {
+    dest.Write(std::forward<Value>(src));
   }
 };
 
@@ -55,12 +55,12 @@ class InvokingFormatter {
       : function_(std::move(function)) {}
 
   template <typename Value>
-  void operator()(Value&& value, Writer& writer) const {
+  void operator()(Value&& src, Writer& dest) const {
 #if __cpp_lib_invoke
-    writer.Write(std::invoke(function_, std::forward<Value>(value)));
+    dest.Write(std::invoke(function_, std::forward<Value>(src)));
 #else
-    writer.Write(absl::apply(
-        function_, std::forward_as_tuple(std::forward<Value>(value))));
+    dest.Write(absl::apply(function_,
+                           std::forward_as_tuple(std::forward<Value>(src))));
 #endif
   }
 
@@ -103,10 +103,10 @@ class DecoratingFormatter {
         after_(after) {}
 
   template <typename Value>
-  void operator()(Value&& value, Writer& writer) const {
-    writer.Write(before_);
-    value_formatter_(std::forward<Value>(value), writer);
-    writer.Write(after_);
+  void operator()(Value&& src, Writer& dest) const {
+    dest.Write(before_);
+    value_formatter_(std::forward<Value>(src), dest);
+    dest.Write(after_);
   }
 
  private:
@@ -157,17 +157,17 @@ class PairFormatter {
         second_formatter_(std::move(second_formatter)) {}
 
   template <typename First, typename Second>
-  void operator()(const std::pair<First, Second>& pair, Writer& writer) const {
-    first_formatter_(pair.first, writer);
-    writer.Write(separator_);
-    second_formatter_(pair.second, writer);
+  void operator()(const std::pair<First, Second>& src, Writer& dest) const {
+    first_formatter_(src.first, dest);
+    dest.Write(separator_);
+    second_formatter_(src.second, dest);
   }
 
   template <typename First, typename Second>
-  void operator()(std::pair<First, Second>&& pair, Writer& writer) const {
-    first_formatter_(std::move(pair.first), writer);
-    writer.Write(separator_);
-    second_formatter_(std::move(pair.second), writer);
+  void operator()(std::pair<First, Second>&& src, Writer& dest) const {
+    first_formatter_(std::move(src.first), dest);
+    dest.Write(separator_);
+    second_formatter_(std::move(src.second), dest);
   }
 
  private:
@@ -213,50 +213,50 @@ class JoinType {
   JoinType& operator=(JoinType&& that) = default;
 
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const JoinType& self) {
-    self.Stringify(sink);
+  friend void AbslStringify(Sink& dest, const JoinType& src) {
+    src.Stringify(dest);
   }
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, JoinType&& self) {
-    std::move(self).Stringify(sink);
+  friend void AbslStringify(Sink& dest, JoinType&& src) {
+    std::move(src).Stringify(dest);
   }
 
-  friend std::ostream& operator<<(std::ostream& out, const JoinType& self) {
-    OStreamWriter<> writer(&out);
-    self.WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest, const JoinType& src) {
+    OStreamWriter<> writer(&dest);
+    src.WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
-  friend std::ostream& operator<<(std::ostream& out, JoinType&& self) {
-    OStreamWriter<> writer(&out);
-    std::move(self).WriteTo(writer);
+  friend std::ostream& operator<<(std::ostream& dest, JoinType&& src) {
+    OStreamWriter<> writer(&dest);
+    std::move(src).WriteTo(writer);
     writer.Close();
-    return out;
+    return dest;
   }
 
  private:
   template <typename Sink>
-  void Stringify(Sink& sink) const& {
-    AbslStringifyWriter writer(&sink);
+  void Stringify(Sink& dest) const& {
+    AbslStringifyWriter writer(&dest);
     WriteTo(writer);
     writer.Close();
   }
   template <typename Sink>
-  void Stringify(Sink& sink) && {
-    AbslStringifyWriter writer(&sink);
+  void Stringify(Sink& dest) && {
+    AbslStringifyWriter writer(&dest);
     std::move(*this).WriteTo(writer);
     writer.Close();
   }
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& sink) const& {
-    WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) const& {
+    WriteTo(*dest.dest());
   }
-  void Stringify(WriterAbslStringifySink& sink) && {
-    std::move(*this).WriteTo(*sink.dest());
+  void Stringify(WriterAbslStringifySink& dest) && {
+    std::move(*this).WriteTo(*dest.dest());
   }
 
-  void WriteTo(Writer& writer) const&;
-  void WriteTo(Writer& writer) &&;
+  void WriteTo(Writer& dest) const&;
+  void WriteTo(Writer& dest) &&;
 
   Dependency<const void*, Src> src_;
   absl::string_view separator_;
@@ -325,32 +325,32 @@ inline JoinType<std::initializer_list<Value>, Formatter&&> Join(
 // Implementation details follow.
 
 template <typename Src, typename Formatter>
-inline void JoinType<Src, Formatter>::WriteTo(Writer& writer) const& {
+inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) const& {
   using std::begin;
   auto iter = begin(*src_);
   using std::end;
   auto end_iter = end(*src_);
   if (iter == end_iter) return;
   for (;;) {
-    formatter_(*iter, writer);
+    formatter_(*iter, dest);
     ++iter;
     if (iter == end_iter) break;
-    writer.Write(separator_);
+    dest.Write(separator_);
   }
 }
 
 template <typename Src, typename Formatter>
-inline void JoinType<Src, Formatter>::WriteTo(Writer& writer) && {
+inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) && {
   using std::begin;
   auto iter = MaybeMakeMoveIterator<Src>(begin(*src_));
   using std::end;
   auto end_iter = MaybeMakeMoveIterator<Src>(end(*src_));
   if (iter == end_iter) return;
   for (;;) {
-    formatter_(*iter, writer);
+    formatter_(*iter, dest);
     ++iter;
     if (iter == end_iter) break;
-    writer.Write(separator_);
+    dest.Write(separator_);
   }
 }
 

@@ -211,13 +211,13 @@ class
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const CompactString& self) {
-    sink.Append(absl::string_view(self));
+  friend void AbslStringify(Sink& dest, const CompactString& src) {
+    dest.Append(absl::string_view(src));
   }
 
-  friend std::ostream& operator<<(std::ostream& out,
-                                  const CompactString& self) {
-    return out << absl::string_view(self);
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const CompactString& src) {
+    return dest << absl::string_view(src);
   }
 
   // Support `absl::Format(&compact_string, format, args...)`.
@@ -267,8 +267,8 @@ class
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const CompactString* self,
                                    absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
+                                   std::ostream& dest) {
+    self->DumpStructure(substr, dest);
   }
 
   // Support `MemoryEstimator`.
@@ -446,7 +446,7 @@ class
   void AppendSlow(absl::string_view src);
   void ReserveOneMoreByteSlow();
 
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+  void DumpStructure(absl::string_view substr, std::ostream& dest) const;
   template <typename MemoryEstimator>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 

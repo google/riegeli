@@ -76,8 +76,8 @@ class
 
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const Buffer* self, absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
+                                   std::ostream& dest) {
+    self->DumpStructure(substr, dest);
   }
 
   // Support `MemoryEstimator`.
@@ -90,7 +90,7 @@ class
  private:
   void AllocateInternal(size_t min_capacity);
   void DeleteInternal();
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+  void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   char* data_ = nullptr;
   size_t capacity_ = 0;

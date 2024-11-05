@@ -177,8 +177,8 @@ class MMapBlock {
 
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapBlock* self,
-                                   std::ostream& out) {
-    out << "[mmap] { }";
+                                   std::ostream& dest) {
+    dest << "[mmap] { }";
   }
 
  private:

@@ -282,7 +282,7 @@ class Chain : public WithCompare<Chain> {
   BlockAndChar BlockAndCharIndex(size_t char_index_in_chain) const;
 
   // Shows internal structure in a human-readable way, for debugging.
-  void DumpStructure(std::ostream& out) const;
+  void DumpStructure(std::ostream& dest) const;
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
   // Support `MemoryEstimator`.
@@ -409,13 +409,13 @@ class Chain : public WithCompare<Chain> {
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const Chain& self) {
-    self.Stringify(sink);
+  friend void AbslStringify(Sink& dest, const Chain& src) {
+    src.Stringify(dest);
   }
 
-  friend std::ostream& operator<<(std::ostream& out, const Chain& self) {
-    self.Output(out);
-    return out;
+  friend std::ostream& operator<<(std::ostream& dest, const Chain& src) {
+    src.Output(dest);
+    return dest;
   }
 
   // Support `absl::Format(&chain, format, args...)`.
@@ -592,8 +592,8 @@ class Chain : public WithCompare<Chain> {
   template <typename HashState>
   HashState HashValue(HashState hash_state) const;
   template <typename Sink>
-  void Stringify(Sink& sink) const;
-  void Output(std::ostream& out) const;
+  void Stringify(Sink& dest) const;
+  void Output(std::ostream& dest) const;
 
   BlockPtrs block_ptrs_;
 
@@ -706,7 +706,7 @@ class Chain::RawBlock {
   bool wasteful(size_t extra_size = 0) const;
 
   // Shows internal structure in a human-readable way, for debugging.
-  void DumpStructure(std::ostream& out) const;
+  void DumpStructure(std::ostream& dest) const;
 
   // Support `MemoryEstimator`.
   friend size_t RiegeliDynamicSizeOf(const RawBlock* self) {
@@ -842,7 +842,7 @@ class Chain::Block {
   //
   //   // Shows internal structure in a human-readable way, for debugging.
   //   friend void RiegeliDumpStructure(const T* self, absl::string_view substr,
-  //                                    std::ostream& out) {
+  //                                    std::ostream& dest) {
   //     out << "[external] { }";
   //   }
   //
@@ -921,8 +921,8 @@ class Chain::Block {
 
   // Support `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const Block* self, absl::string_view substr,
-                                   std::ostream& out) {
-    self->DumpStructure(substr, out);
+                                   std::ostream& dest) {
+    self->DumpStructure(substr, dest);
   }
 
   // Support `MemoryEstimator`.
@@ -947,7 +947,7 @@ class Chain::Block {
   absl::Cord ToCord(absl::string_view substr) &&;
   absl::Cord ToCord(absl::string_view substr) const&;
   ExternalStorage ToExternalStorage() &&;
-  void DumpStructure(absl::string_view substr, std::ostream& out) const;
+  void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   IntrusiveSharedPtr<RawBlock> block_;
 };

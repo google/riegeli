@@ -74,19 +74,19 @@ absl::Cord ByteFill::ZeroBlock::ToCord(absl::string_view substr) {
   return absl::MakeCordFromExternal(substr, kNullReleaser);
 }
 
-void ByteFill::ZeroBlock::DumpStructure(std::ostream& out) {
-  out << "[zero_fill] { }";
+void ByteFill::ZeroBlock::DumpStructure(std::ostream& dest) {
+  dest << "[zero_fill] { }";
 }
 
 void ByteFill::LargeBlock::DumpStructure(absl::string_view substr,
-                                         std::ostream& out) const {
-  out << "[large_fill] {";
+                                         std::ostream& dest) const {
+  dest << "[large_fill] {";
   const size_t ref_count = buffer_.GetRefCount();
-  if (ref_count != 1) out << " ref_count: " << ref_count;
+  if (ref_count != 1) dest << " ref_count: " << ref_count;
   if (buffer_.capacity() != substr.size()) {
-    out << " capacity: " << buffer_.capacity();
+    dest << " capacity: " << buffer_.capacity();
   }
-  out << " }";
+  dest << " }";
 }
 
 ByteFill::Blocks::Blocks(Position size, char fill) {
@@ -366,9 +366,9 @@ void ByteFill::PrependTo(absl::Cord& dest) const {
   }
 }
 
-void ByteFill::Output(std::ostream& out) const {
+void ByteFill::Output(std::ostream& dest) const {
   for (const absl::string_view fragment : blocks()) {
-    out.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
+    dest.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
   }
 }
 

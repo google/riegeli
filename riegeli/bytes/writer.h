@@ -68,7 +68,7 @@ class WriterAbslStringifySink {
   // Returns the `Writer` being written to.
   Writer* dest() const { return dest_; }
 
-  void Append(size_t length, char src);
+  void Append(size_t length, char fill);
   template <typename Src,
             std::enable_if_t<std::is_convertible<Src, absl::string_view>::value,
                              int> = 0>
@@ -703,8 +703,8 @@ inline bool WriteSigned(T src, Writer& dest) {
 
 }  // namespace write_int_internal
 
-inline void WriterAbslStringifySink::Append(size_t length, char src) {
-  dest_->Write(ByteFill(length, src));
+inline void WriterAbslStringifySink::Append(size_t length, char fill) {
+  dest_->Write(ByteFill(length, fill));
 }
 
 template <

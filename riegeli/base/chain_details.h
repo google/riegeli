@@ -323,7 +323,7 @@ struct Chain::BlockAndChar {
 
 struct Chain::ExternalMethods {
   void (*delete_block)(RawBlock* block);
-  void (*dump_structure)(const RawBlock& block, std::ostream& out);
+  void (*dump_structure)(const RawBlock& block, std::ostream& dest);
   size_t dynamic_sizeof;
   void (*register_subobjects)(const RawBlock* block,
                               MemoryEstimator& memory_estimator);
@@ -415,13 +415,13 @@ struct HasRiegeliDumpStructureWithoutData<
            std::declval<const T*>(), std::declval<std::ostream&>()))>>
     : std::true_type {};
 
-void DumpStructureDefault(std::ostream& out);
+void DumpStructureDefault(std::ostream& dest);
 
 template <typename T, std::enable_if_t<
                           HasRiegeliDumpStructureWithSubstr<T>::value, int> = 0>
 inline void DumpStructure(const T* object, absl::string_view substr,
-                          std::ostream& out) {
-  RiegeliDumpStructure(object, substr, out);
+                          std::ostream& dest) {
+  RiegeliDumpStructure(object, substr, dest);
 }
 
 template <
@@ -432,8 +432,8 @@ template <
         int> = 0>
 inline void DumpStructure(const T* object,
                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
-                          std::ostream& out) {
-  RiegeliDumpStructure(object, out);
+                          std::ostream& dest) {
+  RiegeliDumpStructure(object, dest);
 }
 
 template <typename T,
@@ -444,14 +444,14 @@ template <typename T,
               int> = 0>
 inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
-                          std::ostream& out) {
-  chain_internal::DumpStructureDefault(out);
+                          std::ostream& dest) {
+  chain_internal::DumpStructureDefault(dest);
 }
 
 }  // namespace chain_internal
 
 // Support `ExternalRef` and `Chain::Block`.
-void RiegeliDumpStructure(const std::string* self, std::ostream& out);
+void RiegeliDumpStructure(const std::string* self, std::ostream& dest);
 
 template <typename T>
 struct Chain::ExternalMethodsFor {
@@ -466,7 +466,7 @@ struct Chain::ExternalMethodsFor {
 
  private:
   static void DeleteBlock(RawBlock* block);
-  static void DumpStructure(const RawBlock& block, std::ostream& out);
+  static void DumpStructure(const RawBlock& block, std::ostream& dest);
   static constexpr size_t DynamicSizeOf();
   static void RegisterSubobjects(const RawBlock* block,
                                  MemoryEstimator& memory_estimator);
@@ -512,9 +512,9 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
-                                                 std::ostream& out) {
+                                                 std::ostream& dest) {
   chain_internal::DumpStructure(&block.unchecked_external_object<T>(),
-                                absl::string_view(block), out);
+                                absl::string_view(block), dest);
 }
 
 template <typename T>
@@ -1252,8 +1252,8 @@ HashState Chain::HashValue(HashState hash_state) const {
 }
 
 template <typename Sink>
-void Chain::Stringify(Sink& sink) const {
-  for (const absl::string_view block : blocks()) sink.Append(block);
+void Chain::Stringify(Sink& dest) const {
+  for (const absl::string_view block : blocks()) dest.Append(block);
 }
 
 }  // namespace riegeli
