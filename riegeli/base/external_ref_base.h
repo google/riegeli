@@ -249,9 +249,43 @@ class ExternalRef {
   using UseCordFunction = void (*)(void* context, absl::Cord data);
   using UseExternalDataFunction = void (*)(void* context, ExternalData data);
 
+  template <typename T, typename Enable = void>
+  struct HasRiegeliExternalMemory : std::false_type {};
+
+  template <typename T>
+  struct HasRiegeliExternalMemory<
+      T, std::is_convertible<
+             decltype(RiegeliExternalMemory(std::declval<const T*>())), size_t>>
+      : std::true_type {};
+
+  template <typename T,
+            std::enable_if_t<HasRiegeliExternalMemory<T>::value, int> = 0>
+  static size_t ExternalMemory(const T& object) {
+    return RiegeliExternalMemory(&object);
+  }
+
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<absl::negation<HasRiegeliExternalMemory<T>>,
+                                  SupportsToStringView<T>>::value,
+                int> = 0>
+  static size_t ExternalMemory(const T& object) {
+    return riegeli::ToStringView(object).size();
+  }
+
+  template <
+      typename T,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<HasRiegeliExternalMemory<T>>,
+                            absl::negation<SupportsToStringView<T>>>::value,
+          int> = 0>
+  static size_t ExternalMemory(ABSL_ATTRIBUTE_UNUSED const T& object) {
+    return 0;
+  }
+
   template <typename T>
   static bool Wasteful(const T& object, size_t used) {
-    size_t allocated = RiegeliExternalMemory(&object);
+    size_t allocated = ExternalMemory(&object);
     if (sizeof(T) > std::numeric_limits<size_t>::max() - allocated) {
       RIEGELI_ASSERT_UNREACHABLE() << "Result of RiegeliExternalMemory() "
                                       "suspiciously close to size_t range";

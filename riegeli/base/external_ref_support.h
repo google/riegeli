@@ -35,11 +35,6 @@ inline bool RiegeliExternalCopy(ABSL_ATTRIBUTE_UNUSED const void* self) {
   return false;
 }
 
-// Default implementation for `ExternalRef` support.
-inline size_t RiegeliExternalMemory(ABSL_ATTRIBUTE_UNUSED const void* self) {
-  return 0;
-}
-
 // Indicate support for `ExternalRef(std::string&&)`.
 void RiegeliSupportsExternalRefWhole(std::string*);
 
