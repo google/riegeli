@@ -16,7 +16,6 @@
 #define RIEGELI_BASE_ASSERT_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <ostream>  // IWYU pragma: export
 #include <sstream>
@@ -25,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "riegeli/base/debug.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -95,30 +95,11 @@ class CheckResult {
   const char* message_ = nullptr;
 };
 
-// For showing a value in a failure message involving a comparison, if needed
-// then converts the value to a different type with the appropriate behavior of
-// `operator<<`: characters are shown as integers.
-
-inline int GetStreamable(char value) { return value; }
-inline int GetStreamable(signed char value) { return value; }
-inline unsigned GetStreamable(unsigned char value) { return value; }
-inline int GetStreamable(wchar_t value) { return value; }
-#if __cpp_char8_t
-inline unsigned GetStreamable(char8_t value) { return value; }
-#endif
-inline uint16_t GetStreamable(char16_t value) { return value; }
-inline uint32_t GetStreamable(char32_t value) { return value; }
-
-template <typename T>
-inline const T& GetStreamable(const T& value) {
-  return value;
-}
-
 template <typename A, typename B>
 ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
                                                      const A& a, const B& b) {
   std::ostringstream stream;
-  stream << message << " (" << GetStreamable(a) << " vs. " << GetStreamable(b)
+  stream << message << " (" << riegeli::Debug(a) << " vs. " << riegeli::Debug(b)
          << ")";
   // Do not bother with freeing this string: the program will soon terminate.
   return (new std::string(stream.str()))->c_str();

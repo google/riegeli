@@ -42,6 +42,31 @@ cc_library(
 )
 
 cc_library(
+    name = "stream_utils",
+    srcs = ["stream_utils.cc"],
+    hdrs = ["stream_utils.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "debug",
+    srcs = ["debug.cc"],
+    hdrs = ["debug.h"],
+    deps = [
+        ":stream_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "assert",
     srcs = [
         "assert.cc",
@@ -49,6 +74,7 @@ cc_library(
     ],
     hdrs = ["assert.h"],
     deps = [
+        ":debug",
         "@com_google_absl//absl/base:core_headers",
     ],
 )
@@ -466,6 +492,7 @@ cc_library(
         ":memory_estimator",
         ":new_aligned",
         ":shared_ptr",
+        ":stream_utils",
         ":string_utils",
         ":to_string_view",
         "@com_google_absl//absl/base:core_headers",

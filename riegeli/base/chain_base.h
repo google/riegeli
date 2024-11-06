@@ -418,6 +418,12 @@ class Chain : public WithCompare<Chain> {
     return dest;
   }
 
+  // Support `riegeli::Debug()`.
+  template <typename DebugStream>
+  friend void RiegeliDebug(const Chain& src, DebugStream& dest) {
+    src.Debug(dest);
+  }
+
   // Support `absl::Format(&chain, format, args...)`.
   friend void AbslFormatFlush(Chain* dest, absl::string_view src) {
     dest->Append(src);
@@ -594,6 +600,8 @@ class Chain : public WithCompare<Chain> {
   template <typename Sink>
   void Stringify(Sink& dest) const;
   void Output(std::ostream& dest) const;
+  template <typename DebugStream>
+  void Debug(DebugStream& dest) const;
 
   BlockPtrs block_ptrs_;
 

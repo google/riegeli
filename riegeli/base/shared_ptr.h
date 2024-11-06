@@ -243,6 +243,12 @@ class
         [](void* ptr) { SharedPtr::DeleteReleased(static_cast<T*>(ptr)); });
   }
 
+  // Support `riegeli::Debug()`.
+  template <typename DebugStream>
+  friend void RiegeliDebug(const SharedPtr& src, DebugStream& dest) {
+    dest.Debug(src.get());
+  }
+
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedPtr* self,

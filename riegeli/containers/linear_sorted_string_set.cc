@@ -28,7 +28,6 @@
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -36,6 +35,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/debug.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -343,9 +343,9 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
             ABSL_PREDICT_FALSE(absl::string_view(ptr, current_length) <=
                                *current_if_validated)) {
           return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
-              "Elements are not sorted and unique: new \"",
-              absl::CHexEscape(absl::string_view(ptr, current_length)),
-              "\" <= last \"", absl::CHexEscape(*current_if_validated), "\"")));
+              "Elements are not sorted and unique: new ",
+              riegeli::Debug(absl::string_view(ptr, current_length)),
+              " <= last ", riegeli::Debug(*current_if_validated))));
         }
         current_if_validated_and_shared.clear();
         current_if_validated = absl::string_view(ptr, current_length);
@@ -383,12 +383,12 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
                     current_if_validated->data() + shared_length,
                     current_if_validated->size() - shared_length))) {
           return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
-              "Elements are not sorted and unique: new \"",
-              absl::CHexEscape(
+              "Elements are not sorted and unique: new ",
+              riegeli::Debug(
                   absl::StrCat(absl::string_view(current_if_validated->data(),
                                                  shared_length),
                                absl::string_view(ptr, unshared_length))),
-              "\" <= last \"", absl::CHexEscape(*current_if_validated), "\"")));
+              " <= last ", riegeli::Debug(*current_if_validated))));
         }
         // The unshared part of the next element will be written here.
         char* current_unshared;
@@ -689,9 +689,9 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
                                         last_.size() - shared_length);
   if (ABSL_PREDICT_FALSE(unshared_element <= unshared_last) && !empty()) {
     if (ABSL_PREDICT_TRUE(unshared_element == unshared_last)) return false;
-    return absl::FailedPreconditionError(absl::StrCat(
-        "Elements are not sorted: new \"", absl::CHexEscape(element),
-        "\" < last \"", absl::CHexEscape(last()), "\""));
+    return absl::FailedPreconditionError(
+        absl::StrCat("Elements are not sorted: new ", riegeli::Debug(element),
+                     " < last ", riegeli::Debug(last())));
   }
   if (shared_length == 1) {
     // If only the first byte is shared, write the element fully unshared.

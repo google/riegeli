@@ -309,6 +309,12 @@ class
                            [](void* ptr) { Unref(static_cast<T*>(ptr)); });
   }
 
+  // Support `riegeli::Debug()`.
+  template <typename DebugStream>
+  friend void RiegeliDebug(const IntrusiveSharedPtr& src, DebugStream& dest) {
+    dest.Debug(src.get());
+  }
+
   // Support `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const IntrusiveSharedPtr* self,

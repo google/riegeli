@@ -18,17 +18,16 @@
 
 #include <array>
 #include <cstring>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/debug.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/csv/csv_record.h"
@@ -36,14 +35,6 @@
 #include "riegeli/lines/newline.h"
 
 namespace riegeli {
-
-namespace {
-
-std::string ShowEscaped(char ch) {
-  return absl::StrCat("'", absl::CHexEscape(absl::string_view(&ch, 1)), "'");
-}
-
-}  // namespace
 
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
@@ -68,20 +59,20 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
                          *options.comment() == '\r')) {
     Fail(absl::InvalidArgumentError(
         absl::StrCat("Comment character conflicts with record separator: ",
-                     ShowEscaped(*options.comment()))));
+                     riegeli::Debug(*options.comment()))));
     return;
   }
   if (ABSL_PREDICT_FALSE(options.field_separator() == '\n' ||
                          options.field_separator() == '\r')) {
     Fail(absl::InvalidArgumentError(
         absl::StrCat("Field separator conflicts with record separator: ",
-                     ShowEscaped(options.field_separator()))));
+                     riegeli::Debug(options.field_separator()))));
     return;
   }
   if (ABSL_PREDICT_FALSE(options.field_separator() == options.comment())) {
     Fail(absl::InvalidArgumentError(
         absl::StrCat("Field separator conflicts with comment character: ",
-                     ShowEscaped(options.field_separator()))));
+                     riegeli::Debug(options.field_separator()))));
     return;
   }
   if (options.quote() != absl::nullopt) {
@@ -89,19 +80,19 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
                            *options.quote() == '\r')) {
       Fail(absl::InvalidArgumentError(
           absl::StrCat("Quote character conflicts with record separator: ",
-                       ShowEscaped(*options.quote()))));
+                       riegeli::Debug(*options.quote()))));
       return;
     }
     if (ABSL_PREDICT_FALSE(*options.quote() == options.comment())) {
       Fail(absl::InvalidArgumentError(
           absl::StrCat("Quote character conflicts with comment character: ",
-                       ShowEscaped(*options.quote()))));
+                       riegeli::Debug(*options.quote()))));
       return;
     }
     if (ABSL_PREDICT_FALSE(*options.quote() == options.field_separator())) {
       Fail(absl::InvalidArgumentError(
           absl::StrCat("Quote character conflicts with field separator: ",
-                       ShowEscaped(*options.quote()))));
+                       riegeli::Debug(*options.quote()))));
       return;
     }
   }
@@ -214,7 +205,7 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
             absl::StrCat("If quoting is turned off, special characters inside "
                          "fields are not "
                          "expressible: ",
-                         ShowEscaped(field[i]))));
+                         riegeli::Debug(field[i]))));
       }
       return WriteQuoted(dest, field, i);
     }

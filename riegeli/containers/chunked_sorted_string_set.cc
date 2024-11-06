@@ -26,13 +26,13 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/debug.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -293,9 +293,9 @@ absl::StatusOr<bool> ChunkedSortedStringSet::Builder::InsertNextImpl(
   if (ABSL_PREDICT_FALSE(current_builder_.size() == chunk_size_)) {
     if (ABSL_PREDICT_FALSE(element <= current_builder_.last())) {
       if (ABSL_PREDICT_TRUE(element == current_builder_.last())) return false;
-      return absl::FailedPreconditionError(absl::StrCat(
-          "Elements are not sorted: new \"", absl::CHexEscape(element),
-          "\" < last \"", absl::CHexEscape(last()), "\""));
+      return absl::FailedPreconditionError(
+          absl::StrCat("Elements are not sorted: new ", riegeli::Debug(element),
+                       " < last ", riegeli::Debug(last())));
     }
     AddChunk();
   }

@@ -44,6 +44,7 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
+#include "riegeli/base/stream_utils.h"
 #include "riegeli/base/string_utils.h"
 
 namespace riegeli {
@@ -61,16 +62,6 @@ constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
 #endif
 
 namespace {
-
-void WritePadding(std::ostream& dest, size_t length) {
-  char buffer[64];
-  std::memset(buffer, dest.fill(), sizeof(buffer));
-  while (length > sizeof(buffer)) {
-    dest.write(buffer, std::streamsize{sizeof(buffer)});
-    length -= sizeof(buffer);
-  }
-  dest.write(buffer, IntCast<std::streamsize>(length));
-}
 
 // Stores an `absl::Cord` which must be flat, i.e.
 // `src.TryFlat() != absl::nullopt`.
@@ -2112,25 +2103,11 @@ StrongOrdering Chain::Compare(const Chain& a, absl::string_view b) {
 }
 
 void Chain::Output(std::ostream& dest) const {
-  std::ostream::sentry sentry(dest);
-  if (sentry) {
-    size_t left_pad = 0;
-    size_t right_pad = 0;
-    if (IntCast<size_t>(dest.width()) > size()) {
-      const size_t pad = IntCast<size_t>(dest.width()) - size();
-      if ((dest.flags() & dest.adjustfield) == dest.left) {
-        right_pad = pad;
-      } else {
-        left_pad = pad;
-      }
-    }
-    if (left_pad > 0) WritePadding(dest, left_pad);
+  WriteWithPadding(dest, size(), [&] {
     for (const absl::string_view fragment : blocks()) {
       dest.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
     }
-    if (right_pad > 0) WritePadding(dest, right_pad);
-    dest.width(0);
-  }
+  });
 }
 
 void Chain::VerifyInvariants() const {

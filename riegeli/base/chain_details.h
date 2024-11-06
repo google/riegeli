@@ -1256,6 +1256,16 @@ void Chain::Stringify(Sink& dest) const {
   for (const absl::string_view block : blocks()) dest.Append(block);
 }
 
+template <typename DebugStream>
+void Chain::Debug(DebugStream& dest) const {
+  dest.DebugStringQuote();
+  typename DebugStream::EscapeState escape_state;
+  for (const absl::string_view fragment : blocks()) {
+    dest.DebugStringFragment(fragment, escape_state);
+  }
+  dest.DebugStringQuote();
+}
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_CHAIN_DETAILS_H_
