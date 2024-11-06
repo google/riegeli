@@ -432,7 +432,7 @@ Chain& Chain::operator=(const Chain& that) {
 }
 
 bool Chain::ClearSlow() {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::ClearSlow(): "
          "no blocks, use Clear() instead";
   const bool block_remains = front()->TryClear();
@@ -573,7 +573,7 @@ inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
 }
 
 void Chain::UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end) {
-  RIEGELI_ASSERT(begin < end)
+  RIEGELI_ASSERT_LT(begin, end)
       << "Failed precondition of Chain::UnrefBlocksSlow(): "
          "no blocks, use UnrefBlocks() instead";
   do {
@@ -598,7 +598,7 @@ void Chain::CopyTo(char* dest) const {
 }
 
 inline void Chain::CopyToSlow(char* dest) const {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::CopyToSlow(): "
          "no blocks, use CopyTo() instead";
   const BlockPtr* iter = begin_;
@@ -662,7 +662,7 @@ void Chain::AppendTo(absl::Cord& dest) && {
 }
 
 inline void Chain::AppendToSlow(absl::Cord& dest) const& {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::AppendToSlow(Cord&): "
          "no blocks, use AppendTo() instead";
   const BlockPtr* iter = begin_;
@@ -675,7 +675,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) const& {
 }
 
 inline void Chain::AppendToSlow(absl::Cord& dest) && {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::AppendToSlow(Cord&): "
          "no blocks, use AppendTo() instead";
   size_ = 0;
@@ -711,7 +711,7 @@ void Chain::PrependTo(absl::Cord& dest) && {
 }
 
 inline void Chain::PrependToSlow(absl::Cord& dest) const& {
-  RIEGELI_ASSERT(end_ != begin_)
+  RIEGELI_ASSERT_NE(end_, begin_)
       << "Failed precondition of Chain::PrependToSlow(Cord&): "
          "no blocks, use PrependTo() instead";
   const BlockPtr* iter = end_;
@@ -724,7 +724,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) const& {
 }
 
 inline void Chain::PrependToSlow(absl::Cord& dest) && {
-  RIEGELI_ASSERT(end_ != begin_)
+  RIEGELI_ASSERT_NE(end_, begin_)
       << "Failed precondition of Chain::PrependToSlow(Cord&): "
          "no blocks, use PrependTo() instead";
   const BlockPtr* iter = end_;
@@ -890,14 +890,14 @@ inline void Chain::PushFront(IntrusiveSharedPtr<RawBlock> block) {
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopBack() {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::PopBack(): no blocks";
   --end_;
   return IntrusiveSharedPtr<RawBlock>(end_[0].block_ptr);
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopFront() {
-  RIEGELI_ASSERT(begin_ != end_)
+  RIEGELI_ASSERT_NE(begin_, end_)
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
@@ -941,7 +941,7 @@ inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
       dest_iter->block_ptr = begin->block_ptr->Ref<Ownership>();
       ++begin;
       ++dest_iter;
-      RIEGELI_ASSERT(begin == end)
+      RIEGELI_ASSERT_EQ(begin, end)
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
@@ -977,7 +977,7 @@ inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
       --end;
       --dest_iter;
       dest_iter->block_ptr = end->block_ptr->Ref<Ownership>();
-      RIEGELI_ASSERT(begin == end)
+      RIEGELI_ASSERT_EQ(begin, end)
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
@@ -1937,7 +1937,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
   while (length > back()->size()) {
     length -= back()->size();
     PopBack();
-    RIEGELI_ASSERT(begin_ != end_)
+    RIEGELI_ASSERT_NE(begin_, end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
@@ -1982,7 +1982,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
   while (length > front()->size()) {
     length -= front()->size();
     PopFront();
-    RIEGELI_ASSERT(begin_ != end_)
+    RIEGELI_ASSERT_NE(begin_, end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
@@ -2119,12 +2119,12 @@ void Chain::VerifyInvariants() const {
       RIEGELI_CHECK_EQ(size(), 0u);
     }
   } else {
-    RIEGELI_CHECK(begin_ <= end_);
+    RIEGELI_CHECK_LE(begin_, end_);
     if (has_here()) {
       RIEGELI_CHECK_LE(PtrDistance(begin_, end_), 2u);
     } else {
-      RIEGELI_CHECK(begin_ >= block_ptrs_.allocated.begin);
-      RIEGELI_CHECK(end_ <= block_ptrs_.allocated.end);
+      RIEGELI_CHECK_GE(begin_, block_ptrs_.allocated.begin);
+      RIEGELI_CHECK_LE(end_, block_ptrs_.allocated.end);
     }
     bool is_tiny = false;
     size_t offset =

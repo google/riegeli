@@ -287,7 +287,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
 }
 
 bool ReaderInputStream::Next(const void** data, int* size) {
-  RIEGELI_ASSERT(src_ != nullptr)
+  RIEGELI_ASSERT_NE(src_, nullptr)
       << "Failed precondition of ReaderInputStream::Next(): "
          "ReaderInputStream not initialized";
   if (ABSL_PREDICT_FALSE(src_->pos() >=
@@ -304,7 +304,7 @@ bool ReaderInputStream::Next(const void** data, int* size) {
 }
 
 void ReaderInputStream::BackUp(int length) {
-  RIEGELI_ASSERT(src_ != nullptr)
+  RIEGELI_ASSERT_NE(src_, nullptr)
       << "Failed precondition of ReaderInputStream::BackUp(): "
          "ReaderInputStream not initialized";
   RIEGELI_ASSERT_GE(length, 0)
@@ -317,7 +317,7 @@ void ReaderInputStream::BackUp(int length) {
 }
 
 bool ReaderInputStream::Skip(int length) {
-  RIEGELI_ASSERT(src_ != nullptr)
+  RIEGELI_ASSERT_NE(src_, nullptr)
       << "Failed precondition of ReaderInputStream::Skip(): "
          "ReaderInputStream not initialized";
   RIEGELI_ASSERT_GE(length, 0)
@@ -331,14 +331,14 @@ bool ReaderInputStream::Skip(int length) {
 }
 
 int64_t ReaderInputStream::ByteCount() const {
-  RIEGELI_ASSERT(src_ != nullptr)
+  RIEGELI_ASSERT_NE(src_, nullptr)
       << "Failed precondition of ReaderInputStream::ByteCount(): "
          "ReaderInputStream not initialized";
   return SaturatingIntCast<int64_t>(src_->pos());
 }
 
 bool ReaderInputStream::ReadCord(absl::Cord* cord, int length) {
-  RIEGELI_ASSERT(src_ != nullptr)
+  RIEGELI_ASSERT_NE(src_, nullptr)
       << "Failed precondition of ReaderInputStream::ReadCord(): "
          "ReaderInputStream not initialized";
   RIEGELI_ASSERT_GE(length, 0)

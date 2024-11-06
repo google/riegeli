@@ -480,7 +480,7 @@ class BytesLike {
   //
   // Must be called at most once for each `BytesLike` object.
   bool FromPython(PyObject* object) {
-    RIEGELI_ASSERT(buffer_.obj == nullptr)
+    RIEGELI_ASSERT_EQ(buffer_.obj, nullptr)
         << "Failed precondition of BytesLike::FromPython(): "
            "called more than once";
     return PyObject_GetBuffer(object, &buffer_, PyBUF_CONTIG_RO) == 0;

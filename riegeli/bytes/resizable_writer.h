@@ -525,7 +525,7 @@ class ResizableWriter<ResizableTraits, Dest>::Mover {
                      !self.uses_secondary_buffer()),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(ResizableTraits::Data(*that.dest_) == self.start())
+      RIEGELI_ASSERT_EQ(ResizableTraits::Data(*that.dest_), self.start())
           << "ResizableWriter destination changed unexpectedly";
       RIEGELI_ASSERT_EQ(ResizableTraits::Size(*that.dest_),
                         self.start_to_limit())
@@ -595,7 +595,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Initialize(Resizable* dest,
                                                                bool append) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ResizableWriter: null Resizable pointer";
   if (append) set_start_pos(ResizableTraits::Size(*dest));
 }

@@ -39,7 +39,7 @@
 namespace riegeli {
 
 void DefaultChunkReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of DefaultChunkReader: null Reader pointer";
   pos_ = src->pos();
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {

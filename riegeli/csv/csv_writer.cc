@@ -37,7 +37,7 @@
 namespace riegeli {
 
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CsvWriter: null Writer pointer";
   // Set `header_` early, so that `header()` is valid even in case of a failure,
   // and because `WriteRecord(const CsvRecord&)` uses this as a precondition.
@@ -138,7 +138,7 @@ absl::Status CsvWriterBase::AnnotateOverDest(absl::Status status) {
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
                                        size_t already_scanned) {
-  RIEGELI_ASSERT(quote_ != absl::nullopt)
+  RIEGELI_ASSERT_NE(quote_, absl::nullopt)
       << "Failed precondition of CsvWriterBase::WriteQuoted(): "
          "quote character not available";
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {

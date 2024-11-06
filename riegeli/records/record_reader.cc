@@ -150,7 +150,7 @@ void RecordReaderBase::Reset() {
 }
 
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of RecordReader: null ChunkReader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok())) {
     FailWithoutAnnotation(src->status());
@@ -254,7 +254,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
     if (ABSL_PREDICT_FALSE(!src.ok())) return FailReading(src);
     return false;
   }
-  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature)
+  RIEGELI_ASSERT_EQ(chunk.header.chunk_type(), ChunkType::kFileSignature)
       << "Unexpected type of the first chunk: "
       << static_cast<unsigned>(chunk.header.chunk_type());
 
@@ -284,7 +284,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
 
 inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
                                             Chain& metadata) {
-  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileMetadata)
+  RIEGELI_ASSERT_EQ(chunk.header.chunk_type(), ChunkType::kFileMetadata)
       << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {

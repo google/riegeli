@@ -456,12 +456,12 @@ class RecyclingPool<T, Deleter>::Recycler {
 
   explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
       : repr_(pool, std::move(deleter)) {
-    RIEGELI_ASSERT(repr_.pool() != nullptr)
+    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
         << "Failed precondition of Recycler: null RecyclingPool pointer";
   }
 
   void operator()(T* ptr) const {
-    RIEGELI_ASSERT(repr_.pool() != nullptr)
+    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
         << "Failed precondition of RecyclingPool::Recycler: "
            "default-constructed recycler used with an object";
     repr_.pool()->RawPut(RawHandle(ptr, original_deleter()));
@@ -528,7 +528,7 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
 template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
-  RIEGELI_ASSERT(cleaner_ == nullptr)
+  RIEGELI_ASSERT_EQ(cleaner_, nullptr)
       << "Failed precondition of RecyclingPool::SetBackgroundCleaner(): "
          "BackgroundCleaner was already used";
   cleaner_ = cleaner;
@@ -666,12 +666,12 @@ class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
 
   explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
       : repr_(pool, std::move(deleter)), key_(std::move(key)) {
-    RIEGELI_ASSERT(repr_.pool() != nullptr)
+    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
         << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
   }
 
   void operator()(T* ptr) const {
-    RIEGELI_ASSERT(repr_.pool() != nullptr)
+    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
         << "Failed precondition of KeyedRecyclingPool::Recycler: "
            "default-constructed recycler used with an object";
     repr_.pool()->RawPut(key_, RawHandle(ptr, original_deleter()));
@@ -741,7 +741,7 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
 template <typename T, typename Key, typename Deleter>
 void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
-  RIEGELI_ASSERT(cleaner_ == nullptr)
+  RIEGELI_ASSERT_EQ(cleaner_, nullptr)
       << "Failed precondition of KeyedRecyclingPool::SetBackgroundCleaner(): "
          "BackgroundCleaner was already used";
   cleaner_ = cleaner;
@@ -793,7 +793,7 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
       RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(by_key_entries.back().object == nullptr)
+      RIEGELI_ASSERT_EQ(by_key_entries.back().object, nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "non-nullptr object pointed to by cache_";
       by_age_.erase(by_key_entries.back().by_age_iter);
@@ -807,7 +807,7 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
       RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(by_key_entries.back().object != nullptr)
+      RIEGELI_ASSERT_NE(by_key_entries.back().object, nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "nullptr object not pointed to by cache_";
       returned = std::move(by_key_entries.back().object);
@@ -843,7 +843,7 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
       RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(by_key_entries.back().object == nullptr)
+      RIEGELI_ASSERT_EQ(by_key_entries.back().object, nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "non-nullptr object pointed to by cache_";
       if (ABSL_PREDICT_TRUE(cache_->first == key)) {
@@ -880,7 +880,7 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
       RIEGELI_ASSERT(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT(by_key_entries.front().object != nullptr)
+      RIEGELI_ASSERT_NE(by_key_entries.front().object, nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "nullptr object not pointed to by cache_";
       evicted = std::move(by_key_entries.front().object);

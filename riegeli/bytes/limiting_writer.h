@@ -312,7 +312,7 @@ inline void LimitingWriterBase::Reset(bool exact) {
 
 inline void LimitingWriterBase::Initialize(Writer* dest, Options&& options,
                                            bool is_owning) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of LimitingWriter: null Writer pointer";
   RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
                  options.max_length() == absl::nullopt)

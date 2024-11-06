@@ -384,8 +384,8 @@ constexpr T RoundUp(T value) {
 // `first <= last`.
 template <typename A>
 inline size_t PtrDistance(const A* first, const A* last) {
-  RIEGELI_ASSERT(first <= last)
-      << "Failed invariant of PtrDistance(): pointers in the wrong order";
+  RIEGELI_ASSERT_LE(first, last)
+      << "Failed precondition of PtrDistance(): pointers in the wrong order";
   return static_cast<size_t>(last - first);
 }
 

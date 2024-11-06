@@ -108,7 +108,7 @@ class Bzip2ReaderBase : public BufferedReader {
   struct BZStreamDeleter {
     void operator()(bz_stream* ptr) const {
       const int bzlib_code = BZ2_bzDecompressEnd(ptr);
-      RIEGELI_ASSERT(bzlib_code == BZ_OK)
+      RIEGELI_ASSERT_EQ(bzlib_code, BZ_OK)
           << "BZ2_bzDecompressEnd() failed: " << bzlib_code;
       delete ptr;
     }

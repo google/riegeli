@@ -60,7 +60,7 @@ PythonPtr DefineFlushType() {
 }
 
 bool FlushTypeFromPython(PyObject* object, FlushType* value) {
-  RIEGELI_ASSERT(PyFlushType_Type != nullptr)
+  RIEGELI_ASSERT_NE(PyFlushType_Type, nullptr)
       << "Python FlushType not defined yet";
   if (ABSL_PREDICT_FALSE(!PyObject_IsInstance(object, PyFlushType_Type))) {
     PyErr_Format(PyExc_TypeError, "Expected FlushType, not %s",

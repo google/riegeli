@@ -96,7 +96,7 @@ inline size_t AvailableLength(DependentFILE* src) {
 }  // namespace
 
 void CFileReaderBase::Initialize(FILE* src, Options&& options) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   cfile_internal::FilenameForCFile(src, filename_);
   InitializePos(src, std::move(options)
@@ -120,7 +120,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "original_mode_ not reset";
 #endif

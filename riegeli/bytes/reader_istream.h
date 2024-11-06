@@ -246,7 +246,7 @@ inline ReaderStreambuf& ReaderStreambuf::operator=(
 }
 
 inline void ReaderStreambuf::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of ReaderStreambuf: null Reader pointer";
   reader_ = src;
   setg(const_cast<char*>(reader_->start()),

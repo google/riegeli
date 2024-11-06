@@ -64,9 +64,9 @@ inline void ChainWriterBase::MakeBuffer(Chain& dest, size_t min_length,
 }
 
 inline void ChainWriterBase::MoveFromTail(size_t length, Chain& dest) {
-  RIEGELI_ASSERT(tail_ != nullptr)
+  RIEGELI_ASSERT_NE(tail_, nullptr)
       << "Failed precondition of ChainWriterBase::MoveFromTail(): no tail";
-  RIEGELI_ASSERT(length <= tail_->size())
+  RIEGELI_ASSERT_LE(length, tail_->size())
       << "Failed precondition of ChainWriterBase::MoveFromTail(): "
          "length longer than the tail";
   if (length == tail_->size()) {
@@ -87,7 +87,7 @@ inline void ChainWriterBase::MoveFromTail(size_t length, Chain& dest) {
 }
 
 inline void ChainWriterBase::MoveToTail(size_t length, Chain& dest) {
-  RIEGELI_ASSERT(length <= dest.size())
+  RIEGELI_ASSERT_LE(length, dest.size())
       << "Failed precondition of ChainWriterBase::MoveToTail(): "
          "length longer than the destination";
   if (tail_ == nullptr) tail_ = std::make_unique<Chain>();
@@ -119,7 +119,7 @@ inline void ChainWriterBase::ExtractTail(Chain& dest) {
   RIEGELI_ASSERT(HasAppendedTail(dest))
       << "Failed precondition of ChainWriterBase::ExtractTail(): "
          "the tail is not appended";
-  RIEGELI_ASSERT(start() == nullptr)
+  RIEGELI_ASSERT_EQ(start(), nullptr)
       << "Failed invariant of ChainWriterBase: "
          "both a buffer and the appended tail are present";
   MoveToTail(dest.size() - IntCast<size_t>(start_pos()), dest);
@@ -294,7 +294,7 @@ bool ChainWriterBase::FlushImpl(FlushType flush_type) {
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of ChainWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -316,7 +316,7 @@ bool ChainWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of ChainWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -353,7 +353,7 @@ absl::optional<Position> ChainWriterBase::SizeImpl() {
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of ChainWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -373,7 +373,7 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of ChainWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())

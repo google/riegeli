@@ -308,7 +308,7 @@ inline void FileWriterBase::Reset(BufferOptions buffer_options,
 }
 
 inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of FileWriter: null WritableFile pointer";
   if (ABSL_PREDICT_FALSE(!InitializeFilename(dest))) return;
   InitializePos(dest);

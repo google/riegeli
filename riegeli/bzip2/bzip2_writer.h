@@ -99,7 +99,7 @@ class Bzip2WriterBase : public BufferedWriter {
   struct BZStreamDeleter {
     void operator()(bz_stream* ptr) const {
       const int bzlib_code = BZ2_bzCompressEnd(ptr);
-      RIEGELI_ASSERT(bzlib_code == BZ_OK)
+      RIEGELI_ASSERT_EQ(bzlib_code, BZ_OK)
           << "BZ2_bzCompressEnd() failed: " << bzlib_code;
       delete ptr;
     }

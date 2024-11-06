@@ -165,7 +165,7 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
 }
 
 int CompressorOptions::brotli_window_log() const {
-  RIEGELI_ASSERT(compression_type_ == CompressionType::kBrotli)
+  RIEGELI_ASSERT_EQ(compression_type_, CompressionType::kBrotli)
       << "Failed precondition of CompressorOptions::brotli_window_log(): "
          "compression type must be Brotli";
   if (window_log_ == absl::nullopt) {
@@ -182,7 +182,7 @@ int CompressorOptions::brotli_window_log() const {
 }
 
 absl::optional<int> CompressorOptions::zstd_window_log() const {
-  RIEGELI_ASSERT(compression_type_ == CompressionType::kZstd)
+  RIEGELI_ASSERT_EQ(compression_type_, CompressionType::kZstd)
       << "Failed precondition of CompressorOptions::zstd_window_log(): "
          "compression type must be Zstd";
   if (window_log_ != absl::nullopt) {

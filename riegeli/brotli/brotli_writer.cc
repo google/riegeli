@@ -63,7 +63,7 @@ struct BrotliEncoderDictionaryDeleter {
 
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
                                   int window_log) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));

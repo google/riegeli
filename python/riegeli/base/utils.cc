@@ -255,7 +255,7 @@ MemoryView::~MemoryView() {
 }
 
 PyObject* MemoryView::ToPython(absl::string_view value) {
-  RIEGELI_ASSERT(object_ == nullptr)
+  RIEGELI_ASSERT_EQ(object_, nullptr)
       << "Failed precondition of MemoryView::ToPython(): "
          "called more than once";
   object_.reset(PyMemoryView_FromMemory(const_cast<char*>(value.data()),
@@ -265,7 +265,7 @@ PyObject* MemoryView::ToPython(absl::string_view value) {
 }
 
 PyObject* MemoryView::MutableToPython(absl::Span<char> value) {
-  RIEGELI_ASSERT(object_ == nullptr)
+  RIEGELI_ASSERT_EQ(object_, nullptr)
       << "Failed precondition of MemoryView::MutableToPython(): "
          "called more than once";
   object_.reset(PyMemoryView_FromMemory(
@@ -290,7 +290,7 @@ inline bool MemoryView::ReleaseInternal() {
 }
 
 bool StrOrBytes::FromPython(PyObject* object ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-  RIEGELI_ASSERT(data_.data() == nullptr)
+  RIEGELI_ASSERT_EQ(data_.data(), nullptr)
       << "Failed precondition of StrOrBytes::FromPython(): "
          "called more than once";
   if (PyUnicode_Check(object)) {

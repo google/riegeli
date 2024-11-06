@@ -216,13 +216,13 @@ class ArrayWriter<Dest>::Mover {
         has_written_(self.written().data() != nullptr),
         written_size_(self.written().size()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(that.dest_.get().data() == self.start())
+      RIEGELI_ASSERT_EQ(that.dest_.get().data(), self.start())
           << "ArrayWriter destination changed unexpectedly";
       RIEGELI_ASSERT_EQ(that.dest_.get().size(), self.start_to_limit())
           << "ArrayWriter destination changed unexpectedly";
     }
     if (has_written_) {
-      RIEGELI_ASSERT(that.dest_.get().data() == self.written().data())
+      RIEGELI_ASSERT_EQ(that.dest_.get().data(), self.written().data())
           << "ArrayWriter destination changed unexpectedly";
     }
   }

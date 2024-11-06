@@ -301,7 +301,7 @@ inline DigestingWriterBase& DigestingWriterBase::operator=(
 
 inline void DigestingWriterBase::Initialize(Writer* dest,
                                             DigesterBaseHandle digester) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of DigestingWriter: null Writer pointer";
   MakeBuffer(*dest);
   absl::Status status = digester.status();
@@ -309,7 +309,7 @@ inline void DigestingWriterBase::Initialize(Writer* dest,
 }
 
 inline bool DigestingWriterBase::SyncBuffer(Writer& dest) {
-  RIEGELI_ASSERT(start() == dest.cursor())
+  RIEGELI_ASSERT_EQ(start(), dest.cursor())
       << "Failed invariant of DigestingWriterBase: "
          "cursor of the original Writer changed unexpectedly";
   if (start_to_cursor() > 0) {

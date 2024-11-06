@@ -64,7 +64,7 @@ inline bool PushableWriter::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PushableWriter::SyncScratch(): "
          "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(start(), scratch_->buffer.data())
       << "Failed invariant of PushableWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
@@ -98,7 +98,7 @@ bool PushableWriter::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    RIEGELI_ASSERT(start() == scratch_->buffer.data())
+    RIEGELI_ASSERT_EQ(start(), scratch_->buffer.data())
         << "Failed invariant of PushableWriter: "
            "scratch used but buffer pointers do not point to scratch";
     RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
@@ -470,7 +470,7 @@ void PushableWriter::BehindScratch::Enter() {
   RIEGELI_ASSERT(context_->scratch_used())
       << "Failed precondition of PushableWriter::BehindScratch::Enter(): "
          "scratch not used";
-  RIEGELI_ASSERT(context_->start() == context_->scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(context_->start(), context_->scratch_->buffer.data())
       << "Failed invariant of PushableWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(context_->start_to_limit(),
@@ -486,7 +486,7 @@ void PushableWriter::BehindScratch::Enter() {
 }
 
 void PushableWriter::BehindScratch::Leave() {
-  RIEGELI_ASSERT(scratch_ != nullptr)
+  RIEGELI_ASSERT_NE(scratch_, nullptr)
       << "Failed precondition of PushableWriter::BehindScratch::Leave(): "
          "scratch not used";
   context_->set_start_pos(context_->pos());

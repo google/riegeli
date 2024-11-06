@@ -324,20 +324,20 @@ class ByteFill::BlockIterator : public WithCompare<BlockIterator> {
   reference operator[](difference_type n) const;
 
   friend bool operator==(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.blocks_ == b.blocks_)
+    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator==(ByteFill::BlockIterator): "
            "incomparable iterators";
     return b.block_index_complement_ == a.block_index_complement_;
   }
   friend StrongOrdering RIEGELI_COMPARE(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.blocks_ == b.blocks_)
+    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator<=>(ByteFill::BlockIterator): "
            "incomparable iterators";
     return riegeli::Compare(b.block_index_complement_,
                             a.block_index_complement_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.blocks_ == b.blocks_)
+    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator-(ByteFill::BlockIterator): "
            "incomparable iterators";
     return b.block_index_complement_ - a.block_index_complement_;

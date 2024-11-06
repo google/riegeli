@@ -168,7 +168,7 @@ inline WrappingWriterBase& WrappingWriterBase::operator=(
 }
 
 inline void WrappingWriterBase::Initialize(Writer* dest) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of WrappingWriter: null Writer pointer";
   MakeBuffer(*dest);
 }

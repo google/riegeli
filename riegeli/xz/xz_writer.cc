@@ -59,7 +59,7 @@ static_assert(static_cast<int>(XzWriterBase::Container::kLzma) ==
 
 void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
                               int parallelism) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of XzWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));

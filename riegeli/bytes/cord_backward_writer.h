@@ -303,7 +303,7 @@ inline void CordBackwardWriterBase::Reset(const Options& options) {
 }
 
 inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CordBackwardWriter: null Cord pointer";
   if (prepend) {
     set_start_pos(dest->size());

@@ -238,7 +238,7 @@ inline void PositionShiftingWriterBase::Reset(Position base_pos) {
 }
 
 inline void PositionShiftingWriterBase::Initialize(Writer* dest) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of PositionShiftingWriter: null Writer pointer";
   MakeBuffer(*dest);
 }

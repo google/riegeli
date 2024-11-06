@@ -64,7 +64,7 @@
 namespace riegeli {
 
 void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   cfile_internal::FilenameForCFile(dest, filename_);
   InitializePos(dest, std::move(options), /*mode_was_passed_to_fopen=*/false);
@@ -72,10 +72,10 @@ void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
 
 void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
                                     bool mode_was_passed_to_fopen) {
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
   RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
@@ -85,7 +85,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "original_mode_ not reset";
 #endif
@@ -266,7 +266,7 @@ bool CFileWriterBase::SupportsRandomAccess() {
   if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
     return supports_random_access_ == LazyBoolState::kTrue;
   }
-  RIEGELI_ASSERT(supports_read_mode_ != LazyBoolState::kTrue)
+  RIEGELI_ASSERT_NE(supports_read_mode_, LazyBoolState::kTrue)
       << "Failed invariant of CFileWriterBase: "
          "supports_random_access_ is unknown but supports_read_mode_ is true";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

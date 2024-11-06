@@ -738,9 +738,9 @@ inline void Reader::move_cursor(size_t length) {
 }
 
 inline void Reader::set_cursor(const char* cursor) {
-  RIEGELI_ASSERT(cursor >= start())
+  RIEGELI_ASSERT_GE(cursor, start())
       << "Failed precondition of Reader::set_cursor(): pointer out of range";
-  RIEGELI_ASSERT(cursor <= limit())
+  RIEGELI_ASSERT_LE(cursor, limit())
       << "Failed precondition of Reader::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }

@@ -125,7 +125,7 @@ class XzReaderBase : public BufferedReader {
   //
   // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
-    RIEGELI_ASSERT((flags_ & LZMA_CONCATENATED) == 0)
+    RIEGELI_ASSERT_EQ(flags_ & LZMA_CONCATENATED, 0u)
         << "Failed precondition of XzReaderBase::truncated(): "
            "Options::concatenate() is true";
     return truncated_ && available() == 0;

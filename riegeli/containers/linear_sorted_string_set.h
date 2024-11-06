@@ -325,7 +325,7 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   // The `absl::string_view` is valid until the next non-const operation on this
   // `Iterator` (the string it points to is conditionally owned by `Iterator`).
   reference operator*() const {
-    RIEGELI_ASSERT(cursor_ != nullptr)
+    RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::operator*: "
            "iterator is end()";
@@ -338,7 +338,7 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   }
 
   pointer operator->() const {
-    RIEGELI_ASSERT(cursor_ != nullptr)
+    RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::operator->: "
            "iterator is end()";
@@ -451,7 +451,7 @@ class LinearSortedStringSet::SplitElementIterator
   // The `absl::string_view` is valid until the next non-const operation on this
   // `Iterator` (the string it points to is conditionally owned by `Iterator`).
   reference operator*() const {
-    RIEGELI_ASSERT(cursor_ != nullptr)
+    RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::SplitElementIterator::operator*: "
            "iterator is end()";
@@ -460,7 +460,7 @@ class LinearSortedStringSet::SplitElementIterator
   }
 
   pointer operator->() const {
-    RIEGELI_ASSERT(cursor_ != nullptr)
+    RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::SplitElementIterator::operator->: "
            "iterator is end()";
@@ -680,7 +680,7 @@ class LinearSortedStringSet::NextInsertIterator {
   NextInsertIterator& operator=(const NextInsertIterator& that) = default;
 
   reference operator*() const {
-    RIEGELI_ASSERT(builder_ != nullptr)
+    RIEGELI_ASSERT_NE(builder_, nullptr)
         << "Failed precondition of NextInsertIterator::operator*: "
            "iterator is sentinel";
     return reference(builder_);

@@ -594,7 +594,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::ConcurrentReader::NewReaderImpl(
 }
 
 void ReaderFactoryBase::Initialize(BufferOptions buffer_options, Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of ReaderFactory: null Reader pointer";
   RIEGELI_ASSERT(src->SupportsRandomAccess())
       << "Failed precondition of ReaderFactory: "
@@ -627,7 +627,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::NewReader(Position initial_pos) const
   if (shared_ == nullptr) {
     Reader& src = const_cast<Reader&>(*SrcReader());
     std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
-    RIEGELI_ASSERT(reader != nullptr)
+    RIEGELI_ASSERT_NE(reader, nullptr)
         << "Failed postcondition of Reader::NewReader(): "
            "returned null but Reader is ok() and SupportsNewReader()";
     return reader;

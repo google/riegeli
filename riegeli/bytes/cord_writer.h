@@ -366,7 +366,7 @@ inline void CordWriterBase::Reset(const Options& options) {
 }
 
 inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
   if (append) {
     cord_buffer_ = dest->GetAppendBuffer(0, 1);

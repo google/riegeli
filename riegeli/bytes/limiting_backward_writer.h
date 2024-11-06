@@ -316,7 +316,7 @@ inline void LimitingBackwardWriterBase::Reset(bool exact) {
 inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
                                                    Options&& options,
                                                    bool is_owning) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";
   RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||

@@ -37,7 +37,7 @@ namespace riegeli {
 
 void IStreamReaderBase::Initialize(std::istream* src,
                                    absl::optional<Position> assumed_pos) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of IStreamReader: null stream pointer";
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of IStreamReaderBase::Initialize(): "

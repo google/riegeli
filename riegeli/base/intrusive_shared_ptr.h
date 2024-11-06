@@ -269,12 +269,12 @@ class
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+    RIEGELI_ASSERT_NE(ptr_, nullptr)
         << "Failed precondition of IntrusiveSharedPtr::operator*: null pointer";
     return *ptr_;
   }
   T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+    RIEGELI_ASSERT_NE(ptr_, nullptr)
         << "Failed precondition of IntrusiveSharedPtr::operator->: null "
            "pointer";
     return ptr_;

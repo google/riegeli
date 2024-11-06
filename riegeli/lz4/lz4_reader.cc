@@ -41,7 +41,7 @@
 namespace riegeli {
 
 void Lz4ReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of Lz4Reader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));

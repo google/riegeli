@@ -43,7 +43,7 @@ BrotliDictionary::Chunk::PrepareCompressionDictionary() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   absl::call_once(compression_once_, [&] {
     if (type_ == Type::kNative) {
-      RIEGELI_ASSERT(compression_dictionary_ != nullptr)
+      RIEGELI_ASSERT_NE(compression_dictionary_, nullptr)
           << "Failed invariant of BrotliDictionary::Chunk: "
              "unprepared native chunk";
       return;

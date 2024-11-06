@@ -38,7 +38,7 @@
 namespace riegeli {
 
 void BrotliReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of BrotliReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));

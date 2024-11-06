@@ -199,7 +199,7 @@ AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
 // Implementation details below.
 
 inline void TextWriterBase::Initialize(Writer* dest) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of TextWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));

@@ -63,7 +63,7 @@ void ZlibReaderBase::ZStreamDeleter::operator()(z_stream* ptr) const {
 }
 
 void ZlibReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -315,7 +315,7 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
 
 bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
                    const RecyclingPoolOptions& recycling_pool_options) {
-  RIEGELI_ASSERT(header != ZlibReaderBase::Header::kRaw)
+  RIEGELI_ASSERT_NE(header, ZlibReaderBase::Header::kRaw)
       << "Failed precondition of RecognizeZlib(): "
          "Header::kRaw cannot be reliably detected";
   using ZStreamDeleter = ZlibReaderBase::ZStreamDeleter;

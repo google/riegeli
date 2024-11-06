@@ -367,7 +367,7 @@ inline void FileReaderBase::Reset(BufferOptions buffer_options,
 
 inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
                                        Position initial_pos) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of FileReader: null RandomAccessFile pointer";
   if (ABSL_PREDICT_FALSE(!InitializeFilename(src))) return;
   InitializePos(initial_pos);

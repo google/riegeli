@@ -70,7 +70,7 @@ void ZlibWriterBase::ZStreamDeleter::operator()(z_stream* ptr) const {
 }
 
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ZlibWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));

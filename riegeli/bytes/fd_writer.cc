@@ -90,10 +90,10 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "has_independent_pos_ not reset";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
   RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
@@ -118,7 +118,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     });
   }
 #else   // _WIN32
-  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
   int text_mode = options.mode() &
@@ -341,7 +341,7 @@ bool FdWriterBase::SupportsReadMode() {
     return supports_read_mode_ == LazyBoolState::kTrue;
   }
 #ifndef _WIN32
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed invariant of FdWriterBase: "
          "supports_random_access_ is resolved but supports_read_mode_ is not";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

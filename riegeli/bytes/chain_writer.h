@@ -344,7 +344,7 @@ inline void ChainWriterBase::Reset(const Options& options) {
 }
 
 inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ChainWriter: null Chain pointer";
   if (append) {
     set_start_pos(dest->size());

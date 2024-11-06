@@ -44,7 +44,7 @@
 namespace riegeli {
 
 void FramedSnappyWriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of FramedSnappyWriter: null Writer pointer";
   compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {

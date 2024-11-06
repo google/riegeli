@@ -64,7 +64,7 @@ inline bool PushableBackwardWriter::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PushableBackwardWriter::SyncScratch(): "
          "scratch not used";
-  RIEGELI_ASSERT(limit() == scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(limit(), scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
@@ -99,7 +99,7 @@ bool PushableBackwardWriter::PushSlow(size_t min_length,
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    RIEGELI_ASSERT(limit() == scratch_->buffer.data())
+    RIEGELI_ASSERT_EQ(limit(), scratch_->buffer.data())
         << "Failed invariant of PushableBackwardWriter: "
            "scratch used but buffer pointers do not point to scratch";
     RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
@@ -444,7 +444,7 @@ void PushableBackwardWriter::BehindScratch::Enter() {
       << "Failed precondition of "
          "PushableBackwardWriter::BehindScratch::Enter(): "
          "scratch not used";
-  RIEGELI_ASSERT(context_->limit() == context_->scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(context_->limit(), context_->scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(context_->start_to_limit(),
@@ -460,7 +460,7 @@ void PushableBackwardWriter::BehindScratch::Enter() {
 }
 
 void PushableBackwardWriter::BehindScratch::Leave() {
-  RIEGELI_ASSERT(scratch_ != nullptr)
+  RIEGELI_ASSERT_NE(scratch_, nullptr)
       << "Failed precondition of "
          "PushableBackwardWriter::BehindScratch::Leave(): "
          "scratch not used";

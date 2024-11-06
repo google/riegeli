@@ -556,10 +556,10 @@ inline void BackwardWriter::move_cursor(size_t length) {
 }
 
 inline void BackwardWriter::set_cursor(char* cursor) {
-  RIEGELI_ASSERT(cursor <= start())
+  RIEGELI_ASSERT_LE(cursor, start())
       << "Failed precondition of BackwardWriter::set_cursor(): "
          "pointer out of range";
-  RIEGELI_ASSERT(cursor >= limit())
+  RIEGELI_ASSERT_GE(cursor, limit())
       << "Failed precondition of BackwardWriter::set_cursor(): "
          "pointer out of range";
   cursor_ = cursor;

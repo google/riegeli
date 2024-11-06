@@ -57,7 +57,7 @@ constexpr int Lz4WriterBase::Options::kDefaultWindowLog;
 void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
                                int window_log, bool store_content_checksum,
                                bool store_block_checksum) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of Lz4Writer: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -196,7 +196,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
       stable_src_ = true;
     }
   }
-  RIEGELI_ASSERT(compressor_ != nullptr)
+  RIEGELI_ASSERT_NE(compressor_, nullptr)
       << "compressor_ == nullptr when the pledged size was already written, "
          "which was checked above";
   size_t block_size;

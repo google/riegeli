@@ -171,7 +171,7 @@ inline WrappingReaderBase& WrappingReaderBase::operator=(
 }
 
 inline void WrappingReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of WrappingReader: null Reader pointer";
   MakeBuffer(*src);
 }

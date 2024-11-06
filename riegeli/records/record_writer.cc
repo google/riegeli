@@ -795,7 +795,7 @@ RecordWriterBase::ParallelWorker::ChunkBegin() const {
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {
-  RIEGELI_ASSERT(chunk_encoder_ != nullptr)
+  RIEGELI_ASSERT_NE(chunk_encoder_, nullptr)
       << "Failed invariant of RecordWriterBase::ParallelWorker: "
          "last position should be valid but chunk is closed";
   RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
@@ -861,7 +861,7 @@ RecordWriterBase& RecordWriterBase::operator=(
 RecordWriterBase::~RecordWriterBase() {}
 
 void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of RecordWriter: null ChunkWriter pointer";
   // Ensure that `num_records` does not overflow when `WriteRecordImpl()` keeps
   // `num_records * sizeof(uint64_t)` under `desired_chunk_size_`.
@@ -907,7 +907,7 @@ void RecordWriterBase::DoneBackground() { worker_.reset(); }
 
 absl::Status RecordWriterBase::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) {
-    RIEGELI_ASSERT(worker_ != nullptr)
+    RIEGELI_ASSERT_NE(worker_, nullptr)
         << "Failed invariant of RecordWriterBase: "
            "null worker_ but RecordWriterBase is_open()";
     status = worker_->AnnotateStatus(std::move(status));
@@ -1071,7 +1071,7 @@ FutureRecordPosition RecordWriterBase::LastPos() const {
       return last_record_at_pos->pos;
     }
   }
-  RIEGELI_ASSERT(worker_ != nullptr)
+  RIEGELI_ASSERT_NE(worker_, nullptr)
       << "Failed invariant of RecordWriterBase: "
          "last position should be valid but worker is null";
   return worker_->LastPos();

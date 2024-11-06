@@ -441,7 +441,7 @@ inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
 }
 
 inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of LimitingReader: null Reader pointer";
   RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
                  options.max_length() == absl::nullopt)

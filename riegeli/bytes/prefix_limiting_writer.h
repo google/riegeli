@@ -235,7 +235,7 @@ inline void PrefixLimitingWriterBase::Reset() {
 
 inline void PrefixLimitingWriterBase::Initialize(
     Writer* dest, absl::optional<Position> base_pos) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of PrefixLimitingWriter: null Writer pointer";
   if (base_pos == absl::nullopt) {
     base_pos_ = dest->pos();

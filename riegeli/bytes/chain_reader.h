@@ -164,7 +164,7 @@ inline void ChainReaderBase::Reset() {
 }
 
 inline void ChainReaderBase::Initialize(const Chain* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of ChainReader: null Chain pointer";
   iter_ = src->blocks().cbegin();
   if (iter_ != src->blocks().cend()) {
@@ -185,7 +185,7 @@ class ChainReader<Src>::Mover {
         uses_buffer_(self.start() != nullptr),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(self.iter()->data() == self.start())
+      RIEGELI_ASSERT_EQ(self.iter()->data(), self.start())
           << "ChainReader source changed unexpectedly";
       RIEGELI_ASSERT_EQ(self.iter()->size(), self.start_to_limit())
           << "ChainReader source changed unexpectedly";

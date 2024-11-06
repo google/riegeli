@@ -42,7 +42,7 @@
 namespace riegeli {
 
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CsvReader: null Reader pointer";
   // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
   // uses this as a precondition.

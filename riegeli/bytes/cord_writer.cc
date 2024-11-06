@@ -84,9 +84,9 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
 }
 
 inline void CordWriterBase::MoveFromTail(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT(tail_ != nullptr)
+  RIEGELI_ASSERT_NE(tail_, nullptr)
       << "Failed precondition of CordWriterBase::MoveFromTail(): no tail";
-  RIEGELI_ASSERT(length <= tail_->size())
+  RIEGELI_ASSERT_LE(length, tail_->size())
       << "Failed precondition of CordWriterBase::MoveFromTail(): "
          "length longer than the tail";
   if (length == tail_->size()) {
@@ -99,7 +99,7 @@ inline void CordWriterBase::MoveFromTail(size_t length, absl::Cord& dest) {
 }
 
 inline void CordWriterBase::MoveToTail(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT(length <= dest.size())
+  RIEGELI_ASSERT_LE(length, dest.size())
       << "Failed precondition of CordWriterBase::MoveToTail(): "
          "length longer than the destination";
   if (tail_ == nullptr) tail_ = std::make_unique<absl::Cord>();
@@ -120,7 +120,7 @@ inline void CordWriterBase::ExtractTail(absl::Cord& dest) {
   RIEGELI_ASSERT(HasAppendedTail(dest))
       << "Failed precondition of CordWriterBase::ExtractTail(): "
          "the tail is not appended";
-  RIEGELI_ASSERT(start() == nullptr)
+  RIEGELI_ASSERT_EQ(start(), nullptr)
       << "Failed invariant of CordWriterBase: "
          "both a buffer and the appended tail are present";
   MoveToTail(dest.size() - IntCast<size_t>(start_pos()), dest);
@@ -371,7 +371,7 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -393,7 +393,7 @@ bool CordWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -430,7 +430,7 @@ absl::optional<Position> CordWriterBase::SizeImpl() {
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
@@ -450,7 +450,7 @@ bool CordWriterBase::TruncateImpl(Position new_size) {
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT(start() == nullptr)
+    RIEGELI_ASSERT_EQ(start(), nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
     RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())

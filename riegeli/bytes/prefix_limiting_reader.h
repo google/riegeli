@@ -229,7 +229,7 @@ inline void PrefixLimitingReaderBase::Reset() {
 
 inline void PrefixLimitingReaderBase::Initialize(
     Reader* src, absl::optional<Position> base_pos) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of PrefixLimitingReader: null Reader pointer";
   if (base_pos == absl::nullopt) {
     base_pos_ = src->pos();

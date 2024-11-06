@@ -223,19 +223,19 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   reference operator[](difference_type n) const;
 
   friend bool operator==(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
+    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator==(Chain::BlockIterator): "
            "incomparable iterators";
     return a.ptr_ == b.ptr_;
   }
   friend StrongOrdering RIEGELI_COMPARE(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
+    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator<=>(Chain::BlockIterator): "
            "incomparable iterators";
     return riegeli::Compare(a.ptr_, b.ptr_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT(a.chain_ == b.chain_)
+    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator-(Chain::BlockIterator): "
            "incomparable iterators";
     return a.ptr_ - b.ptr_;
@@ -1100,7 +1100,7 @@ inline absl::string_view Chain::short_data() const {
 }
 
 inline char* Chain::short_data_begin() {
-  RIEGELI_ASSERT(begin_ == end_)
+  RIEGELI_ASSERT_EQ(begin_, end_)
       << "Failed precondition of Chain::short_data_begin(): blocks exist";
   RIEGELI_ASSERT(empty() || has_here())
       << "Failed precondition of Chain::short_data_begin(): "
@@ -1109,7 +1109,7 @@ inline char* Chain::short_data_begin() {
 }
 
 inline const char* Chain::short_data_begin() const {
-  RIEGELI_ASSERT(begin_ == end_)
+  RIEGELI_ASSERT_EQ(begin_, end_)
       << "Failed precondition of Chain::short_data_begin(): blocks exist";
   RIEGELI_ASSERT(empty() || has_here())
       << "Failed precondition of Chain::short_data_begin(): "
@@ -1127,7 +1127,7 @@ inline void Chain::DeleteBlockPtrs() {
 }
 
 inline void Chain::EnsureHasHere() {
-  RIEGELI_ASSERT(begin_ == end_)
+  RIEGELI_ASSERT_EQ(begin_, end_)
       << "Failed precondition of Chain::EnsureHasHere(): blocks exist";
   if (ABSL_PREDICT_FALSE(has_allocated())) {
     DeleteBlockPtrs();

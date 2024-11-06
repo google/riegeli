@@ -307,7 +307,7 @@ inline void StringWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 inline void StringWriterBase::Initialize(std::string* dest, bool append) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of StringWriter: null string pointer";
   if (append) {
     set_start_pos(dest->size());
@@ -348,7 +348,7 @@ class StringWriter<Dest>::Mover {
       : uses_buffer_(self.start() != nullptr && !self.uses_secondary_buffer()),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(&(*that.dest_)[0] == self.start())
+      RIEGELI_ASSERT_EQ(that.dest_->data(), self.start())
           << "StringWriter destination changed unexpectedly";
       RIEGELI_ASSERT_EQ(that.dest_->size(), self.start_to_limit())
           << "StringWriter destination changed unexpectedly";

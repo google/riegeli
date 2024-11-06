@@ -232,7 +232,7 @@ inline void PositionShiftingReaderBase::Reset(Position base_pos) {
 }
 
 inline void PositionShiftingReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of PositionShiftingReader: null Reader pointer";
   MakeBuffer(*src);
 }

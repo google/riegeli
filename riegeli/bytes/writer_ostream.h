@@ -275,7 +275,7 @@ inline WriterStreambuf& WriterStreambuf::operator=(
 }
 
 inline void WriterStreambuf::Initialize(Writer* dest) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of WriterStreambuf: null Writer pointer";
   writer_ = dest;
   setp(writer_->cursor(), writer_->limit());

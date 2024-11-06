@@ -548,7 +548,7 @@ class ChunkedSortedStringSet::NextInsertIterator {
   NextInsertIterator& operator=(const NextInsertIterator& that) = default;
 
   reference operator*() const {
-    RIEGELI_ASSERT(builder_ != nullptr)
+    RIEGELI_ASSERT_NE(builder_, nullptr)
         << "Failed precondition of NextInsertIterator::operator*: "
            "iterator is sentinel";
     return reference(builder_);

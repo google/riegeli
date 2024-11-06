@@ -70,7 +70,7 @@ inline void PullableReader::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::SyncScratch(): "
          "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(start(), scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
@@ -564,7 +564,7 @@ void PullableReader::BehindScratch::Enter() {
   RIEGELI_ASSERT(context_->scratch_used())
       << "Failed precondition of PullableReader::BehindScratch::Enter(): "
          "scratch not used";
-  RIEGELI_ASSERT(context_->start() == context_->scratch_->buffer.data())
+  RIEGELI_ASSERT_EQ(context_->start(), context_->scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(context_->start_to_limit(),
@@ -580,7 +580,7 @@ void PullableReader::BehindScratch::Enter() {
 }
 
 void PullableReader::BehindScratch::Leave() {
-  RIEGELI_ASSERT(scratch_ != nullptr)
+  RIEGELI_ASSERT_NE(scratch_, nullptr)
       << "Failed precondition of PullableReader::BehindScratch::Leave(): "
          "scratch not used";
   context_->set_limit_pos(context_->pos());

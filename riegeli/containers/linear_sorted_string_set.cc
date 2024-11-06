@@ -154,7 +154,7 @@ absl::string_view LinearSortedStringSet::first() const {
   const absl::optional<const char*> ptr =
       ReadVarint64(encoded_view.data(),
                    encoded_view.data() + encoded_view.size(), tagged_length);
-  RIEGELI_ASSERT(ptr != absl::nullopt)
+  RIEGELI_ASSERT_NE(ptr, absl::nullopt)
       << "Malformed LinearSortedStringSet encoding (tagged_length)";
   RIEGELI_ASSERT_EQ(tagged_length & 1, 0u)
       << "Malformed LinearSortedStringSet encoding "
@@ -427,7 +427,7 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
 }
 
 LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
-  RIEGELI_ASSERT(cursor_ != nullptr)
+  RIEGELI_ASSERT_NE(cursor_, nullptr)
       << "Failed precondition of "
          "LinearSortedStringSet::Iterator::operator++: "
          "iterator is end()";
@@ -503,7 +503,7 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
 
 LinearSortedStringSet::SplitElementIterator&
 LinearSortedStringSet::SplitElementIterator::operator++() {
-  RIEGELI_ASSERT(cursor_ != nullptr)
+  RIEGELI_ASSERT_NE(cursor_, nullptr)
       << "Failed precondition of "
          "LinearSortedStringSet::SplitElementIterator::operator++: "
          "iterator is end()";

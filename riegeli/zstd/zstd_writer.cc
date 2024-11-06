@@ -56,7 +56,7 @@ constexpr int ZstdWriterBase::Options::kMaxWindowLog;
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
                                 bool store_checksum) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));

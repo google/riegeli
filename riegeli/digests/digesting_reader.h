@@ -266,7 +266,7 @@ inline DigestingReaderBase& DigestingReaderBase::operator=(
 
 inline void DigestingReaderBase::Initialize(Reader* src,
                                             DigesterBaseHandle digester) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of DigestingReader: null Reader pointer";
   MakeBuffer(*src);
   absl::Status status = digester.status();
@@ -274,7 +274,7 @@ inline void DigestingReaderBase::Initialize(Reader* src,
 }
 
 inline bool DigestingReaderBase::SyncBuffer(Reader& src) {
-  RIEGELI_ASSERT(start() == src.cursor())
+  RIEGELI_ASSERT_EQ(start(), src.cursor())
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {

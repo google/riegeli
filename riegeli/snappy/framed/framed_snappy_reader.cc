@@ -48,7 +48,7 @@ inline uint32_t MaskChecksum(uint32_t x) {
 }  // namespace
 
 void FramedSnappyReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of FramedSnappyReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));

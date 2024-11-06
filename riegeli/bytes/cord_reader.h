@@ -190,7 +190,7 @@ inline void CordReaderBase::Reset() {
 }
 
 inline void CordReaderBase::Initialize(const absl::Cord* src) {
-  RIEGELI_ASSERT(src != nullptr)
+  RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CordReader: null Cord pointer";
   if (const absl::optional<absl::string_view> flat = src->TryFlat()) {
     if (flat->size() <= kMaxBytesToCopy) {
@@ -232,7 +232,7 @@ class CordReader<Src>::Mover {
         const absl::optional<absl::string_view> flat = that.src_->TryFlat();
         RIEGELI_ASSERT(flat != absl::nullopt)
             << "CordReader source changed unexpectedly";
-        RIEGELI_ASSERT(flat->data() == self.start())
+        RIEGELI_ASSERT_EQ(flat->data(), self.start())
             << "CordReader source changed unexpectedly";
         RIEGELI_ASSERT_EQ(flat->size(), self.start_to_limit())
             << "CordReader source changed unexpectedly";
@@ -246,7 +246,7 @@ class CordReader<Src>::Mover {
       } else {
         const absl::string_view fragment =
             absl::Cord::ChunkRemaining(*self.iter_);
-        RIEGELI_ASSERT(fragment.data() == self.start())
+        RIEGELI_ASSERT_EQ(fragment.data(), self.start())
             << "CordReader source changed unexpectedly";
         RIEGELI_ASSERT_EQ(fragment.size(), self.start_to_limit())
             << "CordReader source changed unexpectedly";

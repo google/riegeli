@@ -199,7 +199,7 @@ void FdReaderBase::InitializePos(int src, Options&& options
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT(original_mode_ == absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
   int text_mode = options.mode() &

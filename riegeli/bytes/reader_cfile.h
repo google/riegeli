@@ -92,7 +92,7 @@ class ReaderCFileCookieBase {
 };
 
 inline void ReaderCFileCookieBase::Initialize(Reader* reader) {
-  RIEGELI_ASSERT(reader != nullptr)
+  RIEGELI_ASSERT_NE(reader, nullptr)
       << "Failed precondition of ReaderCFile(): null Reader pointer";
 }
 

@@ -42,7 +42,7 @@ namespace riegeli {
 ChunkWriter::~ChunkWriter() {}
 
 void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos))) {
     const Position length = records_internal::RemainingInBlock(pos);

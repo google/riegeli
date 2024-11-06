@@ -281,7 +281,7 @@ inline void ChainBackwardWriterBase::Reset(const Options& options) {
 }
 
 inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ChainBackwardWriter: null Chain pointer";
   if (prepend) {
     set_start_pos(dest->size());
@@ -299,7 +299,7 @@ class ChainBackwardWriter<Dest>::Mover {
       : uses_buffer_(self.start() != nullptr),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(that.dest_->blocks().front().data() == self.limit())
+      RIEGELI_ASSERT_EQ(that.dest_->blocks().front().data(), self.limit())
           << "ChainBackwardWriter destination changed unexpectedly";
       RIEGELI_ASSERT_EQ(that.dest_->size(), self.limit_pos())
           << "ChainBackwardWriter destination changed unexpectedly";

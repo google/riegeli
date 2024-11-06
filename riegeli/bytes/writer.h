@@ -780,9 +780,9 @@ inline void Writer::move_cursor(size_t length) {
 }
 
 inline void Writer::set_cursor(char* cursor) {
-  RIEGELI_ASSERT(cursor >= start())
+  RIEGELI_ASSERT_GE(cursor, start())
       << "Failed precondition of Writer::set_cursor(): pointer out of range";
-  RIEGELI_ASSERT(cursor <= limit())
+  RIEGELI_ASSERT_LE(cursor, limit())
       << "Failed precondition of Writer::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }

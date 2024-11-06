@@ -42,12 +42,12 @@ namespace riegeli {
 void OStreamWriterBase::Initialize(std::ostream* dest,
                                    absl::optional<Position> assumed_pos,
                                    bool assumed_append) {
-  RIEGELI_ASSERT(dest != nullptr)
+  RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT(supports_read_mode_ == LazyBoolState::kUnknown)
+  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_read_mode_ not reset";
   RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())

@@ -200,7 +200,7 @@ class ArrayBackwardWriter<Dest>::Mover {
         has_written_(self.written().data() != nullptr),
         written_size_(self.written().size()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT(that.dest_.get().data() == self.limit())
+      RIEGELI_ASSERT_EQ(that.dest_.get().data(), self.limit())
           << "ArrayBackwardWriter destination changed unexpectedly";
       RIEGELI_ASSERT_EQ(that.dest_.get().size(), self.start_to_limit())
           << "ArrayBackwardWriter destination changed unexpectedly";
