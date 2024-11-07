@@ -16,19 +16,17 @@
 #define RIEGELI_TEXT_JOIN_H_
 
 #include <algorithm>
-#include <functional>
 #include <initializer_list>
 #include <ostream>
-#include <tuple>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"  // IWYU pragma: keep
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -56,12 +54,7 @@ class InvokingFormatter {
 
   template <typename Value>
   void operator()(Value&& src, Writer& dest) const {
-#if __cpp_lib_invoke
-    dest.Write(std::invoke(function_, std::forward<Value>(src)));
-#else
-    dest.Write(absl::apply(function_,
-                           std::forward_as_tuple(std::forward<Value>(src))));
-#endif
+    dest.Write(riegeli::invoke(function_, std::forward<Value>(src)));
   }
 
  private:

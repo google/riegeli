@@ -845,25 +845,23 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
              args) {}
 
   // Constructs `Initializer<T>` from a factory function for `T` packed in
-  // `riegeli::Invoker(function args...)` with a compatible `Target` or
-  // `ConstTarget`.
+  // `riegeli::Invoker(function, args...)` with a possibly different but
+  // compatible function result.
   template <typename Function, typename... Args,
-            std::enable_if_t<
-                initializer_internal::IsCompatibleResult<
-                    allow_explicit, T,
-                    typename InvokerType<Function, Args...>::Result>::value,
-                int> = 0>
+            std::enable_if_t<initializer_internal::IsCompatibleResult<
+                                 allow_explicit, T,
+                                 invoke_result_t<Function&&, Args&&...>>::value,
+                             int> = 0>
   /*implicit*/ Initializer(
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<InvokerType<Function, Args...>>,
              std::move(invoker)) {}
-  template <
-      typename Function, typename... Args,
-      std::enable_if_t<
-          initializer_internal::IsCompatibleResult<
-              allow_explicit, T,
-              typename InvokerType<Function, Args...>::ConstResult>::value,
-          int> = 0>
+  template <typename Function, typename... Args,
+            std::enable_if_t<
+                initializer_internal::IsCompatibleResult<
+                    allow_explicit, T,
+                    invoke_result_t<const Function&, const Args&...>>::value,
+                int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<

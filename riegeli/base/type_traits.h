@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -25,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"  // IWYU pragma: keep
 
 namespace riegeli {
 
@@ -38,6 +40,93 @@ struct type_identity {
 
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
+
+// `riegeli::invoke()` is like `std::invoke()` from C++17. It applies a function
+// to arguments, with the concept of the function generalized to cover also
+// member pointers.
+template <typename Function, typename... Args>
+inline
+#if __cpp_lib_is_invocable
+    std::invoke_result_t<Function&&, Args&&...>
+#else
+    decltype(absl::apply(std::declval<Function&&>(),
+                         std::declval<std::tuple<Args&&...>>()))
+#endif
+    invoke(Function&& function, Args&&... args) {
+#if __cpp_lib_invoke
+  return std::invoke(std::forward<Function>(function),
+                     std::forward<Args>(args)...);
+#else
+  return absl::apply(std::forward<Function>(function),
+                     std::forward_as_tuple(std::forward<Args>(args)...));
+#endif
+}
+
+// `is_invocable<Function, Args...>::value` is like
+// `std::is_invocable<Function, Args...>::value` from C++17. It is `true` when
+// `riegeli::invoke()` supports the given types of parameters.
+
+#if __cpp_lib_is_invocable
+
+template <typename Function, typename... Args>
+using is_invocable = std::is_invocable<Function, Args...>;
+
+#else  // !__cpp_lib_is_invocable
+
+namespace type_traits_internal {
+
+template <typename Enable, typename Function, typename... Args>
+struct IsInvocableImpl : std::false_type {};
+
+template <typename Function, typename... Args>
+struct IsInvocableImpl<absl::void_t<decltype(riegeli::invoke(
+                           std::declval<Function>(), std::declval<Args>()...))>,
+                       Function, Args...> : std::true_type {};
+
+}  // namespace type_traits_internal
+
+template <typename Function, typename... Args>
+struct is_invocable
+    : type_traits_internal::IsInvocableImpl<void, Function, Args...> {};
+
+#endif  // !__cpp_lib_is_invocable
+
+// `invoke_result<Function, Args...>::type` and
+// `invoke_result_t<Function, Args...>` are like
+// `std::invoke_result_t<Function, Args...>` from C++17. They are the type of
+// the result of `riegeli::invoke()` called with the given types of parameters.
+
+#if __cpp_lib_is_invocable
+
+template <typename Function, typename... Args>
+using invoke_result = std::invoke_result<Function, Args...>;
+
+#else  // !__cpp_lib_is_invocable
+
+namespace type_traits_internal {
+
+template <typename Enable, typename Function, typename... Args>
+struct InvokeResultImpl {};
+
+template <typename Function, typename... Args>
+struct InvokeResultImpl<
+    absl::void_t<decltype(riegeli::invoke(std::declval<Function>(),
+                                          std::declval<Args>()...))>,
+    Function, Args...> {
+  using type = decltype(riegeli::invoke(std::declval<Function>(),
+                                        std::declval<Args>()...));
+};
+
+}  // namespace type_traits_internal
+
+template <typename Function, typename... Args>
+struct invoke_result
+    : type_traits_internal::InvokeResultImpl<void, Function, Args...> {};
+
+#endif  // !__cpp_lib_is_invocable
+
+template <typename Function, typename... Args>
+using invoke_result_t = typename invoke_result<Function, Args...>::type;
 
 // `IsConvertibleFromResult<T, Result>` is like
 // `std::is_convertible<Result, T>`, except that `Result` represents the

@@ -17,14 +17,12 @@
 
 #include <stddef.h>
 
-#include <functional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -34,47 +32,16 @@ class InvokerType;
 
 namespace invoker_internal {
 
-#if __cpp_lib_invoke
 template <typename Function, typename... Args>
-std::invoke_result_t<Function, Args...> Invoke(Function&& function,
-                                               Args&&... args) {
-  return std::invoke(std::forward<Function>(function),
-                     std::forward<Args>(args)...);
-}
-#else
-template <typename Function, typename... Args>
-decltype(absl::apply(std::declval<Function&&>(),
-                     std::declval<std::tuple<Args...>&&>()))
-Invoke(Function&& function, Args&&... args) {
-  return absl::apply(std::forward<Function>(function),
-                     std::forward_as_tuple(std::forward<Args>(args)...));
-}
-#endif
-
-template <typename Function>
-decltype(std::declval<Function&&>()()) Invoke(Function&& function) {
-  return std::forward<Function>(function)();
-}
-
-template <typename Enable, typename Function, typename... Args>
-struct IsCallableImpl : std::false_type {};
-
-template <typename Function, typename... Args>
-struct IsCallableImpl<absl::void_t<decltype(invoker_internal::Invoke(
-                          std::declval<Function>(), std::declval<Args>()...))>,
-                      Function, Args...> : std::true_type {};
-
-template <typename Function, typename... Args>
-struct IsCallable : IsCallableImpl<void, Function, Args...> {};
-
-template <typename Enable, typename Function, typename... Args>
 class InvokerBase : public ConditionallyAssignable<absl::conjunction<
                         absl::negation<std::is_reference<Args>>...>::value> {
- public:
-  // The result of calling `InvokerType&&` with no arguments.
-  using Result = decltype(invoker_internal::Invoke(std::declval<Function&&>(),
-                                                   std::declval<Args&&>()...));
+ protected:
+  template <typename DependentFunction = Function>
+  using Result = invoke_result_t<DependentFunction&&, Args&&...>;
+  template <typename DependentFunction = Function>
+  using ConstResult = invoke_result_t<const DependentFunction&, const Args&...>;
 
+ public:
   // Constructs `InvokerType` from `function` convertible to `Function` and
   // `args...` convertible to `Args...`.
   template <
@@ -84,6 +51,7 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
                                 std::tuple<std::decay_t<SrcFunction>,
                                            std::decay_t<SrcArgs>...>,
                                 std::tuple<InvokerType<Function, Args...>>>>,
+                            is_invocable<Function&&, Args&&...>,
                             std::is_convertible<SrcFunction&&, Function>,
                             std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
@@ -97,11 +65,6 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
-  // Calls the function.
-  /*implicit*/ operator Result() && {
-    return absl::apply(std::forward<Function>(function_), std::move(args_));
-  }
-
   // Extracts the function.
   Function& function() & { return function_; }
   const Function& function() const& { return function_; }
@@ -109,73 +72,109 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   const Function&& function() const&& { return std::move(function_); }
 
   // Extracts the given argument.
-  template <size_t index>
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
   std::tuple_element_t<index, std::tuple<Args...>>& arg() & {
     return std::get<index>(args_);
   }
-  template <size_t index>
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
   const std::tuple_element_t<index, std::tuple<Args...>>& arg() const& {
     return std::get<index>(args_);
   }
-  template <size_t index>
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
   std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
     return std::get<index>(std::move(args_));
   }
-  template <size_t index>
+  template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
   const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
     return std::get<index>(std::move(args_));
   }
 
  protected:
-  const std::tuple<Args...>& args() const { return args_; }
+  std::tuple<Args...>&& args() && { return args_; }
+  const std::tuple<Args...>& args() const& { return args_; }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-// Disable functionality when the function is not callable with the arguments.
-template <typename Function, typename... Args>
-class InvokerBase<std::enable_if_t<!IsCallable<Function&&, Args&&...>::value>,
-                  Function, Args...> {};
-
 template <typename Enable, typename Function, typename... Args>
-class InvokerConstBase : public InvokerBase<void, Function, Args...> {
+class InvokerConditionalConversion : public InvokerBase<Function, Args...> {
+ private:
+  using Result =
+      typename InvokerConditionalConversion::InvokerBase::template Result<>;
+  using ConstResult = typename InvokerConditionalConversion::InvokerBase::
+      template ConstResult<>;
+
  public:
-  // The result of calling `const InvokerType&` with no arguments.
-  using ConstResult = decltype(invoker_internal::Invoke(
-      std::declval<const Function&>(), std::declval<const Args&>()...));
+  using InvokerConditionalConversion::InvokerBase::InvokerBase;
 
-  using InvokerConstBase::InvokerBase::InvokerBase;
+  InvokerConditionalConversion(InvokerConditionalConversion&& that) = default;
+  InvokerConditionalConversion& operator=(InvokerConditionalConversion&& that) =
+      default;
 
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
+  InvokerConditionalConversion(const InvokerConditionalConversion& that) =
+      default;
+  InvokerConditionalConversion& operator=(
+      const InvokerConditionalConversion& that) = default;
 
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
-
-  // Calls the function.
-  using InvokerConstBase::InvokerBase::operator typename InvokerConstBase::
-      Result;
+  // Invokes the function.
+  /*implicit*/ operator Result() && {
+    return absl::apply(std::forward<Function>(this->function()),
+                       std::move(this->args()));
+  }
   /*implicit*/ operator ConstResult() const& {
     return absl::apply(this->function(), this->args());
   }
 };
 
-// Disable const functionality when the const function is not callable with the
+// Disable const functionality when the const function is not invocable with the
 // const arguments.
 template <typename Function, typename... Args>
-class InvokerConstBase<
-    std::enable_if_t<!IsCallable<const Function&, const Args&...>::value>,
-    Function, Args...> : public InvokerBase<void, Function, Args...> {
+class InvokerConditionalConversion<
+    std::enable_if_t<absl::conjunction<
+        is_invocable<Function&&, Args&&...>,
+        absl::negation<is_invocable<const Function&, const Args&...>>>::value>,
+    Function, Args...> : public InvokerBase<Function, Args...> {
+ private:
+  using Result =
+      typename InvokerConditionalConversion::InvokerBase::template Result<>;
+
  public:
-  using InvokerConstBase::InvokerBase::InvokerBase;
+  using InvokerConditionalConversion::InvokerBase::InvokerBase;
 
-  InvokerConstBase(InvokerConstBase&& that) = default;
-  InvokerConstBase& operator=(InvokerConstBase&& that) = default;
+  InvokerConditionalConversion(InvokerConditionalConversion&& that) = default;
+  InvokerConditionalConversion& operator=(InvokerConditionalConversion&& that) =
+      default;
 
-  InvokerConstBase(const InvokerConstBase& that) = default;
-  InvokerConstBase& operator=(const InvokerConstBase& that) = default;
+  InvokerConditionalConversion(const InvokerConditionalConversion& that) =
+      default;
+  InvokerConditionalConversion& operator=(
+      const InvokerConditionalConversion& that) = default;
+
+  // Invokes the function.
+  /*implicit*/ operator Result() && {
+    return absl::apply(std::forward<Function>(this->function()),
+                       std::move(this->args()));
+  }
+};
+
+// Disable functionality when the function is not invocable with the arguments.
+template <typename Function, typename... Args>
+class InvokerConditionalConversion<
+    std::enable_if_t<!is_invocable<Function&&, Args&&...>::value>, Function,
+    Args...> : public InvokerBase<Function, Args...> {
+ public:
+  using InvokerConditionalConversion::InvokerBase::InvokerBase;
+
+  InvokerConditionalConversion(InvokerConditionalConversion&& that) = default;
+  InvokerConditionalConversion& operator=(InvokerConditionalConversion&& that) =
+      default;
+
+  InvokerConditionalConversion(const InvokerConditionalConversion& that) =
+      default;
+  InvokerConditionalConversion& operator=(
+      const InvokerConditionalConversion& that) = default;
 };
 
 }  // namespace invoker_internal
@@ -196,9 +195,10 @@ class InvokerConstBase<
 // the target reference, reference wrapper, or pointer.
 template <typename Function, typename... Args>
 class InvokerType
-    : public invoker_internal::InvokerConstBase<void, Function, Args...> {
+    : public invoker_internal::InvokerConditionalConversion<void, Function,
+                                                            Args...> {
  public:
-  using InvokerType::InvokerConstBase::InvokerConstBase;
+  using InvokerType::InvokerConditionalConversion::InvokerConditionalConversion;
 
   InvokerType(InvokerType&& that) = default;
   InvokerType& operator=(InvokerType&& that) = default;
@@ -221,39 +221,22 @@ explicit InvokerType(Function&&, Args&&...)
 // They are undefined when the invoker is not usable in the given const and
 // reference context.
 
-namespace invoker_internal {
-
-template <typename T, typename Enable = void>
-struct InvokerTargetRefImpl {
-  // No `type` member when the invoker is not usable in the given const and
-  // reference context.
-};
+template <typename T>
+struct InvokerTargetRef;
 
 template <typename Function, typename... Args>
-struct InvokerTargetRefImpl<
-    InvokerType<Function, Args...>,
-    std::enable_if_t<IsCallable<Function&&, Args&&...>::value>> {
-  using type = typename InvokerType<Function, Args...>::Result;
-};
+struct InvokerTargetRef<InvokerType<Function, Args...>>
+    : invoke_result<Function&&, Args&&...> {};
 
 template <typename Function, typename... Args>
-struct InvokerTargetRefImpl<
-    const InvokerType<Function, Args...>,
-    std::enable_if_t<IsCallable<const Function&, const Args&...>::value>> {
-  using type = typename InvokerType<Function, Args...>::ConstResult;
-};
-
-}  // namespace invoker_internal
+struct InvokerTargetRef<const InvokerType<Function, Args...>>
+    : invoke_result<const Function&, const Args&...> {};
 
 template <typename T>
-struct InvokerTargetRef : invoker_internal::InvokerTargetRefImpl<T> {};
+struct InvokerTargetRef<T&> : InvokerTargetRef<const T> {};
 
 template <typename T>
-struct InvokerTargetRef<T&> : invoker_internal::InvokerTargetRefImpl<const T> {
-};
-
-template <typename T>
-struct InvokerTargetRef<T&&> : invoker_internal::InvokerTargetRefImpl<T> {};
+struct InvokerTargetRef<T&&> : InvokerTargetRef<T> {};
 
 template <typename T>
 using InvokerTargetRefT = typename InvokerTargetRef<T>::type;
@@ -310,10 +293,8 @@ using InvokerTargetT = typename InvokerTarget<T>::type;
 // storing a `InvokerType` in a variable or returning it from a function, use
 // `riegeli::OwningInvoker(function, args...)` or construct `InvokerType`
 // directly.
-template <
-    typename Function, typename... Args,
-    std::enable_if_t<invoker_internal::IsCallable<Function&&, Args&&...>::value,
-                     int> = 0>
+template <typename Function, typename... Args,
+          std::enable_if_t<is_invocable<Function&&, Args&&...>::value, int> = 0>
 inline InvokerType<Function&&, Args&&...> Invoker(
     Function&& function ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
@@ -323,11 +304,10 @@ inline InvokerType<Function&&, Args&&...> Invoker(
 // `riegeli::OwningInvoker()` is like `riegeli::Invoker()`, but the arguments
 // are stored by value instead of by reference. This is useful for storing the
 // `InvokerType` in a variable or returning it from a function.
-template <
-    typename Function, typename... Args,
-    std::enable_if_t<invoker_internal::IsCallable<std::decay_t<Function>,
-                                                  std::decay_t<Args>...>::value,
-                     int> = 0>
+template <typename Function, typename... Args,
+          std::enable_if_t<is_invocable<std::decay_t<Function>,
+                                        std::decay_t<Args>...>::value,
+                           int> = 0>
 inline InvokerType<std::decay_t<Function>, std::decay_t<Args>...> OwningInvoker(
     Function&& function, Args&&... args) {
   return {std::forward<Function>(function), std::forward<Args>(args)...};
