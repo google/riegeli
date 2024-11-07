@@ -65,6 +65,22 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   InvokerBase(const InvokerBase& that) = default;
   InvokerBase& operator=(const InvokerBase& that) = default;
 
+  // Invokes the function.
+  //
+  // Usually conversion to the result of invocation is preferred because it can
+  // avoid creating a temporary if the context accepts an arbitrary type
+  // convertible to the result of invocation. An explicit `Invoke()` call can
+  // force construction right away while avoiding specifying the full result
+  // type.
+  template <typename DependentFunction = Function>
+  Result<DependentFunction> Invoke() && {
+    return absl::apply(std::forward<Function>(function_), std::move(args_));
+  }
+  template <typename DependentFunction = Function>
+  ConstResult<DependentFunction> Invoke() const& {
+    return absl::apply(function_, args_);
+  }
+
   // Extracts the function.
   Function& function() & { return function_; }
   const Function& function() const& { return function_; }
@@ -88,10 +104,6 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
     return std::get<index>(std::move(args_));
   }
-
- protected:
-  std::tuple<Args...>&& args() && { return args_; }
-  const std::tuple<Args...>& args() const& { return args_; }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Function function_;
@@ -119,13 +131,9 @@ class InvokerConditionalConversion : public InvokerBase<Function, Args...> {
       const InvokerConditionalConversion& that) = default;
 
   // Invokes the function.
-  /*implicit*/ operator Result() && {
-    return absl::apply(std::forward<Function>(this->function()),
-                       std::move(this->args()));
-  }
-  /*implicit*/ operator ConstResult() const& {
-    return absl::apply(this->function(), this->args());
-  }
+  /*implicit*/ operator Result() && { return std::move(*this).Invoke(); }
+  // Invokes the function.
+  /*implicit*/ operator ConstResult() const& { return this->Invoke(); }
 };
 
 // Disable const functionality when the const function is not invocable with the
@@ -153,10 +161,7 @@ class InvokerConditionalConversion<
       const InvokerConditionalConversion& that) = default;
 
   // Invokes the function.
-  /*implicit*/ operator Result() && {
-    return absl::apply(std::forward<Function>(this->function()),
-                       std::move(this->args()));
-  }
+  /*implicit*/ operator Result() && { return std::move(*this).Invoke(); }
 };
 
 // Disable functionality when the function is not invocable with the arguments.
@@ -216,7 +221,8 @@ explicit InvokerType(Function&&, Args&&...)
 
 // `InvokerTargetRef<T>::type` and `InvokerTargetRefT<T>` deduce the appropriate
 // target type of a possibly const-qualified `InvokerType<Function, Args...>`
-// or its reference, such that `T` is convertible to `InvokerTargetRefT<T>`.
+// or its reference, such that `T` is convertible to `InvokerTargetRefT<T>`,
+// and `T::Invoke()` returns `InvokerTargetRefT<T>`.
 //
 // They are undefined when the invoker is not usable in the given const and
 // reference context.

@@ -253,13 +253,33 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
             std::enable_if_t<
                 std::is_constructible<DependentT, Args&&...>::value, int> = 0>
   /*implicit*/ operator T() && {
-    return std::move(*this).maker().template Construct<T>();
+    return std::move(*this).Construct();
   }
   template <
       typename DependentT = T,
       std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
                        int> = 0>
   /*implicit*/ operator T() const& {
+    return Construct();
+  }
+
+  // Constructs the `T`.
+  //
+  // Usually conversion to `T` is preferred because it can avoid creating a
+  // temporary if the context accepts an arbitrary type convertible to `T`.
+  // An explicit `Construct()` call can force construction right away while
+  // avoiding specifying the full target type.
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::is_constructible<DependentT, Args&&...>::value, int> = 0>
+  T Construct() && {
+    return std::move(*this).maker().template Construct<T>();
+  }
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
+                       int> = 0>
+  T Construct() const& {
     return this->maker().template Construct<T>();
   }
 
@@ -285,7 +305,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 
   // Constructs the `T` in `storage` which must outlive the returned reference.
   //
-  // `Reference()` instead of conversion to `T` supports
+  // `Reference()` instead of conversion to `T` or `Construct()` supports
   // `Initializer::Reference()`, and is compatible with immovable types before
   // C++17 which guarantees copy elision.
   //
@@ -384,7 +404,8 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 
 // `MakerTarget<T>::type` and `MakerTargetT<T>` deduce the appropriate target
 // type of a possibly const-qualified `MakerTypeFor<Target, Args...>` or its
-// reference, such that `T` is convertible to `MakerTargetT<T>`.
+// reference, such that `T` is convertible to `MakerTargetT<T>`, and
+// `T::Construct()` returns `MakerTargetT<T>`.
 //
 // They are undefined when the maker is not usable in the given const and
 // reference context.

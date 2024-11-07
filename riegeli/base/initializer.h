@@ -181,7 +181,15 @@ class InitializerBase {
  public:
 #if __cpp_guaranteed_copy_elision
   // Constructs the `T`.
-  /*implicit*/ operator T() && { return methods()->construct(context()); }
+  /*implicit*/ operator T() && { return std::move(*this).Construct(); }
+
+  // Constructs the `T`.
+  //
+  // Usually conversion to `T` is preferred because it can avoid creating a
+  // temporary if the context accepts an arbitrary type convertible to `T` and
+  // it leads to simpler source code. An explicit `Construct()` call can force
+  // construction right away while avoiding specifying the full target type.
+  T Construct() && { return methods()->construct(context()); }
 #endif
 
   // Constructs the `T` on the heap.
@@ -208,9 +216,10 @@ class InitializerBase {
   // or returns a reference to an already constructed object if a compatible
   // object was passed to `Initializer` constructor.
   //
-  // `Reference()` instead of conversion to `T` can avoid moving the object if
-  // the caller does not need to store the object, or if it will be moved later
-  // because the target location for the object is not ready yet.
+  // `Reference()` instead of conversion to `T` or `Construct()` can avoid
+  // moving the object if the caller does not need to store the object, or if it
+  // will be moved later because the target location for the object is not ready
+  // yet.
   //
   // `storage` must outlive usages of the returned reference.
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -359,7 +368,15 @@ class InitializerMovableBase : public InitializerBase<T> {
 #else  // !__cpp_guaranteed_copy_elision
  public:
   // Constructs the `T`.
-  /*implicit*/ operator T() && { return methods()->construct(this->context()); }
+  /*implicit*/ operator T() && { return std::move(*this).Construct(); }
+
+  // Constructs the `T`.
+  //
+  // Usually conversion to `T` is preferred because it can avoid creating a
+  // temporary if the context accepts an arbitrary type convertible to `T` and
+  // it leads to simpler source code. An explicit `Construct()` call can force
+  // construction right away while avoiding specifying the full target type.
+  T Construct() && { return methods()->construct(this->context()); }
 
  private:
   static T ConstructMethodDefault(TypeErasedRef context);
@@ -645,18 +662,23 @@ template <typename T>
 class InitializerReference {
  public:
   // Constructs the `T`.
-  /*implicit*/ operator T() && { return methods()->construct(context()); }
+  /*implicit*/ operator T() && { return std::move(*this).Construct(); }
+
+  // Constructs the `T`.
+  //
+  // Usually conversion to `T` is preferred because it leads to simpler source
+  // code. An explicit `Construct()` call can force construction right away
+  // while avoiding specifying the full target type.
+  T Construct() && { return methods()->construct(context()); }
 
   // `Reference()` can be defined in terms of conversion to `T` because
   // reference storage is never used for reference types.
   //
-  // `Initializer<const T&>::Reference()` returns `const T&`.
-  //
-  // Unused `storage` parameter makes the signature compatible with
-  // the non-reference specialization.
+  // Unused `storage` parameter makes the signature compatible with the
+  // non-reference specialization.
   T&& Reference() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     // `T` is a reference type here, so `T&&` is the same as `T`.
-    return std::move(*this);
+    return std::move(*this).Construct();
   }
   T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
