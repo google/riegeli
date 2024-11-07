@@ -58,10 +58,6 @@ class
         AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
                   public ConditionallyTrivialAbi<inline_size == 0> {
  public:
-  // Makes `*this` equivalent to a newly constructed `AnyBase`. This avoids
-  // constructing a temporary `AnyBase` and moving from it.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.
   Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -134,6 +130,8 @@ class
   AnyBase& operator=(AnyBase&& that) noexcept;
 
   ~AnyBase() { Destroy(); }
+
+  void Reset();
 
   // Initializes the state, avoiding a redundant indirection and adopting them
   // from `manager` instead if `Manager` is already a compatible `Any` or
@@ -280,6 +278,10 @@ class
 
   Any(Any&& that) = default;
   Any& operator=(Any&& that) = default;
+
+  // Makes `*this` equivalent to a newly constructed `Any`. This avoids
+  // constructing a temporary `Any` and moving from it.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { Any::AnyBase::Reset(); }
 };
 
 // Specialization of `DependencyManagerImpl<Any<Handle>>`:
@@ -404,7 +406,7 @@ class
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   AnyRef(AnyRef&& that) = default;
-  AnyRef& operator=(AnyRef&& that) = default;
+  AnyRef& operator=(AnyRef&&) = delete;
 };
 
 // Specialization of `DependencyManagerImpl<AnyRef<Handle>>`:

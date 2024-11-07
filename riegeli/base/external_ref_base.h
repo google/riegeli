@@ -1900,7 +1900,7 @@ class ExternalRef {
   }
 
   ExternalRef(ExternalRef&& that) = default;
-  ExternalRef& operator=(ExternalRef&& that) = default;
+  ExternalRef& operator=(ExternalRef&&) = delete;
 
   // Like `ExternalRef` constructor, but `RiegeliSupportsExternalRef()` or
   // `RiegeliSupportsExternalRefWhole()` is not needed. The caller is
