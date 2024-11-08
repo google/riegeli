@@ -156,7 +156,7 @@ class
 
  private:
   // For adopting the state from an instantiation with a different `inline_size`
-  // and `inline_align.
+  // and `inline_align`.
   template <typename OtherHandle, size_t other_inline_size,
             size_t other_inline_align>
   friend class AnyBase;
@@ -230,6 +230,8 @@ class
   };
 
  public:
+  using absl_nullability_compatible = void;
+
   // `Any<Handle>::Inlining<InlineManagers...>` enlarges inline storage of
   // `Any<Handle>`.
   //
@@ -393,6 +395,8 @@ class
 #endif
         AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
  public:
+  using absl_nullability_compatible = void;
+
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
 
@@ -541,7 +545,7 @@ template <typename Manager,
           std::enable_if_t<!IsAny<Handle, Manager>::value, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
-  Initialize(Initializer<Manager>(std::forward<Manager>(manager)));
+  Initialize<Manager>(Initializer<Manager>(std::forward<Manager>(manager)));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -571,7 +575,7 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
       // a plain assignment of `methods_and_handle_.handle` and a memory copy of
       // `repr_`.
       //
-      // This would safe whenever
+      // This would be safe whenever
       // `manager.methods_and_handle_.methods->used_size == 0`, but this is
       // handled specially only if the condition can be determined at compile
       // time.
@@ -611,16 +615,14 @@ template <typename Manager,
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
   // Materialize `Manager` to consider adopting its storage.
-  Initialize(std::move(manager).Reference());
+  Initialize<Manager>(std::move(manager).Reference());
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     AnyInitializer<Handle> manager) {
-  std::move(manager).Construct(
-      methods_and_handle_, repr_.storage,
-      AvailableSize<Handle, inline_size, inline_align>(),
-      AvailableAlign<Handle, inline_size, inline_align>());
+  std::move(manager).Construct(methods_and_handle_, repr_.storage,
+                               kAvailableSize, kAvailableAlign);
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -722,7 +724,7 @@ template <
             absl::negation<std::is_same<std::decay_t<Manager>, AnyRef<Handle>>>,
             IsValidDependency<Handle, Manager&&>>::value,
         int>>
-inline AnyRef<Handle>::AnyRef(Manager&& manager) {
+inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   this->template Initialize<Manager&&>(std::forward<Manager>(manager));
 }
 

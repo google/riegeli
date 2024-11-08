@@ -51,15 +51,15 @@ class AnyBase;
 //
 // `AnyInitializer<Handle>(manager)` does not own `manager`, even if it involves
 // temporaries, hence it should be used only as a parameter of a function or
-// constructor, so that the temporaries outlive its usage. Instead of storing an
-// `AnyInitializer<Handle>` in a variable or returning it from a function,
+// constructor, so that the temporaries outlive its usage. Instead of storing
+// an `AnyInitializer<Handle>` in a variable or returning it from a function,
 // consider `riegeli::OwningMaker<Manager>(manager_args...)`,
 // `MakerTypeFor<Manager, ManagerArgs...>`, or `Any<Handle>`.
 template <typename Handle>
 class AnyInitializer {
  public:
   // An `Any` will be empty.
-  AnyInitializer() : construct_(ConstructMethodEmpty) {}
+  AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
 
   // An `Any` will hold a `Dependency<Handle, InitializerTargetT<Manager>>`.
   template <
