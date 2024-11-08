@@ -226,9 +226,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // `UnownedFd` (not owned), `AnyFd` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
-// first constructor argument is a filename or an `int`, otherwise as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// first constructor argument is a filename or an `int`, otherwise as `TargetT`
+// of the type of the first constructor argument. This requires C++17.
 //
 // The fd must not be closed until the `FdMMapReader` is closed or no longer
 // used. File contents must not be changed while data read from the file is
@@ -330,7 +329,7 @@ explicit FdMMapReader(
             std::is_convertible<Src&&, int>,
             std::is_convertible<
                 Src&&, Initializer<std::string>::AllowingExplicit>>::value,
-        OwnedFd, InitializerTargetT<Src>>>;
+        OwnedFd, TargetT<Src>>>;
 explicit FdMMapReader(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     FdMMapReaderBase::Options options = FdMMapReaderBase::Options())

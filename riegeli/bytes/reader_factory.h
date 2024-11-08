@@ -110,9 +110,8 @@ class ReaderFactoryBase : public Object {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `ReaderFactory` is
 // closed or no longer used.
@@ -158,7 +157,7 @@ explicit ReaderFactory(Closed) -> ReaderFactory<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderFactory(Src&& src, ReaderFactoryBase::Options options =
                                       ReaderFactoryBase::Options())
-    -> ReaderFactory<InitializerTargetT<Src>>;
+    -> ReaderFactory<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

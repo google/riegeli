@@ -406,9 +406,8 @@ class CsvWriterBase : public Object {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The current position is synchronized with the byte `Writer` between records.
 template <typename Dest = Writer*>
@@ -453,7 +452,7 @@ explicit CsvWriter(Closed) -> CsvWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CsvWriter(Dest&& dest,
                    CsvWriterBase::Options options = CsvWriterBase::Options())
-    -> CsvWriter<InitializerTargetT<Dest>>;
+    -> CsvWriter<TargetT<Dest>>;
 #endif
 
 // Writes a single record to a CSV string.

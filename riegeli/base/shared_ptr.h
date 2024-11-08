@@ -86,12 +86,12 @@ class
   explicit SharedPtr(Initializer<T> value) : ptr_(New(std::move(value))) {}
 
   // Creates a `SharedPtr` holding a constructed value of a compatible type.
-  template <typename SubInitializer,
-            std::enable_if_t<IsCompatibleProperSubtype<
-                                 InitializerTargetT<SubInitializer>>::value,
-                             int> = 0>
+  template <
+      typename SubInitializer,
+      std::enable_if_t<
+          IsCompatibleProperSubtype<TargetT<SubInitializer>>::value, int> = 0>
   explicit SharedPtr(SubInitializer&& value)
-      : ptr_(UpCast(New<InitializerTargetT<SubInitializer>>(
+      : ptr_(UpCast(New<TargetT<SubInitializer>>(
             std::forward<SubInitializer>(value)))) {}
 
   // Converts from a `SharedPtr` with a compatible type.
@@ -154,12 +154,12 @@ class
   // Replaces the object with a constructed value of a compatible type.
   //
   // The old object, if any, is destroyed afterwards.
-  template <typename SubInitializer,
-            std::enable_if_t<IsCompatibleProperSubtype<
-                                 InitializerTargetT<SubInitializer>>::value,
-                             int> = 0>
+  template <
+      typename SubInitializer,
+      std::enable_if_t<
+          IsCompatibleProperSubtype<TargetT<SubInitializer>>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
-    Unref(std::exchange(ptr_, UpCast(New<InitializerTargetT<SubInitializer>>(
+    Unref(std::exchange(ptr_, UpCast(New<TargetT<SubInitializer>>(
                                   std::forward<SubInitializer>(value)))));
   }
 
@@ -474,7 +474,7 @@ class
 
 #if __cpp_deduction_guides
 template <typename T>
-explicit SharedPtr(T&& value) -> SharedPtr<InitializerTargetT<T>>;
+explicit SharedPtr(T&& value) -> SharedPtr<TargetT<T>>;
 #endif
 
 }  // namespace riegeli

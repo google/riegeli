@@ -59,8 +59,7 @@ class ReaderCFileOptions {
 // `Reader` must do so as well.
 template <
     typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, InitializerTargetT<Src>>::value,
-                     int> = 0>
+    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int> = 0>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options = ReaderCFileOptions());
 
 // Implementation details follow.
@@ -126,12 +125,12 @@ FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
 
 }  // namespace cfile_internal
 
-template <typename Src,
-          std::enable_if_t<
-              IsValidDependency<Reader*, InitializerTargetT<Src>>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int>>
 FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
   return cfile_internal::ReaderCFileImpl(
-      new cfile_internal::ReaderCFileCookie<InitializerTargetT<Src>>(
+      new cfile_internal::ReaderCFileCookie<TargetT<Src>>(
           std::forward<Src>(src)));
 }
 

@@ -859,19 +859,18 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 
 template <
     typename T,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<InitializerTargetT<T>, Chain::Block>>,
-            SupportsToStringView<InitializerTargetT<T>>>::value,
-        int>>
+    std::enable_if_t<absl::conjunction<
+                         absl::negation<std::is_same<TargetT<T>, Chain::Block>>,
+                         SupportsToStringView<TargetT<T>>>::value,
+                     int>>
 inline Chain::Block::Block(T&& object)
-    : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
-          std::forward<T>(object))) {}
+    : block_(
+          ExternalMethodsFor<TargetT<T>>::NewBlock(std::forward<T>(object))) {}
 
 template <typename T>
 inline Chain::Block::Block(T&& object, absl::string_view substr)
-    : block_(ExternalMethodsFor<InitializerTargetT<T>>::NewBlock(
-          std::forward<T>(object), substr)) {}
+    : block_(ExternalMethodsFor<TargetT<T>>::NewBlock(std::forward<T>(object),
+                                                      substr)) {}
 
 inline Chain::Block::Block(RawBlock* block, absl::string_view substr) {
   if (block->size() == substr.size()) {

@@ -245,28 +245,26 @@ class
   // Creates an empty `Any`.
   Any() noexcept { this->Initialize(); }
 
-  // Holds a `Dependency<Handle, InitializerTargetT<Manager>>`.
+  // Holds a `Dependency<Handle, TargetT<Manager>>`.
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<InitializerTargetT<Manager>, Any>>,
-              IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
+          absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
+                            IsValidDependency<Handle, TargetT<Manager>>>::value,
           int> = 0>
   /*implicit*/ Any(Manager&& manager);
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<InitializerTargetT<Manager>, Any>>,
-              IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
+          absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
+                            IsValidDependency<Handle, TargetT<Manager>>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
   template <
       typename Manager,
       std::enable_if_t<
           absl::conjunction<
-              std::is_same<InitializerTargetT<Manager>, Any>,
+              std::is_same<TargetT<Manager>, Any>,
               absl::negation<std::is_same<std::decay_t<Manager>, Any>>>::value,
           int> = 0>
   Any& operator=(Manager&& manager) {
@@ -673,14 +671,12 @@ template <
     typename Manager,
     std::enable_if_t<
         absl::conjunction<
-            absl::negation<
-                std::is_same<InitializerTargetT<Manager>,
-                             Any<Handle, inline_size, inline_align>>>,
-            IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
+            absl::negation<std::is_same<
+                TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
+            IsValidDependency<Handle, TargetT<Manager>>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
-  this->template Initialize<InitializerTargetT<Manager>>(
-      std::forward<Manager>(manager));
+  this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -688,16 +684,14 @@ template <
     typename Manager,
     std::enable_if_t<
         absl::conjunction<
-            absl::negation<
-                std::is_same<InitializerTargetT<Manager>,
-                             Any<Handle, inline_size, inline_align>>>,
-            IsValidDependency<Handle, InitializerTargetT<Manager>>>::value,
+            absl::negation<std::is_same<
+                TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
+            IsValidDependency<Handle, TargetT<Manager>>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>&
 Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
   this->Destroy();
-  this->template Initialize<InitializerTargetT<Manager>>(
-      std::forward<Manager>(manager));
+  this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
   return *this;
 }
 

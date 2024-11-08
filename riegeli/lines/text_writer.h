@@ -153,7 +153,7 @@ explicit TextWriter(Closed)
 template <typename Dest>
 explicit TextWriter(Dest&& dest,
                     TextWriterBase::Options options = TextWriterBase::Options())
-    -> TextWriter<WriteNewline::kNative, InitializerTargetT<Dest>>;
+    -> TextWriter<WriteNewline::kNative, TargetT<Dest>>;
 #endif
 
 // Wraps a `TextWriter` for a line terminator specified at runtime.
@@ -191,9 +191,8 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
 // `dest` supports `riegeli::Maker<Dest>(args...)` to construct `Dest` in-place.
 template <
     typename Dest,
-    std::enable_if_t<
-        IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int> = 0>
-AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
+    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int> = 0>
+AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(
     Dest&& dest, AnyTextWriterOptions options = AnyTextWriterOptions());
 
 // Implementation details below.
@@ -267,23 +266,20 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest));
 }
 
-template <typename Dest,
-          std::enable_if_t<
-              IsValidDependency<Writer*, InitializerTargetT<Dest>>::value, int>>
-AnyTextWriter<InitializerTargetT<Dest>> MakeAnyTextWriter(
-    Dest&& dest, AnyTextWriterOptions options) {
+template <
+    typename Dest,
+    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int>>
+AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(Dest&& dest,
+                                               AnyTextWriterOptions options) {
   switch (options.newline()) {
     case WriteNewline::kLf:
-      return riegeli::Maker<
-          TextWriter<WriteNewline::kLf, InitializerTargetT<Dest>>>(
+      return riegeli::Maker<TextWriter<WriteNewline::kLf, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
     case WriteNewline::kCr:
-      return riegeli::Maker<
-          TextWriter<WriteNewline::kCr, InitializerTargetT<Dest>>>(
+      return riegeli::Maker<TextWriter<WriteNewline::kCr, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
     case WriteNewline::kCrLf:
-      return riegeli::Maker<
-          TextWriter<WriteNewline::kCrLf, InitializerTargetT<Dest>>>(
+      return riegeli::Maker<TextWriter<WriteNewline::kCrLf, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
   }
   RIEGELI_ASSERT_UNREACHABLE()

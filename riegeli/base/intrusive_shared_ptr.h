@@ -133,11 +133,10 @@ class
   // delete the object with `delete this`.
   template <
       typename SubInitializer,
-      std::enable_if_t<
-          std::is_convertible<InitializerTargetT<SubInitializer>*, T*>::value,
-          int> = 0>
+      std::enable_if_t<std::is_convertible<TargetT<SubInitializer>*, T*>::value,
+                       int> = 0>
   explicit IntrusiveSharedPtr(SubInitializer&& value)
-      : ptr_(Initializer<InitializerTargetT<SubInitializer>>(
+      : ptr_(Initializer<TargetT<SubInitializer>>(
                  std::forward<SubInitializer>(value))
                  .MakeUnique()
                  .release()) {}
@@ -219,11 +218,10 @@ class
   // delete the object with `delete this`.
   template <
       typename SubInitializer,
-      std::enable_if_t<
-          std::is_convertible<InitializerTargetT<SubInitializer>*, T*>::value,
-          int> = 0>
+      std::enable_if_t<std::is_convertible<TargetT<SubInitializer>*, T*>::value,
+                       int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
-    Unref(std::exchange(ptr_, Initializer<InitializerTargetT<SubInitializer>>(
+    Unref(std::exchange(ptr_, Initializer<TargetT<SubInitializer>>(
                                   std::forward<SubInitializer>(value))
                                   .MakeUnique()
                                   .release()));
@@ -373,8 +371,7 @@ explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership)
 template <typename T>
 explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) -> IntrusiveSharedPtr<T>;
 template <typename T, std::enable_if_t<!std::is_pointer<T>::value, int> = 0>
-explicit IntrusiveSharedPtr(T&& value)
-    -> IntrusiveSharedPtr<InitializerTargetT<T>>;
+explicit IntrusiveSharedPtr(T&& value) -> IntrusiveSharedPtr<TargetT<T>>;
 #endif
 
 }  // namespace riegeli

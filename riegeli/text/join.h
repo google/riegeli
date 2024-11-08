@@ -65,7 +65,7 @@ class InvokingFormatter {
 #if __cpp_deduction_guides
 template <typename Function>
 explicit InvokingFormatter(Function&& function)
-    -> InvokingFormatter<InitializerTargetT<Function>>;
+    -> InvokingFormatter<TargetT<Function>>;
 #endif
 
 // A formatter for `Join()` which decorates the value with a string before
@@ -118,14 +118,14 @@ template <typename ValueFormatter = DefaultFormatter,
               int> = 0>
 explicit DecoratingFormatter(ValueFormatter&& value_formatter,
                              absl::string_view after)
-    -> DecoratingFormatter<InitializerTargetT<ValueFormatter>>;
+    -> DecoratingFormatter<TargetT<ValueFormatter>>;
 explicit DecoratingFormatter(absl::string_view before, absl::string_view after)
     -> DecoratingFormatter<DefaultFormatter>;
 template <typename ValueFormatter = DefaultFormatter>
 explicit DecoratingFormatter(absl::string_view before,
                              ValueFormatter&& value_formatter,
                              absl::string_view after)
-    -> DecoratingFormatter<InitializerTargetT<ValueFormatter>>;
+    -> DecoratingFormatter<TargetT<ValueFormatter>>;
 #endif
 
 // A formatter for `Join()` which formats a pair with a separator between the
@@ -174,14 +174,13 @@ class PairFormatter {
 template <typename SecondFormatter = DefaultFormatter>
 explicit PairFormatter(absl::string_view separator,
                        SecondFormatter&& second_formatter = SecondFormatter())
-    -> PairFormatter<DefaultFormatter, InitializerTargetT<SecondFormatter>>;
+    -> PairFormatter<DefaultFormatter, TargetT<SecondFormatter>>;
 template <typename FirstFormatter = DefaultFormatter,
           typename SecondFormatter = DefaultFormatter>
 explicit PairFormatter(FirstFormatter&& first_formatter,
                        absl::string_view separator,
                        SecondFormatter&& second_formatter = SecondFormatter())
-    -> PairFormatter<InitializerTargetT<FirstFormatter>,
-                     InitializerTargetT<SecondFormatter>>;
+    -> PairFormatter<TargetT<FirstFormatter>, TargetT<SecondFormatter>>;
 #endif
 
 // The type returned by `Join()`.
@@ -261,7 +260,7 @@ class JoinType {
 template <typename Src, typename Formatter = DefaultFormatter>
 explicit JoinType(Src&& src, absl::string_view separator,
                   Formatter&& formatter = Formatter())
-    -> JoinType<InitializerTargetT<Src>, InitializerTargetT<Formatter>>;
+    -> JoinType<TargetT<Src>, TargetT<Formatter>>;
 #endif
 
 // `riegeli::Join()` wraps a collection such that its stringified representation

@@ -152,9 +152,8 @@ class ReaderIStreamBase : public std::istream {
 // e.g. `Reader*` (not owned, default), `ChainReader<>` (owned),
 // `std::unique_ptr<Reader>` (owned), `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The `Reader` must not be accessed until the `ReaderIStream` is closed or no
 // longer used.
@@ -220,7 +219,7 @@ explicit ReaderIStream(Closed) -> ReaderIStream<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderIStream(Src&& src, ReaderIStreamBase::Options options =
                                       ReaderIStreamBase::Options())
-    -> ReaderIStream<InitializerTargetT<Src>>;
+    -> ReaderIStream<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

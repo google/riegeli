@@ -158,9 +158,8 @@ class SnappyWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `SnappyWriter` is
 // closed or no longer used.
@@ -211,7 +210,7 @@ explicit SnappyWriter(Closed) -> SnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit SnappyWriter(Dest&& dest, SnappyWriterBase::Options options =
                                        SnappyWriterBase::Options())
-    -> SnappyWriter<InitializerTargetT<Dest>>;
+    -> SnappyWriter<TargetT<Dest>>;
 #endif
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.

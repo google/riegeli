@@ -224,7 +224,7 @@ template <typename... Args>
 // in-place, avoiding constructing a temporary and moving from it.
 //
 // In contrast to `MakerType<Args...>`, `MakerTypeFor<T, Args...>` allows the
-// caller to deduce `T`, e.g. using `InitializerTargetT`.
+// caller to deduce `T`, e.g. using `TargetT`.
 template <typename T, typename... Args>
 class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
                          absl::negation<std::is_reference<Args>>...>::value> {
@@ -486,7 +486,7 @@ MakerType<Args&&...> Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
 // constructors with factory functions.
 //
 // In contrast to `riegeli::Maker(args...)`, `riegeli::Maker<T>(args...)` allows
-// the caller to deduce `T`, e.g. using `InitializerTargetT`.
+// the caller to deduce `T`, e.g. using `TargetT`.
 //
 // `riegeli::Maker<T>(args...)` does not own `args`, even if they involve
 // temporaries, hence it should be used only as a parameter of a function or

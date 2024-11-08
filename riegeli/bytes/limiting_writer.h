@@ -224,9 +224,8 @@ class LimitingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `LimitingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -277,7 +276,7 @@ explicit LimitingWriter(Closed) -> LimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingWriter(Dest&& dest, LimitingWriterBase::Options options =
                                          LimitingWriterBase::Options())
-    -> LimitingWriter<InitializerTargetT<Dest>>;
+    -> LimitingWriter<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

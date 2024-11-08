@@ -123,10 +123,10 @@ class DigestingWriterBase : public Writer {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the `Digester` template argument can be deduced as
-// `InitializerTargetT` of the type of the `digester` constructor argument, and
-// the `Dest` template argument can be deduced as `InitializerTargetT` of the
-// type of the `dest` constructor argument, or as `NullWriter` if the `dest`
-// constructor argument is omitted. This requires C++17.
+// `TargetT` of the type of the `digester` constructor argument, and the `Dest`
+// template argument can be deduced as `TargetT` of the type of the `dest`
+// constructor argument, or as `NullWriter` if the `dest` constructor argument
+// is omitted. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `DigestingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -249,10 +249,10 @@ class DigestingWriter : public DigestingWriterBase {
 explicit DigestingWriter(Closed) -> DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
 explicit DigestingWriter(Dest&& dest, Digester&& digester)
-    -> DigestingWriter<InitializerTargetT<Digester>, InitializerTargetT<Dest>>;
+    -> DigestingWriter<TargetT<Digester>, TargetT<Dest>>;
 template <typename Digester>
 explicit DigestingWriter(Digester&& digester)
-    -> DigestingWriter<InitializerTargetT<Digester>, NullWriter>;
+    -> DigestingWriter<TargetT<Digester>, NullWriter>;
 #endif
 
 // Returns the digest of the concatenation of stringifiable values.

@@ -552,9 +552,8 @@ class CsvReaderBase : public Object {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The current position is synchronized with the byte `Reader` between records.
 template <typename Src = Reader*>
@@ -599,7 +598,7 @@ explicit CsvReader(Closed) -> CsvReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CsvReader(Src&& src,
                    CsvReaderBase::Options options = CsvReaderBase::Options())
-    -> CsvReader<InitializerTargetT<Src>>;
+    -> CsvReader<TargetT<Src>>;
 #endif
 
 // Reads a single record from a CSV string.

@@ -295,9 +295,8 @@ class LimitingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `LimitingReader` is
 // closed or no longer used.
@@ -355,7 +354,7 @@ explicit LimitingReader(Closed) -> LimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit LimitingReader(Src&& src, LimitingReaderBase::Options options =
                                        LimitingReaderBase::Options())
-    -> LimitingReader<InitializerTargetT<Src>>;
+    -> LimitingReader<TargetT<Src>>;
 #endif
 
 // Changes the options of a `LimitingReader` in the constructor, and restores

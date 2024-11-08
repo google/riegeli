@@ -143,9 +143,8 @@ class PrefixLimitingReaderBase : public Reader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `PrefixLimitingReader`
 // is closed or no longer used.
@@ -201,7 +200,7 @@ template <typename Src>
 explicit PrefixLimitingReader(Src&& src,
                               PrefixLimitingReaderBase::Options options =
                                   PrefixLimitingReaderBase::Options())
-    -> PrefixLimitingReader<InitializerTargetT<Src>>;
+    -> PrefixLimitingReader<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

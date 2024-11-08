@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/invoker.h"
@@ -922,15 +923,13 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   Initializer& operator=(Initializer&&) = delete;
 };
 
-// `InitializerTarget<T>::type` and `InitializerTargetT<T>` deduce the
-// appropriate target type such that `T` is convertible to
-// `Initializer<InitializerTargetT<T>>`.
+// `Target<T>::type` and `TargetT<T>` deduce the appropriate target type such
+// that `T` is convertible to `Initializer<TargetT<T>>`.
 //
 // This allows a single template to uniformly handle a `Target` passed directly,
-// as `riegeli::Maker<Target>(args...)`,
-// as `riegeli::Invoker(function, args...)`, or as `Initializer<Target>`.
-// This is also useful for CTAD guides to deduce a template argument as
-// `InitializerTargetT<T>`.
+// as `riegeli::Maker<Target>(args...)`, as
+// `riegeli::Invoker(function, args...)`, or as `Initializer<Target>`. This is
+// also useful for CTAD guides to deduce a template argument as `TargetT<T>`.
 //
 // They are undefined in the case of `riegeli::Maker(args...)` which requires
 // the target type to be specified by the caller, or when the object is not
@@ -939,39 +938,38 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
 namespace initializer_internal {
 
 template <typename Value, typename Reference>
-struct InitializerTargetImpl : std::decay<Value> {};
+struct TargetImpl : std::decay<Value> {};
 
 template <typename... Args, typename Reference>
-struct InitializerTargetImpl<MakerType<Args...>, Reference> {
+struct TargetImpl<MakerType<Args...>, Reference> {
   // No `type` member when the target type is unspecified.
 };
 
 template <typename Target, typename... Args, typename Reference>
-struct InitializerTargetImpl<MakerTypeFor<Target, Args...>, Reference>
+struct TargetImpl<MakerTypeFor<Target, Args...>, Reference>
     : MakerTarget<Reference> {};
 
 template <typename Function, typename... Args, typename Reference>
-struct InitializerTargetImpl<InvokerType<Function, Args...>, Reference>
+struct TargetImpl<InvokerType<Function, Args...>, Reference>
     : InvokerTarget<Reference> {};
 
 template <typename T, bool allow_explicit, typename Reference>
-struct InitializerTargetImpl<Initializer<T, allow_explicit>, Reference> {
+struct TargetImpl<Initializer<T, allow_explicit>, Reference> {
   using type = T;
 };
 
 };  // namespace initializer_internal
 
 template <typename T>
-struct InitializerTarget
-    : initializer_internal::InitializerTargetImpl<std::decay_t<T>, T&&> {};
+struct Target : initializer_internal::TargetImpl<std::decay_t<T>, T&&> {};
 
 template <typename T>
-using InitializerTargetT = typename InitializerTarget<T>::type;
+using TargetT = typename Target<T>::type;
 
-// `InitializerTargetRef<T>::type` and `InitializerTargetRefT<T>` are like
-// `InitializerTargetT<T>`, but if the object is already constructed, then they
-// are the corresponding reference type instead of the value type. It is still
-// true that `T` is convertible to `Initializer<InitializerTargetRefT<T>>`.
+// `TargetRef<T>::type` and `TargetRefT<T>` are like `TargetT<T>`, but if the
+// object is already constructed, then they are the corresponding reference type
+// instead of the value type. It is still true that `T` is convertible to
+// `Initializer<TargetRefT<T>>`.
 //
 // This allows to avoid moving or copying the object if a reference to it is
 // sufficient.
@@ -979,36 +977,35 @@ using InitializerTargetT = typename InitializerTarget<T>::type;
 namespace initializer_internal {
 
 template <typename Value, typename Reference>
-struct InitializerTargetRefImpl {
+struct TargetRefImpl {
   using type = Reference;
 };
 
 template <typename... Args, typename Reference>
-struct InitializerTargetRefImpl<MakerType<Args...>, Reference> {
+struct TargetRefImpl<MakerType<Args...>, Reference> {
   // No `type` member when the target type is unspecified.
 };
 
 template <typename Target, typename... Args, typename Reference>
-struct InitializerTargetRefImpl<MakerTypeFor<Target, Args...>, Reference>
+struct TargetRefImpl<MakerTypeFor<Target, Args...>, Reference>
     : MakerTarget<Reference> {};
 
 template <typename Function, typename... Args, typename Reference>
-struct InitializerTargetRefImpl<InvokerType<Function, Args...>, Reference>
+struct TargetRefImpl<InvokerType<Function, Args...>, Reference>
     : InvokerTargetRef<Reference> {};
 
 template <typename T, bool allow_explicit, typename Reference>
-struct InitializerTargetRefImpl<Initializer<T, allow_explicit>, Reference> {
+struct TargetRefImpl<Initializer<T, allow_explicit>, Reference> {
   using type = T;
 };
 
 };  // namespace initializer_internal
 
 template <typename T>
-struct InitializerTargetRef
-    : initializer_internal::InitializerTargetRefImpl<std::decay_t<T>, T&&> {};
+struct TargetRef : initializer_internal::TargetRefImpl<std::decay_t<T>, T&&> {};
 
 template <typename T>
-using InitializerTargetRefT = typename InitializerTargetRef<T>::type;
+using TargetRefT = typename TargetRef<T>::type;
 
 // Implementation details follow.
 

@@ -92,9 +92,8 @@ class HadoopSnappyReaderBase : public PullableReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `HadoopSnappyReader`
 // is closed or no longer used.
@@ -144,7 +143,7 @@ explicit HadoopSnappyReader(Closed) -> HadoopSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
                                            HadoopSnappyReaderBase::Options())
-    -> HadoopSnappyReader<InitializerTargetT<Src>>;
+    -> HadoopSnappyReader<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

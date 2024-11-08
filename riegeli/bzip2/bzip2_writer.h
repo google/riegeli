@@ -122,9 +122,8 @@ class Bzip2WriterBase : public BufferedWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `Bzip2Writer` is
 // closed or no longer used.
@@ -174,7 +173,7 @@ explicit Bzip2Writer(Closed) -> Bzip2Writer<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit Bzip2Writer(
     Dest&& dest, Bzip2WriterBase::Options options = Bzip2WriterBase::Options())
-    -> Bzip2Writer<InitializerTargetT<Dest>>;
+    -> Bzip2Writer<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

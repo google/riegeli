@@ -91,9 +91,8 @@ class FramedSnappyReaderBase : public PullableReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `FramedSnappyReader`
 // is closed or no longer used.
@@ -145,7 +144,7 @@ explicit FramedSnappyReader(Closed) -> FramedSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
                                            FramedSnappyReaderBase::Options())
-    -> FramedSnappyReader<InitializerTargetT<Src>>;
+    -> FramedSnappyReader<TargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been FramedSnappy-compressed.

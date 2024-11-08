@@ -181,9 +181,8 @@ class ZstdReaderBase : public BufferedReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `ZstdReader` is closed
 // or no longer used.
@@ -231,7 +230,7 @@ explicit ZstdReader(Closed) -> ZstdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZstdReader(Src&& src,
                     ZstdReaderBase::Options options = ZstdReaderBase::Options())
-    -> ZstdReader<InitializerTargetT<Src>>;
+    -> ZstdReader<TargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been Zstd-compressed.

@@ -72,9 +72,8 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with
@@ -131,7 +130,7 @@ explicit SnappyReader(Closed) -> SnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit SnappyReader(
     Src&& src, SnappyReaderBase::Options options = SnappyReaderBase::Options())
-    -> SnappyReader<InitializerTargetT<Src>>;
+    -> SnappyReader<TargetT<Src>>;
 #endif
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.

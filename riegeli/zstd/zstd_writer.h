@@ -297,9 +297,8 @@ class ZstdWriterBase : public BufferedWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `ZstdWriter` is closed
 // or no longer used, except that it is allowed to read the destination of the
@@ -347,7 +346,7 @@ explicit ZstdWriter(Closed) -> ZstdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZstdWriter(Dest&& dest,
                     ZstdWriterBase::Options options = ZstdWriterBase::Options())
-    -> ZstdWriter<InitializerTargetT<Dest>>;
+    -> ZstdWriter<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

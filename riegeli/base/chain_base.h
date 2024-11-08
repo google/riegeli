@@ -866,12 +866,12 @@ class Chain::Block {
   // The `substr` parameter of these member functions, if present, will get the
   // `substr` parameter passed to `FromExternal()`. Having `substr` available in
   // these functions might avoid storing `substr` in the external object.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_same<InitializerTargetT<T>, Block>>,
-                    SupportsToStringView<InitializerTargetT<T>>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<std::is_same<TargetT<T>, Block>>,
+                            SupportsToStringView<TargetT<T>>>::value,
+          int> = 0>
   explicit Block(T&& object);
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);

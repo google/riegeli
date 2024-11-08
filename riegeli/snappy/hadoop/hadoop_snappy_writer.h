@@ -138,9 +138,8 @@ class HadoopSnappyWriterBase : public PushableWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `HadoopSnappyWriter`
 // is closed or no longer used.
@@ -190,7 +189,7 @@ template <typename Dest>
 explicit HadoopSnappyWriter(
     Dest&& dest,
     HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
-    -> HadoopSnappyWriter<InitializerTargetT<Dest>>;
+    -> HadoopSnappyWriter<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

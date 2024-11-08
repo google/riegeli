@@ -123,9 +123,8 @@ class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the second template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the second template argument can be deduced as `TargetT`
+// of the type of the first constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `TextReader` is closed
 // or no longer used.
@@ -208,7 +207,7 @@ explicit TextReader(Closed)
 template <typename Src>
 explicit TextReader(Src&& src,
                     TextReaderBase::Options options = TextReaderBase::Options())
-    -> TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>;
+    -> TextReader<ReadNewline::kCrLfOrLf, TargetT<Src>>;
 #endif
 
 // Wraps a `TextReader` for a line terminator specified at runtime.
@@ -246,9 +245,8 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
 // `src` supports `riegeli::Maker<Src>(args...)` to construct `Src` in-place.
 template <
     typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, InitializerTargetT<Src>>::value,
-                     int> = 0>
-AnyTextReader<InitializerTargetT<Src>> MakeAnyTextReader(
+    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int> = 0>
+AnyTextReader<TargetT<Src>> MakeAnyTextReader(
     Src&& src, AnyTextReaderOptions options = AnyTextReaderOptions());
 
 // Implementation details below.
@@ -312,23 +310,20 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(
   TextReader::PrefixLimitingReader::Reset(std::move(src));
 }
 
-template <typename Src,
-          std::enable_if_t<
-              IsValidDependency<Reader*, InitializerTargetT<Src>>::value, int>>
-AnyTextReader<InitializerTargetT<Src>> MakeAnyTextReader(
-    Src&& src, AnyTextReaderOptions options) {
+template <
+    typename Src,
+    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int>>
+AnyTextReader<TargetT<Src>> MakeAnyTextReader(Src&& src,
+                                              AnyTextReaderOptions options) {
   switch (options.newline()) {
     case ReadNewline::kLf:
-      return riegeli::Maker<
-          TextReader<ReadNewline::kLf, InitializerTargetT<Src>>>(
+      return riegeli::Maker<TextReader<ReadNewline::kLf, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
     case ReadNewline::kCrLfOrLf:
-      return riegeli::Maker<
-          TextReader<ReadNewline::kCrLfOrLf, InitializerTargetT<Src>>>(
+      return riegeli::Maker<TextReader<ReadNewline::kCrLfOrLf, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
     case ReadNewline::kAny:
-      return riegeli::Maker<
-          TextReader<ReadNewline::kAny, InitializerTargetT<Src>>>(
+      return riegeli::Maker<TextReader<ReadNewline::kAny, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
   }
   RIEGELI_ASSERT_UNREACHABLE()

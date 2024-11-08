@@ -83,9 +83,8 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<
-                        std::is_same<std::tuple<InitializerTargetT<Args>...>,
-                                     std::tuple<WrappingDigester>>>,
+                    absl::negation<std::is_same<std::tuple<TargetT<Args>...>,
+                                                std::tuple<WrappingDigester>>>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   explicit WrappingDigester(Args&&... args)
@@ -100,9 +99,8 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<
-                        std::is_same<std::tuple<InitializerTargetT<Args>...>,
-                                     std::tuple<WrappingDigester>>>,
+                    absl::negation<std::is_same<std::tuple<TargetT<Args>...>,
+                                                std::tuple<WrappingDigester>>>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {

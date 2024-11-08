@@ -594,9 +594,8 @@ class RecordReaderBase : public Object {
 // `ChunkReader*` (not owned), `DefaultChunkReader<>` (owned),
 // `std::unique_ptr<ChunkReader>` (owned), `Any<ChunkReader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The byte `Reader` or `ChunkReader` must not be accessed until the
 // `RecordReader` is closed or no longer used.
@@ -646,7 +645,7 @@ explicit RecordReader(Closed) -> RecordReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit RecordReader(
     Src&& src, RecordReaderBase::Options options = RecordReaderBase::Options())
-    -> RecordReader<InitializerTargetT<Src>>;
+    -> RecordReader<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

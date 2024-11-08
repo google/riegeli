@@ -80,10 +80,10 @@ using CompactStringWriterBase = ResizableWriterBase;
 //
 // By relying on CTAD the template argument can be deduced as `CompactString`
 // if there are no constructor arguments or the only argument is `Options`,
-// otherwise as `InitializerTargetT` of the type of the first constructor
-// argument, except that CTAD is deleted if the first constructor argument is a
-// `CompactString&` or `const CompactString&` (to avoid writing to an
-// unintentionally separate copy of an existing object). This requires C++17.
+// otherwise as `TargetT` of the type of the first constructor argument, except
+// that CTAD is deleted if the first constructor argument is a `CompactString&`
+// or `const CompactString&` (to avoid writing to an unintentionally separate
+// copy of an existing object). This requires C++17.
 //
 // The `CompactString` must not be accessed until the `CompactStringWriter` is
 // closed or no longer used, except that it is allowed to read the
@@ -110,7 +110,7 @@ explicit CompactStringWriter(Dest&& dest,
         absl::conjunction<std::is_lvalue_reference<Dest>,
                           std::is_convertible<std::remove_reference_t<Dest>*,
                                               const CompactString*>>::value,
-        DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
+        DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit CompactStringWriter(CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())
     -> CompactStringWriter<CompactString>;

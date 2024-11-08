@@ -96,9 +96,8 @@ class WrappingBackwardWriterBase : public BackwardWriter {
 // `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
 // `Any<BackwardWriter*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `BackwardWriter` must not be accessed until the
 // `WrappingBackwardWriter` is closed or no longer used, except that it is
@@ -151,7 +150,7 @@ explicit WrappingBackwardWriter(Closed)
     -> WrappingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WrappingBackwardWriter(Dest&& dest)
-    -> WrappingBackwardWriter<InitializerTargetT<Dest>>;
+    -> WrappingBackwardWriter<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

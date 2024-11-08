@@ -61,18 +61,16 @@ class AnyInitializer {
   // An `Any` will be empty.
   AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
 
-  // An `Any` will hold a `Dependency<Handle, InitializerTargetT<Manager>>`.
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<
-                  std::is_same<std::decay_t<Manager>, AnyInitializer>>,
-              absl::disjunction<
-                  any_internal::IsAny<Handle, InitializerTargetT<Manager>>,
-                  IsValidDependency<Handle, InitializerTargetT<Manager>>>>::
-              value,
-          int> = 0>
+  // An `Any` will hold a `Dependency<Handle, TargetT<Manager>>`.
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<
+                        std::is_same<std::decay_t<Manager>, AnyInitializer>>,
+                    absl::disjunction<
+                        any_internal::IsAny<Handle, TargetT<Manager>>,
+                        IsValidDependency<Handle, TargetT<Manager>>>>::value,
+                int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),
         context_(std::forward<Manager>(manager)) {}
@@ -97,17 +95,15 @@ class AnyInitializer {
                                    size_t available_align);
 
   template <typename Manager,
-            std::enable_if_t<!any_internal::IsAny<
-                                 Handle, InitializerTargetT<Manager>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                !any_internal::IsAny<Handle, TargetT<Manager>>::value, int> = 0>
   static void ConstructMethod(TypeErasedRef context,
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
                               size_t available_align);
   template <typename Manager,
             std::enable_if_t<
-                any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value,
-                int> = 0>
+                any_internal::IsAny<Handle, TargetT<Manager>>::value, int> = 0>
   static void ConstructMethod(TypeErasedRef context,
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
@@ -140,14 +136,13 @@ void AnyInitializer<Handle>::ConstructMethodEmpty(
 }
 
 template <typename Handle>
-template <
-    typename Manager,
-    std::enable_if_t<
-        !any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value, int>>
+template <typename Manager,
+          std::enable_if_t<
+              !any_internal::IsAny<Handle, TargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, MethodsAndHandle& methods_and_handle,
     Storage storage, size_t available_size, size_t available_align) {
-  using Target = InitializerTargetT<Manager>;
+  using Target = TargetT<Manager>;
   // This is equivalent to calling `MethodsFor<Target, true>::Construct()`
   // or `MethodsFor<Target, false>::Construct()`. Separate allocation of
   // `Dependency<Handle, Target>` from its construction, so that the code for
@@ -197,12 +192,11 @@ void AnyInitializer<Handle>::ConstructMethod(
 template <typename Handle>
 template <
     typename Manager,
-    std::enable_if_t<
-        any_internal::IsAny<Handle, InitializerTargetT<Manager>>::value, int>>
+    std::enable_if_t<any_internal::IsAny<Handle, TargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, MethodsAndHandle& methods_and_handle,
     Storage storage, size_t available_size, size_t available_align) {
-  using Target = InitializerTargetT<Manager>;
+  using Target = TargetT<Manager>;
   // Materialize `Target` to consider adopting its storage.
   [&](Target&& target) {
     // `target.methods_and_handle_.methods->used_size <=
@@ -246,8 +240,7 @@ void AnyInitializer<Handle>::ConstructMethod(
     // necessary: `Target` is always an `Any`, never an lvalue reference.
     MethodsFor<Target, /*is_inline=*/false>::Construct(
         storage, &methods_and_handle.handle, std::move(target));
-  }(Initializer<InitializerTargetT<Manager>>(context.Cast<Manager>())
-        .Reference());
+  }(Initializer<TargetT<Manager>>(context.Cast<Manager>()).Reference());
 }
 
 }  // namespace riegeli

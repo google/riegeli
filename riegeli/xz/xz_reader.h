@@ -211,9 +211,8 @@ class XzReaderBase : public BufferedReader {
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Reader` must not be accessed until the `XzReader` is closed
 // or no longer used.
@@ -261,7 +260,7 @@ explicit XzReader(Closed) -> XzReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit XzReader(Src&& src,
                   XzReaderBase::Options options = XzReaderBase::Options())
-    -> XzReader<InitializerTargetT<Src>>;
+    -> XzReader<TargetT<Src>>;
 #endif
 
 // Returns `true` if the data look like they have been Xz-compressed with

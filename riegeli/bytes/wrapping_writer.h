@@ -101,9 +101,8 @@ class WrappingWriterBase : public Writer {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The original `Writer` must not be accessed until the `WrappingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -151,8 +150,7 @@ class WrappingWriter : public WrappingWriterBase {
 #if __cpp_deduction_guides
 explicit WrappingWriter(Closed) -> WrappingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit WrappingWriter(Dest&& dest)
-    -> WrappingWriter<InitializerTargetT<Dest>>;
+explicit WrappingWriter(Dest&& dest) -> WrappingWriter<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

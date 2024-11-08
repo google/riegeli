@@ -79,8 +79,8 @@ class StringReaderBase : public Reader {
 // `absl::string_view` if there are no constructor arguments or if the first
 // constructor argument is an lvalue reference to a type convertible to
 // `absl::string_view` (to avoid unintended string copying), or `const char*`
-// (to compute `std::strlen()` early), otherwise as `InitializerTargetT` of the
-// type of the first constructor argument. This requires C++17.
+// (to compute `std::strlen()` early), otherwise as `TargetT` of the type of the
+// first constructor argument. This requires C++17.
 //
 // It might be better to use `ChainReader<Chain>` instead of
 // `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
@@ -156,7 +156,7 @@ explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
         absl::conjunction<std::is_lvalue_reference<Src>,
                           std::is_convertible<Src, absl::string_view>>,
         std::is_convertible<Src&&, const char*>>::value,
-    absl::string_view, InitializerTargetT<Src>>>;
+    absl::string_view, TargetT<Src>>>;
 StringReader() -> StringReader<>;
 explicit StringReader(const char* src, size_t size) -> StringReader<>;
 #endif

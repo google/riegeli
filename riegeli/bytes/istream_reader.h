@@ -137,9 +137,8 @@ class IStreamReaderBase : public BufferedReader {
 // `std::ifstream` (owned), `std::unique_ptr<std::istream>` (owned),
 // `Any<std::istream*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // Warning: if random access is not supported and the stream is not owned,
 // it will have an unpredictable amount of extra data consumed because of
@@ -189,7 +188,7 @@ explicit IStreamReader(Closed) -> IStreamReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit IStreamReader(Src&& src, IStreamReaderBase::Options options =
                                       IStreamReaderBase::Options())
-    -> IStreamReader<InitializerTargetT<Src>>;
+    -> IStreamReader<TargetT<Src>>;
 #endif
 
 // Implementation details follow.

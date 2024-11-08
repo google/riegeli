@@ -1702,7 +1702,7 @@ class ExternalRef {
    private:
     friend class ExternalRef;
 
-    using T = InitializerTargetRefT<Arg>;
+    using T = TargetRefT<Arg>;
 
     void Initialize(Arg arg, absl::string_view substr) {
       StorageBase::Initialize(substr);
@@ -1821,34 +1821,34 @@ class ExternalRef {
   struct StorageWholeImpl;
 
   template <typename Arg>
-  struct StorageWholeImpl<
-      Arg, std::enable_if_t<!HasCallOperator<
-               absl::remove_cvref_t<InitializerTargetRefT<Arg>>>::value>> {
-    using type = StorageWholeWithoutCallOperator<InitializerTargetRefT<Arg>>;
+  struct StorageWholeImpl<Arg,
+                          std::enable_if_t<!HasCallOperator<
+                              absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
+    using type = StorageWholeWithoutCallOperator<TargetRefT<Arg>>;
   };
 
   template <typename Arg>
   struct StorageWholeImpl<
-      Arg, std::enable_if_t<HasCallOperator<
-               absl::remove_cvref_t<InitializerTargetRefT<Arg>>>::value>> {
-    using type = StorageWholeWithCallOperator<InitializerTargetRefT<Arg>>;
+      Arg, std::enable_if_t<
+               HasCallOperator<absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
+    using type = StorageWholeWithCallOperator<TargetRefT<Arg>>;
   };
 
   template <typename Arg, typename Enable = void>
   struct StorageSubstrImpl;
 
   template <typename Arg>
-  struct StorageSubstrImpl<
-      Arg, std::enable_if_t<!HasCallOperator<
-               absl::remove_cvref_t<InitializerTargetRefT<Arg>>>::value>> {
+  struct StorageSubstrImpl<Arg,
+                           std::enable_if_t<!HasCallOperator<
+                               absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
     using type = StorageSubstrWithoutCallOperator<Arg>;
   };
 
   template <typename Arg>
   struct StorageSubstrImpl<
-      Arg, std::enable_if_t<HasCallOperator<
-               absl::remove_cvref_t<InitializerTargetRefT<Arg>>>::value>> {
-    using type = StorageSubstrWithCallOperator<InitializerTargetRefT<Arg>>;
+      Arg, std::enable_if_t<
+               HasCallOperator<absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
+    using type = StorageSubstrWithCallOperator<TargetRefT<Arg>>;
   };
 
  public:
@@ -1869,10 +1869,9 @@ class ExternalRef {
   // The object must support `riegeli::ToStringView()`.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
-  template <
-      typename Arg,
-      std::enable_if_t<
-          SupportsExternalRefWhole<InitializerTargetRefT<Arg>>::value, int> = 0>
+  template <typename Arg,
+            std::enable_if_t<SupportsExternalRefWhole<TargetRefT<Arg>>::value,
+                             int> = 0>
   explicit ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        StorageWhole<Arg&&>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1888,9 +1887,8 @@ class ExternalRef {
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
   template <typename Arg,
-            std::enable_if_t<
-                SupportsExternalRefSubstr<InitializerTargetRefT<Arg>>::value,
-                int> = 0>
+            std::enable_if_t<SupportsExternalRefSubstr<TargetRefT<Arg>>::value,
+                             int> = 0>
   explicit ExternalRef(
       Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
       StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
@@ -1907,8 +1905,7 @@ class ExternalRef {
   // responsible for using an appropriate type of the external object.
   template <
       typename Arg,
-      std::enable_if_t<SupportsToStringView<InitializerTargetRefT<Arg>>::value,
-                       int> = 0>
+      std::enable_if_t<SupportsToStringView<TargetRefT<Arg>>::value, int> = 0>
   static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           StorageWhole<Arg&&>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND =

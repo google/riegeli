@@ -177,9 +177,8 @@ class DefaultChunkWriterBase : public ChunkWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The byte `Writer` must not be accessed until the `DefaultChunkWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -231,7 +230,7 @@ template <typename Dest>
 explicit DefaultChunkWriter(
     Dest&& dest,
     DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<InitializerTargetT<Dest>>;
+    -> DefaultChunkWriter<TargetT<Dest>>;
 #endif
 
 // Specialization of `DependencyImpl<ChunkWriter*, Manager>` adapted from

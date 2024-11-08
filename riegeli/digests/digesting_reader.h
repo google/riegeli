@@ -114,9 +114,9 @@ class DigestingReaderBase : public Reader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the `Digester` template argument can be deduced as
-// `InitializerTargetT` of the type of the `digester` constructor argument, and
-// the `Src` template argument can be deduced as `InitializerTargetT` of the
-// type of the `src` constructor argument. This requires C++17.
+// `TargetT` of the type of the `digester` constructor argument, and the `Src`
+// template argument can be deduced as `TargetT` of the type of the `src`
+// constructor argument. This requires C++17.
 //
 // The original `Reader` must not be accessed until the `DigestingReader` is
 // closed or no longer used.
@@ -215,7 +215,7 @@ class DigestingReader : public DigestingReaderBase {
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
 explicit DigestingReader(Src&& src, Digester&& digester)
-    -> DigestingReader<InitializerTargetT<Digester>, InitializerTargetT<Src>>;
+    -> DigestingReader<TargetT<Digester>, TargetT<Src>>;
 #endif
 
 // Reads all remaining data from `src` and returns their digest.

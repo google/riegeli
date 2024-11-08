@@ -233,10 +233,10 @@ class ChainWriterBase : public Writer {
 //
 // By relying on CTAD the template argument can be deduced as `Chain` if there
 // are no constructor arguments or the only argument is `Options`, otherwise as
-// `InitializerTargetT` of the type of the first constructor argument, except
-// that CTAD is deleted if the first constructor argument is a `Chain&` or
-// `const Chain&` (to avoid writing to an unintentionally separate copy of an
-// existing object). This requires C++17.
+// `TargetT` of the type of the first constructor argument, except that CTAD
+// is deleted if the first constructor argument is a `Chain&` or `const Chain&`
+// (to avoid writing to an unintentionally separate copy of an existing object).
+// This requires C++17.
 //
 // The `Chain` must not be accessed until the `ChainWriter` is closed or no
 // longer used, except that it is allowed to read the `Chain` immediately after
@@ -300,7 +300,7 @@ explicit ChainWriter(
         absl::conjunction<std::is_lvalue_reference<Dest>,
                           std::is_convertible<std::remove_reference_t<Dest>*,
                                               const Chain*>>::value,
-        DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
+        DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ChainWriter(ChainWriterBase::Options options =
                          ChainWriterBase::Options()) -> ChainWriter<Chain>;
 #endif

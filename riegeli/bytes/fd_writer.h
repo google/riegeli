@@ -493,9 +493,8 @@ class FdWriterBase : public BufferedWriter {
 // `UnownedFd` (not owned), `AnyFd` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
-// first constructor argument is a filename or an `int`, otherwise as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// first constructor argument is a filename or an `int`, otherwise as `TargetT`
+// of the type of the first constructor argument. This requires C++17.
 //
 // Until the `FdWriter` is closed or no longer used, the fd must not be closed.
 // Additionally, if `Options::independent_pos() == absl::nullopt`
@@ -595,7 +594,7 @@ explicit FdWriter(Dest&& dest,
             std::is_convertible<Dest&&, int>,
             std::is_convertible<
                 Dest&&, Initializer<std::string>::AllowingExplicit>>::value,
-        OwnedFd, InitializerTargetT<Dest>>>;
+        OwnedFd, TargetT<Dest>>>;
 explicit FdWriter(int dir_fd,
                   Initializer<std::string>::AllowingExplicit filename,
                   FdWriterBase::Options options = FdWriterBase::Options())

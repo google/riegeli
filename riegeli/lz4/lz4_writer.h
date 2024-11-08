@@ -318,9 +318,8 @@ class Lz4WriterBase : public BufferedWriter {
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `Any<Writer*>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument.
-// This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument. This requires C++17.
 //
 // The compressed `Writer` must not be accessed until the `Lz4Writer` is closed
 // or no longer used, except that it is allowed to read the destination of the
@@ -368,7 +367,7 @@ explicit Lz4Writer(Closed) -> Lz4Writer<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit Lz4Writer(Dest&& dest,
                    Lz4WriterBase::Options options = Lz4WriterBase::Options())
-    -> Lz4Writer<InitializerTargetT<Dest>>;
+    -> Lz4Writer<TargetT<Dest>>;
 #endif
 
 // Implementation details follow.

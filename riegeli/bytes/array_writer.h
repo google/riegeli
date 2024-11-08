@@ -105,12 +105,12 @@ class ArrayWriterBase : public PushableWriter {
 // `absl::Span<char>` (not owned, default), `std::string*` (not owned),
 // `std::string` (owned), `Any<absl::Span<char>>` (maybe owned).
 //
-// By relying on CTAD the template argument can be deduced as
-// `InitializerTargetT` of the type of the first constructor argument, except
-// that CTAD is deleted if the first constructor argument is a reference to a
-// type that `absl::Span<char>` would be constructible from, other than
-// `absl::Span<char>` itself (to avoid writing to an unintentionally separate
-// copy of an existing object). This requires C++17.
+// By relying on CTAD the template argument can be deduced as `TargetT` of the
+// type of the first constructor argument, except that CTAD is deleted if the
+// first constructor argument is a reference to a type that `absl::Span<char>`
+// would be constructible from, other than `absl::Span<char>` itself (to avoid
+// writing to an unintentionally separate copy of an existing object). This
+// requires C++17.
 //
 // The array must not be destroyed until the `ArrayWriter` is closed or no
 // longer used.
@@ -169,7 +169,7 @@ explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
         std::is_lvalue_reference<Dest>,
         std::is_constructible<absl::Span<char>, Dest>,
         absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::value,
-    DeleteCtad<Dest&&>, InitializerTargetT<Dest>>>;
+    DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ArrayWriter(char* dest, size_t size) -> ArrayWriter<absl::Span<char>>;
 #endif
 
