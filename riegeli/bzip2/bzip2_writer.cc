@@ -27,6 +27,7 @@
 #include "bzlib.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -52,7 +53,7 @@ void Bzip2WriterBase::Initialize(Writer* dest, int compression_level) {
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  compressor_.reset(new bz_stream());
+  compressor_ = riegeli::Maker<bz_stream>();
   const int bzlib_code =
       BZ2_bzCompressInit(compressor_.get(), compression_level, 0, 0);
   if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {

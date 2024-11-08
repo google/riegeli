@@ -28,6 +28,7 @@
 #include "bzlib.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -48,7 +49,7 @@ void Bzip2ReaderBase::Initialize(Reader* src) {
 }
 
 inline void Bzip2ReaderBase::InitializeDecompressor() {
-  decompressor_.reset(new bz_stream());
+  decompressor_ = riegeli::Maker<bz_stream>();
   const int bzlib_code = BZ2_bzDecompressInit(decompressor_.get(), 0, 0);
   if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {
     delete decompressor_.release();  // Skip `BZ2_bzDecompressEnd()`.

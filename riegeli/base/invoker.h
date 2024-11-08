@@ -17,12 +17,14 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -202,6 +204,14 @@ template <typename Function, typename... Args>
 class InvokerType
     : public invoker_internal::InvokerConditionalConversion<void, Function,
                                                             Args...> {
+ private:
+  template <typename DependentFunction = Function>
+  using Result =
+      typename InvokerType::InvokerBase::template Result<DependentFunction>;
+  template <typename DependentFunction = Function>
+  using ConstResult = typename InvokerType::InvokerBase::template ConstResult<
+      DependentFunction>;
+
  public:
   using InvokerType::InvokerConditionalConversion::InvokerConditionalConversion;
 
@@ -210,6 +220,174 @@ class InvokerType
 
   InvokerType(const InvokerType& that) = default;
   InvokerType& operator=(const InvokerType& that) = default;
+
+  // Invokes the function and stores `std::decay_t` of the result of invocation
+  // on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
+  template <
+      typename Target, typename Deleter, typename DependentFunction = Function,
+      std::enable_if_t<
+          absl::conjunction<
+              IsConstructibleFromResult<std::decay_t<Result<DependentFunction>>,
+                                        Result<DependentFunction>>,
+              std::is_convertible<std::decay_t<Result<DependentFunction>>*,
+                                  Target*>>::value,
+          int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
+    return std::move(*this).template UniquePtr<Deleter>();
+  }
+  template <
+      typename Target, typename Deleter, typename DependentFunction = Function,
+      std::enable_if_t<
+          absl::conjunction<
+              IsConstructibleFromResult<
+                  std::decay_t<ConstResult<DependentFunction>>,
+                  ConstResult<DependentFunction>>,
+              std::is_convertible<std::decay_t<ConstResult<DependentFunction>>*,
+                                  Target*>>::value,
+          int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
+    return UniquePtr<Deleter>();
+  }
+
+  // Invokes the function and stores `std::decay_t` of the result of invocation
+  // on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // Usually conversion to `std::unique_ptr` is preferred because it leads to
+  // simpler source code. An explicit `UniquePtr()` call can force construction
+  // right away while avoiding writing the full target type, and it allows to
+  // use a non-default-constructed deleter.
+  //
+  // The `default_deleter` template parameter lets `UniquePtr<T>()` with an
+  // explicit template argument unambiguously call another overload of
+  // `UniquePtr()`.
+
+  template <int default_deleter = 0, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<Result<DependentFunction>>,
+                                 Result<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<Result<DependentFunction>>> UniquePtr() && {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<Result<>>>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<Result<>>*>(ptr)));
+  }
+  template <int default_deleter = 0, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<ConstResult<DependentFunction>>,
+                                 ConstResult<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<ConstResult<DependentFunction>>> UniquePtr()
+      const& {
+    void* const ptr =
+        initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
+    ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<ConstResult<>>>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<ConstResult<>>*>(ptr)));
+  }
+
+  template <typename Deleter, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<Result<DependentFunction>>,
+                                 Result<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<Result<DependentFunction>>, Deleter>
+  UniquePtr() && {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<Result<>>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<Result<>>*>(ptr)));
+  }
+  template <typename Deleter, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<ConstResult<DependentFunction>>,
+                                 ConstResult<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<ConstResult<DependentFunction>>, Deleter>
+  UniquePtr() const& {
+    void* const ptr =
+        initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
+    ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<ConstResult<>>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<ConstResult<>>*>(ptr)));
+  }
+
+  template <typename Deleter, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<Result<DependentFunction>>,
+                                 Result<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<Result<DependentFunction>>, Deleter> UniquePtr(
+      Deleter&& deleter) && {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<Result<>>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<Result<>>*>(ptr)),
+        std::forward<Deleter>(deleter));
+  }
+  template <typename Deleter, typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<ConstResult<DependentFunction>>,
+                                 ConstResult<DependentFunction>>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<ConstResult<DependentFunction>>, Deleter>
+  UniquePtr(Deleter&& deleter) const& {
+    void* const ptr =
+        initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
+    ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<ConstResult<>>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<ConstResult<>>*>(ptr)),
+        std::forward<Deleter>(deleter));
+  }
+
+  // Invokes the function and stores `std::decay_t` of the result of invocation
+  // at `ptr` using placement `new`.
+  template <typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<Result<DependentFunction>>,
+                                 Result<DependentFunction>>::value,
+                             int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) std::decay_t<Result<>>(std::move(*this));
+  }
+  template <typename DependentFunction = Function,
+            std::enable_if_t<IsConstructibleFromResult<
+                                 std::decay_t<ConstResult<DependentFunction>>,
+                                 ConstResult<DependentFunction>>::value,
+                             int> = 0>
+  void ConstructAt(void* ptr) const& {
+    new (ptr) std::decay_t<ConstResult<>>(*this);
+  }
 };
 
 // Support CTAD.

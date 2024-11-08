@@ -29,6 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -78,7 +79,8 @@ inline void ZlibReaderBase::InitializeDecompressor() {
       RecyclingPool<z_stream, ZStreamDeleter>::global(recycling_pool_options_)
           .Get(
               [&] {
-                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                auto ptr =
+                    riegeli::Maker<z_stream>().UniquePtr<ZStreamDeleter>();
                 const int zlib_code = inflateInit2(ptr.get(), window_bits_);
                 if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
                   FailOperation("inflateInit2()", zlib_code);
@@ -327,7 +329,8 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
       RecyclingPool<z_stream, ZStreamDeleter>::global(recycling_pool_options)
           .Get(
               [&] {
-                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                auto ptr =
+                    riegeli::Maker<z_stream>().UniquePtr<ZStreamDeleter>();
                 zlib_code = inflateInit2(ptr.get(), window_bits);
                 return ptr;
               },

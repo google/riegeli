@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <cstddef>
+#include <memory>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -98,11 +99,11 @@ class
   template <typename SubT,
             std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   /*implicit*/ SharedPtr(const SharedPtr<SubT>& that) noexcept
-      : ptr_(UpCast(Ref(that.ptr_))) {}
+      : ptr_(UpCast(Ref(that.ptr_.get()))) {}
   template <typename SubT,
             std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   SharedPtr& operator=(const SharedPtr<SubT>& that) noexcept {
-    Unref(std::exchange(ptr_, UpCast(Ref(that.ptr_))));
+    ptr_.reset(UpCast(Ref(that.ptr_.get())));
     return *this;
   }
 
@@ -116,30 +117,25 @@ class
   template <typename SubT,
             std::enable_if_t<IsCompatibleProperSubtype<SubT>::value, int> = 0>
   SharedPtr& operator=(SharedPtr<SubT>&& that) noexcept {
-    Unref(std::exchange(ptr_, UpCast(that.Release())));
+    ptr_.reset(UpCast(that.Release()));
     return *this;
   }
 
-  SharedPtr(const SharedPtr& that) noexcept : ptr_(Ref(that.ptr_)) {}
+  SharedPtr(const SharedPtr& that) noexcept : ptr_(Ref(that.ptr_.get())) {}
   SharedPtr& operator=(const SharedPtr& that) noexcept {
-    Unref(std::exchange(ptr_, Ref(that.ptr_)));
+    ptr_.reset(Ref(that.ptr_.get()));
     return *this;
   }
 
   // The source `SharedPtr` is left empty.
-  SharedPtr(SharedPtr&& that) noexcept : ptr_(that.Release()) {}
-  SharedPtr& operator=(SharedPtr&& that) noexcept {
-    Unref(std::exchange(ptr_, that.Release()));
-    return *this;
-  }
-
-  ~SharedPtr() { Unref(ptr_); }
+  SharedPtr(SharedPtr&& that) = default;
+  SharedPtr& operator=(SharedPtr&& that) = default;
 
   // Makes `*this` empty.
   //
   // The old object, if any, is destroyed afterwards.
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(std::nullptr_t = nullptr) { Unref(std::exchange(ptr_, nullptr)); }
+  void Reset(std::nullptr_t = nullptr) { ptr_.reset(); }
 
   // Replaces the object with a constructed value.
   //
@@ -159,8 +155,8 @@ class
       std::enable_if_t<
           IsCompatibleProperSubtype<TargetT<SubInitializer>>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
-    Unref(std::exchange(ptr_, UpCast(New<TargetT<SubInitializer>>(
-                                  std::forward<SubInitializer>(value)))));
+    ptr_.reset(UpCast(
+        New<TargetT<SubInitializer>>(std::forward<SubInitializer>(value))));
   }
 
   // Returns `true` if `*this` is the only owner of the object.
@@ -170,7 +166,7 @@ class
   //
   // If `*this` is empty, returns `false`.
   bool IsUnique() const {
-    return ptr_ != nullptr && ref_count(ptr_).HasUniqueOwner();
+    return ptr_ != nullptr && ref_count(ptr_.get()).HasUniqueOwner();
   }
 
   // Returns the current reference count.
@@ -183,11 +179,11 @@ class
   // The reference count can be reliably compared against 1 with `IsUnique()`.
   size_t GetRefCount() const {
     if (ptr_ == nullptr) return 0;
-    return ref_count(ptr_).GetCount();
+    return ref_count(ptr_.get()).GetCount();
   }
 
   // Returns the pointer.
-  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_; }
+  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_.get(); }
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -198,7 +194,7 @@ class
   T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_NE(ptr_, nullptr)
         << "Failed precondition of SharedPtr::operator->: null pointer";
-    return ptr_;
+    return ptr_.get();
   }
 
   // Returns the pointer, releasing its ownership; the `SharedPtr` is left
@@ -206,12 +202,14 @@ class
   //
   // If the returned pointer is `nullptr`, it allowed but not required to call
   // `DeleteReleased()`.
-  T* Release() { return std::exchange(ptr_, nullptr); }
+  T* Release() { return ptr_.release(); }
 
   // Deletes the pointer obtained by `Release()`.
   //
   // Does nothing if `ptr == nullptr`.
-  static void DeleteReleased(T* ptr) { Unref(ptr); }
+  static void DeleteReleased(T* ptr) {
+    if (ptr != nullptr) Unrefer()(ptr);
+  }
 
   template <typename OtherT>
   friend bool operator==(const SharedPtr& a, const SharedPtr<OtherT>& b) {
@@ -276,6 +274,12 @@ class
 
     void (*destroy)(void* ptr);
     RefCount ref_count;
+  };
+
+  struct Unrefer {
+    void operator()(T* ptr) const {
+      if (ref_count(ptr).Unref()) Delete(ptr);
+    }
   };
 
   template <typename SubT>
@@ -402,10 +406,6 @@ class
     return ptr;
   }
 
-  static void Unref(T* ptr) {
-    if (ptr != nullptr && ref_count(ptr).Unref()) Delete(ptr);
-  }
-
   template <typename DependentT>
   struct IsAssignable
       : public absl::conjunction<
@@ -421,12 +421,12 @@ class
       *ptr_ = std::move(value);
       return;
     }
-    Unref(std::exchange(ptr_, New(std::move(value))));
+    ptr_.reset(New(std::move(value)));
   }
   template <typename DependentT = T,
             std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
-    Unref(std::exchange(ptr_, New(std::move(value))));
+    ptr_.reset(New(std::move(value)));
   }
 
   template <typename MemoryEstimator, typename DependentT = T,
@@ -435,10 +435,10 @@ class
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
     void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
+        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
         kOffset;
     memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
-    memory_estimator.RegisterSubobjects(ptr_);
+    memory_estimator.RegisterSubobjects(ptr_.get());
   }
   template <typename MemoryEstimator, typename DependentT = T,
             std::enable_if_t<
@@ -448,10 +448,10 @@ class
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_)) -
+        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
         kOffset;
     memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
-    memory_estimator.RegisterSubobjects(ptr_);
+    memory_estimator.RegisterSubobjects(ptr_.get());
   }
   template <
       typename MemoryEstimator, typename DependentT = T,
@@ -465,11 +465,11 @@ class
     // subtype of `T`, so do not pass `allocated_ptr` to
     // `RegisterDynamicMemory()`.
     memory_estimator.RegisterDynamicMemory(
-        kOffset + memory_estimator.DynamicSizeOf(ptr_));
-    memory_estimator.RegisterSubobjects(ptr_);
+        kOffset + memory_estimator.DynamicSizeOf(ptr_.get()));
+    memory_estimator.RegisterSubobjects(ptr_.get());
   }
 
-  T* ptr_ = nullptr;
+  std::unique_ptr<T, Unrefer> ptr_;
 };
 
 #if __cpp_deduction_guides

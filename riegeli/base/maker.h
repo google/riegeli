@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <new>  // IWYU pragma: keep
 #include <tuple>
 #include <type_traits>
@@ -25,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
+#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
@@ -80,22 +82,82 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
     return absl::make_from_tuple<T>(args_);
   }
 
-  // Constructs the `T` at `ptr` using placement `new`.
-  template <typename T,
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  template <
+      typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
+      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
+                       int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
+    std::move(*this).template ConstructAt<T>(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)));
+  }
+  template <
+      typename T, typename Deleter,
+      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
+                       int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
+    std::move(*this).template ConstructAt<T>(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)),
+        std::forward<Deleter>(deleter));
+  }
+  template <typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
             std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  std::is_constructible<T, Args&&...>>::value,
+                std::is_constructible<std::decay_t<T>, const Args&...>::value,
                 int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() const& {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
+    ConstructAt<T>(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)));
+  }
+  template <typename T, typename Deleter,
+            std::enable_if_t<
+                std::is_constructible<std::decay_t<T>, const Args&...>::value,
+                int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(
+      Deleter&& deleter) const& {
+    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
+    ConstructAt<T>(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)),
+        std::forward<Deleter>(deleter));
+  }
+
+  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
+                       int> = 0>
   void ConstructAt(void* ptr) && {
     std::move(*this).template ConstructAtImpl<T>(
         ptr, std::index_sequence_for<Args...>());
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_reference<T>>,
-                            std::is_constructible<T, const Args&...>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                std::is_constructible<std::decay_t<T>, const Args&...>::value,
+                int> = 0>
   void ConstructAt(void* ptr) const& {
     ConstructAtImpl<T>(ptr, std::index_sequence_for<Args...>());
   }
@@ -200,11 +262,11 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
  private:
   template <typename T, size_t... indices>
   void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) && {
-    new (ptr) T(std::forward<Args>(std::get<indices>(args_))...);
+    new (ptr) std::decay_t<T>(std::forward<Args>(std::get<indices>(args_))...);
   }
   template <typename T, size_t... indices>
   void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) const& {
-    new (ptr) T(std::get<indices>(args_)...);
+    new (ptr) std::decay_t<T>(std::get<indices>(args_)...);
   }
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
@@ -283,22 +345,86 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
     return this->maker().template Construct<T>();
   }
 
-  // Constructs the `T` at `ptr` using placement `new`.
-  template <
-      typename DependentT = T,
-      std::enable_if_t<absl::conjunction<
-                           absl::negation<std::is_reference<DependentT>>,
-                           std::is_constructible<DependentT, Args&&...>>::value,
-                       int> = 0>
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports deducing class template
+  // arguments and custom deleters.
+  //
+  // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::is_constructible<std::decay_t<T>, Args&&...>,
+                    std::is_convertible<std::decay_t<T>*, Target*>>::value,
+                int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
+    return std::move(*this).template UniquePtr<Deleter>();
+  }
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::is_constructible<std::decay_t<T>, const Args&...>,
+                    std::is_convertible<std::decay_t<T>*, Target*>>::value,
+                int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
+    return UniquePtr<Deleter>();
+  }
+
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports deducing class template
+  // arguments and custom deleters.
+  //
+  // Usually conversion to `std::unique_ptr` is preferred because it leads to
+  // simpler source code. An explicit `UniquePtr()` call can force construction
+  // right away while avoiding writing the full target type, and it allows to
+  // use a non-default-constructed deleter.
+  template <typename Deleter = std::default_delete<std::decay_t<T>>,
+            typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   Args&&...>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
+    return std::move(*this).maker().template UniquePtr<T, Deleter>();
+  }
+  template <typename Deleter, typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   Args&&...>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
+    return std::move(*this).maker().template UniquePtr<T, Deleter>(
+        std::forward<Deleter>(deleter));
+  }
+  template <typename Deleter = std::default_delete<std::decay_t<T>>,
+            typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   const Args&...>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() const& {
+    return this->maker().template UniquePtr<T, Deleter>();
+  }
+  template <typename Deleter, typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   const Args&...>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(
+      Deleter&& deleter) const& {
+    return this->maker().template UniquePtr<T, Deleter>(
+        std::forward<Deleter>(deleter));
+  }
+
+  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
+  template <typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   Args&&...>::value,
+                             int> = 0>
   void ConstructAt(void* ptr) && {
     std::move(*this).maker().template ConstructAt<T>(ptr);
   }
   template <typename DependentT = T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_reference<DependentT>>,
-                    std::is_constructible<DependentT, const Args&...>>::value,
-                int> = 0>
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   const Args&...>::value,
+                             int> = 0>
   void ConstructAt(void* ptr) const& {
     this->maker().template ConstructAt<T>(ptr);
   }

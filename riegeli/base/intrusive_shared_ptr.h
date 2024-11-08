@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <cstddef>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -123,8 +124,7 @@ class
   //
   // The object is constructed with `new`, which means that `T::Unref()` should
   // delete the object with `delete this`.
-  explicit IntrusiveSharedPtr(Initializer<T> value)
-      : ptr_(std::move(value).MakeUnique().release()) {}
+  explicit IntrusiveSharedPtr(Initializer<T> value) : ptr_(std::move(value)) {}
 
   // Creates an `IntrusiveSharedPtr` holding a constructed value of a compatible
   // type.
@@ -137,19 +137,17 @@ class
                        int> = 0>
   explicit IntrusiveSharedPtr(SubInitializer&& value)
       : ptr_(Initializer<TargetT<SubInitializer>>(
-                 std::forward<SubInitializer>(value))
-                 .MakeUnique()
-                 .release()) {}
+            std::forward<SubInitializer>(value))) {}
 
   // Converts from an `IntrusiveSharedPtr` with a compatible type.
   template <typename SubT,
             std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
   /*implicit*/ IntrusiveSharedPtr(const IntrusiveSharedPtr<SubT>& that) noexcept
-      : ptr_(Ref(that.ptr_)) {}
+      : ptr_(Ref(that.ptr_.get())) {}
   template <typename SubT,
             std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
   IntrusiveSharedPtr& operator=(const IntrusiveSharedPtr<SubT>& that) noexcept {
-    Unref(std::exchange(ptr_, Ref(that.ptr_)));
+    ptr_.reset(Ref(that.ptr_.get()));
     return *this;
   }
 
@@ -159,43 +157,36 @@ class
   template <typename SubT,
             std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
   /*implicit*/ IntrusiveSharedPtr(IntrusiveSharedPtr<SubT>&& that) noexcept
-      : ptr_(that.Release()) {}
+      : ptr_(std::move(that).ptr_) {}
   template <typename SubT,
             std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
   IntrusiveSharedPtr& operator=(IntrusiveSharedPtr<SubT>&& that) noexcept {
-    Unref(std::exchange(ptr_, that.Release()));
+    ptr_.reset(std::move(that).ptr_);
     return *this;
   }
 
   IntrusiveSharedPtr(const IntrusiveSharedPtr& that) noexcept
-      : ptr_(Ref(that.ptr_)) {}
+      : ptr_(Ref(that.ptr_.get())) {}
   IntrusiveSharedPtr& operator=(const IntrusiveSharedPtr& that) noexcept {
-    Unref(std::exchange(ptr_, Ref(that.ptr_)));
+    ptr_.reset(Ref(that.ptr_.get()));
     return *this;
   }
 
   // The source `IntrusiveSharedPtr` is left empty.
-  IntrusiveSharedPtr(IntrusiveSharedPtr&& that) noexcept
-      : ptr_(that.Release()) {}
-  IntrusiveSharedPtr& operator=(IntrusiveSharedPtr&& that) noexcept {
-    Unref(std::exchange(ptr_, that.Release()));
-    return *this;
-  }
-
-  ~IntrusiveSharedPtr() { Unref(ptr_); }
+  IntrusiveSharedPtr(IntrusiveSharedPtr&& that) = default;
+  IntrusiveSharedPtr& operator=(IntrusiveSharedPtr&& that) = default;
 
   // Replaces the object, or makes `*this` empty if `ptr == nullptr`.
   //
   // Takes ownership of `ptr` unless the second parameter is `kShareOwnership`.
   //
   // The old object, if any, is destroyed afterwards.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T* ptr = nullptr,
-                                          PassOwnership = kPassOwnership) {
-    Unref(std::exchange(ptr_, ptr));
+  ABSL_ATTRIBUTE_REINITIALIZES
+  void Reset(T* ptr = nullptr, PassOwnership = kPassOwnership) {
+    ptr_.reset(ptr);
   }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(T* ptr, ShareOwnership) {
-    Unref(std::exchange(ptr_, Ref(ptr)));
-  }
+  ABSL_ATTRIBUTE_REINITIALIZES
+  void Reset(T* ptr, ShareOwnership) { ptr_.reset(Ref(ptr)); }
 
   // Replaces the object with a constructed value.
   //
@@ -221,10 +212,8 @@ class
       std::enable_if_t<std::is_convertible<TargetT<SubInitializer>*, T*>::value,
                        int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
-    Unref(std::exchange(ptr_, Initializer<TargetT<SubInitializer>>(
-                                  std::forward<SubInitializer>(value))
-                                  .MakeUnique()
-                                  .release()));
+    ptr_ = Initializer<TargetT<SubInitializer>>(
+        std::forward<SubInitializer>(value));
   }
 
   // Returns `true` if `*this` is the only owner of the object.
@@ -263,7 +252,7 @@ class
   }
 
   // Returns the pointer.
-  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_; }
+  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_.get(); }
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -275,11 +264,11 @@ class
     RIEGELI_ASSERT_NE(ptr_, nullptr)
         << "Failed precondition of IntrusiveSharedPtr::operator->: null "
            "pointer";
-    return ptr_;
+    return ptr_.get();
   }
 
   // Returns the pointer. This `IntrusiveSharedPtr` is left empty.
-  T* Release() { return std::exchange(ptr_, nullptr); }
+  T* Release() { return ptr_.release(); }
 
   template <typename OtherT>
   friend bool operator==(const IntrusiveSharedPtr& a,
@@ -304,7 +293,9 @@ class
   // Support `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {
     return ExternalStorage(const_cast<std::remove_cv_t<T>*>(self->Release()),
-                           [](void* ptr) { Unref(static_cast<T*>(ptr)); });
+                           [](void* ptr) {
+                             if (ptr != nullptr) static_cast<T*>(ptr)->Unref();
+                           });
   }
 
   // Support `riegeli::Debug()`.
@@ -327,14 +318,14 @@ class
   template <typename SubT>
   friend class IntrusiveSharedPtr;
 
+  struct Unrefer {
+    void operator()(T* ptr) const { ptr->Unref(); }
+  };
+
   template <typename SubT>
   static SubT* Ref(SubT* ptr) {
     if (ptr != nullptr) ptr->Ref();
     return ptr;
-  }
-
-  static void Unref(T* ptr) {
-    if (ptr != nullptr) ptr->Unref();
   }
 
   template <typename DependentT>
@@ -353,15 +344,15 @@ class
       *ptr_ = std::move(value);
       return;
     }
-    Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
+    ptr_ = std::move(value);
   }
   template <typename DependentT = T,
             std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
-    Unref(std::exchange(ptr_, std::move(value).MakeUnique().release()));
+    ptr_ = std::move(value);
   }
 
-  T* ptr_ = nullptr;
+  std::unique_ptr<T, Unrefer> ptr_;
 };
 
 #if __cpp_deduction_guides

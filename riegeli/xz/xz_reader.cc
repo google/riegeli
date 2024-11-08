@@ -29,6 +29,7 @@
 #include "lzma.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -60,10 +61,8 @@ inline void XzReaderBase::InitializeDecompressor() {
   decompressor_ =
       KeyedRecyclingPool<lzma_stream, LzmaStreamKey, LzmaStreamDeleter>::global(
           recycling_pool_options_)
-          .Get(LzmaStreamKey(container_), [] {
-            return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
-                new lzma_stream());
-          });
+          .Get(LzmaStreamKey(container_),
+               [] { return riegeli::Maker<lzma_stream>(); });
   switch (container_) {
     case Container::kXz: {
       const lzma_ret liblzma_code = lzma_stream_decoder(

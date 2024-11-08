@@ -28,6 +28,7 @@
 #include "lzma.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -72,10 +73,7 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
           .Get(LzmaStreamKey(container_,
                              container_ == Container::kXz && parallelism > 0,
                              preset),
-               [] {
-                 return std::unique_ptr<lzma_stream, LzmaStreamDeleter>(
-                     new lzma_stream());
-               });
+               [] { return riegeli::Maker<lzma_stream>(); });
   switch (container_) {
     case Container::kXz: {
       if (parallelism == 0) {

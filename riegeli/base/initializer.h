@@ -91,87 +91,6 @@ struct IsSpecial<MakerTypeFor<Target, Args...>> : std::true_type {};
 template <typename Function, typename... Args>
 struct IsSpecial<InvokerType<Function, Args...>> : std::true_type {};
 
-template <typename T, typename Enable = void>
-struct HasClassSpecificOperatorNew : std::false_type {};
-
-template <typename T>
-struct HasClassSpecificOperatorNew<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(T::operator new(std::declval<size_t>())), void*>::value>>
-    : std::true_type {};
-
-#if __cpp_aligned_new
-
-template <typename T, typename Enable = void>
-struct HasClassSpecificAlignedOperatorNew : std::false_type {};
-
-template <typename T>
-struct HasClassSpecificAlignedOperatorNew<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(T::operator new(std::declval<size_t>(),
-                                    std::declval<std::align_val_t>())),
-           void*>::value>> : std::true_type {};
-
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::integral_constant<
-                      bool, (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                  HasClassSpecificAlignedOperatorNew<T>>::value,
-              int> = 0>
-inline void* Allocate() {
-  return T::operator new(sizeof(T), std::align_val_t{alignof(T)});
-}
-
-#endif  // __cpp_aligned_new
-
-template <
-    typename T,
-    std::enable_if_t<
-        absl::conjunction<
-#if __cpp_aligned_new
-            absl::disjunction<
-                std::integral_constant<
-                    bool, (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                absl::negation<HasClassSpecificAlignedOperatorNew<T>>>,
-#endif  // __cpp_aligned_new
-            HasClassSpecificOperatorNew<T>>::value,
-        int> = 0>
-inline void* Allocate() {
-  return T::operator new(sizeof(T));
-}
-
-#if __cpp_aligned_new
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::integral_constant<
-                      bool, (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                  absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
-                  absl::negation<HasClassSpecificOperatorNew<T>>>::value,
-              int> = 0>
-inline void* Allocate() {
-  return operator new(sizeof(T), std::align_val_t{alignof(T)});
-}
-#endif  // __cpp_aligned_new
-
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<
-#if __cpp_aligned_new
-                  std::integral_constant<
-                      bool, (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                  absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
-#else   // !__cpp_aligned_new
-                  std::integral_constant<bool,
-                                         (alignof(T) <= alignof(max_align_t))>,
-#endif  // !__cpp_aligned_new
-                  absl::negation<HasClassSpecificOperatorNew<T>>>::value,
-              int> = 0>
-inline void* Allocate() {
-  return operator new(sizeof(T));
-}
-
 // Part of `Initializer<T>` for `T` being a non-reference type.
 //
 // Since C++17 which guarantees copy elision, this includes conversion to `T`.
@@ -193,21 +112,60 @@ class InitializerBase {
   T Construct() && { return methods()->construct(context()); }
 #endif
 
-  // Constructs the `T` on the heap.
-  std::unique_ptr<T> MakeUnique() && {
-    void* const ptr = Allocate<T>();
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
+    return std::move(*this).template UniquePtr<Deleter>();
+  }
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
+    return UniquePtr<Deleter>();
+  }
+
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // Usually conversion to `std::unique_ptr` is preferred because it leads to
+  // simpler source code. An explicit `UniquePtr()` call can force construction
+  // right away while avoiding writing the full target type, and it allows to
+  // use a non-default-constructed deleter.
+  template <typename Deleter = std::default_delete<std::decay_t<T>>>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
+    void* const ptr = Allocate<std::decay_t<T>>();
     std::move(*this).ConstructAt(ptr);
-    return std::unique_ptr<T>(
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
 #if __cpp_lib_launder >= 201606
         std::launder
 #endif
-        (static_cast<T*>(ptr)));
+        (static_cast<std::decay_t<T>*>(ptr)));
+  }
+  template <typename Deleter>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
+    void* const ptr = Allocate<std::decay_t<T>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)),
+        std::forward<Deleter>(deleter));
   }
 
-  // Constructs the `T` at `ptr` using placement `new`.
+  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
   void ConstructAt(void* ptr) && {
 #if __cpp_guaranteed_copy_elision
-    new (ptr) T(methods()->construct(context()));
+    new (ptr) std::decay_t<T>(methods()->construct(context()));
 #else
     methods()->construct_at(context(), ptr);
 #endif
@@ -672,6 +630,72 @@ class InitializerReference {
   // while avoiding specifying the full target type.
   T Construct() && { return methods()->construct(context()); }
 
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
+    return std::move(*this).template UniquePtr<Deleter>();
+  }
+  template <typename Target, typename Deleter,
+            std::enable_if_t<
+                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+  /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
+    return UniquePtr<Deleter>();
+  }
+
+  // Constructs the `std::decay_t<T>` on the heap.
+  //
+  // In contrast to `std::make_unique()`, this supports custom deleters.
+  //
+  // Usually conversion to `std::unique_ptr` is preferred because it leads to
+  // simpler source code. An explicit `UniquePtr()` call can force construction
+  // right away while avoiding writing the full target type, and it allows to
+  // use a non-default-constructed deleter.
+  template <typename Deleter = std::default_delete<std::decay_t<T>>,
+            typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   DependentT>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
+    void* const ptr = Allocate<std::decay_t<T>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)));
+  }
+  template <typename Deleter, typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   DependentT>::value,
+                             int> = 0>
+  std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
+    void* const ptr = Allocate<std::decay_t<T>>();
+    std::move(*this).ConstructAt(ptr);
+    return std::unique_ptr<std::decay_t<T>, Deleter>(
+
+#if __cpp_lib_launder >= 201606
+        std::launder
+#endif
+        (static_cast<std::decay_t<T>*>(ptr)),
+        std::forward<Deleter>(deleter));
+  }
+
+  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
+  template <typename DependentT = T,
+            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
+                                                   DependentT>::value,
+                             int> = 0>
+  void ConstructAt(void* ptr) && {
+    new (ptr) std::decay_t<T>(std::move(*this).Construct());
+  }
+
   // `Reference()` can be defined in terms of conversion to `T` because
   // reference storage is never used for reference types.
   //
@@ -1058,14 +1082,14 @@ T InitializerBase<T>::ConstructMethodFromConvertedReference(
 template <typename T>
 void InitializerBase<T>::ConstructAtMethodDefault(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context, void* ptr) {
-  new (ptr) T();
+  new (ptr) std::decay_t<T>();
 }
 
 template <typename T>
 template <typename Arg>
 void InitializerBase<T>::ConstructAtMethodFromObject(TypeErasedRef context,
                                                      void* ptr) {
-  new (ptr) T(context.Cast<Arg>());
+  new (ptr) std::decay_t<T>(context.Cast<Arg>());
 }
 
 template <typename T>
@@ -1086,7 +1110,7 @@ template <typename T>
 template <typename Arg>
 void InitializerBase<T>::ConstructAtMethodFromConvertedReference(
     TypeErasedRef context, void* ptr) {
-  new (ptr) T(context.Cast<Arg>().Reference());
+  new (ptr) std::decay_t<T>(context.Cast<Arg>().Reference());
 }
 
 #endif  // !__cpp_guaranteed_copy_elision

@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -83,7 +84,8 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
           .Get(
               ZStreamKey(compression_level, window_bits_),
               [&] {
-                std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+                auto ptr =
+                    riegeli::Maker<z_stream>().UniquePtr<ZStreamDeleter>();
                 const int zlib_code =
                     deflateInit2(ptr.get(), compression_level, Z_DEFLATED,
                                  window_bits_, 8, Z_DEFAULT_STRATEGY);
