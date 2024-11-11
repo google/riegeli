@@ -1,6 +1,6 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_python//python:defs.bzl", "py_library")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//python/riegeli:py_extension.bzl", "py_extension")
 
 package(

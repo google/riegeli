@@ -44,16 +44,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "protobuf",
-    version = "23.1",
+    version = "28.3",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
-    name = "rules_proto",
-    version = "4.0.0",
-)
-bazel_dep(
     name = "rules_python",
-    version = "0.31.0",
+    version = "0.36.0",
 )
 bazel_dep(
     name = "snappy",
@@ -81,12 +77,15 @@ SUPPORTED_PYTHON_VERSIONS = [
     "3.11",
     "3.12",
 ]
+
 DEFAULT_PYTHON_VERSION = SUPPORTED_PYTHON_VERSIONS[-1]
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+
 [
     python.toolchain(
-        python_version = version,
         is_default = version == DEFAULT_PYTHON_VERSION,
+        python_version = version,
     )
     for version in SUPPORTED_PYTHON_VERSIONS
 ]
