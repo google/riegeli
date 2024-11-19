@@ -65,9 +65,9 @@ class AnyInitializer {
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
-                                                        AnyInitializer>>,
-                            TargetSupportsDependency<Handle, Manager>>::value,
+          absl::conjunction<
+              absl::negation<std::is_same<TargetT<Manager>, AnyInitializer>>,
+              TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),

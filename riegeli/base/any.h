@@ -392,8 +392,6 @@ class
 #endif
         AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
  public:
-  using absl_nullability_compatible = void;
-
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
 
@@ -401,7 +399,7 @@ class
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_same<std::decay_t<Manager>, AnyRef>>,
+                    absl::negation<std::is_same<TargetT<Manager>, AnyRef>>,
                     SupportsDependency<Handle, Manager&&>>::value,
                 int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
@@ -719,7 +717,7 @@ template <
     typename Manager,
     std::enable_if_t<
         absl::conjunction<
-            absl::negation<std::is_same<std::decay_t<Manager>, AnyRef<Handle>>>,
+            absl::negation<std::is_same<TargetT<Manager>, AnyRef<Handle>>>,
             SupportsDependency<Handle, Manager&&>>::value,
         int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
