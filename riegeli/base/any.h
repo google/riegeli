@@ -149,7 +149,7 @@ class
   template <typename Manager,
             std::enable_if_t<IsAny<Handle, Manager>::value, int> = 0>
   void Initialize(Initializer<Manager> manager);
-  void Initialize(AnyInitializer<Handle> manager);
+  void InitializeFromAnyInitializer(AnyInitializer<Handle> manager);
 
   // Destroys the state, leaving it uninitialized.
   void Destroy();
@@ -260,21 +260,20 @@ class
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<
-              std::is_same<TargetT<Manager>, Any>,
-              absl::negation<std::is_same<std::decay_t<Manager>, Any>>>::value,
-          int> = 0>
-  Any& operator=(Manager&& manager) {
-    riegeli::Reset(*this, std::forward<Manager>(manager));
-    return *this;
-  }
 
   // Holds the `Dependency` specified when the `AnyInitializer` was constructed.
-  /*implicit*/ Any(AnyInitializer<Handle> manager);
-  Any& operator=(AnyInitializer<Handle> manager);
+  //
+  // `AnyInitializer` is accepted as a template parameter to avoid this
+  // constructor triggering implicit conversions of other parameter types to
+  // `AnyInitializer`, which causes template instantiation cycles.
+  template <typename Manager,
+            std::enable_if_t<
+                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+  /*implicit*/ Any(Manager manager);
+  template <typename Manager,
+            std::enable_if_t<
+                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+  Any& operator=(Manager manager);
 
   Any(Any&& that) = default;
   Any& operator=(Any&& that) = default;
@@ -617,7 +616,8 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
+inline void
+AnyBase<Handle, inline_size, inline_align>::InitializeFromAnyInitializer(
     AnyInitializer<Handle> manager) {
   std::move(manager).Construct(methods_and_handle_, repr_.storage,
                                kAvailableSize, kAvailableAlign);
@@ -696,17 +696,21 @@ Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-inline Any<Handle, inline_size, inline_align>::Any(
-    AnyInitializer<Handle> manager) {
-  this->Initialize(std::move(manager));
+template <
+    typename Manager,
+    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
+inline Any<Handle, inline_size, inline_align>::Any(Manager manager) {
+  this->InitializeFromAnyInitializer(std::move(manager));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
+template <
+    typename Manager,
+    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
 inline Any<Handle, inline_size, inline_align>&
-Any<Handle, inline_size, inline_align>::operator=(
-    AnyInitializer<Handle> manager) {
+Any<Handle, inline_size, inline_align>::operator=(Manager manager) {
   this->Destroy();
-  this->Initialize(std::move(manager));
+  this->InitializeFromAnyInitializer(std::move(manager));
   return *this;
 }
 

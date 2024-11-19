@@ -62,15 +62,13 @@ class AnyInitializer {
   AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
 
   // An `Any` will hold a `Dependency<Handle, TargetT<Manager>>`.
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<
-                        std::is_same<std::decay_t<Manager>, AnyInitializer>>,
-                    absl::disjunction<
-                        any_internal::IsAny<Handle, TargetT<Manager>>,
-                        TargetSupportsDependency<Handle, Manager>>>::value,
-                int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<std::is_same<std::decay_t<Manager>,
+                                                        AnyInitializer>>,
+                            TargetSupportsDependency<Handle, Manager>>::value,
+          int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),
         context_(std::forward<Manager>(manager)) {}
