@@ -275,6 +275,18 @@ class
                 std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
   Any& operator=(Manager manager);
 
+  // Assignment operator which materializes `Any` from its `Initializer`.
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<std::is_same<std::decay_t<Manager>, Any>>,
+                    std::is_same<TargetT<Manager>, Any>>::value,
+                int> = 0>
+  Any& operator=(Manager&& manager) {
+    riegeli::Reset(*this, std::forward<Manager>(manager));
+    return *this;
+  }
+
   Any(Any&& that) = default;
   Any& operator=(Any&& that) = default;
 
