@@ -27,6 +27,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency_manager.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
@@ -398,14 +399,14 @@ class DependencyImpl<
 
 namespace dependency_internal {
 
-// `IsValidDependencyImpl<Handle, Manager>::value` is `true` when
+// `SupportsDependencyImpl<Handle, Manager>::value` is `true` when
 // `DependencyImpl<Handle, Manager>` is defined.
 
 template <typename Handle, typename Manager, typename Enable = void>
-struct IsValidDependencyImpl : std::false_type {};
+struct SupportsDependencyImpl : std::false_type {};
 
 template <typename Handle, typename Manager>
-struct IsValidDependencyImpl<
+struct SupportsDependencyImpl<
     Handle, Manager,
     absl::void_t<
         decltype(std::declval<const DependencyImpl<Handle, Manager>&>().get())>>
@@ -425,7 +426,7 @@ class DependencyDefault;
 template <typename Handle, typename Manager>
 class DependencyDefault<
     Handle, Manager,
-    std::enable_if_t<IsValidDependencyImpl<Handle, Manager>::value>>
+    std::enable_if_t<SupportsDependencyImpl<Handle, Manager>::value>>
     : public DependencyImpl<Handle, Manager> {
  public:
   using DependencyDefault::DependencyImpl::DependencyImpl;
@@ -456,7 +457,7 @@ template <typename Handle, typename Manager>
 class DependencyDefault<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
-        absl::negation<IsValidDependencyImpl<Handle, Manager>>,
+        absl::negation<SupportsDependencyImpl<Handle, Manager>>,
         std::is_pointer<DependencyManagerPtr<Manager>>,
         std::is_constructible<Handle, DependencyManagerRef<Manager>>>::value>>
     : public DependencyManager<Manager> {
@@ -505,7 +506,7 @@ template <typename Handle, typename Manager>
 class DependencyDefault<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
-        absl::negation<IsValidDependencyImpl<Handle, Manager>>,
+        absl::negation<SupportsDependencyImpl<Handle, Manager>>,
         absl::negation<absl::conjunction<
             std::is_pointer<DependencyManagerPtr<Manager>>,
             std::is_constructible<Handle, DependencyManagerRef<Manager>>>>,
@@ -547,12 +548,12 @@ class DependencyDefault<
   ~DependencyDefault() = default;
 };
 
-// `IsValidDependencyDefault<Handle, Manager>::value` is `true` when
+// `SupportsDependencyDefault<Handle, Manager>::value` is `true` when
 // `DependencyDefault<Handle, Manager, Manager&>` is defined.
 template <typename Handle, typename Manager>
-struct IsValidDependencyDefault
+struct SupportsDependencyDefault
     : absl::disjunction<
-          dependency_internal::IsValidDependencyImpl<Handle, Manager>,
+          dependency_internal::SupportsDependencyImpl<Handle, Manager>,
           absl::conjunction<
               std::is_pointer<DependencyManagerPtr<Manager>>,
               std::is_constructible<Handle, DependencyManagerRef<Manager>>>,
@@ -574,7 +575,7 @@ class DependencyDeref;
 template <typename Handle, typename Manager>
 class DependencyDeref<
     Handle, Manager,
-    std::enable_if_t<IsValidDependencyDefault<Handle, Manager>::value>>
+    std::enable_if_t<SupportsDependencyDefault<Handle, Manager>::value>>
     : public DependencyDefault<Handle, Manager> {
  public:
   using DependencyDeref::DependencyDefault::DependencyDefault;
@@ -592,16 +593,16 @@ class DependencyDeref<
 // Specialization of `DependencyDeref<Handle, Manager>` when
 // `DependencyDefault<Handle, Manager>` is not defined,
 // `Manager` is a reference, and
-// `DependencyDefault<Handle, absl::remove_cvref_t<Manager>>`
-// is defined: delegate to the latter.
+// `DependencyDefault<Handle, absl::remove_cvref_t<Manager>>` is defined:
+// delegate to the latter.
 template <typename Handle, typename Manager>
 class DependencyDeref<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
         std::is_reference<Manager>,
-        absl::negation<IsValidDependencyDefault<Handle, Manager>>,
-        IsValidDependencyDefault<Handle,
-                                 absl::remove_cvref_t<Manager>>>::value>>
+        absl::negation<SupportsDependencyDefault<Handle, Manager>>,
+        SupportsDependencyDefault<Handle,
+                                  absl::remove_cvref_t<Manager>>>::value>>
     : public DependencyDefault<Handle, absl::remove_cvref_t<Manager>> {
  public:
   using DependencyDeref::DependencyDefault::DependencyDefault;
@@ -616,17 +617,65 @@ class DependencyDeref<
   ~DependencyDeref() = default;
 };
 
+// `SupportsDependencyDeref<Handle, Manager>::value` is `true` when
+// `DependencyDeref<Handle, Manager>` is defined.
+template <typename Handle, typename Manager>
+struct SupportsDependencyDeref
+    : absl::disjunction<
+          SupportsDependencyDefault<Handle, Manager>,
+          absl::conjunction<std::is_reference<Manager>,
+                            SupportsDependencyDefault<
+                                Handle, absl::remove_cvref_t<Manager>>>> {};
+
 }  // namespace dependency_internal
 
-// `IsValidDependency<Handle, Manager>::value` is `true` when
-// `Dependency<Handle, Manager>` is defined.
+// `SupportsDependency<Handle, Manager>::value` is `true` when
+// `Dependency<Handle, Manager>` is defined and usable, i.e. constructible from
+// `Initializer<Manager>`.
+//
+// An immovable `Manager` is usable since C++17 which guarantees copy elision.
+// In this case the `Initializer<Manager>` must have been constructed from
+// `riegeli::Maker()` or `riegeli::Invoker()`, not from an already constructed
+// object.
 template <typename Handle, typename Manager>
-struct IsValidDependency
-    : absl::disjunction<
-          dependency_internal::IsValidDependencyDefault<Handle, Manager>,
-          absl::conjunction<std::is_reference<Manager>,
-                            dependency_internal::IsValidDependencyDefault<
-                                Handle, absl::remove_cvref_t<Manager>>>> {};
+struct SupportsDependency
+    : absl::conjunction<
+          dependency_internal::SupportsDependencyDeref<Handle, Manager>
+#if !__cpp_guaranteed_copy_elision
+          ,
+          std::is_convertible<Manager&&, Manager>
+#endif
+          > {
+};
+
+// `TargetSupportsDependency<Handle, Manager>::value` is `true` when
+// `Dependency<Handle, TargetT<Manager>>` is defined and constructible from
+// `Manager&&`.
+//
+// An immovable `TargetT<Manager>` is usable since C++17 which guarantees
+// copy elision. In this case the `Dependency` must be initialized with
+// `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind `Initializer`,
+// not from an already constructed object.
+template <typename Handle, typename Manager>
+struct TargetSupportsDependency
+    : absl::conjunction<
+          SupportsDependency<Handle, TargetT<Manager>>,
+          std::is_convertible<Manager&&, Initializer<TargetT<Manager>>>> {};
+
+// `TargetRefSupportsDependency<Handle, Manager>::value` is `true` when
+// `DependencyRef<Handle, Manager>` i.e.
+// `Dependency<Handle, TargetRefT<Manager>>` is defined and constructible from
+// `Manager&&`.
+//
+// An immovable `TargetRefT<Manager>` is usable since C++17 which guarantees
+// copy elision. In this case the `Dependency` must be initialized with
+// `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind `Initializer`,
+// not from an already constructed object.
+template <typename Handle, typename Manager>
+struct TargetRefSupportsDependency
+    : absl::conjunction<
+          SupportsDependency<Handle, TargetRefT<Manager>>,
+          std::is_convertible<Manager&&, Initializer<TargetRefT<Manager>>>> {};
 
 namespace dependency_internal {
 
@@ -778,13 +827,13 @@ class DependencyDerived
   }
 
   template <typename OtherManager,
-            std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
+            std::enable_if_t<SupportsDependency<Handle, OtherManager&&>::value,
                              int> = 0>
   OtherManager* GetIf() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return GetIfImpl<OtherManager>();
   }
   template <typename OtherManager,
-            std::enable_if_t<IsValidDependency<Handle, OtherManager&&>::value,
+            std::enable_if_t<SupportsDependency<Handle, OtherManager&&>::value,
                              int> = 0>
   const OtherManager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return GetIfImpl<OtherManager>();
@@ -943,6 +992,11 @@ class
   Dependency(Dependency&& that) = default;
   Dependency& operator=(Dependency&& that) = default;
 };
+
+// `DependencyRef<Handle, Manager>` is an alias for
+// `Dependency<Handle, TargetRefT<Manager>>`.
+template <typename Handle, typename Manager>
+using DependencyRef = Dependency<Handle, TargetRefT<Manager>>;
 
 namespace dependency_internal {
 

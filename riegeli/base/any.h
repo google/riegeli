@@ -104,11 +104,11 @@ class
   // Otherwise returns `nullptr`.
   template <
       typename Manager,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
+      std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
   Manager* GetIf() ABSL_ATTRIBUTE_LIFETIME_BOUND;
   template <
       typename Manager,
-      std::enable_if_t<IsValidDependency<Handle, Manager>::value, int> = 0>
+      std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
   const Manager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // A variant of `GetIf()` with the expected type passed as a `TypeId`.
@@ -250,14 +250,14 @@ class
       typename Manager,
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
-                            IsValidDependency<Handle, TargetT<Manager>>>::value,
+                            TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   /*implicit*/ Any(Manager&& manager);
   template <
       typename Manager,
       std::enable_if_t<
           absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
-                            IsValidDependency<Handle, TargetT<Manager>>>::value,
+                            TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
   template <
@@ -403,7 +403,7 @@ class
             std::enable_if_t<
                 absl::conjunction<
                     absl::negation<std::is_same<std::decay_t<Manager>, AnyRef>>,
-                    IsValidDependency<Handle, Manager&&>>::value,
+                    SupportsDependency<Handle, Manager&&>>::value,
                 int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
@@ -638,7 +638,7 @@ inline void AnyBase<Handle, inline_size, inline_align>::Reset() {
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+          std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return static_cast<Manager*>(GetIf(TypeId::For<Manager>()));
@@ -646,7 +646,7 @@ inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<IsValidDependency<Handle, Manager>::value, int>>
+          std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return static_cast<const Manager*>(GetIf(TypeId::For<Manager>()));
@@ -673,7 +673,7 @@ template <
         absl::conjunction<
             absl::negation<std::is_same<
                 TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
-            IsValidDependency<Handle, TargetT<Manager>>>::value,
+            TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
   this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
@@ -686,7 +686,7 @@ template <
         absl::conjunction<
             absl::negation<std::is_same<
                 TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
-            IsValidDependency<Handle, TargetT<Manager>>>::value,
+            TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>&
 Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
@@ -716,7 +716,7 @@ template <
     std::enable_if_t<
         absl::conjunction<
             absl::negation<std::is_same<std::decay_t<Manager>, AnyRef<Handle>>>,
-            IsValidDependency<Handle, Manager&&>>::value,
+            SupportsDependency<Handle, Manager&&>>::value,
         int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   this->template Initialize<Manager&&>(std::forward<Manager>(manager));

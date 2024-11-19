@@ -69,7 +69,7 @@ class AnyInitializer {
                         std::is_same<std::decay_t<Manager>, AnyInitializer>>,
                     absl::disjunction<
                         any_internal::IsAny<Handle, TargetT<Manager>>,
-                        IsValidDependency<Handle, TargetT<Manager>>>>::value,
+                        TargetSupportsDependency<Handle, Manager>>>::value,
                 int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),

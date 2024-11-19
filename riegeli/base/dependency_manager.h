@@ -164,14 +164,14 @@ class DependencyManagerImpl<absl::optional<T>, ManagerStorage>
 
 namespace dependency_manager_internal {
 
-// `IsValidDependencyManagerImpl<Manager>::value` is `true` when
+// `SupportsDependencyManagerImpl<Manager>::value` is `true` when
 // `DependencyManagerImpl<Manager, Manager>` is defined.
 
 template <typename Manager, typename Enable = void>
-struct IsValidDependencyManagerImpl : std::false_type {};
+struct SupportsDependencyManagerImpl : std::false_type {};
 
 template <typename Manager>
-struct IsValidDependencyManagerImpl<
+struct SupportsDependencyManagerImpl<
     Manager,
     absl::void_t<
         decltype(std::declval<const DependencyManagerImpl<Manager, Manager>&>()
@@ -193,7 +193,7 @@ template <typename Manager>
 class DependencyManager<
     Manager, std::enable_if_t<absl::conjunction<
                  absl::negation<std::is_reference<Manager>>,
-                 dependency_manager_internal::IsValidDependencyManagerImpl<
+                 dependency_manager_internal::SupportsDependencyManagerImpl<
                      Manager>>::value>>
     : public DependencyManagerImpl<Manager, Manager> {
  public:
@@ -227,7 +227,7 @@ class DependencyManager<
     std::enable_if_t<absl::conjunction<
         absl::negation<std::is_reference<Manager>>,
         absl::negation<dependency_manager_internal::
-                           IsValidDependencyManagerImpl<Manager>>>::value>>
+                           SupportsDependencyManagerImpl<Manager>>>::value>>
     : public DependencyBase<Manager> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
@@ -259,7 +259,7 @@ class DependencyManager<
 template <typename Manager>
 class DependencyManager<
     Manager&,
-    std::enable_if_t<dependency_manager_internal::IsValidDependencyManagerImpl<
+    std::enable_if_t<dependency_manager_internal::SupportsDependencyManagerImpl<
         absl::remove_cvref_t<Manager>>::value>>
     : public DependencyManagerImpl<absl::remove_cvref_t<Manager>,
                                    absl::remove_cvref_t<Manager>&> {
@@ -290,9 +290,9 @@ class DependencyManager<
 // an unowned dependency stored by lvalue reference.
 template <typename Manager>
 class DependencyManager<
-    Manager&,
-    std::enable_if_t<!dependency_manager_internal::IsValidDependencyManagerImpl<
-        absl::remove_cvref_t<Manager>>::value>>
+    Manager&, std::enable_if_t<
+                  !dependency_manager_internal::SupportsDependencyManagerImpl<
+                      absl::remove_cvref_t<Manager>>::value>>
     : public DependencyBase<Manager&> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
@@ -321,7 +321,7 @@ class DependencyManager<
 template <typename Manager>
 class DependencyManager<
     Manager&&,
-    std::enable_if_t<dependency_manager_internal::IsValidDependencyManagerImpl<
+    std::enable_if_t<dependency_manager_internal::SupportsDependencyManagerImpl<
         absl::remove_cvref_t<Manager>>::value>>
     : public DependencyManagerImpl<absl::remove_cvref_t<Manager>,
                                    absl::remove_cvref_t<Manager>&&> {
@@ -352,9 +352,9 @@ class DependencyManager<
 // owned dependency stored by rvalue reference.
 template <typename Manager>
 class DependencyManager<
-    Manager&&,
-    std::enable_if_t<!dependency_manager_internal::IsValidDependencyManagerImpl<
-        absl::remove_cvref_t<Manager>>::value>>
+    Manager&&, std::enable_if_t<
+                   !dependency_manager_internal::SupportsDependencyManagerImpl<
+                       absl::remove_cvref_t<Manager>>::value>>
     : public DependencyBase<Manager&&> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
@@ -393,19 +393,21 @@ struct DependencyManagerPtrImpl {
 // return. This could lead to subtle compile errors, causing the following chain
 // of template instantiations:
 //
-//  * IsValidDependency<BackwardWriter*, Writer&>
-//  * IsValidDependencyDefault<BackwardWriter*, Writer>
-//  * DependencyManagerPtr<Writer>
-//  * DependencyManager<Writer>
-//  * DependencyBase<Writer>
+//  * `TargetRefSupportsDependency<X*, Abstract&>`
+//  * `SupportsDependencyInit<X*, Abstract&, Abstract&>`
+//  * `SupportsDependencyDeref<X*, Abstract&>`
+//  * `SupportsDependencyDefault<X*, Abstract>`
+//  * `DependencyManagerPtr<Abstract>`
+//  * `DependencyManager<Abstract>`
+//  * `DependencyBase<Abstract>`
 //
-// which contains a member variable of an incomplete type.
+// which contains a member variable of an abstract type.
 template <typename Manager>
 struct DependencyManagerPtrImpl<
     Manager,
     std::enable_if_t<absl::conjunction<
         absl::negation<std::is_reference<Manager>>,
-        absl::negation<IsValidDependencyManagerImpl<Manager>>>::value>> {
+        absl::negation<SupportsDependencyManagerImpl<Manager>>>::value>> {
   using type = Manager*;
 };
 
