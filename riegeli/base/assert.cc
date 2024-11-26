@@ -14,23 +14,42 @@
 
 #include "riegeli/base/assert.h"
 
-#include <exception>
-#include <iostream>
-#include <ostream>
 #include <sstream>
+#include <string>
+#include <utility>
+
+#include "absl/log/absl_log.h"
 
 namespace riegeli {
 namespace assert_internal {
 
-CheckFailed::CheckFailed(const char* file, int line, const char* function,
-                         const char* message) {
-  stream_ << "Check failed at " << file << ":" << line << " in " << function
-          << ": " << message << " ";
+CheckResult::CheckResult(const char* function, const char* prefix)
+    : header_(new std::ostringstream()) {
+  header() << "Check failed in " << function << ": " << prefix;
 }
 
+CheckFailed::CheckFailed(const char* file, int line, CheckResult check_result)
+    : file_(file),
+      line_(line),
+      check_result_(check_result),
+      details_(new std::ostringstream()) {}
+
 CheckFailed::~CheckFailed() {
-  std::cerr << stream_.str() << std::endl;
-  std::terminate();
+  std::ostringstream& message = check_result_.header();
+  const std::string details = std::move(*details_).str();
+  if (!details.empty()) message << "; " << details;
+  ABSL_LOG(FATAL).AtLocation(file_, line_) << std::move(message).str();
+}
+
+void CheckNotNullFailed(const char* file, int line, const char* function,
+                        const char* expression) {
+  CheckResult check_result(function, expression);
+  check_result.header() << " != nullptr";
+  CheckFailed check_failed(file, line, check_result);
+}
+
+CheckResult CheckImpossibleResult(const char* function) {
+  return CheckResult(function, "Impossible");
 }
 
 }  // namespace assert_internal
