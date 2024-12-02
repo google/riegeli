@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/status/status.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -113,8 +112,7 @@ class SimpleDecoder : public Object {
 // Implementation details follow.
 
 inline Reader& SimpleDecoder::reader() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(ok()) << "Failed precondition of SimpleDecoder::reader(): "
-                       << status();
+  RIEGELI_ASSERT_OK(*this) << "Failed precondition of SimpleDecoder::reader()";
   return values_decompressor_.reader();
 }
 

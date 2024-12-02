@@ -124,7 +124,7 @@ bool IsProtoMessage(Reader& record) {
         return false;
     }
   }
-  RIEGELI_ASSERT(record.ok()) << record.status();
+  RIEGELI_ASSERT_OK(record);
   return started_groups.empty();
 }
 
@@ -262,9 +262,8 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
 
 inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT(record.ok())
-      << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
-      << record.status();
+  RIEGELI_ASSERT_OK(record)
+      << "Failed precondition of TransposeEncoder::AddRecordInternal()";
   const Position pos_before = record.pos();
   absl::optional<Position> size = record.Size();
   RIEGELI_ASSERT(size != absl::nullopt) << record.status();
@@ -459,7 +458,7 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
               << static_cast<uint32_t>(GetTagWireType(tag));
       }
     }
-    RIEGELI_ASSERT(limited_record.ok()) << limited_record.status();
+    RIEGELI_ASSERT_OK(limited_record);
     if (message_stack_.empty()) return true;
     const MessageFrame& message_frame = message_stack_.back();
     encoded_tags_.push_back(message_frame.end_of_submessage_pos);

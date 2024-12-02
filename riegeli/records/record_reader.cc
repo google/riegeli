@@ -691,8 +691,8 @@ absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
 }
 
 inline bool RecordReaderBase::ReadChunk() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of RecordReaderBase::ReadChunk(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of RecordReaderBase::ReadChunk()";
   ChunkReader& src = *SrcChunkReader();
   chunk_begin_ = src.pos();
   Chunk chunk;

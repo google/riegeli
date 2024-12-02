@@ -207,8 +207,7 @@ inline void Decompressor<Src>::Initialize(
 
 template <typename Src>
 inline Reader& Decompressor<Src>::reader() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(ok()) << "Failed precondition of Decompressor::reader(): "
-                       << status();
+  RIEGELI_ASSERT_OK(*this) << "Failed precondition of Decompressor::reader()";
   return *decompressed_;
 }
 

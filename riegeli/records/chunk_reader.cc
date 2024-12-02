@@ -215,9 +215,8 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
 }
 
 inline bool DefaultChunkReaderBase::ReadChunkHeader() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader()";
   Reader& src = *SrcReader();
   RIEGELI_ASSERT_LT(records_internal::DistanceWithoutOverhead(pos_, src.pos()),
                     chunk_.header.size())
@@ -310,9 +309,8 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
 }
 
 inline bool DefaultChunkReaderBase::ReadBlockHeader() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader()";
   Reader& src = *SrcReader();
   const size_t remaining_length =
       records_internal::RemainingInBlockHeader(src.pos());
@@ -382,7 +380,7 @@ again:
     }
     return true;
   }
-  RIEGELI_ASSERT(ok())
+  RIEGELI_ASSERT_OK(*this)
       << "Failed invariant of DefaultChunkReader: "
          "chunk boundary not reached yet but DefaultChunkReader is closed";
   pos_ = recoverable_pos;

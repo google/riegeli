@@ -108,8 +108,8 @@ bool TextReaderImpl<ReadNewline::kCrLfOrLf>::ReadInternal(size_t min_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   for (;;) {
     if (ABSL_PREDICT_FALSE(!src.Pull(1, max_length))) {
@@ -196,8 +196,8 @@ bool TextReaderImpl<ReadNewline::kAny>::ReadInternal(size_t min_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   for (;;) {
     if (ABSL_PREDICT_FALSE(!src.Pull(1, max_length))) return false;

@@ -45,9 +45,8 @@ void JoiningReaderBase::Done() {
 }
 
 bool JoiningReaderBase::CloseShardImpl() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of JoiningReaderBase::CloseShardImpl()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
          "shard already closed";
@@ -59,16 +58,14 @@ bool JoiningReaderBase::CloseShardImpl() {
 }
 
 inline bool JoiningReaderBase::OpenShardInternal() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of JoiningReaderBase::OpenShardInternal()";
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardImpl())) return false;
-  RIEGELI_ASSERT(ok())
-      << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed postcondition of JoiningReaderBase::OpenShardImpl()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
          "shard not opened";
@@ -80,9 +77,8 @@ inline bool JoiningReaderBase::OpenShardInternal() {
 }
 
 inline bool JoiningReaderBase::CloseShardInternal() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of JoiningReaderBase::CloseShardInternal()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
          "shard already closed";
@@ -96,15 +92,14 @@ inline bool JoiningReaderBase::CloseShardInternal() {
            "false returned but JoiningReaderBase OK";
     return false;
   }
-  RIEGELI_ASSERT(ok())
-      << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed postcondition of JoiningReaderBase::CloseShardImpl()";
   return true;
 }
 
 bool JoiningReaderBase::OpenShard() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of JoiningReaderBase::OpenShard(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of JoiningReaderBase::OpenShard()";
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShard(): "
          "shard already opened";
@@ -115,8 +110,8 @@ bool JoiningReaderBase::OpenShard() {
 }
 
 bool JoiningReaderBase::CloseShard() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of JoiningReaderBase::CloseShard(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of JoiningReaderBase::CloseShard()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShard(): "
          "shard already closed";

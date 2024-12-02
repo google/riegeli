@@ -132,8 +132,8 @@ bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();

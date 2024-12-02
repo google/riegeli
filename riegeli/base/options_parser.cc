@@ -244,10 +244,9 @@ bool OptionsParser::FromString(absl::string_view text) {
             value_parser.valid_values_.empty() ? "" : ", valid values: ",
             value_parser.valid_values_)));
       }
-      RIEGELI_ASSERT(value_parser.ok())
+      RIEGELI_ASSERT_OK(value_parser)
           << "Value parser of option " << key
-          << " returned true but failed the ValueParser: "
-          << value_parser.status();
+          << " returned true but failed the ValueParser";
       option->seen = true;
     }
     if (option_end == text.size()) break;

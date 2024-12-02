@@ -417,8 +417,8 @@ inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyUsingPush(): "
          "nothing to copy";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::CopyUsingPush(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::CopyUsingPush()";
   Position length_to_read = length;
   if (exact_size() != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
@@ -434,8 +434,8 @@ bool BufferedReader::CopyInternal(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyInternal(): "
          "nothing to copy";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::CopyInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::CopyInternal()";
   size_t length_to_read = SaturatingIntCast<size_t>(length);
   // In the first iteration `exact_size()` was taken into account by
   // `CopyUsingPush()`, so that `CopyInternal()` overrides do not need to.

@@ -78,10 +78,10 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
   RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(random_access_status_)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(read_mode_status_)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifdef _WIN32
@@ -237,8 +237,8 @@ absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 inline absl::Status CFileWriterBase::SizeStatus() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of CFileWriterBase::SizeStatus(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of CFileWriterBase::SizeStatus(): ";
   FILE* const dest = DestFile();
   if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     // Not supported.
@@ -360,8 +360,8 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(

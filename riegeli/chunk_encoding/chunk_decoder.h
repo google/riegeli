@@ -313,8 +313,7 @@ inline bool ChunkDecoder::ReadRecord(absl::Cord& record) {
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
-  RIEGELI_ASSERT(ok()) << "Failed precondition of ChunkDecoder::SetIndex(): "
-                       << status();
+  RIEGELI_ASSERT_OK(*this) << "Failed precondition of ChunkDecoder::SetIndex()";
   index_ = UnsignedMin(index, num_records());
   const size_t start =
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];

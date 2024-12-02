@@ -180,8 +180,8 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of FileWriterBase::WriteInternal()";
   ::tensorflow::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
@@ -289,8 +289,8 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of FileWriterBase::WriteInternal()";
   ::tensorflow::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {

@@ -264,16 +264,16 @@ void Benchmarks::WriteTFRecord(
   {
     const absl::Status status =
         env->NewWritableFile(std::string(filename), &file_writer);
-    RIEGELI_CHECK(status.ok()) << status;
+    RIEGELI_CHECK_OK(status);
   }
   tensorflow::io::RecordWriter record_writer(file_writer.get(),
                                              record_writer_options);
   for (const absl::string_view record : records) {
     const absl::Status status = record_writer.WriteRecord(record);
-    RIEGELI_CHECK(status.ok()) << status;
+    RIEGELI_CHECK_OK(status);
   }
   const absl::Status status = record_writer.Close();
-  RIEGELI_CHECK(status.ok()) << status;
+  RIEGELI_CHECK_OK(status);
 }
 
 bool Benchmarks::ReadTFRecord(
@@ -285,7 +285,7 @@ bool Benchmarks::ReadTFRecord(
   {
     const absl::Status status =
         env->NewRandomAccessFile(std::string(filename), &file_reader);
-    RIEGELI_CHECK(status.ok()) << status;
+    RIEGELI_CHECK_OK(status);
   }
   tensorflow::io::SequentialRecordReader record_reader(file_reader.get(),
                                                        record_reader_options);
@@ -386,7 +386,7 @@ void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
       max_name_width_,
       absl::string_view("riegeli ").size() + riegeli_options.size());
   riegeli::RecordWriterBase::Options options;
-  RIEGELI_CHECK_EQ(options.FromString(riegeli_options), absl::OkStatus());
+  RIEGELI_CHECK_OK(options.FromString(riegeli_options));
   riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 

@@ -195,7 +195,7 @@ void FdReaderBase::InitializePos(int src, Options&& options
   RIEGELI_ASSERT(!supports_random_access_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(random_access_status_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
@@ -406,8 +406,8 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::ReadInternal()";
   const int src = SrcFd();
   for (;;) {
     if (ABSL_PREDICT_FALSE(
@@ -494,8 +494,8 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyInternal(): "
          "nothing to copy";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::CopyInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::CopyInternal()";
 #if !RIEGELI_DISABLE_COPY_FILE_RANGE
   if (HaveCopyFileRange<int>::value) {
     {

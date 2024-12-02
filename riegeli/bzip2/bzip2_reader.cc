@@ -108,8 +108,8 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   RIEGELI_ASSERT_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   truncated_ = false;
   max_length = UnsignedMin(max_length,

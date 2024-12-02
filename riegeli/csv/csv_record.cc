@@ -112,15 +112,13 @@ ABSL_CONST_INIT SharedPtr<CsvHeader::Payload> CsvHeader::payload_cache_;
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 CsvHeader& CsvHeader::operator=(
     std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::operator=(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::operator=()";
   return *this;
 }
 
@@ -132,16 +130,14 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(std::move(normalizer), names);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 void CsvHeader::Reset() { payload_.Reset(); }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 void CsvHeader::Reset(
@@ -156,8 +152,7 @@ void CsvHeader::Reset(
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(std::move(normalizer), names);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 absl::Status CsvHeader::TryReset(
@@ -223,8 +218,7 @@ void CsvHeader::Reserve(size_t size) {
 
 void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name) {
   const absl::Status status = TryAdd(std::move(name));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Add(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Add()";
 }
 
 absl::Status CsvHeader::TryAdd(
@@ -324,8 +318,7 @@ void CsvHeader::Output(std::ostream& dest) const {
 CsvRecord::CsvRecord(CsvHeader header,
                      std::initializer_list<absl::string_view> fields) {
   const absl::Status status = TryResetInternal(std::move(header), fields);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvRecord::CsvRecord(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
 }
 
 void CsvRecord::Reset() {
@@ -342,8 +335,7 @@ void CsvRecord::Reset(CsvHeader header) {
 void CsvRecord::Reset(CsvHeader header,
                       std::initializer_list<absl::string_view> fields) {
   const absl::Status status = TryResetInternal(std::move(header), fields);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvRecord::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
 }
 
 absl::Status CsvRecord::TryReset(

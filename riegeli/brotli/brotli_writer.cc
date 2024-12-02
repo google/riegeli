@@ -165,17 +165,16 @@ bool BrotliWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BROTLI_OPERATION_PROCESS);
 }
 
 inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                             BrotliEncoderOperation op) {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BrotliWriterBase::WriteInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BrotliWriterBase::WriteInternal()";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();

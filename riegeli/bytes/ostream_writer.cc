@@ -50,10 +50,10 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
   RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(random_access_status_)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(read_mode_status_)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "read_mode_status_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
@@ -205,8 +205,8 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   std::ostream& dest = *DestStream();
   if (ABSL_PREDICT_FALSE(src.size() >

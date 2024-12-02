@@ -57,8 +57,8 @@ bool TextWriterImpl<newline>::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   Writer& dest = *DestWriter();
   for (;;) {
     const char* const lf_ptr =

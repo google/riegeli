@@ -57,7 +57,7 @@ namespace {
 
 Reader* kEmptyReader() {
   Reader* const reader = &Global<StringReader<>>([] {});
-  RIEGELI_ASSERT(reader->ok()) << "kEmptyReader() has been closed";
+  RIEGELI_ASSERT_OK(*reader) << "kEmptyReader() has been closed";
   return reader;
 }
 

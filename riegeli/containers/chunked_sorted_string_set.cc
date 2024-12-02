@@ -247,10 +247,8 @@ inline void ChunkedSortedStringSet::Builder::ApplySizeHint(size_t size_hint) {
 
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
   const absl::StatusOr<bool> inserted = TryInsertNext(element);
-  RIEGELI_CHECK(inserted.ok())
-      << "Failed precondition of "
-         "ChunkedSortedStringSet::Builder::InsertNext(): "
-      << inserted.status().message();
+  RIEGELI_CHECK_OK(inserted)
+      << "Failed precondition of ChunkedSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
 
@@ -260,10 +258,8 @@ bool ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   const absl::StatusOr<bool> inserted = TryInsertNext(std::move(element));
-  RIEGELI_CHECK(inserted.ok())
-      << "Failed precondition of "
-         "ChunkedSortedStringSet::Builder::InsertNext(): "
-      << inserted.status().message();
+  RIEGELI_CHECK_OK(inserted)
+      << "Failed precondition of ChunkedSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
 

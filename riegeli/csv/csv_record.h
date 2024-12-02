@@ -1049,8 +1049,7 @@ template <typename Names,
 CsvHeader::CsvHeader(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 template <typename Names,
@@ -1059,8 +1058,7 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      Names&& names) {
   const absl::Status status =
       TryResetInternal(std::move(normalizer), std::forward<Names>(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 template <typename Names,
@@ -1072,8 +1070,7 @@ template <typename Names,
 void CsvHeader::Reset(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 template <typename Names,
@@ -1082,8 +1079,7 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       Names&& names) {
   const absl::Status status =
       TryResetInternal(std::move(normalizer), std::forward<Names>(names));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 template <typename Names,
@@ -1332,8 +1328,7 @@ template <typename Fields,
 CsvRecord::CsvRecord(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvRecord::CsvRecord(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
 }
 
 template <typename Fields,
@@ -1341,8 +1336,7 @@ template <typename Fields,
 void CsvRecord::Reset(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvRecord::Reset(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
 }
 
 template <typename Fields,
@@ -1383,8 +1377,7 @@ template <
                      int>>
 void CsvRecord::Merge(Src&& src) {
   const absl::Status status = TryMerge(std::forward<Src>(src));
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Merge(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Merge()";
 }
 
 template <
@@ -1439,8 +1432,7 @@ template <typename Dest,
                            int>>
 void CsvRecord::Split(Dest& dest) const {
   const absl::Status status = TrySplit(dest);
-  RIEGELI_CHECK(status.ok())
-      << "Failed precondition of CsvHeader::Split(): " << status.message();
+  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Split()";
 }
 
 template <typename Dest,

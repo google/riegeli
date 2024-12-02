@@ -51,9 +51,8 @@ void SplittingWriterBase::DoneBehindScratch() {
 }
 
 bool SplittingWriterBase::CloseShardImpl() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of SplittingWriterBase::CloseShardImpl()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
          "shard already closed";
@@ -65,9 +64,8 @@ bool SplittingWriterBase::CloseShardImpl() {
 }
 
 inline bool SplittingWriterBase::OpenShardInternal() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of SplittingWriterBase::OpenShardInternal()";
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
          "shard already opened";
@@ -81,9 +79,8 @@ inline bool SplittingWriterBase::OpenShardInternal() {
            "zero returned but SplittingWriterBase OK";
     return false;
   }
-  RIEGELI_ASSERT(ok())
-      << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed postcondition of SplittingWriterBase::OpenShardImpl()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
          "shard not opened";
@@ -98,9 +95,8 @@ inline bool SplittingWriterBase::OpenShardInternal() {
 }
 
 inline bool SplittingWriterBase::CloseShardInternal() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of SplittingWriterBase::CloseShardInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of SplittingWriterBase::CloseShardInternal()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShardInternal(): "
          "shard already closed";
@@ -114,16 +110,14 @@ inline bool SplittingWriterBase::CloseShardInternal() {
            "SplittingWriterBase OK";
     return false;
   }
-  RIEGELI_ASSERT(ok())
-      << "Failed postcondition of SplittingWriterBase::CloseShardImpl(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed postcondition of SplittingWriterBase::CloseShardImpl()";
   return true;
 }
 
 bool SplittingWriterBase::OpenShard() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of SplittingWriterBase::OpenShard(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of SplittingWriterBase::OpenShard()";
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShard(): "
          "shard already opened";
@@ -134,9 +128,8 @@ bool SplittingWriterBase::OpenShard() {
 }
 
 bool SplittingWriterBase::CloseShard() {
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of SplittingWriterBase::CloseShard(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of SplittingWriterBase::CloseShard()";
   RIEGELI_ASSERT(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShard(): "
          "shard already closed";

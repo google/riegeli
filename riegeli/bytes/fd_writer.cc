@@ -96,10 +96,10 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
   RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_EQ(random_access_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(random_access_status_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_EQ(read_mode_status_, absl::OkStatus())
+  RIEGELI_ASSERT_OK(read_mode_status_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifndef _WIN32
@@ -295,8 +295,8 @@ absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 inline absl::Status FdWriterBase::SizeStatus() {
-  RIEGELI_ASSERT(ok()) << "Failed precondition of FdWriterBase::SizeStatus(): "
-                       << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of FdWriterBase::SizeStatus()";
   const int dest = DestFd();
   if (fd_internal::LSeek(dest, 0, SEEK_END) < 0) {
     // Not supported.
@@ -438,8 +438,8 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   const int dest = DestFd();
   if (ABSL_PREDICT_FALSE(
@@ -590,8 +590,8 @@ inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of FdWriterBase::SeekInternal(): " << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of FdWriterBase::SeekInternal()";
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(
             fd_internal::LSeek(dest, IntCast<fd_internal::Offset>(new_pos),
@@ -654,9 +654,8 @@ inline bool FdWriterBase::TruncateInternal(int dest, Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::TruncateInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(ok())
-      << "Failed precondition of FdWriterBase::TruncateInternal(): "
-      << status();
+  RIEGELI_ASSERT_OK(*this)
+      << "Failed precondition of FdWriterBase::TruncateInternal()";
 #ifndef _WIN32
 again:
   if (ABSL_PREDICT_FALSE(

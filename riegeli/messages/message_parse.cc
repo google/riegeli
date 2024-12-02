@@ -239,8 +239,7 @@ absl::Status ParseFromChain(const Chain& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT(reader.ok())
-      << "A ChainReader has no reason to fail: " << reader.status();
+  RIEGELI_ASSERT_OK(reader) << "A ChainReader has no reason to fail";
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
@@ -279,8 +278,7 @@ absl::Status ParseFromCord(const absl::Cord& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT(reader.ok())
-      << "A CordReader has no reason to fail: " << reader.status();
+  RIEGELI_ASSERT_OK(reader) << "A CordReader has no reason to fail";
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
