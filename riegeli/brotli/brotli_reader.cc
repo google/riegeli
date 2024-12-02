@@ -179,7 +179,7 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
         continue;
       }
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
   }
 }

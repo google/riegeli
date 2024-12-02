@@ -96,8 +96,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   if (length_read > 0) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(dest, length_read)))) {
-      read_ok = FailFromDigester();
-      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      read_ok = false;
     }
   }
   MakeBuffer(src);
@@ -119,8 +119,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
     if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
-      read_ok = FailFromDigester();
-      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      read_ok = false;
     } else {
       dest.Append(std::move(data));
     }
@@ -144,8 +144,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
     if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
-      read_ok = FailFromDigester();
-      if (read_ok) RIEGELI_ASSERT_UNREACHABLE();
+      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      read_ok = false;
     } else {
       dest.Append(std::move(data));
     }

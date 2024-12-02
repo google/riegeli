@@ -142,21 +142,15 @@ bool CordReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   const size_t length_to_copy =
       UnsignedMin(length, src.size() - IntCast<size_t>(pos()));
   if (length_to_copy == src.size()) {
-    if (!Skip(length_to_copy)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Skip() failed";
-    }
+    RIEGELI_EVAL_ASSERT(Skip(length_to_copy));
     if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
   } else if (length_to_copy <= kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!dest.Push(length_to_copy))) return false;
-    if (!Read(length_to_copy, dest.cursor())) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(char*) failed";
-    }
+    RIEGELI_EVAL_ASSERT(Read(length_to_copy, dest.cursor()));
     dest.move_cursor(length_to_copy);
   } else {
     absl::Cord data;
-    if (!Read(length_to_copy, data)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(Cord&) failed";
-    }
+    RIEGELI_EVAL_ASSERT(Read(length_to_copy, data));
     if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
   }
   return length_to_copy == length;
@@ -176,15 +170,11 @@ bool CordReaderBase::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
   if (ABSL_PREDICT_FALSE(length > src.size() - pos())) {
-    if (!Seek(src.size())) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Seek() failed";
-    }
+    RIEGELI_EVAL_ASSERT(Seek(src.size()));
     return false;
   }
   if (length == src.size()) {
-    if (!Skip(length)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Skip() failed";
-    }
+    RIEGELI_EVAL_ASSERT(Skip(length));
     return dest.Write(src);
   }
   if (length <= kMaxBytesToCopy) {
@@ -197,10 +187,7 @@ bool CordReaderBase::CopyBehindScratch(size_t length, BackwardWriter& dest) {
     return true;
   }
   absl::Cord data;
-  if (!ReadBehindScratch(length, data)) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "CordReader::ReadBehindScratch(Cord&) failed";
-  }
+  RIEGELI_EVAL_ASSERT(ReadBehindScratch(length, data));
   return dest.Write(std::move(data));
 }
 

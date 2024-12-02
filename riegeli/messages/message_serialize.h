@@ -193,11 +193,11 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 
   // Will write to `*dest`.
   explicit WriterOutputStream(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { dest_ = nullptr; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Writer* dest) {
-    dest_ = RIEGELI_ASSERT_NOTNULL(dest);
+    dest_ = RIEGELI_EVAL_ASSERT_NOTNULL(dest);
   }
 
   bool Next(void** data, int* size) override;

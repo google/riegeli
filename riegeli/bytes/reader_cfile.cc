@@ -112,7 +112,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
       }
     } break;
     default:
-      RIEGELI_ASSERT_UNREACHABLE() << "Unknown seek origin: " << whence;
+      RIEGELI_ASSUME_UNREACHABLE() << "Unknown seek origin: " << whence;
   }
   if (new_pos >= reader.pos()) {
     // Seeking forwards is supported even if random access is not.

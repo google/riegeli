@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_FD_HANDLE_H_
 #define RIEGELI_BYTES_FD_HANDLE_H_
 
+#include "riegeli/base/assert.h"
 #ifdef _WIN32
 #include <sys/stat.h>
 #else
@@ -250,7 +251,7 @@ class
   // Creates an `FdHandle` which points to `target`.
   template <typename T, std::enable_if_t<IsValidFdTarget<T>::value, int> = 0>
   explicit FdHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : methods_(&kMethods<T>), target_(target) {}
+      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
 
   FdHandle(const FdHandle& that) = default;
   FdHandle& operator=(const FdHandle& that) = default;

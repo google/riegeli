@@ -185,7 +185,7 @@ inline void Decompressor<Src>::Initialize(
   }
   switch (compression_type) {
     case CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
+      RIEGELI_ASSUME_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
       decompressed_ = riegeli::Maker<BrotliReader<Src>>(
           std::move(compressed_reader.manager()));

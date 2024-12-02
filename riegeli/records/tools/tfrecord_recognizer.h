@@ -47,7 +47,7 @@ class TFRecordRecognizer : public Object {
 
 inline TFRecordRecognizer::TFRecordRecognizer(
     Reader* byte_reader ABSL_ATTRIBUTE_LIFETIME_BOUND)
-    : byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)) {}
+    : byte_reader_(RIEGELI_EVAL_ASSERT_NOTNULL(byte_reader)) {}
 
 }  // namespace riegeli
 

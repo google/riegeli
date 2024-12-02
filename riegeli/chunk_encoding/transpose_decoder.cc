@@ -356,7 +356,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           return CallbackType::kUnknown;
       }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
@@ -1429,7 +1429,7 @@ struct TransposeDecoder::DecodingState {
         case CallbackType::kNoOp:
           return true;
       }
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Unknown callback type: " << static_cast<int>(node->callback_type);
     }
   }
@@ -1540,10 +1540,10 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       field_included = FieldIncluded::kExistenceOnly;
       for (const StateMachineNode* elem : submessage_stack) {
         uint32_t tag;
-        if (ReadVarint32(elem->tag_data, elem->tag_data + kMaxLengthVarint32,
-                         tag) == absl::nullopt) {
-          RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
-        }
+        RIEGELI_EVAL_ASSERT(ReadVarint32(elem->tag_data,
+                                         elem->tag_data + kMaxLengthVarint32,
+                                         tag) != absl::nullopt)
+            << "Invalid tag";
         const absl::flat_hash_map<std::pair<uint32_t, int>,
                                   Context::IncludedField>::const_iterator iter =
             context.include_fields.find(
@@ -1570,10 +1570,10 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         GetTagWireType(node_template->tag) == WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
-      if (ReadVarint32(node.tag_data, node.tag_data + kMaxLengthVarint32,
-                       tag) == absl::nullopt) {
-        RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
-      }
+      RIEGELI_EVAL_ASSERT(ReadVarint32(node.tag_data,
+                                       node.tag_data + kMaxLengthVarint32,
+                                       tag) != absl::nullopt)
+          << "Invalid tag";
       const absl::flat_hash_map<std::pair<uint32_t, int>,
                                 Context::IncludedField>::const_iterator iter =
           context.include_fields.find(

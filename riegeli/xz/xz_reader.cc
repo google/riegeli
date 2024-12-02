@@ -89,7 +89,7 @@ inline void XzReaderBase::InitializeDecompressor() {
       return;
     }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown container format: " << static_cast<int>(container_);
 }
 
@@ -109,7 +109,7 @@ void XzReaderBase::Done() {
       const lzma_ret liblzma_code = lzma_code(decompressor_.get(), LZMA_FINISH);
       switch (liblzma_code) {
         case LZMA_OK:
-          RIEGELI_ASSERT_UNREACHABLE()
+          RIEGELI_ASSUME_UNREACHABLE()
               << "lzma_code(LZMA_FINISH) with no buffer returned LZMA_OK";
         case LZMA_BUF_ERROR:
           // Stream is truncated.

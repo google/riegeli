@@ -148,7 +148,7 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
       case CompressionType::kSnappy:
         return ValueParser::FailIfSeen("snappy");
     }
-    RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
+    RIEGELI_ASSUME_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
   }());
   options_parser.AddOption(

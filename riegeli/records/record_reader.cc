@@ -397,7 +397,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   MarkNotFailed();
   switch (recoverable) {
     case Recoverable::kNo:
-      RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
+      RIEGELI_ASSUME_UNREACHABLE() << "kNo handled above";
     case Recoverable::kRecoverChunkReader:
       if (ABSL_PREDICT_FALSE(!src.Recover(skipped_region))) {
         return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
@@ -420,7 +420,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       }
       return true;
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
 }
 
@@ -536,7 +536,7 @@ absl::optional<Position> RecordReaderBase::Size() {
 class RecordReaderBase::ChunkSearchTraits {
  public:
   explicit ChunkSearchTraits(RecordReaderBase* self)
-      : self_(RIEGELI_ASSERT_NOTNULL(self)) {}
+      : self_(RIEGELI_EVAL_ASSERT_NOTNULL(self)) {}
 
   using Pos = Position;
 

@@ -107,7 +107,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
     case WriteNewline::kCrLf:
       return dest.Write("\r\n");
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());
 }
 

@@ -142,7 +142,7 @@ void CompactString::ShrinkToFitSlow() {
       return;
     }
   } else {
-    RIEGELI_ASSERT_UNREACHABLE() << "Impossible tag: " << tag;
+    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
   DeleteRepr(std::exchange(
       repr_, MakeRepr(absl::string_view(allocated_data(), size))));

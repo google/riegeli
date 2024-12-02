@@ -238,12 +238,10 @@ class
   // Support `ExternalRef`.
   friend size_t RiegeliExternalMemory(const CompactString* self) {
     const uintptr_t tag = self->repr_ & 7;
-    if (tag == 1) {
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Failed precondition of "
-             "RiegeliExternalMemory(const CompactString*): "
-             "case excluded by RiegeliExternalCopy()";
-    }
+    RIEGELI_ASSUME_NE(tag, 1u)
+        << "Failed precondition of "
+           "RiegeliExternalMemory(const CompactString*): "
+           "case excluded by RiegeliExternalCopy()";
     const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
     return offset + self->allocated_capacity_for_tag(tag);
   }
@@ -254,12 +252,10 @@ class
         reinterpret_cast<void*>(std::exchange(self->repr_, kDefaultRepr)),
         [](void* ptr) {
           const uintptr_t repr = reinterpret_cast<uintptr_t>(ptr);
-          if ((repr & 7) == 1) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Failed precondition of "
-                   "RiegeliExternalStorage(CompactString*): "
-                   "case excluded by RiegeliExternalCopy()";
-          }
+          RIEGELI_ASSUME_NE(repr & 7, 1u)
+              << "Failed precondition of "
+                 "RiegeliExternalStorage(CompactString*): "
+                 "case excluded by RiegeliExternalCopy()";
           DeleteRepr(repr);
         });
   }
@@ -313,12 +309,11 @@ class
         << "Failed precondition of CompactString::inline_size(): "
            "representation not inline";
     const size_t size = IntCast<size_t>((repr_ & 0xff) >> 3);
-    if (size > kInlineCapacity) {
-      // The assertion helps the compiler to reason about comparisons with
-      // `size()`.
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Inline size never exceeds kInlineCapacity";
-    }
+    // This assumption helps the compiler to reason about comparisons with
+    // `size()`.
+    RIEGELI_ASSUME_LE(size, kInlineCapacity)
+        << "Failed invariant of CompactString: "
+           "inline size never exceeds kInlineCapacity";
     return size;
   }
 
@@ -334,8 +329,7 @@ class
   template <typename T>
   size_t allocated_size() const {
     const uintptr_t tag = repr_ & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag),
-                      2 * sizeof(T))
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::allocated_size(): "
            "tag does not match size representation";
     T stored_size;
@@ -347,7 +341,7 @@ class
     if (tag == 2) return allocated_size<uint8_t>();
     if (tag == 4) return allocated_size<uint16_t>();
     if (tag == 0) return allocated_size<size_t>();
-    RIEGELI_ASSERT_UNREACHABLE() << "Impossible tag: " << tag;
+    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
 
   static void set_inline_size(size_t size, uintptr_t& repr) {
@@ -362,8 +356,7 @@ class
   template <typename T>
   static void set_allocated_size(size_t size, uintptr_t repr) {
     const uintptr_t tag = repr & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag),
-                      2 * sizeof(T))
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::set_allocated_size(): "
            "tag does not match size representation";
     const T stored_size = IntCast<T>(size);
@@ -380,19 +373,17 @@ class
   template <typename T>
   static size_t allocated_capacity(uint64_t repr) {
     const uintptr_t tag = repr & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag),
-                      2 * sizeof(T))
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::allocated_capacity(): "
            "tag does not match capacity representation";
     T stored_capacity;
     std::memcpy(&stored_capacity, allocated_data(repr) - 2 * sizeof(T),
                 sizeof(T));
-    if (stored_capacity <= kInlineCapacity) {
-      // The assertion helps the compiler to reason about comparisons with
-      // `capacity()`.
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Allocated capacity always exceeds kInlineCapacity";
-    }
+    // This assumption helps the compiler to reason about comparisons with
+    // `capacity()`.
+    RIEGELI_ASSUME_GT(stored_capacity, kInlineCapacity)
+        << "Failed invariant of CompactString: "
+           "allocated capacity always exceeds kInlineCapacity";
     return size_t{stored_capacity};
   }
 
@@ -405,7 +396,7 @@ class
     if (tag == 2) return allocated_capacity<uint8_t>(repr);
     if (tag == 4) return allocated_capacity<uint16_t>(repr);
     if (tag == 0) return allocated_capacity<size_t>(repr);
-    RIEGELI_ASSERT_UNREACHABLE() << "Impossible tag: " << tag;
+    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
 
   size_t allocated_capacity_for_tag(uintptr_t tag) const {
@@ -415,8 +406,7 @@ class
   template <typename T>
   static void set_allocated_capacity(size_t capacity, uintptr_t repr) {
     const uintptr_t tag = repr & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag),
-                      2 * sizeof(T))
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::set_allocated_capacity(): "
            "tag does not match capacity representation";
     const T stored_capacity = IntCast<T>(capacity);
@@ -536,7 +526,8 @@ inline CompactString& CompactString::operator=(const CompactString& that) {
     } else {
       set_allocated_size_for_tag(tag, that.inline_size());
       RIEGELI_ASSERT_LE(kInlineCapacity, capacity())
-          << "Inline capacity always fits in a capacity";
+          << "Failed invariant of CompactString: "
+             "inline capacity always fits in a capacity";
       // Copy fixed `kInlineCapacity` instead of variable `that.inline_size()`.
       std::memcpy(allocated_data(), that.inline_data(), kInlineCapacity);
       // The `#ifdef` helps the compiler to realize that computing the arguments
@@ -641,7 +632,7 @@ inline void CompactString::set_allocated_size_for_tag(uintptr_t tag,
   } else if (tag == 0) {
     set_allocated_size<size_t>(new_size);
   } else {
-    RIEGELI_ASSERT_UNREACHABLE() << "Impossible tag: " << tag;
+    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
 }
 

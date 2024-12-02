@@ -52,7 +52,7 @@ absl::Status Bzip2ErrorToStatus(absl::string_view operation, int bzlib_code) {
     case BZ_RUN_OK:
     case BZ_FLUSH_OK:
     case BZ_FINISH_OK:
-      RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
+      RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
     case BZ_STREAM_END:
       details = "stream end";
       break;

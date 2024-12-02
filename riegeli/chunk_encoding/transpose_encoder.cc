@@ -124,7 +124,7 @@ bool IsProtoMessage(Reader& record) {
         return false;
     }
   }
-  RIEGELI_ASSERT(record.ok()) << "Reading record failed: " << record.status();
+  RIEGELI_ASSERT(record.ok()) << record.status();
   return started_groups.empty();
 }
 
@@ -256,10 +256,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
     RIEGELI_ASSERT_EQ(record_reader.pos(), limit)
         << "Record was not read up to its end";
   }
-  if (!record_reader.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing records failed: " << record_reader.status();
-  }
+  RIEGELI_EVAL_ASSERT(record_reader.Close()) << record_reader.status();
   return true;
 }
 
@@ -270,10 +267,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
       << record.status();
   const Position pos_before = record.pos();
   absl::optional<Position> size = record.Size();
-  if (size == absl::nullopt) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Getting record size failed: " << record.status();
-  }
+  RIEGELI_ASSERT(size != absl::nullopt) << record.status();
   RIEGELI_ASSERT_LE(pos_before, *size)
       << "Current position after the end of record";
   *size -= pos_before;
@@ -287,10 +281,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(*size);
   const bool is_proto = IsProtoMessage(record);
-  if (!record.Seek(pos_before)) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Seeking reader of a record failed: " << record.status();
-  }
+  RIEGELI_EVAL_ASSERT(record.Seek(pos_before)) << record.status();
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(
         GetNode(NodeId(chunk_encoding_internal::MessageId::kStartOfMessage, 0)),
@@ -357,10 +348,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
   for (;;) {
     while (limited_record.Pull()) {
       uint32_t tag;
-      if (!ReadVarint32(limited_record, tag)) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Invalid tag: " << limited_record.status();
-      }
+      RIEGELI_EVAL_ASSERT(ReadVarint32(limited_record, tag))
+          << "Invalid tag: " << limited_record.status();
       Node* node = GetNode(NodeId(parent_message_id, tag));
       switch (GetTagWireType(tag)) {
         case WireType::kVarint: {
@@ -371,10 +360,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
                         "value too small to hold a varint64");
           const absl::optional<size_t> value_length =
               CopyVarint64(limited_record, reinterpret_cast<char*>(value));
-          if (value_length == absl::nullopt) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Invalid varint: " << limited_record.status();
-          }
+          RIEGELI_ASSERT(value_length != absl::nullopt)
+              << "Invalid varint: " << limited_record.status();
           if (reinterpret_cast<const unsigned char*>(value)[0] <=
               kMaxVarintInline) {
             encoded_tags_.push_back(GetPosInTagsList(
@@ -414,10 +401,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
         case WireType::kLengthDelimited: {
           const Position length_pos = limited_record.pos();
           uint32_t length;
-          if (!ReadVarint32(limited_record, length)) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Invalid length: " << limited_record.status();
-          }
+          RIEGELI_EVAL_ASSERT(ReadVarint32(limited_record, length))
+              << "Invalid length: " << limited_record.status();
           const Position value_pos = limited_record.pos();
           const Position parent_max_record_pos = limited_record.max_pos();
           limited_record.set_max_length(length);
@@ -430,11 +415,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
             encoded_tags_.push_back(
                 GetPosInTagsList(node, chunk_encoding_internal::Subtype::
                                            kLengthDelimitedStartOfSubmessage));
-            if (!limited_record.Seek(value_pos)) {
-              RIEGELI_ASSERT_UNREACHABLE()
-                  << "Seeking submessage reader failed: "
-                  << limited_record.status();
-            }
+            RIEGELI_EVAL_ASSERT(limited_record.Seek(value_pos))
+                << limited_record.status();
             const uint32_t end_of_submessage_pos =
                 GetPosInTagsList(node, chunk_encoding_internal::Subtype::
                                            kLengthDelimitedEndOfSubmessage);
@@ -446,10 +428,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
           }
           encoded_tags_.push_back(GetPosInTagsList(
               node, chunk_encoding_internal::Subtype::kLengthDelimitedString));
-          if (!limited_record.Seek(length_pos)) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking message reader failed: " << limited_record.status();
-          }
+          RIEGELI_EVAL_ASSERT(limited_record.Seek(length_pos))
+              << limited_record.status();
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!limited_record.Copy(
                   IntCast<size_t>(value_pos - length_pos) + length, *buffer))) {
@@ -474,13 +454,12 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
               node, chunk_encoding_internal::Subtype::kTrivial));
           break;
         default:
-          RIEGELI_ASSERT_UNREACHABLE()
+          RIEGELI_ASSUME_UNREACHABLE()
               << "Invalid wire type: "
               << static_cast<uint32_t>(GetTagWireType(tag));
       }
     }
-    RIEGELI_ASSERT(limited_record.ok())
-        << "Reading record failed: " << limited_record.status();
+    RIEGELI_ASSERT(limited_record.ok()) << limited_record.status();
     if (message_stack_.empty()) return true;
     const MessageFrame& message_frame = message_stack_.back();
     encoded_tags_.push_back(message_frame.end_of_submessage_pos);

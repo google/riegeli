@@ -60,7 +60,7 @@ class WriterAbslStringifySink {
 
   // Will write to `*dest`.
   explicit WriterAbslStringifySink(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
 
   WriterAbslStringifySink(WriterAbslStringifySink&& that) = default;
   WriterAbslStringifySink& operator=(WriterAbslStringifySink&& that) = default;

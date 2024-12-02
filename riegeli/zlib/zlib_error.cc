@@ -47,7 +47,7 @@ absl::Status ZlibErrorToStatus(absl::string_view operation, int zlib_code,
   if (details == nullptr) {
     switch (zlib_code) {
       case Z_OK:
-        RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
+        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
       case Z_STREAM_END:
         details = "stream end";
         break;

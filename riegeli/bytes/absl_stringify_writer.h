@@ -48,7 +48,7 @@ class AbslStringifyWriter : public BufferedWriter {
 
   // Will write to `*dest`.
   explicit AbslStringifyWriter(Dest dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(std::move(RIEGELI_ASSERT_NOTNULL(dest))) {}
+      : dest_(std::move(RIEGELI_EVAL_ASSERT_NOTNULL(dest))) {}
 
   AbslStringifyWriter(AbslStringifyWriter&& that) = default;
   AbslStringifyWriter& operator=(AbslStringifyWriter&& that) = default;
@@ -83,7 +83,7 @@ class AbslStringifyWriter<WriterAbslStringifySink*>
   // Will write to `*dest`.
   explicit AbslStringifyWriter(
       WriterAbslStringifySink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : PrefixLimitingWriter(RIEGELI_ASSERT_NOTNULL(dest)->dest()),
+      : PrefixLimitingWriter(RIEGELI_EVAL_ASSERT_NOTNULL(dest)->dest()),
         dest_(dest) {}
 
   AbslStringifyWriter(AbslStringifyWriter&& that) = default;

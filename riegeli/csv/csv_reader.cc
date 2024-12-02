@@ -338,7 +338,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       case CharClass::kCr:
       case CharClass::kComment:
       case CharClass::kFieldSeparator:
-        RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
+        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
       case CharClass::kQuote:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.ok())) {
@@ -364,7 +364,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         ptr = src.cursor() + 1;
         continue;
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown character class: " << static_cast<int>(char_class);
   }
 }
@@ -445,7 +445,7 @@ next_field:
     switch (char_class) {
       case CharClass::kOther:
       case CharClass::kComment:
-        RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
+        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
         if (skip_empty_lines_ && field_index == 0 && field.empty()) {
@@ -525,9 +525,9 @@ next_field:
             if (*src.cursor() == '\n') src.move_cursor(1);
             return true;
           case CharClass::kQuote:
-            RIEGELI_ASSERT_UNREACHABLE() << "Handled by ReadQuoted()";
+            RIEGELI_ASSUME_UNREACHABLE() << "Handled by ReadQuoted()";
         }
-        RIEGELI_ASSERT_UNREACHABLE()
+        RIEGELI_ASSUME_UNREACHABLE()
             << "Unknown character class: "
             << static_cast<int>(char_class_after_quoted);
       }
@@ -543,7 +543,7 @@ next_field:
         ptr = src.cursor() + 1;
         continue;
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown character class: " << static_cast<int>(char_class);
   }
 }

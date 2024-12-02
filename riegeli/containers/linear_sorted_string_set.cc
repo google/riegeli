@@ -107,7 +107,7 @@ size_t LinearSortedStringSet::size() const {
       const absl::optional<const char*> next =
           ReadVarint64(ptr, limit, tagged_length);
       if (next == absl::nullopt) {
-        RIEGELI_ASSERT_UNREACHABLE()
+        RIEGELI_ASSUME_UNREACHABLE()
             << "Malformed LinearSortedStringSet encoding (tagged_length)";
       } else {
         ptr = *next;
@@ -124,7 +124,7 @@ size_t LinearSortedStringSet::size() const {
         const absl::optional<const char*> next =
             ReadVarint64(ptr, limit, shared_length);
         if (next == absl::nullopt) {
-          RIEGELI_ASSERT_UNREACHABLE()
+          RIEGELI_ASSUME_UNREACHABLE()
               << "Malformed LinearSortedStringSet encoding (shared_length)";
         } else {
           ptr = *next;
@@ -444,7 +444,7 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
     const absl::optional<const char*> next =
         ReadVarint64(ptr, limit_, tagged_length);
     if (next == absl::nullopt) {
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Malformed LinearSortedStringSet encoding (tagged_length)";
     } else {
       ptr = *next;
@@ -467,7 +467,7 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
     const absl::optional<const char*> next =
         ReadVarint64(ptr, limit_, shared_length);
     if (next == absl::nullopt) {
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Malformed LinearSortedStringSet encoding (shared_length)";
     } else {
       ptr = *next;
@@ -521,7 +521,7 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
     const absl::optional<const char*> next =
         ReadVarint64(ptr, limit_, tagged_length);
     if (next == absl::nullopt) {
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Malformed LinearSortedStringSet encoding (tagged_length)";
     } else {
       ptr = *next;
@@ -544,7 +544,7 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
     const absl::optional<const char*> next =
         ReadVarint64(ptr, limit_, shared_length);
     if (next == absl::nullopt) {
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Malformed LinearSortedStringSet encoding (shared_length)";
     } else {
       ptr = *next;
@@ -717,10 +717,8 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() {
   RIEGELI_ASSERT(writer_.is_open())
       << "Failed precondition of LinearSortedStringSet::Builder::Build(): "
          "set already built or moved from";
-  if (ABSL_PREDICT_FALSE(!writer_.Close())) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "A CompactStringWriter has no reason to fail: " << writer_.status();
-  }
+  RIEGELI_EVAL_ASSERT(writer_.Close())
+      << "A CompactStringWriter has no reason to fail: " << writer_.status();
   writer_.dest().shrink_to_fit();
   LinearSortedStringSet set(std::move(writer_.dest()));
   writer_.Reset();

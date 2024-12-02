@@ -88,7 +88,7 @@ class FileDescriptorCollector {
   explicit FileDescriptorCollector(
       google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>*
           file_descriptors)
-      : file_descriptors_(RIEGELI_ASSERT_NOTNULL(file_descriptors)) {}
+      : file_descriptors_(RIEGELI_EVAL_ASSERT_NOTNULL(file_descriptors)) {}
 
   void AddFile(const google::protobuf::FileDescriptor* file_descriptor) {
     if (!files_seen_.emplace(file_descriptor->name()).second) return;
@@ -228,7 +228,7 @@ class RecordWriterBase::Worker {
 inline RecordWriterBase::Worker::Worker(ChunkWriter* chunk_writer,
                                         Options&& options)
     : options_(std::move(options)),
-      chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
+      chunk_writer_(RIEGELI_EVAL_ASSERT_NOTNULL(chunk_writer)),
       chunk_encoder_(MakeChunkEncoder()) {
   if (ABSL_PREDICT_FALSE(!chunk_writer_->ok())) {
     // `FailWithoutAnnotation()` is pure virtual and must not be called from the

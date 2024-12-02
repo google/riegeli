@@ -183,11 +183,9 @@ absl::Status SerializeToString(const google::protobuf::MessageLite& src,
   riegeli::ArrayWriter<> writer(&dest[0], size);
   const absl::Status status =
       SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
-  if (!writer.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE() << "An ArrayWriter has no reason to fail "
-                                    "if the size does not overflow: "
-                                 << writer.status();
-  }
+  RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
+                                         "if the size does not overflow: "
+                                      << writer.status();
   return status;
 }
 
@@ -224,11 +222,9 @@ absl::Status SerializeToCompactString(const google::protobuf::MessageLite& src,
   riegeli::ArrayWriter<> writer(data, size);
   const absl::Status status =
       SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
-  if (!writer.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE() << "An ArrayWriter has no reason to fail "
-                                    "if the size does not overflow: "
-                                 << writer.status();
-  }
+  RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
+                                         "if the size does not overflow: "
+                                      << writer.status();
   return status;
 }
 
@@ -269,10 +265,8 @@ absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
-  if (!writer.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "A ChainWriter has no reason to fail: " << writer.status();
-  }
+  RIEGELI_EVAL_ASSERT(writer.Close())
+      << "A ChainWriter has no reason to fail: " << writer.status();
   return status;
 }
 
@@ -317,10 +311,8 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
-  if (!writer.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "A CordWriter has no reason to fail: " << writer.status();
-  }
+  RIEGELI_EVAL_ASSERT(writer.Close())
+      << "A CordWriter has no reason to fail: " << writer.status();
   return status;
 }
 

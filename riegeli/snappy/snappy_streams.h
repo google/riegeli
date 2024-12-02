@@ -30,7 +30,7 @@ namespace snappy_internal {
 class WriterSnappySink : public snappy::Sink {
  public:
   explicit WriterSnappySink(Writer* dest)
-      : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {}
+      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
 
   WriterSnappySink(const WriterSnappySink&) = delete;
   WriterSnappySink& operator=(const WriterSnappySink&) = delete;
@@ -52,7 +52,7 @@ class WriterSnappySink : public snappy::Sink {
 class ReaderSnappySource : public snappy::Source {
  public:
   explicit ReaderSnappySource(Reader* src, Position size)
-      : src_(RIEGELI_ASSERT_NOTNULL(src)), size_(size) {}
+      : src_(RIEGELI_EVAL_ASSERT_NOTNULL(src)), size_(size) {}
 
   ReaderSnappySource(const ReaderSnappySource&) = delete;
   ReaderSnappySource& operator=(const ReaderSnappySource&) = delete;

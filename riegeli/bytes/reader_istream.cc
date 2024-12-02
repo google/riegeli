@@ -163,7 +163,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       }
     } break;
     default:
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
   if (new_pos >= reader_->pos()) {

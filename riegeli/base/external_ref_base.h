@@ -286,10 +286,9 @@ class ExternalRef {
   template <typename T>
   static bool Wasteful(const T& object, size_t used) {
     size_t allocated = ExternalMemory(&object);
-    if (sizeof(T) > std::numeric_limits<size_t>::max() - allocated) {
-      RIEGELI_ASSERT_UNREACHABLE() << "Result of RiegeliExternalMemory() "
-                                      "suspiciously close to size_t range";
-    }
+    RIEGELI_ASSERT_LE(allocated, std::numeric_limits<size_t>::max() - sizeof(T))
+        << "Result of RiegeliExternalMemory() "
+           "suspiciously close to size_t range";
     allocated += sizeof(T);
     return allocated >= used && riegeli::Wasteful(allocated, used);
   }

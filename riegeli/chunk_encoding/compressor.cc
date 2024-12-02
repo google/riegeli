@@ -84,7 +84,7 @@ inline void Compressor::Initialize() {
               compressor_options_.compression_level()));
       return;
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown compression type: "
       << static_cast<unsigned>(compressor_options_.compression_type());
 }

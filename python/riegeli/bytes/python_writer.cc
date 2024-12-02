@@ -224,7 +224,7 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
       }
       return true;
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 

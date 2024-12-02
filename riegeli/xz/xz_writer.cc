@@ -115,7 +115,7 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
       return;
     }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown container format: " << static_cast<int>(container_);
 }
 
@@ -237,7 +237,7 @@ bool XzWriterBase::SupportsReadMode() {
     case Container::kLzma:
       return false;
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown container format: " << static_cast<int>(container_);
 }
 

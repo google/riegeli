@@ -193,7 +193,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         length = src.available();
         goto continue_reading;
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
@@ -277,7 +277,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
         }
         goto continue_reading;
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
     length = src.available();

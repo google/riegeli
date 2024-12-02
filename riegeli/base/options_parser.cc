@@ -36,7 +36,7 @@ namespace riegeli {
 
 ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
                          absl::string_view value)
-    : options_parser_(RIEGELI_ASSERT_NOTNULL(options_parser)),
+    : options_parser_(RIEGELI_EVAL_ASSERT_NOTNULL(options_parser)),
       key_(key),
       value_(value) {}
 
@@ -172,7 +172,7 @@ ValueParser::Function ValueParser::FailIfSeen(
         return true;
       }
     }
-    RIEGELI_ASSERT_UNREACHABLE() << "Unknown option " << key;
+    RIEGELI_ASSUME_UNREACHABLE() << "Unknown option " << key;
   };
 }
 

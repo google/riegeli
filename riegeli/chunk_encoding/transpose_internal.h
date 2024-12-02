@@ -93,7 +93,7 @@ inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_ASSERT_UNREACHABLE() << "Unknown wire type in " << tag;
+      RIEGELI_ASSUME_UNREACHABLE() << "Unknown wire type in " << tag;
   }
 }
 
@@ -115,7 +115,7 @@ inline bool HasSubtype(uint32_t tag) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_ASSERT_UNREACHABLE() << "Unknown wire type in " << tag;
+      RIEGELI_ASSUME_UNREACHABLE() << "Unknown wire type in " << tag;
   }
 }
 

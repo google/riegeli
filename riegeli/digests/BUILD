@@ -23,6 +23,7 @@ cc_library(
     deps = [
         ":digest_converter",
         "//riegeli/base:any",
+        "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:compare",

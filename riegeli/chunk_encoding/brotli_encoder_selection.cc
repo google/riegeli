@@ -44,7 +44,7 @@ ABSL_ATTRIBUTE_WEAK std::unique_ptr<Writer> NewBrotliWriter(
       return writer;
     }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown Brotli encoder: "
       << static_cast<int>(compressor_options.brotli_encoder());
 }

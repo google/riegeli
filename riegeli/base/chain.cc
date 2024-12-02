@@ -111,7 +111,7 @@ inline FlatCordBlock::operator absl::string_view() const {
       return *flat;
     }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Failed invariant of FlatCordBlock: Cord is not flat";
 }
 
@@ -371,7 +371,7 @@ size_t Chain::BlockIterator::CharIndexInChainInternal() const {
       case 1:
         return chain_->begin_[0].block_ptr->size();
       default:
-        RIEGELI_ASSERT_UNREACHABLE()
+        RIEGELI_ASSUME_UNREACHABLE()
             << "Failed invariant of Chain: "
                "only two block pointers fit without allocating their array";
     }

@@ -1064,6 +1064,7 @@ cc_library(
     hdrs = ["fd_handle.h"],
     deps = [
         "//riegeli/base:any",
+        "//riegeli/base:assert",
         "//riegeli/base:compare",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
@@ -1347,6 +1348,7 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         "//riegeli/base:any",
+        "//riegeli/base:assert",
         "//riegeli/base:compare",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",

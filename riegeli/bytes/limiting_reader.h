@@ -587,7 +587,7 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
 
 inline ScopedLimiter::ScopedLimiter(
     LimitingReaderBase* reader ABSL_ATTRIBUTE_LIFETIME_BOUND, Options options)
-    : reader_(RIEGELI_ASSERT_NOTNULL(reader)),
+    : reader_(RIEGELI_EVAL_ASSERT_NOTNULL(reader)),
       old_max_pos_(reader_->max_pos()),
       old_exact_(reader_->exact()),
       fail_if_longer_(options.fail_if_longer()) {

@@ -214,7 +214,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
       block_size = size_t{4} << 20;
       break;
     default:
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Unexpected preferences_.frameInfo.blockSizeID: "
           << preferences_.frameInfo.blockSizeID;
   }

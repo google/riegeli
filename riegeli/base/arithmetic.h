@@ -386,7 +386,7 @@ template <typename A>
 inline size_t PtrDistance(const A* first, const A* last) {
   RIEGELI_ASSERT_LE(first, last)
       << "Failed precondition of PtrDistance(): pointers in the wrong order";
-  return static_cast<size_t>(last - first);
+  return IntCast<size_t>(last - first);
 }
 
 }  // namespace riegeli

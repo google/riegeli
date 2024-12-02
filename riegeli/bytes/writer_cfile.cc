@@ -186,7 +186,7 @@ inline absl::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
     } break;
     default:
-      RIEGELI_ASSERT_UNREACHABLE() << "Unknown seek origin: " << whence;
+      RIEGELI_ASSUME_UNREACHABLE() << "Unknown seek origin: " << whence;
   }
   if (new_pos == (reader_ != nullptr ? reader_->pos() : writer.pos())) {
     // Seeking to the current position is supported even if random access is

@@ -282,7 +282,7 @@ AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(Dest&& dest,
       return riegeli::Maker<TextWriter<WriteNewline::kCrLf, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());
 }
 

@@ -160,11 +160,10 @@ absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
   if (ABSL_PREDICT_FALSE(!reader.ok())) return reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(reader, dest);
   const absl::Status status = CheckInitialized(reader, dest, options);
-  if (!reader.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE() << "A LimitingReader with !fail_if_longer() "
-                                    "has no reason to fail only in Close(): "
-                                 << reader.status();
-  }
+  RIEGELI_EVAL_ASSERT(reader.Close())
+      << "A LimitingReader with !fail_if_longer() "
+         "has no reason to fail only in Close(): "
+      << reader.status();
   return status;
 }
 

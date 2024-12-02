@@ -280,7 +280,7 @@ inline bool DigestingReaderBase::SyncBuffer(Reader& src) {
   if (start_to_cursor() > 0) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(start(), start_to_cursor())))) {
-      if (FailFromDigester()) RIEGELI_ASSERT_UNREACHABLE();
+      RIEGELI_EVAL_ASSERT(!FailFromDigester());
       return false;
     }
     src.set_cursor(cursor());

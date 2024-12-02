@@ -93,10 +93,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
                                                  Position chunk_end,
                                                  Writer& dest) {
   const absl::optional<Position> size = src.Size();
-  if (size == absl::nullopt) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Getting section size failed: " << src.status();
-  }
+  RIEGELI_ASSERT(size != absl::nullopt) << src.status();
   RIEGELI_ASSERT_EQ(src.pos(), 0u) << "Non-zero section reader position";
   while (src.pos() < *size) {
     if (records_internal::IsBlockBoundary(pos())) {
@@ -116,10 +113,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
     }
     move_pos(length);
   }
-  if (!src.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing section reader failed: " << src.status();
-  }
+  RIEGELI_EVAL_ASSERT(src.Close()) << src.status();
   return true;
 }
 

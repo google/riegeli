@@ -49,7 +49,7 @@ absl::Status XzErrorToStatus(absl::string_view operation,
   absl::string_view details;
   switch (liblzma_code) {
     case LZMA_OK:
-      RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
+      RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
     case LZMA_STREAM_END:
       details = "End of stream was reached";
       break;

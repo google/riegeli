@@ -357,7 +357,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       }
     } break;
     default:
-      RIEGELI_ASSERT_UNREACHABLE()
+      RIEGELI_ASSUME_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
   if ((which & std::ios_base::in) != 0) {

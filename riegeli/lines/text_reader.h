@@ -326,7 +326,7 @@ AnyTextReader<TargetT<Src>> MakeAnyTextReader(Src&& src,
       return riegeli::Maker<TextReader<ReadNewline::kAny, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
   }
-  RIEGELI_ASSERT_UNREACHABLE()
+  RIEGELI_ASSUME_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());
 }
 

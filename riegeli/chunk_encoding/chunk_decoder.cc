@@ -198,10 +198,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
     absl::Status status =
         ParseFromReaderWithLength(values_reader_, limit - start, record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      if (!values_reader_.Seek(limit)) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Seeking record values failed: " << values_reader_.status();
-      }
+      RIEGELI_EVAL_ASSERT(values_reader_.Seek(limit))
+          << values_reader_.status();
       recoverable_ = true;
       return Fail(std::move(status));
     }

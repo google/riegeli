@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -230,7 +231,7 @@ class
   // Creates a `CFileHandle` which points to `target`.
   template <typename T, std::enable_if_t<IsValidCFileTarget<T>::value, int> = 0>
   explicit CFileHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : methods_(&kMethods<T>), target_(target) {}
+      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
 
   CFileHandle(const CFileHandle& that) = default;
   CFileHandle& operator=(const CFileHandle& that) = default;
