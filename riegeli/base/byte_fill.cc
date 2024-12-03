@@ -111,8 +111,8 @@ ByteFill::Blocks::Blocks(Position size, char fill) {
     non_last_block_size_ = IntCast<uint32_t>(size);
     last_block_size_ = non_last_block_size_;
   } else {
-    const int block_size_bits =
-        SignedMin((kBlockSizeBitsBias + absl::bit_width(size)) / 2, 16);
+    const int block_size_bits = SignedMin(
+        (kBlockSizeBitsBias + IntCast<int>(absl::bit_width(size))) / 2, 16);
     num_blocks_ = ((size - 1) >> block_size_bits) + 1;
     non_last_block_size_ = uint32_t{1} << block_size_bits;
     last_block_size_ =
