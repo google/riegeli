@@ -348,8 +348,7 @@ inline bool ObjectState::not_failed() const {
 }
 
 inline bool ObjectState::MarkClosed() {
-  if (ABSL_PREDICT_TRUE(status_ptr_ == kOk ||
-                        status_ptr_ == kClosedSuccessfully)) {
+  if (ABSL_PREDICT_TRUE(not_failed())) {
     status_ptr_ = kClosedSuccessfully;
     return true;
   }
