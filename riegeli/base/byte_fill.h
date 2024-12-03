@@ -446,8 +446,7 @@ class ByteFill::Blocks {
   }
 
   template <typename Callback>
-  void ExternalDelegate(Position block_index_complement,
-                        absl::string_view substr, Callback&& delegate_to) const;
+  void ExternalDelegate(absl::string_view substr, Callback&& delegate_to) const;
 
   Position num_blocks_ = 0;
   uint32_t non_last_block_size_ = 0;
@@ -471,8 +470,7 @@ inline size_t ByteFill::BlockRef::size() const {
 template <typename Callback>
 inline void ByteFill::BlockRef::ExternalDelegate(absl::string_view substr,
                                                  Callback&& delegate_to) const {
-  blocks_->ExternalDelegate(block_index_complement_, substr,
-                            std::forward<Callback>(delegate_to));
+  blocks_->ExternalDelegate(substr, std::forward<Callback>(delegate_to));
 }
 
 inline ByteFill::BlockIterator::reference ByteFill::BlockIterator::operator*()
@@ -577,8 +575,7 @@ inline ByteFill::Blocks::Blocks(Blocks&& that) noexcept
 }
 
 template <typename Callback>
-inline void ByteFill::Blocks::ExternalDelegate(Position block_index_complement,
-                                               absl::string_view substr,
+inline void ByteFill::Blocks::ExternalDelegate(absl::string_view substr,
                                                Callback&& delegate_to) const {
   struct Visitor {
     void operator()(const ZeroBlock& zero_ref) const {

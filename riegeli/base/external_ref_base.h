@@ -373,7 +373,8 @@ class ExternalRef {
                                          HasCallOperatorSubstr<
                                              absl::remove_cvref_t<T>>>::value,
                        int> = 0>
-  static void CallOperatorSubstr(T&& object, absl::string_view substr) {
+  static void CallOperatorSubstr(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
     absl::remove_cvref_t<T> copy(object);
     const absl::string_view data = riegeli::ToStringView(copy);
     std::move(copy)(data);
@@ -386,7 +387,8 @@ class ExternalRef {
               absl::negation<HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
               HasCallOperatorWhole<absl::remove_cvref_t<T>>>::value,
           int> = 0>
-  static void CallOperatorSubstr(T&& object, absl::string_view substr) {
+  static void CallOperatorSubstr(
+      T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
     (absl::remove_cvref_t<T>(object))();
   }
   template <typename T,
