@@ -304,7 +304,7 @@ explicit DefaultChunkReader(Src&& src) -> DefaultChunkReader<TargetT<Src>>;
 template <typename Manager>
 class DependencyImpl<
     ChunkReader*, Manager,
-    std::enable_if_t<IsValidDependency<Reader*, Manager>::value>> {
+    std::enable_if_t<SupportsDependency<Reader*, Manager>::value>> {
  public:
   DependencyImpl() noexcept : chunk_reader_(kClosed) {}
 

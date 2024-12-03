@@ -219,15 +219,15 @@ explicit SnappyWriter(Dest&& dest, SnappyWriterBase::Options options =
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
-//  `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `Any<Reader*>` (maybe owned).
+// `DependencyRef<Reader*, Src>`, e.g. `Reader&` (not owned),
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
+// `AnyRef<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
+// `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `Any<Writer*>` (maybe owned).
+// `AnyRef<Writer*>` (maybe owned).
 //
 // The uncompressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with
@@ -235,11 +235,12 @@ explicit SnappyWriter(Dest&& dest, SnappyWriterBase::Options options =
 
 using SnappyCompressOptions = SnappyWriterBase::Options;
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int> = 0>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int> = 0>
 absl::Status SnappyCompress(
     Src&& src, Dest&& dest,
     SnappyCompressOptions options = SnappyCompressOptions());
@@ -356,15 +357,16 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
 
 }  // namespace snappy_internal
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int>>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int>>
 inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
                                    SnappyCompressOptions options) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
       snappy_internal::SnappyCompressImpl(*src_dep, *dest_dep, options);

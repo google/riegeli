@@ -245,7 +245,7 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
 // `src` supports `riegeli::Maker<Src>(args...)` to construct `Src` in-place.
 template <
     typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int> = 0>
+    std::enable_if_t<TargetSupportsDependency<Reader*, Src>::value, int> = 0>
 AnyTextReader<TargetT<Src>> MakeAnyTextReader(
     Src&& src, AnyTextReaderOptions options = AnyTextReaderOptions());
 
@@ -310,9 +310,8 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(
   TextReader::PrefixLimitingReader::Reset(std::move(src));
 }
 
-template <
-    typename Src,
-    std::enable_if_t<IsValidDependency<Reader*, TargetT<Src>>::value, int>>
+template <typename Src,
+          std::enable_if_t<TargetSupportsDependency<Reader*, Src>::value, int>>
 AnyTextReader<TargetT<Src>> MakeAnyTextReader(Src&& src,
                                               AnyTextReaderOptions options) {
   switch (options.newline()) {

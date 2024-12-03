@@ -191,7 +191,7 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
 // `dest` supports `riegeli::Maker<Dest>(args...)` to construct `Dest` in-place.
 template <
     typename Dest,
-    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int> = 0>
+    std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int> = 0>
 AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(
     Dest&& dest, AnyTextWriterOptions options = AnyTextWriterOptions());
 
@@ -266,9 +266,8 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest));
 }
 
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int>>
+template <typename Dest,
+          std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int>>
 AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(Dest&& dest,
                                                AnyTextWriterOptions options) {
   switch (options.newline()) {

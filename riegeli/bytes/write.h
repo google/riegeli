@@ -42,26 +42,27 @@ namespace riegeli {
 //
 // `Dest` specifies the type of the object providing and possibly owning the
 // `Writer` / `BackwardWriter`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
-// `Any<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
+// `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyRef<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 
-template <typename... Args,
-          std::enable_if_t<
-              absl::conjunction<
-                  IsValidDependency<Writer*, GetTypeFromEndT<1, Args&&...>>,
-                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                       IsStringifiable>>::value,
-              int> = 0>
-absl::Status Write(Args&&... args);
 template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
-            IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
+            TargetRefSupportsDependency<Writer*, GetTypeFromEndT<1, Args...>>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
         int> = 0>
+absl::Status Write(Args&&... args);
+template <
+    typename... Args,
+    std::enable_if_t<absl::conjunction<
+                         TargetRefSupportsDependency<
+                             BackwardWriter*, GetTypeFromEndT<1, Args...>>,
+                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                              IsStringifiable>>::value,
+                     int> = 0>
 absl::Status Write(Args&&... args);
 
 // Implementation details follow.
@@ -88,7 +89,7 @@ template <typename... Srcs, typename Dest, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
     std::index_sequence<indices...>) {
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.IsOwning()) {
     SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
   }
@@ -109,7 +110,7 @@ template <typename... Srcs, typename Dest, size_t... indices>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
     std::index_sequence<indices...>) {
-  Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.IsOwning()) {
     SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
   }
@@ -128,13 +129,14 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
 
 }  // namespace write_internal
 
-template <typename... Args,
-          std::enable_if_t<
-              absl::conjunction<
-                  IsValidDependency<Writer*, GetTypeFromEndT<1, Args&&...>>,
-                  TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                       IsStringifiable>>::value,
-              int>>
+template <
+    typename... Args,
+    std::enable_if_t<
+        absl::conjunction<
+            TargetRefSupportsDependency<Writer*, GetTypeFromEndT<1, Args...>>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                 IsStringifiable>>::value,
+        int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::WriteInternal(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
@@ -144,12 +146,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
 
 template <
     typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            IsValidDependency<BackwardWriter*, GetTypeFromEndT<1, Args&&...>>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
-        int>>
+    std::enable_if_t<absl::conjunction<
+                         TargetRefSupportsDependency<
+                             BackwardWriter*, GetTypeFromEndT<1, Args...>>,
+                         TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
+                                              IsStringifiable>>::value,
+                     int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::BackwardWriteInternal(
       RemoveFromEnd<1>(std::forward<Args>(args)...),

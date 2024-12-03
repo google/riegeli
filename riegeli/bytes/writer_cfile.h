@@ -93,7 +93,7 @@ class WriterCFileOptions {
 // `Writer` must do so as well.
 template <
     typename Dest,
-    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int> = 0>
+    std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int> = 0>
 FILE* WriterCFile(Dest&& dest,
                   WriterCFileOptions options = WriterCFileOptions());
 
@@ -167,9 +167,8 @@ FILE* WriterCFileImpl(WriterCFileCookieBase* cookie);
 
 }  // namespace cfile_internal
 
-template <
-    typename Dest,
-    std::enable_if_t<IsValidDependency<Writer*, TargetT<Dest>>::value, int>>
+template <typename Dest,
+          std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int>>
 FILE* WriterCFile(Dest&& dest, WriterCFileOptions options) {
   return cfile_internal::WriterCFileImpl(
       new cfile_internal::WriterCFileCookie<TargetT<Dest>>(

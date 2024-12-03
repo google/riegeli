@@ -239,7 +239,7 @@ explicit DefaultChunkWriter(
 template <typename Manager>
 class DependencyImpl<
     ChunkWriter*, Manager,
-    std::enable_if_t<IsValidDependency<Writer*, Manager>::value>> {
+    std::enable_if_t<SupportsDependency<Writer*, Manager>::value>> {
  public:
   DependencyImpl() noexcept : chunk_writer_(kClosed) {}
 

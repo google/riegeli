@@ -277,40 +277,40 @@ template <
     typename Src, typename Formatter = DefaultFormatter,
     std::enable_if_t<
         !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
-inline JoinType<Src&&, Formatter&&> Join(
+inline JoinType<TargetRefT<Src>, TargetRefT<Formatter>> Join(
     Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<Src&&, Formatter&&>(std::forward<Src>(src),
-                                      std::forward<Formatter>(formatter));
+  return JoinType<TargetRefT<Src>, TargetRefT<Formatter>>(
+      std::forward<Src>(src), std::forward<Formatter>(formatter));
 }
 
 template <
     typename Value = absl::string_view, typename Formatter = DefaultFormatter,
     std::enable_if_t<
         !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
-inline JoinType<std::initializer_list<Value>, Formatter&&> Join(
+inline JoinType<std::initializer_list<Value>, TargetRefT<Formatter>> Join(
     std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<std::initializer_list<Value>, Formatter&&>(
+  return JoinType<std::initializer_list<Value>, TargetRefT<Formatter>>(
       src, std::forward<Formatter>(formatter));
 }
 
 template <typename Src, typename Formatter = DefaultFormatter>
-inline JoinType<Src&&, Formatter&&> Join(
+inline JoinType<TargetRefT<Src>, TargetRefT<Formatter>> Join(
     Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<Src&&, Formatter&&>(std::forward<Src>(src), separator,
-                                      std::forward<Formatter>(formatter));
+  return JoinType<TargetRefT<Src>, TargetRefT<Formatter>>(
+      std::forward<Src>(src), separator, std::forward<Formatter>(formatter));
 }
 
 template <typename Value = absl::string_view,
           typename Formatter = DefaultFormatter>
-inline JoinType<std::initializer_list<Value>, Formatter&&> Join(
+inline JoinType<std::initializer_list<Value>, TargetRefT<Formatter>> Join(
     std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
-  return JoinType<std::initializer_list<Value>, Formatter&&>(
+  return JoinType<std::initializer_list<Value>, TargetRefT<Formatter>>(
       src, separator, std::forward<Formatter>(formatter));
 }
 

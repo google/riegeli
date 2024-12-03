@@ -185,7 +185,8 @@ class SplittingWriterBase : public PushableWriter {
 // The `Shard` template parameter specifies the type of the object providing and
 // possibly owning the shard `Writer`. `Shard` must support
 // `Dependency<Writer*, Shard>`, e.g. `Writer*` (not owned),
-// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned).
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `Any<Writer*>` (maybe owned).
 template <typename Shard>
 class SplittingWriter : public SplittingWriterBase {
  protected:

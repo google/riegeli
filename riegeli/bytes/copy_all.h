@@ -52,35 +52,37 @@ namespace riegeli {
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
+// `DependencyRef<Reader*, Src>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `Any<Reader*>` (maybe owned).
+// `AnyRef<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer` / `BackwardWriter`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
-// `ChainWriter<>` (owned). `std::unique_ptr<Writer>` (owned),
-// `Any<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int> = 0>
-absl::Status CopyAll(Src&& src, Dest&& dest,
-                     Position max_length = std::numeric_limits<Position>::max(),
-                     Position* length_read = nullptr);
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int> = 0>
-absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read);
+// `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
+// `AnyRef<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
 template <
     typename Src, typename Dest,
     std::enable_if_t<
-        absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                          IsValidDependency<BackwardWriter*, Dest&&>>::value,
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
         int> = 0>
+absl::Status CopyAll(Src&& src, Dest&& dest,
+                     Position max_length = std::numeric_limits<Position>::max(),
+                     Position* length_read = nullptr);
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int> = 0>
+absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read);
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              absl::conjunction<
+                  TargetRefSupportsDependency<Reader*, Src>,
+                  TargetRefSupportsDependency<BackwardWriter*, Dest>>::value,
+              int> = 0>
 absl::Status CopyAll(Src&& src, Dest&& dest,
                      size_t max_length = std::numeric_limits<size_t>::max());
 
@@ -95,15 +97,16 @@ absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
 
 }  // namespace copy_all_internal
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int>>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
                             Position* length_read) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = copy_all_internal::CopyAllImpl(
       *src_dep, *dest_dep, max_length, length_read, dest_dep.IsOwning());
@@ -119,25 +122,26 @@ inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
   return status;
 }
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int>>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read) {
   return CopyAll(std::forward<Src>(src), std::forward<Dest>(dest),
                  std::numeric_limits<Position>::max(), length_read);
 }
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                          IsValidDependency<BackwardWriter*, Dest&&>>::value,
-        int>>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              absl::conjunction<
+                  TargetRefSupportsDependency<Reader*, Src>,
+                  TargetRefSupportsDependency<BackwardWriter*, Dest>>::value,
+              int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  Dependency<BackwardWriter*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
+  DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = copy_all_internal::CopyAllImpl(
       *src_dep, *dest_dep, max_length, dest_dep.IsOwning());

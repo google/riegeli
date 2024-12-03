@@ -122,15 +122,16 @@ class SerializeOptions {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
+// `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `Any<Writer*>` (maybe owned).
+// `AnyRef<Writer*>` (maybe owned).
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+          std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value,
+                           int> = 0>
 absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                Dest&& dest,
                                SerializeOptions options = SerializeOptions());
@@ -230,11 +231,12 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 
 }  // namespace messages_internal
 
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+template <
+    typename Dest,
+    std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   absl::Status status = messages_internal::SerializeToWriterImpl(
       src, *dest_dep, std::move(options), dest_dep.IsOwning());
   if (dest_dep.IsOwning()) {

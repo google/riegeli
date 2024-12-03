@@ -69,7 +69,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Reader`. `Src` must support
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned),
+// `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
@@ -139,24 +139,25 @@ explicit SnappyReader(
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
+// `DependencyRef<Reader*, Src>`, e.g. `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `Any<Reader*>` (maybe owned).
+// `AnyRef<Reader*>` (maybe owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest&&>`, e.g. `Writer&` (not owned),
+// `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
-// `Any<Writer*>` (maybe owned).
+// `AnyRef<Writer*>` (maybe owned).
 //
 // The compressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with
 // `LimitingReaderBase::Options().set_exact_length(size)`.
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int> = 0>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int> = 0>
 absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 
 // Returns the claimed uncompressed size of Snappy-compressed data.
@@ -233,14 +234,15 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest);
 
 }  // namespace snappy_internal
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<IsValidDependency<Reader*, Src&&>,
-                                IsValidDependency<Writer*, Dest&&>>::value,
-              int>>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
+                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        int>>
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   if (dest_dep.IsOwning()) {
     dest_dep->SetWriteSizeHint(SnappyUncompressedSize(*src_dep));

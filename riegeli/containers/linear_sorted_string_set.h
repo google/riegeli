@@ -248,14 +248,15 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   //
   // As for now the encoding is not guaranteed to not change in future.
   // Please ask qrczak@google.com if you need stability.
-  template <
-      typename Dest,
-      std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int> = 0>
+  template <typename Dest,
+            std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value,
+                             int> = 0>
   absl::Status Encode(Dest&& dest) const;
 
   // Decodes the set from the encoded form.
   template <typename Src,
-            std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+            std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value,
+                             int> = 0>
   absl::Status Decode(Src&& src, DecodeOptions options = DecodeOptions());
 
  private:
@@ -802,10 +803,11 @@ inline size_t LinearSortedStringSet::EncodedSize() const {
   return LengthVarint64(uint64_t{encoded_.size()}) + encoded_.size();
 }
 
-template <typename Dest,
-          std::enable_if_t<IsValidDependency<Writer*, Dest&&>::value, int>>
+template <
+    typename Dest,
+    std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
 inline absl::Status LinearSortedStringSet::Encode(Dest&& dest) const {
-  Dependency<Writer*, Dest&&> dest_dep(std::forward<Dest>(dest));
+  DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if (dest_dep.IsOwning()) dest_dep->SetWriteSizeHint(EncodedSize());
   absl::Status status = EncodeImpl(*dest_dep);
   if (dest_dep.IsOwning()) {
@@ -816,11 +818,12 @@ inline absl::Status LinearSortedStringSet::Encode(Dest&& dest) const {
   return status;
 }
 
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
 inline absl::Status LinearSortedStringSet::Decode(Src&& src,
                                                   DecodeOptions options) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = DecodeImpl(*src_dep, options);
   if (src_dep.IsOwning()) {

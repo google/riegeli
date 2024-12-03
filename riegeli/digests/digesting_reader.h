@@ -226,7 +226,7 @@ explicit DigestingReader(Src&& src, Digester&& digester)
 //
 // The `Digester` template parameter specifies the type of the object providing
 // and possibly owning the digester. `Digester` must support
-// `Dependency<DigesterBaseHandle, Digester&&>` and must provide a member
+// `DependencyRef<DigesterBaseHandle, Digester>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDigester<uint32_t>` (maybe owned).
@@ -238,17 +238,18 @@ explicit DigestingReader(Src&& src, Digester&& digester)
 // `Any<Reader*>` (maybe owned).
 //
 // The digest is converted to `DesiredDigestType` using `DigestConverter`.
-template <typename DesiredDigestType = digest_converter_internal::NoConversion,
-          typename Digester, typename Src,
-          std::enable_if_t<
-              absl::conjunction<
-                  IsValidDependency<DigesterBaseHandle, Digester&&>,
-                  IsValidDependency<Reader*, Src&&>,
-                  digest_converter_internal::HasDigestConverterOrNoConversion<
-                      DigestOf<Digester&&>, DesiredDigestType>>::value,
-              int> = 0>
+template <
+    typename DesiredDigestType = digest_converter_internal::NoConversion,
+    typename Digester, typename Src,
+    std::enable_if_t<
+        absl::conjunction<
+            TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
+            TargetRefSupportsDependency<Reader*, Src>,
+            digest_converter_internal::HasDigestConverterOrNoConversion<
+                DigestOf<TargetRefT<Digester>>, DesiredDigestType>>::value,
+        int> = 0>
 StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
-    DigestOf<Digester&&>, DesiredDigestType>>
+    DigestOf<TargetRefT<Digester>>, DesiredDigestType>>
 DigestFromReader(Src&& src, Digester&& digester,
                  Position* length_read = nullptr);
 
@@ -386,22 +387,22 @@ bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-template <typename DesiredDigestType, typename Digester, typename Src,
-          std::enable_if_t<
-              absl::conjunction<
-                  IsValidDependency<DigesterBaseHandle, Digester&&>,
-                  IsValidDependency<Reader*, Src&&>,
-                  digest_converter_internal::HasDigestConverterOrNoConversion<
-                      DigestOf<Digester&&>, DesiredDigestType>>::value,
-              int>>
+template <
+    typename DesiredDigestType, typename Digester, typename Src,
+    std::enable_if_t<
+        absl::conjunction<
+            TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
+            TargetRefSupportsDependency<Reader*, Src>,
+            digest_converter_internal::HasDigestConverterOrNoConversion<
+                DigestOf<TargetRefT<Digester>>, DesiredDigestType>>::value,
+        int>>
 inline StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
-    DigestOf<Digester&&>, DesiredDigestType>>
+    DigestOf<TargetRefT<Digester>>, DesiredDigestType>>
 DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {
-  using DigestType =
-      digest_converter_internal::ResolveNoConversion<DigestOf<Digester&&>,
-                                                     DesiredDigestType>;
-  DigestingReader<Digester&&, Src&&> reader(std::forward<Src>(src),
-                                            std::forward<Digester&&>(digester));
+  using DigestType = digest_converter_internal::ResolveNoConversion<
+      DigestOf<TargetRefT<Digester>>, DesiredDigestType>;
+  DigestingReader<TargetRefT<Digester>, TargetRefT<Src>> reader(
+      std::forward<Src>(src), std::forward<Digester&&>(digester));
   reader.SetReadAllHint(true);
   const Position pos_before = reader.pos();
   do {

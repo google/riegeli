@@ -169,7 +169,8 @@ class JoiningReaderBase : public PullableReader {
 // The `Shard` template parameter specifies the type of the object providing and
 // possibly owning the shard `Reader`. `Shard` must support
 // `Dependency<Reader*, Shard>`, e.g. `Reader*` (not owned),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned),
+// `Any<Reader*>` (maybe owned).
 template <typename Shard>
 class JoiningReader : public JoiningReaderBase {
  protected:

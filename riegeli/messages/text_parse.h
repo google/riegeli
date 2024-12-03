@@ -102,15 +102,16 @@ class TextParseOptions {
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support
-// `Dependency<Reader*, Src&&>`, e.g. `Reader&` (not owned),
+// `DependencyRef<Reader*, Src>`, e.g.  `Reader&` (not owned),
 // `ChainReader<>` (owned), `std::unique_ptr<Reader>` (owned),
-// `Any<Reader*>` (maybe owned).
+// `AnyRef<Reader*>` (maybe owned).
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int> = 0>
+template <
+    typename Src,
+    std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int> = 0>
 absl::Status TextParseFromReader(
     Src&& src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
@@ -152,12 +153,13 @@ absl::Status TextParseFromReaderImpl(Reader& src,
 
 }  // namespace messages_internal
 
-template <typename Src,
-          std::enable_if_t<IsValidDependency<Reader*, Src&&>::value, int>>
+template <
+    typename Src,
+    std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
 inline absl::Status TextParseFromReader(Src&& src,
                                         google::protobuf::Message& dest,
                                         const TextParseOptions& options) {
-  Dependency<Reader*, Src&&> src_dep(std::forward<Src>(src));
+  DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
       messages_internal::TextParseFromReaderImpl(*src_dep, dest, options);

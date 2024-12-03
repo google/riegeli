@@ -262,7 +262,7 @@ explicit DigestingWriter(Digester&& digester)
 //
 // `Digester` specifies the type of the object providing and possibly owning
 // the digester. `Digester` must support
-// `Dependency<DigesterBaseHandle, Digester&&>` and must provide a member
+// `DependencyRef<DigesterBaseHandle, Digester>` and must provide a member
 // function `DigestType Digest()` for some `DigestType`, e.g.
 // `DigesterHandle<uint32_t>` (not owned), `Crc32cDigester` (owned),
 // `AnyDigester<uint32_t>>` (maybe owned).
@@ -275,16 +275,16 @@ template <typename DesiredDigestType = digest_converter_internal::NoConversion,
           typename... Args,
           std::enable_if_t<
               absl::conjunction<
-                  IsValidDependency<DigesterBaseHandle,
-                                    GetTypeFromEndT<1, Args&&...>>,
+                  TargetRefSupportsDependency<DigesterBaseHandle,
+                                              GetTypeFromEndT<1, Args...>>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                        IsStringifiable>,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
-                      DigestOf<GetTypeFromEndT<1, Args&&...>>,
+                      DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>,
                       DesiredDigestType>>::value,
               int> = 0>
 digest_converter_internal::ResolveNoConversion<
-    DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>
+    DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>, DesiredDigestType>
 DigestFrom(Args&&... args);
 
 // Implementation details follow.
@@ -498,7 +498,7 @@ template <
         absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
-  Dependency<DigesterBaseHandle, Digester&&> digester_dep(
+  DependencyRef<DigesterBaseHandle, Digester> digester_dep(
       std::forward<Digester>(digester));
   if (digester_dep.IsOwning()) {
     absl::apply(
@@ -521,7 +521,7 @@ template <
         !absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
-  DigestingWriter<Digester&&, NullWriter> writer(
+  DigestingWriter<TargetRefT<Digester>, NullWriter> writer(
       std::forward<Digester>(digester));
   absl::apply(
       [&](const Srcs&... srcs) { SetWriteSizeHint(writer.get(), srcs...); },
@@ -536,22 +536,22 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
 template <typename DesiredDigestType, typename... Args,
           std::enable_if_t<
               absl::conjunction<
-                  IsValidDependency<DigesterBaseHandle,
-                                    GetTypeFromEndT<1, Args&&...>>,
+                  TargetRefSupportsDependency<DigesterBaseHandle,
+                                              GetTypeFromEndT<1, Args...>>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                        IsStringifiable>,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
-                      DigestOf<GetTypeFromEndT<1, Args&&...>>,
+                      DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>,
                       DesiredDigestType>>::value,
               int>>
 digest_converter_internal::ResolveNoConversion<
-    DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>
+    DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>, DesiredDigestType>
 DigestFrom(Args&&... args) {
   return digesting_writer_internal::DigestFromImpl<
       digest_converter_internal::ResolveNoConversion<
-          DigestOf<GetTypeFromEndT<1, Args&&...>>, DesiredDigestType>>(
-      RemoveFromEnd<1>(std::forward<Args>(args)...),
-      GetFromEnd<1>(std::forward<Args>(args)...));
+          DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>,
+          DesiredDigestType>>(RemoveFromEnd<1>(std::forward<Args>(args)...),
+                              GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 }  // namespace riegeli
