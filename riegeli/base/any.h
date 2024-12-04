@@ -230,8 +230,6 @@ class
   };
 
  public:
-  using absl_nullability_compatible = void;
-
   // `Any<Handle>::Inlining<InlineManagers...>` enlarges inline storage of
   // `Any<Handle>`.
   //
