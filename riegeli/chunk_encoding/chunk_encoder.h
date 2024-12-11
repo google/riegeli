@@ -33,7 +33,7 @@
 #include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 
 namespace riegeli {
 

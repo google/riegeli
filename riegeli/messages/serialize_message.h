@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_MESSAGES_MESSAGE_SERIALIZE_H_
-#define RIEGELI_MESSAGES_MESSAGE_SERIALIZE_H_
+#ifndef RIEGELI_MESSAGES_SERIALIZE_MESSAGE_H_
+#define RIEGELI_MESSAGES_SERIALIZE_MESSAGE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -132,9 +132,9 @@ class SerializeOptions {
 template <typename Dest,
           std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value,
                            int> = 0>
-absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                               Dest&& dest,
-                               SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              Dest&& dest,
+                              SerializeOptions options = SerializeOptions());
 
 // Writes the message length as varint32, then the message in binary format to
 // the given `Writer`.
@@ -142,48 +142,28 @@ absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
 // Returns status:
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeLengthPrefixedToWriter(
+absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
     SerializeOptions options = SerializeOptions());
 
-// Writes the message in binary format to the given `std::string`, clearing it
-// first.
+// Writes the message in binary format to `dest`, clearing any existing data in
+// `dest`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeToString(const google::protobuf::MessageLite& src,
-                               std::string& dest,
-                               SerializeOptions options = SerializeOptions());
-
-// Writes the message in binary format to the given `CompactString`, clearing it
-// first.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeToCompactString(
-    const google::protobuf::MessageLite& src, CompactString& dest,
-    SerializeOptions options = SerializeOptions());
-
-// Writes the message in binary format to the given `Chain`, clearing it first.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              std::string& dest,
+                              SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              CompactString& dest,
+                              SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               Chain& dest,
                               SerializeOptions options = SerializeOptions());
-
-// Writes the message in binary format to the given `absl::Cord`, clearing it
-// first.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
-                             absl::Cord& dest,
-                             SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              absl::Cord& dest,
+                              SerializeOptions options = SerializeOptions());
 
 // Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.
 class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
@@ -225,20 +205,20 @@ inline size_t SerializeOptions::GetByteSize(
 
 namespace messages_internal {
 
-absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer& dest, SerializeOptions options,
-                                   bool set_write_hint);
+absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
+                                  Writer& dest, SerializeOptions options,
+                                  bool set_write_hint);
 
 }  // namespace messages_internal
 
 template <
     typename Dest,
     std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
-inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                      Dest&& dest, SerializeOptions options) {
+inline absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                                     Dest&& dest, SerializeOptions options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
-  absl::Status status = messages_internal::SerializeToWriterImpl(
-      src, *dest_dep, std::move(options), dest_dep.IsOwning());
+  absl::Status status = messages_internal::SerializeMessageImpl(
+      src, *dest_dep, options, dest_dep.IsOwning());
   if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
@@ -249,4 +229,4 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_MESSAGES_MESSAGE_SERIALIZE_H_
+#endif  // RIEGELI_MESSAGES_SERIALIZE_MESSAGE_H_

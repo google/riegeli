@@ -52,8 +52,8 @@
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/lines/line_writing.h"
 #include "riegeli/lines/text_writer.h"
-#include "riegeli/messages/message_parse.h"
-#include "riegeli/messages/text_print.h"
+#include "riegeli/messages/parse_message.h"
+#include "riegeli/messages/text_print_message.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/records_metadata.pb.h"
 #include "riegeli/records/skipped_region.h"
@@ -99,7 +99,7 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
       << "Metadata chunk has unexpected record limits";
   RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata.size())
       << "Metadata chunk has unexpected record limits";
-  return ParseFromChain(serialized_metadata, records_metadata);
+  return ParseMessage(serialized_metadata, records_metadata);
 }
 
 absl::Status ReadRecords(
@@ -336,7 +336,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
       }
     }
     WriteLine("  chunk {", report);
-    TextPrintToWriter(chunk_summary, TextWriter<>(&report), print_options)
+    TextPrintMessage(chunk_summary, TextWriter<>(&report), print_options)
         .IgnoreError();
     WriteLine("  }", report);
   }

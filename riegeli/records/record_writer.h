@@ -47,7 +47,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"

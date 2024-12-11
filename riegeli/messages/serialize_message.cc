@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -59,7 +59,7 @@ ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
   return dest.AnnotateStatus(FailSizeOverflow(src, size));
 }
 
-inline absl::Status SerializeToWriterUsingStream(
+inline absl::Status SerializeMessageUsingStream(
     const google::protobuf::MessageLite& src, Writer& dest, bool deterministic,
     size_t size) {
   WriterOutputStream output_stream(&dest);
@@ -82,7 +82,7 @@ inline absl::Status SerializeToWriterUsingStream(
   return absl::OkStatus();
 }
 
-inline absl::Status SerializeToWriterHavingSize(
+inline absl::Status SerializeMessageHavingSize(
     const google::protobuf::MessageLite& src, Writer& dest, bool deterministic,
     size_t size) {
   if (size <= kMaxBytesToCopy &&
@@ -106,16 +106,16 @@ inline absl::Status SerializeToWriterHavingSize(
     dest.set_cursor(cursor);
     return absl::OkStatus();
   }
-  return SerializeToWriterUsingStream(src, dest, deterministic, size);
+  return SerializeMessageUsingStream(src, dest, deterministic, size);
 }
 
 }  // namespace
 
 namespace messages_internal {
 
-absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer& dest, SerializeOptions options,
-                                   bool set_write_hint) {
+absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
+                                  Writer& dest, SerializeOptions options,
+                                  bool set_write_hint) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -126,12 +126,12 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, dest, size);
   }
   if (set_write_hint) dest.SetWriteSizeHint(size);
-  return SerializeToWriterHavingSize(src, dest, options.deterministic(), size);
+  return SerializeMessageHavingSize(src, dest, options.deterministic(), size);
 }
 
 }  // namespace messages_internal
 
-absl::Status SerializeLengthPrefixedToWriter(
+absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
     SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
@@ -146,11 +146,11 @@ absl::Status SerializeLengthPrefixedToWriter(
   if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(size), dest))) {
     return dest.status();
   }
-  return SerializeToWriterHavingSize(src, dest, options.deterministic(), size);
+  return SerializeMessageHavingSize(src, dest, options.deterministic(), size);
 }
 
-absl::Status SerializeToString(const google::protobuf::MessageLite& src,
-                               std::string& dest, SerializeOptions options) {
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              std::string& dest, SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -182,16 +182,15 @@ absl::Status SerializeToString(const google::protobuf::MessageLite& src,
   }
   riegeli::ArrayWriter<> writer(&dest[0], size);
   const absl::Status status =
-      SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
+      SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
                                          "if the size does not overflow: "
                                       << writer.status();
   return status;
 }
 
-absl::Status SerializeToCompactString(const google::protobuf::MessageLite& src,
-                                      CompactString& dest,
-                                      SerializeOptions options) {
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              CompactString& dest, SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -221,14 +220,14 @@ absl::Status SerializeToCompactString(const google::protobuf::MessageLite& src,
   }
   riegeli::ArrayWriter<> writer(data, size);
   const absl::Status status =
-      SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
+      SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
                                          "if the size does not overflow: "
                                       << writer.status();
   return status;
 }
 
-absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               Chain& dest, SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
@@ -264,14 +263,14 @@ absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
   riegeli::ChainWriter<> writer(&dest);
   writer.SetWriteSizeHint(size);
   const absl::Status status =
-      SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
+      SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close())
       << "A ChainWriter has no reason to fail: " << writer.status();
   return status;
 }
 
-absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
-                             absl::Cord& dest, SerializeOptions options) {
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              absl::Cord& dest, SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -310,7 +309,7 @@ absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
   riegeli::CordWriter<> writer(&dest);
   writer.SetWriteSizeHint(size);
   const absl::Status status =
-      SerializeToWriterUsingStream(src, writer, options.deterministic(), size);
+      SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close())
       << "A CordWriter has no reason to fail: " << writer.status();
   return status;

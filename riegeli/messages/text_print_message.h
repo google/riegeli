@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_MESSAGES_TEXT_PRINT_H_
-#define RIEGELI_MESSAGES_TEXT_PRINT_H_
+#ifndef RIEGELI_MESSAGES_TEXT_PRINT_MESSAGE_H_
+#define RIEGELI_MESSAGES_TEXT_PRINT_MESSAGE_H_
 
 #include <string>
 #include <type_traits>
@@ -106,36 +106,23 @@ class TextPrintOptions {
 template <typename Dest,
           std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value,
                            int> = 0>
-absl::Status TextPrintToWriter(
+absl::Status TextPrintMessage(
     const google::protobuf::Message& src, Dest&& dest,
     const TextPrintOptions& options = TextPrintOptions());
 
-// Writes the message in text format to the given `std::string`, clearing it
-// first.
+// Writes the message in text format to `dest`, clearing any existing data in
+// `dest`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextPrintToString(
+absl::Status TextPrintMessage(
     const google::protobuf::Message& src, std::string& dest,
     const TextPrintOptions& options = TextPrintOptions());
-
-// Writes the message in text format to the given `Chain`, clearing it first.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextPrintToChain(
+absl::Status TextPrintMessage(
     const google::protobuf::Message& src, Chain& dest,
     const TextPrintOptions& options = TextPrintOptions());
-
-// Writes the message in text format to the given `absl::Cord`, clearing it
-// first.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextPrintToCord(
+absl::Status TextPrintMessage(
     const google::protobuf::Message& src, absl::Cord& dest,
     const TextPrintOptions& options = TextPrintOptions());
 
@@ -143,21 +130,21 @@ absl::Status TextPrintToCord(
 
 namespace messages_internal {
 
-absl::Status TextPrintToWriterImpl(const google::protobuf::Message& src,
-                                   Writer& dest,
-                                   const TextPrintOptions& options);
+absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
+                                  Writer& dest,
+                                  const TextPrintOptions& options);
 
 }  // namespace messages_internal
 
 template <
     typename Dest,
     std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
-inline absl::Status TextPrintToWriter(const google::protobuf::Message& src,
-                                      Dest&& dest,
-                                      const TextPrintOptions& options) {
+inline absl::Status TextPrintMessage(const google::protobuf::Message& src,
+                                     Dest&& dest,
+                                     const TextPrintOptions& options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   absl::Status status =
-      messages_internal::TextPrintToWriterImpl(src, *dest_dep, options);
+      messages_internal::TextPrintMessageImpl(src, *dest_dep, options);
   if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());
@@ -168,4 +155,4 @@ inline absl::Status TextPrintToWriter(const google::protobuf::Message& src,
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_MESSAGES_TEXT_PRINT_H_
+#endif  // RIEGELI_MESSAGES_TEXT_PRINT_MESSAGE_H_

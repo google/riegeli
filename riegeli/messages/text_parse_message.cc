@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/messages/text_parse.h"
+#include "riegeli/messages/text_parse_message.h"
 
 #include <memory>
 
@@ -29,7 +29,7 @@
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
-#include "riegeli/messages/message_parse.h"
+#include "riegeli/messages/parse_message.h"
 
 namespace riegeli {
 
@@ -56,9 +56,8 @@ TextParseOptions::TextParseOptions()
 
 namespace messages_internal {
 
-absl::Status TextParseFromReaderImpl(Reader& src,
-                                     google::protobuf::Message& dest,
-                                     const TextParseOptions& options) {
+absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
+                                  const TextParseOptions& options) {
   ReaderInputStream input_stream(&src);
   google::protobuf::TextFormat::Parser parser = options.parser();
   const bool parse_ok = options.merge() ? parser.Merge(&input_stream, &dest)
@@ -72,24 +71,23 @@ absl::Status TextParseFromReaderImpl(Reader& src,
   return absl::OkStatus();
 }
 
+absl::Status TextParseMessageImpl(absl::string_view src,
+                                  google::protobuf::Message& dest,
+                                  const TextParseOptions& options) {
+  return TextParseMessage(StringReader<>(src), dest, options);
+}
+
 }  // namespace messages_internal
 
-absl::Status TextParseFromString(absl::string_view src,
-                                 google::protobuf::Message& dest,
-                                 const TextParseOptions& options) {
-  return TextParseFromReader(StringReader<>(src), dest, options);
+absl::Status TextParseMessage(const Chain& src, google::protobuf::Message& dest,
+                              const TextParseOptions& options) {
+  return TextParseMessage(ChainReader<>(&src), dest, options);
 }
 
-absl::Status TextParseFromChain(const Chain& src,
-                                google::protobuf::Message& dest,
-                                const TextParseOptions& options) {
-  return TextParseFromReader(ChainReader<>(&src), dest, options);
-}
-
-absl::Status TextParseFromCord(const absl::Cord& src,
-                               google::protobuf::Message& dest,
-                               const TextParseOptions& options) {
-  return TextParseFromReader(CordReader<>(&src), dest, options);
+absl::Status TextParseMessage(const absl::Cord& src,
+                              google::protobuf::Message& dest,
+                              const TextParseOptions& options) {
+  return TextParseMessage(CordReader<>(&src), dest, options);
 }
 
 }  // namespace riegeli

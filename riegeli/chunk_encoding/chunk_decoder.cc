@@ -37,7 +37,7 @@
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/simple_decoder.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
-#include "riegeli/messages/message_parse.h"
+#include "riegeli/messages/parse_message.h"
 
 namespace riegeli {
 
@@ -196,7 +196,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   {
     absl::Status status =
-        ParseFromReaderWithLength(values_reader_, limit - start, record);
+        ParseMessageWithLength(values_reader_, limit - start, record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       RIEGELI_EVAL_ASSERT(values_reader_.Seek(limit))
           << values_reader_.status();

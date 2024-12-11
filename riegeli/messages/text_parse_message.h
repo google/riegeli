@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_MESSAGES_TEXT_PARSE_H_
-#define RIEGELI_MESSAGES_TEXT_PARSE_H_
+#ifndef RIEGELI_MESSAGES_TEXT_PARSE_MESSAGE_H_
+#define RIEGELI_MESSAGES_TEXT_PARSE_MESSAGE_H_
 
 #include <memory>
 #include <string>
@@ -30,6 +30,7 @@
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -49,9 +50,8 @@ class StringErrorCollector : public google::protobuf::io::ErrorCollector {
   std::string errors_;
 };
 
-absl::Status TextParseFromReaderImpl(Reader& src,
-                                     google::protobuf::Message& dest,
-                                     const TextParseOptions& options);
+absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
+                                  const TextParseOptions& options);
 
 }  // namespace messages_internal
 
@@ -88,7 +88,7 @@ class TextParseOptions {
 
  private:
   // For `error_collector_`.
-  friend absl::Status messages_internal::TextParseFromReaderImpl(
+  friend absl::Status messages_internal::TextParseMessageImpl(
       Reader& src, google::protobuf::Message& dest,
       const TextParseOptions& options);
 
@@ -112,34 +112,24 @@ class TextParseOptions {
 template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int> = 0>
-absl::Status TextParseFromReader(
+absl::Status TextParseMessage(
     Src&& src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
 
-// Reads a message in text format from the given `absl::string_view`.
+// Reads a message in text format from `src`.
 //
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextParseFromString(
-    absl::string_view src, google::protobuf::Message& dest,
+template <typename Src,
+          std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
+absl::Status TextParseMessage(
+    const Src& src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
-
-// Reads a message in text format from the given `Chain`.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextParseFromChain(
+absl::Status TextParseMessage(
     const Chain& src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
-
-// Reads a message in text format from the given `absl::Cord`.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status TextParseFromCord(
+absl::Status TextParseMessage(
     const absl::Cord& src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
 
@@ -147,22 +137,24 @@ absl::Status TextParseFromCord(
 
 namespace messages_internal {
 
-absl::Status TextParseFromReaderImpl(Reader& src,
-                                     google::protobuf::Message& dest,
-                                     const TextParseOptions& options);
+absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
+                                  const TextParseOptions& options);
+
+absl::Status TextParseMessageImpl(absl::string_view src,
+                                  google::protobuf::Message& dest,
+                                  const TextParseOptions& options);
 
 }  // namespace messages_internal
 
 template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
-inline absl::Status TextParseFromReader(Src&& src,
-                                        google::protobuf::Message& dest,
-                                        const TextParseOptions& options) {
+inline absl::Status TextParseMessage(Src&& src, google::protobuf::Message& dest,
+                                     const TextParseOptions& options) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
-      messages_internal::TextParseFromReaderImpl(*src_dep, dest, options);
+      messages_internal::TextParseMessageImpl(*src_dep, dest, options);
   if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
@@ -170,6 +162,14 @@ inline absl::Status TextParseFromReader(Src&& src,
   return status;
 }
 
+template <typename Src, std::enable_if_t<SupportsToStringView<Src>::value, int>>
+inline absl::Status TextParseMessage(const Src& src,
+                                     google::protobuf::Message& dest,
+                                     const TextParseOptions& options) {
+  return messages_internal::TextParseMessageImpl(riegeli::ToStringView(src),
+                                                 dest, options);
+}
+
 }  // namespace riegeli
 
-#endif  // RIEGELI_MESSAGES_TEXT_PARSE_H_
+#endif  // RIEGELI_MESSAGES_TEXT_PARSE_MESSAGE_H_

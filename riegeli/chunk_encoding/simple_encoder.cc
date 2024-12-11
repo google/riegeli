@@ -35,7 +35,7 @@
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 #include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
@@ -77,8 +77,8 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
     return Fail(sizes_compressor_.writer().status());
   }
   {
-    absl::Status status = SerializeToWriter(record, values_compressor_.writer(),
-                                            std::move(serialize_options));
+    absl::Status status = SerializeMessage(record, values_compressor_.writer(),
+                                           serialize_options);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

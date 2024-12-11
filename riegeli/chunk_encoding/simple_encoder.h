@@ -35,7 +35,7 @@
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 
 namespace riegeli {
 

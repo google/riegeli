@@ -35,7 +35,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/constants.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 
 namespace riegeli {
 
@@ -61,8 +61,8 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
   {
-    absl::Status status = SerializeToWriter(record, records_writer_,
-                                            std::move(serialize_options));
+    absl::Status status =
+        SerializeMessage(record, records_writer_, serialize_options);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

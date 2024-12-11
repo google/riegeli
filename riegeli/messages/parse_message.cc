@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/messages/message_parse.h"
+#include "riegeli/messages/parse_message.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <limits>
 #include <string>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -84,9 +83,8 @@ inline absl::Status CheckInitialized(Reader& src,
 
 namespace messages_internal {
 
-absl::Status ParseFromReaderImpl(Reader& src,
-                                 google::protobuf::MessageLite& dest,
-                                 ParseOptions options) {
+absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
+                              ParseOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -124,9 +122,9 @@ absl::Status ParseFromReaderImpl(Reader& src,
 
 }  // namespace messages_internal
 
-absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
-                                       google::protobuf::MessageLite& dest,
-                                       ParseOptions options) {
+absl::Status ParseMessageWithLength(Reader& src, size_t length,
+                                    google::protobuf::MessageLite& dest,
+                                    ParseOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -167,9 +165,9 @@ absl::Status ParseFromReaderWithLength(Reader& src, size_t length,
   return status;
 }
 
-absl::Status ParseLengthPrefixedFromReader(Reader& src,
-                                           google::protobuf::MessageLite& dest,
-                                           ParseOptions options) {
+absl::Status ParseLengthPrefixedMessage(Reader& src,
+                                        google::protobuf::MessageLite& dest,
+                                        ParseOptions options) {
   uint32_t length;
   if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length)) ||
       ABSL_PREDICT_FALSE(length >
@@ -177,13 +175,14 @@ absl::Status ParseLengthPrefixedFromReader(Reader& src,
     return src.StatusOrAnnotate(
         absl::InvalidArgumentError("Failed to parse message length"));
   }
-  return ParseFromReaderWithLength(src, IntCast<size_t>(length), dest,
-                                   std::move(options));
+  return ParseMessageWithLength(src, IntCast<size_t>(length), dest, options);
 }
 
-absl::Status ParseFromString(absl::string_view src,
-                             google::protobuf::MessageLite& dest,
-                             ParseOptions options) {
+namespace messages_internal {
+
+absl::Status ParseMessageImpl(absl::string_view src,
+                              google::protobuf::MessageLite& dest,
+                              ParseOptions options) {
   bool parse_ok;
   if (ABSL_PREDICT_FALSE(src.size() >
                          unsigned{std::numeric_limits<int>::max()})) {
@@ -205,9 +204,10 @@ absl::Status ParseFromString(absl::string_view src,
   return CheckInitialized(dest, options);
 }
 
-absl::Status ParseFromChain(const Chain& src,
-                            google::protobuf::MessageLite& dest,
-                            ParseOptions options) {
+}  // namespace messages_internal
+
+absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
+                          ParseOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -244,9 +244,9 @@ absl::Status ParseFromChain(const Chain& src,
   return CheckInitialized(dest, options);
 }
 
-absl::Status ParseFromCord(const absl::Cord& src,
-                           google::protobuf::MessageLite& dest,
-                           ParseOptions options) {
+absl::Status ParseMessage(const absl::Cord& src,
+                          google::protobuf::MessageLite& dest,
+                          ParseOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&

@@ -51,7 +51,7 @@
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
-#include "riegeli/messages/message_parse.h"
+#include "riegeli/messages/parse_message.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
@@ -221,7 +221,7 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata& metadata) {
     return false;
   }
   {
-    absl::Status status = ParseFromChain(serialized_metadata, metadata);
+    absl::Status status = ParseMessage(serialized_metadata, metadata);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       metadata.Clear();
       recoverable_ = Recoverable::kRecoverMetadata;

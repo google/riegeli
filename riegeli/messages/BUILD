@@ -6,15 +6,16 @@ package(
 licenses(["notice"])
 
 cc_library(
-    name = "message_parse",
-    srcs = ["message_parse.cc"],
-    hdrs = ["message_parse.h"],
+    name = "parse_message",
+    srcs = ["parse_message.cc"],
+    hdrs = ["parse_message.h"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:to_string_view",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:cord_reader",
@@ -31,9 +32,9 @@ cc_library(
 )
 
 cc_library(
-    name = "message_serialize",
-    srcs = ["message_serialize.cc"],
-    hdrs = ["message_serialize.h"],
+    name = "serialize_message",
+    srcs = ["serialize_message.cc"],
+    hdrs = ["serialize_message.h"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -58,13 +59,14 @@ cc_library(
 )
 
 cc_library(
-    name = "text_parse",
-    srcs = ["text_parse.cc"],
-    hdrs = ["text_parse.h"],
+    name = "text_parse_message",
+    srcs = ["text_parse_message.cc"],
+    hdrs = ["text_parse_message.h"],
     deps = [
-        ":message_parse",
+        ":parse_message",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
+        "//riegeli/base:to_string_view",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:cord_reader",
         "//riegeli/bytes:reader",
@@ -78,11 +80,11 @@ cc_library(
 )
 
 cc_library(
-    name = "text_print",
-    srcs = ["text_print.cc"],
-    hdrs = ["text_print.h"],
+    name = "text_print_message",
+    srcs = ["text_print_message.cc"],
+    hdrs = ["text_print_message.h"],
     deps = [
-        ":message_serialize",
+        ":serialize_message",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/messages/text_print.h"
+#include "riegeli/messages/text_print_message.h"
 
 #include <string>
 
@@ -28,15 +28,15 @@
 #include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/messages/message_serialize.h"
+#include "riegeli/messages/serialize_message.h"
 
 namespace riegeli {
 
 namespace messages_internal {
 
-absl::Status TextPrintToWriterImpl(const google::protobuf::Message& src,
-                                   Writer& dest,
-                                   const TextPrintOptions& options) {
+absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
+                                  Writer& dest,
+                                  const TextPrintOptions& options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to text-print message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -46,8 +46,9 @@ absl::Status TextPrintToWriterImpl(const google::protobuf::Message& src,
     dest.Write("# proto-file: ", descriptor->file()->name(),
                "\n"
                "# proto-message: ",
-               descriptor->containing_type() ? descriptor->full_name()
-                                             : descriptor->name(),
+               descriptor->containing_type() != nullptr
+                   ? descriptor->full_name()
+                   : descriptor->name(),
                "\n\n");
   }
   WriterOutputStream output_stream(&dest);
@@ -61,21 +62,21 @@ absl::Status TextPrintToWriterImpl(const google::protobuf::Message& src,
 
 }  // namespace messages_internal
 
-absl::Status TextPrintToString(const google::protobuf::Message& src,
-                               std::string& dest,
-                               const TextPrintOptions& options) {
-  return TextPrintToWriter(src, StringWriter<>(&dest), options);
-}
-
-absl::Status TextPrintToChain(const google::protobuf::Message& src, Chain& dest,
+absl::Status TextPrintMessage(const google::protobuf::Message& src,
+                              std::string& dest,
                               const TextPrintOptions& options) {
-  return TextPrintToWriter(src, ChainWriter<>(&dest), options);
+  return TextPrintMessage(src, StringWriter<>(&dest), options);
 }
 
-absl::Status TextPrintToCord(const google::protobuf::Message& src,
-                             absl::Cord& dest,
-                             const TextPrintOptions& options) {
-  return TextPrintToWriter(src, CordWriter<>(&dest), options);
+absl::Status TextPrintMessage(const google::protobuf::Message& src, Chain& dest,
+                              const TextPrintOptions& options) {
+  return TextPrintMessage(src, ChainWriter<>(&dest), options);
+}
+
+absl::Status TextPrintMessage(const google::protobuf::Message& src,
+                              absl::Cord& dest,
+                              const TextPrintOptions& options) {
+  return TextPrintMessage(src, CordWriter<>(&dest), options);
 }
 
 }  // namespace riegeli
