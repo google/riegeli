@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iosfwd>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -43,7 +44,7 @@ namespace riegeli {
 // A `CompactString` object internally consists of a pointer to heap-allocated
 // data. The representation has 4 cases, distinguished by how the pointer is
 // aligned modulo 8:
-//  * 1 - not really a pointer but short string optimization: the size is
+//  * 6 - not really a pointer but short string optimization: the size is
 //        stored in bits [3..8), the data are stored in the remaining bytes
 //  * 2 - the size is stored before the data as `uint8_t`
 //  * 4 - the size is stored before the data as `uint16_t`
@@ -187,6 +188,75 @@ class
   // It may reallocate the string and it writes the NUL each time.
   const char* c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
+  // Returns the representation of the `CompactString` as `uintptr_t`.
+  //
+  // Ownership is transferred to the `uintptr_t`, the `CompactString` is
+  // left empty. The `uintptr_t` must be passed exactly once to
+  // `CompactString::MoveFromRaw()` to recover the `CompactString` and free its
+  // memory.
+  //
+  // The returned `uintptr_t` is always even.
+  uintptr_t RawMove() && { return std::exchange(repr_, kInlineTag); }
+
+  // Returns a pointer to the representation of the `CompactString` as
+  // `uintptr_t`.
+  //
+  // Ownership is not transferred and the `CompactString` is unchanged.
+  //
+  // The returned `uintptr_t` is always even.
+  const uintptr_t* RawView() const { return &repr_; }
+
+  // Recovers a `CompactString` from the representation returned by
+  // `CompactString::RawMove()`.
+  //
+  // Ownership is transferred to the `CompactString`, `raw` must not be read
+  // again.
+  //
+  // Calling `MoveFromRaw()` and dropping its result frees the memory of the
+  // `CompactString`.
+  static CompactString MoveFromRaw(const uintptr_t& raw) {
+    RIEGELI_ASSERT_EQ(raw & 1, 0u)
+        << "Failed precondition of CompactString::MoveFromRaw(): "
+           "representation is not even";
+    const uintptr_t raw_copy = raw;
+    // The original `raw` will possibly hold a pointer which had ownership
+    // transferred and thus might no longer be valid. Hence reading `raw` again
+    // is most likely a bug.
+    MarkPoisoned(reinterpret_cast<const char*>(&raw), sizeof(uintptr_t));
+    return CompactString(MoveFromRawMarker(), raw_copy);
+  }
+
+  // Views contents of a `CompactString` from the representation returned by
+  // `CompactString::RawMove()` or `CompactString::RawView()`.
+  //
+  // Ownership is not transferred and `*raw` is unchanged.
+  static absl::string_view ViewFromRaw(
+      const uintptr_t* raw ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+    RIEGELI_ASSERT_EQ(*raw & 1, 0u)
+        << "Failed precondition of CompactString::ViewFromRaw(): "
+           "representation is not even";
+    const uintptr_t tag = *raw & kTagMask;
+    if (tag == kInlineTag) {
+      return absl::string_view(inline_data(raw), inline_size(*raw));
+    }
+    return absl::string_view(allocated_data(*raw),
+                             allocated_size_for_tag(tag, *raw));
+  }
+
+  // Returns the representation of a copy of the `CompactString` viewed from
+  // the representation returned by `CompactString::RawMove()`.
+  //
+  // Equivalent to `RawMove(CompactString(ViewFromRaw(&raw)))`.
+  static uintptr_t CopyRaw(uintptr_t raw) {
+    RIEGELI_ASSERT_EQ(raw & 1, 0u)
+        << "Failed precondition of CompactString::CopyRaw(): "
+           "representation is not even";
+    const uintptr_t tag = raw & kTagMask;
+    if (tag == kInlineTag) return raw;
+    return MakeRepr(absl::string_view(allocated_data(raw),
+                                      allocated_size_for_tag(tag, raw)));
+  }
+
   friend bool operator==(const CompactString& a, const CompactString& b) {
     return a.repr_ == b.repr_ || absl::string_view(a) == absl::string_view(b);
   }
@@ -276,9 +346,15 @@ class
   }
 
  private:
+  struct MoveFromRawMarker {
+    explicit MoveFromRawMarker() = default;
+  };
+
+  explicit CompactString(MoveFromRawMarker, uintptr_t raw) : repr_(raw) {}
+
   static constexpr size_t kTagBits = 3;
   static constexpr uintptr_t kTagMask = (1u << kTagBits) - 1;
-  static constexpr uintptr_t kInlineTag = 1;
+  static constexpr uintptr_t kInlineTag = 6;
 
   static constexpr size_t kInlineCapacity =
       UnsignedMin(sizeof(uintptr_t) - 1, size_t{0xff >> kTagBits});
@@ -307,11 +383,13 @@ class
     return reinterpret_cast<const char*>(repr) + kInlineDataOffset;
   }
 
-  size_t inline_size() const {
-    RIEGELI_ASSERT_EQ(repr_ & kTagMask, kInlineTag)
+  size_t inline_size() const { return inline_size(repr_); }
+
+  static size_t inline_size(uintptr_t repr) {
+    RIEGELI_ASSERT_EQ(repr & kTagMask, kInlineTag)
         << "Failed precondition of CompactString::inline_size(): "
            "representation not inline";
-    const size_t size = IntCast<size_t>((repr_ & 0xff) >> kTagBits);
+    const size_t size = IntCast<size_t>((repr & 0xff) >> kTagBits);
     // This assumption helps the compiler to reason about comparisons with
     // `size()`.
     RIEGELI_ASSUME_LE(size, kInlineCapacity)
@@ -330,20 +408,29 @@ class
   }
 
   size_t allocated_size_for_tag(uintptr_t tag) const {
-    if (tag == 2) return allocated_size<uint8_t>();
-    if (tag == 4) return allocated_size<uint16_t>();
-    if (tag == 0) return allocated_size<size_t>();
+    return allocated_size_for_tag(tag, repr_);
+  }
+
+  static size_t allocated_size_for_tag(uintptr_t tag, uintptr_t repr) {
+    if (tag == 2) return allocated_size<uint8_t>(repr);
+    if (tag == 4) return allocated_size<uint16_t>(repr);
+    if (tag == 0) return allocated_size<size_t>(repr);
     RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
 
   template <typename T>
   size_t allocated_size() const {
-    const uintptr_t tag = repr_ & kTagMask;
+    return allocated_size<T>(repr_);
+  }
+
+  template <typename T>
+  static size_t allocated_size(uintptr_t repr) {
+    const uintptr_t tag = repr & kTagMask;
     RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::allocated_size(): "
            "tag does not match size representation";
     T stored_size;
-    std::memcpy(&stored_size, allocated_data() - sizeof(T), sizeof(T));
+    std::memcpy(&stored_size, allocated_data(repr) - sizeof(T), sizeof(T));
     return size_t{stored_size};
   }
 
@@ -590,9 +677,7 @@ inline size_t CompactString::capacity() const {
 
 inline CompactString::operator absl::string_view() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  const uintptr_t tag = repr_ & kTagMask;
-  if (tag == kInlineTag) return absl::string_view(inline_data(), inline_size());
-  return absl::string_view(allocated_data(), allocated_size_for_tag(tag));
+  return ViewFromRaw(&repr_);
 }
 
 inline char& CompactString::operator[](size_t index)
