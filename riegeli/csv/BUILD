@@ -70,6 +70,7 @@ cc_library(
         "//riegeli/base:iterable",
         "//riegeli/base:reset",
         "//riegeli/base:shared_ptr",
+        "//riegeli/base:type_traits",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:string_writer",

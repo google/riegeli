@@ -247,14 +247,14 @@ class
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
+          absl::conjunction<NotSelfCopy<Any, TargetT<Manager>>,
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   /*implicit*/ Any(Manager&& manager);
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_same<TargetT<Manager>, Any>>,
+          absl::conjunction<NotSelfCopy<Any, TargetT<Manager>>,
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
@@ -276,9 +276,8 @@ class
   // Assignment operator which materializes `Any` from its `Initializer`.
   template <typename Manager,
             std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_same<std::decay_t<Manager>, Any>>,
-                    std::is_same<TargetT<Manager>, Any>>::value,
+                absl::conjunction<NotSelfCopy<Any, Manager>,
+                                  std::is_same<TargetT<Manager>, Any>>::value,
                 int> = 0>
   Any& operator=(Manager&& manager) {
     riegeli::Reset(*this, std::forward<Manager>(manager));
@@ -408,9 +407,8 @@ class
   // Holds a `Dependency<Handle, Manager&&>`.
   template <typename Manager,
             std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_same<TargetT<Manager>, AnyRef>>,
-                    SupportsDependency<Handle, Manager&&>>::value,
+                absl::conjunction<NotSelfCopy<AnyRef, TargetT<Manager>>,
+                                  SupportsDependency<Handle, Manager&&>>::value,
                 int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
@@ -678,10 +676,9 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<
-                TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
-            TargetSupportsDependency<Handle, Manager>>::value,
+        absl::conjunction<NotSelfCopy<Any<Handle, inline_size, inline_align>,
+                                      TargetT<Manager>>,
+                          TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
   this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
@@ -691,10 +688,9 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<
-                TargetT<Manager>, Any<Handle, inline_size, inline_align>>>,
-            TargetSupportsDependency<Handle, Manager>>::value,
+        absl::conjunction<NotSelfCopy<Any<Handle, inline_size, inline_align>,
+                                      TargetT<Manager>>,
+                          TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>&
 Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
@@ -723,13 +719,11 @@ Any<Handle, inline_size, inline_align>::operator=(Manager manager) {
 }
 
 template <typename Handle>
-template <
-    typename Manager,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<std::is_same<TargetT<Manager>, AnyRef<Handle>>>,
-            SupportsDependency<Handle, Manager&&>>::value,
-        int>>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
+                                SupportsDependency<Handle, Manager&&>>::value,
+              int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   this->template Initialize<Manager&&>(std::forward<Manager>(manager));
 }

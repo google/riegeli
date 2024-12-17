@@ -54,10 +54,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::tuple<std::decay_t<SrcArgs>...>,
-                                          std::tuple<MakerType>>>,
-              std::is_convertible<SrcArgs&&, Args>...>::value,
+          absl::conjunction<NotSelfCopy<MakerType, SrcArgs...>,
+                            std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
   /*implicit*/ MakerType(SrcArgs&&... args)
       : args_(std::forward<SrcArgs>(args)...) {}
@@ -295,11 +293,9 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::tuple<std::decay_t<SrcArgs>...>,
-                                          std::tuple<MakerTypeFor>>>,
-              std::is_constructible<T, Args&&...>,
-              std::is_convertible<SrcArgs&&, Args>...>::value,
+          absl::conjunction<NotSelfCopy<MakerTypeFor, SrcArgs...>,
+                            std::is_constructible<T, Args&&...>,
+                            std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
   /*implicit*/ MakerTypeFor(SrcArgs&&... args)
       : maker_(std::forward<SrcArgs>(args)...) {}

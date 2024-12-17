@@ -21,6 +21,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -48,23 +49,20 @@ class TypeErasedRef {
   TypeErasedRef() = default;
 
   // Wraps `std::forward<T>(value)`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<T>, TypeErasedRef>>,
-              absl::negation<IsFunctionRef<T>>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<NotSelfCopy<TypeErasedRef, T>,
+                                  absl::negation<IsFunctionRef<T>>>::value,
+                int> = 0>
   explicit TypeErasedRef(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {}
 
   // Wraps a function reference.
-  template <
-      typename T,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_same<
-                                             std::decay_t<T>, TypeErasedRef>>,
-                                         IsFunctionRef<T>>::value,
-                       int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                // `NotSelfCopy` is not needed because `T` is a function
+                // reference, so it is never `TypeErasedRef`.
+                IsFunctionRef<T>::value, int> = 0>
   explicit TypeErasedRef(T&& value)
       : function_ptr_(reinterpret_cast<void (*)()>(&value)) {}
 

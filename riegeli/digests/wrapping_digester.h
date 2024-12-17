@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -31,6 +30,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"
@@ -83,8 +83,7 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_same<std::tuple<TargetT<Args>...>,
-                                                std::tuple<WrappingDigester>>>,
+                    NotSelfCopy<WrappingDigester, TargetT<Args>...>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   explicit WrappingDigester(Args&&... args)
@@ -99,8 +98,7 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    absl::negation<std::is_same<std::tuple<TargetT<Args>...>,
-                                                std::tuple<WrappingDigester>>>,
+                    NotSelfCopy<WrappingDigester, TargetT<Args>...>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {

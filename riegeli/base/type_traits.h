@@ -156,6 +156,26 @@ struct IsConstructibleFromResult
           std::is_constructible<T, Result>> {
 };
 
+// `NotSelfCopy<Self, Args...>::value` is `true` unless a constructor or
+// assignment of `Self` from a reference to `Args...` would conflict with the
+// copy or move constructor or assignment.
+//
+// This should be included in constraints of a templated constructor or
+// assignment where such a conflict is possible. This makes argument types
+// compatible with copying or moving interpreted as the copy or move, instead of
+// passing them to the templated constructor or assignment.
+//
+// Compatible arguments means a single argument which is reference to `Self`
+// or a class derived from `Self`.
+
+template <typename Self, typename... Args>
+struct NotSelfCopy : std::true_type {};
+
+template <typename Self, typename Arg>
+struct NotSelfCopy<Self, Arg>
+    : absl::negation<
+          std::is_convertible<std::remove_reference_t<Arg>*, const Self*>> {};
+
 namespace type_traits_internal {
 
 // Transforms a `std::tuple` type to another `std::tuple` type by selecting

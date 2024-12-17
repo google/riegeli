@@ -46,6 +46,7 @@
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/shared_ptr.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -228,13 +229,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
   // e.g. `std::vector<std::string>`.
   //
   // Precondition: `names` have no duplicates
-  template <
-      typename Names,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-              IsIterableOf<Names, absl::string_view>>::value,
-          int> = 0>
+  template <typename Names,
+            std::enable_if_t<absl::conjunction<
+                                 NotSelfCopy<CsvHeader, Names>,
+                                 IsIterableOf<Names, absl::string_view>>::value,
+                             int> = 0>
   explicit CsvHeader(Names&& names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
   CsvHeader& operator=(std::initializer_list<absl::string_view> names);
@@ -271,13 +270,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
   //
   // Precondition: like for the corresponding constructor
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  template <
-      typename Names,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-              IsIterableOf<Names, absl::string_view>>::value,
-          int> = 0>
+  template <typename Names,
+            std::enable_if_t<absl::conjunction<
+                                 NotSelfCopy<CsvHeader, Names>,
+                                 IsIterableOf<Names, absl::string_view>>::value,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Names&& names);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::initializer_list<absl::string_view> names);
@@ -299,13 +296,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
   //  * `absl::OkStatus()`                 - `CsvHeader` is set to `names`
   //  * `absl::FailedPreconditionError(_)` - `names` had duplicates,
   //                                         `CsvHeader` is empty
-  template <
-      typename Names,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-              IsIterableOf<Names, absl::string_view>>::value,
-          int> = 0>
+  template <typename Names,
+            std::enable_if_t<absl::conjunction<
+                                 NotSelfCopy<CsvHeader, Names>,
+                                 IsIterableOf<Names, absl::string_view>>::value,
+                             int> = 0>
   absl::Status TryReset(Names&& names);
   absl::Status TryReset(std::initializer_list<absl::string_view> names);
   template <
@@ -1042,9 +1037,8 @@ inline typename CsvHeader::iterator::reference CsvHeader::iterator::operator[](
 
 template <typename Names,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-                  IsIterableOf<Names, absl::string_view>>::value,
+              absl::conjunction<NotSelfCopy<CsvHeader, Names>,
+                                IsIterableOf<Names, absl::string_view>>::value,
               int>>
 CsvHeader::CsvHeader(Names&& names) {
   const absl::Status status =
@@ -1063,9 +1057,8 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
 
 template <typename Names,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-                  IsIterableOf<Names, absl::string_view>>::value,
+              absl::conjunction<NotSelfCopy<CsvHeader, Names>,
+                                IsIterableOf<Names, absl::string_view>>::value,
               int>>
 void CsvHeader::Reset(Names&& names) {
   const absl::Status status =
@@ -1084,9 +1077,8 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
 
 template <typename Names,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_same<std::decay_t<Names>, CsvHeader>>,
-                  IsIterableOf<Names, absl::string_view>>::value,
+              absl::conjunction<NotSelfCopy<CsvHeader, Names>,
+                                IsIterableOf<Names, absl::string_view>>::value,
               int>>
 absl::Status CsvHeader::TryReset(Names&& names) {
   return TryResetInternal(nullptr, std::forward<Names>(names));

@@ -196,6 +196,7 @@ cc_library(
     name = "type_erased_ref",
     hdrs = ["type_erased_ref.h"],
     deps = [
+        ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
     ],
@@ -498,6 +499,7 @@ cc_library(
         ":stream_utils",
         ":string_utils",
         ":to_string_view",
+        ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/meta:type_traits",

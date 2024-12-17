@@ -48,6 +48,7 @@
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/to_string_view.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -859,9 +860,8 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 
 template <
     typename T,
-    std::enable_if_t<absl::conjunction<
-                         absl::negation<std::is_same<TargetT<T>, Chain::Block>>,
-                         SupportsToStringView<TargetT<T>>>::value,
+    std::enable_if_t<absl::conjunction<NotSelfCopy<Chain::Block, TargetT<T>>,
+                                       SupportsToStringView<TargetT<T>>>::value,
                      int>>
 inline Chain::Block::Block(T&& object)
     : block_(
