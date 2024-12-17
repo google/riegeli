@@ -179,10 +179,10 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
       default;
 
   // Iteration over the set.
-  Iterator begin() const;
-  Iterator cbegin() const;
-  Iterator end() const;
-  Iterator cend() const;
+  Iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns a proxy for `LinearSortedStringSet` where each element is
   // represented as `SplitElement` rather than `absl::string_view`. This is
@@ -190,7 +190,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   //
   // The `SplitElements` object is valid while the `LinearSortedStringSet` is
   // valid.
-  SplitElements split_elements() const;
+  SplitElements split_elements() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns `true` if the set is empty.
   bool empty() const { return encoded_.empty(); }
@@ -201,7 +201,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   size_t size() const;
 
   // Returns the first element. The set must not be empty.
-  absl::string_view first() const;
+  absl::string_view first() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns `true` if `element` is present in the set.
   //
@@ -743,19 +743,23 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
   return builder.Build();
 }
 
-inline LinearSortedStringSet::Iterator LinearSortedStringSet::begin() const {
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::begin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return Iterator(encoded_);
 }
 
-inline LinearSortedStringSet::Iterator LinearSortedStringSet::cbegin() const {
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::cbegin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return begin();
 }
 
-inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const {
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::end() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return Iterator();
 }
 
-inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const {
+inline LinearSortedStringSet::Iterator LinearSortedStringSet::cend() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return end();
 }
 
@@ -785,7 +789,7 @@ inline bool LinearSortedStringSet::contains_skip_first(
 }
 
 inline LinearSortedStringSet::SplitElements
-LinearSortedStringSet::split_elements() const {
+LinearSortedStringSet::split_elements() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return SplitElements(this);
 }
 

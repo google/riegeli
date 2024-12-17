@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
@@ -145,7 +146,8 @@ size_t LinearSortedStringSet::size() const {
   return size;
 }
 
-absl::string_view LinearSortedStringSet::first() const {
+absl::string_view LinearSortedStringSet::first() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of LinearSortedStringSet::first(): "
          "empty set";
@@ -177,64 +179,64 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
     // because `found.prefix().size()` is not guaranteed to be maximal.
     const SplitElement found = *iterator;
     common_length = UnsignedMin(common_length, found.prefix().size());
+    RIEGELI_ASSUME_LE(common_length, element.size())
+        << "The invariant common_length <= element.size() should hold";
     if (common_length < found.prefix().size()) {
-      common_length +=
-          SharedLength(absl::string_view(found.prefix().data() + common_length,
-                                         found.prefix().size() - common_length),
-                       absl::string_view(element.data() + common_length,
-                                         element.size() - common_length));
+      common_length += SharedLength(found.prefix().substr(common_length),
+                                    element.substr(common_length));
       if (common_length < found.prefix().size()) {
+        RIEGELI_ASSUME_LE(common_length, element.size())
+            << "The invariant common_length <= element.size() should hold";
         // The first difference, if any, is at
         // `found.prefix().data() + common_length`.
-        RIEGELI_ASSERT_EQ(
-            absl::string_view(found.prefix().data(), common_length),
-            absl::string_view(element.data(), common_length))
-            << "common_length incorrectly updated";
-        const absl::string_view found_middle(
-            found.prefix().data() + common_length,
-            found.prefix().size() - common_length);
-        const absl::string_view element_suffix(element.data() + common_length,
-                                               element.size() - common_length);
-        RIEGELI_ASSERT(found_middle.empty() || element_suffix.empty() ||
+        RIEGELI_ASSERT_EQ(found.prefix().substr(0, common_length),
+                          element.substr(0, common_length))
+            << "common_length should cover an equal prefix";
+        const absl::string_view found_middle =
+            found.prefix().substr(common_length);
+        const absl::string_view element_suffix = element.substr(common_length);
+        RIEGELI_ASSERT(!found_middle.empty())
+            << "Implied by common_length < found_prefix().size()";
+        RIEGELI_ASSERT(element_suffix.empty() ||
                        found_middle.front() != element_suffix.front())
-            << "common_length incorrectly updated";
-        if (found_middle.empty()) {
-          if (element_suffix.empty()) return true;
-        } else {
-          if (element_suffix.empty() ||
-              static_cast<unsigned char>(found_middle.front()) >
-                  static_cast<unsigned char>(element_suffix.front())) {
-            return false;
-          }
+            << "common_length should cover the maximal common prefix";
+        if (element_suffix.empty() ||
+            static_cast<unsigned char>(found_middle.front()) >
+                static_cast<unsigned char>(element_suffix.front())) {
+          return false;
         }
         continue;
       }
     }
 
     RIEGELI_ASSERT_GE(common_length, found.prefix().size())
-        << "common_length incorrectly updated";
-    common_length += SharedLength(
-        absl::string_view(
-            found.suffix().data() + (common_length - found.prefix().size()),
-            found.suffix().size() - (common_length - found.prefix().size())),
-        absl::string_view(element.data() + common_length,
-                          element.size() - common_length));
+        << "common_length < found.prefix().size() was handled above";
+    size_t common_length_in_suffix = common_length - found.prefix().size();
+    RIEGELI_ASSUME_LE(common_length_in_suffix, found.suffix().size())
+        << "The invariant common_length <= found.size() should hold";
+    RIEGELI_ASSUME_LE(common_length, element.size())
+        << "The invariant common_length <= element.size() should hold";
+    common_length +=
+        SharedLength(found.suffix().substr(common_length_in_suffix),
+                     element.substr(common_length));
+    common_length_in_suffix = common_length - found.prefix().size();
+    RIEGELI_ASSUME_LE(common_length_in_suffix, found.suffix().size())
+        << "The invariant common_length <= found.size() should hold";
+    RIEGELI_ASSUME_LE(common_length, element.size())
+        << "The invariant common_length <= element.size() should hold";
     // The first difference, if any, is at
     // `found.suffix().data() + (common_length - found_prefix().size())`.
     RIEGELI_ASSERT_EQ(
         absl::StrCat(found.prefix(),
-                     absl::string_view(found.suffix().data(),
-                                       common_length - found.prefix().size())),
-        absl::string_view(element.data(), common_length))
-        << "common_length incorrectly updated";
-    const absl::string_view found_suffix(
-        found.suffix().data() + (common_length - found.prefix().size()),
-        found.suffix().size() - (common_length - found.prefix().size()));
-    const absl::string_view element_suffix(element.data() + common_length,
-                                           element.size() - common_length);
+                     found.suffix().substr(0, common_length_in_suffix)),
+        element.substr(0, common_length))
+        << "common_length should cover an equal prefix";
+    const absl::string_view found_suffix =
+        found.suffix().substr(common_length_in_suffix);
+    const absl::string_view element_suffix = element.substr(common_length);
     RIEGELI_ASSERT(found_suffix.empty() || element_suffix.empty() ||
                    found_suffix.front() != element_suffix.front())
-        << "common_length incorrectly updated";
+        << "common_length should cover the maximal common prefix";
     if (found_suffix.empty()) {
       if (element_suffix.empty()) return true;
     } else {
@@ -377,16 +379,12 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
       current_length = IntCast<size_t>(shared_length + unshared_length);
       if (options.validate()) {
         if (ABSL_PREDICT_TRUE(current_if_validated != absl::nullopt) &&
-            ABSL_PREDICT_FALSE(
-                absl::string_view(ptr, unshared_length) <=
-                absl::string_view(
-                    current_if_validated->data() + shared_length,
-                    current_if_validated->size() - shared_length))) {
+            ABSL_PREDICT_FALSE(absl::string_view(ptr, unshared_length) <=
+                               current_if_validated->substr(shared_length))) {
           return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
               "Elements are not sorted and unique: new ",
               riegeli::Debug(
-                  absl::StrCat(absl::string_view(current_if_validated->data(),
-                                                 shared_length),
+                  absl::StrCat(current_if_validated->substr(0, shared_length),
                                absl::string_view(ptr, unshared_length))),
               " <= last ", riegeli::Debug(*current_if_validated))));
         }
@@ -558,7 +556,7 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
       << "Malformed LinearSortedStringSet encoding (unshared)";
   if (shared_length <= prefix_.size()) {
-    prefix_ = absl::string_view(prefix_.data(), IntCast<size_t>(shared_length));
+    prefix_ = prefix_.substr(0, IntCast<size_t>(shared_length));
   } else if (prefix_.empty()) {
     prefix_ = absl::string_view(cursor_ - suffix_length_,
                                 IntCast<size_t>(shared_length));
@@ -662,12 +660,11 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
     Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
-  return InsertNextImpl(
-      std::move(element), [this](std::string&& element, size_t shared_length) {
-        last_ = std::move(element);
-        return absl::string_view(last_.data() + shared_length,
-                                 last_.size() - shared_length);
-      });
+  return InsertNextImpl(std::move(element),
+                        [this](std::string&& element, size_t shared_length) {
+                          last_ = std::move(element);
+                          return absl::string_view(last_).substr(shared_length);
+                        });
 }
 
 template absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(

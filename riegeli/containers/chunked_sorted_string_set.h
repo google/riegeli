@@ -218,10 +218,10 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
       default;
 
   // Iteration over the set.
-  Iterator begin() const;
-  Iterator cbegin() const;
-  Iterator end() const;
-  Iterator cend() const;
+  Iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns `true` if the set is empty.
   bool empty() const { return chunks_.empty(); }
@@ -621,19 +621,23 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   return builder.Build();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::begin() const {
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::begin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return Iterator(this);
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cbegin() const {
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cbegin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return begin();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const {
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return Iterator();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const {
+inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return end();
 }
 
