@@ -467,7 +467,7 @@ class DependencyDefault<
   // Return `DependencyManagerRef<Manager>` when it is a subclass of `Handle`.
   template <typename DependentManager = Manager,
             std::enable_if_t<
-                std::is_convertible<DependencyManagerRef<DependentManager>*,
+                std::is_convertible<DependencyManagerPtr<DependentManager>,
                                     Handle*>::value,
                 int> = 0>
   DependencyManagerRef<DependentManager> get() const
@@ -476,7 +476,7 @@ class DependencyDefault<
   }
   template <typename DependentManager = Manager,
             std::enable_if_t<
-                !std::is_convertible<DependencyManagerRef<DependentManager>*,
+                !std::is_convertible<DependencyManagerPtr<DependentManager>,
                                      Handle*>::value,
                 int> = 0>
   Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -485,7 +485,7 @@ class DependencyDefault<
 
   static constexpr bool kIsStable =
       DependencyDefault::DependencyManager::kIsStable ||
-      std::is_convertible<DependencyManagerRef<Manager>*, Handle*>::value;
+      std::is_convertible<DependencyManagerPtr<Manager>, Handle*>::value;
 
  protected:
   DependencyDefault(const DependencyDefault& that) = default;

@@ -411,6 +411,16 @@ struct DependencyManagerPtrImpl<
   using type = Manager*;
 };
 
+template <typename Manager>
+struct DependencyManagerRefImpl {
+  using type = Manager;
+};
+
+template <typename Manager>
+struct DependencyManagerRefImpl<Manager*> {
+  using type = Manager&;
+};
+
 }  // namespace dependency_manager_internal
 
 // `DependencyManagerPtr<Manager>` is the type returned by
@@ -420,11 +430,15 @@ using DependencyManagerPtr =
     typename dependency_manager_internal::DependencyManagerPtrImpl<
         Manager>::type;
 
-// `DependencyManagerRef<Manager>` is
-// `std::remove_pointer_t<DependencyManagerPtr<Manager>>`.
+// `DependencyManagerRef<Manager>` is `DependencyManagerPtr<Manager>` with the
+// toplevel pointer changed to lvalue reference, if any.
+//
+// This should normally be used under the condition that
+// `std::is_pointer<DependencyManagerPtr<Manager>>::value`.
 template <typename Manager>
 using DependencyManagerRef =
-    std::remove_pointer_t<DependencyManagerPtr<Manager>>;
+    typename dependency_manager_internal::DependencyManagerRefImpl<
+        DependencyManagerPtr<Manager>>::type;
 
 }  // namespace riegeli
 

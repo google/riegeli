@@ -591,7 +591,7 @@ class DependencyImpl<
     DigesterBaseHandle, Manager,
     std::enable_if_t<absl::conjunction<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        absl::negation<std::is_convertible<DependencyManagerRef<Manager>*,
+        absl::negation<std::is_convertible<DependencyManagerPtr<Manager>,
                                            DigesterBaseHandle*>>,
         IsValidDigesterBaseTarget<DependencyManagerRef<Manager>>>::value>>
     : public DependencyManager<Manager> {
