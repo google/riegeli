@@ -33,7 +33,9 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if !__cpp_inline_variables
-constexpr uintptr_t CompactString::kDefaultRepr;
+constexpr uintptr_t CompactString::kTagBits;
+constexpr uintptr_t CompactString::kTagMask;
+constexpr uintptr_t CompactString::kInlineTag;
 constexpr size_t CompactString::kInlineCapacity;
 constexpr size_t CompactString::kInlineDataOffset;
 #endif
@@ -46,7 +48,7 @@ void CompactString::AssignSlow(absl::string_view src) {
 }
 
 void CompactString::AssignSlow(const CompactString& that) {
-  const uintptr_t that_tag = that.repr_ & 7;
+  const uintptr_t that_tag = that.repr_ & kTagMask;
   const size_t that_size = that.allocated_size_for_tag(that_tag);
   if (ABSL_PREDICT_TRUE(that_size <= capacity())) {
     set_size(that_size);
@@ -115,8 +117,8 @@ char* CompactString::ResizeSlow(size_t new_size, size_t min_capacity,
 }
 
 void CompactString::ShrinkToFitSlow() {
-  const uintptr_t tag = repr_ & 7;
-  RIEGELI_ASSERT_NE(tag, 1u)
+  const uintptr_t tag = repr_ & kTagMask;
+  RIEGELI_ASSERT_NE(tag, kInlineTag)
       << "Failed precondition of CompactString::ShrinkToFitSlow(): "
          "representation is inline, use shrink_to_fit() instead";
   size_t size;

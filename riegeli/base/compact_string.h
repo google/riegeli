@@ -92,10 +92,11 @@ class
   CompactString(const CompactString& that);
   CompactString& operator=(const CompactString& that);
 
+  // The source `CompactString` is left empty.
   CompactString(CompactString&& that) noexcept
-      : repr_(std::exchange(that.repr_, kDefaultRepr)) {}
+      : repr_(std::exchange(that.repr_, kInlineTag)) {}
   CompactString& operator=(CompactString&& that) {
-    DeleteRepr(std::exchange(repr_, std::exchange(that.repr_, kDefaultRepr)));
+    DeleteRepr(std::exchange(repr_, std::exchange(that.repr_, kInlineTag)));
     return *this;
   }
 
@@ -232,13 +233,13 @@ class
 
   // Support `ExternalRef`.
   friend bool RiegeliExternalCopy(const CompactString* self) {
-    return (self->repr_ & 7) == 1;
+    return (self->repr_ & kTagMask) == kInlineTag;
   }
 
   // Support `ExternalRef`.
   friend size_t RiegeliExternalMemory(const CompactString* self) {
-    const uintptr_t tag = self->repr_ & 7;
-    RIEGELI_ASSUME_NE(tag, 1u)
+    const uintptr_t tag = self->repr_ & kTagMask;
+    RIEGELI_ASSUME_NE(tag, kInlineTag)
         << "Failed precondition of "
            "RiegeliExternalMemory(const CompactString*): "
            "case excluded by RiegeliExternalCopy()";
@@ -249,10 +250,10 @@ class
   // Support `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(CompactString* self) {
     return ExternalStorage(
-        reinterpret_cast<void*>(std::exchange(self->repr_, kDefaultRepr)),
+        reinterpret_cast<void*>(std::exchange(self->repr_, kInlineTag)),
         [](void* ptr) {
           const uintptr_t repr = reinterpret_cast<uintptr_t>(ptr);
-          RIEGELI_ASSUME_NE(repr & 7, 1u)
+          RIEGELI_ASSUME_NE(repr & kTagMask, kInlineTag)
               << "Failed precondition of "
                  "RiegeliExternalStorage(CompactString*): "
                  "case excluded by RiegeliExternalCopy()";
@@ -275,10 +276,12 @@ class
   }
 
  private:
-  static constexpr uintptr_t kDefaultRepr = 1;
+  static constexpr size_t kTagBits = 3;
+  static constexpr uintptr_t kTagMask = (1u << kTagBits) - 1;
+  static constexpr uintptr_t kInlineTag = 1;
 
   static constexpr size_t kInlineCapacity =
-      UnsignedMin(sizeof(uintptr_t) - 1, size_t{0xff >> 3});
+      UnsignedMin(sizeof(uintptr_t) - 1, size_t{0xff >> kTagBits});
 
 #if ABSL_IS_LITTLE_ENDIAN
   static constexpr size_t kInlineDataOffset = 1;
@@ -288,27 +291,27 @@ class
 #error Unknown endianness
 #endif
 
-  static char* inline_data(uintptr_t& repr) {
-    RIEGELI_ASSERT_EQ(repr & 7, 1u)
-        << "Failed precondition of CompactString::inline_data(): "
-           "representation not inline";
-    return reinterpret_cast<char*>(&repr) + kInlineDataOffset;
-  }
-  static const char* inline_data(const uintptr_t& repr) {
-    RIEGELI_ASSERT_EQ(repr & 7, 1u)
-        << "Failed precondition of CompactString::inline_data(): "
-           "representation not inline";
-    return reinterpret_cast<const char*>(&repr) + kInlineDataOffset;
-  }
+  char* inline_data() { return inline_data(&repr_); }
+  const char* inline_data() const { return inline_data(&repr_); }
 
-  char* inline_data() { return inline_data(repr_); }
-  const char* inline_data() const { return inline_data(repr_); }
+  static char* inline_data(uintptr_t* repr) {
+    RIEGELI_ASSERT_EQ(*repr & kTagMask, kInlineTag)
+        << "Failed precondition of CompactString::inline_data(): "
+           "representation not inline";
+    return reinterpret_cast<char*>(repr) + kInlineDataOffset;
+  }
+  static const char* inline_data(const uintptr_t* repr) {
+    RIEGELI_ASSERT_EQ(*repr & kTagMask, kInlineTag)
+        << "Failed precondition of CompactString::inline_data(): "
+           "representation not inline";
+    return reinterpret_cast<const char*>(repr) + kInlineDataOffset;
+  }
 
   size_t inline_size() const {
-    RIEGELI_ASSERT_EQ(repr_ & 7, 1u)
+    RIEGELI_ASSERT_EQ(repr_ & kTagMask, kInlineTag)
         << "Failed precondition of CompactString::inline_size(): "
            "representation not inline";
-    const size_t size = IntCast<size_t>((repr_ & 0xff) >> 3);
+    const size_t size = IntCast<size_t>((repr_ & 0xff) >> kTagBits);
     // This assumption helps the compiler to reason about comparisons with
     // `size()`.
     RIEGELI_ASSUME_LE(size, kInlineCapacity)
@@ -317,24 +320,13 @@ class
     return size;
   }
 
+  char* allocated_data() const { return allocated_data(repr_); }
+
   static char* allocated_data(uintptr_t repr) {
-    RIEGELI_ASSERT_NE(repr & 7, 1u)
+    RIEGELI_ASSERT_NE(repr & kTagMask, kInlineTag)
         << "Failed precondition of CompactString::allocated_data(): "
            "representation not allocated";
     return reinterpret_cast<char*>(repr);
-  }
-
-  char* allocated_data() const { return allocated_data(repr_); }
-
-  template <typename T>
-  size_t allocated_size() const {
-    const uintptr_t tag = repr_ & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
-        << "Failed precondition of CompactString::allocated_size(): "
-           "tag does not match size representation";
-    T stored_size;
-    std::memcpy(&stored_size, allocated_data() - sizeof(T), sizeof(T));
-    return size_t{stored_size};
   }
 
   size_t allocated_size_for_tag(uintptr_t tag) const {
@@ -344,23 +336,24 @@ class
     RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
   }
 
-  static void set_inline_size(size_t size, uintptr_t& repr) {
-    RIEGELI_ASSERT_EQ(repr & 7, 1u)
-        << "Failed precondition of CompactString::set_inline_size(): "
-           "representation not inline";
-    repr = (repr & ~(0xff & ~7)) | (size << 3);
+  template <typename T>
+  size_t allocated_size() const {
+    const uintptr_t tag = repr_ & kTagMask;
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
+        << "Failed precondition of CompactString::allocated_size(): "
+           "tag does not match size representation";
+    T stored_size;
+    std::memcpy(&stored_size, allocated_data() - sizeof(T), sizeof(T));
+    return size_t{stored_size};
   }
 
   void set_inline_size(size_t size) { set_inline_size(size, repr_); }
 
-  template <typename T>
-  static void set_allocated_size(size_t size, uintptr_t repr) {
-    const uintptr_t tag = repr & 7;
-    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
-        << "Failed precondition of CompactString::set_allocated_size(): "
-           "tag does not match size representation";
-    const T stored_size = IntCast<T>(size);
-    std::memcpy(allocated_data(repr) - sizeof(T), &stored_size, sizeof(T));
+  static void set_inline_size(size_t size, uintptr_t& repr) {
+    RIEGELI_ASSERT_EQ(repr & kTagMask, kInlineTag)
+        << "Failed precondition of CompactString::set_inline_size(): "
+           "representation not inline";
+    repr = (repr & ~(0xff & ~kTagMask)) | (size << kTagBits);
   }
 
   template <typename T>
@@ -368,11 +361,37 @@ class
     set_allocated_size<T>(size, repr_);
   }
 
+  template <typename T>
+  static void set_allocated_size(size_t size, uintptr_t repr) {
+    const uintptr_t tag = repr & kTagMask;
+    RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
+        << "Failed precondition of CompactString::set_allocated_size(): "
+           "tag does not match size representation";
+    const T stored_size = IntCast<T>(size);
+    std::memcpy(allocated_data(repr) - sizeof(T), &stored_size, sizeof(T));
+  }
+
   void set_allocated_size_for_tag(uintptr_t tag, size_t new_size);
+
+  size_t allocated_capacity_for_tag(uintptr_t tag) const {
+    return allocated_capacity_for_tag(tag, repr_);
+  }
+
+  static size_t allocated_capacity_for_tag(uintptr_t tag, uint64_t repr) {
+    if (tag == 2) return allocated_capacity<uint8_t>(repr);
+    if (tag == 4) return allocated_capacity<uint16_t>(repr);
+    if (tag == 0) return allocated_capacity<size_t>(repr);
+    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
+  }
+
+  template <typename T>
+  size_t allocated_capacity() const {
+    return allocated_capacity<T>(repr_);
+  }
 
   template <typename T>
   static size_t allocated_capacity(uint64_t repr) {
-    const uintptr_t tag = repr & 7;
+    const uintptr_t tag = repr & kTagMask;
     RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::allocated_capacity(): "
            "tag does not match capacity representation";
@@ -388,24 +407,8 @@ class
   }
 
   template <typename T>
-  size_t allocated_capacity() const {
-    return allocated_capacity<T>(repr_);
-  }
-
-  static size_t allocated_capacity_for_tag(uintptr_t tag, uint64_t repr) {
-    if (tag == 2) return allocated_capacity<uint8_t>(repr);
-    if (tag == 4) return allocated_capacity<uint16_t>(repr);
-    if (tag == 0) return allocated_capacity<size_t>(repr);
-    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
-  }
-
-  size_t allocated_capacity_for_tag(uintptr_t tag) const {
-    return allocated_capacity_for_tag(tag, repr_);
-  }
-
-  template <typename T>
   static void set_allocated_capacity(size_t capacity, uintptr_t repr) {
-    const uintptr_t tag = repr & 7;
+    const uintptr_t tag = repr & kTagMask;
     RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::set_allocated_capacity(): "
            "tag does not match capacity representation";
@@ -418,7 +421,7 @@ class
     return static_cast<char*>(NewAligned<void, 8>(size));
   }
   static void Free(char* ptr, size_t size) {
-    return DeleteAligned<void, 8>(ptr, size);
+    DeleteAligned<void, 8>(ptr, size);
   }
 
   static uintptr_t MakeRepr(size_t size, size_t capacity);
@@ -440,7 +443,7 @@ class
   template <typename MemoryEstimator>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 
-  uintptr_t repr_ = kDefaultRepr;
+  uintptr_t repr_ = kInlineTag;
 };
 
 // Hash and equality which support heterogeneous lookup.
@@ -475,7 +478,9 @@ inline uintptr_t CompactString::MakeRepr(size_t size, size_t capacity) {
   RIEGELI_ASSERT_LE(size, capacity)
       << "Failed precondition of CompactString::MakeRepr(): "
          "size greater than capacity";
-  if (capacity <= kInlineCapacity) return uintptr_t{(size << 3) | 1};
+  if (capacity <= kInlineCapacity) {
+    return uintptr_t{(size << kTagBits) + kInlineTag};
+  }
   return MakeReprSlow(size, capacity);
 }
 
@@ -489,7 +494,7 @@ inline uintptr_t CompactString::MakeRepr(absl::string_view src,
   // `std::memcpy(_, nullptr, 0)` is undefined.
   if (ABSL_PREDICT_TRUE(!src.empty())) {
     std::memcpy(
-        capacity <= kInlineCapacity ? inline_data(repr) : allocated_data(repr),
+        capacity <= kInlineCapacity ? inline_data(&repr) : allocated_data(repr),
         src.data(), src.size());
   }
   return repr;
@@ -500,16 +505,16 @@ inline uintptr_t CompactString::MakeRepr(absl::string_view src) {
 }
 
 inline void CompactString::DeleteRepr(uintptr_t repr) {
-  const uintptr_t tag = repr & 7;
-  if (tag == 1) return;
+  const uintptr_t tag = repr & kTagMask;
+  if (tag == kInlineTag) return;
   const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
   Free(allocated_data(repr) - offset,
        allocated_capacity_for_tag(tag, repr) + offset);
 }
 
 inline CompactString::CompactString(const CompactString& that) {
-  const uintptr_t that_tag = that.repr_ & 7;
-  if (that_tag == 1) {
+  const uintptr_t that_tag = that.repr_ & kTagMask;
+  if (that_tag == kInlineTag) {
     repr_ = that.repr_;
   } else {
     repr_ = MakeRepr(absl::string_view(that.allocated_data(),
@@ -518,10 +523,10 @@ inline CompactString::CompactString(const CompactString& that) {
 }
 
 inline CompactString& CompactString::operator=(const CompactString& that) {
-  const uintptr_t that_tag = that.repr_ & 7;
-  if (that_tag == 1) {
-    const uintptr_t tag = repr_ & 7;
-    if (tag == 1) {
+  const uintptr_t that_tag = that.repr_ & kTagMask;
+  if (that_tag == kInlineTag) {
+    const uintptr_t tag = repr_ & kTagMask;
+    if (tag == kInlineTag) {
       repr_ = that.repr_;
     } else {
       set_allocated_size_for_tag(tag, that.inline_size());
@@ -560,33 +565,33 @@ inline CompactString& CompactString::operator=(absl::string_view src) {
 }
 
 inline char* CompactString::data() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return inline_data();
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return inline_data();
   return allocated_data();
 }
 
 inline const char* CompactString::data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return inline_data();
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return inline_data();
   return allocated_data();
 }
 
 inline size_t CompactString::size() const {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return inline_size();
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return inline_size();
   return allocated_size_for_tag(tag);
 }
 
 inline size_t CompactString::capacity() const {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return kInlineCapacity;
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return kInlineCapacity;
   return allocated_capacity_for_tag(tag);
 }
 
 inline CompactString::operator absl::string_view() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return absl::string_view(inline_data(), inline_size());
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return absl::string_view(inline_data(), inline_size());
   return absl::string_view(allocated_data(), allocated_size_for_tag(tag));
 }
 
@@ -607,8 +612,8 @@ inline const char& CompactString::operator[](size_t index) const
 inline void CompactString::set_size(size_t new_size) {
   RIEGELI_ASSERT_LE(new_size, capacity())
       << "Failed precondition of CompactString::SetSize(): size out of range";
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) {
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) {
     set_inline_size(new_size);
     return;
   }
@@ -656,8 +661,8 @@ inline char* CompactString::resize(size_t new_size, size_t used_size)
     // The `#ifdef` helps the compiler to realize that computing the arguments
     // is unnecessary if `MarkPoisoned()` does nothing.
 #ifdef MEMORY_SANITIZER
-    const uintptr_t tag = repr_ & 7;
-    if (tag != 1) {
+    const uintptr_t tag = repr_ & kTagMask;
+    if (tag != kInlineTag) {
       MarkPoisoned(
           allocated_data() + used_size,
           UnsignedMin(allocated_size_for_tag(tag), new_size) - used_size);
@@ -676,9 +681,9 @@ inline void CompactString::reserve(size_t min_capacity) {
 }
 
 inline void CompactString::shrink_to_fit() {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return;
-  return ShrinkToFitSlow();
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return;
+  ShrinkToFitSlow();
 }
 
 inline char* CompactString::append(size_t length)
@@ -720,8 +725,8 @@ inline const char* CompactString::c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND {
 template <typename MemoryEstimator>
 inline void CompactString::RegisterSubobjects(
     MemoryEstimator& memory_estimator) const {
-  const uintptr_t tag = repr_ & 7;
-  if (tag == 1) return;
+  const uintptr_t tag = repr_ & kTagMask;
+  if (tag == kInlineTag) return;
   const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
   memory_estimator.RegisterDynamicMemory(
       allocated_data() - offset, offset + allocated_capacity_for_tag(tag));
