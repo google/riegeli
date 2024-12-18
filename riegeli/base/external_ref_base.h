@@ -1873,10 +1873,10 @@ class ExternalRef {
   template <typename Arg,
             std::enable_if_t<SupportsExternalRefWhole<TargetRefT<Arg>>::value,
                              int> = 0>
-  explicit ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                       StorageWhole<Arg&&>&& storage
-                           ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                               StorageWhole<Arg&&>())
+  /*implicit*/ ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                           StorageWhole<Arg&&>&& storage
+                               ABSL_ATTRIBUTE_LIFETIME_BOUND =
+                                   StorageWhole<Arg&&>())
       : storage_(&storage) {
     storage.Initialize(std::forward<Arg>(arg));
   }
