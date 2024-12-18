@@ -105,9 +105,9 @@ cc_library(
     hdrs = ["buffering.h"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":constexpr",
         ":types",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
     ],
 )

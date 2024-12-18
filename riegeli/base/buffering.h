@@ -17,11 +17,9 @@
 
 #include <stddef.h>
 
-#include <limits>
-
+#include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 
@@ -64,21 +62,13 @@ inline size_t ApplyBufferConstraints(Position base_length, size_t min_length,
 }
 
 // Heuristics for whether a data structure with `allocated` bytes utilizing
-// `used` bytes for actual data is considered wasteful: approximately twice more
-// memory is allocated than used.
-//
-// Precondition: `used <= allocated`
+// `used` bytes for actual data is considered wasteful: `allocated` is larger
+// than `2 * used + kDefaultMinBlockSize` (256).
 inline bool Wasteful(size_t allocated, size_t used) {
-  RIEGELI_ASSERT_LE(used, allocated) << "Failed precondition of Wasteful(): "
-                                        "used size larger than allocated size";
-  RIEGELI_ASSERT_LE(used,
-                    std::numeric_limits<size_t>::max() - kDefaultMinBlockSize)
-      << "Failed precondition of Wasteful(): "
-         "size suspiciously close to size_t range";
-  // A newly allocated block is never considered wasteful as long as the
-  // allocated size is not larger than twice the used size plus
-  // `kDefaultMinBlockSize` (256).
-  return allocated - used > used + kDefaultMinBlockSize;
+  if (ABSL_PREDICT_FALSE(used > allocated)) return false;
+  const size_t unused = allocated - used;
+  if (ABSL_PREDICT_TRUE(unused <= kDefaultMinBlockSize)) return false;
+  return unused - riegeli::kDefaultMinBlockSize > used;
 }
 
 }  // namespace riegeli

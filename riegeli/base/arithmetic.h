@@ -331,7 +331,10 @@ constexpr T SaturatingAdd(T a) {
 
 template <typename T, std::enable_if_t<IsUnsignedInt<T>::value, int> = 0>
 constexpr T SaturatingAdd(T a, T b) {
-  return a + UnsignedMin(b, std::numeric_limits<T>::max() - a);
+  if (ABSL_PREDICT_FALSE(b > std::numeric_limits<T>::max() - a)) {
+    return std::numeric_limits<T>::max();
+  }
+  return a + b;
 }
 
 template <
@@ -351,7 +354,8 @@ template <
     std::enable_if_t<
         absl::conjunction<IsUnsignedInt<T>, IsUnsignedInt<U>>::value, int> = 0>
 constexpr T SaturatingSub(T a, U b) {
-  return a - UnsignedMin(b, a);
+  if (ABSL_PREDICT_FALSE(b > a)) return 0;
+  return a - IntCast<T>(b);
 }
 
 // `RoundDown()` rounds an unsigned value downwards to the nearest multiple of
