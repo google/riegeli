@@ -136,7 +136,7 @@ class WriterOStreamBase : public std::iostream {
   // is successfully closed, or `absl::OkStatus()` if the `WriterOStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
-  // Support `Dependency`.
+  // Supports `Dependency`.
   friend MakerType<Closed> RiegeliDependencySentinel(WriterOStreamBase*) {
     return {kClosed};
   }

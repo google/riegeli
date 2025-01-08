@@ -298,7 +298,7 @@ class Object {
   // `AnnotateStatus()` would be irrelevant or duplicated in a particular case.
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
 
-  // Support `Dependency`.
+  // Supports `Dependency`.
   friend MakerType<Closed> RiegeliDependencySentinel(Object*) {
     return {kClosed};
   }

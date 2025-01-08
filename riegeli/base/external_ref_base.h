@@ -76,7 +76,7 @@ namespace riegeli {
 // that it supports `ExternalRef` by providing one of the following functions
 // (only their presence is checked, they are never called):
 // ```
-//   // Indicate support for `ExternalRef(T&&, substr)`.
+//   // Indicates support for `ExternalRef(T&&, substr)`.
 //   //
 //   // `substr` must be owned by the object if it gets created or moved, unless
 //   // `RiegeliExternalCopy()` (see below) recognizes cases when it is not.
@@ -96,7 +96,7 @@ namespace riegeli {
 //   // data before specifying the object to be moved).
 //   friend void RiegeliSupportsExternalRef(T*) {}
 //
-//   // Indicate support for `ExternalRef(T&&)` as long as `T` supports
+//   // Indicates support for `ExternalRef(T&&)` as long as `T` supports
 //   // `riegeli::ToStringView()`.
 //   //
 //   // The parameter can also have type `const T*`. This also indicates support
@@ -1968,7 +1968,7 @@ class ExternalRef {
     return result;
   }
 
-  // Support `riegeli::Reset(absl::Cord&, ExternalRef)`.
+  // Supports `riegeli::Reset(absl::Cord&, ExternalRef)`.
   friend void RiegeliReset(absl::Cord& dest, ExternalRef src) {
     std::move(src).AssignTo(dest);
   }

@@ -59,28 +59,28 @@ class
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const { return capacity_; }
 
-  // Indicate support for `ExternalRef(Buffer&&, substr)`.
+  // Indicates support for `ExternalRef(Buffer&&, substr)`.
   friend void RiegeliSupportsExternalRef(Buffer*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const Buffer* self) {
     return self->capacity();
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(Buffer* self) {
     self->capacity_ = 0;
     return ExternalStorage(
         std::exchange(self->data_, nullptr), operator delete);
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const Buffer* self, absl::string_view substr,
                                    std::ostream& dest) {
     self->DumpStructure(substr, dest);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Buffer* self,
                                         MemoryEstimator& memory_estimator) {

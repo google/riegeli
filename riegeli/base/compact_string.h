@@ -291,22 +291,22 @@ class
     return dest << absl::string_view(src);
   }
 
-  // Support `absl::Format(&compact_string, format, args...)`.
+  // Supports `absl::Format(&compact_string, format, args...)`.
   friend void AbslFormatFlush(CompactString* dest, absl::string_view src) {
     dest->append(src);
   }
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(CompactString&&)`
   //  * `ExternalRef(CompactString&&, substr)`
   friend void RiegeliSupportsExternalRef(CompactString*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend bool RiegeliExternalCopy(const CompactString* self) {
     return (self->repr_ & kTagMask) == kInlineTag;
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const CompactString* self) {
     const uintptr_t tag = self->repr_ & kTagMask;
     RIEGELI_ASSUME_NE(tag, kInlineTag)
@@ -317,7 +317,7 @@ class
     return offset + self->allocated_capacity_for_tag(tag);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(CompactString* self) {
     return ExternalStorage(
         reinterpret_cast<void*>(std::exchange(self->repr_, kInlineTag)),
@@ -331,14 +331,14 @@ class
         });
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const CompactString* self,
                                    absl::string_view substr,
                                    std::ostream& dest) {
     self->DumpStructure(substr, dest);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CompactString* self,
                                         MemoryEstimator& memory_estimator) {

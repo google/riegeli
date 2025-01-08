@@ -279,18 +279,18 @@ class
     return a.get() == nullptr;
   }
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const IntrusiveSharedPtr&, substr)`
   //  * `ExternalRef(IntrusiveSharedPtr&&, substr)`
   friend void RiegeliSupportsExternalRef(const IntrusiveSharedPtr*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const IntrusiveSharedPtr* self) {
     if (*self == nullptr) return 0;
     return sizeof(T) + RiegeliExternalMemory(self->get());
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {
     return ExternalStorage(const_cast<std::remove_cv_t<T>*>(self->Release()),
                            [](void* ptr) {
@@ -298,13 +298,13 @@ class
                            });
   }
 
-  // Support `riegeli::Debug()`.
+  // Supports `riegeli::Debug()`.
   template <typename DebugStream>
   friend void RiegeliDebug(const IntrusiveSharedPtr& src, DebugStream& dest) {
     dest.Debug(src.get());
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const IntrusiveSharedPtr* self,
                                         MemoryEstimator& memory_estimator) {

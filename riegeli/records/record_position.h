@@ -158,7 +158,7 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   Position get() const;
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FutureChunkBegin* self,
                                         MemoryEstimator& memory_estimator) {
@@ -209,7 +209,7 @@ class
   // May block if returned by `RecordWriter` with `parallelism > 0`.
   RecordPosition get() const;
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FutureRecordPosition* self,
                                         MemoryEstimator& memory_estimator) {
@@ -242,7 +242,7 @@ class FutureChunkBegin::Unresolved {
 
   Position get() const;
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Unresolved* self,
                                         MemoryEstimator& memory_estimator) {

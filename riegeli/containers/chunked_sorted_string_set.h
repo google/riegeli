@@ -258,7 +258,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   // including `sizeof(ChunkedSortedStringSet)`.
   size_t EstimateMemory() const;
 
-  // Support `EstimateMemory()`.
+  // Supports `EstimateMemory()`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const ChunkedSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {

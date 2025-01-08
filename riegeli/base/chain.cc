@@ -79,13 +79,13 @@ class FlatCordBlock {
 
   explicit operator absl::string_view() const;
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(
       ABSL_ATTRIBUTE_UNUSED const FlatCordBlock* self, std::ostream& dest) {
     dest << "[cord] { }";
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const FlatCordBlock* self,
                                         MemoryEstimator& memory_estimator) {

@@ -35,7 +35,7 @@ inline bool RiegeliExternalCopy(ABSL_ATTRIBUTE_UNUSED const void* self) {
   return false;
 }
 
-// Indicate support for `ExternalRef(std::string&&)`.
+// Indicates support for `ExternalRef(std::string&&)`.
 void RiegeliSupportsExternalRefWhole(std::string*);
 
 inline size_t RiegeliExternalMemory(const std::string* self) {
@@ -44,7 +44,7 @@ inline size_t RiegeliExternalMemory(const std::string* self) {
   return self->capacity() + 1;
 }
 
-// Indicate support for:
+// Indicates support for:
 //  * `ExternalRef(std::vector<char>&&)`
 //  * `ExternalRef(std::vector<T>&&, substr)`
 template <typename T>
@@ -55,7 +55,7 @@ inline size_t RiegeliExternalMemory(const std::vector<T>* self) {
   return self->capacity() * sizeof(T);
 }
 
-// Indicate support for `ExternalRef(std::unique_ptr<T, Deleter>&&, substr)`.
+// Indicates support for `ExternalRef(std::unique_ptr<T, Deleter>&&, substr)`.
 template <typename T, typename Deleter>
 void RiegeliSupportsExternalRef(std::unique_ptr<T, Deleter>*);
 
@@ -84,7 +84,7 @@ inline ExternalStorage RiegeliToExternalStorage(std::unique_ptr<T[]>* self) {
                          [](void* ptr) { delete[] static_cast<T*>(ptr); });
 }
 
-// Indicate support for:
+// Indicates support for:
 //  * `ExternalRef(const std::shared_ptr<T>&, substr)`
 //  * `ExternalRef(std::shared_ptr<T>&&, substr)`
 template <typename T>

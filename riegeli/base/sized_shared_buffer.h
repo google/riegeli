@@ -127,14 +127,14 @@ class
   void RemoveSuffix(size_t length);
   void RemovePrefix(size_t length);
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const SizedSharedBuffer&)`
   //  * `ExternalRef(SizedSharedBuffer&&)`
   //  * `ExternalRef(const SizedSharedBuffer&, substr)`
   //  * `ExternalRef(SizedSharedBuffer&&, substr)`
   friend void RiegeliSupportsExternalRef(const SizedSharedBuffer*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   template <typename Callback>
   friend void RiegeliExternalDelegate(SizedSharedBuffer* self,
                                       absl::string_view substr,
@@ -150,7 +150,7 @@ class
     std::forward<Callback>(delegate_to)(self->buffer_, substr);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SizedSharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {

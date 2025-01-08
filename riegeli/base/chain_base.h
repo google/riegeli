@@ -286,7 +286,7 @@ class Chain : public WithCompare<Chain> {
   void DumpStructure(std::ostream& dest) const;
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const Chain* self,
                                         MemoryEstimator& memory_estimator) {
     self->RegisterSubobjects(memory_estimator);
@@ -419,13 +419,13 @@ class Chain : public WithCompare<Chain> {
     return dest;
   }
 
-  // Support `riegeli::Debug()`.
+  // Supports `riegeli::Debug()`.
   template <typename DebugStream>
   friend void RiegeliDebug(const Chain& src, DebugStream& dest) {
     src.Debug(dest);
   }
 
-  // Support `absl::Format(&chain, format, args...)`.
+  // Supports `absl::Format(&chain, format, args...)`.
   friend void AbslFormatFlush(Chain* dest, absl::string_view src) {
     dest->Append(src);
   }
@@ -715,7 +715,7 @@ class Chain::RawBlock {
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& dest) const;
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   friend size_t RiegeliDynamicSizeOf(const RawBlock* self) {
     return self->DynamicSizeOf();
   }
@@ -894,24 +894,24 @@ class Chain::Block {
     return block_->data_begin();
   }
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const Block&)`
   //  * `ExternalRef(Block&&)`
   //  * `ExternalRef(const Block&, substr)`
   //  * `ExternalRef(Block&&, substr)`
   friend void RiegeliSupportsExternalRef(const Block*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const Block* self) {
     return self->ExternalMemory();
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend Block RiegeliToChainBlock(Block* self, absl::string_view substr) {
     return std::move(*self).ToChainBlock(substr);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend absl::Cord RiegeliToCord(Block* self, absl::string_view substr) {
     return std::move(*self).ToCord(substr);
   }
@@ -919,18 +919,18 @@ class Chain::Block {
     return self->ToCord(substr);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(Block* self) {
     return std::move(*self).ToExternalStorage();
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const Block* self, absl::string_view substr,
                                    std::ostream& dest) {
     self->DumpStructure(substr, dest);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Block* self,
                                         MemoryEstimator& memory_estimator) {

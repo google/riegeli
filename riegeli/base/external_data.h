@@ -28,7 +28,7 @@ namespace riegeli {
 // and `ExternalStorage::get_deleter() -> void (*)(void*)`.
 using ExternalStorage = std::unique_ptr<void, void (*)(void*)>;
 
-// Support `ExternalRef`.
+// Supports `ExternalRef`.
 inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
   return std::move(*self);
 }
@@ -36,17 +36,17 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // Type-erased external object with its deleter and a substring of a byte array
 // it owns.
 struct ExternalData {
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(ExternalData&&)`
   //  * `ExternalRef(ExternalData&&, substr)`
   friend void RiegeliSupportsExternalRef(ExternalData*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend absl::string_view RiegeliToStringView(const ExternalData* self) {
     return self->substr;
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(ExternalData* self) {
     return std::move(self->storage);
   }

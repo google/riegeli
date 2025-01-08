@@ -116,7 +116,7 @@ class
   void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND;
   const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const AnyBase* self,
                                         MemoryEstimator& memory_estimator) {
     self->methods_and_handle_.methods->register_subobjects(self->repr_.storage,

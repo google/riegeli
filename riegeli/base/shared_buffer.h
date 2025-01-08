@@ -79,29 +79,29 @@ class SharedBuffer {
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const;
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const SharedBuffer&, substr)`
   //  * `ExternalRef(SharedBuffer&&, substr)`
   friend void RiegeliSupportsExternalRef(const SharedBuffer*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const SharedBuffer* self) {
     return RiegeliExternalMemory(&self->buffer_);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedBuffer* self) {
     return RiegeliToExternalStorage(&self->buffer_);
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const SharedBuffer* self,
                                    absl::string_view substr,
                                    std::ostream& dest) {
     self->DumpStructure(substr, dest);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedBuffer* self,
                                         MemoryEstimator& memory_estimator) {

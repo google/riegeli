@@ -418,7 +418,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
     return dest;
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvHeader* self,
                                         MemoryEstimator& memory_estimator) {
@@ -432,7 +432,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
         : normalizer(std::move(normalizer)) {}
     Payload(const Payload& that);
 
-    // Support `MemoryEstimator`.
+    // Supports `MemoryEstimator`.
     template <typename MemoryEstimator>
     friend void RiegeliRegisterSubobjects(const Payload* self,
                                           MemoryEstimator& memory_estimator) {
@@ -943,7 +943,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
     return dest;
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const CsvRecord* self,
                                         MemoryEstimator& memory_estimator) {

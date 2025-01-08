@@ -219,12 +219,12 @@ class
     return a.ptr_ == nullptr;
   }
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const SharedPtr&, substr)`
   //  * `ExternalRef(SharedPtr&&, substr)`
   friend void RiegeliSupportsExternalRef(const SharedPtr*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend size_t RiegeliExternalMemory(const SharedPtr* self) {
     static constexpr size_t kOffset =
         !std::has_virtual_destructor<T>::value
@@ -234,20 +234,20 @@ class
     return kOffset + sizeof(T) + RiegeliExternalMemory(self->get());
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedPtr* self) {
     return ExternalStorage(
         const_cast<std::remove_cv_t<T>*>(self->Release()),
         [](void* ptr) { SharedPtr::DeleteReleased(static_cast<T*>(ptr)); });
   }
 
-  // Support `riegeli::Debug()`.
+  // Supports `riegeli::Debug()`.
   template <typename DebugStream>
   friend void RiegeliDebug(const SharedPtr& src, DebugStream& dest) {
     dest.Debug(src.get());
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const SharedPtr* self,
                                         MemoryEstimator& memory_estimator) {

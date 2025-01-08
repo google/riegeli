@@ -234,7 +234,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   // including `sizeof(LinearSortedStringSet)`.
   size_t EstimateMemory() const;
 
-  // Support `EstimateMemory()`.
+  // Supports `EstimateMemory()`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const LinearSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {

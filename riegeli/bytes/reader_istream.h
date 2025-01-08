@@ -120,7 +120,7 @@ class ReaderIStreamBase : public std::istream {
   // is successfully closed, or `absl::OkStatus()` if the `ReaderIStream` is OK.
   absl::Status status() const { return streambuf_.status(); }
 
-  // Support `Dependency`.
+  // Supports `Dependency`.
   friend MakerType<Closed> RiegeliDependencySentinel(ReaderIStreamBase*) {
     return {kClosed};
   }

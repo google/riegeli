@@ -126,23 +126,23 @@ class Chain::BlockRef {
   const char* data() const;
   size_t size() const;
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(BlockRef)`
   //  * `ExternalRef(BlockRef, substr)`
   friend void RiegeliSupportsExternalRef(const BlockRef*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend bool RiegeliExternalCopy(const BlockRef* self) {
     return self->ExternalCopy();
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend Chain::Block RiegeliToChainBlock(const BlockRef* self,
                                           absl::string_view substr) {
     return self->ToChainBlock(substr);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   template <typename Callback>
   friend void RiegeliExternalDelegate(const BlockRef* self,
                                       absl::string_view substr,
@@ -451,7 +451,7 @@ inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
 
 }  // namespace chain_internal
 
-// Support `ExternalRef` and `Chain::Block`.
+// Supports `ExternalRef` and `Chain::Block`.
 void RiegeliDumpStructure(const std::string* self, std::ostream& dest);
 
 template <typename T>

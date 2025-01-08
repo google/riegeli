@@ -94,7 +94,7 @@ class StableDependencyDefault
 
   bool IsOwning() const { return EnsureAllocated().IsOwning(); }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StableDependencyDefault* self,
                                         MemoryEstimator& memory_estimator) {
@@ -151,7 +151,7 @@ class StableDependencyNoDefault
 
   bool IsOwning() const { return dep_->IsOwning(); }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StableDependencyNoDefault* self,
                                         MemoryEstimator& memory_estimator) {

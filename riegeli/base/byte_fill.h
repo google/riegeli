@@ -79,10 +79,10 @@ class ByteFill {
   // Converts the data to `absl::Cord`.
   explicit operator absl::Cord() const;
 
-  // Support `riegeli::Reset(Chain&, ByteFill)`.
+  // Supports `riegeli::Reset(Chain&, ByteFill)`.
   friend void RiegeliReset(Chain& dest, ByteFill src) { src.AssignTo(dest); }
 
-  // Support `riegeli::Reset(absl::Cord&, ByteFill)`.
+  // Supports `riegeli::Reset(absl::Cord&, ByteFill)`.
   friend void RiegeliReset(absl::Cord& dest, ByteFill src) {
     src.AssignTo(dest);
   }
@@ -143,25 +143,25 @@ class ByteFill::ZeroBlock {
   ZeroBlock(const ZeroBlock& that) = default;
   ZeroBlock& operator=(const ZeroBlock& that) = default;
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend Chain::Block RiegeliToChainBlock(
       ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self, absl::string_view substr) {
     return ToChainBlock(substr);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend absl::Cord RiegeliToCord(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
                                   absl::string_view substr) {
     return ToCord(substr);
   }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(
       ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self) {
     return ExternalStorage(nullptr, [](ABSL_ATTRIBUTE_UNUSED void* ptr) {});
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
                                    std::ostream& dest) {
     DumpStructure(dest);
@@ -184,7 +184,7 @@ class ByteFill::SmallBlock {
 
   const char* data() const { return data_; }
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend bool RiegeliExternalCopy(
       ABSL_ATTRIBUTE_UNUSED const SmallBlock* self) {
     return true;
@@ -208,7 +208,7 @@ class ByteFill::LargeBlock {
 
   const char* data() const { return buffer_.data(); }
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(const LargeBlock&, substr)`
   //  * `ExternalRef(LargeBlock&&, substr)`
   friend void RiegeliSupportsExternalRef(const LargeBlock*) {}
@@ -217,19 +217,19 @@ class ByteFill::LargeBlock {
   // `LargeBlock` is never considered wasteful. Even if a substring of it is
   // shared, the whole `LargeBlock` is shared nearby.
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(LargeBlock* self) {
     return RiegeliToExternalStorage(&self->buffer_);
   }
 
-  // Support `ExternalRef` and `Chain::Block`.
+  // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(const LargeBlock* self,
                                    absl::string_view substr,
                                    std::ostream& dest) {
     self->DumpStructure(substr, dest);
   }
 
-  // Support `MemoryEstimator`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const LargeBlock* self,
                                         MemoryEstimator& memory_estimator) {
@@ -255,12 +255,12 @@ class ByteFill::BlockRef {
   const char* data() const;
   size_t size() const;
 
-  // Indicate support for:
+  // Indicates support for:
   //  * `ExternalRef(BlockRef)`
   //  * `ExternalRef(BlockRef, substr)`
   friend void RiegeliSupportsExternalRef(const BlockRef*) {}
 
-  // Support `ExternalRef`.
+  // Supports `ExternalRef`.
   template <typename Callback>
   friend void RiegeliExternalDelegate(const BlockRef* self,
                                       absl::string_view substr,

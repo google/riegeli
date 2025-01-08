@@ -476,7 +476,7 @@ class Writer : public Object {
   // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
   Reader* ReadMode(Position initial_pos) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  // Support `absl::Format(&writer, format, args...)`.
+  // Supports `absl::Format(&writer, format, args...)`.
   friend void AbslFormatFlush(Writer* dest, absl::string_view src) {
     dest->Write(src);
   }
