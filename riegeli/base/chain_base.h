@@ -685,13 +685,11 @@ class Chain::RawBlock {
 
   size_t ExternalMemory() const;
 
-  explicit operator absl::string_view() const {
-    return absl::string_view(data_, size_);
-  }
-  bool empty() const { return size_ == 0; }
-  size_t size() const { return size_; }
-  const char* data_begin() const { return data_; }
-  const char* data_end() const { return data_ + size_; }
+  explicit operator absl::string_view() const { return substr_; }
+  bool empty() const { return substr_.empty(); }
+  size_t size() const { return substr_.size(); }
+  const char* data_begin() const { return substr_.data(); }
+  const char* data_end() const { return substr_.data() + substr_.size(); }
 
   // Returns a reference to the external object, assuming that this is an
   // external block holding an object of type `T`.
@@ -808,8 +806,7 @@ class Chain::RawBlock {
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
 
   RefCount ref_count_;
-  const char* data_;
-  size_t size_;
+  absl::string_view substr_;
   // If `is_internal()`, end of allocated space. If `is_external()`, `nullptr`.
   // This distinguishes internal from external blocks.
   char* allocated_end_ = nullptr;

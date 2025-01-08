@@ -535,10 +535,7 @@ template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   std::move(object).ConstructAt(&unchecked_external_object<T>());
-  const absl::string_view data =
-      riegeli::ToStringView(unchecked_external_object<T>());
-  data_ = data.data();
-  size_ = data.size();
+  substr_ = riegeli::ToStringView(unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -546,7 +543,7 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object) {
 template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object,
                                  absl::string_view substr)
-    : data_(substr.data()), size_(substr.size()) {
+    : substr_(substr) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   std::move(object).ConstructAt(&unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
@@ -649,7 +646,7 @@ inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
 
 inline bool Chain::RawBlock::TryClear() {
   if (is_mutable()) {
-    size_ = 0;
+    substr_ = substr_.substr(0, 0);
     return true;
   }
   return false;
@@ -660,7 +657,7 @@ inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
       << "Failed precondition of Chain::RawBlock::TryRemoveSuffix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
-    size_ -= length;
+    substr_.remove_suffix(length);
     return true;
   }
   return false;
@@ -671,8 +668,7 @@ inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
       << "Failed precondition of Chain::RawBlock::TryRemovePrefix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
-    data_ += length;
-    size_ -= length;
+    substr_.remove_prefix(length);
     return true;
   }
   return false;
