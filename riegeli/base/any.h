@@ -40,6 +40,7 @@
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
 
@@ -404,13 +405,56 @@ class
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
 
-  // Holds a `Dependency<Handle, Manager&&>`.
+  // Holds a `Dependency<Handle, TargetRefT<Manager>&&>` when
+  // `TargetRefT<Manager>` is not a reference.
   template <typename Manager,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<AnyRef, TargetT<Manager>>,
-                                  SupportsDependency<Handle, Manager&&>>::value,
+                absl::conjunction<
+                    NotSelfCopy<AnyRef, TargetT<Manager>>,
+                    NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                    absl::negation<std::is_reference<TargetRefT<Manager>>>,
+                    SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
                 int> = 0>
+  /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                      TemporaryStorage<TargetRefT<Manager>>&& storage
+                          ABSL_ATTRIBUTE_LIFETIME_BOUND = {});
+
+  // Holds a `DependencyRef<Handle, Manager>` when `TargetRefT<Manager>` is a
+  // reference.
+  //
+  // This constructor is separate so that it does not need `storage`.
+  template <
+      typename Manager,
+      std::enable_if_t<absl::conjunction<
+                           NotSelfCopy<AnyRef, TargetT<Manager>>,
+                           NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                           std::is_reference<TargetRefT<Manager>>,
+                           TargetRefSupportsDependency<Handle, Manager>>::value,
+                       int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+  // Adopts the `Dependency` from `Any<Handle>` with no inline storage.
+  //
+  // This constructor is separate so that it does not need storage nor
+  // `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
+  template <typename Manager,
+            std::enable_if_t<std::is_same<TargetT<Manager>, Any<Handle>>::value,
+                             int> = 0>
+  /*implicit*/ AnyRef(Manager&& manager);
+
+  // Holds the `Dependency` specified when the `AnyInitializer` was constructed.
+  //
+  // Prefer taking parameters as `AnyRef<Handle>` instead of
+  // `AnyInitializer<Handle>` if they are ultimately always converted to
+  // `AnyRef<Handle>`, because this constructor may involve heap allocation.
+  //
+  // `AnyInitializer` is accepted as a template parameter to avoid this
+  // constructor triggering implicit conversions of other parameter types to
+  // `AnyInitializer`, which causes template instantiation cycles.
+  template <typename Manager,
+            std::enable_if_t<
+                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+  /*implicit*/ AnyRef(Manager manager);
 
   AnyRef(AnyRef&& that) = default;
   AnyRef& operator=(AnyRef&&) = delete;
@@ -721,11 +765,48 @@ Any<Handle, inline_size, inline_align>::operator=(Manager manager) {
 template <typename Handle>
 template <typename Manager,
           std::enable_if_t<
-              absl::conjunction<NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
-                                SupportsDependency<Handle, Manager&&>>::value,
+              absl::conjunction<
+                  NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
+                  NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                  absl::negation<std::is_reference<TargetRefT<Manager>>>,
+                  SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
               int>>
+inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                              TemporaryStorage<TargetRefT<Manager>>&& storage
+                                  ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+  this->template Initialize<TargetRefT<Manager>&&>(
+      Initializer<TargetRefT<Manager>>(std::forward<Manager>(manager))
+          .Reference(std::move(storage)));
+}
+
+template <typename Handle>
+template <
+    typename Manager,
+    std::enable_if_t<
+        absl::conjunction<NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
+                          NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                          std::is_reference<TargetRefT<Manager>>,
+                          TargetRefSupportsDependency<Handle, Manager>>::value,
+        int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-  this->template Initialize<Manager&&>(std::forward<Manager>(manager));
+  this->template Initialize<TargetRefT<Manager>>(
+      std::forward<Manager>(manager));
+}
+
+template <typename Handle>
+template <
+    typename Manager,
+    std::enable_if_t<std::is_same<TargetT<Manager>, Any<Handle>>::value, int>>
+inline AnyRef<Handle>::AnyRef(Manager&& manager) {
+  this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
+}
+
+template <typename Handle>
+template <
+    typename Manager,
+    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
+inline AnyRef<Handle>::AnyRef(Manager manager) {
+  this->InitializeFromAnyInitializer(std::move(manager));
 }
 
 }  // namespace riegeli
