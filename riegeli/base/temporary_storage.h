@@ -29,8 +29,7 @@ namespace riegeli {
 // existing object or a newly constructed one.
 //
 // Such functions take a parameter
-//   `TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-//        TemporaryStorage<T>()`
+//   `TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {}`
 // so that the default value is allocated as a temporary by the caller.
 //
 // The parameter can also be passed explicitly if a call to these functions

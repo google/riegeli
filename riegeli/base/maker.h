@@ -182,9 +182,9 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
       std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
-                = TemporaryStorage<T>()
+                = {}
 #endif
-                    ) && {
+                ) && {
     return absl::apply(
         [&](Args&&... args) -> T&& {
           return std::move(storage).emplace(std::forward<Args>(args)...);
@@ -204,7 +204,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                              int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
-                = TemporaryStorage<T>()
+                = {}
 #endif
   ) const& {
     return absl::apply(
@@ -447,9 +447,9 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
                 std::is_constructible<DependentT, Args&&...>::value, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
-                = TemporaryStorage<T>()
+                = {}
 #endif
-                    ) && {
+                ) && {
     return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
 #if __cpp_guaranteed_copy_elision
@@ -467,7 +467,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
                        int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
-                = TemporaryStorage<T>()
+                = {}
 #endif
   ) const& {
     return this->maker().template Reference<T>(std::move(storage));

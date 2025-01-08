@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/invoker.h"
@@ -181,8 +180,8 @@ class InitializerBase {
   // yet.
   //
   // `storage` must outlive usages of the returned reference.
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                    TemporaryStorage<T>()) &&
+  T&& Reference(
+      TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {}) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return methods()->reference(context(), std::move(storage));
   }
