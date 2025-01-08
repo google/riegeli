@@ -337,10 +337,19 @@ template <typename Handle, size_t inline_size, size_t inline_align,
 class DependencyManagerImpl<
     std::unique_ptr<Any<Handle, inline_size, inline_align>, Deleter>,
     ManagerStorage>
-    : public DependencyBase<std::conditional_t<
-          std::is_empty<Deleter>::value,
-          std::unique_ptr<Any<Handle, inline_size, inline_align>, Deleter>,
-          ManagerStorage>> {
+    : public DependencyBase<
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+          std::conditional_t<
+              absl::conjunction<
+                  std::is_empty<Deleter>,
+                  absl::is_trivially_relocatable<std::unique_ptr<
+                      Any<Handle, inline_size, inline_align>, Deleter>>>::value,
+              std::unique_ptr<Any<Handle, inline_size, inline_align>, Deleter>,
+              ManagerStorage>
+#else
+          ManagerStorage
+#endif
+          > {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
@@ -500,9 +509,17 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
 template <typename Handle, typename Deleter, typename ManagerStorage>
 class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>,
                             ManagerStorage>
-    : public DependencyBase<std::conditional_t<
-          std::is_empty<Deleter>::value,
-          std::unique_ptr<AnyRef<Handle>, Deleter>, ManagerStorage>> {
+    : public DependencyBase<
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+          std::conditional_t<
+              absl::conjunction<std::is_empty<Deleter>,
+                                absl::is_trivially_relocatable<std::unique_ptr<
+                                    AnyRef<Handle>, Deleter>>>::value,
+              std::unique_ptr<AnyRef<Handle>, Deleter>, ManagerStorage>
+#else
+          ManagerStorage
+#endif
+          > {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 

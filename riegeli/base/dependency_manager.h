@@ -114,8 +114,16 @@ class DependencyManagerImpl<std::nullptr_t, ManagerStorage>
 template <typename T, typename Deleter, typename ManagerStorage>
 class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
     : public DependencyBase<
-          std::conditional_t<std::is_empty<Deleter>::value,
-                             std::unique_ptr<T, Deleter>, ManagerStorage>> {
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+          std::conditional_t<
+              absl::conjunction<std::is_empty<Deleter>,
+                                absl::is_trivially_relocatable<
+                                    std::unique_ptr<T, Deleter>>>::value,
+              std::unique_ptr<T, Deleter>, ManagerStorage>
+#else
+          ManagerStorage
+#endif
+          > {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
