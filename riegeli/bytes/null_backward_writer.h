@@ -21,6 +21,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
@@ -70,6 +71,7 @@ class NullBackwardWriter : public BackwardWriter {
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
+  bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(ExternalRef src) override;

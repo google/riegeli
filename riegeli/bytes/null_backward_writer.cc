@@ -20,6 +20,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -79,6 +80,20 @@ bool NullBackwardWriter::PushSlow(size_t min_length,
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
   return MakeBuffer(min_length, recommended_length);
+}
+
+bool NullBackwardWriter::WriteSlow(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
+         "enough space available, use Write(string_view) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         std::numeric_limits<Position>::max() - start_pos())) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  return MakeBuffer();
 }
 
 bool NullBackwardWriter::WriteSlow(const Chain& src) {
