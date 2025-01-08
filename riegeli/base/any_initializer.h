@@ -195,19 +195,21 @@ void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, MethodsAndHandle& methods_and_handle,
     Storage storage, size_t available_size, size_t available_align) {
   using Target = TargetT<Manager>;
+  using TargetValue = std::remove_reference_t<Target>;
   // Materialize `Target` to consider adopting its storage.
   [&](Target&& target) {
     // `target.methods_and_handle_.methods->used_size <=
-    //      Target::kAvailableSize`, hence if `Target::kAvailableSize == 0` then
+    //      TargetValue::kAvailableSize`, hence if
+    // `TargetValue::kAvailableSize == 0` then
     // `target.methods_and_handle_.methods->used_size <= available_size`.
     // No need to check possibly at runtime.
-    if ((Target::kAvailableSize == 0 ||
+    if ((TargetValue::kAvailableSize == 0 ||
          target.methods_and_handle_.methods->used_size <= available_size) &&
         // Same for alignment.
-        (Target::kAvailableAlign == 0 ||
+        (TargetValue::kAvailableAlign == 0 ||
          target.methods_and_handle_.methods->used_align <= available_align)) {
       // Adopt `target` instead of wrapping it.
-      if (Target::kAvailableSize == 0) {
+      if (TargetValue::kAvailableSize == 0) {
         // Replace an indirect call to `methods_and_handle_.methods->move()`
         // with a plain assignment of `methods_and_handle_.handle` and a memory
         // copy of `repr_`.
@@ -238,7 +240,7 @@ void AnyInitializer<Handle>::ConstructMethod(
     // necessary: `Target` is always an `Any`, never an lvalue reference.
     MethodsFor<Target, /*is_inline=*/false>::Construct(
         storage, &methods_and_handle.handle, std::move(target));
-  }(Initializer<TargetT<Manager>>(context.Cast<Manager>()).Reference());
+  }(Initializer<Target>(context.Cast<Manager>()).Reference());
 }
 
 }  // namespace riegeli

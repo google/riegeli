@@ -136,7 +136,7 @@ class
 
   // Initializes the state, avoiding a redundant indirection and adopting them
   // from `manager` instead if `Manager` is already a compatible `Any` or
-  // `AnyRef`.
+  // `AnyRef`, or an rvalue reference to it.
   void Initialize();
   template <typename Manager,
             std::enable_if_t<!IsAny<Handle, Manager>::value, int> = 0>
@@ -617,24 +617,19 @@ template <typename Manager,
           std::enable_if_t<IsAny<Handle, Manager>::value, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
+  using ManagerValue = std::remove_reference_t<Manager>;
   // `manager.methods_and_handle_.methods->used_size <=
-  //      Manager::kAvailableSize`, hence if
-  // `Manager::kAvailableSize <=
-  //      AvailableSize<Handle, inline_size, inline_align>()` then
-  // `manager.methods_and_handle_.methods->used_size <=
-  //      AvailableSize<Handle, inline_size, inline_align>()`.
+  //      ManagerValue::kAvailableSize`, hence if
+  // `ManagerValue::kAvailableSize <= kAvailableSize` then
+  // `manager.methods_and_handle_.methods->used_size <= kAvailableSize`.
   // No need to check possibly at runtime.
-  if ((Manager::kAvailableSize <=
-           AvailableSize<Handle, inline_size, inline_align>() ||
-       manager.methods_and_handle_.methods->used_size <=
-           AvailableSize<Handle, inline_size, inline_align>()) &&
+  if ((ManagerValue::kAvailableSize <= kAvailableSize ||
+       manager.methods_and_handle_.methods->used_size <= kAvailableSize) &&
       // Same for alignment.
-      (Manager::kAvailableAlign <=
-           AvailableAlign<Handle, inline_size, inline_align>() ||
-       manager.methods_and_handle_.methods->used_align <=
-           AvailableAlign<Handle, inline_size, inline_align>())) {
+      (ManagerValue::kAvailableAlign <= kAvailableAlign ||
+       manager.methods_and_handle_.methods->used_align <= kAvailableAlign)) {
     // Adopt `manager` instead of wrapping it.
-    if (Manager::kAvailableSize == 0 || inline_size == 0) {
+    if (inline_size == 0 || ManagerValue::kAvailableSize == 0) {
       // Replace an indirect call to `methods_and_handle_.methods->move()` with
       // a plain assignment of `methods_and_handle_.handle` and a memory copy of
       // `repr_`.

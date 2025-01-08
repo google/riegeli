@@ -193,7 +193,8 @@ struct MethodsFor;
 template <typename Handle>
 struct NullMethods;
 
-// `IsAny` detects `Any` or `AnyRef` type with the given `Handle`.
+// `IsAny` detects `Any` or `AnyRef` type with the given `Handle`, or an rvalue
+// reference to it.
 
 template <typename Handle, typename T>
 struct IsAny : std::false_type {};
@@ -201,8 +202,12 @@ struct IsAny : std::false_type {};
 template <typename Handle, size_t inline_size, size_t inline_align>
 struct IsAny<Handle, Any<Handle, inline_size, inline_align>> : std::true_type {
 };
+
 template <typename Handle>
 struct IsAny<Handle, AnyRef<Handle>> : std::true_type {};
+
+template <typename Handle, typename T>
+struct IsAny<Handle, T&&> : IsAny<Handle, T> {};
 
 // Implementation details follow.
 
