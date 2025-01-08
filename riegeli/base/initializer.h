@@ -71,24 +71,13 @@ template <typename T, typename Result>
 struct IsCompatibleResult<true, T, Result>
     : IsConstructibleFromResult<T, Result> {};
 
-// `IsSpecial` detects types which are treated specially by `Initializer`
-// constructors: `Initializer` itself, `MakerType`, `MakerTypeFor`, and
-// `InvokerType`.
+// `IsInitializer` detects `Initializer` types with the given target type.
 
-template <typename T>
-struct IsSpecial : std::false_type {};
+template <typename T, typename Arg>
+struct IsInitializer : std::false_type {};
 
-template <typename Target, bool allow_explicit>
-struct IsSpecial<Initializer<Target, allow_explicit>> : std::true_type {};
-
-template <typename... Args>
-struct IsSpecial<MakerType<Args...>> : std::true_type {};
-
-template <typename Target, typename... Args>
-struct IsSpecial<MakerTypeFor<Target, Args...>> : std::true_type {};
-
-template <typename Function, typename... Args>
-struct IsSpecial<InvokerType<Function, Args...>> : std::true_type {};
+template <typename T, bool allow_explicit>
+struct IsInitializer<T, Initializer<T, allow_explicit>> : std::true_type {};
 
 // Part of `Initializer<T>` for `T` being a non-reference type.
 //
@@ -824,13 +813,14 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   Initializer() : Base(&Base::template kMethodsDefault<>) {}
 
   // Constructs `Initializer<T>` from a value convertible to `T`.
-  template <typename Arg,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<initializer_internal::IsSpecial<
-                                     std::decay_t<Arg>>>,
-                                 initializer_internal::IsCompatibleArg<
-                                     allow_explicit, T, Arg&&>>::value,
-                             int> = 0>
+  template <
+      typename Arg,
+      std::enable_if_t<
+          absl::conjunction<absl::negation<initializer_internal::IsInitializer<
+                                T, std::decay_t<Arg>>>,
+                            initializer_internal::IsCompatibleArg<
+                                allow_explicit, T, Arg&&>>::value,
+          int> = 0>
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<Arg>, std::forward<Arg>(arg)) {}
 
@@ -856,41 +846,54 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   // `riegeli::Maker<T>(args...)`.
   template <
       typename... Args,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+      std::enable_if_t<absl::conjunction<
+                           absl::negation<initializer_internal::IsCompatibleArg<
+                               allow_explicit, T, MakerTypeFor<T, Args...>&&>>,
+                           std::is_constructible<T, Args&&...>>::value,
+                       int> = 0>
   /*implicit*/ Initializer(
       MakerTypeFor<T, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : Base(&Base::template kMethodsFromObject<MakerTypeFor<T, Args...>>,
-             std::move(args)) {}
+      : Base(&Base::template kMethodsFromMaker<Args...>,
+             std::move(args).maker()) {}
   template <typename... Args,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<initializer_internal::IsCompatibleArg<
+                        allow_explicit, T, const MakerTypeFor<T, Args...>&>>,
+                    std::is_constructible<T, const Args&...>>::value,
+                int> = 0>
   /*implicit*/ Initializer(
       const MakerTypeFor<T, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : Base(
-            &Base::template kMethodsFromObject<const MakerTypeFor<T, Args...>&>,
-            args) {}
+      : Base(&Base::template kMethodsFromConstMaker<Args...>, args.maker()) {}
 
   // Constructs `Initializer<T>` from constructor arguments for `T` packed in
   // `riegeli::Maker<Target>(args...)` with a different but compatible `Target`.
   template <typename Target, typename... Args,
             std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<Target, T>>,
-                                  std::is_constructible<Target, Args&&...>,
-                                  initializer_internal::IsCompatibleResult<
-                                      allow_explicit, T, Target>>::value,
+                absl::conjunction<
+                    absl::negation<std::is_same<Target, T>>,
+                    absl::negation<initializer_internal::IsCompatibleArg<
+                        allow_explicit, T, MakerTypeFor<Target, Args...>&&>>,
+                    std::is_constructible<Target, Args&&...>,
+                    initializer_internal::IsCompatibleResult<allow_explicit, T,
+                                                             Target&&>>::value,
                 int> = 0>
   /*implicit*/ Initializer(
       MakerTypeFor<Target, Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromConvertedReference<
                  MakerTypeFor<Target, Args...>>,
              std::move(args)) {}
-  template <typename Target, typename... Args,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<Target, T>>,
-                                  std::is_constructible<Target, const Args&...>,
-                                  initializer_internal::IsCompatibleResult<
-                                      allow_explicit, T, Target>>::value,
-                int> = 0>
+  template <
+      typename Target, typename... Args,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<std::is_same<Target, T>>,
+              absl::negation<initializer_internal::IsCompatibleArg<
+                  allow_explicit, T, const MakerTypeFor<Target, Args...>&>>,
+              std::is_constructible<Target, const Args&...>,
+              initializer_internal::IsCompatibleResult<allow_explicit, T,
+                                                       Target&&>>::value,
+          int> = 0>
   /*implicit*/ Initializer(
       const MakerTypeFor<Target, Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromConvertedReference<
@@ -901,20 +904,28 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   // `riegeli::Invoker(function, args...)` with a possibly different but
   // compatible function result.
   template <typename Function, typename... Args,
-            std::enable_if_t<initializer_internal::IsCompatibleResult<
-                                 allow_explicit, T,
-                                 invoke_result_t<Function&&, Args&&...>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<initializer_internal::IsCompatibleArg<
+                        allow_explicit, T, InvokerType<Function, Args...>&&>>,
+                    initializer_internal::IsCompatibleResult<
+                        allow_explicit, T,
+                        invoke_result_t<Function&&, Args&&...>>>::value,
+                int> = 0>
   /*implicit*/ Initializer(
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<InvokerType<Function, Args...>>,
              std::move(invoker)) {}
-  template <typename Function, typename... Args,
-            std::enable_if_t<
-                initializer_internal::IsCompatibleResult<
-                    allow_explicit, T,
-                    invoke_result_t<const Function&, const Args&...>>::value,
-                int> = 0>
+  template <
+      typename Function, typename... Args,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<initializer_internal::IsCompatibleArg<
+                  allow_explicit, T, const InvokerType<Function, Args...>&>>,
+              initializer_internal::IsCompatibleResult<
+                  allow_explicit, T,
+                  invoke_result_t<const Function&, const Args&...>>>::value,
+          int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<
@@ -923,12 +934,16 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
 
   // Constructs `Initializer<T>` from `Initializer<Target>` with a different but
   // compatible `Target`.
-  template <typename Target, bool other_allow_explicit,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<Target, T>>,
-                                  initializer_internal::IsCompatibleResult<
-                                      allow_explicit, T, Target>>::value,
-                int> = 0>
+  template <
+      typename Target, bool other_allow_explicit,
+      std::enable_if_t<absl::conjunction<
+                           absl::negation<std::is_same<Target, T>>,
+                           absl::negation<initializer_internal::IsCompatibleArg<
+                               allow_explicit, T,
+                               Initializer<Target, other_allow_explicit>&&>>,
+                           initializer_internal::IsCompatibleResult<
+                               allow_explicit, T, Target&&>>::value,
+                       int> = 0>
   /*implicit*/ Initializer(
       Initializer<Target, other_allow_explicit>&& initializer)
       : Base(&Base::template kMethodsFromConvertedReference<
