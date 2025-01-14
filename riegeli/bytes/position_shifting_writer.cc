@@ -88,8 +88,7 @@ bool PositionShiftingWriterBase::PushSlow(size_t min_length,
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool push_ok = dest.Push(min_length, recommended_length);
-  MakeBuffer(dest);
-  return push_ok;
+  return MakeBuffer(dest, min_length) && push_ok;
 }
 
 bool PositionShiftingWriterBase::WriteSlow(absl::string_view src) {
@@ -147,8 +146,7 @@ inline bool PositionShiftingWriterBase::WriteInternal(Src&& src) {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool write_ok = dest.Write(std::forward<Src>(src));
-  MakeBuffer(dest);
-  return write_ok;
+  return MakeBuffer(dest) && write_ok;
 }
 
 bool PositionShiftingWriterBase::SupportsRandomAccess() {
@@ -167,8 +165,7 @@ bool PositionShiftingWriterBase::SeekSlow(Position new_pos) {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool seek_ok = dest.Seek(new_pos - base_pos_);
-  MakeBuffer(dest);
-  return seek_ok;
+  return MakeBuffer(dest) && seek_ok;
 }
 
 absl::optional<Position> PositionShiftingWriterBase::SizeImpl() {
@@ -176,8 +173,9 @@ absl::optional<Position> PositionShiftingWriterBase::SizeImpl() {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const absl::optional<Position> size = dest.Size();
-  MakeBuffer(dest);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!MakeBuffer(dest) || size == absl::nullopt)) {
+    return absl::nullopt;
+  }
   if (ABSL_PREDICT_FALSE(*size >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     FailOverflow();
@@ -199,8 +197,7 @@ bool PositionShiftingWriterBase::TruncateImpl(Position new_size) {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   const bool truncate_ok = dest.Truncate(new_size - base_pos_);
-  MakeBuffer(dest);
-  return truncate_ok;
+  return MakeBuffer(dest) && truncate_ok;
 }
 
 bool PositionShiftingWriterBase::SupportsReadMode() {
@@ -214,8 +211,9 @@ Reader* PositionShiftingWriterBase::ReadModeImpl(Position initial_pos) {
   SyncBuffer(dest);
   Reader* const base_reader =
       dest.ReadMode(SaturatingSub(initial_pos, base_pos_));
-  MakeBuffer(dest);
-  if (ABSL_PREDICT_FALSE(base_reader == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(!MakeBuffer(dest) || base_reader == nullptr)) {
+    return nullptr;
+  }
   PositionShiftingReader<>* const reader = associated_reader_.ResetReader(
       base_reader,
       PositionShiftingReaderBase::Options().set_base_pos(base_pos_));

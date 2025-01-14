@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -93,9 +94,9 @@ class PositionShiftingReaderBase : public Reader {
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `src`, adjusting
-  // `start()` to hide data already read. Fails `*this` if `src` failed.
-  void MakeBuffer(Reader& src);
+  // Sets buffer pointers of `*this` to buffer pointers of `src`. Fails `*this`
+  // if `src` failed or there is not enough `Position` space for `min_length`.
+  bool MakeBuffer(Reader& src, size_t min_length = 0);
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
@@ -125,10 +126,10 @@ class PositionShiftingReaderBase : public Reader {
 
   Position base_pos_ = 0;
 
-  // Invariants if `is_open()`:
-  //   `start() >= SrcReader()->cursor()`
+  // Invariants if `ok()`:
+  //   `start() == SrcReader()->start()`
   //   `limit() == SrcReader()->limit()`
-  //   `limit_pos() == SrcReader()->limit_pos() + base_pos_`
+  //   `start_pos() == SrcReader()->start_pos() + base_pos_`
 };
 
 // A `Reader` which reads from another `Reader`, reporting positions shifted so
@@ -240,17 +241,27 @@ inline void PositionShiftingReaderBase::SyncBuffer(Reader& src) {
   src.set_cursor(cursor());
 }
 
-inline void PositionShiftingReaderBase::MakeBuffer(Reader& src) {
-  if (ABSL_PREDICT_FALSE(src.limit_pos() >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
-    FailOverflow();
-    return;
+inline bool PositionShiftingReaderBase::MakeBuffer(Reader& src,
+                                                   size_t min_length) {
+  const Position max_pos = std::numeric_limits<Position>::max() - base_pos_;
+  if (ABSL_PREDICT_FALSE(src.limit_pos() > max_pos)) {
+    if (ABSL_PREDICT_FALSE(src.pos() > max_pos)) {
+      set_buffer(src.cursor());
+      set_limit_pos(std::numeric_limits<Position>::max());
+      return FailOverflow();
+    }
+    set_buffer(src.start(), IntCast<size_t>(max_pos - src.start_pos()),
+               src.start_to_cursor());
+    set_limit_pos(std::numeric_limits<Position>::max());
+    if (ABSL_PREDICT_FALSE(available() < min_length)) return FailOverflow();
+  } else {
+    set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
+    set_limit_pos(src.limit_pos() + base_pos_);
   }
-  set_buffer(src.cursor(), src.available());
-  set_limit_pos(src.limit_pos() + base_pos_);
   if (ABSL_PREDICT_FALSE(!src.ok())) {
-    FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+    return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   }
+  return true;
 }
 
 template <typename Src>
@@ -332,8 +343,7 @@ bool PositionShiftingReader<Src>::SyncImpl(SyncType sync_type) {
   if (sync_type != SyncType::kFromObject || src_.IsOwning()) {
     sync_ok = src_->Sync(sync_type);
   }
-  MakeBuffer(*src_);
-  return sync_ok;
+  return MakeBuffer(*src_) && sync_ok;
 }
 
 }  // namespace riegeli

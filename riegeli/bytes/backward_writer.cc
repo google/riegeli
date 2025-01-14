@@ -40,7 +40,7 @@
 
 namespace riegeli {
 
-void BackwardWriter::OnFail() { set_buffer(); }
+void BackwardWriter::OnFail() { set_buffer(start()); }
 
 absl::Status BackwardWriter::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) return Annotate(status, absl::StrCat("at byte ", pos()));

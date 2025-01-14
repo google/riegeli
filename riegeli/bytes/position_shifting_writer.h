@@ -95,8 +95,9 @@ class PositionShiftingWriterBase : public Writer {
   void SyncBuffer(Writer& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`, adjusting
-  // `start()` to hide data already written. Fails `*this` if `dest` failed.
-  void MakeBuffer(Writer& dest);
+  // `start()` to hide data already written. Fails `*this` if `dest` failed
+  // or there is not enough `Position` space for `min_length`.
+  bool MakeBuffer(Writer& dest, size_t min_length = 0);
 
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
@@ -246,17 +247,26 @@ inline void PositionShiftingWriterBase::SyncBuffer(Writer& dest) {
   dest.set_cursor(cursor());
 }
 
-inline void PositionShiftingWriterBase::MakeBuffer(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(dest.pos() >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
-    FailOverflow();
-    return;
+inline bool PositionShiftingWriterBase::MakeBuffer(Writer& dest,
+                                                   size_t min_length) {
+  const Position max_pos = std::numeric_limits<Position>::max() - base_pos_;
+  if (ABSL_PREDICT_FALSE(dest.limit_pos() > max_pos)) {
+    if (ABSL_PREDICT_FALSE(dest.pos() > max_pos)) {
+      set_buffer(dest.cursor());
+      set_start_pos(std::numeric_limits<Position>::max());
+      return FailOverflow();
+    }
+    set_buffer(dest.cursor(), IntCast<size_t>(max_pos - dest.pos()));
+    set_start_pos(dest.pos() + base_pos_);
+    if (ABSL_PREDICT_FALSE(available() < min_length)) return FailOverflow();
+  } else {
+    set_buffer(dest.cursor(), dest.available());
+    set_start_pos(dest.pos() + base_pos_);
   }
-  set_buffer(dest.cursor(), dest.available());
-  set_start_pos(dest.pos() + base_pos_);
   if (ABSL_PREDICT_FALSE(!dest.ok())) {
-    FailWithoutAnnotation(AnnotateOverDest(dest.status()));
+    return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
+  return true;
 }
 
 template <typename Dest>
@@ -331,8 +341,7 @@ bool PositionShiftingWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (flush_type != FlushType::kFromObject || dest_.IsOwning()) {
     flush_ok = dest_->Flush(flush_type);
   }
-  MakeBuffer(*dest_);
-  return flush_ok;
+  return MakeBuffer(*dest_) && flush_ok;
 }
 
 }  // namespace riegeli

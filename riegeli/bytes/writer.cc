@@ -39,7 +39,7 @@
 
 namespace riegeli {
 
-void Writer::OnFail() { set_buffer(); }
+void Writer::OnFail() { set_buffer(start()); }
 
 absl::Status Writer::AnnotateStatusImpl(absl::Status status) {
   if (is_open()) return Annotate(status, absl::StrCat("at byte ", pos()));

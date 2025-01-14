@@ -279,9 +279,9 @@ class LimitingReaderBase : public Reader {
   bool fail_if_longer_ = false;
 
   // Invariants if `is_open()`:
-  //   `start() == SrcReader()->start() || start() == nullptr`
-  //   `limit() <= SrcReader()->limit() || limit() == nullptr`
-  //   `start_pos() == SrcReader()->start_pos() || start() == nullptr`
+  //   `start() >= SrcReader()->start()`
+  //   `limit() <= SrcReader()->limit()`
+  //   `start_pos() >= SrcReader()->start_pos()`
   //   `limit_pos() <= max_pos_`
 };
 
@@ -460,11 +460,10 @@ inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
 
 inline void LimitingReaderBase::set_max_pos(Position max_pos) {
   max_pos_ = max_pos;
-  if (limit_pos() > max_pos_) {
+  if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
     if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
-      set_buffer();
+      set_buffer(cursor());
       set_limit_pos(max_pos_);
-      CheckEnough();
       return;
     }
     set_buffer(start(),
@@ -498,15 +497,15 @@ inline Position LimitingReaderBase::max_length() const {
 }
 
 inline void LimitingReaderBase::SyncBuffer(Reader& src) {
-  if (ABSL_PREDICT_TRUE(cursor() != nullptr)) src.set_cursor(cursor());
+  src.set_cursor(cursor());
 }
 
 inline void LimitingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.limit_pos());
-  if (limit_pos() > max_pos_) {
+  if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
     if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
-      set_buffer();
+      set_buffer(cursor());
     } else {
       set_buffer(start(),
                  start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),

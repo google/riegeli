@@ -86,8 +86,7 @@ bool PositionShiftingReaderBase::PullSlow(size_t min_length,
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool pull_ok = src.Pull(min_length, recommended_length);
-  MakeBuffer(src);
-  return pull_ok;
+  return MakeBuffer(src, min_length) && pull_ok;
 }
 
 bool PositionShiftingReaderBase::ReadSlow(size_t length, char* dest) {
@@ -98,8 +97,7 @@ bool PositionShiftingReaderBase::ReadSlow(size_t length, char* dest) {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.Read(length, dest);
-  MakeBuffer(src);
-  return read_ok;
+  return MakeBuffer(src) && read_ok;
 }
 
 bool PositionShiftingReaderBase::ReadSlow(size_t length, Chain& dest) {
@@ -129,8 +127,7 @@ inline bool PositionShiftingReaderBase::ReadInternal(size_t length,
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.ReadAndAppend(length, dest);
-  MakeBuffer(src);
-  return read_ok;
+  return MakeBuffer(src) && read_ok;
 }
 
 bool PositionShiftingReaderBase::CopySlow(Position length, Writer& dest) {
@@ -141,8 +138,7 @@ bool PositionShiftingReaderBase::CopySlow(Position length, Writer& dest) {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
-  MakeBuffer(src);
-  return copy_ok;
+  return MakeBuffer(src) && copy_ok;
 }
 
 bool PositionShiftingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
@@ -153,8 +149,7 @@ bool PositionShiftingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool copy_ok = src.Copy(length, dest);
-  MakeBuffer(src);
-  return copy_ok;
+  return MakeBuffer(src) && copy_ok;
 }
 
 bool PositionShiftingReaderBase::ReadOrPullSomeSlow(
@@ -169,8 +164,7 @@ bool PositionShiftingReaderBase::ReadOrPullSomeSlow(
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool read_ok = src.ReadOrPullSome(max_length, get_dest);
-  MakeBuffer(src);
-  return read_ok;
+  return MakeBuffer(src) && read_ok;
 }
 
 void PositionShiftingReaderBase::ReadHintSlow(size_t min_length,
@@ -211,8 +205,7 @@ bool PositionShiftingReaderBase::SeekSlow(Position new_pos) {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const bool seek_ok = src.Seek(new_pos - base_pos_);
-  MakeBuffer(src);
-  return seek_ok;
+  return MakeBuffer(src) && seek_ok;
 }
 
 bool PositionShiftingReaderBase::SupportsSize() {
@@ -225,8 +218,9 @@ absl::optional<Position> PositionShiftingReaderBase::SizeImpl() {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   const absl::optional<Position> size = src.Size();
-  MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!MakeBuffer(src) || size == absl::nullopt)) {
+    return absl::nullopt;
+  }
   if (ABSL_PREDICT_FALSE(*size >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     FailOverflow();

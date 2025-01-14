@@ -65,9 +65,11 @@ void Object::Done() {}
 bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  status = AnnotateStatus(std::move(status));
+  if (ABSL_PREDICT_FALSE(!not_failed())) return false;
+  state_.Fail(std::move(status));
+  state_.SetStatus(AnnotateStatus(state_.status()));
   OnFail();
-  return state_.Fail(std::move(status));
+  return false;
 }
 
 void Object::SetStatus(absl::Status status) {
@@ -87,8 +89,9 @@ bool Object::FailWithoutAnnotation(absl::Status status) {
       << "Failed precondition of Object::FailWithoutAnnotation(): "
          "status not failed";
   if (ABSL_PREDICT_FALSE(!not_failed())) return false;
+  state_.Fail(std::move(status));
   OnFail();
-  return state_.Fail(std::move(status));
+  return false;
 }
 
 absl::Status Object::StatusOrAnnotate(absl::Status other_status) {
