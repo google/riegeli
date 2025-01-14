@@ -1818,21 +1818,19 @@ class ExternalRef {
     ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS TemporaryStorage<T> temporary_storage_;
   };
 
-  template <typename Arg, typename Enable = void>
+  template <typename T, typename Enable = void>
   struct StorageWholeImpl;
 
-  template <typename Arg>
-  struct StorageWholeImpl<Arg,
-                          std::enable_if_t<!HasCallOperator<
-                              absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
-    using type = StorageWholeWithoutCallOperator<TargetRefT<Arg>>;
+  template <typename T>
+  struct StorageWholeImpl<
+      T, std::enable_if_t<!HasCallOperator<absl::remove_cvref_t<T>>::value>> {
+    using type = StorageWholeWithoutCallOperator<T>;
   };
 
-  template <typename Arg>
+  template <typename T>
   struct StorageWholeImpl<
-      Arg, std::enable_if_t<
-               HasCallOperator<absl::remove_cvref_t<TargetRefT<Arg>>>::value>> {
-    using type = StorageWholeWithCallOperator<TargetRefT<Arg>>;
+      T, std::enable_if_t<HasCallOperator<absl::remove_cvref_t<T>>::value>> {
+    using type = StorageWholeWithCallOperator<T>;
   };
 
   template <typename Arg, typename Enable = void>
@@ -1856,8 +1854,8 @@ class ExternalRef {
   // The type of the `storage` parameter for the constructor and
   // `ExternalRef::From()` which take an external object supporting
   // `riegeli::ToStringView()`.
-  template <typename Arg>
-  using StorageWhole = typename StorageWholeImpl<Arg>::type;
+  template <typename T>
+  using StorageWhole = typename StorageWholeImpl<T>::type;
 
   // The type of the `storage` parameter for the constructor and
   // `ExternalRef::From()` which take an external object and its substring.
@@ -1874,9 +1872,8 @@ class ExternalRef {
             std::enable_if_t<SupportsExternalRefWhole<TargetRefT<Arg>>::value,
                              int> = 0>
   /*implicit*/ ExternalRef(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                           StorageWhole<Arg&&>&& storage
-                               ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                   StorageWhole<Arg&&>())
+                           StorageWhole<TargetRefT<Arg>>&& storage
+                               ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
       : storage_(&storage) {
     storage.Initialize(std::forward<Arg>(arg));
   }
@@ -1887,13 +1884,18 @@ class ExternalRef {
   // `substr` must be owned by the object if it gets created or moved.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
+  //
+  // The object is not created if an initializer is passed rather than an
+  // already constructed object, the object type does not use the call operator,
+  // and only `absl::string_view` turns out to be needed. Hence `StorageSubstr`
+  // is parameterized by `Arg&&` rather than `TargetRefT<Arg>`, so that it can
+  // keep the original initializer.
   template <typename Arg,
             std::enable_if_t<SupportsExternalRefSubstr<TargetRefT<Arg>>::value,
                              int> = 0>
   explicit ExternalRef(
       Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
-      StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-          StorageSubstr<Arg&&>())
+      StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
       : storage_(&storage) {
     storage.Initialize(std::forward<Arg>(arg), substr);
   }
@@ -1908,9 +1910,8 @@ class ExternalRef {
       typename Arg,
       std::enable_if_t<SupportsToStringView<TargetRefT<Arg>>::value, int> = 0>
   static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                          StorageWhole<Arg&&>&& storage
-                              ABSL_ATTRIBUTE_LIFETIME_BOUND =
-                                  StorageWhole<Arg&&>()) {
+                          StorageWhole<TargetRefT<Arg>>&& storage
+                              ABSL_ATTRIBUTE_LIFETIME_BOUND = {}) {
     storage.Initialize(std::forward<Arg>(arg));
     return ExternalRef(&storage);
   }
@@ -1918,11 +1919,16 @@ class ExternalRef {
   // Like `ExternalRef` constructor, but `RiegeliSupportsExternalRef()` is not
   // needed. The caller is responsible for using an appropriate type of the
   // external object.
+  //
+  // The object is not created if an initializer is passed rather than an
+  // already constructed object, the object type does not use the call operator,
+  // and only `absl::string_view` turns out to be needed. Hence `StorageSubstr`
+  // is parameterized by `Arg&&` rather than `TargetRefT<Arg>`, so that it can
+  // keep the original initializer.
   template <typename Arg>
   static ExternalRef From(
       Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, absl::string_view substr,
-      StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND =
-          StorageSubstr<Arg&&>()) {
+      StorageSubstr<Arg&&>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {}) {
     storage.Initialize(std::forward<Arg>(arg), substr);
     return ExternalRef(&storage);
   }
