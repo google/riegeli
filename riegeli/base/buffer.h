@@ -63,11 +63,6 @@ class
   friend void RiegeliSupportsExternalRef(Buffer*) {}
 
   // Supports `ExternalRef`.
-  friend size_t RiegeliExternalMemory(const Buffer* self) {
-    return self->capacity();
-  }
-
-  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(Buffer* self) {
     self->capacity_ = 0;
     return ExternalStorage(

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
@@ -36,6 +37,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/containers/linear_sorted_string_set.h"
@@ -254,11 +256,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     return self.HashValue(std::move(hash_state));
   }
 
-  // Estimates the amount of memory used by this `ChunkedSortedStringSet`,
-  // including `sizeof(ChunkedSortedStringSet)`.
-  size_t EstimateMemory() const;
-
-  // Supports `EstimateMemory()`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const ChunkedSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {

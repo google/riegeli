@@ -18,16 +18,13 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 
 #include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
-#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/shared_ptr.h"
 
 namespace riegeli {
 

@@ -28,7 +28,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
-#include "riegeli/base/external_ref_support.h"  // IWYU pragma: keep
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/ownership.h"
 
@@ -283,12 +282,6 @@ class
   //  * `ExternalRef(const IntrusiveSharedPtr&, substr)`
   //  * `ExternalRef(IntrusiveSharedPtr&&, substr)`
   friend void RiegeliSupportsExternalRef(const IntrusiveSharedPtr*) {}
-
-  // Supports `ExternalRef`.
-  friend size_t RiegeliExternalMemory(const IntrusiveSharedPtr* self) {
-    if (*self == nullptr) return 0;
-    return sizeof(T) + RiegeliExternalMemory(self->get());
-  }
 
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {

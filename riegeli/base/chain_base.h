@@ -29,6 +29,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -284,8 +285,7 @@ class Chain : public WithCompare<Chain> {
 
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& dest) const;
-  // Estimates the amount of memory used by this `Chain`.
-  size_t EstimateMemory() const;
+
   // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const Chain* self,
                                         MemoryEstimator& memory_estimator) {
@@ -683,8 +683,6 @@ class Chain::RawBlock {
 
   bool TryClear();
 
-  size_t ExternalMemory() const;
-
   explicit operator absl::string_view() const { return substr_; }
   bool empty() const { return substr_.empty(); }
   size_t size() const { return substr_.size(); }
@@ -719,6 +717,8 @@ class Chain::RawBlock {
   friend size_t RiegeliDynamicSizeOf(const RawBlock* self) {
     return self->DynamicSizeOf();
   }
+
+  // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const RawBlock* self,
                                         MemoryEstimator& memory_estimator) {
     self->RegisterSubobjects(memory_estimator);
@@ -902,11 +902,6 @@ class Chain::Block {
   friend void RiegeliSupportsExternalRef(const Block*) {}
 
   // Supports `ExternalRef`.
-  friend size_t RiegeliExternalMemory(const Block* self) {
-    return self->ExternalMemory();
-  }
-
-  // Supports `ExternalRef`.
   friend Block RiegeliToChainBlock(Block* self, absl::string_view substr) {
     return std::move(*self).ToChainBlock(substr);
   }
@@ -947,7 +942,6 @@ class Chain::Block {
   const IntrusiveSharedPtr<RawBlock>& raw_block() const& { return block_; }
   IntrusiveSharedPtr<RawBlock>&& raw_block() && { return std::move(block_); }
 
-  size_t ExternalMemory() const;
   Block ToChainBlock(absl::string_view substr) &&;
   absl::Cord ToCord(absl::string_view substr) &&;
   absl::Cord ToCord(absl::string_view substr) const&;

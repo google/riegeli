@@ -38,39 +38,15 @@ inline bool RiegeliExternalCopy(ABSL_ATTRIBUTE_UNUSED const void* self) {
 // Indicates support for `ExternalRef(std::string&&)`.
 void RiegeliSupportsExternalRefWhole(std::string*);
 
-inline size_t RiegeliExternalMemory(const std::string* self) {
-  // Do not bother checking for short string optimization. Such strings will
-  // likely not be considered wasteful anyway.
-  return self->capacity() + 1;
-}
-
 // Indicates support for:
 //  * `ExternalRef(std::vector<char>&&)`
 //  * `ExternalRef(std::vector<T>&&, substr)`
 template <typename T>
 void RiegeliSupportsExternalRef(std::vector<T>*);
 
-template <typename T>
-inline size_t RiegeliExternalMemory(const std::vector<T>* self) {
-  return self->capacity() * sizeof(T);
-}
-
 // Indicates support for `ExternalRef(std::unique_ptr<T, Deleter>&&, substr)`.
 template <typename T, typename Deleter>
 void RiegeliSupportsExternalRef(std::unique_ptr<T, Deleter>*);
-
-template <
-    typename T, typename Deleter,
-    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
-                                       absl::negation<std::is_array<T>>>::value,
-                     int> = 0>
-inline size_t RiegeliExternalMemory(const std::unique_ptr<T, Deleter>* self) {
-  size_t memory = RiegeliExternalMemory(&self->get_deleter());
-  if (*self != nullptr) {
-    memory += sizeof(T) + RiegeliExternalMemory(self->get());
-  }
-  return memory;
-}
 
 template <typename T>
 inline ExternalStorage RiegeliToExternalStorage(std::unique_ptr<T>* self) {
@@ -89,39 +65,6 @@ inline ExternalStorage RiegeliToExternalStorage(std::unique_ptr<T[]>* self) {
 //  * `ExternalRef(std::shared_ptr<T>&&, substr)`
 template <typename T>
 void RiegeliSupportsExternalRef(const std::shared_ptr<T>*);
-
-namespace external_ref_internal {
-
-// Reflects the layout of a control block of `std::shared_ptr` from libc++.
-struct SharedPtrControlBlock {
-  virtual ~SharedPtrControlBlock() = default;
-  long shared_count;
-  long weak_count;
-};
-
-}  // namespace external_ref_internal
-
-template <
-    typename T, typename Deleter,
-    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
-                                       absl::negation<std::is_array<T>>>::value,
-                     int> = 0>
-inline size_t RiegeliExternalMemory(const std::shared_ptr<T>* self) {
-  if (*self == nullptr) return 0;
-  return sizeof(external_ref_internal::SharedPtrControlBlock) + sizeof(T) +
-         RiegeliExternalMemory(self->get());
-}
-
-template <typename T, size_t size>
-inline size_t RiegeliExternalMemory(const std::shared_ptr<T[size]>* self) {
-  if (*self == nullptr) return 0;
-  size_t memory =
-      sizeof(external_ref_internal::SharedPtrControlBlock) + sizeof(T[size]);
-  for (size_t i = 0; i < size; ++i) {
-    memory += RiegeliExternalMemory(&(*self)[i]);
-  }
-  return memory;
-}
 
 namespace external_ref_internal {
 

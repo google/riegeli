@@ -587,14 +587,6 @@ inline bool Chain::RawBlock::has_unique_owner() const {
   return ref_count_.HasUniqueOwner();
 }
 
-inline size_t Chain::RawBlock::ExternalMemory() const {
-  if (is_internal()) {
-    return kInternalAllocatedOffset() + capacity();
-  } else {
-    return external_.methods->dynamic_sizeof + size();
-  }
-}
-
 inline size_t Chain::RawBlock::capacity() const {
   RIEGELI_ASSERT(is_internal())
       << "Failed precondition of Chain::RawBlock::capacity(): "
@@ -895,10 +887,6 @@ inline Chain::Block::Block(IntrusiveSharedPtr<RawBlock> block) {
     block = block_ptr->block_;
   }
   block_ = std::move(block);
-}
-
-inline size_t Chain::Block::ExternalMemory() const {
-  return block_->ExternalMemory();
 }
 
 inline ExternalStorage Chain::Block::ToExternalStorage() && {

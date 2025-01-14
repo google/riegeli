@@ -803,19 +803,13 @@ Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
 }
 
 void Chain::DumpStructure(std::ostream& dest) const {
-  dest << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
+  dest << "chain {\n  size: " << size_
+       << " memory: " << riegeli::EstimateMemory(*this);
   for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
     dest << "\n  ";
     iter->block_ptr->DumpStructure(dest);
   }
   dest << "\n}\n";
-}
-
-size_t Chain::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(Chain));
-  memory_estimator.RegisterSubobjects(this);
-  return memory_estimator.TotalMemory();
 }
 
 void Chain::RegisterSubobjects(MemoryEstimator& memory_estimator) const {

@@ -64,7 +64,6 @@ cc_library(
     hdrs = ["brotli_dictionary.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:initializer",
         "//riegeli/base:shared_ptr",

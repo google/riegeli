@@ -158,6 +158,13 @@ class BrotliDictionary {
     return chunks_;
   }
 
+  // Supports `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const BrotliDictionary* self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(&self->chunks_);
+  }
+
  private:
   enum class Ownership { kCopied, kUnowned };
 
@@ -202,6 +209,18 @@ class BrotliDictionary::Chunk {
   // The dictionary is owned by `*this`.
   const BrotliEncoderPreparedDictionary* PrepareCompressionDictionary() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  // Supports `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const Chunk* self,
+                                        MemoryEstimator& memory_estimator) {
+    memory_estimator.RegisterSubobjects(&self->owned_data_);
+    if (const BrotliEncoderPreparedDictionary* const compression_dictionary =
+            self->PrepareCompressionDictionary()) {
+      memory_estimator.RegisterMemory(
+          BrotliEncoderGetPreparedDictionarySize(compression_dictionary));
+    }
+  }
 
  private:
   struct BrotliEncoderDictionaryDeleter {

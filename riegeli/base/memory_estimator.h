@@ -40,6 +40,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/estimated_allocated_size.h"
 
 namespace google {
 namespace protobuf {
@@ -64,12 +65,7 @@ struct HasRiegeliRegisterSubobjects<
 
 }  // namespace memory_estimator_internal
 
-// Estimates the amount of memory used by multiple objects which may share their
-// subobjects (e.g. by reference counting).
-//
-// This is done by traversing the objects and their subobjects, skipping objects
-// already seen. Types participating in the traversal should customize how to
-// perform their part.
+// Estimates the amount of memory owned by multiple objects.
 class MemoryEstimator {
  public:
   // Determines whether `RegisterSubobjects(const T*)` might be considered good:
@@ -80,7 +76,7 @@ class MemoryEstimator {
   // This is not necessarily accurate, in particular traversing a `T` might
   // encounter types which do not have a good estimation, but if this yields
   // `false`, then `RegisterSubobjects()` is most likely an underestimation and
-  // the caller might have some different way to estimate memory.
+  // the caller might need some different way to estimate memory.
   template <typename T>
   struct RegisterSubobjectsIsGood
       : absl::disjunction<
@@ -101,23 +97,15 @@ class MemoryEstimator {
 
   MemoryEstimator() = default;
 
-  MemoryEstimator(const MemoryEstimator& that);
-  MemoryEstimator& operator=(const MemoryEstimator& that);
+  MemoryEstimator(const MemoryEstimator&) = delete;
+  MemoryEstimator& operator=(const MemoryEstimator&) = delete;
 
-  MemoryEstimator(MemoryEstimator&& that) noexcept;
-  MemoryEstimator& operator=(MemoryEstimator&& that) noexcept;
-
-  ~MemoryEstimator();
-
-  // If `true`, the results are less likely to depend on the behavior of the
-  // memory allocator. This is useful for testing.
-  void set_deterministic_for_testing(bool deterministic_for_testing) {
-    deterministic_for_testing_ = deterministic_for_testing;
-  }
-  bool deterministic_for_testing() const { return deterministic_for_testing_; }
+  virtual ~MemoryEstimator() = default;
 
   // Registers the given amount of memory as used.
-  void RegisterMemory(size_t memory);
+  void RegisterMemory(size_t memory) {
+    total_memory_ = SaturatingAdd(total_memory_, memory);
+  }
 
   // Registers the given length of a block of dynamically allocated memory as
   // used. The length should correspond to a single allocation. The actual
@@ -125,8 +113,12 @@ class MemoryEstimator {
   //
   // If the address of the allocated memory is provided, it might be used for a
   // better estimation.
-  void RegisterDynamicMemory(const void* ptr, size_t memory);
-  void RegisterDynamicMemory(size_t memory);
+  void RegisterDynamicMemory(const void* ptr, size_t memory) {
+    RegisterDynamicMemoryImpl(ptr, memory);
+  }
+  void RegisterDynamicMemory(size_t memory) {
+    RegisterDynamicMemoryImpl(memory);
+  }
 
   // Begins registering an object which might be shared by other objects.
   //
@@ -139,7 +131,7 @@ class MemoryEstimator {
   // caller should register its memory and subobjects.
   //
   // If `ptr == nullptr` then always returns `false`.
-  bool RegisterNode(const void* ptr);
+  bool RegisterNode(const void* ptr) { return RegisterNodeImpl(ptr); }
 
   // Adds `T` to the stored set of unknown types, to be returned by
   // `UnknownTypes()`.
@@ -186,7 +178,8 @@ class MemoryEstimator {
   // is trivially destructible and does not need to be registered.
   //
   // Predefined customizations include:
-  //  * `std::unique_ptr<T, Deleter>` (`Deleter` is ignored)
+  //  * `T[size]`
+  //  * `std::unique_ptr<T, Deleter>`
   //  * `std::shared_ptr<T>`
   //  * `std::basic_string<Char, Traits, Alloc>` (`Alloc` is ignored)
   //  * `absl::Cord`
@@ -219,6 +212,88 @@ class MemoryEstimator {
   // Returns the total amount of memory added.
   size_t TotalMemory() const { return total_memory_; }
 
+ protected:
+  virtual void RegisterDynamicMemoryImpl(const void* ptr, size_t memory) = 0;
+  virtual void RegisterDynamicMemoryImpl(size_t memory) = 0;
+  virtual bool RegisterNodeImpl(const void* ptr) = 0;
+  virtual void RegisterUnknownTypeImpl() = 0;
+  virtual void RegisterUnknownTypeImpl(std::type_index index) = 0;
+
+ private:
+  size_t total_memory_ = 0;
+};
+
+// A `MemoryEstimator` which gives a pretty good estimate for known types.
+//
+//  * Includes memory allocator overhead.
+//  * Takes object sharing into account.
+//  * Does not report unknown types.
+class MemoryEstimatorDefault : public MemoryEstimator {
+ public:
+  MemoryEstimatorDefault() = default;
+
+  MemoryEstimatorDefault(const MemoryEstimatorDefault& that) = delete;
+  MemoryEstimatorDefault& operator=(const MemoryEstimatorDefault& that) =
+      delete;
+
+ protected:
+  void RegisterDynamicMemoryImpl(const void* ptr, size_t memory) override {
+    RegisterMemory(EstimatedAllocatedSize(ptr, memory));
+  }
+  void RegisterDynamicMemoryImpl(size_t memory) override {
+    RegisterMemory(EstimatedAllocatedSize(memory));
+  }
+  bool RegisterNodeImpl(const void* ptr) override;
+  void RegisterUnknownTypeImpl() override {}
+  void RegisterUnknownTypeImpl(std::type_index index) override {}
+
+ private:
+  absl::flat_hash_set<const void*> objects_seen_;
+};
+
+// A faster but less accurate `MemoryEstimator`.
+//
+//  * Does not include memory allocator overhead.
+//  * Does not take object sharing into account (if an object is shared then
+//    it is counted multiple times).
+//  * Does not report unknown types.
+class MemoryEstimatorSimplified : public MemoryEstimator {
+ public:
+  MemoryEstimatorSimplified() = default;
+
+  MemoryEstimatorSimplified(const MemoryEstimatorSimplified&) = delete;
+  MemoryEstimatorSimplified& operator=(const MemoryEstimatorSimplified&) =
+      delete;
+
+ protected:
+  void RegisterDynamicMemoryImpl(const void* ptr, size_t memory) override {
+    RegisterMemory(memory);
+  }
+  void RegisterDynamicMemoryImpl(size_t memory) override {
+    RegisterMemory(memory);
+  }
+  bool RegisterNodeImpl(const void* ptr) override { return ptr != nullptr; }
+  void RegisterUnknownTypeImpl() override {}
+  void RegisterUnknownTypeImpl(std::type_index index) override {}
+};
+
+// A `MemoryEstimator` which can report encountered types for which
+// `RegisterSubobjects()` is not customized and which are not trivially
+// destructible, indicating whether interesting customizations are missing and
+// results are underestimated. Otherwise behaves like `MemoryEstimatorDefault`.
+//
+//  * Includes memory allocator overhead.
+//  * Takes object sharing into account.
+//  * Reports unknown types.
+class MemoryEstimatorReportingUnknownTypes : public MemoryEstimatorDefault {
+ public:
+  MemoryEstimatorReportingUnknownTypes() = default;
+
+  MemoryEstimatorReportingUnknownTypes(
+      const MemoryEstimatorReportingUnknownTypes&) = delete;
+  MemoryEstimatorReportingUnknownTypes& operator=(
+      const MemoryEstimatorReportingUnknownTypes&) = delete;
+
   // Returns names of encountered types for which `RegisterSubobjects()` is not
   // customized and which are not trivially destructible. If the result is not
   // empty, this likely indicates that interesting customizations are missing
@@ -227,29 +302,63 @@ class MemoryEstimator {
   // If RTTI is not available, "<no rtti>" is returned as a placeholder.
   std::vector<std::string> UnknownTypes() const;
 
- private:
-  void RegisterUnknownTypeImpl(std::type_index index);
+ protected:
+  void RegisterUnknownTypeImpl() override;
+  void RegisterUnknownTypeImpl(std::type_index index) override;
 
-  bool deterministic_for_testing_ = false;
+ private:
   bool unknown_types_no_rtti_ = false;
-  size_t total_memory_ = 0;
-  absl::flat_hash_set<const void*> objects_seen_;
   absl::flat_hash_set<std::type_index> unknown_types_;
 };
 
-// Implementation details follow.
-
-inline void MemoryEstimator::RegisterMemory(size_t memory) {
-  total_memory_ = SaturatingAdd(total_memory_, memory);
+// Uses `MemoryEstimatorDefault` to estimate memory owned by a single object
+// and its subobjects, including `sizeof` the original object.
+template <typename T>
+inline size_t EstimateMemory(const T& object) {
+  MemoryEstimatorDefault memory_estimator;
+  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
+  memory_estimator.RegisterSubobjects(&object);
+  return memory_estimator.TotalMemory();
 }
+
+// Uses `MemoryEstimatorSimplified` to estimate memory owned by a single object
+// and its subobjects, including `sizeof` the original object.
+template <typename T>
+inline size_t EstimateMemorySimplified(const T& object) {
+  MemoryEstimatorSimplified memory_estimator;
+  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
+  memory_estimator.RegisterSubobjects(&object);
+  return memory_estimator.TotalMemory();
+}
+
+// Uses `MemoryEstimatorReportingUnknownTypes` to estimate memory owned by a
+// single object and its subobjects, including `sizeof` the original object, and
+// unknown types.
+
+struct TotalMemoryWithUnknownTypes {
+  size_t total_memory;
+  std::vector<std::string> unknown_types;
+};
+
+template <typename T>
+inline TotalMemoryWithUnknownTypes EstimateMemoryReportingUnknownTypes(
+    const T& object) {
+  MemoryEstimatorReportingUnknownTypes memory_estimator;
+  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
+  memory_estimator.RegisterSubobjects(&object);
+  return TotalMemoryWithUnknownTypes{memory_estimator.TotalMemory(),
+                                     memory_estimator.UnknownTypes()};
+}
+
+// Implementation details follow.
 
 template <typename T>
 inline void MemoryEstimator::RegisterUnknownType() {
+  RegisterUnknownTypeImpl(
 #if __cpp_rtti
-  RegisterUnknownTypeImpl(std::type_index(typeid(T)));
-#else
-  unknown_types_no_rtti_ = true;
+      std::type_index(typeid(T))
 #endif
+  );
 }
 
 namespace memory_estimator_internal {
@@ -326,8 +435,14 @@ inline void MemoryEstimator::RegisterSubobjects(Iterator begin, Iterator end) {
 
 template <typename T>
 inline void MemoryEstimator::RegisterDynamicObject(const T* object) {
-  RegisterDynamicMemory(object, DynamicSizeOf(object));
+  RegisterDynamicMemory(object, MemoryEstimator::DynamicSizeOf(object));
   RegisterSubobjects(object);
+}
+
+template <typename T, size_t size>
+inline void RiegeliRegisterSubobjects(const T (*self)[size],
+                                      MemoryEstimator& memory_estimator) {
+  memory_estimator.RegisterSubobjects(*self + 0, *self + size);
 }
 
 template <
@@ -337,6 +452,7 @@ template <
                      int> = 0>
 inline void RiegeliRegisterSubobjects(const std::unique_ptr<T, Deleter>* self,
                                       MemoryEstimator& memory_estimator) {
+  memory_estimator.RegisterSubobjects<Deleter>(&self->get_deleter());
   if (*self != nullptr) memory_estimator.RegisterDynamicObject(self->get());
 }
 

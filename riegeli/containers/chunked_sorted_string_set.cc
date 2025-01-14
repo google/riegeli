@@ -33,7 +33,6 @@
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
-#include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/containers/linear_sorted_string_set.h"
@@ -119,13 +118,6 @@ StrongOrdering ChunkedSortedStringSet::Compare(
     ++b_iter;
   }
   return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
-}
-
-size_t ChunkedSortedStringSet::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(ChunkedSortedStringSet));
-  memory_estimator.RegisterSubobjects(this);
-  return memory_estimator.TotalMemory();
 }
 
 size_t ChunkedSortedStringSet::EncodedSize() const {

@@ -21,7 +21,6 @@
 #include <cstring>
 #include <iosfwd>
 #include <limits>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -307,17 +306,6 @@ class
   }
 
   // Supports `ExternalRef`.
-  friend size_t RiegeliExternalMemory(const CompactString* self) {
-    const uintptr_t tag = self->repr_ & kTagMask;
-    RIEGELI_ASSUME_NE(tag, kInlineTag)
-        << "Failed precondition of "
-           "RiegeliExternalMemory(const CompactString*): "
-           "case excluded by RiegeliExternalCopy()";
-    const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
-    return offset + self->allocated_capacity_for_tag(tag);
-  }
-
-  // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(CompactString* self) {
     return ExternalStorage(
         reinterpret_cast<void*>(std::exchange(self->repr_, kInlineTag)),
@@ -325,7 +313,7 @@ class
           const uintptr_t repr = reinterpret_cast<uintptr_t>(ptr);
           RIEGELI_ASSUME_NE(repr & kTagMask, kInlineTag)
               << "Failed precondition of "
-                 "RiegeliExternalStorage(CompactString*): "
+                 "RiegeliToExternalStorage(CompactString*): "
                  "case excluded by RiegeliExternalCopy()";
           DeleteRepr(repr);
         });

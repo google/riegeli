@@ -396,17 +396,6 @@ cc_library(
 )
 
 cc_library(
-    name = "external_ref_support",
-    hdrs = ["external_ref_support.h"],
-    deps = [
-        ":external_data",
-        ":to_string_view",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
-)
-
-cc_library(
     name = "shared_ptr",
     hdrs = [
         "intrusive_shared_ptr.h",
@@ -420,7 +409,6 @@ cc_library(
         ":compare",
         ":constexpr",
         ":external_data",
-        ":external_ref_support",
         ":initializer",
         ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
@@ -482,6 +470,7 @@ cc_library(
         "chain_base.h",
         "chain_details.h",
         "external_ref_base.h",
+        "external_ref_support.h",
     ],
     visibility = ["//visibility:private"],
     deps = [
@@ -491,7 +480,6 @@ cc_library(
         ":compare",
         ":cord_utils",
         ":external_data",
-        ":external_ref_support",
         ":initializer",
         ":memory_estimator",
         ":new_aligned",
@@ -513,19 +501,13 @@ cc_library(
 cc_library(
     name = "chain",
     hdrs = ["chain.h"],
-    deps = [
-        ":chain_and_external_ref",
-        ":external_ref_support",
-    ],
+    deps = [":chain_and_external_ref"],
 )
 
 cc_library(
     name = "external_ref",
     hdrs = ["external_ref.h"],
-    deps = [
-        ":chain_and_external_ref",
-        ":external_ref_support",
-    ],
+    deps = [":chain_and_external_ref"],
 )
 
 cc_library(

@@ -230,11 +230,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     return self.HashValue(std::move(hash_state));
   }
 
-  // Estimates the amount of memory used by this `LinearSortedStringSet`,
-  // including `sizeof(LinearSortedStringSet)`.
-  size_t EstimateMemory() const;
-
-  // Supports `EstimateMemory()`.
+  // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const LinearSortedStringSet* self,
                                         MemoryEstimator& memory_estimator) {

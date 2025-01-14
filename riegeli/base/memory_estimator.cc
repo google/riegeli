@@ -26,73 +26,25 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
-#include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
 
-MemoryEstimator::~MemoryEstimator() = default;
-
-MemoryEstimator::MemoryEstimator(const MemoryEstimator& that)
-    : deterministic_for_testing_(that.deterministic_for_testing_),
-      unknown_types_no_rtti_(that.unknown_types_no_rtti_),
-      total_memory_(that.total_memory_),
-      objects_seen_(that.objects_seen_),
-      unknown_types_(that.unknown_types_) {}
-
-MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& that) {
-  deterministic_for_testing_ = that.deterministic_for_testing_;
-  unknown_types_no_rtti_ = that.unknown_types_no_rtti_;
-  total_memory_ = that.total_memory_;
-  objects_seen_ = that.objects_seen_;
-  unknown_types_ = that.unknown_types_;
-  return *this;
-}
-
-MemoryEstimator::MemoryEstimator(MemoryEstimator&& that) noexcept
-    : deterministic_for_testing_(
-          std::exchange(that.deterministic_for_testing_, false)),
-      unknown_types_no_rtti_(std::exchange(that.unknown_types_no_rtti_, false)),
-      total_memory_(std::exchange(that.total_memory_, 0)),
-      objects_seen_(std::exchange(that.objects_seen_,
-                                  absl::flat_hash_set<const void*>())),
-      unknown_types_(std::exchange(that.unknown_types_,
-                                   absl::flat_hash_set<std::type_index>())) {}
-
-MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
-  deterministic_for_testing_ =
-      std::exchange(that.deterministic_for_testing_, false);
-  unknown_types_no_rtti_ = std::exchange(that.unknown_types_no_rtti_, false);
-  total_memory_ = std::exchange(that.total_memory_, 0);
-  objects_seen_ =
-      std::exchange(that.objects_seen_, absl::flat_hash_set<const void*>());
-  unknown_types_ = std::exchange(that.unknown_types_,
-                                 absl::flat_hash_set<std::type_index>());
-  return *this;
-}
-
-void MemoryEstimator::RegisterDynamicMemory(const void* ptr, size_t memory) {
-  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
-                     ? EstimatedAllocatedSizeForTesting(memory)
-                     : EstimatedAllocatedSize(ptr, memory));
-}
-
-void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
-  RegisterMemory(ABSL_PREDICT_FALSE(deterministic_for_testing())
-                     ? EstimatedAllocatedSizeForTesting(memory)
-                     : EstimatedAllocatedSize(memory));
-}
-
-bool MemoryEstimator::RegisterNode(const void* ptr) {
+bool MemoryEstimatorDefault::RegisterNodeImpl(const void* ptr) {
   return ptr != nullptr && objects_seen_.insert(ptr).second;
 }
 
-void MemoryEstimator::RegisterUnknownTypeImpl(std::type_index index) {
+void MemoryEstimatorReportingUnknownTypes::RegisterUnknownTypeImpl() {
+  unknown_types_no_rtti_ = true;
+}
+
+void MemoryEstimatorReportingUnknownTypes::RegisterUnknownTypeImpl(
+    std::type_index index) {
   unknown_types_.insert(index);
 }
 
-std::vector<std::string> MemoryEstimator::UnknownTypes() const {
+std::vector<std::string> MemoryEstimatorReportingUnknownTypes::UnknownTypes()
+    const {
   std::vector<std::string> result;
   result.reserve((unknown_types_no_rtti_ ? 1 : 0) + unknown_types_.size());
   if (unknown_types_no_rtti_) result.emplace_back("<no rtti>");

@@ -20,7 +20,6 @@
 #include <stddef.h>
 
 #include <functional>
-#include <limits>
 #include <memory>
 #include <new>  // IWYU pragma: keep
 #include <type_traits>
@@ -126,26 +125,12 @@ namespace riegeli {
 //
 //   // If this returns `true`, the data will be copied instead of wrapping the
 //   // object. The data does not need to be stable while the object is moved.
-//   // `RiegeliExternalMemory()`, `RiegeliToChainBlock()`, `RiegeliToCord()`,
-//   // `RiegeliToExternalData()`, `RiegeliToExternalStorage()`, nor
-//   // `RiegeliExternalDelegate()` will not be called.
+//   // `RiegeliToChainBlock()`, `RiegeliToCord()`, `RiegeliToExternalData()`,
+//   // `RiegeliToExternalStorage()`, nor `RiegeliExternalDelegate()` will not
+//   // be called.
 //   //
 //   // Typically this indicates an object with short data stored inline.
 //   friend bool RiegeliExternalCopy(const T* self) { return false; }
-//
-//   // Returns an approximate amount of memory allocated by the object,
-//   // excluding data stored inside the object itself.
-//   //
-//   // When deciding whether to share an object or copy its data,
-//   // `ExternalRef` uses a heuristic involving the amount of allocated memory
-//   // and used memory to determine whether the object is considered wasteful,
-//   // and avoids sharing wasteful objects.
-//   //
-//   // This can be a faster but less accurate estimate than `MemoryEstimator`
-//   // with `RiegeliRegisterSubobjects()`. It considers only a single object
-//   // with flat data, and normally does not take memory allocator overhead
-//   // into account.
-//   friend size_t RiegeliExternalMemory(const T* self);
 //
 //   // Converts `*self` or its `substr` to `Chain::Block`, if this can be done
 //   // more efficiently than with `Chain::Block` constructor. Can modify
@@ -242,6 +227,10 @@ namespace riegeli {
 // `substr` parameter passed to `ExternalRef` constructor. Having `substr`
 // available in these functions might avoid storing `substr` in the external
 // object.
+//
+// If `MemoryEstimator` is supported by customizing
+// `RiegeliRegisterSubobjects()`, it is used to determine whether the object
+// is considered wasteful, to avoid embedding wasteful objects.
 class ExternalRef {
  private:
   using UseStringViewFunction = void (*)(void* context, absl::string_view data);
@@ -249,48 +238,9 @@ class ExternalRef {
   using UseCordFunction = void (*)(void* context, absl::Cord data);
   using UseExternalDataFunction = void (*)(void* context, ExternalData data);
 
-  template <typename T, typename Enable = void>
-  struct HasRiegeliExternalMemory : std::false_type {};
-
-  template <typename T>
-  struct HasRiegeliExternalMemory<
-      T, std::is_convertible<
-             decltype(RiegeliExternalMemory(std::declval<const T*>())), size_t>>
-      : std::true_type {};
-
-  template <typename T,
-            std::enable_if_t<HasRiegeliExternalMemory<T>::value, int> = 0>
-  static size_t ExternalMemory(const T& object) {
-    return RiegeliExternalMemory(&object);
-  }
-
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<HasRiegeliExternalMemory<T>>,
-                                  SupportsToStringView<T>>::value,
-                int> = 0>
-  static size_t ExternalMemory(const T& object) {
-    return riegeli::ToStringView(object).size();
-  }
-
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliExternalMemory<T>>,
-                            absl::negation<SupportsToStringView<T>>>::value,
-          int> = 0>
-  static size_t ExternalMemory(ABSL_ATTRIBUTE_UNUSED const T& object) {
-    return 0;
-  }
-
   template <typename T>
   static bool Wasteful(const T& object, size_t used) {
-    size_t allocated = ExternalMemory(&object);
-    RIEGELI_ASSERT_LE(allocated, std::numeric_limits<size_t>::max() - sizeof(T))
-        << "Result of RiegeliExternalMemory() "
-           "suspiciously close to size_t range";
-    allocated += sizeof(T);
-    return allocated >= used && riegeli::Wasteful(allocated, used);
+    return riegeli::Wasteful(riegeli::EstimateMemorySimplified(object), used);
   }
 
   template <typename T, typename Enable = void>

@@ -37,7 +37,6 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
-#include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -271,13 +270,6 @@ StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
     ++b_iter;
   }
   return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
-}
-
-size_t LinearSortedStringSet::EstimateMemory() const {
-  MemoryEstimator memory_estimator;
-  memory_estimator.RegisterMemory(sizeof(LinearSortedStringSet));
-  memory_estimator.RegisterSubobjects(this);
-  return memory_estimator.TotalMemory();
 }
 
 absl::Status LinearSortedStringSet::EncodeImpl(Writer& dest) const {

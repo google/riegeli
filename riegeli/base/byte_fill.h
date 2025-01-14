@@ -213,10 +213,6 @@ class ByteFill::LargeBlock {
   //  * `ExternalRef(LargeBlock&&, substr)`
   friend void RiegeliSupportsExternalRef(const LargeBlock*) {}
 
-  // `RiegeliExternalMemory()` is intentionally not defined so that a
-  // `LargeBlock` is never considered wasteful. Even if a substring of it is
-  // shared, the whole `LargeBlock` is shared nearby.
-
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(LargeBlock* self) {
     return RiegeliToExternalStorage(&self->buffer_);

@@ -30,7 +30,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
-#include "riegeli/base/external_ref_support.h"  // IWYU pragma: keep
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ref_count.h"
@@ -223,16 +222,6 @@ class
   //  * `ExternalRef(const SharedPtr&, substr)`
   //  * `ExternalRef(SharedPtr&&, substr)`
   friend void RiegeliSupportsExternalRef(const SharedPtr*) {}
-
-  // Supports `ExternalRef`.
-  friend size_t RiegeliExternalMemory(const SharedPtr* self) {
-    static constexpr size_t kOffset =
-        !std::has_virtual_destructor<T>::value
-            ? RoundUp<alignof(T)>(sizeof(RefCount))
-            : RoundUp<alignof(T)>(sizeof(Control));
-    if (*self == nullptr) return 0;
-    return kOffset + sizeof(T) + RiegeliExternalMemory(self->get());
-  }
 
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedPtr* self) {
