@@ -67,3 +67,18 @@ cc_library(
         "@local_config_tf//:tf_header_lib",
     ],
 )
+
+cc_library(
+    name = "tstring_writer",
+    hdrs = ["tstring_writer.h"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
+        "//riegeli/base:object",
+        "//riegeli/bytes:resizable_writer",
+        "@com_google_absl//absl/meta:type_traits",
+        "@local_config_tf//:tf_header_lib",
+    ],
+)
